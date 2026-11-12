@@ -101,7 +101,7 @@ func installStableJobs(ctx HookContext) (err error) {
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.
 func loadStableJob(ctx context.Context, client *launchd.Client, label string) error {
-	definition, err := embedded.GetLaunchdJob(label)
+	definition, err := embedded.GetLaunchdJob(label, embedded.LaunchdStable)
 	if err != nil {
 		return fmt.Errorf("failed to read job definition %s: %w", label, err)
 	}

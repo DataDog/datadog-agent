@@ -128,7 +128,7 @@ func assertMacosInstallerPostinstSucceeded(t *testing.T, client *common.MacOSTes
 func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	for _, label := range macosStableLaunchDaemons {
 		plist := macosLaunchDaemonPath(label)
-		expected, err := embedded.GetLaunchdJob(label)
+		expected, err := embedded.GetLaunchdJob(label, embedded.LaunchdStable)
 		require.NoError(t, err)
 		installed := macosReadRemoteFile(t, client, plist)
 		assert.Equal(t, string(expected), installed, "%s differs from the definition the installer embeds", plist)

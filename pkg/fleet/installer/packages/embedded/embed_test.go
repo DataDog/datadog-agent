@@ -141,38 +141,114 @@ var launchdStableJobs = []string{
 	"com.datadoghq.installer",
 }
 
-// TestGetLaunchdJobEmbedsTheStableSet ensures every stable launchd job is actually compiled in,
-// and that the definitions are property lists rather than whatever the template happened to emit.
-func TestGetLaunchdJobEmbedsTheStableSet(t *testing.T) {
+// launchdExperimentJobs are the launchd jobs a configuration experiment swaps for their -exp
+// variant. The process manager is never part of an experiment.
+var launchdExperimentJobs = []string{
+	"com.datadoghq.agent",
+	"com.datadoghq.sysprobe",
+	"com.datadoghq.data-plane",
+	"com.datadoghq.installer",
+}
+
+// TestGetLaunchdJobEmbedsBothSets ensures every launchd job is actually compiled in, in both
+// variants, and that the definitions are property lists rather than whatever the template
+// happened to emit.
+func TestGetLaunchdJobEmbedsBothSets(t *testing.T) {
 	entries, err := launchdJobs.ReadDir("tmpl/gen/darwin")
 	require.NoError(t, err)
 	var embedded []string
 	for _, entry := range entries {
 		embedded = append(embedded, strings.TrimSuffix(entry.Name(), ".plist"))
 	}
-	assert.ElementsMatch(t, launchdStableJobs, embedded)
+	var expected []string
+	expected = append(expected, launchdStableJobs...)
+	for _, label := range launchdExperimentJobs {
+		expected = append(expected, label+string(LaunchdExperiment))
+	}
+	assert.ElementsMatch(t, expected, embedded)
+
+	stable, err := LaunchdJobs(LaunchdStable)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, launchdStableJobs, stable)
+	experiment, err := LaunchdJobs(LaunchdExperiment)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, launchdExperimentJobs, experiment)
 
 	for _, label := range launchdStableJobs {
 		t.Run(label, func(t *testing.T) {
-			content, err := GetLaunchdJob(label)
+			content, err := GetLaunchdJob(label, LaunchdStable)
 			require.NoError(t, err)
 			assert.NotEmpty(t, content)
 
 			assertPropertyList(t, content)
 			// RunAtLoad is what starts the job at boot with no login session, so it is
-			// required on every definition rather than merely typical of them.
+			// required on every stable definition rather than merely typical of them.
 			assert.Regexp(t, `<key>RunAtLoad</key>\s*<true/>`, string(content))
-			// Every job is supervised: launchd relaunches a job that exits unsuccessfully.
+			// Every stable job is supervised: launchd relaunches a job that exits unsuccessfully.
 			assert.Contains(t, string(content), "KeepAlive")
 			assert.Contains(t, string(content), fmt.Sprintf("<string>%s</string>", label))
 		})
 	}
+	for _, label := range launchdExperimentJobs {
+		t.Run(label+string(LaunchdExperiment), func(t *testing.T) {
+			content, err := GetLaunchdJob(label, LaunchdExperiment)
+			require.NoError(t, err)
+			assertPropertyList(t, content)
+			assert.Contains(t, string(content), fmt.Sprintf("<string>%s</string>", label+string(LaunchdExperiment)))
+		})
+	}
+}
+
+// TestLaunchdExperimentJobsAreNotSupervised is the property the config experiment's failure
+// detection rests on: launchd must never start or relaunch an experiment job by itself, so an
+// -exp exit is a terminal event rather than one iteration of a respawn loop, and a reboot
+// mid-experiment brings back only the stable set.
+func TestLaunchdExperimentJobsAreNotSupervised(t *testing.T) {
+	for _, label := range launchdExperimentJobs {
+		t.Run(label, func(t *testing.T) {
+			experiment, err := GetLaunchdJob(label, LaunchdExperiment)
+			require.NoError(t, err)
+			assert.NotContains(t, string(experiment), "KeepAlive")
+			assert.Regexp(t, `<key>RunAtLoad</key>\s*<false/>`, string(experiment))
+		})
+	}
+	_, err := GetLaunchdJob("com.datadoghq.procmgr", LaunchdExperiment)
+	assert.Error(t, err, "the process manager must have no experiment variant")
+	installer, err := GetLaunchdJob("com.datadoghq.installer", LaunchdExperiment)
+	require.NoError(t, err)
+	assert.Regexp(t, `<key>DD_INSTALLER_EXPERIMENT_DAEMON</key>\s*<string>true</string>`, string(installer),
+		"the experiment daemon must know it is one")
+	stable, err := GetLaunchdJob("com.datadoghq.installer", LaunchdStable)
+	require.NoError(t, err)
+	assert.NotContains(t, string(stable), "DD_INSTALLER_EXPERIMENT_DAEMON")
+}
+
+// TestLaunchdExperimentJobsReadTheExperimentConfig pins that an experiment job reads etc-exp
+// everywhere the stable job reads etc, and logs to its own file.
+func TestLaunchdExperimentJobsReadTheExperimentConfig(t *testing.T) {
+	for _, label := range launchdExperimentJobs {
+		t.Run(label, func(t *testing.T) {
+			stable, err := GetLaunchdJob(label, LaunchdStable)
+			require.NoError(t, err)
+			experiment, err := GetLaunchdJob(label, LaunchdExperiment)
+			require.NoError(t, err)
+			assert.NotContains(t, string(experiment), "/opt/datadog-agent/etc/")
+			assert.NotContains(t, string(experiment), "<string>/opt/datadog-agent/etc</string>")
+			assert.Contains(t, string(experiment), "/opt/datadog-agent/etc-exp")
+			assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/[a-z_]+-exp\.log</string>`, string(experiment))
+			assert.NotContains(t, string(stable), "-exp")
+		})
+	}
+	agent, err := GetLaunchdJob("com.datadoghq.agent", LaunchdExperiment)
+	require.NoError(t, err)
+	assert.Regexp(t, `<key>DD_CONFD_PATH</key>\s*<string>/opt/datadog-agent/etc-exp/conf.d</string>`, string(agent),
+		"the Agent's default conf.d is under etc, so the experiment must name its own")
 }
 
 func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
 	const etcDir = "/opt/datadog-agent/etc"
 	for _, label := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe"} {
-		content, err := GetLaunchdJob(label)
+		content, err := GetLaunchdJob(label, LaunchdStable)
 		require.NoError(t, err)
 		var plist struct {
 			Args []string `xml:"dict>array>string"`
@@ -197,7 +273,7 @@ func TestLaunchdAgentAndSysprobeReadTheSameConfig(t *testing.T) {
 // Agent's other jobs, leaves run_path to the configuration and writes its pidfile in the Agent's run
 // directory, as on Linux.
 func TestLaunchdInstallerJob(t *testing.T) {
-	content, err := GetLaunchdJob("com.datadoghq.installer")
+	content, err := GetLaunchdJob("com.datadoghq.installer", LaunchdStable)
 	require.NoError(t, err)
 	definition := string(content)
 
