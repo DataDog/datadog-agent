@@ -17,6 +17,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
+func TestMetricGaugeReturnEncoding(t *testing.T) {
+	for _, typ := range []ir.Type{
+		&ir.DurationType{},
+		&ir.BaseType{GoTypeAttributes: ir.GoTypeAttributes{GoKind: reflect.Int64}},
+	} {
+		probe := &ir.Probe{
+			ProbeDefinition: &rcjson.MetricProbe{Kind: "GAUGE"},
+			Instances: []ir.ProbeInstance{{Events: []*ir.Event{
+				{Kind: ir.EventKindEntry, Type: &ir.EventRootType{}},
+				{Kind: ir.EventKindReturn, Type: &ir.EventRootType{Expressions: []*ir.RootExpression{{
+					Kind: ir.RootExpressionKindMetricValue, Expression: ir.Expression{Type: typ},
+				}}}},
+			}}},
+		}
+		require.True(t, populateMetricGaugeEncoding(probe).IsNone())
+		require.Equal(t, ir.MetricEncoding(typ), probe.GaugeValueEncoding)
+	}
+}
+
 func TestMetricGaugeTypes(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -46,11 +65,13 @@ func TestMetricGaugeTypes(t *testing.T) {
 					}}},
 				}}})
 			}
-			issue := checkMetricGaugeTypes(probe)
+			issue := populateMetricGaugeEncoding(probe)
 			require.Equal(t, tc.compatible, issue.IsNone(), "%v", issue)
 			if !tc.compatible {
 				require.Equal(t, ir.IssueKindUnsupportedFeature, issue.Kind)
 				require.Contains(t, issue.Message, "incompatible gauge value types")
+			} else {
+				require.Equal(t, ir.MetricEncoding(probe.Instances[0].Events[0].Type.Expressions[0].Expression.Type), probe.GaugeValueEncoding)
 			}
 		})
 	}

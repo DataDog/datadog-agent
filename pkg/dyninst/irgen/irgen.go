@@ -1735,7 +1735,7 @@ func analyzeAllProbes(
 			// silently never moves is worse than an error status.
 			if mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition); ok {
 				valueExpr, issue := analyzeMetricValue(
-					mp, inst, varByName, red, haveEntry, entryIPs, returnVars, returnDisplayNames,
+					mp, inst, varByName, red, returnVars, returnDisplayNames,
 				)
 				if !issue.IsNone() {
 					ap.metricIssue = issue
@@ -1751,16 +1751,9 @@ func analyzeAllProbes(
 				rootVar *ir.Variable,
 			) (ir.EventKind, bool) {
 				events := inst.Events
-				if metricEvaluatesAtReturn(probe.ProbeDefinition) {
-					for _, event := range events {
-						if event.Kind == ir.EventKindReturn && rootVar.Role != ir.VariableRoleDuration {
-							if !variableIsAvailable(event.InjectionPoints, rootVar) ||
-								(isFloatType(rootVar) && floatIsRegisterOnly(event.InjectionPoints, rootVar)) {
-								return 0, false
-							}
-						}
-					}
-					return ir.EventKindReturn, true
+				if probe.GetKind() == ir.ProbeKindMetric {
+					kind, reason := metricExpressionEvent(inst, metricEvaluatesAtReturn(probe.ProbeDefinition), rootVar)
+					return kind, reason == ""
 				}
 				switch {
 				case rootVar.Role == ir.VariableRoleDuration:
@@ -8111,7 +8104,7 @@ func populateProbeEventsExpressions(
 	for _, probe := range probes {
 		issue, failed2 := failedProbes[probe]
 		if !failed2 {
-			issue = checkMetricGaugeTypes(probe)
+			issue = populateMetricGaugeEncoding(probe)
 		}
 		if !issue.IsNone() {
 			failed = append(failed, ir.ProbeIssue{

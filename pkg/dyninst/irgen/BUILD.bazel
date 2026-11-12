@@ -70,6 +70,7 @@ dd_agent_go_test(
         "irgen_test.go",
         "issues_test.go",
         "main_test.go",
+        "metric_expression_test.go",
         "metric_probes_test.go",
         "metric_types_test.go",
         "moduledata_test.go",

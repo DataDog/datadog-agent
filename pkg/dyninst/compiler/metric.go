@@ -9,7 +9,6 @@ package compiler
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -83,17 +82,12 @@ func makeMetricUpdateOp(
 // metricValueKind says how the BPF program should interpret a metric value
 // of the given type.
 func metricValueKind(t ir.Type) (MetricValueKind, error) {
-	if _, duration := t.(*ir.DurationType); duration {
+	switch ir.MetricEncoding(t) {
+	case ir.MetricValueSigned, ir.MetricValueDuration:
 		return MetricValueSigned, nil
-	}
-	goKind, _ := t.GetGoKind()
-	switch goKind {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return MetricValueSigned, nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Uintptr, reflect.Bool:
+	case ir.MetricValueUnsigned:
 		return MetricValueUnsigned, nil
-	case reflect.Float32, reflect.Float64:
+	case ir.MetricValueFloat32, ir.MetricValueFloat64:
 		return MetricValueFloat, nil
 	default:
 		return 0, fmt.Errorf("unsupported metric value type %s", t.GetName())

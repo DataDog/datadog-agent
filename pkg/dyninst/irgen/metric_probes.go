@@ -10,7 +10,6 @@ package irgen
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
@@ -63,8 +62,6 @@ func analyzeMetricValue(
 	inst *ir.ProbeInstance,
 	varByName map[string]*ir.Variable,
 	red *redaction.Config,
-	haveEntry bool,
-	entryIPs []ir.InjectionPoint,
 	returnVars []*ir.Variable,
 	returnDisplayNames map[*ir.Variable]string,
 ) (*analyzedExpression, ir.Issue) {
@@ -115,51 +112,9 @@ func analyzeMetricValue(
 	if rootVar == nil {
 		return invalid("metric value %q references unknown variable %q", dsl, rootName)
 	}
-	var eventKind ir.EventKind
-	switch {
-	case exit:
-		for _, event := range inst.Events {
-			if event.Kind != ir.EventKindReturn {
-				continue
-			}
-			if rootVar.Role != ir.VariableRoleDuration && !variableIsAvailable(event.InjectionPoints, rootVar) {
-				return invalid("metric value %q references %q, which is not available at function return", dsl, rootName)
-			}
-			if isFloatType(rootVar) && floatIsRegisterOnly(event.InjectionPoints, rootVar) {
-				return invalid("metric value %q references %q, which is in a floating-point register and can't be read at function return", dsl, rootName)
-			}
-		}
-		eventKind = ir.EventKindReturn
-	case haveEntry && rootVar.Role == ir.VariableRoleParameter:
-		if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
-			return invalid(
-				"metric value %q references %q, which is passed in a floating-point "+
-					"register and can't be read at function entry",
-				dsl, rootName,
-			)
-		}
-		eventKind = ir.EventKindEntry
-	case len(inst.Events) == 1 && inst.Events[0].Kind == ir.EventKindLine:
-		ips := inst.Events[0].InjectionPoints
-		if !variableIsAvailable(ips, rootVar) {
-			return invalid(
-				"metric value %q references %q, which is not available at this line",
-				dsl, rootName,
-			)
-		}
-		if isFloatType(rootVar) && floatIsRegisterOnly(ips, rootVar) {
-			return invalid(
-				"metric value %q references %q, which is in a floating-point "+
-					"register and can't be read at this line",
-				dsl, rootName,
-			)
-		}
-		eventKind = ir.EventKindLine
-	default:
-		return invalid(
-			"metric value %q references %q, which is not available at function entry",
-			dsl, rootName,
-		)
+	eventKind, reason := metricExpressionEvent(inst, exit, rootVar)
+	if reason != "" {
+		return invalid("metric value %q references %q, %s", dsl, rootName, reason)
 	}
 	return &analyzedExpression{
 		expr:         parsed,
@@ -171,6 +126,39 @@ func analyzeMetricValue(
 	}, ir.Issue{}
 }
 
+// metricExpressionEvent selects where a metric value or condition can be read.
+func metricExpressionEvent(inst *ir.ProbeInstance, atReturn bool, v *ir.Variable) (ir.EventKind, string) {
+	for _, event := range inst.Events {
+		if atReturn && event.Kind == ir.EventKindReturn {
+			if v.Role != ir.VariableRoleDuration && !variableIsAvailable(event.InjectionPoints, v) {
+				return 0, "which is not available at function return"
+			}
+			if isFloatType(v) && floatIsRegisterOnly(event.InjectionPoints, v) {
+				return 0, "which is in a floating-point register and can't be read at function return"
+			}
+		} else if !atReturn && event.Kind == ir.EventKindEntry && v.Role == ir.VariableRoleParameter {
+			if isFloatType(v) && floatIsRegisterOnly(event.InjectionPoints, v) {
+				return 0, "which is passed in a floating-point register and can't be read at function entry"
+			}
+			return ir.EventKindEntry, ""
+		}
+	}
+	if atReturn {
+		return ir.EventKindReturn, ""
+	}
+	if len(inst.Events) == 1 && inst.Events[0].Kind == ir.EventKindLine {
+		ips := inst.Events[0].InjectionPoints
+		if !variableIsAvailable(ips, v) {
+			return 0, "which is not available at this line"
+		}
+		if isFloatType(v) && floatIsRegisterOnly(ips, v) {
+			return 0, "which is in a floating-point register and can't be read at this line"
+		}
+		return ir.EventKindLine, ""
+	}
+	return 0, "which is not available at function entry"
+}
+
 func metricEvaluatesAtReturn(probe ir.ProbeDefinition) bool {
 	mp, ok := probe.(ir.MetricProbeDefinition)
 	if !ok || !strings.EqualFold(mp.GetEvaluateAt(), "EXIT") {
@@ -180,7 +168,7 @@ func metricEvaluatesAtReturn(probe ir.ProbeDefinition) bool {
 	return function
 }
 
-func checkMetricGaugeTypes(probe *ir.Probe) ir.Issue {
+func populateMetricGaugeEncoding(probe *ir.Probe) ir.Issue {
 	mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition)
 	if !ok || mp.GetMetricKind() != ir.MetricKindGauge {
 		return ir.Issue{}
@@ -195,7 +183,8 @@ func checkMetricGaugeTypes(probe *ir.Probe) ir.Issue {
 				t := expr.Expression.Type
 				if first == nil {
 					first = t
-				} else if metricGaugeEncoding(first) != metricGaugeEncoding(t) {
+					probe.GaugeValueEncoding = ir.MetricEncoding(t)
+				} else if probe.GaugeValueEncoding != ir.MetricEncoding(t) {
 					return ir.Issue{
 						Kind:    ir.IssueKindUnsupportedFeature,
 						Message: fmt.Sprintf("incompatible gauge value types %q and %q across probe instances", first.GetName(), t.GetName()),
@@ -205,18 +194,6 @@ func checkMetricGaugeTypes(probe *ir.Probe) ir.Issue {
 		}
 	}
 	return ir.Issue{}
-}
-
-func metricGaugeEncoding(t ir.Type) reflect.Kind {
-	kind, _ := t.GetGoKind()
-	switch kind {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return reflect.Int64
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Bool:
-		return reflect.Uint64
-	default:
-		return kind
-	}
 }
 
 func checkExpressionTypeRedaction(t ir.Type, tc *typeCatalog, red *redaction.Config) error {
@@ -250,22 +227,17 @@ func checkExpressionTypeRedaction(t ir.Type, tc *typeCatalog, red *redaction.Con
 // checkMetricValueType checks that a metric probe's value expression has a
 // type that the metric kind can report.
 func checkMetricValueType(kind ir.MetricKind, t ir.Type) error {
-	if _, duration := t.(*ir.DurationType); duration {
+	encoding := ir.MetricEncoding(t)
+	if encoding == ir.MetricValueDuration {
 		if kind == ir.MetricKindGauge {
 			return nil
 		}
 		return errors.New("@duration is measured in fractional milliseconds; use a gauge metric")
 	}
-	goKind, ok := t.GetGoKind()
-	if !ok {
-		return fmt.Errorf("value has type %s, which is not numeric", t.GetName())
-	}
-	switch goKind {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Uintptr, reflect.Bool:
+	switch encoding {
+	case ir.MetricValueSigned, ir.MetricValueUnsigned:
 		return nil
-	case reflect.Float32, reflect.Float64:
+	case ir.MetricValueFloat32, ir.MetricValueFloat64:
 		if kind == ir.MetricKindGauge {
 			return nil
 		}
