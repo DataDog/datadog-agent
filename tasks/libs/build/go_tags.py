@@ -138,6 +138,10 @@ def main_repo_errors(query_stderr: str, workspace: str, output_base: str) -> lis
     errors = []
     for line in query_stderr.splitlines():
         location = _ERROR_LOCATION.match(line)
+        # A target missing from a loaded external package, e.g. selected for another OS, drops no package.
+        # build_manifest still fails when a Go rule depends on it.
+        if " no such target '@" in line:
+            continue
         # CI keeps the output base inside the checkout.
         if location and location[1].startswith(main) and not location[1].startswith(external):
             errors.append(line)

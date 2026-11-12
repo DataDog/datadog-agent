@@ -190,6 +190,19 @@ class TestMainRepoErrors(unittest.TestCase):
             ["ERROR: /ws/pkg/a/BUILD.bazel:3:8: no such package '@@x//': referenced by '//pkg/a:a'"],
         )
 
+    def test_missing_target_in_external_package(self):
+        stderr = (
+            "ERROR: /ws/packages/BUILD.bazel:311:10: no such target '@@llvm_bpf//:bin/clang-bpf': target"
+            " 'bin/clang-bpf' not declared in package '' referenced by '//packages:files'\n"
+            "ERROR: /ws/pkg/a/BUILD.bazel:3:8: no such target '//pkg/b:b': target 'b' not declared in package 'pkg/b'\n"
+        )
+        self.assertEqual(
+            go_tags.main_repo_errors(stderr, "/ws", "/ob"),
+            [
+                "ERROR: /ws/pkg/a/BUILD.bazel:3:8: no such target '//pkg/b:b': target 'b' not declared in package 'pkg/b'"
+            ],
+        )
+
     def test_windows_workspace(self):
         stderr = "ERROR: C:/ws/pkg/a/BUILD.bazel:3:8: no such attribute\n"
         self.assertEqual(go_tags.main_repo_errors(stderr, "C:\\ws", "C:\\ob"), [stderr.strip()])
