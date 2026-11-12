@@ -8,17 +8,21 @@
 // Package launchd wraps the launchctl(1) subset the installer needs to manage launchd jobs.
 //
 // Every operation is idempotent, because the hooks that call them run on both install paths and
-// may run again on a host that is already in the desired state: bootstrapping a loaded job
-// and booting out an absent one both succeed.
+// may run again on a host that is already in the desired state: bootstrapping a loaded job,
+// booting out an absent one and removing a definition that is not there all succeed.
 package launchd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -91,6 +95,64 @@ func (j Job) Write(content []byte) error {
 		return fmt.Errorf("could not move job definition into place: %w", err)
 	}
 	return nil
+}
+
+// WriteIfChanged writes the job definition unless the one on disk already has exactly this content
+// and the mode and owner Write gives it, and reports whether it wrote.
+//
+// Restoring a stable job never needs a new definition -- the stable set always reads etc, whatever
+// it holds -- so a restore that skips the write keeps working on a full disk.
+func (j Job) WriteIfChanged(content []byte) (bool, error) {
+	if j.upToDate(content) {
+		return false, nil
+	}
+	return true, j.Write(content)
+}
+
+// upToDate reports whether the definition on disk is a regular file with exactly content, mode
+// 0644, and the owner Write gives it: root, or this process when it cannot hand files to root.
+func (j Job) upToDate(content []byte) bool {
+	path := j.Path()
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0644 {
+		return false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || (st.Uid != 0 && int(st.Uid) != os.Geteuid()) {
+		return false
+	}
+	current, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(current, content)
+}
+
+// Remove removes the job definition from disk. It succeeds when the definition is already absent.
+func (j Job) Remove() error {
+	if err := os.Remove(j.Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("could not remove job definition: %w", err)
+	}
+	return nil
+}
+
+// JobStatus is what launchctl print reports about a job.
+type JobStatus struct {
+	// Label is the job's launchd label.
+	Label string
+	// PID is the running process's PID, or 0 when the job is loaded but not running.
+	PID int
+	// LastExitStatus is the exit code launchd last recorded for the job, or 0 when it has
+	// never exited. Ambiguous on its own: a job can also exit with code 0. Check HasExited to
+	// tell the two apart. A job launchd recorded as killed by a signal has 128 plus the signal
+	// number, as a shell reports it.
+	LastExitStatus int
+	// HasExited reports whether launchd has ever recorded an exit for this job, i.e. whether
+	// LastExitStatus is a real recorded code rather than "(never exited)"'s zero value. A job
+	// killed by a signal has exited too, although launchd prints no exit code for it.
+	HasExited bool
+	// Loaded reports whether the job is present in the domain.
+	Loaded bool
 }
 
 // Runner executes a command and returns its combined output.
@@ -234,16 +296,26 @@ func (c *Client) Enable(ctx context.Context, label string) error {
 	return nil
 }
 
+// Print reports what launchd knows about a job. A job that is not loaded is reported with
+// Loaded false and no error.
+func (c *Client) Print(ctx context.Context, label string) (JobStatus, error) {
+	out, err := c.launchctl(ctx, "print", c.serviceTarget(label))
+	if err != nil {
+		if code, ok := exitCode(err); ok && code == exitServiceNotFound {
+			return JobStatus{Label: label}, nil
+		}
+		return JobStatus{Label: label}, fmt.Errorf("could not print %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
+	}
+	return parsePrint(label, string(out)), nil
+}
+
 // Loaded reports whether the job is present in the domain.
 func (c *Client) Loaded(ctx context.Context, label string) (bool, error) {
-	out, err := c.launchctl(ctx, "print", c.serviceTarget(label))
-	if err == nil {
-		return true, nil
+	status, err := c.Print(ctx, label)
+	if err != nil {
+		return false, err
 	}
-	if code, ok := exitCode(err); ok && code == exitServiceNotFound {
-		return false, nil
-	}
-	return false, fmt.Errorf("could not print %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
+	return status.Loaded, nil
 }
 
 func (c *Client) domainTarget() string {
@@ -258,7 +330,10 @@ func (c *Client) launchctl(ctx context.Context, args ...string) ([]byte, error) 
 	if c.Runner != nil {
 		return c.Runner(ctx, launchctlPath, args...)
 	}
-	return telemetry.CommandContext(ctx, launchctlPath, args...).CombinedOutput()
+	cmd := telemetry.CommandContext(ctx, launchctlPath, args...)
+	// print's output is parsed, so it is requested in the C locale whatever the host's is.
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd.CombinedOutput()
 }
 
 const (
@@ -275,4 +350,37 @@ func exitCode(err error) (int, bool) {
 		return exitErr.ExitCode(), true
 	}
 	return 0, false
+}
+
+var (
+	pidRe  = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
+	exitRe = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\s*$`)
+	// signalRe matches a job launchd recorded as killed by a signal, which it prints instead of an
+	// exit code: "last terminating signal = Killed: 9".
+	signalRe = regexp.MustCompile(`(?m)^\s*last terminating signal\s*=\s*.*:\s*(\d+)\s*$`)
+)
+
+// parsePrint extracts the fields the installer needs from launchctl print output. launchd's
+// output is a nested, unstable, undocumented dump, so only the individual lines that matter are
+// matched; anything absent is left at its zero value rather than treated as an error.
+func parsePrint(label string, out string) JobStatus {
+	status := JobStatus{Label: label, Loaded: true}
+	if m := pidRe.FindStringSubmatch(out); m != nil {
+		if pid, err := strconv.Atoi(m[1]); err == nil {
+			status.PID = pid
+		}
+	}
+	if m := exitRe.FindStringSubmatch(out); m != nil {
+		if code, err := strconv.Atoi(m[1]); err == nil {
+			status.LastExitStatus = code
+			status.HasExited = true
+		}
+	}
+	if m := signalRe.FindStringSubmatch(out); m != nil && !status.HasExited {
+		if signal, err := strconv.Atoi(m[1]); err == nil {
+			status.LastExitStatus = 128 + signal
+			status.HasExited = true
+		}
+	}
+	return status
 }
