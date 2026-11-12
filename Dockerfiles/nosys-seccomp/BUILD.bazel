@@ -1,23 +1,60 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("//bazel/rules/minimal_cc_binary:minimal_cc_binary.bzl", "minimal_cc_binary")
+
+# A shared-library stub for libseccomp, used only at link time. Its SONAME is
+# set to `libseccomp.so.2`, which is what the linker records as the DT_NEEDED
+# entry in nosys.so. We deliberately do NOT ship this file: at runtime the
+# loader resolves `libseccomp.so.2` from the standard library search path,
+# picking up whichever version the container provides (e.g.
+# /lib/aarch64-linux-gnu/libseccomp.so.2 from the libseccomp2 apt package).
+#
+# It is fine that cc_binary adds the toolchain's default_link_flags to this
+# target: the transitive DT_NEEDED entries of this stub are not copied into
+# nosys.so (the linker defaults to --no-copy-dt-needed-entries), so nosys.so
+# still ends up with exactly two shared-library dependencies: libc and
+# libseccomp.
+cc_binary(
+    name = "libseccomp.so.2",
+    linkopts = ["-Wl,-soname,libseccomp.so.2"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = ["@libseccomp"],
+)
 
 # nosys.so is LD_PRELOAD'd into the agent, cluster-agent, and base-image
 # containers to force ENOSYS on syscalls (faccessat2, clone3) that older
 # Docker seccomp profiles block outright instead of reporting as
-# unimplemented.
-# TODO: ABLD-606 - make this build identically to pure gcc
-cc_binary(
+# unimplemented. Using minimal_cc_binary keeps the resulting .so free of the
+# extra runtime libraries the toolchain would otherwise inject at link time
+# (see bazel/rules/minimal_cc_binary/minimal_cc_binary.bzl).
+minimal_cc_binary(
     name = "nosys.so",
     srcs = ["nosys.c"],
-    additional_linker_inputs = ["nosys.sym"],
+    additional_linker_inputs = [
+        "nosys.sym",
+    ],
     copts = [
-        "-Wall",
-        "-Wextra",
         "-O2",
         "-fPIC",
     ],
-    linkopts = ["-Wl,--version-script=$(execpath nosys.sym)"],
+    linkopts = [
+        "-Wl,--version-script=$(execpath nosys.sym)",
+        # Positional shared-library input. gcc/ld records the .so's SONAME
+        # (`libseccomp.so.2`) as the DT_NEEDED entry in the output.
+        "$(execpath :libseccomp.so.2)",
+    ],
     linkshared = True,
     target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//visibility:public"],
-    deps = ["@libseccomp"],
+    deps = [
+        ":libseccomp.so.2",
+    ],
 )
+
+# The legacy nosys.so (built with direct use of gcc) would link as
+# ls -l nosys.so
+# -rwxr-xr-x 1 dd dialout 70456 Nov 11 21:26 nosys.so
+# $ ldd nosys.so
+#  linux-vdso.so.1 (0x0000f1cb28274000)
+#  libseccomp.so.2 => /lib/aarch64-linux-gnu/libseccomp.so.2 (0x0000f1cb281c0000)
+#  libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f1cb28000000)
+#  /lib/ld-linux-aarch64.so.1 (0x0000f1cb28230000)
