@@ -570,7 +570,14 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 		scrubbed, secretLocations, err = scrubber.ScrubYamlPreserveStructure(serializedConfigFormat)
 		scrubbedConfigFormat = string(scrubbed)
 		if err != nil {
-			return conf, ConfigFormatWrapper{}, err
+			// YAML v3 rejects some configs accepted by the YAML v2 loader, such as
+			// mappings with both 1 and "1" keys. Preserve the legacy scrubbing fallback
+			// so collecting secret metadata cannot reject these integration configs.
+			scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
+			secretLocations = nil
+			if err != nil {
+				return conf, ConfigFormatWrapper{}, err
+			}
 		}
 	}
 

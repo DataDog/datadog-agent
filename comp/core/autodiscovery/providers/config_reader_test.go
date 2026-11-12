@@ -184,6 +184,51 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.LogsConfig)
 }
 
+// YAML v2 accepts numeric and string keys with the same spelling, but the
+// structure-preserving metadata scrubber uses YAML v3, which rejects them.
+func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
+	configmock.New(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "compatibility.yaml")
+	const content = `instances:
+  - password: compatibility-plaintext-password
+    api_key: ENC[compatibility-key]
+    options:
+      1: numeric-value
+      "1": string-value
+`
+	require.NoError(t, os.WriteFile(file, []byte(content), 0600))
+
+	withoutMetadata, _, err := getIntegrationConfigFromFile("compatibility", file, false)
+	require.NoError(t, err)
+	require.Len(t, withoutMetadata.Instances, 1)
+
+	withMetadata, format, err := getIntegrationConfigFromFile("compatibility", file, true)
+	require.NoError(t, err)
+	assert.Equal(t, withoutMetadata, withMetadata)
+	assert.Equal(t, file, format.Filename)
+	assert.Nil(t, format.Secrets)
+	assert.Contains(t, format.ConfigFormat, "numeric-value")
+	assert.Contains(t, format.ConfigFormat, "string-value")
+	assert.NotContains(t, format.ConfigFormat, "compatibility-plaintext-password")
+	hash := sha256.Sum256([]byte(format.ConfigFormat))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
+
+	// A metadata scan refreshes the cache also used by the integration loader.
+	ResetReader([]string{dir})
+	t.Cleanup(func() { ResetReader(nil) })
+	configs, configErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Empty(t, configErrors)
+	require.Equal(t, []integration.Config{withoutMetadata}, configs)
+	formats := ReadConfigFormats()
+	require.Equal(t, []ConfigFormatWrapper{format}, formats)
+	afterMetadata, configErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	assert.Empty(t, configErrors)
+	assert.Equal(t, configs, afterMetadata)
+}
+
 func TestReadConfigFiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 
