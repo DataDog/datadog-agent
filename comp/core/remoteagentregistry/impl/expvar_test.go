@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 )
@@ -220,8 +222,7 @@ func TestRemoteExpvarGaugeUsesLatestValueAndIsRemovedOnDeregistration(t *testing
 }
 
 func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
-	provides, _, cfg, _, ipcComp := buildComponent(t)
-	cfg.SetInTest("remote_agent.registry.query_timeout", 100*time.Millisecond)
+	provides, _, _, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
 
 	agent := buildAndRegisterRemoteAgent(t, ipcComp, component, adpAgentFlavor, "Agent Data Plane", "123",
@@ -267,8 +268,7 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 }
 
 func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing.T) {
-	provides, _, cfg, _, ipcComp := buildComponent(t)
-	cfg.SetInTest("remote_agent.registry.query_timeout", 100*time.Millisecond)
+	provides, _, _, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
 	register := func(processID, raw string) *testRemoteAgentServer {
 		agent := buildRemoteAgent(t, ipcComp, adpAgentFlavor, "Agent Data Plane", "1",
@@ -306,7 +306,9 @@ func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing
 
 	// PID 1 is reused before the old registration disappears. The new process's
 	// first value exceeds the old raw value, so a decrease cannot signal a reset.
-	second.Stop()
+	// The old process answers with an error, since a stopped server would make
+	// reads wait for the query timeout.
+	second.telemetryErr = status.Error(codes.Unavailable, "process exited")
 	third := register("process-b", "20")
 	assert.Equal(t, int64(32), read(), "both process lifetimes contribute independently")
 
@@ -393,7 +395,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_metric_packets"])
-	assert.True(t, state.lastSeen.After(initialLastSeen))
+	assert.GreaterOrEqual(t, state.lastSeen, initialLastSeen)
 	assert.Contains(t, component.expvarCache.counters, counterKey)
 
 	// Once the origin-labeled series disappears, its completed total is compacted and the

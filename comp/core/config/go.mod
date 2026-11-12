@@ -20,7 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (

@@ -877,6 +877,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 	}
 
 	// Advance correlators and collect pending events.
+	e.advancePipelineKinds(detectors, upTo)
 	// accumulateCorrelations is called only in testbench mode (trackCorrelationHistory=true)
 	// to avoid map writes + eviction scans on every live Advance.
 	//
@@ -912,6 +913,25 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 	return advanceResult{
 		anomalies:        allAnomalies,
 		correlatorEvents: allCorrelatorEvents,
+	}
+}
+
+// advancePipelineKinds runs matching after detection so transitions apply on the next pass.
+func (e *engine) advancePipelineKinds(detectors []detectorRegistration, dataTime int64) {
+	for _, registration := range detectors {
+		if pipeline, ok := registration.detector.(*MetricPipeline); ok {
+			pipeline.advanceKinds(e.storage, dataTime)
+		}
+	}
+}
+
+// resetPipelineKinds clears committed assignments when restarting analysis on retained storage.
+func (e *engine) resetPipelineKinds() {
+	for _, registration := range e.detectors {
+		if _, ok := registration.detector.(*MetricPipeline); ok {
+			e.storage.ResetSeriesKinds()
+			return
+		}
 	}
 }
 
@@ -1242,6 +1262,7 @@ func (e *engine) Reset() {
 	if e.logCounts != nil {
 		e.logCounts.reset()
 	}
+	e.resetPipelineKinds()
 
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
@@ -1330,6 +1351,7 @@ func (e *engine) resetAnalysisState() error {
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
+	e.resetPipelineKinds()
 
 	if err := e.resetRawAnomalies(); err != nil {
 		return err

@@ -2849,25 +2849,25 @@ type KubeCapabilities struct {
 
 var _ Entity = &KubeCapabilities{}
 
-// GetID returns the CRD entity ID
+// GetID returns the KubeCapabilities entity ID
 func (kc KubeCapabilities) GetID() EntityID {
 	return kc.EntityID
 }
 
-// Merge allows the merge of 2 CRD entities
+// Merge allows the merge of 2 KubeCapabilities entities
 func (kc *KubeCapabilities) Merge(e Entity) error {
-	otherCrd, ok := e.(*KubeCapabilities)
+	otherKc, ok := e.(*KubeCapabilities)
 	if !ok {
-		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+		return fmt.Errorf("cannot merge KubeCapabilities type with other type: %T", e)
 	}
 
-	return merge(kc, otherCrd)
+	return merge(kc, otherKc)
 }
 
-// DeepCopy returns a deep copy of the given CRD entity
+// DeepCopy returns a deep copy of the given KubeCapabilities entity
 func (kc KubeCapabilities) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
-	return copyCrd
+	cp := deepcopy.Copy(kc).(KubeCapabilities)
+	return &cp
 }
 
 func (kc KubeCapabilities) String(verbose bool) string {

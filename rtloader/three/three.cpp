@@ -5,8 +5,6 @@
 // Copyright 2019-present Datadog, Inc.
 #include "three.h"
 
-#include "constants.h"
-
 #include "_util.h"
 #include "aggregator.h"
 #include "cgo_free.h"
@@ -44,8 +42,8 @@ Three::Three(const char *python_home, const char *python_exe, rtloader_malloc_t 
     , _pymemInuse(0)
     , _pymemAlloc(0)
 {
-    _pythonHome = (python_home && strlen(python_home) > 0) ? python_home : _defaultPythonHome;
-    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : "";
+    _pythonHome = python_home ? python_home : "";
+    _pythonExe = python_exe ? python_exe : "";
 }
 
 Three::~Three()
@@ -58,6 +56,11 @@ Three::~Three()
 
 bool Three::init()
 {
+    if (_pythonHome.empty()) {
+        setError("Python home was not provided");
+        return false;
+    }
+
     // Initialize UTF-8 mode
     {
         PyPreConfig preconfig;

@@ -154,6 +154,7 @@
 /.gitlab/distribute/trigger_release/*                                     @DataDog/agent-devx @DataDog/agent-delivery
 /.gitlab/build/binary_build/cws_instrumentation.yml                       @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                                     @DataDog/agent-devx @DataDog/agent-build
+/.gitlab/build/binary_build/nosys_seccomp.yml                             @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml                     @DataDog/agent-build
 /.gitlab/test/functional_test/files_inventory_check.yml                   @DataDog/agent-build
 /.gitlab/test/functional_test/bazel_parity_check.yml                      @DataDog/agent-build
@@ -177,6 +178,7 @@
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
 /.gitlab/test/benchmarks/                                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
+/.gitlab/test/logs_tokenizer_benchmark.yml                                @DataDog/agent-log-pipelines
 /.gitlab/distribute/                                                      @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/                                          @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/oci.yml                                   @DataDog/agent-delivery @DataDog/fleet
@@ -1032,7 +1034,11 @@
 /tasks/unit_tests/kmt_tests.py                                  @DataDog/ebpf-platform
 /tasks/unit_tests/system_probe_test_programs_tests.py            @DataDog/debugger-go
 /tasks/unit_tests/macos_tests.py                                @DataDog/windows-products
+/tasks/unit_tests/macos_install_script_tests.py                 @DataDog/windows-products
+/tasks/unit_tests/adp_macos_windows_packaging_tests.py          @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py                             @DataDog/windows-products
+/tasks/unit_tests/procmgr_init_templates_tests.py               @DataDog/agent-runtimes
+/tasks/unit_tests/par_legacy_startup_template_tests.py          @DataDog/action-platform @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
 /tasks/cluster_agent.py                                         @DataDog/container-platform
 /tasks/cluster_agent_helpers.py                                 @DataDog/container-platform
@@ -1242,8 +1248,6 @@
 /deps/go.MODULE.bazel # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/pkg/util/scrubber/go.mod @DataDog/agent-runtimes
-/pkg/util/scrubber/go.sum @DataDog/agent-runtimes
 
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
