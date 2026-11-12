@@ -44,6 +44,7 @@ common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,
 # and can probably be removed once it is released.
 common --incompatible_default_to_explicit_init_py
 common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
+common --incompatible_stop_exporting_build_file_path # fail on the deprecated ctx.build_file_path
 common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
 common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
 common --remote_local_fallback # best-effort on transient connection errors (no such host)
@@ -81,7 +82,6 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_gro
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
 # Linux config ---------------------------------------------------------------------------------------------------------
-common:linux --host_linkopt=-lstdc++ # to build `gawk`, hindered by https://github.com/f0rmiga/gcc-toolchain/issues/221
 common:linux --strategy=sandboxed
 common --@llvm//runtimes/glibc:glibc_additional_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
 

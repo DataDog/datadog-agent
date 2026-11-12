@@ -1,0 +1,45 @@
+From 9a0af092e97305c4904c69bafd9b2fc122f62272 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?R=C3=A9gis=20Desgroppes?= <regis.desgroppes@datadoghq.com>
+Date: Thu, 12 Nov 2026 07:54:58 +0100
+Subject: [PATCH] link C++ objects against libstdc++ by default
+
+Like rules_cc unix_cc_configure, add -lstdc++ under --as-needed to link
+actions, so plain cc_binary targets from other modules link C++ objects
+without the rules_cc/defs.bzl wrappers.
+---
+ toolchain/cc_toolchain_config.bzl | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+index 3ebae6f..c1cfe9e 100644
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -139,6 +139,17 @@ def _impl(ctx):
+         ],
+     )
+ 
++    default_link_libs_feature = feature(
++        name = "default_link_libs",
++        enabled = True,
++        flag_sets = [
++            flag_set(
++                actions = base_link_actions + lto_index_actions,
++                flag_groups = [flag_group(flags = ["-Wl,--push-state,-as-needed", "-lstdc++", "-Wl,--pop-state"])],
++            ),
++        ],
++    )
++
+     linker_lld_feature = feature(
+         name = "linker-lld",
+         enabled = False,
+@@ -557,6 +568,7 @@ def _impl(ctx):
+             include_paths_feature,
+             library_search_directories_feature,
+             default_link_flags_feature,
++            default_link_libs_feature,
+             linker_lld_feature,
+             supports_dynamic_linker_feature,
+             supports_pic_feature,
+-- 
+2.53.0
+

@@ -93,9 +93,8 @@ def dd_agent_go_binary(
     all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
     linux_x_defs = {_DEFAULTPATHS_PKG + ".defaultInstallPath": "$(INSTALL_DIR)"} | all_x_defs
 
-    # cgo must be enabled on Windows to link the .syso resource file produced
-    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
-    # should pass an explicit cgo = select({...}) which replaces this default.
+    # cgo must be enabled on Windows to link the .syso resource file produced by win_resource().
+    # Callers that need additional conditions should pass an explicit cgo = select({...}) which replaces this default.
     if "cgo" not in kwargs:
         kwargs["cgo"] = select({
             "@platforms//os:windows": True,
