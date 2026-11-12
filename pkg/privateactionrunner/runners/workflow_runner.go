@@ -97,6 +97,7 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 	log.FromContext(ctx).Info("Stopping Workflow runner")
 
 	close(n.shutdownChannel)
+	n.taskExecutor.Stop()
 	done := make(chan struct{})
 	go func() {
 		n.wg.Wait()
@@ -115,7 +116,9 @@ func (n *WorkflowRunner) Stop(ctx context.Context) error {
 
 func (n *WorkflowRunner) run(parentCtx context.Context) {
 	// taskCtx is detached from the parent and NOT cancelled when this loop
-	// returns, so in-flight tasks drain gracefully on shutdown (Stop waits via n.wg).
+	// returns, so existing actions drain gracefully on shutdown (Stop waits via
+	// n.wg). The executor separately cancels actions that opt in to runner-stop
+	// cancellation, such as remote queries.
 	taskCtx := context.WithoutCancel(parentCtx)
 	// pollCtx is cancelled on loop exit to abort any in-flight poll/prepare.
 	pollCtx, cancelPoll := context.WithCancel(taskCtx)

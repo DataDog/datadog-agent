@@ -22,6 +22,12 @@ type TaskTimeoutProvider interface {
 	TaskTimeout(task *Task) (timeout time.Duration, present bool, err error)
 }
 
+// RunnerStopCancellable is implemented by actions whose caller must end when
+// the runner stops, rather than draining independently of its lifecycle.
+type RunnerStopCancellable interface {
+	CancelOnRunnerStop() bool
+}
+
 type Action interface {
 	Run(
 		ctx context.Context,

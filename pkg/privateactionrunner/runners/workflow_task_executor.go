@@ -47,6 +47,8 @@ type WorkflowTaskExecutor struct {
 	taskVerifier taskverifier.TaskVerifier
 	resolver     resolver.PrivateCredentialResolver
 	ledger       *taskLedger
+	stopContext  context.Context
+	stopCancel   context.CancelFunc
 }
 
 func NewWorkflowTaskExecutor(
@@ -78,7 +80,10 @@ func NewWorkflowTaskExecutor(
 		ledgerDir = filepath.Join(runPath, "private-action-runner", "accepted-tasks")
 	}
 
+	stopContext, stopCancel := context.WithCancel(context.Background())
 	return &WorkflowTaskExecutor{
+		stopContext:  stopContext,
+		stopCancel:   stopCancel,
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
@@ -136,6 +141,14 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	}, nil, nil
 }
 
+// Stop ends calls only for actions opting in to runner-stop cancellation.
+// Other actions retain the runner's existing graceful-drain behavior.
+func (e *WorkflowTaskExecutor) Stop() {
+	if e != nil && e.stopCancel != nil {
+		e.stopCancel()
+	}
+}
+
 // RunPrepared runs a prepared task under its effective per-task timeout. It is the single
 // run+timeout seam shared by the OPMS loop and the executor gRPC handler.
 func (e *WorkflowTaskExecutor) RunPrepared(
@@ -148,6 +161,15 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	action, err := e.getAllowedAction(preparedTask.Task)
 	if err != nil {
 		return nil, err
+	}
+	if action, ok := action.(types.RunnerStopCancellable); ok && action.CancelOnRunnerStop() && e.stopContext != nil {
+		if e.stopContext.Err() != nil {
+			return nil, context.Canceled
+		}
+		runContext, cancel := context.WithCancel(ctx)
+		stopWatching := context.AfterFunc(e.stopContext, cancel)
+		defer func() { stopWatching(); cancel() }()
+		ctx = runContext
 	}
 	if provider, ok := action.(types.TaskTimeoutProvider); ok {
 		timeout, present, err := provider.TaskTimeout(preparedTask.Task)

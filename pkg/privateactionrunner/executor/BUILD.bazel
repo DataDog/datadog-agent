@@ -41,6 +41,7 @@ dd_agent_go_test(
     name = "executor_test",
     srcs = [
         "config_test.go",
+        "remote_queries_stop_test.go",
         "server_test.go",
         "testaddr_unix_test.go",
         "testaddr_windows_test.go",
