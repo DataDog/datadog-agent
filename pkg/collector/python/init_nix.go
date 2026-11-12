@@ -32,21 +32,15 @@ import "C"
 func initializePlatform() error {
 	// Setup crash handling specifics - *NIX-only
 
-	var cCoreDump int
-	if pkgconfigsetup.Datadog().GetBool("c_core_dump") {
-		cCoreDump = 1
+	if !pkgconfigsetup.Datadog().GetBool("c_core_dump") {
+		return nil
 	}
 
-	var cStacktraceCollection int
-	if pkgconfigsetup.Datadog().GetBool("c_stacktrace_collection") {
-		cStacktraceCollection = 1
-	}
-
-	var handlerErr *C.char
-	if C.handle_crashes(C.int(cCoreDump), C.int(cStacktraceCollection), &handlerErr) == 0 {
-		log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable: %s", C.GoString(handlerErr))
-		if handlerErr != nil {
-			C.call_free(unsafe.Pointer(handlerErr))
+	var coreDumpErr *C.char
+	if C.enable_core_dumps(&coreDumpErr) == 0 {
+		log.Errorf("Unable to enable C core dumps: %s", C.GoString(coreDumpErr))
+		if coreDumpErr != nil {
+			C.call_free(unsafe.Pointer(coreDumpErr))
 		}
 	}
 
