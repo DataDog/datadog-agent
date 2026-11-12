@@ -1,0 +1,24 @@
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
+# Modified copy of the Go-licensed expansion package that Kubernetes forks from Go.
+package(default_package_metadata = [":package_metadata"])
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = purl.builder()
+        .type("golang")
+        .namespace("k8s.io")
+        .name("kubernetes")
+        .subpath("third_party/forked/golang/expansion")
+        .build(),
+    visibility = ["//internal/third_party/golang:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+)
