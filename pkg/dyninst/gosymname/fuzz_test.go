@@ -6,19 +6,23 @@
 package gosymname
 
 import (
-	"os"
+	_ "embed"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 )
 
+// The fuzzing infrastructure uploads only the compiled test binary, so keep
+// the fuzz seeds in the binary instead of depending on the worker's checkout.
+//
+//go:embed testdata/symbols.yaml
+var symbolsFuzzFixture []byte
+
 func FuzzParse(f *testing.F) {
 	// Seed from golden file inputs.
-	raw, err := os.ReadFile("testdata/symbols.yaml")
-	require.NoError(f, err)
 	var inputs []testCaseInput
-	require.NoError(f, yaml.Unmarshal(raw, &inputs))
+	require.NoError(f, yaml.Unmarshal(symbolsFuzzFixture, &inputs))
 	for _, in := range inputs {
 		f.Add(in.Input.Symbol, uint8(parseSource(in.Input.Source)))
 	}
