@@ -43,7 +43,7 @@ func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telem
 		intakeURL:    domain + intakeEndpointPath,
 		httpClient:   buildHTTPClient(cfg),
 		log:          logmock.New(t),
-		httpErrors:   tel.NewCounter("transactions", "http_errors", []string{"domain", "endpoint", "code"}, ""),
+		httpErrors:   tel.NewCounter("transactions", "http_errors", []string{"domain", "endpoint", "code", "forwarder"}, ""),
 	}
 }
 
@@ -75,6 +75,7 @@ func TestSendCountsHTTPErrors(t *testing.T) {
 	for _, m := range metrics {
 		assert.Equal(t, server.URL, m.Tags()["domain"])
 		assert.Equal(t, "agenthealth", m.Tags()["endpoint"])
+		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
 		got[m.Tags()["code"]] = m.Value()
 	}
 	// 3xx is a non-2xx response but not an HTTP error: it must not be counted.

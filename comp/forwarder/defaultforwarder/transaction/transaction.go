@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+// ForwarderTagDefault is the `forwarder` tag value of transactions.http_errors for errors seen by
+// the default forwarder (main, orchestrator, process and connections forwarders).
+const ForwarderTagDefault = "default"
+
 var (
 	// ForwarderExpvars is the root for expvars in the forwarder.
 	ForwarderExpvars = expvar.NewMap("forwarder")
@@ -71,10 +75,10 @@ var (
 	tlmTxErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
 	// TlmTxHTTPErrors counts HTTP error responses (status >= 400) from Datadog intakes, tagged by
-	// domain, endpoint and status code. Senders outside the default forwarder (e.g. the health
-	// platform forwarder) report into it too, since it is the counter agent telemetry ships.
+	// domain, endpoint, status code and forwarder. Forwarders outside the default forwarder (e.g. the
+	// health platform forwarder) report into it with their own `forwarder` tag value.
 	TlmTxHTTPErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "http_errors",
-		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
+		[]string{"domain", "endpoint", "code", "forwarder"}, "Count of transactions http errors per http code and forwarder")
 )
 
 var trace *httptrace.ClientTrace
@@ -447,7 +451,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		}
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
-		TlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
+		TlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode, ForwarderTagDefault)
 	}
 
 	// We want to retry 404s even if that means that the agent would retry

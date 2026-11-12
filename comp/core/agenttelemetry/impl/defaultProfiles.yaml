@@ -148,6 +148,7 @@ profiles:
         preserve_tags:
           - code
           - endpoint
+          - forwarder
   schedule:
     start_after: 30
     iterations: 0

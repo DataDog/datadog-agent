@@ -35,8 +35,10 @@ const (
 	intakeURLOverrideKey = "health_platform.forwarder.dd_url"
 	httpTimeout          = 30 * time.Second
 
-	// intakeEndpointName is the `endpoint` tag of transactions.http_errors for health reports.
+	// intakeEndpointName and forwarderTag are the `endpoint` and `forwarder` tags of
+	// transactions.http_errors for health reports.
 	intakeEndpointName = "agenthealth"
+	forwarderTag       = "health_platform"
 )
 
 // forwarder is a stateless HTTP client. It has no ticker or provider — the
@@ -47,7 +49,8 @@ type forwarder struct {
 	intakeURL    string
 	httpClient   *http.Client
 	log          log.Component
-	// httpErrors is transactions.http_errors (domain, endpoint, code), shared with the default forwarder.
+	// httpErrors is transactions.http_errors (domain, endpoint, code, forwarder), shared with the default
+	// forwarder; health reports are told apart by forwarder:health_platform.
 	httpErrors telemetry.Counter
 }
 
@@ -106,7 +109,7 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Same semantics as the default forwarder: only HTTP errors (>= 400) are counted.
 		if resp.StatusCode >= 400 {
-			f.httpErrors.Inc(f.intakeDomain, intakeEndpointName, strconv.Itoa(resp.StatusCode))
+			f.httpErrors.Inc(f.intakeDomain, intakeEndpointName, strconv.Itoa(resp.StatusCode), forwarderTag)
 		}
 		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
