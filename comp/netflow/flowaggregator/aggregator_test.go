@@ -1707,6 +1707,7 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 
 	conf.Entropy = config.EntropyConfig{
 		Enabled:                  true,
+		Interval:                 60,
 		MinRecords:               1,
 		MaxExporters:             10,
 		MaxInterfacesPerExporter: 10,
@@ -1736,7 +1737,8 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 	close(agg.stopChan)
 	<-agg.runDone
 
-	// the flush after the window ends closes it: one window for the ingress side and one for the egress side
-	agg.flush(common.FlushContext{FlushTime: time.Unix(windowStart+300, 0)})
+	// the flush after the 60s window ends closes it, though the flush interval is 300s:
+	// one window for the ingress side and one for the egress side
+	agg.flush(common.FlushContext{FlushTime: time.Unix(windowStart+60, 0)})
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.windows", 2, "", []string{"quality_status:valid"})
 }

@@ -138,11 +138,12 @@ func (a *Accumulator) Add(flow *common.Flow, now time.Time) {
 	exporter, exporterOK := netip.AddrFromSlice(flow.ExporterAddr)
 	src, srcOK := netip.AddrFromSlice(flow.SrcAddr)
 	dst, dstOK := netip.AddrFromSlice(flow.DstAddr)
-	// IPv4-mapped addresses print as IPv4, like the aggregator's exporter_ip tags
+	// netip.Addr treats ::ffff:a.b.c.d and a.b.c.d as different addresses.
+	// Unmap so both count as one peer and print as a.b.c.d, like net.IP.String().
 	exporter, src, dst = exporter.Unmap(), src.Unmap(), dst.Unmap()
 	start := a.windowStart(now.Unix())
 
-	// 0 means the exporter didn't report a rate: unsampled, as in the NetFlow backend
+	// 0 means the exporter didn't report a rate: unsampled, so treat as 1
 	rate := max(flow.SamplingRate, 1)
 	weight := flow.Bytes * rate
 	packets := flow.Packets * rate

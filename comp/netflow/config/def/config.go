@@ -41,6 +41,7 @@ type NetflowConfig struct {
 // EntropyConfig contains configuration for the per-interface entropy computation.
 type EntropyConfig struct {
 	Enabled                  bool   `mapstructure:"enabled"`
+	Interval                 int    `mapstructure:"interval"`
 	MinRecords               uint64 `mapstructure:"min_records"`
 	MinBytes                 uint64 `mapstructure:"min_bytes"`
 	MaxExporters             int    `mapstructure:"max_exporters"`

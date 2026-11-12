@@ -21,6 +21,7 @@ import (
 func TestReadConfig(t *testing.T) {
 	logger := logmock.New(t)
 	defaultEntropy := EntropyConfig{
+		Interval:                 300,
 		MinRecords:               10,
 		MaxExporters:             1000,
 		MaxInterfacesPerExporter: 2000,
@@ -66,6 +67,7 @@ network_devices:
     reverse_dns_enrichment_enabled: true
     entropy:
       enabled: true
+      interval: 60
       max_peers_per_interface: 100
 `,
 			expectedConfig: NetflowConfig{
@@ -98,6 +100,7 @@ network_devices:
 				ReverseDNSEnrichmentEnabled: true,
 				Entropy: EntropyConfig{
 					Enabled:                  true,
+					Interval:                 60,
 					MinRecords:               10,
 					MaxExporters:             1000,
 					MaxInterfacesPerExporter: 2000,

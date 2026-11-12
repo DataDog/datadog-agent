@@ -126,12 +126,12 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 
 	var entropyAcc *entropy.Accumulator
 	e := config.Entropy
-	if e.Enabled && min(e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries) <= 0 {
-		logger.Warnf("NetFlow interface entropy is disabled: its max_* limits must be positive (got %d, %d, %d, %d)",
-			e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries)
+	if e.Enabled && min(e.Interval, e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries) <= 0 {
+		logger.Warnf("NetFlow interface entropy is disabled: its interval and max_* limits must be positive (got %d, %d, %d, %d, %d)",
+			e.Interval, e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries)
 	} else if e.Enabled {
 		entropyAcc = entropy.NewAccumulator(entropy.Config{
-			Interval:                 flushConfig.FlowCollectionDuration,
+			Interval:                 time.Duration(e.Interval) * time.Second,
 			MinRecords:               e.MinRecords,
 			MinBytes:                 e.MinBytes,
 			MaxExporters:             e.MaxExporters,
@@ -206,7 +206,6 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			// before flowAcc.add, which merges later records into the first one it keeps
 			if agg.entropy != nil {
 				agg.entropy.Add(flow, timeNow())
 			}

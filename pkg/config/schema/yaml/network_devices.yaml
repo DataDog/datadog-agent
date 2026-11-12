@@ -848,6 +848,12 @@ properties:
             default: false
             comment: |-
               Computes per-interface traffic entropy and writes the values to the Agent log. Entropy values aren't sent as metrics.
+          interval:
+            node_type: setting
+            type: integer
+            default: 300
+            comment: |-
+              Length in seconds of each entropy window. Separate from aggregator_flush_interval.
           min_records:
             node_type: setting
             type: integer
