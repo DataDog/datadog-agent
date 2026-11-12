@@ -96,8 +96,8 @@ type Component interface {
 
 	// GetKubernetesKueueWorkloadForPod resolves explicit Workload and pod group
 	// references, or the Workload's job-uid association with this pod. It returns
-	// an error if the Workload is absent or the UID association is ambiguous.
-	GetKubernetesKueueWorkloadForPod(pod *KubernetesPod) (*KubernetesKueueWorkload, error)
+	// nil if the Workload is absent or the UID association is ambiguous.
+	GetKubernetesKueueWorkloadForPod(pod *KubernetesPod) *KubernetesKueueWorkload
 
 	// GetKubernetesKAIPodGroup returns metadata about a KAI Scheduler PodGroup.
 	// It fetches the entity with kind KindKubernetesKAIPodGroup and the given ID.

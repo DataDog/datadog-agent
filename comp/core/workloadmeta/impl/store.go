@@ -486,17 +486,18 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 }
 
 // GetKubernetesKueueWorkloadForPod implements Component#GetKubernetesKueueWorkloadForPod.
-func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod) (*wmdef.KubernetesKueueWorkload, error) {
+func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod) *wmdef.KubernetesKueueWorkload {
 	// Jobs admitted by Kueue can propagate the Workload name to their pods.
 	// Prebuilt Workloads and plain Pod groups also provide explicit name references.
 	if name := kueue.WorkloadName(pod); name != "" {
-		return w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
+		workload, _ := w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
+		return workload
 	}
 
 	// This resolver is called for every pod during tag extraction. Only pods
 	// managed by the plain Pod integration need the UID-based scan.
 	if !kueue.IsManagedPod(pod) || pod.ID == "" {
-		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
+		return nil
 	}
 
 	// The plain Pod integration can create a Workload owned by an existing pod
@@ -511,14 +512,12 @@ func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod
 			continue
 		}
 		if match != nil {
-			return nil, fmt.Errorf("multiple Kueue Workloads for pod %s/%s", pod.Namespace, pod.ID)
+			// Do not attribute tags to an arbitrary Workload when the UID is ambiguous.
+			return nil
 		}
 		match = workload
 	}
-	if match == nil {
-		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
-	}
-	return match, nil
+	return match
 }
 
 // GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup

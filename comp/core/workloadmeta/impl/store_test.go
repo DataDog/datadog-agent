@@ -2394,12 +2394,10 @@ func TestGetKubernetesKueueWorkloadForPod(t *testing.T) {
 				EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: tt.podUID},
 				EntityMeta: wmdef.EntityMeta{Namespace: tt.namespace, Labels: tt.labels, Annotations: tt.annotations},
 			}
-			wl, err := s.GetKubernetesKueueWorkloadForPod(pod)
+			wl := s.GetKubernetesKueueWorkloadForPod(pod)
 			if tt.want == "" {
-				require.Error(t, err)
 				assert.Nil(t, wl)
 			} else {
-				require.NoError(t, err)
 				require.NotNil(t, wl)
 				assert.Equal(t, tt.want, wl.Name)
 			}
@@ -2423,10 +2421,9 @@ func TestKueuePodWorkloadSourceLifecycle(t *testing.T) {
 	// while another source still reports the Workload.
 	idOnly := &wmdef.KubernetesKueueWorkload{EntityID: wl.EntityID}
 	s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: fooSource, Entity: idOnly}})
-	got, err := s.GetKubernetesKueueWorkloadForPod(pod)
-	require.NoError(t, err)
+	got := s.GetKubernetesKueueWorkloadForPod(pod)
+	require.NotNil(t, got)
 	assert.Equal(t, wl.Name, got.Name)
 	s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: barSource, Entity: idOnly}})
-	_, err = s.GetKubernetesKueueWorkloadForPod(pod)
-	require.Error(t, err)
+	assert.Nil(t, s.GetKubernetesKueueWorkloadForPod(pod))
 }
