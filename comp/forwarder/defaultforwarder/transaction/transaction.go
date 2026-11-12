@@ -70,7 +70,10 @@ var (
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
 	tlmTxErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
-	tlmTxHTTPErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "http_errors",
+	// TlmTxHTTPErrors counts HTTP error responses (status >= 400) from Datadog intakes, tagged by
+	// domain, endpoint and status code. Senders outside the default forwarder (e.g. the health
+	// platform forwarder) report into it too, since it is the counter agent telemetry ships.
+	TlmTxHTTPErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
@@ -444,7 +447,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		}
 		codeCount.Add(1)
 		transactionsHTTPErrors.Add(1)
-		tlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
+		TlmTxHTTPErrors.Inc(t.Domain, transactionEndpointName, statusCode)
 	}
 
 	// We want to retry 404s even if that means that the agent would retry

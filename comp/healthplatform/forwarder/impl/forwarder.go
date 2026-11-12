@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -33,47 +35,39 @@ const (
 	intakeURLOverrideKey = "health_platform.forwarder.dd_url"
 	httpTimeout          = 30 * time.Second
 
-	// forwarderName tags this forwarder in the shared forwarder.http_errors metric.
-	forwarderName = "health_platform"
+	// intakeEndpointName is the `endpoint` tag of transactions.http_errors for health reports.
+	intakeEndpointName = "agenthealth"
 )
 
 // forwarder is a stateless HTTP client. It has no ticker or provider — the
 // egress component owns the send cadence.
 type forwarder struct {
-	cfg        pkgconfigmodel.Reader
-	intakeURL  string
-	httpClient *http.Client
-	log        log.Component
+	cfg          pkgconfigmodel.Reader
+	intakeDomain string
+	intakeURL    string
+	httpClient   *http.Client
+	log          log.Component
+	// httpErrors is transactions.http_errors (domain, endpoint, code), shared with the default forwarder.
 	httpErrors telemetry.Counter
 }
 
 // Requires defines the dependencies for the forwarder.
 type Requires struct {
-	Log       log.Component
-	Config    config.Component
-	Telemetry telemetry.Component
-}
-
-// newHTTPErrorsCounter registers the forwarder.http_errors counter. Its name and tags are meant to
-// be shared by every forwarder, so that agent telemetry can report HTTP errors across forwarders.
-func newHTTPErrorsCounter(tel telemetry.Component) telemetry.Counter {
-	return tel.NewCounter(
-		"forwarder",
-		"http_errors",
-		[]string{"forwarder", "code"},
-		"Number of HTTP error responses received from a Datadog intake, by forwarder and status class",
-	)
+	Log    log.Component
+	Config config.Component
 }
 
 // NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
 // to clean up for a stateless HTTP client.
 func NewComponent(reqs Requires) forwarderdef.Component {
+	domain := buildIntakeDomain(reqs.Config)
 	return &forwarder{
-		cfg:        reqs.Config,
-		intakeURL:  buildIntakeURL(reqs.Config),
-		httpClient: buildHTTPClient(reqs.Config),
-		log:        reqs.Log,
-		httpErrors: newHTTPErrorsCounter(reqs.Telemetry),
+		cfg:          reqs.Config,
+		intakeDomain: domain,
+		intakeURL:    domain + intakeEndpointPath,
+		httpClient:   buildHTTPClient(reqs.Config),
+		log:          reqs.Log,
+		httpErrors:   transaction.TlmTxHTTPErrors,
 	}
 }
 
@@ -110,8 +104,9 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if class := statusClass(resp.StatusCode); class != "" {
-			f.httpErrors.Inc(forwarderName, class)
+		// Same semantics as the default forwarder: only HTTP errors (>= 400) are counted.
+		if resp.StatusCode >= 400 {
+			f.httpErrors.Inc(f.intakeDomain, intakeEndpointName, strconv.Itoa(resp.StatusCode))
 		}
 		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
@@ -119,23 +114,17 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	return len(payload), nil
 }
 
-// statusClass returns the value of the `code` tag of forwarder.http_errors for an HTTP status code
-// ("4xx" or "5xx"), or "" when the status is not an HTTP error and must not be counted.
-func statusClass(statusCode int) string {
-	if statusCode >= 400 && statusCode < 500 {
-		return "4xx"
-	}
-	if statusCode >= 500 && statusCode < 600 {
-		return "5xx"
-	}
-	return ""
-}
-
 // buildIntakeURL returns the URL health reports are POSTed to: the health platform intake of `site`,
 // unless overridden by `health_platform.forwarder.dd_url`. Like the other dedicated intakes (APM,
 // logs, remote config), it does not follow the main `dd_url`, which only overrides the metrics intake.
 func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
-	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, intakeURLOverrideKey) + intakeEndpointPath
+	return buildIntakeDomain(cfg) + intakeEndpointPath
+}
+
+// buildIntakeDomain returns the base URL of the health platform intake, without the path. It is also
+// the `domain` tag of transactions.http_errors.
+func buildIntakeDomain(cfg pkgconfigmodel.Reader) string {
+	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, intakeURLOverrideKey)
 }
 
 func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
