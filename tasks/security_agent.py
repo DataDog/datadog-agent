@@ -718,3 +718,272 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
+
+
+def _local_e2e_state() -> dict | None:
+    from tasks.libs.cws import local_e2e
+
+    try:
+        return json.loads(local_e2e.STATE_FILE.read_text())
+    except (FileNotFoundError, PermissionError):
+        return None
+
+
+def _pid_alive(pid: int) -> bool:
+    # A root process cannot be signalled by us, but it still has a /proc entry.
+    return os.path.exists(f"/proc/{pid}")
+
+
+def _system_probe_pid() -> int | None:
+    from tasks.libs.cws import local_e2e
+
+    try:
+        return int(local_e2e.SYSPROBE_PIDFILE.read_text().strip())
+    except (FileNotFoundError, PermissionError, ValueError):
+        return None
+
+
+def _local_e2e_log_tail(lines=40) -> str:
+    from tasks.libs.cws import local_e2e
+
+    try:
+        return "\n".join(local_e2e.SYSPROBE_LOG.read_text(errors="replace").splitlines()[-lines:])
+    except FileNotFoundError:
+        return "(no system-probe log)"
+
+
+@task(iterable=["policy", "override"])
+def local_e2e_up(ctx, policy, override, build=True, port=None, timeout=180):
+    """
+    Start a locally built system-probe running CWS, sending events to a local HTTP sink.
+
+    Returns once the agent has reported its ruleset_loaded event through the sink,
+    which proves the whole probe -> serializer -> intake path works. Fails if any
+    rule from --policy did not load. Restarts the harness if it is already running.
+
+    --policy: a .policy file to load (repeatable).
+    --override: dotted.key=value applied to system-probe.yaml (repeatable), e.g.
+                runtime_security_config.activity_dump.enabled=true
+    --no-build: reuse bin/system-probe and the eBPF objects as they are.
+    """
+    import subprocess
+    import time
+
+    import yaml
+
+    from tasks.libs.common.utils import join_command
+    from tasks.libs.cws import local_e2e
+    from tasks.system_probe import BIN_PATH as SYSPROBE_BIN_PATH
+    from tasks.system_probe import build as build_system_probe
+    from tasks.system_probe import get_ebpf_build_dir
+
+    port = int(port) if port else local_e2e.DEFAULT_PORT
+    timeout = float(timeout)
+
+    policies = [os.path.abspath(p) for p in policy]
+    for p in policies:
+        if not p.endswith(".policy"):
+            raise Exit(f"{p}: system-probe only loads files ending in .policy", code=1)
+        if not os.path.isfile(p):
+            raise Exit(f"{p}: no such file", code=1)
+
+    sysprobe_config = local_e2e.system_probe_yaml()
+    try:
+        for o in override:
+            local_e2e.apply_override(sysprobe_config, o)
+    except ValueError as e:
+        raise Exit(str(e), code=1) from e
+
+    if _local_e2e_state() is not None:
+        local_e2e_down(ctx)
+
+    if build:
+        build_system_probe(ctx)
+
+    binary = os.path.abspath(SYSPROBE_BIN_PATH)
+    if not os.path.isfile(binary):
+        raise Exit(f"{binary} not found: run without --no-build", code=1)
+    objects = [get_ebpf_build_dir(Arch.local()) / name for name in local_e2e.CWS_OBJECTS]
+    missing = [str(o) for o in objects if not o.is_file()]
+    if missing:
+        raise Exit(f"missing eBPF objects {missing}: run without --no-build", code=1)
+
+    state_dir = str(local_e2e.STATE_DIR)
+    bpf_dir = str(local_e2e.BPF_DIR)
+    uid, gid = str(os.getuid()), str(os.getgid())
+    ctx.run(join_command(["sudo", "-n", "rm", "-rf", state_dir]))
+    ctx.run(join_command(["sudo", "-n", "install", "-d", "-o", uid, "-g", gid, state_dir]))
+    # The constant fetcher refuses eBPF objects that are not owned by root.
+    ctx.run(join_command(["sudo", "-n", "install", "-d", "-o", "root", "-g", "root", bpf_dir]))
+    ctx.run(
+        join_command(["sudo", "-n", "install", "-m", "0444", "-o", "root", "-g", "root", *map(str, objects), bpf_dir])
+    )
+    local_e2e.POLICIES_DIR.mkdir()
+    for p in policies:
+        shutil.copy(p, local_e2e.POLICIES_DIR)
+
+    with open(local_e2e.STATE_DIR / "datadog.yaml", "w") as f:
+        yaml.safe_dump(local_e2e.datadog_yaml(port), f)
+    with open(local_e2e.STATE_DIR / "system-probe.yaml", "w") as f:
+        yaml.safe_dump(sysprobe_config, f)
+    local_e2e.EVENTS_FILE.touch()
+
+    with open(local_e2e.SINK_LOG, "w") as log:
+        sink = subprocess.Popen(
+            [sys.executable, "-I", local_e2e.__file__, "sink", str(local_e2e.EVENTS_FILE), str(port)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    time.sleep(0.5)
+    if sink.poll() is not None:
+        raise Exit(f"intake sink exited (port {port} in use?):\n{local_e2e.SINK_LOG.read_text()}", code=1)
+
+    with open(local_e2e.SYSPROBE_LOG, "w") as log:
+        sysprobe = subprocess.Popen(
+            ["sudo", "-n", binary, "run", "-c", state_dir, "--pid", str(local_e2e.SYSPROBE_PIDFILE)],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    local_e2e.STATE_FILE.write_text(
+        json.dumps({"sink_pid": sink.pid, "sudo_pid": sysprobe.pid, "port": port, "started": time.time()})
+    )
+
+    print(f"Waiting up to {timeout:.0f}s for system-probe to report its ruleset (log: {local_e2e.SYSPROBE_LOG})")
+    deadline = time.monotonic() + timeout
+    ruleset_loaded = None
+    while ruleset_loaded is None:
+        if sysprobe.poll() is not None:
+            local_e2e_down(ctx)
+            raise Exit(f"system-probe exited with code {sysprobe.returncode}:\n{_local_e2e_log_tail()}", code=1)
+        if time.monotonic() > deadline:
+            local_e2e_down(ctx)
+            raise Exit(f"no ruleset_loaded event after {timeout:.0f}s:\n{_local_e2e_log_tail()}", code=1)
+        for record in local_e2e.read_events():
+            if local_e2e.rule_id(record["event"]) == "ruleset_loaded":
+                ruleset_loaded = record["event"]
+        time.sleep(0.5)
+
+    statuses = local_e2e.rule_statuses(ruleset_loaded)
+    failed = [s for s in statuses if s[2] != "loaded"]
+    for policy_name, rid, status, message in statuses:
+        line = f"  {policy_name}: {rid} {status}" + (f" ({message})" if message else "")
+        print(color_message(line, "green" if status == "loaded" else "red"))
+    if failed:
+        raise Exit(
+            f"{len(failed)} rule(s) did not load; the harness is still running, fix the policy and re-run local-e2e-up",
+            code=1,
+        )
+    print(color_message(f"CWS local e2e is up; events are appended to {local_e2e.EVENTS_FILE}", "green"))
+
+
+@task(iterable=["expect"])
+def local_e2e_wait(ctx, rule_id, expect, trigger=None, absent=False, timeout=30):
+    """
+    Wait for an event of rule --rule-id in the local e2e sink and print it as JSON.
+
+    --trigger: shell command to run first; only events that happened after it
+               started count. Without it, every event since local-e2e-up counts.
+    --expect: dotted.path=value into the serialized event that must hold
+              (repeatable), e.g. process.executable.name=cat  or  exit.code=0
+    --absent: invert: wait the whole --timeout and fail if a matching event shows up.
+    Exits non-zero on failure, explaining whether the rule never fired or fired
+    with the wrong fields.
+
+    Events reach the sink ~8s after they happen (the event server holds them 6s
+    to resolve container tags), so keep --timeout well above that.
+    """
+    import time
+
+    from tasks.libs.cws import local_e2e
+
+    if _local_e2e_state() is None:
+        raise Exit("the local e2e harness is not running: run dda inv security-agent.local-e2e-up first", code=1)
+    timeout = float(timeout)
+    for e in expect:
+        if "=" not in e:
+            raise Exit(f"invalid --expect {e!r}, expected dotted.path=value", code=1)
+
+    # Filter on the event's own timestamp, not on arrival: the delivery delay
+    # means an event from an earlier trigger can arrive after this one starts.
+    # The slack absorbs clock conversion between kernel and wall time.
+    since = 0.0
+    if trigger:
+        since = time.time() - 0.1
+        result = ctx.run(trigger, warn=True)
+        if result.failed:
+            print(color_message(f"trigger exited with code {result.exited}; still waiting for the event", "orange"))
+
+    deadline = time.monotonic() + timeout
+    while True:
+        window = [
+            r["event"] for r in local_e2e.read_events() if (local_e2e.event_time(r["event"]) or r["received"]) >= since
+        ]
+        candidates = [e for e in window if local_e2e.rule_id(e) == rule_id]
+        matched = next((e for e in candidates if not local_e2e.check_expectations(e, expect)), None)
+        if matched is not None:
+            print(json.dumps(matched, indent=2))
+            if absent:
+                raise Exit(f"rule {rule_id} fired with a matching event although --absent was given", code=1)
+            return
+
+        pid = _system_probe_pid()
+        if pid is None or not _pid_alive(pid):
+            raise Exit(f"system-probe is no longer running:\n{_local_e2e_log_tail()}", code=1)
+        if time.monotonic() > deadline:
+            break
+        time.sleep(0.5)
+
+    if absent:
+        print(color_message(f"rule {rule_id} produced no matching event in {timeout:.0f}s", "green"))
+        return
+
+    if candidates:
+        lines = [f"rule {rule_id} fired {len(candidates)} time(s) but no event matched every --expect:"]
+        for event in candidates[-5:]:
+            lines.append("  " + "; ".join(local_e2e.check_expectations(event, expect)))
+        lines.append(f"full events: {local_e2e.EVENTS_FILE}")
+        raise Exit("\n".join(lines), code=1)
+
+    seen: dict[str, int] = {}
+    for event in window:
+        rid = local_e2e.rule_id(event) or "?"
+        seen[rid] = seen.get(rid, 0) + 1
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(seen.items())) or "none"
+    raise Exit(f"rule {rule_id} did not fire within {timeout:.0f}s; rules seen in that window: {summary}", code=1)
+
+
+@task
+def local_e2e_down(ctx):
+    """
+    Stop the local e2e system-probe and intake sink. Logs and events are kept until the next local-e2e-up.
+    """
+    import signal
+    import time
+
+    from tasks.libs.common.utils import join_command
+    from tasks.libs.cws import local_e2e
+
+    state = _local_e2e_state()
+    if state is None:
+        print("the local e2e harness is not running")
+        return
+
+    pid = _system_probe_pid()
+    # Without a pidfile system-probe never got far; signalling sudo stops it.
+    target = pid if pid is not None and _pid_alive(pid) else state["sudo_pid"]
+    if _pid_alive(target):
+        ctx.run(join_command(["sudo", "-n", "kill", "-TERM", str(target)]), warn=True, hide=True)
+        deadline = time.monotonic() + 20
+        while _pid_alive(target) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        if _pid_alive(target):
+            ctx.run(join_command(["sudo", "-n", "kill", "-KILL", str(target)]), warn=True, hide=True)
+
+    try:
+        os.kill(state["sink_pid"], signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    local_e2e.STATE_FILE.unlink()
+    print(f"stopped; logs kept in {local_e2e.STATE_DIR}")
