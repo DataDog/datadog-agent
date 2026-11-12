@@ -42,22 +42,35 @@ func normalizeSite(site string) string {
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
-	telemetryClient *client
-	done            chan struct{}
-	flushed         chan struct{}
+	telemetryClient  *client
+	done             chan struct{}
+	flushed          chan struct{}
+	stopFlushTimeout time.Duration
+	sendCtx          context.Context
+	cancelSends      context.CancelFunc
 
 	env     string
 	service string
 }
 
+// Option configures a Telemetry instance.
+type Option func(*Telemetry)
+
+// WithStopFlushTimeout bounds how long Stop waits on sends, both a periodic send already in
+// flight and the final flush, so an unreachable intake cannot hold up process shutdown for the
+// full send timeout.
+func WithStopFlushTimeout(timeout time.Duration) Option {
+	return func(t *Telemetry) { t.stopFlushTimeout = timeout }
+}
+
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
-	t := newTelemetry(client, apiKey, site, service)
+func NewTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
+	t := newTelemetry(client, apiKey, site, service, opts...)
 	t.Start()
 	return t
 }
 
-func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+func newTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
 	if site == "" {
 		site = "datadoghq.com"
 	}
@@ -75,13 +88,20 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 		log.Debugf("telemetry disabled: no instrumentation telemetry intake exists for GovCloud site %q", site)
 	}
 
-	return &Telemetry{
+	sendCtx, cancelSends := context.WithCancel(context.Background())
+	t := &Telemetry{
 		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
+		sendCtx:         sendCtx,
+		cancelSends:     cancelSends,
 		env:             env,
 		service:         service,
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 // Start starts the telemetry
@@ -91,9 +111,9 @@ func (t *Telemetry) Start() {
 		for {
 			select {
 			case <-ticker:
-				t.sendCompletedSpans()
+				t.sendCompletedSpans(t.sendCtx)
 			case <-t.done:
-				t.sendCompletedSpans()
+				t.sendCompletedSpans(t.sendCtx)
 				close(t.flushed)
 				return
 			}
@@ -103,8 +123,13 @@ func (t *Telemetry) Start() {
 
 // Stop stops the telemetry
 func (t *Telemetry) Stop() {
+	if t.stopFlushTimeout > 0 {
+		deadline := time.AfterFunc(t.stopFlushTimeout, t.cancelSends)
+		defer deadline.Stop()
+	}
 	close(t.done)
 	<-t.flushed
+	t.cancelSends()
 }
 
 func (t *Telemetry) extractCompletedSpans() traces {
@@ -131,12 +156,12 @@ func (t *Telemetry) extractCompletedSpans() traces {
 	return traces(tracesArray)
 }
 
-func (t *Telemetry) sendCompletedSpans() {
+func (t *Telemetry) sendCompletedSpans(ctx context.Context) {
 	tracesArray := t.extractCompletedSpans()
 	if len(tracesArray) == 0 {
 		return
 	}
-	t.telemetryClient.SendTraces(tracesArray)
+	t.telemetryClient.sendTraces(ctx, tracesArray)
 }
 
 // SpanFromContext returns the span from the context if available.

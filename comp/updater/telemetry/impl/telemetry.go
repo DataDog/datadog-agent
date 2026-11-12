@@ -9,6 +9,7 @@ package telemetryimpl
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -17,6 +18,10 @@ import (
 	fleettelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+// daemonTelemetryStopFlushTimeout keeps the shutdown flush well inside the Windows service stop
+// budget, so an unreachable intake cannot delay the rest of the daemon's shutdown.
+const daemonTelemetryStopFlushTimeout = 2 * time.Second
 
 // Requires defines the dependencies for the telemetry component.
 type Requires struct {
@@ -35,7 +40,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	client := &http.Client{
 		Transport: httputils.CreateHTTPTransport(reqs.Config),
 	}
-	tel := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(reqs.Config.GetString("api_key")), reqs.Config.GetString("site"), "datadog-installer-daemon")
+	tel := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(reqs.Config.GetString("api_key")), reqs.Config.GetString("site"), "datadog-installer-daemon", fleettelemetry.WithStopFlushTimeout(daemonTelemetryStopFlushTimeout))
 	reqs.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error { tel.Stop(); return nil }})
 	return Provides{Comp: tel}, nil
 }
