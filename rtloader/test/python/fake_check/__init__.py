@@ -22,6 +22,10 @@ class FakeCheck(AgentCheck):
             raise Exception(run_exception)
         return ""
 
+    def run_remote_query(self, request_json, emit):
+        assert isinstance(self, FakeCheck)
+        emit('final', request_json, b'')
+
     def cancel(self):
         global was_canceled
         assert not was_canceled

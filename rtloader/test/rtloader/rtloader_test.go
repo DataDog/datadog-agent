@@ -29,6 +29,43 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
+func TestRemoteQueryCheckInterface(t *testing.T) {
+	// Exercise the real C++ -> Python boundary, including bound self and callback errors.
+	for _, tc := range []struct {
+		name     string
+		setup    string
+		failEmit bool
+		wantErr  string
+	}{
+		{name: "bound method"},
+		{name: "missing method", setup: "del fake_check.FakeCheck.run_remote_query", wantErr: "does not expose the remote query interface"},
+		{name: "non callable", setup: "fake_check.FakeCheck.run_remote_query = None", wantErr: "not callable"},
+		{name: "method failure", setup: "fake_check.FakeCheck.run_remote_query = lambda *args: 1 / 0", wantErr: "error invoking check remote query interface"},
+		{name: "callback failure", failEmit: true, wantErr: "emit callback failed"},
+		{name: "invalid payload", setup: "fake_check.FakeCheck.run_remote_query = lambda self, request, emit: emit('final', request, 'not bytes')", wantErr: "payload must be bytes"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			helpers.ResetMemoryStats()
+			if _, err := runString("import fake_check\noriginal_remote_query = fake_check.FakeCheck.run_remote_query\n" + tc.setup); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if _, err := runString("fake_check.FakeCheck.run_remote_query = original_remote_query"); err != nil {
+					t.Fatal(err)
+				}
+			})
+			err := runFakeRemoteQuery(tc.failEmit)
+			if tc.wantErr == "" && err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Fatalf("expected %q, got %v", tc.wantErr, err)
+			}
+			helpers.AssertMemoryUsage(t)
+		})
+	}
+}
+
 func TestGetPyInfo(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()

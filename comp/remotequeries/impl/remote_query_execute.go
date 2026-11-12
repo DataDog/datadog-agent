@@ -1,0 +1,858 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package remotequeriesimpl
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+)
+
+const (
+	// RemoteQueryExecuteEndpointPath is mounted under /agent by the Agent command API.
+	RemoteQueryExecuteEndpointPath = "/remote-queries/execute"
+	// RemoteQueriesExecuteEnabledConfig is disabled by default when the key is absent.
+	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
+
+	// RemoteQueryOperationProduceJSONPages is the one supported integration operation:
+	// produce bounded JSON page files and upload them directly to its-agent-intake.
+	RemoteQueryOperationProduceJSONPages = "produce_json_pages"
+
+	statusExecutorUnavailable = "executor_unavailable"
+)
+
+// Hard forwarding caps for the backend-injected upload instructions. The backend owns the
+// effective values; the Agent enforces these ceilings fail-closed so an oversized or
+// malformed handle never reaches the integration. The page cap ceiling matches the
+// its-agent-intake platform ceiling; the total cap matches the backend-owned 100 GiB result
+// ceiling.
+const (
+	// Typed int64: the 100 GiB total cap overflows 32-bit int (armhf) wherever an
+	// untyped use would default to int (comparisons, fmt.Errorf arguments).
+	remoteQueryUploadMaxFileBytes   int64 = 128 << 20 // 128 MiB hard page cap ceiling
+	remoteQueryUploadMaxResultBytes int64 = 100 << 30 // 100 GiB hard total cap
+)
+
+var (
+	remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+	errDeliveryUnknownField = errors.New("resultDelivery contains unknown field")
+	errDeliveryMustBeObject = errors.New("resultDelivery must be an object")
+)
+
+var (
+	errLimitsUnknownField = errors.New("limits contains unknown field")
+	errLimitsMustBeObject = errors.New("limits must be an object")
+)
+
+// RemoteQueryTraceContext carries the optional trace-continuation metadata the
+// private-action-runner attaches at the Remote Queries action boundary: the active
+// trace ID, the action.run span's own ID as the downstream parent, and the effective
+// sampling priority — restricted to the positive keep priorities 1 and 2, the exact
+// domain the integration's strict carrier validation accepts. It is observability
+// metadata only — never signed task data and never an authorization, routing, or
+// result-validation input — and it is optional end to end: absent or invalid values
+// leave the query executing exactly as before.
+type RemoteQueryTraceContext struct {
+	TraceID          uint64
+	SpanID           uint64
+	SamplingPriority int
+}
+
+const (
+	// remoteQuerySamplingPriorityMin and remoteQuerySamplingPriorityMax bound the
+	// only sampling-priority values that may cross the bridge: the tracer's positive
+	// keep priorities, AutoKeep (1) and UserKeep (2), which are exactly the values the
+	// integration's strict carrier validation accepts. A propagated priority outside
+	// the keep domain — the tracer's drop priorities UserDrop (-1) and AutoDrop (0), or
+	// any other integer — is unsupported trace context and is dropped, never fatal.
+	remoteQuerySamplingPriorityMin = 1
+	remoteQuerySamplingPriorityMax = 2
+)
+
+// NewRemoteQueryTraceContext validates the optional propagated trace context and
+// returns the normalized value, or nil when the context is invalid: a zero trace or
+// parent ID cannot identify a real trace, and only the positive keep sampling
+// priorities 1 and 2 are supported — the integration's strict carrier validation
+// accepts exactly those, so anything else (including the tracer's drop priorities
+// -1 and 0) must never be emitted. Invalid context is dropped without failing the
+// request, so an untraced or old caller executes exactly as before, and optional
+// invalid metadata never becomes a strict query-validation failure downstream.
+func NewRemoteQueryTraceContext(traceID, spanID uint64, samplingPriority int) *RemoteQueryTraceContext {
+	if traceID == 0 || spanID == 0 {
+		return nil
+	}
+	if samplingPriority < remoteQuerySamplingPriorityMin || samplingPriority > remoteQuerySamplingPriorityMax {
+		return nil
+	}
+	return &RemoteQueryTraceContext{
+		TraceID:          traceID,
+		SpanID:           spanID,
+		SamplingPriority: samplingPriority,
+	}
+}
+
+// normalizeRemoteQueryTraceContext revalidates an already-typed trace context at the
+// integration request boundary, so a hand-assembled typed request can emit only a
+// supported context on the wire.
+func normalizeRemoteQueryTraceContext(traceContext *RemoteQueryTraceContext) *RemoteQueryTraceContext {
+	if traceContext == nil {
+		return nil
+	}
+	return NewRemoteQueryTraceContext(traceContext.TraceID, traceContext.SpanID, traceContext.SamplingPriority)
+}
+
+type remoteQueryStreamRunner interface {
+	RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error
+}
+
+type remoteQueryCheckUnwrapper interface {
+	Unwrap() check.Check
+}
+
+func remoteQueryStreamRunnerFor(chk check.Check) (remoteQueryStreamRunner, bool) {
+	for chk != nil {
+		if runner, ok := chk.(remoteQueryStreamRunner); ok {
+			return runner, true
+		}
+		unwrapper, ok := chk.(remoteQueryCheckUnwrapper)
+		if !ok {
+			break
+		}
+		unwrapped := unwrapper.Unwrap()
+		if unwrapped == chk {
+			break
+		}
+		chk = unwrapped
+	}
+	return nil, false
+}
+
+// NewRemoteQueryExecuteEndpointProvider registers the remote query execute endpoint on the internal Agent API.
+func NewRemoteQueryExecuteEndpointProvider(reqs Requires) api.AgentEndpointProvider {
+	h := &remoteQueryExecuteHandler{
+		service: NewRemoteQueryExecuteService(reqs.Collector, reqs.Cfg.GetBool(RemoteQueriesExecuteEnabledConfig), reqs.Cfg),
+		cfg:     reqs.Cfg,
+	}
+	return api.NewAgentEndpointProvider(h.handle, RemoteQueryExecuteEndpointPath, http.MethodPost)
+}
+
+type remoteQueryExecuteHandler struct {
+	service   *RemoteQueryExecuteService
+	collector RemoteQueryCollector
+	enabled   bool
+	cfg       config.Component
+}
+
+// RemoteQueryExecuteService executes credential-free Remote Queries requests through loaded checks.
+type RemoteQueryExecuteService struct {
+	collector RemoteQueryCollector
+	enabled   bool
+	cfg       config.Component
+}
+
+// NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
+func NewRemoteQueryExecuteService(collector RemoteQueryCollector, enabled bool, cfg config.Component) *RemoteQueryExecuteService {
+	return &RemoteQueryExecuteService{collector: collector, enabled: enabled, cfg: cfg}
+}
+
+// RemoteQueryExecuteTarget identifies the datastore target without carrying credentials.
+type RemoteQueryExecuteTarget struct {
+	Host             string
+	Port             int
+	DBName           string
+	DatabaseInstance string
+}
+
+// RemoteQueryUploadLimits contains the backend-injected effective limits of the paged-JSON
+// result contract. Every value is server-owned: the Agent forwards them opaquely and the
+// integration enforces them.
+type RemoteQueryUploadLimits struct {
+	// Byte limits are int64 so the 10 GiB total cap is representable on 32-bit
+	// platforms (armhf); row/column/page counts and the timeout stay int.
+	MaxFileBytes   int64
+	MaxResultBytes int64
+	MaxRowBytes    int64
+	MaxColumns     int
+	MaxSchemaBytes int64
+	MaxPages       int
+	TimeoutMs      int
+}
+
+// RemoteQueryResultDelivery carries the backend-injected upload-session instructions for
+// one run: the authoritative run/task identity used by every page envelope and the
+// scoped its-agent-intake session handle (including the base URL), and the effective
+// limits. The session has one identifier, upload_id: there
+// is no per-session upload token, so the Agent has no token to forward. The Agent
+// forwards the handle, including BaseURL, to the integration check, which performs the
+// HTTP upload to its-agent-intake itself and authenticates it with the Agent's org API
+// and application keys; the Agent therefore only forwards a BaseURL that is on the
+// Agent's own site (see validateResultDeliveryBaseURL), performs no HTTP transport, and
+// never logs the handle.
+type RemoteQueryResultDelivery struct {
+	RunID    string
+	TaskID   string
+	UploadID string
+	BaseURL  string
+	Limits   *RemoteQueryUploadLimits
+}
+
+// RemoteQueryExecuteRequest is the typed request shared by the HTTP and gRPC callers. The
+// result contract is fixed: operation produce_json_pages with a required result delivery;
+// there is no inline result-byte path and no caller-provided format. There is no resolve-
+// time binding: execute resolves the target fresh and executes
+// on a unique match, whatever the check identity is at execute time.
+type RemoteQueryExecuteRequest struct {
+	Integration    string
+	Target         RemoteQueryExecuteTarget
+	Query          string
+	IncludeSchema  bool
+	ResultDelivery *RemoteQueryResultDelivery
+	// TraceContext is the optional propagated trace-continuation metadata; nil
+	// means the caller is untraced and the integration request omits the field.
+	TraceContext *RemoteQueryTraceContext
+}
+
+// validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
+// The handle is required: every run uploads bounded JSON page files directly to
+// its-agent-intake. This function checks the handle's shape and the forwarding caps
+// fail-closed and never logs the handle. The base URL's site binding needs the Agent
+// config, so it is enforced separately by validateResultDeliveryBaseURL before the
+// handle is forwarded (ExecuteStream).
+func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*RemoteQueryResultDelivery, error) {
+	if delivery == nil {
+		return nil, errors.New("result_delivery is required")
+	}
+	if delivery.RunID == "" {
+		return nil, errors.New("result_delivery.runId is required")
+	}
+	if delivery.TaskID == "" {
+		return nil, errors.New("result_delivery.taskId is required")
+	}
+	if delivery.UploadID == "" {
+		return nil, errors.New("result_delivery.uploadId is required")
+	}
+	if !remoteQueryUploadIDPattern.MatchString(delivery.UploadID) {
+		return nil, errors.New("result_delivery.uploadId contains invalid characters")
+	}
+	if delivery.BaseURL == "" {
+		return nil, errors.New("result_delivery.baseUrl is required")
+	}
+	limits := delivery.Limits
+	if limits == nil {
+		return nil, errors.New("result_delivery.limits is required")
+	}
+	if limits.MaxFileBytes < 1 {
+		return nil, errors.New("result_delivery.limits.maxFileBytes must be at least 1")
+	}
+	if limits.MaxFileBytes > remoteQueryUploadMaxFileBytes {
+		return nil, fmt.Errorf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryUploadMaxFileBytes)
+	}
+	if limits.MaxResultBytes < 1 {
+		return nil, errors.New("result_delivery.limits.maxResultBytes must be at least 1")
+	}
+	if limits.MaxResultBytes > remoteQueryUploadMaxResultBytes {
+		return nil, fmt.Errorf("result_delivery.limits.maxResultBytes must not exceed %d", remoteQueryUploadMaxResultBytes)
+	}
+	if limits.MaxRowBytes < 1 {
+		return nil, errors.New("result_delivery.limits.maxRowBytes must be at least 1")
+	}
+	if limits.MaxColumns < 1 {
+		return nil, errors.New("result_delivery.limits.maxColumns must be at least 1")
+	}
+	if limits.MaxSchemaBytes < 1 {
+		return nil, errors.New("result_delivery.limits.maxSchemaBytes must be at least 1")
+	}
+	if limits.MaxPages < 1 {
+		return nil, errors.New("result_delivery.limits.maxPages must be at least 1")
+	}
+	if limits.TimeoutMs < 1 {
+		return nil, errors.New("result_delivery.limits.timeoutMs must be at least 1")
+	}
+	if limits.MaxRowBytes > limits.MaxFileBytes {
+		return nil, errors.New("result_delivery.limits.maxRowBytes must not exceed maxFileBytes")
+	}
+	if limits.MaxFileBytes > limits.MaxResultBytes {
+		return nil, errors.New("result_delivery.limits.maxFileBytes must not exceed maxResultBytes")
+	}
+	return delivery, nil
+}
+
+// validateResultDeliveryBaseURL fails closed unless baseURL is safe to receive the
+// Agent's org API and application keys: an absolute https URL with no userinfo, query or
+// fragment, no port or port 443, whose host is the Agent's site or a subdomain of it. The
+// path is not constrained. Errors name the field and the reason but never echo the URL:
+// the handle is never logged, and url.Parse errors embed the input so they are not wrapped.
+func validateResultDeliveryBaseURL(baseURL string, site string) error {
+	const field = "result_delivery.baseUrl"
+	if site == "" {
+		return fmt.Errorf("%s cannot be checked: the Agent site is not configured", field)
+	}
+	if strings.ContainsAny(baseURL, "\\?#") || strings.ContainsFunc(baseURL, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+		return fmt.Errorf("%s must not contain a query, fragment, backslash, whitespace or control characters", field)
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil || !u.IsAbs() || u.Opaque != "" {
+		return fmt.Errorf("%s must be an absolute URL", field)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%s must use the https scheme", field)
+	}
+	if u.User != nil {
+		return fmt.Errorf("%s must not contain userinfo", field)
+	}
+	if port := u.Port(); port != "" && port != "443" {
+		return fmt.Errorf("%s must not use a port other than 443", field)
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || (host != site && !strings.HasSuffix(host, "."+site)) {
+		return fmt.Errorf("%s must be on the Agent's site", field)
+	}
+	return nil
+}
+
+// site returns the Agent's configured site, trimmed and lower-cased. The config component
+// defaults it to datadoghq.com; it is empty only when no config is available or the site
+// was explicitly cleared, in which case validateResultDeliveryBaseURL fails closed.
+func (s *RemoteQueryExecuteService) site() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
+}
+
+// NewRemoteQueryExecuteRequest validates and normalizes a typed paged-JSON request.
+func NewRemoteQueryExecuteRequest(integration string, target RemoteQueryExecuteTarget, query string, includeSchema bool, resultDelivery *RemoteQueryResultDelivery) (RemoteQueryExecuteRequest, error) {
+	parsedIntegration, err := parseIntegration(integration)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	parsedTarget, err := parseExecuteTarget(target)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	if query == "" {
+		return RemoteQueryExecuteRequest{}, errors.New("query is required")
+	}
+	normalizedDelivery, err := validateRemoteQueryResultDelivery(resultDelivery)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	req := remoteQueryExecuteRequestFromInternal(remoteQueryExecuteRequest{
+		Integration:    parsedIntegration,
+		Target:         parsedTarget,
+		Query:          query,
+		IncludeSchema:  includeSchema,
+		ResultDelivery: normalizedDelivery,
+	})
+	return req, nil
+}
+
+// RemoteQueryExecuteError is a sanitized remote query bridge error.
+type RemoteQueryExecuteError struct {
+	Code    string
+	Message string
+}
+
+// RemoteQueryExecuteResult is the service result.
+type RemoteQueryExecuteResult struct {
+	HTTPStatus int
+	Status     string
+	Error      *RemoteQueryExecuteError
+}
+
+const (
+	// RemoteQueryStatusInvalidRequest reports a malformed or disallowed request.
+	RemoteQueryStatusInvalidRequest = statusInvalidRequest
+	// RemoteQueryStatusExecutorUnavailable reports an unavailable matched executor or bridge dependency.
+	RemoteQueryStatusExecutorUnavailable = statusExecutorUnavailable
+)
+
+type remoteQueryExecuteRequest struct {
+	Integration    string
+	Target         remoteQueryTarget
+	Query          string
+	IncludeSchema  bool
+	ResultDelivery *RemoteQueryResultDelivery
+	TraceContext   *RemoteQueryTraceContext
+}
+
+type remoteQueryExecuteRequestJSON struct {
+	Integration    string                                `json:"integration"`
+	Target         *remoteQueryTargetRequestJSON         `json:"target"`
+	Query          string                                `json:"query"`
+	IncludeSchema  bool                                  `json:"includeSchema"`
+	ResultDelivery *remoteQueryResultDeliveryRequestJSON `json:"resultDelivery"`
+}
+
+// remoteQueryResultDeliveryRequestJSON is the HTTP wire shape of the backend-injected
+// upload instructions. Pointers distinguish an omitted field from an explicit value so
+// required-field checks fail closed instead of silently defaulting.
+type remoteQueryResultDeliveryRequestJSON struct {
+	RunID    string                              `json:"runId"`
+	TaskID   string                              `json:"taskId"`
+	UploadID string                              `json:"uploadId"`
+	BaseURL  string                              `json:"baseUrl"`
+	Limits   *remoteQueryUploadLimitsRequestJSON `json:"limits"`
+}
+
+type remoteQueryUploadLimitsRequestJSON struct {
+	MaxFileBytes   *int64 `json:"maxFileBytes"`
+	MaxResultBytes *int64 `json:"maxResultBytes"`
+	MaxRowBytes    *int64 `json:"maxRowBytes"`
+	MaxColumns     *int   `json:"maxColumns"`
+	MaxSchemaBytes *int64 `json:"maxSchemaBytes"`
+	MaxPages       *int   `json:"maxPages"`
+	TimeoutMs      *int   `json:"timeoutMs"`
+}
+
+func (d *remoteQueryResultDeliveryRequestJSON) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return errDeliveryMustBeObject
+	}
+
+	type deliveryAlias remoteQueryResultDeliveryRequestJSON
+	var delivery deliveryAlias
+	if err := decodeStrictJSON(bytes.NewReader(data), &delivery); err != nil {
+		if isUnknownJSONFieldError(err) {
+			return errDeliveryUnknownField
+		}
+		return mapResultDeliveryTypeError(err)
+	}
+	*d = remoteQueryResultDeliveryRequestJSON(delivery)
+	return nil
+}
+
+func (l *remoteQueryUploadLimitsRequestJSON) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return errLimitsMustBeObject
+	}
+
+	type limitsAlias remoteQueryUploadLimitsRequestJSON
+	var limits limitsAlias
+	if err := decodeStrictJSON(bytes.NewReader(data), &limits); err != nil {
+		if isUnknownJSONFieldError(err) {
+			return errLimitsUnknownField
+		}
+		return mapResultDeliveryLimitsTypeError(err)
+	}
+	*l = remoteQueryUploadLimitsRequestJSON(limits)
+	return nil
+}
+
+// remoteQueryDeliveryTypeError is the mapped type error for a resultDelivery field.
+type remoteQueryDeliveryTypeError struct {
+	message string
+}
+
+func (e remoteQueryDeliveryTypeError) Error() string {
+	return e.message
+}
+
+func mapResultDeliveryTypeError(err error) error {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		return err
+	}
+	switch typeErr.Field {
+	case "limits":
+		return errLimitsMustBeObject
+	case "runId", "taskId", "uploadId", "baseUrl":
+		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be a string", typeErr.Field)}
+	default:
+		return err
+	}
+}
+
+func mapResultDeliveryLimitsTypeError(err error) error {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		return err
+	}
+	return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.limits.%s must be an integer", typeErr.Field)}
+}
+
+// remoteQueryProduceJSONPagesRequestJSON is the integration request marshaled for the
+// rtloader bridge. Keys are the camelCase integration contract and the shape carries no
+// credentials: the integration reads the org API/application keys from Agent config.
+type remoteQueryProduceJSONPagesRequestJSON struct {
+	Operation      string                         `json:"operation"`
+	Target         remoteQueryTargetJSON          `json:"target"`
+	Query          string                         `json:"query"`
+	IncludeSchema  bool                           `json:"includeSchema"`
+	ResultDelivery *remoteQueryResultDeliveryJSON `json:"resultDelivery"`
+	TraceContext   *remoteQueryTraceContextJSON   `json:"traceContext,omitempty"`
+}
+
+// remoteQueryTraceContextJSON is the optional trace-continuation object of the
+// integration request. The IDs cross as unsigned decimal strings so the exact
+// 64-bit value survives without numeric precision or format drift, and the
+// sampling priority is an integer. Absence stays absent.
+type remoteQueryTraceContextJSON struct {
+	TraceID          string `json:"traceId"`
+	ParentID         string `json:"parentId"`
+	SamplingPriority int    `json:"samplingPriority"`
+}
+
+// remoteQueryResultDeliveryJSON is the result-delivery handle forwarded to the
+// integration check inside the request JSON. It carries baseUrl so the integration
+// can perform the HTTP page uploads to its-agent-intake directly; the session has one
+// identifier, upload_id, and no upload token, so the handle cannot carry one.
+type remoteQueryResultDeliveryJSON struct {
+	RunID    string                      `json:"runId"`
+	TaskID   string                      `json:"taskId"`
+	UploadID string                      `json:"uploadId"`
+	BaseURL  string                      `json:"baseUrl"`
+	Limits   remoteQueryUploadLimitsJSON `json:"limits"`
+}
+
+type remoteQueryUploadLimitsJSON struct {
+	MaxFileBytes   int64 `json:"maxFileBytes"`
+	MaxResultBytes int64 `json:"maxResultBytes"`
+	MaxRowBytes    int64 `json:"maxRowBytes"`
+	MaxColumns     int   `json:"maxColumns"`
+	MaxSchemaBytes int64 `json:"maxSchemaBytes"`
+	MaxPages       int   `json:"maxPages"`
+	TimeoutMs      int   `json:"timeoutMs"`
+}
+
+type remoteQueryTargetJSON struct {
+	Host             string `json:"host,omitempty"`
+	Port             int    `json:"port,omitempty"`
+	DBName           string `json:"dbname,omitempty"`
+	DatabaseInstance string `json:"database_instance,omitempty"`
+}
+
+func (h *remoteQueryExecuteHandler) handle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	service := h.service
+	if service == nil {
+		service = NewRemoteQueryExecuteService(h.collector, h.enabled, h.cfg)
+	}
+	if service == nil || !service.enabled {
+		writeExecuteError(w, http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
+		return
+	}
+
+	req, err := parseExecuteRequest(r)
+	if err != nil {
+		writeExecuteParseError(w, err)
+		return
+	}
+
+	result := service.Execute(req)
+	if result.Error != nil {
+		writeExecuteError(w, result.HTTPStatus, result.Error.Code, result.Error.Message)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, `{"status":"SUCCEEDED"}`)
+}
+
+func parseExecuteRequest(r *http.Request) (RemoteQueryExecuteRequest, error) {
+	if !isJSONContentType(r.Header.Get("Content-Type")) {
+		return RemoteQueryExecuteRequest{}, invalidRequestError("content-type must be application/json")
+	}
+
+	defer r.Body.Close()
+	var wireReq remoteQueryExecuteRequestJSON
+	if err := decodeStrictJSON(r.Body, &wireReq); err != nil {
+		return RemoteQueryExecuteRequest{}, parseJSONRequestError(err)
+	}
+
+	// The wire target carries field-presence information, so selector-mode validation
+	// happens here; the reconstructed typed target is then unambiguous.
+	parsedTarget, err := parseTarget(wireReq.Target)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	if wireReq.Query == "" {
+		return RemoteQueryExecuteRequest{}, errors.New("query is required")
+	}
+	delivery, err := resultDeliveryFromWire(wireReq.ResultDelivery)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	req, err := NewRemoteQueryExecuteRequest(
+		wireReq.Integration,
+		RemoteQueryExecuteTarget(parsedTarget),
+		wireReq.Query,
+		wireReq.IncludeSchema,
+		delivery,
+	)
+	if err != nil {
+		return RemoteQueryExecuteRequest{}, err
+	}
+	return req, nil
+}
+
+// resultDeliveryFromWire builds the typed delivery from the strict HTTP wire shape. The
+// wire pointers make omitted required fields explicit errors instead of silent zeros.
+func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*RemoteQueryResultDelivery, error) {
+	if delivery == nil {
+		return nil, errors.New("result_delivery is required")
+	}
+	limits := delivery.Limits
+	if limits == nil {
+		return nil, errors.New("result_delivery.limits is required")
+	}
+	if limits.MaxFileBytes == nil {
+		return nil, errors.New("result_delivery.limits.maxFileBytes is required")
+	}
+	if limits.MaxResultBytes == nil {
+		return nil, errors.New("result_delivery.limits.maxResultBytes is required")
+	}
+	if limits.MaxRowBytes == nil {
+		return nil, errors.New("result_delivery.limits.maxRowBytes is required")
+	}
+	if limits.MaxColumns == nil {
+		return nil, errors.New("result_delivery.limits.maxColumns is required")
+	}
+	if limits.MaxSchemaBytes == nil {
+		return nil, errors.New("result_delivery.limits.maxSchemaBytes is required")
+	}
+	if limits.MaxPages == nil {
+		return nil, errors.New("result_delivery.limits.maxPages is required")
+	}
+	if limits.TimeoutMs == nil {
+		return nil, errors.New("result_delivery.limits.timeoutMs is required")
+	}
+	return &RemoteQueryResultDelivery{
+		RunID:    delivery.RunID,
+		TaskID:   delivery.TaskID,
+		UploadID: delivery.UploadID,
+		BaseURL:  delivery.BaseURL,
+		Limits: &RemoteQueryUploadLimits{
+			MaxFileBytes:   *limits.MaxFileBytes,
+			MaxResultBytes: *limits.MaxResultBytes,
+			MaxRowBytes:    *limits.MaxRowBytes,
+			MaxColumns:     *limits.MaxColumns,
+			MaxSchemaBytes: *limits.MaxSchemaBytes,
+			MaxPages:       *limits.MaxPages,
+			TimeoutMs:      *limits.TimeoutMs,
+		},
+	}, nil
+}
+
+// Execute rejects inline HTTP execution: Remote Queries execute over the AgentSecure
+// streaming RPC only, and bulk result bytes never cross any Agent boundary.
+func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
+	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries execute only over the AgentSecure streaming RPC")
+}
+
+// ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
+// Agent is a control-plane forwarder: it carries the backend-injected upload instructions
+// through to the integration request JSON and passes the emit callback straight through.
+// The integration uploads bounded JSON page files itself; only progress metadata, the
+// final status, and errors come back through the stream.
+func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
+	if emit == nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
+	}
+	if s == nil || !s.enabled {
+		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
+	}
+	if s.collector == nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query executor is unavailable")
+	}
+	if req.Query == "" {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is required")
+	}
+	if req.ResultDelivery == nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
+	}
+	// The integration sends the Agent's org API and application keys to baseUrl, so it
+	// must be on the Agent's own site; reject before target resolution or any forwarding.
+	if err := validateResultDeliveryBaseURL(req.ResultDelivery.BaseURL, s.site()); err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
+	}
+
+	internal := req.internal()
+	match, result := s.resolveExecutionTarget(internal)
+	if result.Error != nil {
+		return result
+	}
+	runner, ok := remoteQueryStreamRunnerFor(match.check)
+	if !ok {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "matched integration check does not support remote query streaming")
+	}
+	requestJSON, err := marshalExecuteRequest(internal)
+	if err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
+	}
+
+	if ctx.Err() != nil {
+		return remoteQueryExecuteErrorResult(http.StatusRequestTimeout, statusExecutorUnavailable, "remote query request was cancelled")
+	}
+
+	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
+	if runErr != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query stream executor failed")
+	}
+	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
+}
+
+// resolveExecutionTarget resolves the execution target: one complete integration-owned candidate sweep, then the plain
+// zero/one/many outcome. A unique match proceeds; zero matches answers
+// target_not_found and multiple matches answer ambiguous_target before
+// marshalExecuteRequest, any SQL dispatch, or any database work. There is no
+// resolve-time match binding: the target is resolved fresh here, so a match whose
+// check identity changed since a resolve call still executes as long as it is
+// still the unique match. A sweep failure fails closed as executor_unavailable
+// with the sweep's sanitized message.
+func (s *RemoteQueryExecuteService) resolveExecutionTarget(internal remoteQueryExecuteRequest) (integrationCheckMatch, RemoteQueryExecuteResult) {
+	resolution := resolveIntegrationTargets(s.collector, internal.Integration, internal.Target)
+	switch resolution.status {
+	case statusMatched:
+		return resolution.matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
+	case statusTargetNotFound:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, resolution.message)
+	case statusAmbiguous:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, resolution.message)
+	default:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, resolution.message)
+	}
+}
+
+func remoteQueryExecuteErrorResult(httpStatus int, status string, message string) RemoteQueryExecuteResult {
+	return RemoteQueryExecuteResult{
+		HTTPStatus: httpStatus,
+		Status:     status,
+		Error:      &RemoteQueryExecuteError{Code: status, Message: message},
+	}
+}
+
+func (r RemoteQueryExecuteRequest) internal() remoteQueryExecuteRequest {
+	internal := remoteQueryExecuteRequest{
+		Integration:   r.Integration,
+		Target:        remoteQueryTarget{Host: r.Target.Host, Port: r.Target.Port, DBName: r.Target.DBName, DatabaseInstance: r.Target.DatabaseInstance},
+		Query:         r.Query,
+		IncludeSchema: r.IncludeSchema,
+		TraceContext:  r.TraceContext,
+	}
+	if r.ResultDelivery != nil {
+		internal.ResultDelivery = r.ResultDelivery
+	}
+	return internal
+}
+
+func remoteQueryExecuteRequestFromInternal(req remoteQueryExecuteRequest) RemoteQueryExecuteRequest {
+	return RemoteQueryExecuteRequest{
+		Integration:    req.Integration,
+		Target:         RemoteQueryExecuteTarget{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
+		Query:          req.Query,
+		IncludeSchema:  req.IncludeSchema,
+		ResultDelivery: req.ResultDelivery,
+		TraceContext:   req.TraceContext,
+	}
+}
+
+func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, error) {
+	wireTarget := &remoteQueryTargetRequestJSON{Host: target.Host, DBName: target.DBName}
+	if target.Host != "" {
+		wireTarget.hostSet = true
+	}
+	if target.Port != 0 {
+		wireTarget.Port = &target.Port
+		wireTarget.portSet = true
+	}
+	if target.DBName != "" {
+		wireTarget.dbnameSet = true
+	}
+	if target.DatabaseInstance != "" {
+		wireTarget.DatabaseInstance = &target.DatabaseInstance
+		wireTarget.databaseInstanceSet = true
+	}
+	return parseTarget(wireTarget)
+}
+
+// marshalExecuteRequest builds the integration request JSON. It always emits the fixed
+// operation and the explicit includeSchema flag, and carries the full upload handle —
+// including baseUrl — so the integration can upload page files directly; the session
+// has no upload token, so the request cannot carry one. The integration reads the org
+// API/application keys from Agent config, so they never appear on the request wire. The
+// optional propagated trace context is revalidated here and emitted as the top-level
+// traceContext object — decimal-string IDs and the integer sampling priority — only
+// when a supported keep-priority context is present; absent stays absent and invalid
+// — including any non-keep priority — is dropped without failing the run, so the
+// integration never receives a carrier its strict validation would reject.
+func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
+	if req.ResultDelivery == nil {
+		return "", errors.New("result_delivery is required")
+	}
+	limits := req.ResultDelivery.Limits
+	if limits == nil {
+		return "", errors.New("result_delivery.limits is required")
+	}
+	wireReq := remoteQueryProduceJSONPagesRequestJSON{
+		Operation:     RemoteQueryOperationProduceJSONPages,
+		Target:        remoteQueryTargetJSON{Host: req.Target.Host, Port: req.Target.Port, DBName: req.Target.DBName, DatabaseInstance: req.Target.DatabaseInstance},
+		Query:         req.Query,
+		IncludeSchema: req.IncludeSchema,
+		ResultDelivery: &remoteQueryResultDeliveryJSON{
+			RunID:    req.ResultDelivery.RunID,
+			TaskID:   req.ResultDelivery.TaskID,
+			UploadID: req.ResultDelivery.UploadID,
+			BaseURL:  req.ResultDelivery.BaseURL,
+			Limits: remoteQueryUploadLimitsJSON{
+				MaxFileBytes:   limits.MaxFileBytes,
+				MaxResultBytes: limits.MaxResultBytes,
+				MaxRowBytes:    limits.MaxRowBytes,
+				MaxColumns:     limits.MaxColumns,
+				MaxSchemaBytes: limits.MaxSchemaBytes,
+				MaxPages:       limits.MaxPages,
+				TimeoutMs:      limits.TimeoutMs,
+			},
+		},
+	}
+	if traceContext := normalizeRemoteQueryTraceContext(req.TraceContext); traceContext != nil {
+		wireReq.TraceContext = &remoteQueryTraceContextJSON{
+			TraceID:          strconv.FormatUint(traceContext.TraceID, 10),
+			ParentID:         strconv.FormatUint(traceContext.SpanID, 10),
+			SamplingPriority: traceContext.SamplingPriority,
+		}
+	}
+	requestJSON, err := json.Marshal(wireReq)
+	if err != nil {
+		return "", err
+	}
+	return string(requestJSON), nil
+}
+
+func writeExecuteParseError(w http.ResponseWriter, err error) {
+	parseErr, ok := err.(requestParseError)
+	if !ok {
+		writeExecuteError(w, http.StatusBadRequest, statusInvalidRequest, err.Error())
+		return
+	}
+
+	writeExecuteError(w, http.StatusBadRequest, parseErr.status, parseErr.message)
+}
+
+func writeExecuteError(w http.ResponseWriter, httpStatus int, status string, message string) {
+	w.WriteHeader(httpStatus)
+	_ = json.NewEncoder(w).Encode(struct {
+		Status string         `json:"status"`
+		Error  *responseError `json:"error"`
+	}{
+		Status: status,
+		Error:  &responseError{Code: status, Message: message},
+	})
+}

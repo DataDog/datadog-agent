@@ -1,0 +1,306 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package remotequeriesimpl
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+)
+
+// Synthetic producer proof for the M3 Agent role in the paged-JSON contract.
+//
+// The Agent is a control-plane forwarder only: it carries the backend-injected upload
+// instructions (including baseUrl) through to the integration request JSON, and the
+// org API key and POC application key are read by the integration via
+// datadog_agent.get_config, so they never appear on the request wire. The session has
+// one identifier, upload_id, and no per-session upload token, so the integration
+// request cannot carry one. The integration
+// uploads bounded JSON page files directly to its-agent-intake over HTTP; only
+// metadata/final/error events come back through the stream. The worker reads result
+// accounting from intake's completion record, not from the AgentSecure answer.
+//
+// These tests drive ExecuteStream with a fake stream runner that captures the
+// requestJSON the integration receives and replays deterministic events through emit.
+// They prove:
+//
+//  1. The requestJSON forwarded to the integration emits the fixed operation
+//     produce_json_pages and carries the target, the query, the explicit includeSchema
+//     flag, and the full resultDelivery: runId, taskId, uploadId,
+//     baseUrl, and the seven nested limits including timeoutMs — and no token, because
+//     the upload session no longer has one.
+//  2. The requestJSON does NOT carry the org API key or POC application key and carries
+//     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
+//  3. The Agent passes emit straight through: the events the integration emits surface
+//     downstream byte-for-byte, including the final status.
+//
+// The 243021 reference (task contract id) is carried through the run/task/upload ids
+// so the forwarded handle is stable end-to-end.
+
+const (
+	syntheticForwardRunID    = "run-243021"
+	syntheticForwardTaskID   = "task-243021"
+	syntheticForwardUploadID = "upload-243021"
+	syntheticForwardBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
+)
+
+func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
+	return &fakeStreamRunnerCheck{
+		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
+		events:          events,
+	}
+}
+
+func syntheticForwardDelivery() *RemoteQueryResultDelivery {
+	return &RemoteQueryResultDelivery{
+		RunID:    syntheticForwardRunID,
+		TaskID:   syntheticForwardTaskID,
+		UploadID: syntheticForwardUploadID,
+		BaseURL:  syntheticForwardBaseURL,
+		Limits: &RemoteQueryUploadLimits{
+			MaxFileBytes:   32 << 20, // 32 MiB page cap
+			MaxResultBytes: 32 << 20, // 32 MiB total cap
+			MaxRowBytes:    32 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
+	}
+}
+
+// TestExecuteStreamForwardsPagedJSONContractToIntegration proves the Agent forwards the
+// complete backend-injected contract to the integration and keeps the API/application
+// keys off the request wire.
+func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
+	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+		{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+	})
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+	req, err := NewRemoteQueryExecuteRequest(
+		"postgres",
+		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
+		"SELECT repeat('x', 33554432) AS payload",
+		true,
+		syntheticForwardDelivery(),
+	)
+	require.NoError(t, err)
+
+	var seen []check.RemoteQueryStreamEvent
+	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
+		seen = append(seen, event)
+		return nil
+	})
+
+	require.Nil(t, result.Error)
+	// The resolve sweep and the execute dispatch both reached the integration:
+	// within the same execution.
+	assert.Equal(t, 1, runner.resolveCalls)
+	assert.Equal(t, 1, runner.executeCalls)
+
+	// The integration receives the fixed operation, the explicit schema flag, the
+	// normalized target, and the full upload handle including the intake base URL so it
+	// can upload page files directly. The nested limits carry the backend-owned effective
+	// values including timeoutMs.
+	assert.JSONEq(t, `{
+		"operation": "produce_json_pages",
+		"target": {"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query": "SELECT repeat('x', 33554432) AS payload",
+		"includeSchema": true,
+		"resultDelivery": {
+			"runId": "run-243021",
+			"taskId": "task-243021",
+			"uploadId": "upload-243021",
+			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"limits": {
+				"maxFileBytes": 33554432,
+				"maxResultBytes": 33554432,
+				"maxRowBytes": 33554432,
+				"maxColumns": 1024,
+				"maxSchemaBytes": 1048576,
+				"maxPages": 128,
+				"timeoutMs": 30000
+			}
+		}
+	}`, runner.streamSeen)
+
+	// The org API key and POC application key are NOT on the request wire: the
+	// integration reads them from Agent config via datadog_agent.get_config. No
+	// CSV/COPY-era field survives either: there is no format, compression, mode, or
+	// copyLimits anywhere in the forwarded request.
+	assert.NotContains(t, runner.streamSeen, "api_key")
+	assert.NotContains(t, runner.streamSeen, "application_key")
+	assert.NotContains(t, runner.streamSeen, "app_key")
+	assert.NotContains(t, runner.streamSeen, "format")
+	assert.NotContains(t, runner.streamSeen, "compression")
+	assert.NotContains(t, runner.streamSeen, "mode")
+	assert.NotContains(t, runner.streamSeen, "copy")
+	assert.NotContains(t, runner.streamSeen, "secret-value")
+	assert.NotContains(t, runner.streamSeen, "integration")
+	// The per-session upload token is gone from the contract: no token key appears
+	// anywhere in the forwarded request.
+	assert.NotContains(t, runner.streamSeen, "token")
+
+	// The integration's metadata and final status surface downstream unmodified.
+	require.Len(t, seen, 2)
+	assert.Equal(t, "metadata", seen[0].Type)
+	assert.Equal(t, "final", seen[1].Type)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, seen[1].MetadataJSON)
+}
+
+// TestExecuteStreamForwardsOmittedSchemaExplicitly proves the includeSchema flag is
+// forwarded explicitly even when disabled: omitted or false both serialize as an
+// explicit false on the integration request so the schema switch is never implicit.
+func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
+	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+	})
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+	req, err := NewRemoteQueryExecuteRequest(
+		"postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		"SELECT city, country FROM cities ORDER BY city",
+		false,
+		syntheticForwardDelivery(),
+	)
+	require.NoError(t, err)
+
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.Nil(t, result.Error)
+	assert.Contains(t, runner.streamSeen, `"includeSchema":false`)
+}
+
+// TestExecuteStreamOmittedResultDeliveryIsRejected proves there is no inline fallback:
+// without the backend-injected upload handle the request never reaches the integration.
+func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
+	runner := newSyntheticForwardRunner(nil)
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+
+	_, err := NewRemoteQueryExecuteRequest(
+		"postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		"SELECT 1 AS value",
+		false,
+		nil,
+	)
+	require.Error(t, err)
+	assert.EqualError(t, err, "result_delivery is required")
+
+	// A hand-assembled request without a delivery fails the same way and never runs
+	// the matched check.
+	result := service.ExecuteStream(context.Background(), RemoteQueryExecuteRequest{
+		Integration: "postgres",
+		Target:      RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		Query:       "SELECT 1 AS value",
+	}, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.NotNil(t, result.Error)
+	assert.Equal(t, statusInvalidRequest, result.Error.Code)
+	assert.Equal(t, "result_delivery is required", result.Error.Message)
+	assert.Equal(t, 0, runner.streamCalls)
+}
+
+// TestExecuteStreamForwardsTraceContextToIntegration proves the optional
+// trace-continuation metadata crosses the full bridge into the integration
+// request JSON with the exact contract shape: the top-level traceContext object
+// carrying the trace ID and the action.run parent ID as unsigned decimal strings
+// and the sampling priority as an integer. Nothing else about the forwarded
+// request changes.
+func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
+	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+	})
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+	req, err := NewRemoteQueryExecuteRequest(
+		"postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		"SELECT 1 AS value",
+		false,
+		syntheticForwardDelivery(),
+	)
+	require.NoError(t, err)
+	req.TraceContext = NewRemoteQueryTraceContext(1234567890123456789, 9876543210987654321, 2)
+
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.Nil(t, result.Error)
+	assert.Contains(t, runner.streamSeen,
+		`"traceContext":{"traceId":"1234567890123456789","parentId":"9876543210987654321","samplingPriority":2}`)
+
+	// The trace context rides beside the unchanged produce_json_pages contract:
+	// the operation, target, query, and the full delivery handle are intact.
+	assert.Contains(t, runner.streamSeen, `"operation":"produce_json_pages"`)
+	assert.Contains(t, runner.streamSeen, `"uploadId":"upload-243021"`)
+}
+
+// TestExecuteStreamDropsNonKeepTraceContext proves the bridge contract holds
+// through the full dispatch path: a hand-assembled typed request carrying nonzero
+// IDs with a non-keep sampling priority — a drop priority (0, -1) or any other
+// integer outside {1, 2} — reaches the integration request with no traceContext
+// key at all. The integration's strict carrier validation accepts exactly the
+// positive keep priorities, so the Agent must never emit a carrier it would
+// reject: the invalid optional metadata is dropped without failing the run.
+func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		traceContext *RemoteQueryTraceContext
+	}{
+		{name: "auto drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: 0}},
+		{name: "user drop priority", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: -1}},
+		{name: "priority above keep domain", traceContext: &RemoteQueryTraceContext{TraceID: 1234567890123456789, SpanID: 9876543210987654321, SamplingPriority: 3}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+				{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+			})
+			service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+			req, err := NewRemoteQueryExecuteRequest(
+				"postgres",
+				RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+				"SELECT 1 AS value",
+				false,
+				syntheticForwardDelivery(),
+			)
+			require.NoError(t, err)
+			req.TraceContext = tc.traceContext
+
+			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+			require.Nil(t, result.Error, "invalid trace context must never fail the run")
+			assert.NotContains(t, runner.streamSeen, "traceContext")
+			assert.NotContains(t, runner.streamSeen, "1234567890123456789")
+		})
+	}
+}
+
+// TestExecuteStreamForwardsNoTraceContextWhenAbsent proves the coexistence
+// contract: a request without the optional metadata produces integration request
+// JSON with no traceContext key at all, byte-identical to the old bridge output.
+func TestExecuteStreamForwardsNoTraceContextWhenAbsent(t *testing.T) {
+	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
+	})
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
+	req, err := NewRemoteQueryExecuteRequest(
+		"postgres",
+		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
+		"SELECT 1 AS value",
+		false,
+		syntheticForwardDelivery(),
+	)
+	require.NoError(t, err)
+
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.Nil(t, result.Error)
+	assert.NotContains(t, runner.streamSeen, "traceContext")
+}
