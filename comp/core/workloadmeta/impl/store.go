@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -496,7 +495,7 @@ func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod
 
 	// This resolver is called for every pod during tag extraction. Only pods
 	// managed by the plain Pod integration need the UID-based scan.
-	if pod.Labels[kubernetes.KueueManagedLabelKey] != "true" || pod.ID == "" {
+	if !kueue.IsManagedPod(pod) || pod.ID == "" {
 		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
 	}
 
@@ -508,7 +507,7 @@ func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod
 	var match *wmdef.KubernetesKueueWorkload
 	for _, entity := range w.store[wmdef.KindKubernetesKueueWorkload] {
 		workload := entity.cached.(*wmdef.KubernetesKueueWorkload)
-		if workload.Namespace != pod.Namespace || workload.Labels[kubernetes.KueueJobUIDLabelKey] != pod.ID {
+		if !kueue.WorkloadMatchesPod(workload, pod) {
 			continue
 		}
 		if match != nil {

@@ -31,7 +31,6 @@ go_library(
         "//pkg/util/common",
         "//pkg/util/fxutil",
         "//pkg/util/http",
-        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kueue",
         "//pkg/util/log",
         "//pkg/util/retry",

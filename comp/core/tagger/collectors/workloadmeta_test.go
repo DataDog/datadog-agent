@@ -7293,8 +7293,7 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			pod := &workloadmeta.KubernetesPod{
 				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
 				EntityMeta: workloadmeta.EntityMeta{Name: "ray-worker", Namespace: "team-a", Labels: map[string]string{
-					kubernetes.KueueQueueNameLabelKey: "batch",
-					kubernetes.KueueManagedLabelKey:   "true",
+					kubernetes.KueueManagedLabelKey: "true",
 				}},
 				Containers: []workloadmeta.OrchestratorContainer{{ID: "container-id", Name: "worker"}},
 			}
@@ -7304,6 +7303,9 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{Name: "pod-ray-worker-12345", Namespace: "team-a", UID: "workload-uid",
 					Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: pod.ID}},
 				QueueName: "batch",
+				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
 			}
 			process := func(kind workloadmeta.EventType, entity workloadmeta.Entity) map[types.EntityID]*types.TagInfo {
 				t.Helper()
@@ -7341,6 +7343,34 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			} else {
 				check(process(workloadmeta.EventTypeSet, pod), false)
 				check(process(workloadmeta.EventTypeSet, workload), true)
+			}
+
+			// A managed pod without name or queue labels still needs retagging
+			// when its Workload's queue or ResourceFlavor arrives later.
+			queue := &workloadmeta.KubernetesKueueQueue{
+				EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueQueue, ID: "localqueue/team-a/batch"},
+				EntityMeta:       workloadmeta.EntityMeta{Name: "batch", Namespace: "team-a"},
+				QueueType:        workloadmeta.KueueLocalQueue,
+				ClusterQueueName: "cluster-batch",
+			}
+			queueInfos := process(workloadmeta.EventTypeSet, queue)
+			check(queueInfos, true)
+			for _, info := range queueInfos {
+				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
+					assert.Contains(t, info.LowCardTags, "kueue_cluster_queue:cluster-batch")
+				}
+			}
+			flavor := &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID:           workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"},
+				EntityMeta:         workloadmeta.EntityMeta{Name: "a100"},
+				NodeAffinityLabels: map[string]string{"nvidia.com/gpu.family": "Ampere"},
+			}
+			flavorInfos := process(workloadmeta.EventTypeSet, flavor)
+			check(flavorInfos, true)
+			for _, info := range flavorInfos {
+				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
+					assert.Contains(t, info.LowCardTags, "gpu_architecture:ampere")
+				}
 			}
 
 			// A duplicate claim is ambiguous; deleting it restores the mapping.

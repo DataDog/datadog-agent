@@ -28,3 +28,23 @@ func WorkloadName(pod *workloadmeta.KubernetesPod) string {
 	}
 	return ""
 }
+
+// IsManagedPod reports whether Kueue's plain Pod integration manages this pod.
+// Controller-created pods can reference a Kueue Workload without this label.
+func IsManagedPod(pod *workloadmeta.KubernetesPod) bool {
+	return pod.Labels[kubernetes.KueueManagedLabelKey] == "true"
+}
+
+// WorkloadMatchesPod reports whether the pod refers to this Workload.
+// Explicit names take precedence. Otherwise, the plain Pod integration creates
+// a Workload owned by the pod and records the pod UID in its job-uid label,
+// even when the pod itself is owned by a controller such as RayCluster.
+func WorkloadMatchesPod(workload *workloadmeta.KubernetesKueueWorkload, pod *workloadmeta.KubernetesPod) bool {
+	if workload.Namespace != pod.Namespace {
+		return false
+	}
+	if name := WorkloadName(pod); name != "" {
+		return workload.Name == name
+	}
+	return IsManagedPod(pod) && pod.ID != "" && workload.Labels[kubernetes.KueueJobUIDLabelKey] == pod.ID
+}
