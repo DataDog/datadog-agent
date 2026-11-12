@@ -55,25 +55,29 @@ type verifiedFreshJoin struct {
 }
 
 // snapshotOrgUUID returns the org UUID signed in the config repository
-// snapshot custom of the verified fresh-join payload, if any.
-func (v *verifiedFreshJoin) snapshotOrgUUID() (*string, error) {
+// snapshot custom of the verified fresh-join payload. A snapshot without one
+// cannot prove the payload belongs to the agent's org, so it is an error.
+func (v *verifiedFreshJoin) snapshotOrgUUID() (string, error) {
 	metas, err := v.configMemoryStore.GetMeta()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	rawSnapshot, found := metas[metaSnapshot]
 	if !found {
-		return nil, errors.New("no snapshot metadata in the fresh-join payload")
+		return "", errors.New("no snapshot metadata in the fresh-join payload")
 	}
 	rawCustom, err := unsafeMetaCustom(rawSnapshot)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	custom, err := snapshotCustom(rawCustom)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return custom.OrgUUID, nil
+	if custom.OrgUUID == nil {
+		return "", errors.New("the fresh-join payload does not carry an org UUID in its snapshot, cannot confirm it belongs to the same org")
+	}
+	return *custom.OrgUUID, nil
 }
 
 // rootRoleKeyIDs returns the key IDs of the root role of a TUF root file:
@@ -314,18 +318,15 @@ func (c *CoreAgentClient) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfig
 	if err != nil {
 		return err
 	}
-	if snapshotOrgUUID == nil {
-		return errors.New("the fresh-join payload does not carry an org UUID in its snapshot, cannot confirm it belongs to the same org")
-	}
 	backendOrgUUID, err := c.orgUUIDProvider()
 	if err != nil {
 		return fmt.Errorf("could not obtain the org UUID from the backend: %w", err)
 	}
-	if *snapshotOrgUUID != backendOrgUUID {
-		return fmt.Errorf("the fresh-join payload belongs to another org: snapshot org UUID %s, API key org UUID %s", *snapshotOrgUUID, backendOrgUUID)
+	if snapshotOrgUUID != backendOrgUUID {
+		return fmt.Errorf("the fresh-join payload belongs to another org: snapshot org UUID %s, API key org UUID %s", snapshotOrgUUID, backendOrgUUID)
 	}
-	if *snapshotOrgUUID != storedOrgUUID {
-		return fmt.Errorf("the fresh-join payload belongs to another org: snapshot org UUID %s, stored org UUID %s", *snapshotOrgUUID, storedOrgUUID)
+	if snapshotOrgUUID != storedOrgUUID {
+		return fmt.Errorf("the fresh-join payload belongs to another org: snapshot org UUID %s, stored org UUID %s", snapshotOrgUUID, storedOrgUUID)
 	}
 
 	// The DB wipe resets every version counter, so it must only happen on an
