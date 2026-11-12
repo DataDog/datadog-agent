@@ -22,6 +22,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/metrics",
         "//pkg/metrics/metricname",
+        "//pkg/metrics/tagname",
         "//pkg/remoteconfig/state",
         "@com_github_twmb_murmur3//:murmur3",
     ],

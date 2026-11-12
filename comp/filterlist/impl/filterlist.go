@@ -119,52 +119,15 @@ func loadMetricTagFilterListConfig(config config.Component, log log.Component) [
 	return tagFilterListEntries
 }
 
-// loadTagFilterList loads the tag filterlist from the provided entries.
+// loadTagFilterList compiles the tag filterlist from the provided entries.
 // Configuration schema is a list of objects with fields:
 // - metric_name: the name of the metric
 // - action: either "include" or "exclude"
-// - tags: array of tags to include/exclude
+// - tags: array of tag keys to include/exclude
+//
+// See compileTagFilterList for how entries are normalized and merged.
 func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatcher {
-	// Build map with merging logic:
-	// - If multiple entries have same metric_name and same action: merge tags
-	// - If different action: keep only exclude tags (overwrite with exclude)
-	tagFilterList := make(map[string]MetricTagList)
-	for _, entry := range entries {
-		if entry.MetricName == "" {
-			log.Warn("skipping metric_tag_filterlist entry with empty metric_name")
-			continue
-		}
-
-		existing, exists := tagFilterList[entry.MetricName]
-		if !exists {
-			// First entry for this metric
-			tagFilterList[entry.MetricName] = MetricTagList{
-				Tags:   entry.Tags,
-				Action: entry.Action,
-			}
-			continue
-		}
-
-		// Merge logic
-		if existing.Action == entry.Action {
-			// Same action: merge tags
-			tagFilterList[entry.MetricName] = MetricTagList{
-				Tags:   append(existing.Tags, entry.Tags...),
-				Action: existing.Action,
-			}
-		} else if entry.Action == "exclude" {
-			// Different actions: keep only exclude tags
-			tagFilterList[entry.MetricName] = MetricTagList{
-				Tags:   entry.Tags,
-				Action: "exclude",
-			}
-		} else if existing.Action == "exclude" {
-			// Keep existing exclude, ignore new include
-			continue
-		}
-	}
-
-	return newTagMatcher(tagFilterList, log)
+	return compileTagFilterList(entries, log)
 }
 
 // GetTagFilterList returns the current tag filterlistdef.

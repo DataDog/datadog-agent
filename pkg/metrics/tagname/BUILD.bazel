@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tagname",
+    srcs = ["normalize.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metrics/tagname",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "tagname_test",
+    srcs = [
+        "normalize_test.go",
+        "unicode_test.go",
+    ],
+    data = glob([
+        "testdata/*.txt",
+        "testdata/unicode/*.txt",
+    ]),
+    embed = [":tagname"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
