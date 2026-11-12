@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-// valueFromTracerConfigs is the expected result of decoding testdata/targets_env_value_from.yaml and
+// valueFromTracerConfigs is the expected result of decoding testdata/value_from.yaml and
 // valueFromTargetsJSON. The unquoted boolean value is decoded as "1".
 var valueFromTracerConfigs = []TracerConfig{
 	{Name: "DD_PROFILING_ENABLED", Value: "1"},
@@ -268,7 +268,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 		},
 		{
 			name:       "tracer configs with every valueFrom source",
-			configPath: "testdata/targets_env_value_from.yaml",
+			configPath: "testdata/value_from.yaml",
 			expected: &InstrumentationConfig{
 				Enabled:            true,
 				OnDemand:           true,
@@ -288,13 +288,13 @@ func TestNewInstrumentationConfig(t *testing.T) {
 		},
 		{
 			name:        "unknown field in valueFrom",
-			configPath:  "testdata/targets_env_value_from_extra_field.yaml",
+			configPath:  "testdata/value_from_extra_field.yaml",
 			shouldErr:   true,
 			errContains: "fooBar",
 		},
 		{
 			name:        "unknown field in tracer config",
-			configPath:  "testdata/targets_env_extra_field.yaml",
+			configPath:  "testdata/env_extra_field.yaml",
 			shouldErr:   true,
 			errContains: "vaule",
 		},
