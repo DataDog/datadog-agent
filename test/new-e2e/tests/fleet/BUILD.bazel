@@ -6,6 +6,7 @@ dd_agent_go_test(
         "config_test.go",
         "extensions_test.go",
         "preservation_test.go",
+        "upgrade_par_test.go",
         "upgrade_test.go",
     ],
     tags = ["manual"],

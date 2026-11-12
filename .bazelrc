@@ -81,7 +81,6 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_gro
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
 # Linux config ---------------------------------------------------------------------------------------------------------
-common:linux --host_linkopt=-lstdc++ # to build `gawk`, hindered by https://github.com/f0rmiga/gcc-toolchain/issues/221
 common:linux --strategy=sandboxed
 common --@llvm//runtimes/glibc:glibc_additional_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
 
