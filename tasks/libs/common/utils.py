@@ -590,6 +590,14 @@ def set_gitconfig_in_ci(ctx):
         set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
 
 
+DEFAULT_GITLAB_PROJECT_URL = "https://gitlab.ddbuild.io/DataDog/datadog-agent"
+
+
+def gitlab_project_url() -> str:
+    """URL of the GitLab project running this job, so links also work from mirrors of the repository."""
+    return os.environ.get("CI_PROJECT_URL") or DEFAULT_GITLAB_PROJECT_URL
+
+
 @contextmanager
 def gitlab_section(section_name, collapsed=False, echo=False):
     """

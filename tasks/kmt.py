@@ -62,7 +62,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
-from tasks.libs.common.utils import get_build_flags
+from tasks.libs.common.utils import get_build_flags, gitlab_project_url
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -2562,7 +2562,7 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
         return
 
     info(
-        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}({gitlab_project_url()}/-/pipelines/{pipeline_id}):"
     )
     for job in jobs_to_retry:
         info(f"[+] {job.name} (status: {job.status})")

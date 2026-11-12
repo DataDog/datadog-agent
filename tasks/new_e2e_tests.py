@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     color_message,
     environ,
     get_repo_root,
+    gitlab_project_url,
     gitlab_section,
     running_in_ci,
     running_in_gitlab_ci,
@@ -1176,7 +1177,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     except TooManyLogsError:
         print(
             color_message("WARNING", "yellow")
-            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: {gitlab_project_url()}/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
         )
 
 

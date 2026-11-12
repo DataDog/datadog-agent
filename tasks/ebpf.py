@@ -11,6 +11,7 @@ from tasks.libs.common.git import (
     get_common_ancestor,
     get_current_branch,
 )
+from tasks.libs.common.utils import gitlab_project_url
 from tasks.libs.types.arch import Arch
 
 try:
@@ -1001,7 +1002,7 @@ def generate_complexity_summary_for_pr(
         msg += f"\n\n> ⚠️ Omitted {omitted_sections} section(s) from this comment to stay under GitHub's comment size limit."
 
     curr_commit = get_commit_sha(ctx, short=False)
-    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are summarized by group only. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}]({gitlab_project_url()}/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are summarized by group only. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     if len(msg) > max_comment_length:
