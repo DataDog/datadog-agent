@@ -3,8 +3,9 @@ load("//rtloader/test:defs.bzl", "rtloader_go_test")
 rtloader_go_test(
     name = "coredump_test",
     srcs = ["coredump_test.go"],
-    cgo = True,
     cdeps = ["//rtloader:rtloader_dynamic"],
+    cgo = True,
+    gotags = ["test"],
     tags = ["dd_agent_go_test"],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
