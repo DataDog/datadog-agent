@@ -29,6 +29,10 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	return cmd
 }
 
+// detachCmdPlatform is a no-op on Windows: newInstallerCmdPlatform already starts every process
+// in a process group of its own.
+func detachCmdPlatform(_ *exec.Cmd) {}
+
 // getStates retrieves the state of all packages & their configuration from disk.
 // On Windows there is no privilege boundary between the daemon and the installer
 // binary, so we read the package & config states in-process instead of spawning
