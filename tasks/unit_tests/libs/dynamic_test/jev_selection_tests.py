@@ -184,15 +184,18 @@ class TestGenerateJobCandidates(unittest.TestCase):
 class TestSharedEvaluator(unittest.TestCase):
     """The payoff: the plain shared evaluator runs the Jev executor untouched."""
 
-    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    @patch("tasks.libs.dynamic_test.evaluator.iter_ci_test_events")
     @patch.object(JevDynTestExecutor, "_jev_run", return_value={"TestPass", "TestSkipKeep"})
     def test_evaluate_runs_the_jev_executor_end_to_end(self, _, events):
-        events.return_value = [
-            _event("TestPass", "job", "7"),
-            _event("TestFail", "job", "7", status="fail"),
-            _event("TestFlaky", "job", "7", status="fail", flaky=True),
-            _event("TestNotAnEntry", "job", "7", status="fail"),  # not a candidate: not decidable
-        ]
+        events.side_effect = lambda *args: (
+            event
+            for event in [
+                _event("TestPass", "job", "7"),
+                _event("TestFail", "job", "7", status="fail"),
+                _event("TestFlaky", "job", "7", status="fail", flaky=True),
+                _event("TestNotAnEntry", "job", "7", status="fail"),  # not a candidate: not decidable
+            ]
+        )
         executor = JevDynTestExecutor(MagicMock(), SHA, "42")
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})

@@ -12,14 +12,18 @@ Environment variables expected by concrete implementations apply as usual (e.g.,
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, Iterator
+from contextlib import closing
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from invoke import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.datadog_api import get_ci_test_events
+from tasks.libs.common.datadog_api import get_ci_test_events, iter_ci_test_events
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.telemetry import DatadogTelemetryHandler, TelemetryEvent, TelemetryHandler
@@ -308,12 +312,15 @@ This indicates an issue with the dynamic test system that may affect CI performa
 
         predicted_tests_per_job = self.executor.tests_to_run_per_job(changes)
         results: list[EvaluationResult] = []
-        for job in jobs:
-            evaluation_result = self._evaluate_job(
-                job, self.list_tests_for_job(job), predicted_tests_per_job.get(job, set())
-            )
+        for job, tests in self._iter_tests_per_job(jobs):
+            evaluation_result = self._evaluate_job(job, tests, predicted_tests_per_job.get(job, set()))
             results.append(evaluation_result)
         return results
+
+    def _iter_tests_per_job(self, jobs: list[str]) -> Iterator[tuple[str, list[ExecutedTest]]]:
+        """Retrieve each indexed job in order, including jobs that did not run."""
+        for job in jobs:
+            yield job, self.list_tests_for_job(job)
 
     def print_summary(self, results: list[EvaluationResult]):
         global_actual_count = 0
@@ -451,7 +458,7 @@ def pipeline_jobs_allowed_to_fail(pipeline_id: str) -> set[str]:
     return {job.name for job in jobs if getattr(job, "allow_failure", False)}
 
 
-def executed_tests_from_events(events: list) -> list[ExecutedTest]:
+def executed_tests_from_events(events: Iterable) -> list[ExecutedTest]:
     """Executed tests from CI Visibility events: root tests, pass/fail only.
 
     A retried GitLab job reruns its whole test set, so the same test can
@@ -510,6 +517,70 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
     - Extracts test name, status, and flaky test indicators
     - Returns ExecutedTest objects for evaluation
     """
+
+    # Conservative client limits, not advertised limits of the search service.
+    _MAX_JOBS_PER_QUERY = 50
+    _MAX_QUERY_BYTES = 8192
+
+    def _test_event_queries(self, jobs: list[str]) -> list[str]:
+        """Partition exact job predicates without dropping or splitting a job."""
+        prefix = (
+            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} -@test.status:skip ('
+        )
+
+        def query(predicates):
+            return prefix + ' OR '.join(predicates) + ')'
+
+        def fits(predicates):
+            # Count the JSON string representation, including escaped Unicode.
+            return len(json.dumps(query(predicates)).encode('utf-8')) <= self._MAX_QUERY_BYTES
+
+        queries = []
+        batch = []
+        for job in jobs:
+            escaped = job.replace('\\', '\\\\').replace('"', '\\"')
+            predicate = f'@ci.job.name:"{escaped}"'
+            if not fits([predicate]):
+                raise ValueError('An indexed job predicate exceeds the CI test query size limit')
+            if batch and (len(batch) >= self._MAX_JOBS_PER_QUERY or not fits([*batch, predicate])):
+                queries.append(query(batch))
+                batch = []
+            batch.append(predicate)
+        if batch:
+            queries.append(query(batch))
+        return queries
+
+    def _iter_tests_per_job(self, jobs: list[str]) -> Iterator[tuple[str, list[ExecutedTest]]]:
+        """Consolidate evaluation retrieval without caching direct job lookups.
+
+        All pages and batches share one three-day UTC observation window. This
+        prevents moving time bounds but cannot prevent late ingestion. The
+        reducer consumes pages in response order and keeps first-event metadata;
+        the service does not promise a stable order for equal timestamps.
+        """
+        if not jobs:
+            return
+        queries = self._test_event_queries(jobs)
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=3)
+        tests_per_job: dict[str, list[ExecutedTest]] = {job: [] for job in jobs}
+
+        def checked_events(events):
+            for event in events:
+                ci = event.get('attributes', {}).get('attributes', {}).get('ci', {})
+                if ci.get('job', {}).get('name') not in tests_per_job:
+                    raise ValueError('CI test query returned an event outside the indexed jobs')
+                if str(ci.get('pipeline', {}).get('id')) != str(self.pipeline_id):
+                    raise ValueError('CI test query returned an event for another pipeline')
+                yield event
+
+        # Keep only the reduced tests, not an additional collection of raw pages.
+        # Explicit closing also releases the client if reduction rejects an event.
+        with closing(iter_ci_test_events(queries, start, end)) as events:
+            for test in executed_tests_from_events(checked_events(events)):
+                tests_per_job[test.job_name].append(test)
+        for job in jobs:
+            yield job, tests_per_job[job]
 
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
         """Retrieve tests executed in a specific job using Datadog CI API.

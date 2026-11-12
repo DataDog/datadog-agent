@@ -1,4 +1,6 @@
+import json
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 
 from invoke.exceptions import Exit
@@ -159,6 +161,106 @@ def get_ci_test_events(query, days):
                 break  # No pagination metadata, assume single page
 
     return all_events
+
+
+# This conservative client limit is not an advertised Datadog service limit.
+_CI_TEST_EVENTS_MAX_REQUEST_BYTES = 16384
+
+
+def iter_ci_test_events(queries: Iterable[str], start: datetime, end: datetime):
+    """Yield events from complete search pages sharing one absolute observation window.
+
+    Preserve SDK retries and fail on partial responses or inconsistent pagination.
+    Fixed bounds do not provide a snapshot of events still being ingested, and the
+    service does not specify a stable tie-break for equal timestamps.
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.model_utils import model_to_dict
+    from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+    from datadog_api_client.v2.model.ci_app_query_page_options import CIAppQueryPageOptions
+    from datadog_api_client.v2.model.ci_app_response_links import CIAppResponseLinks
+    from datadog_api_client.v2.model.ci_app_response_metadata_with_pagination import CIAppResponseMetadataWithPagination
+    from datadog_api_client.v2.model.ci_app_response_page import CIAppResponsePage
+    from datadog_api_client.v2.model.ci_app_response_status import CIAppResponseStatus
+    from datadog_api_client.v2.model.ci_app_sort import CIAppSort
+    from datadog_api_client.v2.model.ci_app_test_event import CIAppTestEvent
+    from datadog_api_client.v2.model.ci_app_test_events_request import CIAppTestEventsRequest
+    from datadog_api_client.v2.model.ci_app_test_events_response import CIAppTestEventsResponse
+    from datadog_api_client.v2.model.ci_app_tests_query_filter import CIAppTestsQueryFilter
+
+    if start.utcoffset() is None or end.utcoffset() is None or start > end:
+        raise ValueError("CI test event bounds must be timezone-aware and ordered")
+    filter_from = start.astimezone(timezone.utc).isoformat()
+    filter_to = end.astimezone(timezone.utc).isoformat()
+
+    def request_page(body):
+        # Some SDK releases retain every decoded response in a client cache.
+        # End the client lifetime before yielding to limit that cache to one page.
+        with ApiClient(Configuration(enable_retry=True)) as api_client:
+            return CIVisibilityTestsApi(api_client).search_ci_app_test_events(body=body)
+
+    for query in queries:
+        if not isinstance(query, str) or not query:
+            raise ValueError("CI test event queries must be nonempty strings")
+        cursor = None
+        seen_cursors = set()
+        while True:
+            page = CIAppQueryPageOptions(limit=1000)
+            if cursor is not None:
+                page.cursor = cursor
+            body = CIAppTestEventsRequest(
+                filter=CIAppTestsQueryFilter(_from=filter_from, to=filter_to, query=query),
+                page=page,
+                sort=CIAppSort.TIMESTAMP_DESCENDING,
+            )
+            body_size = len(json.dumps(model_to_dict(body, serialize=True)).encode("utf-8"))
+            if body_size > _CI_TEST_EVENTS_MAX_REQUEST_BYTES:
+                raise ValueError(
+                    f"CI test event request exceeds the local {_CI_TEST_EVENTS_MAX_REQUEST_BYTES}-byte limit"
+                )
+            response = request_page(body)
+            if not isinstance(response, CIAppTestEventsResponse):
+                raise ValueError("CI test event search returned an invalid response")
+            events = response.get("data")
+            if not isinstance(events, list) or any(not isinstance(event, CIAppTestEvent) for event in events):
+                raise ValueError("CI test event search returned missing or invalid data")
+
+            cursor = None
+            meta = response.get("meta")
+            if meta is not None:
+                if not isinstance(meta, CIAppResponseMetadataWithPagination):
+                    raise ValueError("CI test event search returned invalid metadata")
+                status = meta.get("status")
+                if status is not None and status != CIAppResponseStatus.DONE:
+                    raise ValueError("CI test event search did not complete")
+                warnings = meta.get("warnings")
+                if warnings is not None and (not isinstance(warnings, list) or warnings):
+                    raise ValueError("CI test event search returned warnings; results may be incomplete")
+                page = meta.get("page")
+                if page is not None:
+                    if not isinstance(page, CIAppResponsePage):
+                        raise ValueError("CI test event search returned invalid pagination metadata")
+                    cursor = page.get("after")
+                    if cursor is not None and not isinstance(cursor, str):
+                        raise ValueError("CI test event search returned an invalid cursor")
+
+            links = response.get("links")
+            if links is not None:
+                if not isinstance(links, CIAppResponseLinks):
+                    raise ValueError("CI test event search returned invalid links")
+                next_link = links.get("next")
+                if next_link is not None and not isinstance(next_link, str):
+                    raise ValueError("CI test event search returned an invalid next link")
+                if next_link and not cursor:
+                    raise ValueError("CI test event search returned a next link without a continuation cursor")
+            if cursor:
+                if cursor in seen_cursors:
+                    raise ValueError("CI test event search repeated a continuation cursor")
+                seen_cursors.add(cursor)
+
+            yield from events
+            if not cursor:
+                break
 
 
 def query_metrics(query, from_time, to_time):
