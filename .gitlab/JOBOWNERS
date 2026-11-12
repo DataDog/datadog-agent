@@ -1,4 +1,6 @@
 *                                    @DataDog/agent-devx
+observer-ablation-ddeval              @DataDog/agent-anomaly-detection
+observer-ablation-driver-tests        @DataDog/agent-anomaly-detection
 
 # CI / DevX
 test_and_lint_gitlab_configuration   @DataDog/agent-devx
@@ -16,9 +18,6 @@ publish_fakeintake_pinned            @DataDog/agent-devx
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
-# Deps fetch
-fetch_openjdk                        @DataDog/agent-metric-pipelines
-
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 # tests_* defaults to agent-devx, with overrides below
@@ -26,6 +25,7 @@ tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
 tests_gpu                               @DataDog/accelerator-telemetry
 tests_windows-x64                       @DataDog/windows-products
+tests_windows_msi*                      @DataDog/windows-products
 tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
@@ -48,6 +48,7 @@ agenttelemetry_metric_vm_reminder*   @DataDog/fleet-remediation
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
+nosys_seccomp-*                      @DataDog/agent-build @DataDog/container-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
@@ -111,6 +112,9 @@ deploy_fips_proxy_testing*           @DataDog/agent-devx
 
 # Image build
 docker_build*                        @DataDog/agent-build
+docker_sign_agent7_windows           @DataDog/agent-build
+docker_sign_fips_agent7_windows      @DataDog/agent-build
+docker_sign_fakeintake               @DataDog/agent-devx
 
 # Image scan
 scan_*                               @Datadog/agent-delivery
@@ -201,6 +205,10 @@ manual_gate_threshold_update                   @DataDog/agent-build
 files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
+
+# Benchmarks
+logs_tokenizer_benchmark                       @DataDog/agent-log-pipelines
+logs_tokenizer_benchmark_check                 @DataDog/agent-log-pipelines
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations

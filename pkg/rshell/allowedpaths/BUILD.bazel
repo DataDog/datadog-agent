@@ -87,6 +87,7 @@ dd_agent_go_test(
         "hardlink_test.go",
         "hardlink_unix_test.go",
         "lexical_test.go",
+        "native_devnull_test.go",
         "path_mode_nonwindows_test.go",
         "sandbox_darwin_test.go",
         "sandbox_linux_test.go",

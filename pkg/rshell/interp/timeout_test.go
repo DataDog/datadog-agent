@@ -6,7 +6,10 @@
 package interp
 
 import (
+	"bytes"
 	"context"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -107,4 +110,40 @@ func TestMaxExecutionTimeIsRefreshedPerRun(t *testing.T) {
 
 	require.Len(t, deadlines, 2)
 	assert.True(t, deadlines[1].After(deadlines[0]), "expected a fresh deadline on each Run")
+}
+
+// raceCtx reports a deadline but never fires: it reproduces the window where a
+// builtin's own kernel read deadline (derived from ctx.Deadline) expires before
+// the context's timer goroutine has set ctx.Err().
+type raceCtx struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c raceCtx) Deadline() (time.Time, bool) { return c.deadline, true }
+
+// TestReadHittingRunDeadlineIsNotSuccess guards against a run that hit its
+// deadline reporting success: read turns the run deadline into its own
+// status-142 timeout, and the script must neither continue nor return nil.
+func TestReadHittingRunDeadlineIsNotSuccess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Windows pipes have no read deadlines, so read waits on ctx.Done()
+		// there and cannot race ahead of it; this ctx never fires Done.
+		t.Skip("read cannot install a kernel read deadline on Windows pipes")
+	}
+	pr, pw, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pr.Close(); _ = pw.Close() })
+
+	var out bytes.Buffer
+	r := newTimeoutRunner(t, StdIO(pr, &out, &out))
+
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx := raceCtx{Context: parent, deadline: time.Now().Add(20 * time.Millisecond)}
+
+	err = r.Run(ctx, parseScript(t, "read x; echo after"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NotContains(t, out.String(), "after")
 }

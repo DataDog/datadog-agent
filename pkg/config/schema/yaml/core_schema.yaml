@@ -6,6 +6,7 @@ description: The schema to validate the datadog.yaml configuration for the DataD
 properties:
   api_key:
     node_type: setting
+    sensitive: true
     title: Basic Configuration
     type: string
     default: ''
@@ -18,6 +19,7 @@ properties:
     - template_section:Common
   app_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     visibility: public
@@ -99,6 +101,7 @@ properties:
     properties:
       https:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -110,6 +113,7 @@ properties:
         - no-env
       http:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -2141,6 +2145,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -2265,6 +2270,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -2396,6 +2402,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -2506,7 +2513,7 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
-    minimum: 1
+    minimum: 0
     maximum: 65535
   dogstatsd_require_listener:
     node_type: setting
@@ -3649,39 +3656,13 @@ properties:
     description: |-
       The list of environment variables that are allowed to be resolved in check
       configurations.
-      If the list is not set or is empty, the default behavior applies: all envs
-      are allowed except the ones bound to Agent settings (see
-      `ad_allowed_agent_env_vars`).
+      If the list is not set or is empty, all envs are allowed except the ones
+      bound to Agent settings holding credentials, like `DD_API_KEY`.
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
         - <ENV_VAR_1>
         - <ENV_VAR_2>
-    tags:
-    - template_section:CoreAgent
-  ad_allowed_agent_env_vars:
-    node_type: setting
-    type: array
-    default:
-    - DD_CLUSTER_NAME
-    - DD_ENV
-    items:
-      type: string
-    visibility: public
-    description: |-
-      The list of environment variables bound to Agent settings that are allowed
-      to be resolved in check configurations. Other environment variables bound
-      to Agent settings are not resolved because some of them hold Agent
-      credentials, like `DD_API_KEY`.
-      Setting this list replaces the default, so include `DD_CLUSTER_NAME` and
-      `DD_ENV` if you still need them.
-      This list only applies when `ad_allowed_env_vars` is not set or is empty,
-      and `ad_disable_env_var_resolution` is set to false.
-    example: |2-
-
-        - DD_CLUSTER_NAME
-        - DD_ENV
-        - <ENV_VAR_1>
     tags:
     - template_section:CoreAgent
   ad_disable_env_var_resolution:
@@ -4547,6 +4528,7 @@ properties:
         example: <UAA_CLIENT_ID>
       client_secret:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -5307,6 +5289,7 @@ properties:
       By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     additionalProperties:
@@ -5890,6 +5873,21 @@ properties:
             comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
+      metric_pipeline:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Run only the kind-routed metric pipeline. Legacy detectors remain the
+              default.
+          anomaly_cutoff:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Suppress reactivated-series anomalies until a fresh point is observed.
     tags:
     - full-agent-only:true
   appsec:
@@ -6015,6 +6013,7 @@ properties:
         properties:
           api_key:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
             comment: |-
@@ -6216,6 +6215,32 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  check_sampler_periodic_flush_checks:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Names of the checks whose metrics are sent on every Agent flush, to reduce the
+      memory used by checks with long runs or many metrics, which otherwise hold every
+      metric in memory until the run ends. For these checks, gauge, count and monotonic
+      count values are sent without waiting for the check run to end.
+  check_sampler_sketches_at_commit:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    description: |-
+      Whether distributions and histogram buckets submitted by checks are timestamped when the check
+      run completes, one point per run, like other check metrics. Set to false to timestamp them per
+      second of submission instead.
+    comment: |-
+      Temporary opt-out for timestamping check sketches at commit, to be removed once the new behavior
+      has shipped without issue.
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: string
@@ -6415,6 +6440,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6613,6 +6639,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6725,6 +6752,64 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      experimental:
+        node_type: section
+        type: object
+        description: Temporary, development-only settings that will be removed in the future.
+        properties:
+          otlp:
+            node_type: section
+            type: object
+            description: Temporary, development-only OTLP settings that will be removed in the future.
+            properties:
+              proxy:
+                node_type: section
+                type: object
+                description: Temporary, development-only OTLP proxy settings that will be removed in the future.
+                properties:
+                  agent_receiver_grpc_endpoint:
+                    node_type: setting
+                    type: string
+                    default: 127.0.0.1:4319
+                    description: |-
+                      Relocated Agent OTLP/gRPC listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
+                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address or, for Unix transports,
+                      a socket path. Any local process that can reach this endpoint can send OTLP data without TLS client authentication.
+                      When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
+                      is a configuration error and the Agent's OTLP ingest does not start.
+                      Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
+                  agent_receiver_http_endpoint:
+                    node_type: setting
+                    type: string
+                    default: 127.0.0.1:4320
+                    description: |-
+                      Relocated Agent OTLP/HTTP listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
+                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address. Any local process that
+                      can reach this endpoint can send OTLP data without TLS client authentication.
+                      Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
+                  logs:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP logs from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
+                  metrics:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP metrics from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
+                  traces:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP traces from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
       log_file:
         node_type: setting
         type: string
@@ -6737,57 +6822,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-          proxy:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-              logs:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-              metrics:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-              receiver:
-                node_type: section
-                type: object
-                properties:
-                  protocols:
-                    node_type: section
-                    type: object
-                    properties:
-                      grpc:
-                        node_type: section
-                        type: object
-                        properties:
-                          endpoint:
-                            node_type: setting
-                            type: string
-                            default: 127.0.0.1:4319
-                            comment: When the ADP OTLP proxy is enabled, ADP owns
-                              the gRPC endpoint configured for the receiver (default
-                              :4317) and the core agent uses the endpoint below
-              traces:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
       preflight_mode:
         node_type: setting
         type: boolean
@@ -6876,6 +6910,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6973,6 +7008,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7139,6 +7175,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7231,6 +7268,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7733,6 +7771,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7825,6 +7864,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         additionalProperties:
@@ -7833,6 +7873,7 @@ properties:
           type: array
       api_key:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
       dd_url:
@@ -8083,6 +8124,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -8185,6 +8227,14 @@ properties:
         node_type: section
         type: object
         properties:
+          dd_url:
+            node_type: setting
+            type: string
+            default: ""
+            description: |
+              URL health reports are sent to, overriding the health platform intake of the
+              configured `site` (https://agenthealth-intake.<site>). Use it to route health
+              reports through a proxy.
           interval:
             node_type: setting
             type: string
@@ -8460,10 +8510,12 @@ properties:
         properties:
           auth:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
           password:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
           url:
@@ -8508,7 +8560,7 @@ properties:
       refresh_interval:
         node_type: setting
         type: string
-        default: 6h0m0s
+        default: 10m
         format: duration
         description: How often routing decisions are refreshed. Jittered by 10 percent, with a
           minimum of 1m.
@@ -8775,6 +8827,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9192,6 +9245,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         additionalProperties:
@@ -9200,6 +9254,7 @@ properties:
           type: array
       api_key:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
       api_version:
@@ -9330,7 +9385,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
           sleep_interval:
             node_type: setting
             type: string
@@ -9402,6 +9457,17 @@ properties:
     default: ${run_path}
   runtime_security_config:
     $ref: runtime_security_config.yaml
+  schema:
+    node_type: section
+    type: object
+    properties:
+      enforce:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |-
+          Reverts the settings that don't match the configuration schema to their default value. When disabled,
+          invalid settings are still reported but keep their configured value.
   sds_result:
     node_type: section
     type: object
@@ -9412,6 +9478,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9534,6 +9601,7 @@ properties:
         properties:
           api_key:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
             env_vars:
@@ -9747,6 +9815,13 @@ properties:
         default: false
         env_vars:
         - DD_SERVERLESS_INIT_METADATA_ENABLED
+      aas_extension_metadata_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables Azure App Service extension metadata when metadata collection is enabled.
+        env_vars:
+        - DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED
       metadata_wrapped_command_enabled:
         node_type: setting
         type: boolean
@@ -9759,6 +9834,16 @@ properties:
           command contains no sensitive information.
         env_vars:
         - DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED
+      metadata_runtime:
+        node_type: setting
+        type: string
+        default: ''
+        description: |
+          Application runtime to report in serverless-init metadata. When set, it takes
+          priority over the runtime that serverless-init detects from the platform and
+          the wrapped command.
+        env_vars:
+        - DD_SERVERLESS_INIT_METADATA_RUNTIME
       logs_enabled:
         node_type: setting
         type: boolean
@@ -9791,6 +9876,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9908,6 +9994,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -10146,7 +10233,7 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      the darwin and bsd network check has not been ported from python
+      the bsd network check has not been ported from python, and the darwin one is opt-in
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
     description: Flag to enable or disable the Go core network check. When disabled, the

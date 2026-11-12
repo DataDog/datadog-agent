@@ -25,6 +25,7 @@ import (
 	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -131,8 +132,8 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 			f.Filesystem = model.TmpFS
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
-			if err != nil {
-				ev.SetPathResolutionError(f, err)
+			if err != nil && f.PathResolutionError == nil {
+				ev.SetPathResolutionError(f, fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", f.FileFields.MountID, ev.PIDContext.Pid, err))
 			}
 			f.Filesystem = fs
 		}
@@ -758,13 +759,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
 	fh.resolveGoLabelsSpanContext(ev)
 	fh.resolveOTelSpanAttrs(ev)
-
-	// fork and exec carry the span context over to the process they create.
-	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
-		if ev.ProcessCacheEntry != nil {
-			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
-		}
-	}
+	propagateSpanContext(ev)
 
 	return &ev.SpanContext
 }
@@ -810,13 +805,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 
-	keyNames := fh.otelAttributeKeyNames(ev)
-
-	attrs := make(map[string]string, len(rawAttrs))
-	for _, attr := range rawAttrs {
-		attrs[otelAttributeName(keyNames, attr.KeyIndex)] = attr.Value
-	}
-	ev.SpanContext.Attributes = attrs
+	ev.SpanContext.Attributes = otelthreadctx.NamedAttributes(fh.otelAttributeKeyNames(ev), rawAttrs)
 }
 
 // otelAttributeKeyNames returns the ordered key names the process published, which
@@ -842,13 +831,6 @@ func (fh *EBPFFieldHandlers) otelAttributeKeyNames(ev *model.Event) []string {
 	}
 
 	return nil
-}
-
-func otelAttributeName(keyNames []string, keyIndex uint8) string {
-	if int(keyIndex) < len(keyNames) {
-		return keyNames[keyIndex]
-	}
-	return strconv.Itoa(int(keyIndex))
 }
 
 // ResolveOnDemandName resolves the on-demand event name

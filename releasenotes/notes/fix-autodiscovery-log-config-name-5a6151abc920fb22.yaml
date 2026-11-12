@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix unstable log configuration names when multiple checks are configured
+    for a Kubernetes container through Autodiscovery v2 annotations, preventing
+    unnecessary rescheduling of log collection.

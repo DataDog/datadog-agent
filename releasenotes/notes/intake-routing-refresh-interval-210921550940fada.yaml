@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    When intake routing is enabled, refresh routing decisions every 10 minutes by
+    default instead of every six hours, so routing changes take effect sooner.
+  - |
+    Send intake routing discovery requests to ``config.<site>`` instead of
+    ``api.<site>``.

@@ -8,6 +8,7 @@ package ad
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -167,16 +168,37 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			// This may also remove sources not added by this scheduler, for
 			// example sources added by other schedulers or sources added by
 			// launchers.
-			for _, source := range s.mgr.GetSources() {
-				if identifier == source.Config.Identifier {
-					s.mgr.RemoveSource(source)
-				}
+			//
+			// If that removes the sources of another logs config that
+			// autodiscovery still considers scheduled, autodiscovery will not
+			// send it again and the container's logs stop: report it.
+			if others := s.removeSourcesFor(identifier, configName(config)); len(others) > 0 {
+				log.Warnf("Unscheduling logs config %s removed all logs sources of %s while logs config(s) %s are still scheduled for the same container: the container's logs stop until the Agent restarts",
+					configName(config), config.ServiceID, strings.Join(others, ", "))
 			}
 		default:
 			// invalid integration config
 			continue
 		}
 	}
+}
+
+// removeSourcesFor removes all the sources for identifier, and returns the
+// sorted names of the configs other than the one named name that had sources
+// for it. Sources derived by a launcher from another source are not counted.
+func (s *Scheduler) removeSourcesFor(identifier string, name string) []string {
+	var others []string
+	for _, source := range s.mgr.GetSources() {
+		if identifier != source.Config.Identifier {
+			continue
+		}
+		if source.ParentSource == nil && source.Name != name && !slices.Contains(others, source.Name) {
+			others = append(others, source.Name)
+		}
+		s.mgr.RemoveSource(source)
+	}
+	slices.Sort(others)
+	return others
 }
 
 // newSources returns true if the config can be mapped to sources.

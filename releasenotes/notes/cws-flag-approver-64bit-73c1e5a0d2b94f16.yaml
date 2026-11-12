@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Workload Protection in-kernel filters on ``bpf.cmd``, ``bind.addr.family``,
+    ``connect.addr.family``, ``prctl.option``, ``setsockopt.level``,
+    ``setsockopt.optname``, ``socket.domain`` and ``socket.protocol`` now
+    match values of 32 and above. Previously, events with such values could be
+    dropped before rule evaluation, or kept for an unrelated value.

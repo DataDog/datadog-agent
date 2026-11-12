@@ -27,7 +27,7 @@ type inactiveEvictionDetector struct {
 func (*inactiveEvictionDetector) Name() string { return "inactive_eviction" }
 func (*inactiveEvictionDetector) Ready() bool  { return true }
 
-func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64) observer.DetectionResult {
+func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64, _ observer.DetectionFilter) observer.DetectionResult {
 	d.seenSeries = len(storage.ListSeries(observer.WorkloadSeriesFilter()))
 	return observer.DetectionResult{}
 }
@@ -39,7 +39,7 @@ func (d *inactiveEvictionDetector) RemoveSeries(refs []observer.SeriesRef) {
 func (d *fixedDetector) Name() string { return "fixed" }
 func (*fixedDetector) Ready() bool    { return true }
 
-func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
+func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64, _ observer.DetectionFilter) observer.DetectionResult {
 	if d.fired {
 		return observer.DetectionResult{}
 	}
@@ -75,9 +75,9 @@ func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) 
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 	detector := &fixedDetector{anomalies: anomalies}
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                 storage,
-		detectors:               []observer.Detector{detector},
+		detectors:               []detectorRegistration{{detector: detector}},
 		correlators:             []observer.Correlator{correlator},
 		trackCorrelationHistory: true, // tests that call AccumulatedCorrelations need this
 	})
@@ -127,7 +127,7 @@ func TestEngineRecordsDeduplicatedDetectorEmissionsBeforeCorrelation(t *testing.
 
 	// Re-emit the same raw output. It is still a detector result, but it is a
 	// duplicate and therefore must not inflate the scorer-facing metric.
-	e.detectors[0].(*fixedDetector).fired = false
+	e.detectors[0].detector.(*fixedDetector).fired = false
 	e.Advance(311)
 	assert.Len(t, got, 2)
 }
@@ -176,9 +176,9 @@ func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
 	}
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                 storage,
-		detectors:               []observer.Detector{detector},
+		detectors:               []detectorRegistration{{detector: detector}},
 		correlators:             []observer.Correlator{correlator},
 		trackCorrelationHistory: true,
 	})
@@ -226,7 +226,7 @@ func TestEngine_EvictsInactiveSeriesBeforeDetectionAtConfiguredCadence(t *testin
 	old := storage.Add("ns", "old", 1, 100, nil).Ref
 	active := storage.Add("ns", "active", 1, 101, nil).Ref
 	detector := &inactiveEvictionDetector{}
-	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []detectorRegistration{{detector: detector}}})
 
 	var evictionReasons []string
 	e.onStorageSeriesEvicted = func(reason string, _ int) {
@@ -264,7 +264,7 @@ func TestEngine_EvictsAtAdmissionAndSynchronizesDependentState(t *testing.T) {
 		EvictionFloorRatio: 0.5,
 	})
 	detector := &inactiveEvictionDetector{}
-	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []detectorRegistration{{detector: detector}}})
 
 	var capacityHits int
 	var capacityEvicted int
@@ -303,7 +303,7 @@ func TestEngine_InactiveSeriesEvictionDisabled(t *testing.T) {
 	storageCfg.InactiveSeriesTTLSeconds = 0
 	storage := newTimeSeriesStorageWith(storageCfg)
 	ref := storage.Add("ns", "old", 1, 0, nil).Ref
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(engineConfig{storage: storage})
 
 	e.Advance(10_000)
 

@@ -454,6 +454,7 @@ func fakeintakeEnvVars(fi *fakeintakeComp.Fakeintake) (corev1.EnvVarArray, error
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_DD_URL"), Value: fi.URL},
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_APM_DD_URL"), Value: fi.URL},
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_PROCESS_CONFIG_PROCESS_DD_URL"), Value: fi.URL},
+		&corev1.EnvVarArgs{Name: pulumi.String("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"), Value: fi.URL},
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"), Value: fi.URL},
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"), Value: fi.URL},
 		&corev1.EnvVarArgs{Name: pulumi.String("DD_LOGS_CONFIG_USE_HTTP"), Value: pulumi.String("true")},

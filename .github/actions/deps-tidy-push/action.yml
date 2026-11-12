@@ -26,7 +26,7 @@ runs:
         fi
     - name: Push signed commits
       if: steps.commit.outputs.has_changes == 'true'
-      uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
+      uses: chouetz/push-signed-commits@7639d0c7d9aa9825a7d9152e5decbd7e8dc46489
       with:
         github-token: ${{ inputs.token }}
         local_branch_name: ${{ github.head_ref }}

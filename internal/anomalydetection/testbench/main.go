@@ -73,6 +73,7 @@ func main() {
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
 	onlyStr := flag.String("only", "", "Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with --enable/--disable.")
+	useMetricPipeline := flag.Bool("use-metric-pipeline", false, "Use the kind-routed metric workflow instead of legacy detectors")
 	configFile := flag.String("config", "", "Path to JSON params file for component enabled state and hyperparameters (for Bayesian optimization). Overrides --enable/--disable/--only.")
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
@@ -90,51 +91,12 @@ func main() {
 	allowedTypes := flag.String("allowed_types", "", "Comma-separated allowed metric types (e.g. \"Gauge,Count,Unknown\"); empty allows all types")
 	flag.Parse()
 
-	// --config takes full precedence over --enable/--disable/--only.
-	var componentSettings observerimpl.ComponentSettings
-	if *configFile != "" {
-		loaded, err := bench.LoadTestbenchParams(*configFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to load config file: %v\n", err)
-			os.Exit(1)
-		}
-		componentSettings = loaded
-	} else {
-		overrides := make(map[string]bool)
-		if *onlyStr != "" {
-			onlySet := make(map[string]bool)
-			for _, name := range strings.Split(*onlyStr, ",") {
-				name = strings.TrimSpace(name)
-				if name != "" {
-					onlySet[name] = true
-				}
-			}
-			for _, entry := range observerimpl.TestbenchCatalogEntries() {
-				if entry.Kind == "extractor" {
-					continue
-				}
-				overrides[entry.Name] = onlySet[entry.Name]
-			}
-		} else {
-			if *enableStr != "" {
-				for _, name := range strings.Split(*enableStr, ",") {
-					name = strings.TrimSpace(name)
-					if name != "" {
-						overrides[name] = true
-					}
-				}
-			}
-			if *disableStr != "" {
-				for _, name := range strings.Split(*disableStr, ",") {
-					name = strings.TrimSpace(name)
-					if name != "" {
-						overrides[name] = false
-					}
-				}
-			}
-		}
-		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
+	componentSettings, err := loadCLIComponentSettings(*configFile, *enableStr, *disableStr, *onlyStr, *useMetricPipeline)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
+	fmt.Printf("Metric workflow: %s\n", metricWorkflowName(componentSettings.UseMetricPipeline))
 
 	if *baselineDuration == "0" || *baselineDuration == "disabled" {
 		componentSettings.Baseline = observerimpl.BaselineConfig{Enabled: false}
@@ -187,7 +149,7 @@ func main() {
 		fmt.Println()
 	}
 
-	err := fxutil.OneShot(run,
+	err = fxutil.OneShot(run,
 		recordernoop.Module(),
 		observerfx.Module(),
 		reportertestbenchfx.Module(),
@@ -206,6 +168,7 @@ func main() {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.metric_pipeline.enabled", componentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
 			if len(parsedAllowedTypes) > 0 {
 				c.Set("anomaly_detection.metrics.allowed_types", parsedAllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}
@@ -425,4 +388,60 @@ func parseAllowedTypesFlag(raw string) ([]string, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func metricWorkflowName(useMetricPipeline bool) string {
+	if useMetricPipeline {
+		return "metric_pipeline"
+	}
+	return "legacy"
+}
+
+func loadCLIComponentSettings(configFile, enableStr, disableStr, onlyStr string, useMetricPipeline bool) (observerimpl.ComponentSettings, error) {
+	var componentSettings observerimpl.ComponentSettings
+	if configFile != "" {
+		loaded, err := bench.LoadTestbenchParams(configFile)
+		if err != nil {
+			return observerimpl.ComponentSettings{}, fmt.Errorf("load component config: %w", err)
+		}
+		componentSettings = loaded
+	} else {
+		overrides := make(map[string]bool)
+		if onlyStr != "" {
+			onlySet := make(map[string]bool)
+			for _, name := range strings.Split(onlyStr, ",") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					onlySet[name] = true
+				}
+			}
+			for _, entry := range observerimpl.TestbenchCatalogEntries() {
+				if entry.Kind == "extractor" {
+					continue
+				}
+				overrides[entry.Name] = onlySet[entry.Name]
+			}
+		} else {
+			if enableStr != "" {
+				for _, name := range strings.Split(enableStr, ",") {
+					name = strings.TrimSpace(name)
+					if name != "" {
+						overrides[name] = true
+					}
+				}
+			}
+			if disableStr != "" {
+				for _, name := range strings.Split(disableStr, ",") {
+					name = strings.TrimSpace(name)
+					if name != "" {
+						overrides[name] = false
+					}
+				}
+			}
+		}
+		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
+	}
+
+	componentSettings.UseMetricPipeline = componentSettings.UseMetricPipeline || useMetricPipeline
+	return componentSettings, nil
 }

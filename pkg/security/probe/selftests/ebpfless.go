@@ -27,9 +27,11 @@ type EBPFLessSelfTest struct {
 func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	o.ruleID = ruleIDPrefix + "_exec"
 
+	// Validate exec delivery independently of lineage: even the initial wrapped
+	// tracee has a real PPID and may have a reconstructed or cached ancestor.
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: `exec.file.path != "" && process.parent.pid == 0 && process.ppid == 0`,
+		Expression: `exec.file.path != ""`,
 		Every: &rules.HumanReadableDuration{
 			Duration: time.Duration(math.MaxInt64),
 		},

@@ -95,11 +95,11 @@ jobs:
           git diff "${MERGE_COMMIT_SHA}^1" "${MERGE_COMMIT_SHA}" > pr.diff
 
       - name: Assess backport need
-        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1.0.263
+        uses: anthropics/claude-code-action@c0949c50a78c1ec8ce2647db36629b870e715d0c # v1.0.268
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_bots: github-actions
+          allowed_bots: github-actions,gh-worker-dd-mergequeue-cf854d
           claude_args: >-
             --allowedTools "Read(pr_context.json),Read(pr.diff),Write(claude.txt),Edit(claude.txt)"
             --disallowedTools "Bash,WebFetch,WebSearch,Task,KillShell"

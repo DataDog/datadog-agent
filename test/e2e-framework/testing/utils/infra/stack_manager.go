@@ -55,7 +55,8 @@ const (
 
 var (
 	defaultWorkspaceEnvVars = map[string]string{
-		"PULUMI_SKIP_UPDATE_CHECK": "true",
+		"PULUMI_DISABLE_AUTOMATIC_PLUGIN_ACQUISITION": "true",
+		"PULUMI_SKIP_UPDATE_CHECK":                    "true",
 	}
 
 	stackManager     *StackManager

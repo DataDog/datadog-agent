@@ -1,0 +1,615 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && functionaltests
+
+// Package tests holds tests related files
+package tests
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
+
+// runEBPFLessSpanTester runs one command of variant, whose arguments args builds
+// from the path of the file the sub-test watches, and checks the event ruleID
+// reports.
+func runEBPFLessSpanTester(t *testing.T, test *testModule, mode string, variant otelTesterVariant, fileName, ruleID string,
+	args func(kind wrapperType, testFile string) []string,
+	check func(t *testing.T, event *model.Event)) {
+	t.Helper()
+
+	test.RunMultiMode(t, mode, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		requireOTelTesterRuns(t, variant, cmdFunc)
+
+		testFile, _, err := test.Path(fileName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignalFromRule(t, func() error {
+			if out, err := test.runSpanTester(cmdFunc, variant.binary, args(kind, testFile)); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, ruleID)
+			check(t, event)
+		}, ruleID)
+	})
+}
+
+func ebpfLessAssertNoSpan(t *testing.T, event *model.Event) {
+	t.Helper()
+	assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+	assert.Equal(t, "0", event.SpanContext.TraceID.String())
+}
+
+// TestOTelSpanEBPFLess covers OTel Thread Local Context Record span collection
+// by the ptracer, against the same testers TestOTelSpan drives.
+//
+// The ptracer stops the tracee on every syscall it reports, so the record and
+// the process context are already published, and still in place, when it reads
+// them: unlike the eBPF probe nothing has to resolve the tester before the
+// record is published, and the tester runs without a continue file.
+func TestOTelSpanEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_otel_span_ebpfless_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-ebpfless"`,
+		},
+		{
+			ID:         "test_otel_span_ebpfless_rule_open_invalid",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-ebpfless-invalid"`,
+		},
+		{
+			ID:         "test_otel_span_ebpfless_rule_open_null_ptr",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-ebpfless-null-ptr"`,
+		},
+		{
+			ID:         "test_otel_span_ebpfless_rule_fork_open",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-ebpfless-fork-open"`,
+		},
+		{
+			ID:         "test_otel_span_ebpfless_rule_exec_open",
+			Expression: `open.file.path == "{{.Root}}/test-otel-span-ebpfless-exec-open"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_otel_span_ebpfless_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/bin/touch", "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	var negativeTester *otelTesterVariant
+	var otelTesterVariants []otelTesterVariant
+	var otelExecVariants []otelTesterVariant
+
+	for _, spec := range otelTesterSpecs {
+		variant, ok := loadOTelTesterVariant(t, test, spec)
+		if !ok {
+			continue
+		}
+
+		otelTesterVariants = append(otelTesterVariants, variant)
+		if spec.execCoverage {
+			otelExecVariants = append(otelExecVariants, variant)
+		}
+		if spec.negatives {
+			negativeTester = &variant
+		}
+	}
+
+	if negativeTester == nil {
+		if len(otelTesterVariants) == 0 {
+			t.Skip("no OTel TLS tester embedded")
+		}
+		t.Fatal("otel_tls_exe_static_glibc is missing while other OTel TLS testers were embedded")
+	}
+
+	expectedHi, expectedLo, ok := splitTraceID(otelFakeTraceID128b)
+	if !ok {
+		t.Fatalf("splitTraceID(%s)", otelFakeTraceID128b)
+	}
+	expectedTraceIDHex := utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString()
+
+	assertNoSpan := ebpfLessAssertNoSpan
+
+	runOTel := func(t *testing.T, mode string, variant otelTesterVariant, fileName, ruleID string,
+		args func(kind wrapperType, testFile string) []string,
+		check func(t *testing.T, event *model.Event)) {
+		t.Helper()
+		runEBPFLessSpanTester(t, test, mode, variant, fileName, ruleID, args, check)
+	}
+
+	t.Run("valid_record", func(t *testing.T) {
+		for _, variant := range otelTesterVariants {
+			t.Run(variant.name, func(t *testing.T) {
+				runOTel(t, "open", variant, "test-otel-span-ebpfless", "test_otel_span_ebpfless_rule_open",
+					func(_ wrapperType, testFile string) []string {
+						return otelArgs(variant, "otel-span-open", otelFakeTraceID128b, "204", testFile)
+					},
+					func(t *testing.T, event *model.Event) {
+						assertOTelRecordSpan(t, test, event)
+
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedTrace(t, jsonStr, "204", expectedTraceIDHex, otelExpectedAttrs)
+						}
+					})
+			})
+		}
+	})
+
+	t.Run("invalid_record", func(t *testing.T) {
+		runOTel(t, "open", *negativeTester, "test-otel-span-ebpfless-invalid", "test_otel_span_ebpfless_rule_open_invalid",
+			func(_ wrapperType, testFile string) []string {
+				return []string{"otel-span-open-invalid", otelFakeTraceID128b, "204", testFile}
+			},
+			assertNoSpan)
+	})
+
+	t.Run("null_pointer", func(t *testing.T) {
+		runOTel(t, "open", *negativeTester, "test-otel-span-ebpfless-null-ptr", "test_otel_span_ebpfless_rule_open_null_ptr",
+			func(_ wrapperType, testFile string) []string {
+				return []string{"otel-span-open-null-ptr", testFile}
+			},
+			assertNoSpan)
+	})
+
+	t.Run("valid_record_exec", func(t *testing.T) {
+		// The record is published before execv, and the ptracer reads it at the
+		// execve entry, before the new image replaces the address space holding it.
+		for _, variant := range otelExecVariants {
+			t.Run(variant.name, func(t *testing.T) {
+				runOTel(t, "exec", variant, "test-otel-span-ebpfless-exec", "test_otel_span_ebpfless_rule_exec",
+					func(kind wrapperType, testFile string) []string {
+						return otelArgs(variant, append([]string{"otel-span-exec", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)...)
+					},
+					func(t *testing.T, event *model.Event) {
+						assertOTelRecordSpan(t, test, event)
+
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204", expectedTraceIDHex, otelExpectedAttrs,
+								spanLocations{onTopLevelProcess: true})
+						}
+					})
+			})
+		}
+	})
+
+	t.Run("invalid_record_exec", func(t *testing.T) {
+		runOTel(t, "exec", *negativeTester, "test-otel-span-ebpfless-exec-invalid", "test_otel_span_ebpfless_rule_exec",
+			func(kind wrapperType, testFile string) []string {
+				return append([]string{"otel-span-exec-invalid", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)
+			},
+			assertNoSpan)
+	})
+
+	t.Run("null_pointer_exec", func(t *testing.T) {
+		runOTel(t, "exec", *negativeTester, "test-otel-span-ebpfless-exec-null-ptr", "test_otel_span_ebpfless_rule_exec",
+			func(kind wrapperType, testFile string) []string {
+				return append([]string{"otel-span-exec-null-ptr"}, otelTouchArgs(kind, executable, testFile)...)
+			},
+			assertNoSpan)
+	})
+
+	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
+		// The child execs with the parent's record still in its copy of the
+		// address space, so the exec event reports it, and the fork leaves the
+		// parent's span in the lineage of the exec'd image.
+		for _, variant := range otelExecVariants {
+			t.Run(variant.name, func(t *testing.T) {
+				runOTel(t, "exec", variant, "test-otel-span-ebpfless-fork-exec", "test_otel_span_ebpfless_rule_exec",
+					func(kind wrapperType, testFile string) []string {
+						return otelArgs(variant, append([]string{"otel-span-fork-exec", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)...)
+					},
+					func(t *testing.T, event *model.Event) {
+						assert.Equal(t, uint64(204), event.SpanContext.SpanID,
+							"exec event should carry the fork parent's OTel record span_id")
+						assert.Equal(t, otelFakeTraceID128b, event.SpanContext.TraceID.String(),
+							"exec event should carry the fork parent's OTel record trace_id")
+
+						jsonStr, err := test.marshalEvent(event)
+						if assert.NoError(t, err, "marshalEvent") {
+							assertSerializedSpanContext(t, jsonStr, "204", expectedTraceIDHex, nil,
+								spanLocations{onTopLevelProcess: true, onAncestor: true})
+						}
+					})
+			})
+		}
+	})
+
+	t.Run("exec_propagates_to_later_events", func(t *testing.T) {
+		// touch, which publishes no record of its own, opens the watched file
+		// after the exec: the span reaches that open event only through the
+		// process entry the exec stamped.
+		runOTel(t, "open", *negativeTester, "test-otel-span-ebpfless-exec-open", "test_otel_span_ebpfless_rule_exec_open",
+			func(kind wrapperType, testFile string) []string {
+				return append([]string{"otel-span-exec", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)
+			},
+			func(t *testing.T, event *model.Event) {
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID,
+					"open event should not carry a span context: touch has no tracer")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204", expectedTraceIDHex, nil,
+						spanLocations{onTopLevelProcess: true})
+				}
+			})
+	})
+
+	t.Run("fork_no_exec", func(t *testing.T) {
+		// The forked child publishes a record of its own before its open: the
+		// child's span id, not the parent's, has to be reported.
+		const childSpanID = "999"
+
+		for _, variant := range otelExecVariants {
+			t.Run(variant.name, func(t *testing.T) {
+				runOTel(t, "open", variant, "test-otel-span-ebpfless-fork-open", "test_otel_span_ebpfless_rule_fork_open",
+					func(_ wrapperType, testFile string) []string {
+						return otelArgs(variant, "otel-span-fork-open", otelFakeTraceID128b, "204", childSpanID, testFile)
+					},
+					func(t *testing.T, event *model.Event) {
+						assert.Equal(t, childSpanID, strconv.FormatUint(event.SpanContext.SpanID, 10),
+							"the child's own span id should be read, not the parent's")
+						assert.Equal(t, otelFakeTraceID128b, event.SpanContext.TraceID.String())
+					})
+			})
+		}
+	})
+}
+
+// TestNodeSpanEBPFLess covers the Node.js thread context reader of the ptracer,
+// against the tester TestNodeSpan drives: the same walk from the discovery
+// struct through the V8 objects a record hangs off, done with process_vm_readv
+// rather than in eBPF, has to survive the same shapes and drop the same ones.
+func TestNodeSpanEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_node_span_ebpfless_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-node-span-ebpfless"`,
+		},
+		{
+			ID:         "test_node_span_ebpfless_rule_open_no_span",
+			Expression: `open.file.path == "{{.Root}}/test-node-span-ebpfless-no-span"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_node_span_ebpfless_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/bin/touch", "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	// The driver dlopens the fixture, which is how a Node addon is loaded.
+	variant, ok := loadOTelTesterVariant(t, test, otelTesterSpec{
+		name:    "nodejs-dlopen-glibc",
+		binary:  "otel_nodejs_dlopen_glibc",
+		fixture: "libotel_nodejs_glibc.so",
+		dlopen:  true,
+	})
+	if !ok {
+		// Producing neither artifact means the build was cross-compiling and
+		// never tried; see build_otel_tls_artifacts.
+		t.Skip("Node.js span tester not embedded")
+	}
+
+	expectedHi, expectedLo, ok := splitTraceID(otelFakeTraceID128b)
+	if !ok {
+		t.Fatalf("splitTraceID(%s)", otelFakeTraceID128b)
+	}
+	expectedTraceIDHex := utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString()
+
+	// The tester publishes the same record as the OTel ones, its key names
+	// coming from the process context.
+	assertNodeOpenSpan := func(t *testing.T, event *model.Event) {
+		t.Helper()
+		assertOTelRecordSpan(t, test, event)
+
+		jsonStr, err := test.marshalEvent(event)
+		if assert.NoError(t, err, "marshalEvent") {
+			assertSerializedTrace(t, jsonStr, "204", expectedTraceIDHex, otelExpectedAttrs)
+		}
+	}
+
+	runOpen := func(t *testing.T, command, fileName, ruleID string, check func(t *testing.T, event *model.Event)) {
+		t.Helper()
+		runEBPFLessSpanTester(t, test, "open", variant, fileName, ruleID,
+			func(_ wrapperType, testFile string) []string {
+				return otelArgs(variant, command, otelFakeTraceID128b, "204", testFile)
+			},
+			check)
+	}
+
+	t.Run("valid_record", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open", "test-node-span-ebpfless",
+			"test_node_span_ebpfless_rule_open", assertNodeOpenSpan)
+	})
+
+	// The entry the reader is after is not the first of its bucket, another key
+	// having hashed to the same one. It must walk past it rather than give up.
+	t.Run("bucket_collision", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-chained", "test-node-span-ebpfless",
+			"test_node_span_ebpfless_rule_open", assertNodeOpenSpan)
+	})
+
+	// A bucket whose chain runs deeper than the eBPF reader follows. The
+	// ptracer could follow it, but drops it too: both probes must agree.
+	t.Run("chain_overflow", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-deep", "test-node-span-ebpfless-no-span",
+			"test_node_span_ebpfless_rule_open_no_span", ebpfLessAssertNoSpan)
+	})
+
+	// The record of a span that has ended: still reachable from every
+	// asynchronous context that inherited it, and cleared for good.
+	t.Run("invalidated_record", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-invalid", "test-node-span-ebpfless-no-span",
+			"test_node_span_ebpfless_rule_open_no_span", ebpfLessAssertNoSpan)
+	})
+
+	// An asynchronous context holding undefined, which is what the writer leaves
+	// when it detaches a context and nothing takes its place.
+	t.Run("no_context", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-no-context", "test-node-span-ebpfless-no-span",
+			"test_node_span_ebpfless_rule_open_no_span", ebpfLessAssertNoSpan)
+	})
+
+	// A thread the writer never ran on, leaving the discovery struct zeroed.
+	t.Run("no_writer", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-no-writer", "test-node-span-ebpfless-no-span",
+			"test_node_span_ebpfless_rule_open_no_span", ebpfLessAssertNoSpan)
+	})
+
+	t.Run("valid_record_exec", func(t *testing.T) {
+		// The ptracer walks the graph at the execve entry, before the new image
+		// replaces the address space holding it.
+		runEBPFLessSpanTester(t, test, "exec", variant, "test-node-span-ebpfless-exec", "test_node_span_ebpfless_rule_exec",
+			func(kind wrapperType, testFile string) []string {
+				return otelArgs(variant, append([]string{"otel-node-span-exec", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)...)
+			},
+			func(t *testing.T, event *model.Event) {
+				assertOTelRecordSpan(t, test, event)
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204", expectedTraceIDHex, otelExpectedAttrs,
+						spanLocations{onTopLevelProcess: true})
+				}
+			})
+	})
+
+	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
+		// The child execs with the parent's object graph still in its copy of
+		// the address space, so the exec event reports the record, and the fork
+		// leaves the parent's span in the lineage of the exec'd image.
+		runEBPFLessSpanTester(t, test, "exec", variant, "test-node-span-ebpfless-fork-exec", "test_node_span_ebpfless_rule_exec",
+			func(kind wrapperType, testFile string) []string {
+				return otelArgs(variant, append([]string{"otel-node-span-fork-exec", otelFakeTraceID128b, "204"}, otelTouchArgs(kind, executable, testFile)...)...)
+			},
+			func(t *testing.T, event *model.Event) {
+				assert.Equal(t, uint64(204), event.SpanContext.SpanID,
+					"exec event should carry the fork parent's Node.js record span_id")
+				assert.Equal(t, otelFakeTraceID128b, event.SpanContext.TraceID.String(),
+					"exec event should carry the fork parent's Node.js record trace_id")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204", expectedTraceIDHex, nil,
+						spanLocations{onTopLevelProcess: true, onAncestor: true})
+				}
+			})
+	})
+}
+
+// TestDDTraceGoSpanEBPFLess covers dd-trace-go pprof labels span collection by
+// the ptracer, against the span_go_tester TestDDTraceGoSpan drives.
+//
+// The ptracer resolves the labels layout at the exit of the fcntl that seals
+// the tester's tracer-info memfd, which the tester is still stopped in, so
+// unlike the eBPF probe nothing races the tester and it runs without a
+// continue file.
+func TestDDTraceGoSpanEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ddtrace_span_ebpfless_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span-ebpfless"`,
+		},
+		{
+			ID:         "test_ddtrace_span_ebpfless_rule_open_no_span",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span-ebpfless-no-span"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_ddtrace_span_ebpfless_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// runDDTrace runs the tester with the given flag, against the file the
+	// sub-test watches, and checks the event ruleID reports. The ids of the span
+	// the tester started, zero without one, are passed along.
+	runDDTrace := func(t *testing.T, mode, testFlag, fileName, ruleID string, withSpan bool,
+		check func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID)) {
+		t.Helper()
+
+		test.RunMultiMode(t, mode, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{testFlag, "-ddtrace-span-file-path", testFile}
+			if mode == "exec" {
+				args = append(args, "-ddtrace-span-exec-target", ddTraceTouchPath(kind, executable))
+			}
+
+			var spanID uint64
+			var traceID utils.TraceID
+
+			test.WaitSignalFromRule(t, func() error {
+				out, err := test.runSpanTester(cmdFunc, spanTester, args)
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				spanID, traceID = parseDDTraceIDs(out)
+				if withSpan && spanID == 0 {
+					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, ruleID)
+				check(t, event, spanID, traceID)
+			}, ruleID)
+		})
+	}
+
+	t.Run("ddtrace_span", func(t *testing.T) {
+		runDDTrace(t, "open", "-ddtrace-span-test", "test-ddtrace-span-ebpfless", "test_ddtrace_span_ebpfless_rule_open", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID, "open event should carry dd-trace-go's span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID, "open event should carry dd-trace-go's trace_id")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedTrace(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil)
+				}
+			})
+	})
+
+	t.Run("ddtrace_span_exec", func(t *testing.T) {
+		// In-process exec via syscall.Exec: the ptracer reads the labels at the
+		// execve entry, before the new image replaces the address space holding
+		// them.
+		runDDTrace(t, "exec", "-ddtrace-span-exec-test", "test-ddtrace-span-ebpfless-exec", "test_ddtrace_span_ebpfless_rule_exec", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID, "exec event should carry dd-trace-go's span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID, "exec event should carry dd-trace-go's trace_id")
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil,
+						spanLocations{onTopLevelProcess: true})
+				}
+			})
+	})
+
+	t.Run("no_span", func(t *testing.T) {
+		// dd-trace-go is started but no active span is created: the goroutine
+		// carries no span labels.
+		runDDTrace(t, "open", "-ddtrace-no-span-test", "test-ddtrace-span-ebpfless-no-span", "test_ddtrace_span_ebpfless_rule_open_no_span", false,
+			func(t *testing.T, event *model.Event, _ uint64, _ utils.TraceID) {
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
+			})
+	})
+
+	t.Run("no_span_exec", func(t *testing.T) {
+		runDDTrace(t, "exec", "-ddtrace-no-span-exec-test", "test-ddtrace-span-ebpfless-no-span-exec", "test_ddtrace_span_ebpfless_rule_exec", false,
+			func(t *testing.T, event *model.Event, _ uint64, _ utils.TraceID) {
+				assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertNoSerializedTrace(t, jsonStr)
+				}
+			})
+	})
+
+	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
+		// os/exec vforks: the child execs with the parent's goroutine still in
+		// the address space it shares, and with the layout the fork handed down,
+		// so the exec event reports the parent's labels. The fork, read in the
+		// parent, leaves the parent's span in the lineage of the exec'd image.
+		runDDTrace(t, "exec", "-ddtrace-span-fork-exec-test", "test-ddtrace-span-ebpfless-fork-exec", "test_ddtrace_span_ebpfless_rule_exec", true,
+			func(t *testing.T, event *model.Event, spanID uint64, traceID utils.TraceID) {
+				assert.Equal(t, spanID, event.SpanContext.SpanID,
+					"exec event should carry dd-trace-go's parent span_id")
+				assert.Equal(t, traceID, event.SpanContext.TraceID,
+					"exec event should carry dd-trace-go's trace_id")
+
+				var ancestorTrace *model.SpanContext
+				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+					if pce.Tracer.Trace.SpanID != 0 {
+						ancestorTrace = &pce.Tracer.Trace
+						break
+					}
+				}
+				if assert.NotNil(t, ancestorTrace, "an ancestor should carry the dd-trace-go parent span captured at fork time") {
+					assert.Equal(t, spanID, ancestorTrace.SpanID)
+					assert.Equal(t, traceID, ancestorTrace.TraceID)
+				}
+
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, strconv.FormatUint(spanID, 10), traceID.HexString(), nil,
+						spanLocations{onTopLevelProcess: true, onAncestor: true})
+				}
+			})
+	})
+}

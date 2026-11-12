@@ -56,12 +56,17 @@ func TestDiscoveryRCEndpointFQDN(t *testing.T) {
 					poller := NewDiscovery(cfg, NewSource(cfg, rc))
 					poller.SetPARDiscoveryDemand(true)
 					require.True(t, poller.gate(), endpoint)
+					require.Equal(t, "https://api."+site, poller.endpoint)
 				}
-				for _, endpoint := range []string{"http://config." + site + ".", "https://config." + site + ".invalid", "https://config." + site + "/.", "https://config." + site + ".:443", "https://config." + site + "..", "https://config.us5.datadoghq.com."} {
+				for _, endpoint := range []string{"https://rc-proxy.example.com:8443/prefix", "https://rc-proxy.example.com:8443/prefix/", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
+					cfg.SetInTest("private_action_runner.par_dd_url", "")
+					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, "custom RC routing alone must not block PAR")
+					cfg.SetInTest("private_action_runner.par_dd_url", "https://par-proxy.example.com/api-prefix")
 					poller := NewDiscovery(cfg, NewSource(cfg, rc))
 					poller.SetPARDiscoveryDemand(true)
-					require.False(t, poller.gate(), endpoint)
+					require.True(t, poller.gate(), endpoint)
+					require.Equal(t, "https://par-proxy.example.com/api-prefix", poller.endpoint)
 				}
 			})
 		}

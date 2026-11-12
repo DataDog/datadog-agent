@@ -64,12 +64,16 @@
       -DLLVM_PARALLEL_COMPILE_JOBS=4 \
       -DLLVM_PARALLEL_LINK_JOBS=4 \
       -DLLVM_ENABLE_UNWIND_TABLES=OFF \
+      -DCMAKE_SKIP_RPATH=ON \
       -Wno-dev \
       ../llvm
     - cmake --build . --target install
     # fail if references to glibc >= 2.18
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/llc | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
+    # fail if any binary has a library search path: system-probe runs clang-bpf as root, and
+    # LLVM's default $ORIGIN/../lib would resolve to the dd-agent-writable embedded/lib
+    - objdump -p $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} $DATADOG_AGENT_EMBEDDED_PATH/bin/llc $DATADOG_AGENT_EMBEDDED_PATH/bin/llvm-strip | egrep '^\s*(RPATH|RUNPATH)\s' && exit 1
     # fail if clang or llc targets anything other than bpf
     - $DATADOG_AGENT_EMBEDDED_PATH/bin/clang-${CLANG_MAJOR_VER} -print-targets > clang_targets.txt
     - diff $CI_PROJECT_DIR/pkg/ebpf/c/expected_targets.txt clang_targets.txt

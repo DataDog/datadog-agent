@@ -164,7 +164,7 @@ func TestMetricTypesReachStorageThroughLiveAndReplayIngest(t *testing.T) {
 			filter, err := newDefaultMetricsFilterRules()
 			require.NoError(t, err)
 			obs := &observerImpl{
-				engine:    newEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
+				engine:    mustNewEngine(engineConfig{storage: newTimeSeriesStorageWith(StorageConfig{})}),
 				metricsCh: make(chan observation, 32),
 				logsCh:    make(chan observation, 32), metricFilter: filter, ingestMetricsEnabled: true,
 			}

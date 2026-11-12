@@ -264,6 +264,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kueue_local_queue:batch",
+						"kube_scheduler:kueue",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -2397,6 +2398,108 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
+func TestKueueSchedulerTags(t *testing.T) {
+	const containerID = "container-id"
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   workloadmeta.GenerateKueueWorkloadEntityID("default", "job-sample"),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:  "batch",
+	}
+	localQueue := &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "batch", Namespace: "default"},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	}
+
+	for _, tt := range []struct {
+		name        string
+		entities    []workloadmeta.Entity
+		labels      map[string]string
+		annotations map[string]string
+		expected    []string
+	}{
+		{
+			name:        "from the Workload and its LocalQueue",
+			entities:    []workloadmeta.Entity{workload, localQueue},
+			annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
+			expected: []string{
+				"kube_scheduler:kueue",
+				"kube_scheduler_queue:cluster-batch",
+				"kube_scheduler_workload:job-sample",
+			},
+		},
+		{
+			name:   "from the pod labels when the Workload is missing",
+			labels: map[string]string{kubernetes.KueueLocalQueueNameLabelKey: "batch", kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch"},
+			annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
+			},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with the ClusterQueue of the LocalQueue entity",
+			entities: []workloadmeta.Entity{localQueue},
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with only a LocalQueue name",
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue"},
+		},
+		{
+			name:   "not for pods without Kueue information",
+			labels: map[string]string{"app": "web"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+			for _, entity := range tt.entities {
+				store.Set(entity)
+			}
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "pod",
+						Namespace:   "default",
+						Labels:      tt.labels,
+						Annotations: tt.annotations,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			for _, tagInfo := range tagInfos {
+				var schedulerTags []string
+				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
+					if strings.HasPrefix(tag, "kube_scheduler") {
+						schedulerTags = append(schedulerTags, tag)
+					}
+				}
+				assert.ElementsMatch(t, tt.expected, schedulerTags, "tags of %s", tagInfo.EntityID)
+			}
+		})
+	}
+}
+
 func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 	const (
 		namespace    = "team-a"
@@ -4134,17 +4237,16 @@ func TestHandleContainer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			var store workloadmetamock.Mock
-			if len(tt.images) > 0 {
-				store = fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-					fx.Provide(func() log.Component { return logmock.New(t) }),
-					fx.Provide(func() config.Component { return cfg }),
-					fx.Supply(context.Background()),
-					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-				))
-				for _, image := range tt.images {
-					store.Set(image)
-				}
+			// A store is always needed: handleContainer always looks up the
+			// container image to turn its annotations into tags.
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			for _, image := range tt.images {
+				store.Set(image)
 			}
 
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
@@ -4705,9 +4807,9 @@ func TestHandleContainerImage(t *testing.T) {
 			},
 		},
 		{
-			// Image OCI annotations are turned into tags when they match the
-			// container_image_annotations_as_tags mapping. Annotations that are
-			// not in the mapping are ignored.
+			// OCI source code annotations are always turned into tags. Other
+			// image annotations are turned into tags when they match the
+			// container_image_annotations_as_tags mapping, and ignored otherwise.
 			name: "annotations as tags",
 			configValues: map[string]interface{}{
 				"container_image_annotations_as_tags": map[string]string{
@@ -4721,8 +4823,9 @@ func TestHandleContainerImage(t *testing.T) {
 					Name: entityID.ID,
 					Annotations: map[string]string{
 						"containerd.io/snapshot/nydus-builder-version": "v2.3.7",
-						"target":                          "staging",
-						"org.opencontainers.image.source": "https://github.com/DataDog/images",
+						"target":                            "staging",
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
 					},
 				},
 				RepoTags: []string{
@@ -4753,6 +4856,8 @@ func TestHandleContainerImage(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
 						"architecture:amd64",
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
 						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
 						"image_tag:main-nydus",
 						"nydus_builder_version:v2.3.7",
@@ -4772,7 +4877,97 @@ func TestHandleContainerImage(t *testing.T) {
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
 						"nydus_builder_version:v2.3.7",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// With no container_image_annotations_as_tags configured, the OCI
+			// source code annotations are still turned into tags, on the image
+			// and on the containers using it.
+			name: "OCI source annotations without configuration",
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
+						"target":                            "staging",
+					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container-using-image",
+					},
+					Image: workloadmeta.ContainerImage{
+						ID: entityID.ID,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               containerImageSource,
+					EntityID:             types.NewEntityID(types.ContainerID, "container-using-image"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			// A user mapping for an OCI source code annotation adds a tag on top
+			// of the default one, as for the matching container labels.
+			name: "user mapping for an OCI source code annotation",
+			configValues: map[string]interface{}{
+				"container_image_annotations_as_tags": map[string]string{
+					"org.opencontainers.image.source": "image_source",
+				},
+			},
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Annotations: map[string]string{
+						"org.opencontainers.image.revision": "758691a28aa920070651d360814c559bc26af907",
+						"org.opencontainers.image.source":   "https://github.com/DataDog/images",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               containerImageSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"git.commit.sha:758691a28aa920070651d360814c559bc26af907",
+						"git.repository_url:https://github.com/DataDog/images",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_source:https://github.com/DataDog/images",
 					},
 					StandardTags: []string{},
 				},
@@ -4808,6 +5003,126 @@ func TestHandleContainerImage(t *testing.T) {
 			assertTagInfoListEqual(t, tt.expected, actual)
 		})
 	}
+}
+
+type containerListCountingStore struct {
+	workloadmeta.Component
+	listContainersWithFilterCalls int
+}
+
+func (s *containerListCountingStore) ListContainersWithFilter(filter workloadmeta.EntityFilterFunc[*workloadmeta.Container]) []*workloadmeta.Container {
+	s.listContainersWithFilterCalls++
+	return s.Component.ListContainersWithFilter(filter)
+}
+
+func TestHandleContainerImageWithoutAnnotationsSkipsContainerScan(t *testing.T) {
+	const (
+		imageID     = "sha256:image-without-annotations"
+		containerID = "container-using-image-without-annotations"
+	)
+
+	cfg := configmock.New(t)
+	baseStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	// Leave Annotations unset to exercise the no-annotation fast path.
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: imageID,
+		},
+	}
+	baseStore.Set(image)
+	// Keep a matching container in the store so any container scan is observable.
+	baseStore.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	})
+
+	store := &containerListCountingStore{Component: baseStore}
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	actual := collector.handleContainerImage(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: image,
+	})
+
+	// The image is still tagged, but its containers are not scanned.
+	require.Zero(t, store.listContainersWithFilterCalls)
+	require.Len(t, actual, 1)
+	assert.Equal(t, types.NewEntityID(types.ContainerImageMetadata, imageID), actual[0].EntityID)
+}
+
+func TestProcessEventsCleansContainerImageAnnotationTagsWhenAnnotationsRemoved(t *testing.T) {
+	const (
+		imageID     = "sha256:image-with-annotations"
+		containerID = "container-using-image-with-annotations"
+		commitSHA   = "758691a28aa920070651d360814c559bc26af907"
+	)
+
+	cfg := configmock.New(t)
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imageID},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: imageID,
+			Annotations: map[string]string{
+				"org.opencontainers.image.revision": commitSHA,
+			},
+		},
+	}
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+		Image:    workloadmeta.ContainerImage{ID: imageID},
+	}
+	store.Set(image)
+	store.Set(container)
+
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collectorCh := make(chan []*types.TagInfo, 2)
+	collector.tagProcessor = &fakeProcessor{collectorCh}
+
+	// Propagate the annotation and record the container as a child of the image.
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: image}},
+		Ch:     make(chan struct{}),
+	})
+	firstTagInfos := <-collectorCh
+	var propagated *types.TagInfo
+	for _, tagInfo := range firstTagInfos {
+		if tagInfo.Source == containerImageSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) {
+			propagated = tagInfo
+			break
+		}
+	}
+	require.NotNil(t, propagated)
+	assert.Contains(t, propagated.LowCardTags, tags.GitCommitSha+":"+commitSHA)
+
+	// Removing all annotations must clean up the tags propagated by the first event.
+	imageWithoutAnnotations := *image
+	imageWithoutAnnotations.Annotations = nil
+	store.Set(&imageWithoutAnnotations)
+	collector.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: &imageWithoutAnnotations}},
+		Ch:     make(chan struct{}),
+	})
+	secondTagInfos := <-collectorCh
+	var deleted bool
+	for _, tagInfo := range secondTagInfos {
+		if tagInfo.Source == containerImageSource && tagInfo.EntityID == types.NewEntityID(types.ContainerID, containerID) && tagInfo.DeleteEntity {
+			deleted = true
+			break
+		}
+	}
+	require.True(t, deleted, "expected image annotation tags to be deleted from the container")
 }
 
 func TestExtractGPUMIGProfileTag(t *testing.T) {
@@ -5173,9 +5488,10 @@ func TestHandleDelete(t *testing.T) {
 	assert.Empty(t, collector.children)
 }
 
-// When container image annotations as tags is enabled, deleting a container
-// must also expire the tags published for it under containerImageSource,
-// otherwise image annotation tags would leak until the next image event.
+// Deleting a container must also expire the tags published for it under
+// containerImageSource, otherwise image annotation tags would leak until the
+// next image event. This applies without configuration because OCI source
+// code annotations are always turned into tags.
 func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 	const containerID = "foobarquux"
 
@@ -5188,8 +5504,8 @@ func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 	}
 	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
 
+	// No custom mapping is configured: built-in OCI annotations still require cleanup.
 	cfg := configmock.New(t)
-	cfg.SetInTest("container_image_annotations_as_tags", map[string]string{"foo": "bar"})
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 	expected := []*types.TagInfo{
@@ -6702,6 +7018,71 @@ func TestExtractTagsFromPodAutoscalers(t *testing.T) {
 	}
 }
 
+func TestHandleAutoscaledWorkloads(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](
+		t,
+		fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		),
+	)
+	processor := &recordingProcessor{}
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, processor)
+
+	processAutoscaler := func(eventType workloadmeta.EventType, autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		processor.tagInfos = nil
+		collector.processEvents(workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: eventType, Entity: autoscaler}},
+			Ch:     make(chan struct{}),
+		})
+		return autoscaledWorkloadTagInfos(t, processor.tagInfos)
+	}
+	setAutoscaler := func(autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		return processAutoscaler(workloadmeta.EventTypeSet, autoscaler)
+	}
+	unsetAutoscaler := func(autoscaler *workloadmeta.KubernetesAutoscaler) map[string][]string {
+		return processAutoscaler(workloadmeta.EventTypeUnset, autoscaler)
+	}
+
+	// One autoscaler
+	hpa := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "my-ns", "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags := setAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+	}, workloadTags)
+
+	// Two autoscalers on the same target
+	vpa := newTestAutoscaler(workloadmeta.AutoscalerKindVPA, "my-ns", "my-vpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags = setAutoscaler(vpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a": {"kube_autoscaler_kind:horizontalpodautoscaler", "kube_autoscaler_kind:verticalpodautoscaler"},
+	}, workloadTags)
+
+	// Autoscalers in another namespace don't affect this one
+	otherNsKEDA := newTestAutoscaler(workloadmeta.AutoscalerKindKEDA, "other-ns", "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	workloadTags = setAutoscaler(otherNsKEDA)
+	assert.Equal(t, map[string][]string{
+		"deployment/other-ns/app-a": {"kube_autoscaler_kind:keda"},
+	}, workloadTags)
+
+	// Target change: the old target keeps the other autoscaler, the new one is created
+	hpa = newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "my-ns", "my-hpa", workloadmeta.AutoscalerTargetStatefulSet, "app-b")
+	workloadTags = setAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{
+		"deployment/my-ns/app-a":  {"kube_autoscaler_kind:verticalpodautoscaler"},
+		"statefulset/my-ns/app-b": {"kube_autoscaler_kind:horizontalpodautoscaler"},
+	}, workloadTags)
+
+	// The last autoscaler of a target is deleted: its tags are cleared
+	workloadTags = unsetAutoscaler(vpa)
+	assert.Equal(t, map[string][]string{"deployment/my-ns/app-a": {}}, workloadTags)
+
+	workloadTags = unsetAutoscaler(hpa)
+	assert.Equal(t, map[string][]string{"statefulset/my-ns/app-b": {}}, workloadTags)
+}
+
 func TestRetagAutoscalerDependentPods(t *testing.T) {
 	const namespace = "my-ns"
 	hpaA := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, namespace, "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
@@ -6829,6 +7210,29 @@ func newTestAutoscaler(kind workloadmeta.AutoscalerKind, namespace, name string,
 		TargetKind:     targetKind,
 		TargetName:     targetName,
 	}
+}
+
+// autoscaledWorkloadTagInfos returns the tags of the autoscaled workload
+// entities in a batch of tag infos, keyed by entity ID
+func autoscaledWorkloadTagInfos(t *testing.T, tagInfos []*types.TagInfo) map[string][]string {
+	t.Helper()
+
+	workloadTags := make(map[string][]string)
+	for _, tagInfo := range tagInfos {
+		if tagInfo.EntityID.GetPrefix() != types.KubernetesAutoscaledWorkload {
+			continue
+		}
+		assert.Equal(t, autoscaledWorkloadSource, tagInfo.Source)
+		id := tagInfo.EntityID.GetID()
+		assert.False(t, tagInfo.DeleteEntity)
+		assert.True(t, tagInfo.IsComplete)
+		assert.Empty(t, tagInfo.HighCardTags)
+		assert.Empty(t, tagInfo.OrchestratorCardTags)
+		lowCardTags := append([]string{}, tagInfo.LowCardTags...)
+		sort.Strings(lowCardTags)
+		workloadTags[id] = lowCardTags
+	}
+	return workloadTags
 }
 
 type recordingProcessor struct {

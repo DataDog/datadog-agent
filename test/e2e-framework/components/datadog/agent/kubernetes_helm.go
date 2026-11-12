@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.257.1"
+	HelmVersion = "3.264.0"
 
 	// legacyBaseName is the base name every single-Agent installation used before
 	// per-installation resource names existed. Child resources keep their historical
@@ -1107,6 +1107,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{

@@ -309,7 +309,7 @@ export function AnomalyScoreTimeline({
     setDragCurrentX(x);
   }, [getEventX, displayBuckets.length]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+  const handleMouseUp = useCallback(() => {
     if (dragStartX === null || dragCurrentX === null) return;
     const x1 = Math.min(dragStartX, dragCurrentX);
     const x2 = Math.max(dragStartX, dragCurrentX);

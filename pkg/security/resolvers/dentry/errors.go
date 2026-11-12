@@ -15,55 +15,111 @@ import (
 )
 
 // ErrERPCRequestNotProcessed is used to notify that the eRPC request was not processed
-type ErrERPCRequestNotProcessed struct{}
+type ErrERPCRequestNotProcessed struct {
+	LeafKey model.PathKey
+	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
+}
 
 func (err ErrERPCRequestNotProcessed) Error() string {
-	return "erpc_not_processed"
+	if err.LeafKey == (model.PathKey{}) && err.PathKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return "erpc_not_processed"
+	}
+	if err.Depth > 1 {
+		return fmt.Sprintf("erpc_not_processed at depth=%d key=%d/%d/%d (leaf=%d/%d/%d, caller=%s)",
+			err.Depth, err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID,
+			err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
+	}
+	return fmt.Sprintf("erpc_not_processed (leaf=%d/%d/%d, caller=%s)",
+		err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
 }
-
-var errERPCRequestNotProcessed ErrERPCRequestNotProcessed
 
 // ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
-type ErrTruncatedParentsERPC struct{}
+type ErrTruncatedParentsERPC struct {
+	LeafKey model.PathKey
+	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
+}
 
 func (err ErrTruncatedParentsERPC) Error() string {
-	return "truncated_parents_erpc"
+	if err.LeafKey == (model.PathKey{}) && err.PathKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return "truncated_parents_erpc"
+	}
+	return fmt.Sprintf("truncated_parents_erpc at depth=%d key=%d/%d/%d (leaf=%d/%d/%d, caller=%s)",
+		err.Depth, err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID,
+		err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
 }
-
-var errTruncatedParentsERPC ErrTruncatedParentsERPC
 
 // ErrTruncatedParents is used to notify that some parents of the path are missing
-type ErrTruncatedParents struct{}
+type ErrTruncatedParents struct {
+	LeafKey model.PathKey
+	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
+}
 
 func (err ErrTruncatedParents) Error() string {
-	return "truncated_parents"
+	if err.LeafKey == (model.PathKey{}) && err.PathKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return "truncated_parents"
+	}
+	return fmt.Sprintf("truncated_parents at depth=%d key=%d/%d/%d (leaf=%d/%d/%d, caller=%s)",
+		err.Depth, err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID,
+		err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
 }
-
-var errTruncatedParents ErrTruncatedParents
 
 // ErrERPCResolution is used to notify that the eRPC resolution failed
-type ErrERPCResolution struct{}
+type ErrERPCResolution struct {
+	LeafKey model.PathKey
+	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
+}
 
 func (err ErrERPCResolution) Error() string {
-	return "erpc_resolution"
+	if err.LeafKey == (model.PathKey{}) && err.PathKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return "erpc_resolution"
+	}
+	return fmt.Sprintf("erpc_resolution at depth=%d key=%d/%d/%d (leaf=%d/%d/%d, caller=%s)",
+		err.Depth, err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID,
+		err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
 }
-
-var errERPCResolution ErrERPCResolution
 
 // ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
-type ErrKernelMapResolution struct{}
-
-func (err ErrKernelMapResolution) Error() string {
-	return "map_resolution"
+type ErrKernelMapResolution struct {
+	LeafKey model.PathKey
+	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
 }
 
-var errKernelMapResolution ErrKernelMapResolution
+func (err ErrKernelMapResolution) Error() string {
+	if err.LeafKey == (model.PathKey{}) && err.PathKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return "map_resolution"
+	}
+	return fmt.Sprintf("map_resolution at depth=%d key=%d/%d/%d (leaf=%d/%d/%d, caller=%s)",
+		err.Depth, err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID,
+		err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
+}
 
 // ErrDentryPathKeyNotFound is used to notify that the request key is missing from the kernel maps
 type ErrDentryPathKeyNotFound struct {
+	LeafKey model.PathKey
 	PathKey model.PathKey
+	Depth   int64
+	Caller  Caller
 }
 
 func (err ErrDentryPathKeyNotFound) Error() string {
-	return fmt.Sprintf("dentry path key not found %d/%d", err.PathKey.MountID, err.PathKey.Inode)
+	if err.LeafKey == (model.PathKey{}) && err.Depth == 0 && err.Caller == "" {
+		return fmt.Sprintf("dentry path key not found %d/%d", err.PathKey.MountID, err.PathKey.Inode)
+	}
+	if err.Depth > 0 && err.LeafKey != err.PathKey {
+		return fmt.Sprintf("dentry parent path key not found %d/%d/%d at depth=%d (leaf=%d/%d/%d, caller=%s)",
+			err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID, err.Depth,
+			err.LeafKey.MountID, err.LeafKey.Inode, err.LeafKey.PathID, err.Caller)
+	}
+	return fmt.Sprintf("dentry path key not found %d/%d/%d (depth=%d, caller=%s)",
+		err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID, err.Depth, err.Caller)
 }

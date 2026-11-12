@@ -127,3 +127,31 @@ func BenchmarkFormatTags(b *testing.B) {
 		formatTags(c, tagSet, nil)
 	}
 }
+
+func TestFormatConnectionNetNSOriginalContainerID(t *testing.T) {
+	tests := []struct {
+		desc     string
+		original *intern.Value
+		want     string
+	}{
+		{desc: "reattributed", original: intern.GetByString("proxy-container"), want: "proxy-container"},
+		{desc: "not reattributed", original: nil, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			conns := &network.Connections{}
+			ipc := make(ipCache)
+			var conn network.ConnectionStats
+			conn.ContainerID.Source = intern.GetByString("app-container")
+			conn.NetNSOriginalContainerID = tt.original
+
+			streamer := NewProtoTestStreamer[*model.Connection]()
+			builder := model.NewConnectionBuilder(streamer)
+			FormatConnection(builder, conn, nil, nil, newDNSFormatter(conns, ipc), ipc, newResolvConfFormatter(conns), indexedset.New[string](0), 0)
+			got := streamer.Unwrap(t, &model.Connection{})
+
+			require.Equal(t, "app-container", got.Laddr.ContainerId)
+			require.Equal(t, tt.want, got.NetnsOriginalContainerId)
+		})
+	}
+}

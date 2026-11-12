@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
@@ -1083,7 +1083,7 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 
 func TestGetRuleEventType(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
@@ -1114,7 +1114,7 @@ func TestGetRuleEventType(t *testing.T) {
 	})
 
 	t.Run("ko", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test" && unlink.file.name == "123"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
@@ -1128,4 +1128,17 @@ func TestGetRuleEventType(t *testing.T) {
 			t.Fatalf("shouldn't get an event type: %s", err)
 		}
 	})
+}
+
+func TestMacroConflictsWithConstant(t *testing.T) {
+	rs := newRuleSet()
+
+	for _, def := range []*MacroDefinition{
+		{ID: "O_RDONLY", Expression: `open.flags == 1`},
+		{ID: "O_RDONLY", Values: []string{"a"}},
+	} {
+		if _, err := rs.AddMacro(&PolicyMacro{Def: def}); err == nil || !strings.Contains(err.Error(), "conflicts with constant") {
+			t.Errorf("expected a conflict with a constant, got %v", err)
+		}
+	}
 }

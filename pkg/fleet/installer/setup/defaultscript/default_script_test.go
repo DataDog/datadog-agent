@@ -105,3 +105,68 @@ func TestSetConfigProcessAgent(t *testing.T) {
 		})
 	}
 }
+
+func TestSetConfigNetworkMonitoring(t *testing.T) {
+	tests := []struct {
+		name      string
+		env       map[string]string
+		enabled   *bool
+		expectErr bool
+	}{
+		{
+			name: "unset leaves system-probe.yaml untouched",
+			env:  map[string]string{},
+		},
+		{
+			name:    "enabled",
+			env:     map[string]string{"DD_SYSTEM_PROBE_NETWORK_ENABLED": "true"},
+			enabled: config.BoolToPtr(true),
+		},
+		{
+			name:    "explicitly disabled",
+			env:     map[string]string{"DD_SYSTEM_PROBE_NETWORK_ENABLED": "false"},
+			enabled: config.BoolToPtr(false),
+		},
+		{
+			name:      "invalid boolean value is rejected",
+			env:       map[string]string{"DD_SYSTEM_PROBE_NETWORK_ENABLED": "yes"},
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+
+			s := &common.Setup{}
+			err := setConfigNetworkMonitoring(s)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			if tc.enabled == nil {
+				assert.Nil(t, s.Config.SystemProbeYAML)
+				return
+			}
+			require.NotNil(t, s.Config.SystemProbeYAML)
+			assert.Equal(t, tc.enabled, s.Config.SystemProbeYAML.NetworkConfig.Enabled)
+		})
+	}
+}
+
+func TestSetConfigNetworkMonitoringKeepsSecurityProducts(t *testing.T) {
+	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
+	t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+
+	s := &common.Setup{}
+	setConfigSecurityProducts(s)
+	require.NoError(t, setConfigNetworkMonitoring(s))
+
+	require.NotNil(t, s.Config.SystemProbeYAML)
+	assert.Equal(t, config.BoolToPtr(true), s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled)
+	assert.Equal(t, config.BoolToPtr(true), s.Config.SystemProbeYAML.NetworkConfig.Enabled)
+}

@@ -99,6 +99,9 @@ func TestReconcilerReconcile_Success(t *testing.T) {
 				"name":            ddName,
 				"namespace":       "ingress-nginx",
 				"resourceVersion": "1",
+				"labels": map[string]interface{}{
+					"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue,
+				},
 			},
 			"data": map[string]interface{}{
 				mainSnippetKey: "stale-main-snippet",

@@ -1,5 +1,6 @@
 ---
 .docker_build_agent_windows_common:
+  extends: .bazel:defs:cache:windows
   stage: container_build
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
@@ -14,6 +15,12 @@
     - $ErrorActionPreference = "Stop"
     - cp ${OMNIBUS_PACKAGE_DIR}/pipeline-${CI_PIPELINE_ID}/${AGENT_ZIP} ${BUILD_CONTEXT}/datadog-agent-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
+    - |
+      If ($WITH_JMX -ne "false") {
+        New-Item -ItemType Directory -Force $env:XDG_CACHE_HOME
+        bazel run @temurin_jre_windows_x64//:install -- --destdir=${BUILD_CONTEXT}/java
+        If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+      }
 
     - pushd ${BUILD_CONTEXT}
     - |
@@ -31,7 +38,6 @@
       docker build
       --no-cache
       --build-arg CI
-      --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
       ${BUILD_ARG}
       --pull
       --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile
@@ -43,8 +49,17 @@
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker push ${TARGET_TAG}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    # Record the pushed digest; docker_sign_agent7_windows signs it from Linux.
+    - $REPO_DIGEST = docker inspect --format '{{index .RepoDigests 0}}' ${TARGET_TAG}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - New-Item -ItemType Directory -Force -Path signing | Out-Null
+    - Set-Content -Encoding ascii -Path "signing/${CI_JOB_ID}.ref" -Value "${TARGET_TAG}@$($REPO_DIGEST.Split('@')[1])"
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    paths:
+      - signing/
+    expire_in: 2 days
   timeout: 60m
 
 # Base template for agent7 windows builds

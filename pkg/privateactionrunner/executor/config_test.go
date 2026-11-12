@@ -25,12 +25,16 @@ import (
 
 func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 	for _, tc := range []struct {
-		name, ddURL, bypass, wantURL, wantProxy string
-		internalHTTP                            bool
+		name, ddURL, rcURL, parURL, bypass, wantURL, wantProxy string
+		internalHTTP                                           bool
 	}{
 		{name: "PAR-local", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
-		{name: "endpoint override", ddURL: "https://app.datadoghq.eu", wantURL: "https://api.datadoghq.eu", wantProxy: "http://user:password@proxy:3128"},
+		{name: "metrics URL ignored", ddURL: "https://app.datadoghq.eu", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
+		{name: "metrics proxy ignored", ddURL: "https://metrics-proxy.example.com", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
 		{name: "HTTP fakeintake", ddURL: "http://fake-intake:8080", internalHTTP: true, wantURL: "http://fake-intake:8080", wantProxy: "http://user:password@proxy:3128"},
+		{name: "canonical RC override", rcURL: "https://config.us3.datadoghq.com.", wantURL: "https://api.us3.datadoghq.com", wantProxy: "http://user:password@proxy:3128"},
+		{name: "separate RC and PAR overrides", ddURL: "https://app.datadoghq.eu", rcURL: "https://rc-proxy.example.com:8443/rc", parURL: "https://par-proxy.example.com:8443/par", wantURL: "https://par-proxy.example.com:8443/par", wantProxy: "http://user:password@proxy:3128"},
+		{name: "PAR override bypass", parURL: "https://par-proxy.example.com:8443/prefix/", bypass: "par-proxy.example.com", wantURL: "https://par-proxy.example.com:8443/prefix/"},
 		{name: "exact bypass", bypass: "api.us3.datadoghq.com", wantURL: "https://api.us3.datadoghq.com"},
 		{name: "domain bypass", bypass: ".datadoghq.com", wantURL: "https://api.us3.datadoghq.com"},
 	} {
@@ -42,6 +46,8 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 				"site": "us3.datadoghq.com", "dd_url": tc.ddURL,
+				"remote_configuration.rc_dd_url":   tc.rcURL,
+				"private_action_runner.par_dd_url": tc.parURL, "private_action_runner.enabled": true,
 				"private_action_runner.task_concurrency":   9,
 				"private_action_runner.opms_extra_headers": map[string]string{"X-PAR-Only": "header"},
 				"proxy.http": "http://user:password@proxy:3128", "proxy.https": "http://user:password@proxy:3128",

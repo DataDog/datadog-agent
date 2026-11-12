@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The private action runner HTTP request action now returns an error
+    for a ``datauri`` form data field whose MIME type contains no ``/``,
+    instead of terminating the runner process.

@@ -18,6 +18,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
@@ -46,6 +47,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				secretsnoopfx.Module(), // TODO: secret-enabled: is this required ?
 				fx.Supply(log.ForOneShot(globalParams.LoggerName, "off", true)),
 				coreconfig.Module(),
+				schemanoopfx.Module(),
 				logfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				otelagentStatusfx.Module(),

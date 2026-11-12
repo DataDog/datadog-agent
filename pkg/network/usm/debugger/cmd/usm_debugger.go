@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -66,7 +67,7 @@ func checkError(err error) {
 
 func getConfiguration() *networkconfig.Config {
 	// done for the purposes of initializing the configuration values
-	_, err := config.New("", "")
+	_, err := config.New("", "", &schemanoopimpl.SchemaNoop{})
 	checkError(err)
 
 	c := networkconfig.New()

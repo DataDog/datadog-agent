@@ -223,6 +223,11 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		span.SetTag("failure_stage", stage)
 		w.WriteHeader(status)
 	}
+	// A non-200 reply makes the API server apply the webhook's configured failurePolicy.
+	rejectNoResponse := func() {
+		reject(http.StatusInternalServerError, "webhook")
+		log.Errorf("Webhook %s returned no admission response", webhookName)
+	}
 	recordResponse := func(response *admiv1.AdmissionResponse) {
 		span.SetTag("allowed", response.Allowed)
 		// Mutation errors fail open; validation failures are reported explicitly.
@@ -291,7 +296,14 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	case admiv1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		admissionReviewReq, ok := obj.(*admiv1.AdmissionReview)
 		if !ok {
+			reject(http.StatusBadRequest, "decode_review")
 			log.Errorf("Expected v1.AdmissionReview, got type %T", obj)
+			return
+		}
+		if admissionReviewReq.Request == nil {
+			reject(http.StatusBadRequest, "missing_request")
+			log.Warnf("Admission review has no request")
+			return
 		}
 
 		admissionReview := &admiv1.AdmissionReview{}
@@ -318,6 +330,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			admissionResponse = webhookFunc(&admissionRequest)
 			processingFailed = admissionRequest.ProcessingFailed
 		}
+		if admissionResponse == nil {
+			rejectNoResponse()
+			return
+		}
 
 		recordResponse(admissionResponse)
 		admissionReview.Response = admissionResponse
@@ -326,7 +342,14 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 	case admiv1beta1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		admissionReviewReq, ok := obj.(*admiv1beta1.AdmissionReview)
 		if !ok {
+			reject(http.StatusBadRequest, "decode_review")
 			log.Errorf("Expected v1beta1.AdmissionReview, got type %T", obj)
+			return
+		}
+		if admissionReviewReq.Request == nil {
+			reject(http.StatusBadRequest, "missing_request")
+			log.Warnf("Admission review has no request")
+			return
 		}
 
 		admissionReview := &admiv1beta1.AdmissionReview{}
@@ -352,6 +375,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 			}
 			admissionResponse = webhookFunc(&admissionRequest)
 			processingFailed = admissionRequest.ProcessingFailed
+		}
+		if admissionResponse == nil {
+			rejectNoResponse()
+			return
 		}
 
 		recordResponse(admissionResponse)
