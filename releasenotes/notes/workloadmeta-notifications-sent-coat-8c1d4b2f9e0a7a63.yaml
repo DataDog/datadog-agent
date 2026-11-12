@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The ``workloadmeta.notifications_sent`` telemetry counter, tagged by
+    ``subscriber_name`` and ``status``, is now collected by default in agent
+    telemetry (COAT). This makes it possible to observe subscriber notification
+    failures, such as missed Autodiscovery configurations on busy nodes, directly
+    from reported telemetry.

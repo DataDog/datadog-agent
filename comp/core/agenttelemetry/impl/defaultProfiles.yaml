@@ -580,9 +580,10 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
-      - name: workloadmeta.events_dropped
+      - name: workloadmeta.notifications_sent
         preserve_tags:
           - subscriber_name
+          - status
       - name: appsec_injector.watched_changes
         preserve_tags:
           - proxy_type

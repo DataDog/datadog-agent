@@ -1096,7 +1096,6 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		// Timeout sending to channel - subscriber not reading, events will be lost
 		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
 		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
-		telemetry.EventsDropped.Add(float64(len(bundle.Events)), name)
 		// Close acknowledgment channel to prevent resource leak
 		close(bundle.Ch)
 		return
