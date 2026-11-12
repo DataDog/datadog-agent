@@ -33,6 +33,7 @@ bool_flag(
 config_setting(
     name = "target_arch_aarch64",
     flag_values = {":target_arch": "aarch64"},
+    visibility = ["//pkg/ebpf:__pkg__"],
 )
 
 config_setting(

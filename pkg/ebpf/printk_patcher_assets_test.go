@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,10 +31,8 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 	for _, asset := range assets {
 		path, err := runfiles.Rlocation(asset)
 		require.NoError(t, err)
-		// prebuilt/ and runtime/ share program names.
-		name := filepath.Base(filepath.Dir(path)) + "/" + strings.TrimSuffix(filepath.Base(path), "-debug.o")
-		t.Run(name, func(t *testing.T) {
-			log.Tracef("Testing program %s, path: %s", name, path)
+		t.Run(asset, func(t *testing.T) {
+			log.Tracef("Testing program %s, path: %s", asset, path)
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(t, err)
 
