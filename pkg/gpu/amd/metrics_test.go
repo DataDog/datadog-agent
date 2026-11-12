@@ -269,6 +269,38 @@ func TestReadMetricsSuspendedDeviceIsIdle(t *testing.T) {
 	}
 }
 
+// amdgpu returns EPERM for gpu_metrics while the device is runtime-suspended,
+// which is no error, but also during a GPU reset, which is one.
+func TestReadMetricsSuspendedDeviceGPUMetrics(t *testing.T) {
+	for name, tc := range map[string]struct {
+		runtimeStatus string
+		wantErr       bool
+	}{
+		"runtime-suspended":  {runtimeStatus: "suspended\n"},
+		"EPERM while active": {runtimeStatus: "active\n", wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+			fs.AddCard("card0", devDir)
+			fs.WriteFiles(filepath.Join(devDir, "power"), map[string]string{"runtime_status": tc.runtimeStatus})
+			fs.WriteFiles(devDir, map[string]string{"gpu_metrics": ""})
+			readGPUMetricsFile = func(path string, _ int64) ([]byte, error) {
+				return nil, &os.PathError{Op: "read", Path: path, Err: syscall.EPERM}
+			}
+			t.Cleanup(func() { readGPUMetricsFile = readFileLimited })
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr {
+				assert.ErrorIs(t, err, syscall.EPERM)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Nil(t, m.GPUMetrics)
+			assert.NoError(t, m.GPUMetricsErr)
+		})
+	}
+}
+
 func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
 	fs := NewFakeSysfs(t)
 	attrs := MI300XAttributes("")

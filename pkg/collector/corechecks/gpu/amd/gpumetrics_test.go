@@ -204,6 +204,8 @@ func TestXGMISamples(t *testing.T) {
 		"absent":     parseTable(t, map[string][]uint64{"xgmi_link_speed": {32}}),
 		"zero width": parseTable(t, map[string][]uint64{"xgmi_link_speed": {32}, "xgmi_link_width": {0}}),
 		"unfilled":   parseTable(t, map[string][]uint64{"xgmi_link_speed": {math.MaxUint16}, "xgmi_link_width": {16}}),
+		// 2 x 500 Gb/s x 64 lanes is above the spec maximum of a link.
+		"over the maximum": parseTable(t, map[string][]uint64{"xgmi_link_speed": {500}, "xgmi_link_width": {64}}),
 	} {
 		assert.Equal(t, float64(maxXGMILinkKBPerSecond), xgmiLinkBound(gm), name)
 	}
@@ -327,6 +329,28 @@ func TestGPUMetricsCollectorGFXBusyInvariant(t *testing.T) {
 	requireReading(t, 61, c.chooseActivity(dev.UUID, m, act).graphics)
 	requireReading(t, 3.5, act.memory)
 	assert.Equal(t, 1.0, countTelemetry(t, tm, "gpu_metrics_failures", map[string]string{"reason": "implausible_value"}))
+}
+
+// GFX_ACTIVITY_ACC is checked against GFX_BUSY_ACC by their increases, so a
+// constant offset between the totals, which grows with uptime, is accepted.
+func TestGPUMetricsCollectorGFXBusyOffset(t *testing.T) {
+	tm := testutil.GetTelemetryMock(t)
+	c := newGPUMetricsCollector(tm)
+	dev := &amdgpu.Device{UUID: "amd-1"}
+	start := time.Unix(1000, 0)
+	read := func(step uint64) *amdgpu.Metrics {
+		fields := gpuMetricsFields(step)
+		mean := fields["gfx_activity_acc"][0] + 50_000
+		fields["gfx_busy_acc"] = []uint64{mean - 50, mean + 50, mean, mean, mean, mean, mean, mean}
+		m := readAt(t, fields)
+		m.GPUBusyPercent = amdgpu.Reading{Value: 61, Valid: true}
+		return m
+	}
+	c.samples(dev, read(0), true, start)
+	m := read(1)
+	_, act := c.samples(dev, m, true, start.Add(15*time.Second))
+	requireReading(t, 23.75, c.chooseActivity(dev.UUID, m, act).graphics)
+	assert.Zero(t, countTelemetry(t, tm, "gpu_metrics_failures", map[string]string{"reason": "implausible_value"}))
 }
 
 func TestGPUMetricsCollectorRejectedTables(t *testing.T) {

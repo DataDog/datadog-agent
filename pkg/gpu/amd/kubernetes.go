@@ -113,6 +113,11 @@ func MatchDRADevice(sysRoot string, devices []*Device, deviceName string, cdiDev
 		if !ok || len(key) <= claimUIDLength {
 			continue // another vendor, or the "common" device of every claim
 		}
+		// Kubelet lists the CDI devices of every device of the claim before
+		// this one, so only this device's key (optionally "-slot<N>") counts.
+		if rest := key[claimUIDLength+1:]; rest != deviceName && !strings.HasPrefix(rest, deviceName+"-") {
+			continue
+		}
 		for _, minor := range draCDIRenderMinors(cdiSpecDirs, key) {
 			if dev := deviceByRenderMinor(sysRoot, devices, minor); dev != nil {
 				return dev

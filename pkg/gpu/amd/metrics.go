@@ -101,7 +101,7 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	}
 
 	if !opts.SkipGPUMetrics {
-		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
+		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(d.devicePath)
 		m.XGMIHiveSize = d.XGMIHiveSize()
 	}
 

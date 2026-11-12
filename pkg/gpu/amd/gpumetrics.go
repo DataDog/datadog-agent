@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // The gpu_metrics sysfs attribute holds a binary table the amdgpu driver fills
@@ -75,10 +76,11 @@ const (
 	// maxGPUMetricsSize bounds a table: structure_size is 16-bit, and amdgpu
 	// returns at most one page.
 	maxGPUMetricsSize = math.MaxUint16
-	// gfxBusyTolerance is the largest difference, in percent-periods, between
-	// GFX_ACTIVITY_ACC and the mean of GFX_BUSY_ACC: 100 periods at 100%. The
-	// real MI300X and MI350X tables differ by at most 1 and 131.
-	gfxBusyTolerance = 100 * 100
+	// gfxBusySkewPeriods and gfxBusyDriftPeriods bound the difference between
+	// the increases of GFX_ACTIVITY_ACC and of the mean of GFX_BUSY_ACC, in
+	// periods at 100%; see gfxBusyTolerance.
+	gfxBusySkewPeriods  = 4
+	gfxBusyDriftPeriods = 1000
 )
 
 // gpuMetricsAttrID is an attribute ID of the dynamic gpu_metrics format, from
@@ -322,6 +324,10 @@ type GPUMetrics struct {
 	// period.
 	GFXActivityAcc Counter
 	MemActivityAcc Counter
+	// gfxBusyMean is the mean of the filled per-XCD GFX_BUSY_ACC, invalid when
+	// none is filled, and gfxActivityMask the width of GFX_ACTIVITY_ACC.
+	gfxBusyMean     Counter
+	gfxActivityMask uint64
 
 	// PCIeReplayCount is a cumulative firmware counter of PCIe replays; on a
 	// VF it can persist across guest driver loads.
@@ -339,9 +345,6 @@ type GPUMetrics struct {
 
 	// Skipped lists the used fields left out for their instance count.
 	Skipped []SkippedField
-	// Implausible lists the fields dropped because they contradict another
-	// field of the table.
-	Implausible []string
 }
 
 // gpuMetricsAttr is a decoded attribute: its encoding and the raw bits of
@@ -415,9 +418,9 @@ func ParseGPUMetrics(data []byte) (*GPUMetrics, error) {
 	gm.XGMIWriteKB = values[attrXGMIWriteDataAcc]
 	gm.XGMILinkSpeedGTs = scalar(attrXGMILinkSpeed)
 	gm.XGMILinkWidth = scalar(attrXGMILinkWidth)
-	if gm.GFXActivityAcc.Valid && !gfxActivityMatchesBusy(gm.GFXActivityAcc.Value, attrs[attrGFXActivityAcc].typ, values[attrGFXBusyAcc]) {
-		gm.GFXActivityAcc = Counter{}
-		gm.Implausible = append(gm.Implausible, "gfx_activity_acc")
+	if gm.GFXActivityAcc.Valid {
+		gm.gfxActivityMask = uint64(math.MaxUint64) >> (64 - 8*attrs[attrGFXActivityAcc].typ.size())
+		gm.gfxBusyMean = meanCounter(values[attrGFXBusyAcc])
 	}
 	return gm, nil
 }
@@ -433,26 +436,46 @@ func counterValues(attr *gpuMetricsAttr) []Counter {
 	return values
 }
 
-// gfxActivityMatchesBusy reports whether GFX_ACTIVITY_ACC, of the given type,
-// is the mean of the filled per-XCD GFX_BUSY_ACC, modulo its width, within
-// gfxBusyTolerance. It is true when no XCD value is filled.
-func gfxActivityMatchesBusy(activity uint64, typ gpuMetricsType, busy []Counter) bool {
+// meanCounter returns the mean of the valid values, invalid when there is none.
+func meanCounter(values []Counter) Counter {
 	var hi, lo, n uint64
-	for _, b := range busy {
-		if b.Valid {
+	for _, v := range values {
+		if v.Valid {
 			var carry uint64
-			lo, carry = bits.Add64(lo, b.Value, 0)
+			lo, carry = bits.Add64(lo, v.Value, 0)
 			hi += carry
 			n++
 		}
 	}
 	if n == 0 {
-		return true
+		return Counter{}
 	}
 	mean, _ := bits.Div64(hi, lo, n) // hi < n, as n values of 64 bits were added
-	mask := uint64(math.MaxUint64) >> (64 - 8*typ.size())
-	diff := (activity - mean) & mask
-	return min(diff, (mask-diff+1)&mask) <= gfxBusyTolerance
+	return Counter{Value: mean, Valid: true}
+}
+
+// GFXActivityMatchesBusy reports whether GFX_ACTIVITY_ACC increased between
+// two tables, over periods accumulation periods, as the mean of the per-XCD
+// GFX_BUSY_ACC did, modulo its width and within gfxBusyTolerance. It is true
+// when either table has no GFX_BUSY_ACC to compare with.
+func GFXActivityMatchesBusy(previous, current *GPUMetrics, periods uint64) bool {
+	if !previous.gfxBusyMean.Valid || !current.gfxBusyMean.Valid || previous.gfxActivityMask != current.gfxActivityMask {
+		return true
+	}
+	mask := current.gfxActivityMask
+	activity := (current.GFXActivityAcc.Value - previous.GFXActivityAcc.Value) & mask
+	busy := (current.gfxBusyMean.Value - previous.gfxBusyMean.Value) & mask
+	diff := (activity - busy) & mask
+	return min(diff, (mask-diff+1)&mask) <= gfxBusyTolerance(periods)
+}
+
+// gfxBusyTolerance is the largest difference, in percent-periods, between the
+// increases of GFX_ACTIVITY_ACC and of the mean of GFX_BUSY_ACC over periods.
+// Counters sampled up to a period apart at each end of the interval differ by
+// up to gfxBusySkewPeriods at 100%; rounding drift adds a 1/gfxBusyDriftPeriods
+// share of the interval, far above the 131 over 36M periods of a real MI350X.
+func gfxBusyTolerance(periods uint64) uint64 {
+	return 100 * (gfxBusySkewPeriods + periods/gfxBusyDriftPeriods)
 }
 
 // decodeGPUMetricsAttrs decodes the attributes of a dynamic table. The table
@@ -530,23 +553,32 @@ func readUnsigned(b []byte, width int) uint64 {
 	}
 }
 
-// gpuMetrics reads and decodes the gpu_metrics attribute of a device in a
-// single read. It returns nil without an error when the device has none.
-func (r *reader) gpuMetrics(path string) (*GPUMetrics, error) {
+// readGPUMetricsFile reads the gpu_metrics attribute; tests replace it.
+var readGPUMetricsFile = readFileLimited
+
+// readFileLimited reads at most limit bytes of a file through one file
+// descriptor: amdgpu generates the whole table on the first read, so the
+// table is consistent.
+func readFileLimited(path string, limit int64) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		if !isUnsupported(err) {
-			r.errs = append(r.errs, err)
-		}
-		return nil, nil
+		return nil, err
 	}
 	defer f.Close()
-	// The attribute is generated in full by the first read: reading it
-	// through one file descriptor returns one consistent table.
-	data, err := io.ReadAll(io.LimitReader(f, maxGPUMetricsSize+1))
+	return io.ReadAll(io.LimitReader(f, limit))
+}
+
+// gpuMetrics reads and decodes the gpu_metrics attribute of a device in a
+// single read. It returns nil without an error when the device has none or is
+// runtime-suspended.
+func (r *reader) gpuMetrics(devicePath string) (*GPUMetrics, error) {
+	path := filepath.Join(devicePath, "gpu_metrics")
+	data, err := readGPUMetricsFile(path, maxGPUMetricsSize+1)
 	if err != nil {
-		if !isUnsupported(err) {
-			r.errs = append(r.errs, fmt.Errorf("read %s: %w", path, err))
+		// amdgpu returns EPERM while the device is runtime-suspended, as for
+		// the busy percentages; during a GPU reset it stays an error.
+		if !isUnsupported(err) && (!errors.Is(err, syscall.EPERM) || !runtimeSuspended(devicePath)) {
+			r.errs = append(r.errs, err)
 		}
 		return nil, nil
 	}
