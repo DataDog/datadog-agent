@@ -682,3 +682,31 @@ func TestRebalanceDoesNotPinLoneColocationMember(t *testing.T) {
 
 	requireNotLocked(t, d.store)
 }
+
+func TestMoveConfigKeepsPeerJoinedAfterSnapshot(t *testing.T) {
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	d.colocationRules = []colocationRule{fakeColocationRule{"first": "colocated", "second": "colocated"}}
+	for _, node := range []string{"node1", "node2"} {
+		d.store.nodes[node] = newNodeStore(node, "")
+	}
+	first := colocatedConfig("first", "a: 1")
+	id := checkid.BuildID(first.Name, first.FastDigest(), first.Instances[0], first.InitConfig)
+	d.addConfig(first, "node1")
+	d.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{string(id): {AverageExecutionTime: 4000, IsClusterCheck: true}}
+
+	// The snapshot sees "first" alone, so a plan may move it.
+	dist := d.currentDistribution()
+	require.Contains(t, dist.Configs, first.Digest())
+	require.False(t, dist.Configs[first.Digest()].Pinned)
+
+	// A peer joins it before the plan is applied: the move must not split them.
+	second := colocatedConfig("second", "a: 1")
+	d.add(second)
+	require.Equal(t, "node1", d.store.digestToNode[second.Digest()])
+
+	assert.Error(t, d.moveConfig("node1", "node2", first.Digest()))
+	assert.Equal(t, "node1", d.store.digestToNode[first.Digest()])
+	assert.Contains(t, d.store.nodes["node1"].digestToConfig, first.Digest())
+
+	requireNotLocked(t, d.store)
+}
