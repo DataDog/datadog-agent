@@ -83,7 +83,7 @@ type healthPlatformImpl struct {
 	telemetry        telemetry.Component         // Telemetry component for metrics collection
 	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
 	agentFlavor      string                      // Agent flavor captured at construction time
-	selfIdent        *selfident.SelfIdent        // Resolves this agent's DaemonSet/cluster identity
+	selfIdent        selfident.Resolver          // Resolves this agent's DaemonSet/cluster identity
 
 	// Issue tracking: dehydrated at ReportIssue, rehydrated on GetAllIssues/GetIssue.
 	issues       map[string]*storedIssue // IssueID → active issue (lean proto + raw JSON)

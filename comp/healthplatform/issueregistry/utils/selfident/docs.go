@@ -14,3 +14,15 @@
 // deliberately untagged so the package keeps a doc comment under either tag
 // set — see pkg/util/cloudproviders/kubernetes/docs.go for the same pattern.
 package selfident
+
+import "context"
+
+// Resolver is the identity dependency consumed by healthplatform. Keeping the
+// dependency as an interface lets callers test behavior when resolution stalls.
+type Resolver interface {
+	DeploymentID() string
+	DeploymentIDWithContext(context.Context) string
+	ClusterID() string
+	ClusterIDWithContext(context.Context) string
+	IssueDiscriminator() string
+}

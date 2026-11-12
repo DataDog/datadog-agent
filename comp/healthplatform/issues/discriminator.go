@@ -30,8 +30,8 @@ import (
 // selfIdent may be nil: ModuleDeps is a plain struct, so a caller that leaves
 // the field unset (tests do) would otherwise panic only on Kubernetes builds —
 // the no-op SelfIdent never dereferences its receiver, the real one does.
-func IssueDiscriminator(selfIdent *selfident.SelfIdent, hostID string) string {
-	if selfIdent != nil {
+func IssueDiscriminator(selfIdent selfident.Resolver, hostID string) string {
+	if hasSelfIdentity(selfIdent) {
 		if discriminator := selfIdent.IssueDiscriminator(); discriminator != "" {
 			return discriminator
 		}
@@ -53,8 +53,8 @@ func IssueDiscriminator(selfIdent *selfident.SelfIdent, hostID string) string {
 // id, so that both always agree.
 //
 // selfIdent may be nil, in which case the host identity is returned.
-func ResourceIdentity(agentFlavor string, selfIdent *selfident.SelfIdent, hostname string) (resourceType string, resourceID string) {
-	if selfIdent == nil {
+func ResourceIdentity(agentFlavor string, selfIdent selfident.Resolver, hostname string) (resourceType string, resourceID string) {
+	if !hasSelfIdentity(selfIdent) {
 		return "host", hostname
 	}
 	if agentFlavor == flavor.ClusterAgent {
@@ -67,4 +67,14 @@ func ResourceIdentity(agentFlavor string, selfIdent *selfident.SelfIdent, hostna
 		return "deployment", deploymentID
 	}
 	return "host", hostname
+}
+
+func hasSelfIdentity(resolver selfident.Resolver) bool {
+	if resolver == nil {
+		return false
+	}
+	// ModuleDeps and existing checkers carry *SelfIdent. Preserve their nil
+	// fallback when a nil pointer is passed through the Resolver interface.
+	concrete, ok := resolver.(*selfident.SelfIdent)
+	return !ok || concrete != nil
 }
