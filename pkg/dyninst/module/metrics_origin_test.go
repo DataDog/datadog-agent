@@ -8,6 +8,7 @@
 package module
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
@@ -44,11 +46,25 @@ func (w *metricPacketWriter) take() string {
 	return strings.TrimSpace(packet)
 }
 
+type metricContainerStore struct {
+	workloadmeta.Component
+	container *workloadmeta.Container
+	lookups   int
+}
+
+func (s *metricContainerStore) GetContainer(string) (*workloadmeta.Container, error) {
+	s.lookups++
+	if s.container == nil {
+		return nil, errors.New("container not found")
+	}
+	return s.container, nil
+}
+
 func TestMetricProbeOriginPackets(t *testing.T) {
 	for _, entityID := range []string{"", "agent-pod"} {
 		t.Run("DD_ENTITY_ID="+entityID, func(t *testing.T) {
 			t.Setenv("DD_ENTITY_ID", entityID)
-			for _, target := range []string{"host", "unknown", "non-pod", "pod"} {
+			for _, target := range []string{"host", "unknown", "pending-pod", "non-pod", "pod"} {
 				t.Run(target, func(t *testing.T) {
 					w := &metricPacketWriter{}
 					client, err := ddgostatsd.NewWithWriter(w,
@@ -61,14 +77,17 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 					require.NoError(t, err)
 					t.Cleanup(func() { require.NoError(t, client.Close()) })
 
-					known := target != "unknown"
-					podUID := ""
-					if target == "pod" {
-						podUID = "target-pod"
+					store := &metricContainerStore{}
+					if target != "unknown" {
+						store.container = &workloadmeta.Container{}
 					}
-					r := newMetricsReporter(client, time.Hour, nil, func(string) (string, bool) {
-						return podUID, known
-					})
+					switch target {
+					case "pod":
+						store.container.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "target-pod"}
+					case "non-pod":
+						store.container.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindECSTask, ID: "target-task"}
+					}
+					r := newMetricsReporter(client, time.Hour, nil, podLookup(store))
 					t.Cleanup(r.close)
 					runtimeID := procRuntimeID{}
 					if target != "host" {
@@ -103,10 +122,20 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 					} else {
 						report("none")
 					}
-					if target == "unknown" {
-						known, podUID = true, "target-pod"
+					if target == "unknown" || target == "pending-pod" {
+						store.container = &workloadmeta.Container{}
+						report("none")
+						store.container.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "target-pod"}
 						report("target-pod")
+						require.Equal(t, 3, store.lookups)
 					}
+					lookups := store.lookups
+					if target == "pod" || target == "unknown" || target == "pending-pod" {
+						report("target-pod")
+					} else {
+						report("none")
+					}
+					require.Equal(t, lookups, store.lookups, "resolved identities must not be looked up again")
 				})
 			}
 		})

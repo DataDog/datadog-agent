@@ -141,6 +141,7 @@ dd_agent_go_test(
     tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/workloadmeta/def",
             "//pkg/dyninst/actuator",
             "//pkg/dyninst/compiler",
             "//pkg/dyninst/decode",
@@ -165,6 +166,7 @@ dd_agent_go_test(
             "@org_uber_go_goleak//:goleak",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/workloadmeta/def",
             "//pkg/dyninst/actuator",
             "//pkg/dyninst/compiler",
             "//pkg/dyninst/decode",

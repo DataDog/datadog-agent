@@ -345,8 +345,9 @@ A module-level `metricsReporter` with a single goroutine:
   the BPF maps are closed.
 - **Pod UID** is looked up in workloadmeta when tags are built. system-probe
   already streams containers and pods from the core agent; a container's
-  `Owner` is its pod. If the container isn't known yet, the lookup is retried on
-  later ticks.
+  Kubernetes `Owner` identifies its pod. If the container or its owner isn't
+  known yet, the lookup is retried on later ticks. Metrics are still sent
+  without pod enrichment while the lookup is pending.
 - **Statsd client.** The `cmd/system-probe` module factory creates the
   dedicated client with the statsd component's `CreateForHostPort` (same
   address and options as system-probe's shared client, plus
