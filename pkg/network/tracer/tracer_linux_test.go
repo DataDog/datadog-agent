@@ -39,6 +39,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2360,6 +2361,182 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 		require.NotNil(collect, conn)
 		require.Equal(collect, network.OUTGOING, conn.Direction)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackUDPReplyIPv4 covers an unconnected AF_INET6 UDP server
+// bound to [::] (IPV6_V6ONLY off) that replies to an IPv4 client with sendto, as
+// a dual-stack DNS server does. Both directions must land on a single IPv4
+// connection: the sent bytes must not be split into a separate IPv6-family record.
+func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// SK keeps one record per socket, labelled with the socket's family, and
+		// counts a dual-stack send in both fexit/udp_sendmsg and fexit/udpv6_sendmsg
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	// Before 4.7 the prebuilt tracer builds the receive tuple from the socket's
+	// bound address rather than the packet, so it drops receives on a socket
+	// bound to the wildcard address. Without UDPv6 collection (prebuilt on
+	// 5.18+), the receive on the AF_INET6 socket isn't traced either. Only the
+	// send side can be checked there.
+	checkRecv := cfg.CollectUDPv6Conns && !(isPrebuilt(cfg) && kv < kv470)
+	tr := setupTracer(t, cfg)
+
+	sfd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+	require.NoError(t, syscall.SetsockoptInt(sfd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(sfd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(sfd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 5}))
+	sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	serverPort := sa.(*syscall.SockaddrInet6).Port
+
+	client, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: serverPort})
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, tracertestutil.SetTestDeadline(client))
+	clientPort := client.LocalAddr().(*net.UDPAddr).Port
+
+	request := []byte("request")
+	_, err = client.Write(request)
+	require.NoError(t, err)
+
+	buf := make([]byte, 64)
+	n, from, err := syscall.Recvfrom(sfd, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(request), n)
+	// the peer is reported as an IPv4-mapped IPv6 address
+	from6, ok := from.(*syscall.SockaddrInet6)
+	require.True(t, ok, "expected an AF_INET6 peer address, got %T", from)
+	require.True(t, netip.AddrFrom16(from6.Addr).Is4In6(), "expected an IPv4-mapped peer address")
+
+	reply := []byte("a longer reply")
+	require.NoError(t, syscall.Sendto(sfd, reply, 0, from6))
+	n, err = client.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(reply), n)
+
+	// A connection is only reported when it has new activity, so accumulate the
+	// server-side records across polls, keeping the latest copy of each.
+	server := map[network.StatCookie]network.ConnectionStats{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == uint16(serverPort) && cs.DPort == uint16(clientPort)
+		}) {
+			server[c.Cookie] = c
+		}
+		var v4 []network.ConnectionStats
+		for _, c := range server {
+			if !assert.Equal(ct, network.AFINET, c.Family, "server connection has the wrong family: %s", c) {
+				continue
+			}
+			v4 = append(v4, c)
+		}
+		require.Len(ct, v4, 1)
+		assert.Equal(ct, "127.0.0.1", v4[0].Source.String())
+		assert.Equal(ct, "127.0.0.1", v4[0].Dest.String())
+		assert.Equal(ct, uint64(len(reply)), v4[0].Monotonic.SentBytes, "sent bytes")
+		if checkRecv {
+			assert.Equal(ct, uint64(len(request)), v4[0].Monotonic.RecvBytes, "received bytes")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
+// resolver when both IPv4 and IPv6 nameservers are configured, sends its
+// queries from one unconnected AF_INET6 UDP socket to the IPv4-mapped address
+// of an IPv4 server. Each query's DNS stats must be attached
+// to an IPv4 connection, including a query that times out and so has no
+// response packet to create the connection from.
+func (s *TracerSuite) TestUnconnectedDualStackDNSClient() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+	tr := setupTracer(t, cfg)
+
+	answering := testdns.GetServerIP(t).To4()
+	// nothing listens on this address, so the query times out
+	silent := net.IPv4(127, 0, 0, 154).To4()
+
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(fd) })
+	require.NoError(t, syscall.SetsockoptInt(fd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 2}))
+	sa, err := syscall.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := uint16(sa.(*syscall.SockaddrInet6).Port)
+
+	mapped := func(ip net.IP) *syscall.SockaddrInet6 {
+		to := &syscall.SockaddrInet6{Port: 53}
+		copy(to.Addr[:], ip.To16())
+		return to
+	}
+	query := func(domain string) []byte {
+		msg := new(dns.Msg)
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		b, err := msg.Pack()
+		require.NoError(t, err)
+		return b
+	}
+
+	require.NoError(t, syscall.Sendto(fd, query("good.com"), 0, mapped(answering)))
+	buf := make([]byte, 512)
+	_, _, err = syscall.Recvfrom(fd, buf, 0)
+	require.NoError(t, err, "no answer from the test DNS server")
+	require.NoError(t, syscall.Sendto(fd, query("golang.org"), 0, mapped(silent)))
+	require.NoError(t, tr.reverseDNS.WaitForDomain("good.com"))
+
+	// DNS stats that don't match a connection in the same poll are discarded,
+	// and an idle UDP connection isn't reported, so re-send on both flows before
+	// each poll to keep both connections in it. Stats are attached once, so sum
+	// them across polls; the unanswered query's timeout shows up on the stats
+	// keeper's next expiry tick after cfg.DNSTimeout.
+	type counts struct{ successes, timeouts uint32 }
+	got := map[string]*counts{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		for _, ip := range []net.IP{answering, silent} {
+			assert.NoError(ct, syscall.Sendto(fd, []byte{0}, 0, mapped(ip)))
+		}
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == clientPort && cs.DPort == 53
+		}) {
+			if !assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c) {
+				continue
+			}
+			dst := c.Dest.String()
+			if got[dst] == nil {
+				got[dst] = &counts{}
+			}
+			for _, byDomain := range c.DNSStats {
+				for _, stats := range byDomain {
+					got[dst].successes += stats.CountByRcode[0]
+					got[dst].timeouts += stats.Timeouts
+				}
+			}
+		}
+		if assert.Contains(ct, got, answering.String()) {
+			assert.Equal(ct, uint32(1), got[answering.String()].successes, "successful responses")
+		}
+		if assert.Contains(ct, got, silent.String()) {
+			assert.Equal(ct, uint32(1), got[silent.String()].timeouts, "timeouts")
+		}
+		// The DNS stats keeper records a timeout on its next expiry tick, up to
+		// about twice cfg.DNSTimeout after the query, so allow for slow VMs.
+	}, 10*time.Second, 200*time.Millisecond)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
