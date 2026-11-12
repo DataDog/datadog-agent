@@ -166,9 +166,9 @@ variables:
     # Copy the baseline SHA to SMP for debugging purposes later
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
+    - BASELINE_IMAGE=${SMP_ECR_URL}/agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/agent:${CI_COMMIT_SHA}-7-full-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${PARENT_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
