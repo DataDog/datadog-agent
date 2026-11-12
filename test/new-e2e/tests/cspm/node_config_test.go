@@ -37,23 +37,39 @@ type fileMeta struct {
 	Mode  uint32 `json:"mode"`
 }
 
+// configDirMeta is the kubelet drop-in directory as the compliance loader
+// reports it.
+type configDirMeta struct {
+	fileMeta
+	Files []*fileMeta `json:"files"`
+}
+
 // nodeConfig holds the fields of the Kubernetes node configuration that the
 // tests check.
 type nodeConfig struct {
-	AzureJSON *fileMeta `json:"azureJson"`
+	AzureJSON  *fileMeta `json:"azureJson"`
+	Components struct {
+		Kubelet *struct {
+			ConfigDir *configDirMeta `json:"config-dir"`
+		} `json:"kubelet"`
+	} `json:"components"`
 }
 
 var resourceTypeLine = regexp.MustCompile(`Loaded config with resource type "([^"]+)"`)
 
-// nodeAgentPod returns the first node agent pod once its security-agent
-// container is ready.
-func nodeAgentPod(t *testing.T, env *environments.Kubernetes) string {
+// nodeAgentPod returns the node agent pod running on node, or the first one
+// when node is empty, once its security-agent container is ready.
+func nodeAgentPod(t *testing.T, env *environments.Kubernetes, node string) string {
 	t.Helper()
-	pods, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+	opts := metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", env.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-	})
+	}
+	if node != "" {
+		opts.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", node).String()
+	}
+	pods, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), opts)
 	require.NoError(t, err)
-	require.NotEmpty(t, pods.Items)
+	require.NotEmpty(t, pods.Items, "no node agent pod on node %q", node)
 	return waitForSecurityAgentPodReady(t, env.KubernetesCluster, "datadog", pods.Items[0].Name)
 }
 

@@ -47,6 +47,16 @@ type proc struct {
 type loader struct {
 	hostroot string
 	errs     []error
+	// dropins holds each kubelet --config-dir, which both the kubelet
+	// configuration and its metadata read.
+	dropins map[string]*dropinDir
+}
+
+// dropinDir is a kubelet --config-dir: the lstat of the directory, nil when it
+// failed, and the names of its drop-ins.
+type dropinDir struct {
+	info  os.FileInfo
+	names []string
 }
 
 // LoadConfiguration extracts a complete summary of all current Kubernetes
@@ -383,25 +393,64 @@ func (l *loader) loadKubeletConfigFileMeta(name, dropinDir string) *K8sConfigFil
 	return meta
 }
 
-// loadKubeletDropins returns the KubeletConfiguration drop-ins under dir, in
-// the order the kubelet merges them: a lexical walk of the tree keeping the
-// files named *.conf.
-func (l *loader) loadKubeletDropins(dir string) []map[string]interface{} {
+// kubeletDropinDir returns the kubelet drop-in directory dir, with its
+// drop-ins in the order the kubelet merges them. The kubelet walks dir with
+// filepath.WalkDir and keeps the files named *.conf. WalkDir lstats dir
+// itself, so a dir that is a symbolic link is walked only when it ends with a
+// slash, and a dir naming a .conf file is its own single drop-in.
+func (l *loader) kubeletDropinDir(dir string) *dropinDir {
+	if d, ok := l.dropins[dir]; ok {
+		return d
+	}
+	d := &dropinDir{}
+	root := filepath.Join(l.hostroot, dir)
+	if strings.HasSuffix(dir, "/") {
+		root += "/"
+	}
+	if info, err := os.Lstat(root); err != nil {
+		l.pushError(err)
+	} else {
+		d.info = info
+		switch {
+		case info.IsDir():
+			d.names = l.walkKubeletDropins(dir)
+		case filepath.Ext(dir) == ".conf":
+			d.names = []string{dir}
+		}
+	}
+	if l.dropins == nil {
+		l.dropins = make(map[string]*dropinDir)
+	}
+	l.dropins[dir] = d
+	return d
+}
+
+// walkKubeletDropins returns the files named *.conf of a lexical walk of the
+// tree under dir.
+func (l *loader) walkKubeletDropins(dir string) []string {
 	entries, err := os.ReadDir(filepath.Join(l.hostroot, dir))
 	if err != nil {
 		l.pushError(err)
 		return nil
 	}
-	var dropins []map[string]interface{}
+	var names []string
 	for _, entry := range entries {
 		name := filepath.Join(dir, entry.Name())
-		if entry.IsDir() {
-			dropins = append(dropins, l.loadKubeletDropins(name)...)
-			continue
+		switch {
+		case entry.IsDir():
+			names = append(names, l.walkKubeletDropins(name)...)
+		case filepath.Ext(name) == ".conf":
+			names = append(names, name)
 		}
-		if filepath.Ext(entry.Name()) != ".conf" {
-			continue
-		}
+	}
+	return names
+}
+
+// loadKubeletDropins returns the KubeletConfiguration drop-ins under dir, in
+// the order the kubelet merges them.
+func (l *loader) loadKubeletDropins(dir string) []map[string]interface{} {
+	var dropins []map[string]interface{}
+	for _, name := range l.kubeletDropinDir(dir).names {
 		meta, ok := l.loadConfigFileMeta(name)
 		if !ok {
 			continue
@@ -418,6 +467,32 @@ func (l *loader) loadKubeletDropins(dir string) []map[string]interface{} {
 		dropins = append(dropins, content)
 	}
 	return dropins
+}
+
+// loadConfigDirMeta returns the ownership and permissions of the kubelet
+// drop-in directory dir, as its lstat reports them, and of the drop-ins the
+// kubelet reads from it. An empty dir, the flag given no value, turns the
+// drop-ins off and yields nil.
+func (l *loader) loadConfigDirMeta(dir string) *K8sConfigDirMeta {
+	if dir == "" {
+		return nil
+	}
+	d := l.kubeletDropinDir(dir)
+	if d.info == nil {
+		return &K8sConfigDirMeta{Path: dir}
+	}
+	meta := &K8sConfigDirMeta{
+		Path:  dir,
+		User:  utils.GetFileUser(d.info),
+		Group: utils.GetFileGroup(d.info),
+		Mode:  uint32(d.info.Mode()),
+	}
+	for _, name := range d.names {
+		if f := l.loadFileMeta(name); f != nil {
+			meta.Files = append(meta.Files, f)
+		}
+	}
+	return meta
 }
 
 // mergeConfig folds patch into content the way the kubelet folds a drop-in into

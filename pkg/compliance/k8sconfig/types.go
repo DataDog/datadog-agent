@@ -56,6 +56,16 @@ type K8sFileMeta struct {
 	Mode  uint32 `json:"mode" jsonschema:"required"`
 }
 
+// K8sConfigDirMeta holds the ownership and permissions of the kubelet drop-in
+// directory and of the drop-ins under it, in the order the kubelet reads them.
+type K8sConfigDirMeta struct {
+	Path  string         `json:"path"`
+	User  string         `json:"user,omitempty"`
+	Group string         `json:"group,omitempty"`
+	Mode  uint32         `json:"mode,omitempty"`
+	Files []*K8sFileMeta `json:"files,omitempty"`
+}
+
 type K8sConfigFileMeta struct {
 	Path    string      `json:"path"`
 	User    string      `json:"user,omitempty"`
