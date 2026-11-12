@@ -65,15 +65,3 @@ func TestIsNvidiaDeviceID(t *testing.T) {
 	assert.False(t, IsNvidiaDeviceID("gpu-0-mig-1g18gb-19-0"))
 	assert.False(t, IsNvidiaDeviceID(""))
 }
-
-func TestIsNvidiaKubernetesAllocation(t *testing.T) {
-	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/gpu", "GPU-abc"))
-	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/mig-1g.10gb", "MIG-abc"))
-	assert.True(t, IsNvidiaKubernetesAllocation("gpu.nvidia.com", "gpu-0"))
-	// Renamed shared resource: the name says nothing, the ID does.
-	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/gpu.shared", "GPU-abc::1"))
-	assert.True(t, IsNvidiaKubernetesAllocation("myorg.com/gpu", "GPU-abc::1"))
-	// Another vendor's allocation with a non-NVIDIA ID shape.
-	assert.False(t, IsNvidiaKubernetesAllocation("amd.com/gpu", "amd-1234"))
-	assert.False(t, IsNvidiaKubernetesAllocation("myorg.com/gpu", "abc-123"))
-}

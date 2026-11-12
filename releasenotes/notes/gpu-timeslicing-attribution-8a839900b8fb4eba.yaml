@@ -2,10 +2,4 @@
 fixes:
   - |
     GPU metrics are now attributed to pods whose GPU is shared by the
-    NVIDIA device plugin (time-slicing, MPS). Previously the replica
-    suffix on the allocated device ID (``GPU-<uuid>::<n>``) prevented the
-    Agent from matching the allocation to the physical GPU, so device
-    metrics lost the workload tags of every pod holding a shared GPU.
-    The match now also works when the shared GPU is exposed under a
-    renamed resource (``nvidia.com/gpu.shared``), keyed off the device ID
-    rather than the resource name.
+    NVIDIA device plugin (time-slicing, MPS).

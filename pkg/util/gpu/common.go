@@ -76,11 +76,18 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 }
 
 // IsNvidiaKubernetesResource returns true if the resource name is a Kubernetes resource
-// for an NVIDIA GPU, either a generic GPU or a MIG GPU.
-func IsNvidiaKubernetesResource(resourceName string) bool {
-	return strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
+// for an NVIDIA GPU, either a generic GPU or a MIG GPU. When a device ID is
+// given, an allocation is also recognized by the ID's shape, so a shared GPU
+// exposed under a renamed resource (e.g. "nvidia.com/gpu.shared") is detected
+// the same way: the resource name of a shared GPU is operator-configurable,
+// while the device ID keeps its NVIDIA shape.
+func IsNvidiaKubernetesResource(resourceName string, deviceID ...string) bool {
+	if strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
 		resourceName == string(GpuNvidiaGeneric) ||
-		resourceName == string(GpuNvidiaDRA)
+		resourceName == string(GpuNvidiaDRA) {
+		return true
+	}
+	return len(deviceID) > 0 && IsNvidiaDeviceID(deviceID[0])
 }
 
 // ExtractGPUType returns the normalized GPU model type from a device name.
