@@ -23,7 +23,8 @@ import (
 )
 
 // The subprocesses deliberately inherit the output handles, just like a script
-// starting background work. Use the test executable so this works on Windows too.
+// starting background work; "detach" mode gives the child its own null handles.
+// Use the test executable so this works on Windows too.
 func TestScriptProcess(t *testing.T) {
 	i := slices.Index(os.Args, "--")
 	if i < 0 || i+1 == len(os.Args) {
@@ -43,7 +44,9 @@ func TestScriptProcess(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
 	child := exec.Command(exe, "-test.run=^TestScriptProcess$", "--", "child")
-	child.Stdout, child.Stderr = os.Stdout, os.Stderr
+	if args[0] != "detach" {
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+	}
 	require.NoError(t, child.Start())
 	require.NoError(t, os.WriteFile(args[1], []byte(strconv.Itoa(child.Process.Pid)), 0600))
 	if args[0] == "wait" {
@@ -80,18 +83,8 @@ func TestScriptCommandInheritedPipes(t *testing.T) {
 				}
 				if runtime.GOOS == "linux" {
 					// Descendants must not outlive the script, whether it exited or was canceled.
-					// A zombie is stopped, even if container PID 1 has not reaped it.
-					require.Eventually(t, func() bool {
-						data, statErr := os.ReadFile(filepath.Join("/proc", strconv.Itoa(child.Pid), "stat"))
-						if os.IsNotExist(statErr) {
-							return true
-						}
-						if statErr != nil {
-							return false
-						}
-						_, state, ok := strings.Cut(string(data), ") ")
-						return ok && strings.HasPrefix(state, "Z ")
-					}, 2*time.Second, 10*time.Millisecond, "child survived the script")
+					require.Eventually(t, func() bool { return processStopped(child.Pid) },
+						2*time.Second, 10*time.Millisecond, "child survived the script")
 				}
 				t.Logf("%s released output pipes after %s: %v", mode, time.Since(start), err)
 			case <-time.After(10 * time.Second):
