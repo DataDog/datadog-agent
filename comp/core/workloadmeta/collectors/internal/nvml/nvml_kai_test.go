@@ -259,9 +259,10 @@ func newKAICollector(store workloadmeta.Component) *collector {
 }
 
 // containerGPUEvents runs createContainerGPUEvents the way Pull does, with the
-// KAI fractions resolved from the same device cache.
+// KAI fractions resolved from the same device cache. There are no shared
+// device replicas on the KAI fixtures, so the time-slices are empty.
 func containerGPUEvents(c *collector, deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
-	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache))
+	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache), timeSlices{})
 }
 
 // setGPUDeviceIDs indexes the GPUDeviceIDs published by a pull, by container ID.
