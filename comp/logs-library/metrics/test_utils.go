@@ -13,3 +13,10 @@ func ResetMissedBytesForTest() {
 	missedBytes.reset()
 	logsAgentRunning.Store(false)
 }
+
+// ResetDroppedLogsForTest clears the dropped-logs tracker and the logs-running flag,
+// in place for the same reason as ResetMissedBytesForTest.
+func ResetDroppedLogsForTest() {
+	droppedLogs.reset()
+	logsAgentRunning.Store(false)
+}
