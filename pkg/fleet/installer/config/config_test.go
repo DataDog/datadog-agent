@@ -19,6 +19,16 @@ import (
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
+// configFileMode is the mode a written configuration file is expected to have. macOS gives every
+// configuration file the mode the installer's .dmg set-up gives the tree, whatever the Linux spec
+// says.
+func configFileMode(linuxMode os.FileMode) os.FileMode {
+	if runtime.GOOS == "darwin" {
+		return 0660
+	}
+	return linuxMode
+}
+
 func TestOperationApply_Patch(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -55,7 +65,7 @@ func TestOperationApply_Patch(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+		assert.Equal(t, configFileMode(0640), stat.Mode().Perm())
 	}
 }
 
@@ -614,9 +624,25 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// newTestConfigDirs returns a stable and an experiment configuration directory.
+//
+// On macOS they are siblings, with the experiment path not yet created: the promote is a rename
+// within one parent, and an experiment path that already exists as a real directory reads as a
+// deployed experiment. Elsewhere both are created, as the other platforms expect.
+func newTestConfigDirs(t *testing.T) (stableDir string, experimentDir string) {
+	t.Helper()
+
+	if runtime.GOOS != "darwin" {
+		return t.TempDir(), t.TempDir()
+	}
+	root := t.TempDir()
+	stableDir = filepath.Join(root, "stable")
+	require.NoError(t, os.MkdirAll(stableDir, 0755))
+	return stableDir, filepath.Join(root, "experiment")
+}
+
 func TestConfig_SimpleStartPromote(t *testing.T) {
-	stableDir := t.TempDir()     // This acts as the 'Stable' config directory
-	experimentDir := t.TempDir() // This acts as the 'Experiment' config directory
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	// Place a simple base config in the stable directory
 	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
@@ -660,8 +686,7 @@ func TestConfig_SimpleStartPromote(t *testing.T) {
 }
 
 func TestConfig_SimpleStartStop(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	// Place a simple base config in the stable directory
 	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
@@ -730,8 +755,7 @@ service:
 `
 
 func TestConfig_OTelConfigStartPromote(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
 
@@ -760,8 +784,7 @@ func TestConfig_OTelConfigStartPromote(t *testing.T) {
 }
 
 func TestConfig_OTelConfigStartStop(t *testing.T) {
-	stableDir := t.TempDir()
-	experimentDir := t.TempDir()
+	stableDir, experimentDir := newTestConfigDirs(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(stableDir, "otel-config.yaml"), []byte(otelConfigSeed), 0640))
 	original, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
@@ -874,7 +897,7 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
+		assert.Equal(t, configFileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
 	}
 }
 
@@ -1097,7 +1120,7 @@ func TestOperationApply_JQ(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+		assert.Equal(t, configFileMode(0640), stat.Mode().Perm())
 	}
 }
 
