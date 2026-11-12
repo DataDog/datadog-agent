@@ -56,6 +56,28 @@
 #define F_SEAL_GROW 0x0004
 #endif
 
+// The hermetic glibc's setrlimit() issues the setrlimit syscall and its fexecve() execs
+// /proc/self/fd/N; issue prlimit64 and execveat like current glibc does.
+#ifndef SYS_execveat
+#if defined(__x86_64__)
+#define SYS_execveat 322
+#elif defined(__aarch64__)
+#define SYS_execveat 281
+#endif
+#endif
+
+#ifndef AT_EMPTY_PATH
+#define AT_EMPTY_PATH 0x1000
+#endif
+
+static int set_rlimit(int resource, const struct rlimit *rlim) {
+    return (int)syscall(SYS_prlimit64, 0, resource, rlim, NULL);
+}
+
+static int exec_fd(int fd, char *const argv[], char *const envp[]) {
+    return (int)syscall(SYS_execveat, fd, "", argv, envp, AT_EMPTY_PATH);
+}
+
 // DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
 #ifndef DD_TRACER_MEMFD_SEALS
 #define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
@@ -99,7 +121,7 @@ int setrlimit_nofile() {
     rlim.rlim_cur = 1024;  // soft limit
     rlim.rlim_max = 2048;  // hard limit
 
-    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+    if (set_rlimit(RLIMIT_NOFILE, &rlim) < 0) {
         perror("setrlimit RLIMIT_NOFILE");
         return EXIT_FAILURE;
     }
@@ -111,7 +133,7 @@ int setrlimit_nproc() {
     rlim.rlim_cur = 512;   // soft limit
     rlim.rlim_max = 1024;  // hard limit
 
-    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+    if (set_rlimit(RLIMIT_NPROC, &rlim) < 0) {
         perror("setrlimit RLIMIT_NPROC");
         return EXIT_FAILURE;
     }
@@ -151,7 +173,7 @@ int setrlimit_core() {
     rlim.rlim_cur = 0;      // no core dumps
     rlim.rlim_max = 0;      // no core dumps
 
-    if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
+    if (set_rlimit(RLIMIT_CORE, &rlim) < 0) {
         perror("setrlimit RLIMIT_CORE");
         return EXIT_FAILURE;
     }
@@ -1225,8 +1247,8 @@ int test_memfd_create(int argc, char **argv) {
         char * const argv[] = {filename, NULL};
         char * const envp[] = {NULL};
         fflush(stream);
-        if (fexecve(fd, argv, envp) < 0){
-            err(1, "%s failed", "fexecve");
+        if (exec_fd(fd, argv, envp) < 0){
+            err(1, "%s failed", "execveat");
         }
 
         fclose(stream);
