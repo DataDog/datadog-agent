@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Reduce memory used by sparse log-count series when anomaly detection log
-    time buckets are enabled. Empty buckets are reconstructed during reads
-    while preserving detector inputs and retention limits.
