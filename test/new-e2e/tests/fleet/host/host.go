@@ -65,6 +65,22 @@ func (h *Host) GetFilePermissions(filePath string) (*FilePermissions, error) {
 			Owner: parts[1],
 			Group: parts[2],
 		}, nil
+	case e2eos.MacOSFamily:
+		// BSD stat's format verbs differ from GNU coreutils': %OLp is the octal mode, %Su/%Sg
+		// are the symbolic owner/group names.
+		output, err := h.RemoteHost.Execute("stat -f '%OLp %Su %Sg' " + filePath)
+		if err != nil {
+			return nil, err
+		}
+		parts := strings.Fields(strings.TrimSpace(output))
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("unexpected stat output: %s", output)
+		}
+		return &FilePermissions{
+			Mode:  parts[0],
+			Owner: parts[1],
+			Group: parts[2],
+		}, nil
 	case e2eos.WindowsFamily:
 		// Windows doesn't use POSIX permissions
 		return nil, errors.New("file permissions check not supported on Windows")
