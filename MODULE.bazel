@@ -153,8 +153,11 @@ single_version_override(
 )
 
 # The patch loads //bazel/toolchains:cc_toolchain_transition.bzl from the main repo.
-# Drop once cc toolchains no longer inherit their consumer's configuration:
-# https://github.com/hermeticbuild/hermetic-llvm/issues/895
+# Drop once Bazel lets rules transition their toolchain dependencies (`cfg` on
+# config_common.toolchain_type): https://github.com/fmeum/bazel/pull/44
+# hermetic-llvm leaves this to Bazel: https://github.com/hermeticbuild/hermetic-llvm/issues/895
+# bazelbuild/bazel#31592 and #31301 analyze toolchain declarations once, but the resolved
+# toolchain is still configured per consumer, so they don't replace the patch.
 single_version_override(
     module_name = "rules_cc",
     patch_strip = 1,
