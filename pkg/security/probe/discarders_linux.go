@@ -236,6 +236,13 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	var isDiscarderFncs []func(dirname string) (bool, bool, error)
 
 	for _, rule := range bucket.GetRules() {
+		// a rule without path condition only allows discarders through the basename, which says nothing about the siblings
+		if rule.GetPartialEval(field) == nil {
+			fnc = func(_ string) (bool, error) { return false, nil }
+			id.parentDiscarderFncs[depth-1][field] = fnc
+			return fnc, nil
+		}
+
 		// ensure we don't push parent discarder if there is another rule relying on the parent path
 
 		// first case: rule contains a filename field

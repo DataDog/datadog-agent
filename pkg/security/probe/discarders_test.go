@@ -219,6 +219,14 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
 		t.Error("shouldn't be a parent discarder")
 	}
+
+	// a rule without path condition may match a sibling of the discarded file
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd"`, `open.file.name == "core_pattern" && open.file.filesystem == "proc"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/proc/sys/kernel/ns_last_pid", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
