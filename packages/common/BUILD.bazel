@@ -6,7 +6,8 @@ package(default_visibility = ["//packages:__subpackages__"])
 
 pkg_mkdirs(
     name = "log_dir",
-    attributes = pkg_attributes(mode = "0775"),
+    # Shared by the agent, dogstatsd and iot-agent RPMs, so the mode must match all of them.
+    attributes = pkg_attributes(mode = "0755"),
     dirs = ["/var/log/datadog"],
     target_compatible_with = ["@platforms//os:linux"],
 )
