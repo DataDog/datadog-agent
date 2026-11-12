@@ -587,11 +587,15 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 // is even larger and slower on Go DWARF).
 const symbolCompressionLevel = zstd.SpeedFastest
 
-// symbolCompressionWindow rounds up to cover the ELF, without exceeding the
-// default 8 MiB window. Keep at least 128 KiB to preserve the default block size.
+// maxCompressionWindow mirrors zstd's default 8 MiB window: never emit frames
+// that demand more than default decoder buffers.
+const maxCompressionWindow = 8 << 20
+
+// symbolCompressionWindow rounds up to cover the ELF, without exceeding
+// maxCompressionWindow. Keep at least 128 KiB to preserve the default block size.
 func symbolCompressionWindow(size int64) int {
 	window := 128 * 1024
-	for int64(window) < size && window < 8*1024*1024 {
+	for int64(window) < size && window < maxCompressionWindow {
 		window *= 2
 	}
 	return window
