@@ -270,6 +270,12 @@ class KMTCleanupJob(KMTJob):
         self.setup_job: KMTSetupEnvJob | None = None
 
 
+class KMTTestsJoinJob(KMTJob):
+    """Represents a kmt_*_tests_join* job, a no-op that the cleanup job needs instead of
+    needing the test jobs directly
+    """
+
+
 class KMTDependencyUploadJob(KMTJob):
     """Represents a job that upload dependencies to KMT hosts"""
 
@@ -333,6 +339,8 @@ class KMTPipeline:
                 kmt_job = KMTSetupEnvJob(job, self.gitlab)
             elif name.startswith("kmt_run_"):
                 kmt_job = KMTTestRunJob(job, self.gitlab)
+            elif name.startswith("kmt_") and "_tests_join" in name:
+                kmt_job = KMTTestsJoinJob(job, self.gitlab)
             elif name.startswith("kmt_") and "cleanup" in name and 'manual' not in name:
                 kmt_job = KMTCleanupJob(job, self.gitlab)
             elif job.stage == "kernel_matrix_testing_prepare" and "upload" in name:
@@ -373,6 +381,7 @@ class KMTSubPipeline:
         self.test_jobs: list[KMTTestRunJob] = []
         self.cleanup_jobs: list[KMTCleanupJob] = []
         self.dependency_upload_jobs: list[KMTDependencyUploadJob] = []
+        self.tests_join_jobs: list[KMTTestsJoinJob] = []
         self.id_to_job: dict[int, KMTJob] = {}
 
     @property
@@ -408,6 +417,8 @@ class KMTSubPipeline:
             self.cleanup_jobs.append(job)
         elif isinstance(job, KMTDependencyUploadJob):
             self.dependency_upload_jobs.append(job)
+        elif isinstance(job, KMTTestsJoinJob):
+            self.tests_join_jobs.append(job)
 
         self.id_to_job[job.id] = job
 
@@ -478,6 +489,28 @@ class KMTSubPipeline:
                 info(f"[-] Failed to retry job {job.name}: {e}")
                 continue
             retried_jobs.append(int(retried_id))
+
+        return retried_jobs
+
+    def retry_tests_joins(self) -> list[int]:
+        """Retry the finished tests join jobs, and return the list of newly scheduled jobs.
+
+        The cleanup job needs the join jobs rather than the test jobs, so if the joins kept
+        their old successful run, the retried cleanup would start as soon as the retried setup
+        finishes and destroy the instances under the retried tests. Call this after retrying
+        the test jobs: a join retried before them would see the old finished test runs and
+        complete straight away.
+        """
+        retried_jobs: list[int] = []
+        for job in self.tests_join_jobs:
+            if job.is_retried or not job.status.has_finished():
+                continue
+
+            try:
+                info(f"[+] Retrying job {job.name}")
+                retried_jobs.append(int(job.retry()))
+            except gitlab.exceptions.GitlabJobRetryError as e:
+                info(f"[-] Failed to retry job {job.name}: {e}")
 
         return retried_jobs
 
