@@ -253,11 +253,29 @@ func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span
 	}
 }
 
-// SetMetaStructOTLP preserves MessagePack maps exported as byte attributes by Datadog SDKs.
-// Other SDKs and byte encodings retain the normal OTLP attribute mapping.
-func SetMetaStructOTLP(s *pb.Span, k string, v pcommon.Value, res pcommon.Resource) bool {
-	sdk, ok := res.Attributes().Get("telemetry.sdk.name")
-	if !ok || sdk.Str() != "datadog" || v.Type() != pcommon.ValueTypeBytes || isDatadogAPMConventionKey(k) {
+// isMetaStructOTLPKey matches report roots and their dotted descendants.
+// Custom events and fingerprints are read from ordinary metadata.
+func isMetaStructOTLPKey(k string) bool {
+	for _, prefix := range []string{"appsec.events", "appsec.fingerprint"} {
+		if k == prefix || strings.HasPrefix(k, prefix+".") {
+			return false
+		}
+	}
+	for _, root := range []string{
+		"appsec", "iast", "_dd.appsec_shadow_deployed", "_dd.stack", "threat_intel",
+		"api.security", "api.entity", "api.definition", "api.endpoint", "http.request.body", "ai_guard", "_llmobs",
+	} {
+		if k == root || strings.HasPrefix(k, root+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// SetMetaStructOTLP preserves MessagePack maps under known structured report keys.
+// Other keys and byte encodings retain the normal OTLP attribute mapping.
+func SetMetaStructOTLP(s *pb.Span, k string, v pcommon.Value) bool {
+	if v.Type() != pcommon.ValueTypeBytes || !isMetaStructOTLPKey(k) {
 		return false
 	}
 	data := v.Bytes().AsRaw()
@@ -403,7 +421,7 @@ func OtelSpanToDDSpan(
 		case pcommon.ValueTypeInt:
 			conditionallyMapOTLPAttributeToMetric(k, float64(v.Int()), ddspan)
 		case pcommon.ValueTypeBytes:
-			if !SetMetaStructOTLP(ddspan, k, v, otelres) {
+			if !SetMetaStructOTLP(ddspan, k, v) {
 				conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
 			}
 		default:

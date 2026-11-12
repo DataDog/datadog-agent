@@ -897,13 +897,14 @@ func TestOTLPReceiveStructuredBytes(t *testing.T) {
 			rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			report := []byte{0x81, 0xa8, 't', 'r', 'i', 'g', 'g', 'e', 'r', 's', 0x90}
 			rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
-				Attributes: map[string]interface{}{"telemetry.sdk.name": "datadog", "appsec": "resource fallback"},
+				Attributes: map[string]interface{}{"telemetry.sdk.name": "opentelemetry", "appsec": "resource fallback"},
 				Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{
 					"appsec.event": "true", "_dd.appsec.enabled": 1,
 				}}},
 			}}).Traces().ResourceSpans().At(0)
 			inputSpan := rspans.ScopeSpans().At(0).Spans().At(0)
 			inputSpan.Attributes().PutEmptyBytes("appsec").FromRaw(report)
+			inputSpan.Attributes().PutEmptyBytes("_dd.stack").FromRaw(report)
 			inputSpan.Attributes().PutEmptyBytes("custom.report").FromRaw(report)
 			if legacy {
 				inputSpan.Attributes().PutStr("http.request.method", "GET")
@@ -917,7 +918,9 @@ func TestOTLPReceiveStructuredBytes(t *testing.T) {
 				require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
 				span := p.TracerPayload.Chunks[0].Spans[0]
 				assert.Equal(t, report, span.MetaStruct["appsec"])
-				assert.Equal(t, report, span.MetaStruct["custom.report"])
+				assert.Equal(t, report, span.MetaStruct["_dd.stack"])
+				assert.NotContains(t, span.MetaStruct, "custom.report")
+				assert.Equal(t, "gah0cmlnZ2Vyc5A=", span.Meta["custom.report"])
 				assert.NotContains(t, span.Meta, "appsec")
 				assert.Equal(t, "true", span.Meta["appsec.event"])
 				assert.Equal(t, float64(1), span.Metrics["_dd.appsec.enabled"])

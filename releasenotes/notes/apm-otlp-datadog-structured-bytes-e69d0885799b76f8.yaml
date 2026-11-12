@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    APM : Preserve MessagePack-encoded structured span attributes from Datadog SDK
-    OTLP exports when forwarding traces through the Agent or DDOT. This restores
-    structured reports such as App and API Protection and IAST findings.
+    APM : Preserve MessagePack-encoded structured span attributes under recognized
+    report keys in OTLP exports when forwarding traces through the Agent or DDOT.
+    This restores structured reports such as App and API Protection and IAST findings.
