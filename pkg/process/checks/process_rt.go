@@ -112,7 +112,7 @@ func fmtProcessStats(
 		if fp == nil {
 			continue
 		}
-		// Omit non-GPU zombies only from the payload, preserving raw stats for realtime baselines.
+		// Submit zombie processes individually only if they use a GPU.
 		if fp.IsZombie() {
 			if _, usesGPU := pidToGPUTags[pid]; !usesGPU {
 				continue

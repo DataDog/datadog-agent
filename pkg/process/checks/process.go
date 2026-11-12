@@ -601,7 +601,7 @@ func fmtProcesses(
 		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
-		// Omit non-GPU zombies only from the payload; parent aggregation still needs the raw snapshot.
+		// Submit zombie processes individually only if they use a GPU.
 		gpuTags, usesGPU := pidToGPUTags[fp.Pid]
 		if fp.Stats.IsZombie() && !usesGPU {
 			continue
