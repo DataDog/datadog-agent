@@ -59,7 +59,7 @@ func HasGPUs(container *workloadmeta.Container) bool {
 		// We have no specific support for other runtimes, so fall back to the Kubernetes device
 		// assignment if it's there
 		for _, resource := range container.ResolvedAllocatedResources {
-			if gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				return true
 			}
 		}
@@ -99,7 +99,7 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 // in its Kubernetes allocated resources, which an ECS task never does.
 func hasKubernetesGPUResources(container *workloadmeta.Container) bool {
 	for _, resource := range container.ResolvedAllocatedResources {
-		if gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
+		if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			return true
 		}
 	}
@@ -234,7 +234,7 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 
 	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
-		if !gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
+		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 
