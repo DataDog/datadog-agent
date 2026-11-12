@@ -774,56 +774,23 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "something_that_should_be_a_metric", resultSpan.Service())
 	})
 
-	t.Run("TraceIDZero", func(t *testing.T) {
-		// A zero trace ID drops the chunk and is counted the same way in both pipelines.
+	t.Run("TraceIDZeroV1", func(t *testing.T) {
+		// A zero trace ID drops the chunk, counted as in the legacy pipeline.
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-
-		t.Run("legacy", func(t *testing.T) {
-			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
-			span := testutil.GetTestSpan()
-			span.TraceID = 0
-			agnt.Process(&api.Payload{
-				TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(span, 2)),
-				Source:        ts,
-			})
-			assert.Empty(t, agnt.TraceWriter.(*mockTraceWriter).payloads)
-			assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
-			assert.EqualValues(t, 1, ts.SpansDropped.Load())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(idx.NewStringTable()), 2)
+		chunk.TraceID = make([]byte, 16)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        ts,
 		})
-
-		t.Run("v1", func(t *testing.T) {
-			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
-			strings := idx.NewStringTable()
-			chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-			chunk.TraceID = make([]byte, 16)
-			agnt.ProcessV1(&api.PayloadV1{
-				TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
-				Source:        ts,
-			})
-			assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
-			assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
-			assert.EqualValues(t, 1, ts.SpansDropped.Load())
-		})
-
-		t.Run("v1-low-64-bits-zero-kept", func(t *testing.T) {
-			// All 128 bits are checked: a trace ID with only its low-order 64 bits zero is valid.
-			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
-			strings := idx.NewStringTable()
-			chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-			chunk.TraceID = []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}
-			agnt.ProcessV1(&api.PayloadV1{
-				TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
-				Source:        ts,
-			})
-			assert.Len(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1, 1)
-			assert.EqualValues(t, 0, ts.TracesDropped.TraceIDZero.Load())
-		})
+		assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
+		assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
+		assert.EqualValues(t, 1, ts.SpansDropped.Load())
 	})
 
 	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
@@ -2129,26 +2096,45 @@ func TestSampling(t *testing.T) {
 		}
 		return a
 	}
+	// sampledTrace holds the same dummy trace for the legacy and V1 pipelines, which must make the
+	// same sampling decisions.
+	type sampledTrace struct {
+		legacy traceutil.ProcessedTrace
+		v1     traceutil.ProcessedTraceV1
+	}
 	// generateProcessedTrace creates a new dummy trace to send to the samplers.
-	generateProcessedTrace := func(p sampler.SamplingPriority, hasErrors bool) traceutil.ProcessedTrace {
+	generateProcessedTrace := func(p sampler.SamplingPriority, hasErrors bool) sampledTrace {
+		now := time.Now()
 		root := &pb.Span{
 			Service:  "serv1",
-			Start:    time.Now().UnixNano(),
+			Start:    now.UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
 		}
 		if hasErrors {
 			root.Error = 1
 		}
-		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root, TracerEnv: "test-env"}
 		pt.TraceChunk.Priority = int32(p)
-		pt.TracerEnv = "test-env"
-		return pt
+
+		strs := idx.NewStringTable()
+		rootV1 := idx.NewInternalSpan(strs, &idx.Span{
+			ServiceRef: strs.Add("serv1"),
+			Start:      uint64(now.UnixNano()),
+			Duration:   uint64((100 * time.Millisecond).Nanoseconds()),
+			Error:      hasErrors,
+			Attributes: map[uint32]*idx.AnyValue{},
+		})
+		rootV1.SetFloat64Attribute("_top_level", 1)
+		ptV1 := traceutil.ProcessedTraceV1{TraceChunk: spansToChunkV1(rootV1), Root: rootV1, TracerEnv: "test-env"}
+		ptV1.TraceChunk.Priority = int32(p)
+		return sampledTrace{legacy: pt, v1: ptV1}
 	}
 	type samplingTestCase struct {
-		trace        traceutil.ProcessedTrace
-		wantSampled  bool
-		expectStatsd func(statsdClient *mockStatsd.MockClientInterface)
+		trace         sampledTrace
+		wantSampled   bool
+		wantProbMarks bool // the probabilistic sampler set the decision maker on the chunk.
+		expectStatsd  func(statsdClient *mockStatsd.MockClientInterface)
 	}
 
 	for name, tt := range map[string]struct {
@@ -2423,8 +2409,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityNone, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2461,8 +2448,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityUserDrop, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityUserDrop, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2499,8 +2487,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityUserKeep, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityUserKeep, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2594,8 +2583,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2628,20 +2618,92 @@ func TestSampling(t *testing.T) {
 				},
 			},
 		},
+		// With the probabilistic sampler enabled, rare, probabilistic and errors samplers form a "first
+		// one that keeps wins" chain: the errors sampler (dropping everything here) must not veto a
+		// trace the rare or probabilistic sampler kept.
+		"probabilistic-error-100-errors-unsampled": {
+			agentConfig: agentConfig{rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{
+					trace:         generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled:   true,
+					wantProbMarks: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
+		// The rare sampler keeps the trace first, so the probabilistic sampler does not run.
+		"probabilistic-rare-error-100-errors-unsampled": {
+			agentConfig: agentConfig{probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
+		"probabilistic-error-0-errors-unsampled": {
+			agentConfig: agentConfig{rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
 	} {
-		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
-			a := configureAgent(tt.agentConfig, statsdClient)
-			for _, tc := range tt.testCases {
-				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
-				assert.EqualValues(t, tc.wantSampled, sampled)
-				require.NotNil(t, tc.expectStatsd)
-				tc.expectStatsd(statsdClient)
-				a.SamplerMetrics.Report()
-			}
-		})
+		for _, pipeline := range []string{"legacy", "v1"} {
+			t.Run(name+"/"+pipeline, func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+				statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+				a := configureAgent(tt.agentConfig, statsdClient)
+				for _, tc := range tt.testCases {
+					var sampled, probMarks bool
+					if pipeline == "legacy" {
+						sampled, _ = a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace.legacy)
+						probMarks = traceChunkContainsProbabilitySampling(tc.trace.legacy.TraceChunk)
+					} else {
+						sampled, _ = a.traceSamplingV1(time.Now(), &info.TagStats{}, &tc.trace.v1)
+						probMarks = traceChunkContainsProbabilitySamplingV1(tc.trace.v1.TraceChunk)
+					}
+					assert.EqualValues(t, tc.wantSampled, sampled)
+					assert.Equal(t, tc.wantProbMarks, probMarks)
+					require.NotNil(t, tc.expectStatsd)
+					tc.expectStatsd(statsdClient)
+					a.SamplerMetrics.Report()
+				}
+			})
+		}
 	}
 }
 
@@ -2678,143 +2740,6 @@ func TestProbSamplerSetsChunkPriority(t *testing.T) {
 	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
 	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
 	assert.Equal(t, int32(1), pt.TraceChunk.Priority)
-}
-
-// TestProbabilisticSamplerChainParity checks that, with the probabilistic sampler enabled, the
-// rare, probabilistic and errors samplers form a "first one that keeps wins" chain in both the
-// legacy and V1 pipelines: the errors sampler is only a second chance for traces the rare and
-// probabilistic samplers did not keep, never a veto on traces they kept.
-func TestProbabilisticSamplerChainParity(t *testing.T) {
-	const (
-		service = "serv1"
-		env     = "test-env"
-	)
-	type testCase struct {
-		rareEnabled   bool
-		probPercent   float32
-		errorTPS      float64 // 0 disables the errors sampler, so it drops every trace it sees.
-		wantKeep      bool
-		wantSampler   sampler.Name
-		wantProbMarks bool // the probabilistic sampler marked the trace (decision maker and _dd.prob_sr).
-	}
-	newAgent := func(tc testCase, statsdClient statsd.ClientInterface) *Agent {
-		cfg := &config.AgentConfig{
-			ErrorTPS:                               tc.errorTPS,
-			ExtraSampleRate:                        1,
-			TargetTPS:                              5,
-			RareSamplerEnabled:                     tc.rareEnabled,
-			RareSamplerCardinality:                 200,
-			RareSamplerTPS:                         5,
-			RareSamplerCooldownPeriod:              5 * time.Minute,
-			ProbabilisticSamplerEnabled:            true,
-			ProbabilisticSamplerSamplingPercentage: tc.probPercent,
-			Features:                               make(map[string]struct{}),
-		}
-		return &Agent{
-			NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
-			ErrorsSampler:        sampler.NewErrorsSampler(cfg),
-			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:          sampler.NewRareSampler(cfg),
-			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
-			SamplerMetrics:       sampler.NewMetrics(statsdClient),
-			conf:                 cfg,
-		}
-	}
-	expectSamplerMetrics := func(statsdClient *mockStatsd.MockClientInterface, tc testCase) {
-		tags := []string{"sampler:" + tc.wantSampler.String(), "target_service:" + service}
-		if tc.wantSampler != sampler.NameProbabilistic { // the probabilistic sampler metrics carry no env tag
-			tags = append(tags, "target_env:"+env)
-		}
-		statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), tags, gomock.Any()).Times(1)
-		if tc.wantKeep {
-			statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), tags, gomock.Any()).Times(1)
-		}
-	}
-
-	for name, tc := range map[string]testCase{
-		// The errors sampler drops everything here, so if it ran it would drop the trace.
-		"error-kept-by-probabilistic": {
-			probPercent: 100, errorTPS: 0,
-			wantKeep: true, wantSampler: sampler.NameProbabilistic, wantProbMarks: true,
-		},
-		"error-kept-by-rare": {
-			rareEnabled: true, probPercent: 0, errorTPS: 0,
-			wantKeep: true, wantSampler: sampler.NameRare,
-		},
-		// The rare sampler keeps the trace first, so the probabilistic sampler does not run.
-		"error-kept-by-rare-before-probabilistic": {
-			rareEnabled: true, probPercent: 100, errorTPS: 0,
-			wantKeep: true, wantSampler: sampler.NameRare,
-		},
-		"error-dropped-by-probabilistic-kept-by-errors": {
-			probPercent: 0, errorTPS: 1000,
-			wantKeep: true, wantSampler: sampler.NameError,
-		},
-		"error-dropped-by-probabilistic-dropped-by-errors": {
-			probPercent: 0, errorTPS: 0,
-			wantKeep: false, wantSampler: sampler.NameError,
-		},
-	} {
-		wantPriority := int32(sampler.PriorityAutoDrop)
-		if tc.wantKeep {
-			wantPriority = int32(sampler.PriorityAutoKeep)
-		}
-
-		t.Run(name+"/legacy", func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
-			a := newAgent(tc, statsdClient)
-			root := &pb.Span{
-				Service:  service,
-				TraceID:  1,
-				SpanID:   1,
-				Start:    time.Now().UnixNano(),
-				Duration: (100 * time.Millisecond).Nanoseconds(),
-				Error:    1,
-				Metrics:  map[string]float64{"_top_level": 1},
-				Meta:     map[string]string{},
-			}
-			pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root, TracerEnv: env}
-
-			keep, _ := a.runSamplers(time.Now(), &info.TagStats{}, pt)
-
-			assert.Equal(t, tc.wantKeep, keep)
-			assert.Equal(t, wantPriority, pt.TraceChunk.Priority)
-			_, hasDM := pt.TraceChunk.Tags[tagDecisionMaker]
-			assert.Equal(t, tc.wantProbMarks, hasDM)
-			_, hasProbRate := root.Metrics["_dd.prob_sr"]
-			assert.Equal(t, tc.wantProbMarks, hasProbRate)
-			expectSamplerMetrics(statsdClient, tc)
-			a.SamplerMetrics.Report()
-		})
-
-		t.Run(name+"/v1", func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
-			a := newAgent(tc, statsdClient)
-			strs := idx.NewStringTable()
-			root := idx.NewInternalSpan(strs, &idx.Span{
-				ServiceRef: strs.Add(service),
-				SpanID:     1,
-				Start:      uint64(time.Now().UnixNano()),
-				Duration:   uint64((100 * time.Millisecond).Nanoseconds()),
-				Error:      true,
-				Attributes: map[uint32]*idx.AnyValue{},
-			})
-			root.SetFloat64Attribute("_top_level", 1)
-			pt := traceutil.ProcessedTraceV1{TraceChunk: spansToChunkV1(root), Root: root, TracerEnv: env}
-
-			keep, _ := a.runSamplersV1(time.Now(), &info.TagStats{}, pt)
-
-			assert.Equal(t, tc.wantKeep, keep)
-			assert.Equal(t, wantPriority, pt.TraceChunk.Priority)
-			assert.Equal(t, tc.wantProbMarks, traceChunkContainsProbabilitySamplingV1(pt.TraceChunk))
-			_, hasProbRate := root.GetAttributeAsFloat64("_dd.prob_sr")
-			assert.Equal(t, tc.wantProbMarks, hasProbRate)
-			expectSamplerMetrics(statsdClient, tc)
-			a.SamplerMetrics.Report()
-		})
-	}
 }
 
 func TestSampleTrace(t *testing.T) {
