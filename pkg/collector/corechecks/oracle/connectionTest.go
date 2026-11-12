@@ -9,6 +9,5 @@ package oracle
 
 func (c *Check) connectionTest() error {
 	var n float64
-	err := c.db.Get(&n, "SELECT 1 FROM dual")
-	return err
+	return getWrapper(c, &n, "SELECT 1 FROM dual")
 }

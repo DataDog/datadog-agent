@@ -44,7 +44,7 @@ func (c *Check) SharedMemory() error {
 	} else {
 		shmQuery = shmQuery11
 	}
-	err := c.db.Select(&rows, shmQuery)
+	err := selectWrapper(c, &rows, shmQuery)
 	if err != nil {
 		return fmt.Errorf("failed to collect shared memory info: %w", err)
 	}

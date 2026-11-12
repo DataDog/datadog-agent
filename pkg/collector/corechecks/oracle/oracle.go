@@ -74,6 +74,7 @@ type pgaOverAllocationCount struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type Check struct {
 	core.CheckBase
+	lifecycle                               *checkLifecycle
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
@@ -126,6 +127,9 @@ type vDatabase struct {
 }
 
 func handleServiceCheck(c *Check, err error) {
+	if c.operationContext().Err() != nil {
+		return
+	}
 	sender, errSender := c.GetSender()
 	if errSender != nil {
 		log.Errorf("%s failed to get sender for service check: %s", c.logPrompt, errSender)
@@ -162,18 +166,20 @@ func (c *Check) IsHASupported() bool {
 	return true
 }
 
-// Run executes the check.
-func (c *Check) Run() error {
+func (c *Check) run(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var allErrors error
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
 			handleServiceCheck(c, err)
-			c.Teardown()
+			c.closePools()
 			return err
 		}
 		if db == nil {
-			c.Teardown()
+			c.closePools()
 			handleServiceCheck(c, errors.New("empty connection"))
 			return fmt.Errorf("%s empty connection", c.logPrompt)
 		}
@@ -194,6 +200,9 @@ func (c *Check) Run() error {
 	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)
 		if err != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err))
 		}
 	}
@@ -202,6 +211,9 @@ func (c *Check) Run() error {
 		if c.dbmEnabled {
 			err := c.dataGuard()
 			if err != nil {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				allErrors = errors.Join(allErrors, err)
 			}
 		}
@@ -218,6 +230,9 @@ func (c *Check) Run() error {
 				handleServiceCheck(c, nil)
 			}
 			closeDatabase(c, db)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s connection error %w", c.logPrompt, err))
 		} else {
 			handleServiceCheck(c, nil)
@@ -226,6 +241,9 @@ func (c *Check) Run() error {
 		if !c.config.OnlyCustomQueries && !c.legacyIntegrationCompatibilityMode {
 			err := c.OS_Stats()
 			if err != nil {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
 			}
 		}
@@ -235,18 +253,27 @@ func (c *Check) Run() error {
 				log.Debugf("%s Entered sysmetrics", c.logPrompt)
 				_, err := c.sysMetrics()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
 				}
 			}
 			if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 				err := c.ProcessMemory()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
 				}
 			}
 			if c.config.UserSessionsCount.Enabled {
 				err := c.UserSessionsCount()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect user sessions count %w", c.logPrompt, err))
 				}
 			}
@@ -255,6 +282,9 @@ func (c *Check) Run() error {
 
 	if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
 		if err := c.CustomQueries(); err != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 		}
 	}
@@ -275,6 +305,9 @@ func (c *Check) Run() error {
 	if c.config.Tablespaces.Enabled && tablespaceIntervalExpired {
 		err := c.Tablespaces()
 		if err != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
 		}
 	}
@@ -283,11 +316,17 @@ func (c *Check) Run() error {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect session samples %w", c.logPrompt, err))
 			}
 			if c.config.QueryMetrics.Enabled {
 				_, err = c.StatementMetrics()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect statement metrics %w", c.logPrompt, err))
 				}
 			}
@@ -296,6 +335,9 @@ func (c *Check) Run() error {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect shared memory %w", c.logPrompt, err))
 				}
 			}
@@ -305,6 +347,9 @@ func (c *Check) Run() error {
 			if c.config.Asm.Enabled {
 				err := c.asmDiskgroups()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect asm diskgroups %w", c.logPrompt, err))
 				}
 			}
@@ -314,16 +359,26 @@ func (c *Check) Run() error {
 			if c.config.ResourceManager.Enabled {
 				err := c.resourceManager()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect resource manager %w", c.logPrompt, err))
 				}
 			}
 			if c.config.Locks.Enabled {
 				err := c.locks()
 				if err != nil {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect locks %w", c.logPrompt, err))
 				}
 			}
 		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
@@ -331,7 +386,10 @@ func (c *Check) Run() error {
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
-			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			_, err := c.db.ExecContext(ctx, "BEGIN dbms_monitor.session_trace_disable; END;")
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if err != nil {
 				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
@@ -359,16 +417,11 @@ func assertBool(val bool) bool {
 	return val
 }
 
-// Teardown cleans up resources used throughout the check.
-func (c *Check) Teardown() {
-	log.Infof("%s Teardown", c.logPrompt)
-	closeDatabase(c, c.db)
-	closeDatabase(c, c.dbCustomQueries)
-	c.dbCustomQueries = nil
-}
-
 // Configure configures the Oracle check.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	if c.lifecycle == nil {
+		c.lifecycle = newCheckLifecycle()
+	}
 	var err error
 	c.config, err = config.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
@@ -436,7 +489,7 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second), lifecycle: newCheckLifecycle()}
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

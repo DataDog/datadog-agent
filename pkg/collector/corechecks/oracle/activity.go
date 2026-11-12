@@ -137,6 +137,10 @@ func (c *Check) getBlockerFromLock(blockedSID uint64) (blockerInstance uint64, b
 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
 	if activeSessionHistory && c.lastSampleID == 0 {
 		err := getWrapper(c, &c.lastSampleID, "SELECT /* DD */ NVL(MAX(sample_id),0) FROM v$active_session_history")
@@ -198,6 +202,9 @@ AND status = 'ACTIVE'`)
 	var payloadSent bool
 	var blockerFallbackErrLogged bool
 	for _, sample := range sessionSamples {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		var sessionRow OracleActivityRow
 
 		if activeSessionHistory && sample.SampleID > c.lastSampleID {
@@ -310,6 +317,9 @@ AND status = 'ACTIVE'`)
 		// exist on pre-12c / non-CDB v$lock, and the bug only manifests on newer CDB deployments.
 		if !activeSessionHistory && c.multitenant && c.config.QuerySamples.BlockingSessionFallbackEnabled && sessionRow.BlockingSession == 0 && strings.HasPrefix(sessionRow.WaitEvent, "enq") {
 			blockerInst, blockerSID, errBlk := c.getBlockerFromLock(sessionRow.SessionID)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if errBlk != nil {
 				if !blockerFallbackErrLogged {
 					log.Warnf("%s failed to fetch blocker from v$lock for sid %d: %s", c.logPrompt, sessionRow.SessionID, errBlk)
@@ -357,6 +367,9 @@ AND status = 'ACTIVE'`)
 			if len(statement) == maxSQLTextLength {
 				var fetchedStatement string
 				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				if err != nil {
 					log.Warnf("%s failed to fetch full sql text for the current sql_id: %s", c.logPrompt, err)
 				}

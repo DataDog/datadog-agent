@@ -29,6 +29,10 @@ func buildGoOraURL(c *Check) string {
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.
 func (c *Check) Connect() (*sqlx.DB, error) {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var connStr string
 	var oracleDriver string
 	if c.config.TnsAlias != "" {
@@ -59,12 +63,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
-	db, err := sqlx.Open(oracleDriver, connStr)
+	var db *sqlx.DB
+	var err error
+	if oracleDriver == common.GoOra {
+		db, err = openGoOraPool(connStr)
+	} else {
+		db, err = sqlx.Open(oracleDriver, connStr)
+	}
 	if err != nil {
 		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
-	err = db.Ping()
+	err = db.PingContext(ctx)
 	if err != nil {
 		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
@@ -74,7 +84,11 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
-		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		_, err := db.ExecContext(ctx, "ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		if err := ctx.Err(); err != nil {
+			closeDatabase(c, db)
+			return nil, err
+		}
 		if err != nil {
 			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
@@ -87,7 +101,11 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
 		log.Tracef("%s trace statement: %s", c.logPrompt, setEventsStatement)
-		_, err = db.Exec(setEventsStatement)
+		_, err = db.ExecContext(ctx, setEventsStatement)
+		if err := ctx.Err(); err != nil {
+			closeDatabase(c, db)
+			return nil, err
+		}
 		if err != nil {
 			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}
@@ -96,6 +114,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		closeDatabase(c, db)
+		return nil, err
+	}
 	return db, nil
 }
 
