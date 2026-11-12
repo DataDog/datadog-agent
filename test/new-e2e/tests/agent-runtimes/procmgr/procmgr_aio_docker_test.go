@@ -79,9 +79,7 @@ func TestProcmgrAIODockerSuite(t *testing.T) {
 	)))
 }
 
-// BeforeTest restores the provisioned environment, then brings the opt-in
-// container back if an earlier test stopped it. Each test can then assume the
-// container is up.
+// BeforeTest starts the opt-in container again when an earlier test stopped it.
 func (s *procmgrAIODockerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if s.containerStatus(s.T()) == "running" {
@@ -123,10 +121,8 @@ func (s *procmgrAIODockerSuite) TestDockerStopShutsDownGracefully() {
 	s.Contains(logs, "dd-procmgrd stopped (exit code 0)")
 }
 
-// TestCoreAgentDeathEndsTheContainer is the exit_with_supervisor path: kill -9
-// of the core agent ends the container with 137. The supervisor stops the other
-// children before it exits, so the container can stay up well after the signal.
-// Its cleanup starts the container again for the following test.
+// exit_with_supervisor: dd-procmgrd stops the other children before exiting 137,
+// so the container can outlive the signal.
 func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -159,8 +155,7 @@ func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.NotContains(logs, "still running after force-kill, giving up")
 }
 
-// TestTraceCrashRestarts leaves the container up. datadog-agent-trace is already
-// Running because apm_config.enabled defaults to true.
+// datadog-agent-trace is already Running: apm_config.enabled defaults to true.
 func (s *procmgrAIODockerSuite) TestTraceCrashRestarts() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 
@@ -186,8 +181,7 @@ func (s *procmgrAIODockerSuite) TestTraceCrashRestarts() {
 	assertField(s.T(), s.describeProcess(s.T(), "datadog-agent"), "State", "Running")
 }
 
-// TestDisabledAuxStaysSkipped checks the stock qa_agent_linux image. Failed is
-// not a skip: State has to be Skipped, with the reasons the catalog produces.
+// Stock image. Skipped is not Failed: the catalog skip reasons have to match.
 func (s *procmgrAIODockerSuite) TestDisabledAuxStaysSkipped() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 
@@ -203,9 +197,8 @@ func (s *procmgrAIODockerSuite) TestDisabledAuxStaysSkipped() {
 	assertField(s.T(), s.describeProcess(s.T(), "datadog-agent"), "State", "Running")
 }
 
-// TestHealthcheckReportsHealthy retries for two minutes. The image HEALTHCHECK
-// interval is 30s, and after a restart the status stays starting for at least
-// one interval.
+// The image HEALTHCHECK interval is 30s, so a restart stays starting for at
+// least one interval.
 func (s *procmgrAIODockerSuite) TestHealthcheckReportsHealthy() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -217,9 +210,8 @@ func (s *procmgrAIODockerSuite) TestHealthcheckReportsHealthy() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
-// TestCoreAgentInheritsDDEnv reads the core agent's environment. DD_PM_CONFIG_DIR
-// is exported by the entrypoint, so its absence is the stripping check.
-// DD_PM_SOCKET_PATH is the control variable children keep.
+// The entrypoint exports DD_PM_CONFIG_DIR and children must not inherit it.
+// DD_PM_SOCKET_PATH is kept.
 func (s *procmgrAIODockerSuite) TestCoreAgentInheritsDDEnv() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	pid := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -233,9 +225,8 @@ func (s *procmgrAIODockerSuite) TestCoreAgentInheritsDDEnv() {
 	s.False(environHas(environ, "DD_PM_CONFIG_DIR"))
 }
 
-// TestCustomContInitRunsNonShAndSymlink injects 90- and 91- scripts plus a
-// symlink whose target is a read-only file. The :ro mount fails the entrypoint
-// if cp stops following the link and chmod hits the target.
+// The :ro mount fails the entrypoint if cp stops following the symlink and
+// chmod hits the target.
 func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(aioContInitSetupScript))
 	s.Require().NotEmpty(dir)
@@ -284,8 +275,7 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	}, 2*time.Minute, 2*time.Second)
 }
 
-// TestContInitFailsFastWithoutAPIKey runs the opt-in entrypoint with no API key.
-// timeout bounds the run: a regression that reaches dd-procmgrd would hang docker run.
+// timeout 30: reaching dd-procmgrd would hang docker run.
 func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	image := s.agentImage(s.T())
 	_, err := s.Env().RemoteHost.Execute(
@@ -310,8 +300,7 @@ func (s *procmgrAIODockerSuite) waitForAgentRunning(t require.TestingT, timeout 
 	}, timeout, 2*time.Second, "datadog-agent should be Running under dd-procmgrd")
 }
 
-// cleanupStartAgentContainer brings the suite container back when the test
-// stops it. t is captured before Cleanup: inside Cleanup, s.T() is the parent.
+// t is captured before Cleanup: inside Cleanup, s.T() is the parent.
 func (s *procmgrAIODockerSuite) cleanupStartAgentContainer(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
