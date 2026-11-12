@@ -1,0 +1,17 @@
+# unknown settings, at the top level and inside a known section
+an_unknown_setting: value
+network_path:
+  an_unknown_setting: value
+# settings without a value keep their default
+jmx_thread_pool_size:
+kubernetes_pod_labels_as_tags:
+histogram_aggregates: ~
+# empty collections
+container_labels_as_tags: {}
+tags: []
+# deprecated name of metric_filterlist
+statsd_metric_blocklist: [e2e.blocked]
+# setting deprecated in the schema and ignored
+sbom:
+  cache:
+    clean_interval: 2h

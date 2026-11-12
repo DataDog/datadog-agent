@@ -1,0 +1,2 @@
+# overridden by a valid environment variable: no issue expected
+logs_enabled: [true]
