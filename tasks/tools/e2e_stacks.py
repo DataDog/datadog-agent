@@ -24,12 +24,17 @@ def destroy_remote_stack_local(stack: str, ctx: Context | None = None):
     return res.exited, res.stdout, res.stderr, stack
 
 
-def destroy_remote_stack_api(stack: str, ctx: Context | None = None, cancel_first: bool = False):
+def destroy_remote_stack_api(
+    stack: str, ctx: Context | None = None, cancel_first: bool = False, pipeline_id: str | None = None
+):
     """Requests stackcleaner to destroy the stack. With cancel_first, the stack's ongoing operation is canceled
-    first, which releases the lock left behind by an interrupted Pulumi process."""
+    first, which releases the lock left behind by an interrupted Pulumi process.
+    pipeline_id selects the resource's pipeline while CI_JOB_ID identifies the executing job.
+    """
 
     ctx = ctx or Context()
-    attrs = f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true"
+    pipeline_id = pipeline_id if pipeline_id is not None else os.environ['CI_PIPELINE_ID']
+    attrs = f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={pipeline_id},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true"
     if cancel_first:
         attrs += ",cancel_first=bool:true"
 

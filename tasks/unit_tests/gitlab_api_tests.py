@@ -15,13 +15,90 @@ from tasks.libs.ciproviders.gitlab_api import (
     expand_matrix_jobs,
     filter_gitlab_ci_configuration,
     find_buildimages,
+    get_all_gitlab_ci_configurations,
     get_gitlab_token,
     gitlab_configuration_is_modified,
     read_includes,
+    resolve_gitlab_ci_configuration,
     retrieve_all_paths,
+    test_gitlab_configuration,
     update_gitlab_config,
     update_image_tag,
 )
+from tasks.libs.linter.gitlab_exceptions import SingleGitlabLintFailure
+
+
+@patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_repo")
+class TestChildLintContext(unittest.TestCase):
+    child = ".gitlab/childs/post-validation.yml"
+
+    def configure_lint(self, get_repo):
+        def lint(request):
+            config = yaml.safe_load(request['content'])
+            variables = config.get('variables', {})
+            valid = variables.get('CI_PIPELINE_SOURCE') == 'parent_pipeline'
+            return MagicMock(
+                valid=valid,
+                errors=[] if valid else ['The pipeline did not run'],
+                warnings=[],
+                merged_yaml=yaml.safe_dump(config),
+            )
+
+        create = get_repo.return_value.ci_lint.create
+        create.side_effect = lint
+        return create
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_generation_simulates_child_without_leaking_identity(self, read, get_repo):
+        config = {'job': {'script': ['exit 0']}}
+        read.return_value = config
+        create = self.configure_lint(get_repo)
+        result = get_all_gitlab_ci_configurations(MockContext(), self.child, postprocess_options=False)
+        variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+        self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+        self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '1')
+        self.assertEqual(result[self.child], config)
+        self.assertNotIn('variables', config)
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_resolution_restores_runtime_variable_definitions(self, read, get_repo):
+        config = {
+            'job': {'script': ['exit 0']},
+            'variables': {
+                'POST_VALIDATION_PARENT_ID': '$PARENT_ID',
+                'CI_PIPELINE_SOURCE': '$SOURCE',
+                'OTHER': 'value',
+            },
+        }
+        read.return_value = config
+        self.configure_lint(get_repo)
+        self.assertEqual(resolve_gitlab_ci_configuration(MockContext(), self.child), config)
+
+    def test_config_check_applies_context_and_honors_explicit_override(self, get_repo):
+        config = {'job': {'script': ['exit 0']}}
+        create = self.configure_lint(get_repo)
+        test_gitlab_configuration(self.child, config, context={'POST_VALIDATION_PARENT_ID': '42'})
+        variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+        self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+        self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '42')
+        self.assertNotIn('variables', config)
+        with self.assertRaises(SingleGitlabLintFailure):
+            test_gitlab_configuration(self.child, config, context={'CI_PIPELINE_SOURCE': 'push'})
+
+    @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
+    def test_other_entrypoints_and_invalid_configs_still_fail(self, read, get_repo):
+        read.return_value = {'job': {'script': ['exit 0']}}
+        create = self.configure_lint(get_repo)
+        with self.assertRaisesRegex(RuntimeError, 'pipeline did not run'):
+            resolve_gitlab_ci_configuration(MockContext(), '.gitlab/other.yml')
+        self.assertNotIn('variables', yaml.safe_load(create.call_args.args[0]['content']))
+        create.side_effect = None
+        create.return_value = MagicMock(valid=False, errors=['invalid child'], warnings=[])
+        with self.assertRaisesRegex(RuntimeError, 'invalid child'):
+            resolve_gitlab_ci_configuration(MockContext(), self.child)
+        with self.assertRaises(SingleGitlabLintFailure) as raised:
+            test_gitlab_configuration(self.child, read.return_value)
+        self.assertIn('invalid child', raised.exception.details)
 
 
 class TestReadIncludes(unittest.TestCase):
