@@ -51,8 +51,10 @@ type EventHandler struct {
 	handler func([]byte)
 
 	readLoop func()
-	perfChan chan *perf.Record
-	ringChan chan *ringbuf.Record
+	// readLoopDone is closed when the read loop started by PreStart returns.
+	readLoopDone chan struct{}
+	perfChan     chan *perf.Record
+	ringChan     chan *ringbuf.Record
 
 	chLenTelemetry *atomic.Uint64
 }
@@ -299,17 +301,29 @@ func (e *EventHandler) setupRingbufferWakeupConstant(mgrOpts *manager.Options) {
 
 // PreStart implements the ModifierPreStart interface
 func (e *EventHandler) PreStart(_ *manager.Manager, _ names.ModuleName) error {
-	go e.readLoop()
+	done := make(chan struct{})
+	e.readLoopDone = done
+	go func() {
+		defer close(done)
+		e.readLoop()
+	}()
 	return nil
 }
 
-// AfterStop implements the ModifierAfterStop interface
+// AfterStop implements the ModifierAfterStop interface. The manager has
+// stopped the perf/ring buffer readers by then, so no more records arrive.
+// AfterStop closes the record channel and waits for the read loop to handle
+// the records still in it, so that no handler call outlives the manager's Stop:
+// callers can release what their handler uses as soon as Stop returns.
 func (e *EventHandler) AfterStop(_ *manager.Manager, _ names.ModuleName, _ manager.MapCleanupType) error {
 	if e.perfChan != nil {
 		close(e.perfChan)
 	}
 	if e.ringChan != nil {
 		close(e.ringChan)
+	}
+	if e.readLoopDone != nil {
+		<-e.readLoopDone
 	}
 	return nil
 }
