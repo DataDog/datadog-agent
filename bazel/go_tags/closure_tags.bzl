@@ -1400,6 +1400,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog/generators/corpus": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/logs/internal/tag": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/logs/internal/util": ["test"],
     "github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener": ["cel", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
