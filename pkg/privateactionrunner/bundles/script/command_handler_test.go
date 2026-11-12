@@ -112,3 +112,29 @@ func TestScriptHandlerReleasesInheritedPipes(t *testing.T) {
 		t.Fatal("handler retained its output pipes for more than 10 seconds")
 	}
 }
+
+func TestScriptHandlerReportsTimeoutAfterScriptExit(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	start := time.Now()
+	// The script exits at once while its child holds the output pipes until the deadline.
+	_, err = runProcessTestHandler(t, context.Background(), processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "exit", pidFile}), false, 1)
+	require.ErrorContains(t, err, "timed out after 1 seconds")
+	// Stay under the 5s pipe wait delay so the deadline, not the wait delay, ended the run.
+	require.Less(t, time.Since(start), 4*time.Second)
+	child := waitForTestChild(t, pidFile)
+	require.Eventually(t, func() bool { return processStopped(child.Pid) },
+		2*time.Second, 10*time.Millisecond, "child survived the timeout")
+}
+
+func TestScriptHandlerTerminatesDetachedDescendants(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	_, err = runProcessTestHandler(t, context.Background(), processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "detach", pidFile}), false, 0)
+	require.NoError(t, err)
+	child := waitForTestChild(t, pidFile)
+	require.Eventually(t, func() bool { return processStopped(child.Pid) },
+		2*time.Second, 10*time.Millisecond, "detached child survived the script")
+}

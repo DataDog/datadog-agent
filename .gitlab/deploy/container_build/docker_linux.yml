@@ -218,7 +218,35 @@ single_machine_performance-full-amd64-a7:
   variables:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64
+    # All SMP client teams can read images in the global `agent` repository of SMP.
+    IMG_DESTINATIONS: agent:${CI_COMMIT_SHA}-7-full-amd64
+  script:
+    # The global `agent` repository has immutable tags. A new pipeline on the
+    # same commit builds a new image with the same tag, and ECR refuses that
+    # push. If the tag exists, keep the first image and skip the publish.
+    - AWS_NAMED_PROFILE="single-machine-performance"
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    - SMP_IMAGE_TAG="${CI_COMMIT_SHA}-7-full-amd64"
+    # Only ImageNotFoundException shows that the tag does not exist. On other
+    # errors, publish anyway: the worst result is the same push failure.
+    # `if VAR=$(...)` is exempt from `set -e`.
+    - |
+      if SMP_ECR_ERROR=$(aws ecr describe-images --region us-west-2 --profile ${AWS_NAMED_PROFILE} --registry-id "${SMP_ACCOUNT_ID}" --repository-name agent --image-ids imageTag="${SMP_IMAGE_TAG}" 2>&1 >/dev/null)
+      then
+          echo "The tag agent:${SMP_IMAGE_TAG} already exists in SMP ECR. The job does not publish the image again."
+          exit 0
+      elif [[ "${SMP_ECR_ERROR}" == *ImageNotFoundException* ]]
+      then
+          echo "The tag agent:${SMP_IMAGE_TAG} is not in SMP ECR. The job publishes the image."
+      else
+          echo "WARNING: The job could not check for the tag agent:${SMP_IMAGE_TAG} in SMP ECR. The job publishes the image: ${SMP_ECR_ERROR}"
+      fi
+    - !reference [.docker_publish_job_definition, script]
 
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
