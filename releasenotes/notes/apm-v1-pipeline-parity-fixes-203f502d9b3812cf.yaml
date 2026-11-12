@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: With the probabilistic sampler enabled, the error sampler no longer drops
+    traces that the rare or probabilistic sampler already kept, and the probabilistic
+    sampler no longer runs on traces the rare sampler kept. This affected V1 trace
+    payloads, which since 7.84 includes all trace payloads converted to V1 by default
+    (unless the ``disable-convert-traces`` feature is set). Sampling now matches the
+    legacy pipeline, where the error and rare samplers only add traces.
+  - |
+    APM: The Agent now drops traces whose 128-bit trace ID is zero, including empty
+    or missing trace IDs, and counts them as dropped with reason ``trace_id_zero``,
+    in the V1 trace pipeline, which since 7.84 handles all trace payloads by default
+    (unless the ``disable-convert-traces`` feature is set). A trace ID whose low-order
+    64 bits are zero but whose high-order 64 bits are not is accepted.
+  - |
+    APM: The Agent now truncates long keys of non-string span attributes, and long
+    ``component``, ``version`` and ``env`` values, in the V1 trace pipeline, which
+    since 7.84 handles all trace payloads by default (unless the
+    ``disable-convert-traces`` feature is set). The limits match the legacy pipeline:
+    200 bytes for keys and 25,000 bytes for values (cut at a UTF-8 character
+    boundary, with ``...`` appended).
