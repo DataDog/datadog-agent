@@ -14,12 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -34,18 +30,10 @@ type macosUpgradeSuite struct {
 // TestMacosInstallScriptUpgradeFromStable is named after TestMacosInstallScript so the macOS
 // install e2e job, which selects tests with `--run TestMacosInstallScript`, runs it too.
 func TestMacosInstallScriptUpgradeFromStable(t *testing.T) {
-	if stdos.Getenv("E2E_PIPELINE_ID") == "" {
-		t.Skip("E2E_PIPELINE_ID is not set: there is no pipeline build to upgrade the released Agent to")
+	if stdos.Getenv("E2E_PIPELINE_ID") == "" && stdos.Getenv(macosLocalDMGEnvVar) == "" {
+		t.Skip("neither E2E_PIPELINE_ID nor " + macosLocalDMGEnvVar + " is set: there is no build to upgrade the released Agent to")
 	}
-	extraConfigMap := runner.ConfigMap{}
-	// Pulumi needs to pick a smaller subnet subset on macOS; only settable via the configmap.
-	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
-	e2e.Run(t, &macosUpgradeSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
-			awshost.WithExtraConfigParams(extraConfigMap),
-		)),
-	)
+	e2e.Run(t, &macosUpgradeSuite{}, macosProvisioner(t))
 }
 
 func (m *macosUpgradeSuite) SetupSuite() {
@@ -54,7 +42,8 @@ func (m *macosUpgradeSuite) SetupSuite() {
 }
 
 // TestUpgradeFromStable installs the latest released Agent with the public install script, then
-// upgrades it to this pipeline's build with the pipeline's install script, as a customer would.
+// upgrades it to the build under test, as a customer would: this pipeline's build with the
+// pipeline's install script, or the local .dmg named by E2E_MACOS_LOCAL_DMG.
 // The released Agent installs its LaunchDaemons from the plist examples in etc/; after the upgrade
 // they must be the installer's:
 //   - the preinstall script handed the teardown to the released installer's pre-remove only if
@@ -95,12 +84,12 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 	}
 	macosTestClient.MustExecuteOn(t, fmt.Sprintf("echo %q | sudo tee -a %s >/dev/null", marker, confFilePath))
 
-	install.MacOS(t, macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
-	require.False(t, t.Failed(), "upgrading to the pipeline build failed")
+	macosInstallAgentUnderTest(t, m.Env().RemoteHost, macosTestClient)
+	require.False(t, t.Failed(), "upgrading to the build under test failed")
 
 	upgradedVersion := macosTestClient.MustExecuteOn(t, macosAgentBinary+" version")
 	t.Logf("upgraded Agent: %s", upgradedVersion)
-	assert.NotEqual(t, stableVersion, upgradedVersion, "the Agent should run the pipeline build after the upgrade")
+	assert.NotEqual(t, stableVersion, upgradedVersion, "the Agent should run the build under test after the upgrade")
 
 	// The preinstall script hands the teardown to the released Agent's installer only if it ships
 	// one; otherwise it boots out the jobs it knows itself.

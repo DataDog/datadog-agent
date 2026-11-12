@@ -20,6 +20,14 @@ const (
 	CloudProviderAWS   CloudProviderIdentifier = "aws"
 	CloudProviderAzure CloudProviderIdentifier = "azure"
 	CloudProviderGCP   CloudProviderIdentifier = "gcp"
+
+	// CloudProviderLocal identifies a host that was not provisioned by any cloud
+	// provider (e.g. via StaticStackProvisioner pointed at a local machine or an
+	// arbitrary SSH target). There is no registered private-key param-store entry
+	// for it, so key resolution falls back to "" (empty), which in turn makes the
+	// SSH client fall back to the local ssh-agent -- see
+	// testing/utils/e2e/client/host_ssh.go's getSSHClient.
+	CloudProviderLocal CloudProviderIdentifier = "local"
 )
 
 // Importable needs to be implemented by the fully resolved type used outside of Pulumi

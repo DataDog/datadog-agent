@@ -34,7 +34,7 @@ Write assertions on the assumption that `FilterMetrics` returns your test's payl
 
 ## Working in this tree
 
-Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e` and `run-windows-e2e` cover running tests that already exist.
+Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e`, `run-windows-e2e` and `run-macos-e2e` cover running tests that already exist; `run-macos-e2e` also builds a local macOS `.dmg` and targets a local VM or your own AWS mac pool instance.
 
 A reused stack keeps its fakeintake, and `FlushServerAndResetAggregators` does not touch the Remote
 Config store. So under `E2E_DEV_MODE` every config a previous run pushed with `RCAddConfig` is still
