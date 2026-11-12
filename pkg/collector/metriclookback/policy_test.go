@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -71,7 +71,8 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(candidate.Instance, &raw))
 	assert.Equal(t, "first", raw["name"])
-	assert.Equal(t, integration.RawMap{"execution_mode": "shadow"}, raw["_datadog"])
+	// yaml v4 decodes string-keyed nested maps as map[string]interface{}
+	assert.Equal(t, map[string]interface{}{"execution_mode": "shadow"}, raw["_datadog"])
 }
 
 func TestSelectShadowCandidatesAllowsPerInstanceEnablement(t *testing.T) {

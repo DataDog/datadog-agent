@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -119,6 +119,10 @@ func instanceLookbackEnabled(instance integration.Data) (enabled bool, validOver
 		enabledValue, ok := typedValue[instanceEnabledKey]
 		return boolSetting(enabledValue, ok)
 	case map[interface{}]interface{}:
+		enabledValue, ok := typedValue[instanceEnabledKey]
+		return boolSetting(enabledValue, ok)
+	case map[string]interface{}:
+		// yaml v4 decodes string-keyed nested maps as map[string]interface{}
 		enabledValue, ok := typedValue[instanceEnabledKey]
 		return boolSetting(enabledValue, ok)
 	default:
