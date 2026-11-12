@@ -41,16 +41,6 @@ Key patterns:
   single source of truth. Do not hardcode tag lists in task code.
 - `libs/common/go.py` contains pure Go-related helpers (module downloading, etc.)
   that do not depend on `@task`.
-- `linter.go` runs golangci-lint, whose `go list -export` compiles every dependency into
-  GOCACHE and keeps a second copy in its `/tmp/go-build*` directory until it exits.
-  `run_golangci_lint` appends `-gcflags=all=-linkobj=<user cache dir>/golangci-lint-linkobj.o`
-  to `GOFLAGS` so the compiler writes the linker object, which golangci-lint never reads, to a
-  single file that every compile overwrites. Without it, a cold lint of an E2E package needs
-  ~11 GB of free disk for the Pulumi SDKs alone instead of ~0.5 GB, and fails with
-  `no space left on device` reported as `typecheck` errors. Don't point it at `os.devnull`: the
-  compiler seeks back in that file, which fails in `NUL` on Windows. Don't randomize its path:
-  the flag is part of the build cache key, so every run would recompile all dependencies. Don't
-  move it to the shared temporary directory either, where other users could squat or symlink it.
 
 ### CI / Pipeline
 
