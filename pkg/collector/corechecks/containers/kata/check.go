@@ -65,8 +65,6 @@ type KataCheck struct {
 	store      workloadmeta.Component
 	excludeSet map[string]struct{} // built once at Configure time
 
-	scrapeInterval time.Duration
-
 	mu                  sync.RWMutex
 	sandboxContainerIDs map[string]map[string]struct{} // sandboxID -> set of containerIDs
 	containerSandboxID  map[string]string              // containerID -> sandboxID
@@ -83,7 +81,6 @@ func Factory(store workloadmeta.Component, tagger tagger.Component) option.Optio
 			instance:            &KataConfig{},
 			tagger:              tagger,
 			store:               store,
-			scrapeInterval:      defaultScrapeInterval,
 			sandboxContainerIDs: make(map[string]map[string]struct{}),
 			containerSandboxID:  make(map[string]string),
 			stopCh:              make(chan struct{}),
@@ -161,7 +158,7 @@ func (c *KataCheck) Run() error {
 }
 
 func (c *KataCheck) scrapeLoop(done <-chan struct{}) {
-	ticker := time.NewTicker(c.scrapeInterval)
+	ticker := time.NewTicker(defaultScrapeInterval)
 	defer ticker.Stop()
 
 	for {

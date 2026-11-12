@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
@@ -303,110 +308,95 @@ func (f *fakeStore) Subscribe(string, workloadmeta.SubscriberPriority, *workload
 
 func (f *fakeStore) Unsubscribe(chan workloadmeta.EventBundle) {}
 
+type blockingTagger struct {
+	tagger.Component
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingTagger) Tag(taggertypes.EntityID, taggertypes.TagCardinality) ([]string, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	return nil, nil
+}
+
+type fakeSenderManager struct {
+	sender.SenderManager
+	s sender.Sender
+}
+
+func (f *fakeSenderManager) GetSender(checkid.ID) (sender.Sender, error) { return f.s, nil }
+
+func (f *fakeSenderManager) SetSender(s sender.Sender, _ checkid.ID) error {
+	f.s = s
+	return nil
+}
+
 func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
-	tmpDir := t.TempDir()
-	sandboxDir := filepath.Join(tmpDir, "slow-sandbox")
-	require.NoError(t, os.MkdirAll(sandboxDir, 0755))
+	synctest.Test(t, func(t *testing.T) {
+		tmpDir := t.TempDir()
+		sandboxDir := filepath.Join(tmpDir, "sb")
+		require.NoError(t, os.MkdirAll(sandboxDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(sandboxDir, shimSocket), []byte{}, 0600))
 
-	listener, err := net.Listen("unix", filepath.Join(sandboxDir, shimSocket))
-	require.NoError(t, err)
-	defer listener.Close()
+		tag := &blockingTagger{entered: make(chan struct{}), release: make(chan struct{})}
+		store := &fakeStore{ch: make(chan workloadmeta.EventBundle)}
+		c := &KataCheck{
+			CheckBase:           core.NewCheckBase(CheckName),
+			instance:            &KataConfig{},
+			tagger:              tag,
+			store:               store,
+			sandboxContainerIDs: make(map[string]map[string]struct{}),
+			containerSandboxID:  make(map[string]string),
+			stopCh:              make(chan struct{}),
+		}
+		senderManager := &fakeSenderManager{}
+		mocksender.NewMockSenderWithSenderManager(CheckName, senderManager).SetupAcceptAll()
+		require.NoError(t, c.Configure(senderManager, integration.FakeConfigHash, []byte("sandbox_storage_paths: ["+tmpDir+"]"), nil, "test", "provider"))
 
-	// Accept connections but never answer, so the scrape hangs until the
-	// connection is closed. Once shutdown starts, connections are closed as
-	// soon as they're accepted so a scrape that reconnects fails immediately.
-	accepted := make(chan struct{}, 1)
-	var connsMu sync.Mutex
-	var conns []net.Conn
-	shuttingDown := false
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
+		runDone := make(chan error, 1)
+		go func() { runDone <- c.Run() }()
+		defer func() {
+			close(tag.release)
+			c.Stop()
+			assert.NoError(t, <-runDone)
+		}()
+
+		// Timeouts below run on synctest's virtual clock, so they only fire
+		// when the check is stuck, never because the machine is slow.
+		sendEvent := func(containerID string) {
+			t.Helper()
+			bundle := workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.Container{
+						EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+						SandboxID: "sb",
+					},
+				}},
+				Ch: make(chan struct{}),
 			}
-			connsMu.Lock()
-			if shuttingDown {
-				connsMu.Unlock()
-				conn.Close()
-				continue
-			}
-			conns = append(conns, conn)
-			connsMu.Unlock()
 			select {
-			case accepted <- struct{}{}:
-			default:
+			case store.ch <- bundle:
+			case <-time.After(time.Minute):
+				t.Fatalf("event for %s was not received", containerID)
 			}
+			<-bundle.Ch
 		}
-	}()
-	startShutdown := func() {
-		connsMu.Lock()
-		defer connsMu.Unlock()
-		shuttingDown = true
-		for _, conn := range conns {
-			conn.Close()
+
+		// Map a container to the sandbox so the next scrape asks the tagger
+		// for its tags, then let the scrape ticker fire.
+		sendEvent("ctr-1")
+		select {
+		case <-tag.entered:
+		case <-time.After(time.Minute):
+			t.Fatal("scrape never started")
 		}
-		conns = nil
-	}
-	defer startShutdown()
 
-	store := &fakeStore{ch: make(chan workloadmeta.EventBundle)}
-	c := &KataCheck{
-		CheckBase:           core.NewCheckBase(CheckName),
-		instance:            &KataConfig{},
-		store:               store,
-		scrapeInterval:      10 * time.Millisecond,
-		sandboxContainerIDs: make(map[string]map[string]struct{}),
-		containerSandboxID:  make(map[string]string),
-		stopCh:              make(chan struct{}),
-	}
-	senderManager := mocksender.CreateDefaultDemultiplexer(t)
-	require.NoError(t, c.Configure(senderManager, integration.FakeConfigHash, []byte("sandbox_storage_paths: ["+tmpDir+"]"), nil, "test", "provider"))
-	mocksender.NewMockSenderWithSenderManager(CheckName, senderManager).SetupAcceptAll()
-
-	runDone := make(chan error, 1)
-	go func() { runDone <- c.Run() }()
-
-	select {
-	case <-accepted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("scrape never connected to the shim socket")
-	}
-
-	bundle := workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{{
-			Type: workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "ctr-1"},
-				SandboxID: "other-sandbox",
-			},
-		}},
-		Ch: make(chan struct{}),
-	}
-	// The scrape is blocked until shutdown, and shimReadTimeout (10s) is longer
-	// than these watchdogs, so they only pass if events are handled
-	// independently of the scrape.
-	select {
-	case store.ch <- bundle:
-	case <-time.After(5 * time.Second):
-		t.Fatal("event bundle was not received while a scrape was blocked")
-	}
-	select {
-	case <-bundle.Ch:
-	case <-time.After(5 * time.Second):
-		t.Fatal("event bundle was not acknowledged while a scrape was blocked")
-	}
-
-	c.mu.RLock()
-	assert.Equal(t, "other-sandbox", c.containerSandboxID["ctr-1"])
-	c.mu.RUnlock()
-
-	c.Stop()
-	startShutdown()
-	select {
-	case err := <-runDone:
-		assert.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not return after Stop")
-	}
+		sendEvent("ctr-2")
+		c.mu.RLock()
+		assert.Equal(t, "sb", c.containerSandboxID["ctr-2"])
+		c.mu.RUnlock()
+	})
 }
