@@ -24,6 +24,7 @@ const (
 	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
+	telemetrySeriesFresh                     = "observer.series.fresh"                        // Number of non-telemetry observer series with a bucket newly visible since the previous sampled advance.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
@@ -58,6 +59,7 @@ type observerTelemetry struct {
 	filteredLogs         telemetry.Counter
 	filteredMetrics      telemetry.Counter
 	seriesCount          telemetry.Gauge
+	seriesFresh          telemetry.Counter
 	logsInFlight         telemetry.Gauge
 	storageEvicted       telemetry.Counter
 	storageCapHit        telemetry.Counter
@@ -122,6 +124,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetrySeriesCount,
 			nil,
 			"Number of non-telemetry series currently stored in observer storage",
+		),
+		seriesFresh: telemetryComp.NewCounter(
+			"observer",
+			telemetrySeriesFresh,
+			nil,
+			"Number of non-telemetry series whose latest bucket visible at the sampled cutoff is newer than the previous cutoff",
 		),
 		logsInFlight: telemetryComp.NewGauge(
 			"observer",
@@ -245,6 +253,13 @@ func (t *observerTelemetry) initLogsInFlight() {
 
 func (t *observerTelemetry) setSeriesCount(count int) {
 	t.seriesCount.Set(float64(count))
+}
+
+func (t *observerTelemetry) recordFreshSeries(count int) {
+	if count <= 0 {
+		return
+	}
+	t.seriesFresh.Add(float64(count))
 }
 
 func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int) {

@@ -3316,6 +3316,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "get_vfs_caps_from_disk_argc",
+			Value: getVFSCapsFromDiskArgCount(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
 			Value: getOvlPathInOvlInode(p.kernelVersion),
 		},
@@ -3992,6 +3996,31 @@ func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
+func getVFSCapsFromDiskArgCount(kernelVersion *kernel.Version) uint64 {
+	count, _ := constantfetch.GetBTFFunctionArgCount("get_vfs_caps_from_disk")
+	return vfsCapsFromDiskArgCount(kernelVersion, count)
+}
+
+func vfsCapsFromDiskArgCount(kernelVersion *kernel.Version, btfArgCount int) uint64 {
+	// Keep the minimum supported release gate separate from prototype and
+	// structure-layout detection. The latter uses the constant fetchers' field offsets.
+	if kernelVersion.Code < kernel.Kernel4_14 {
+		return 0
+	}
+
+	// Prefer the real prototype to account for idmapped-mount backports.
+	if btfArgCount != 0 {
+		if btfArgCount == 2 || btfArgCount == 3 {
+			return uint64(btfArgCount)
+		}
+		return 0
+	}
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 3
+	}
+	return 2
+}
+
 func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
 	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
 	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
@@ -4129,6 +4158,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructPermitted, "struct cpu_vfs_cap_data", "permitted")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructInheritable, "struct cpu_vfs_cap_data", "inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")

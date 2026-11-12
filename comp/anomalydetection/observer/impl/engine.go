@@ -192,6 +192,15 @@ type engine struct {
 	inactiveSeriesEvictionChecked   bool
 	lastInactiveSeriesEvictionCheck int64
 
+	// lastFreshnessSampleCutoff is the last advance cutoff sampled for
+	// freshness. Freshness is sampled at most once per data-time second.
+	// Guarded by mu.
+	lastFreshnessSampleCutoff int64
+
+	// pendingFreshSeries batches sampled fresh-series counts until the next
+	// telemetry publication.
+	pendingFreshSeries atomic.Uint64
+
 	// Cross-advance detector deduplication is always active. Full anomaly history
 	// and its introspection indexes are populated only for testbench/replay.
 	anomalyDeduper             anomalyDeduper
@@ -668,6 +677,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		e.mu.Unlock()
 		return advanceResult{}
 	}
+	previousCutoff := e.lastAnalyzedDataTime
+	sampleFreshness := upToSec > e.lastFreshnessSampleCutoff
+	if sampleFreshness {
+		e.lastFreshnessSampleCutoff = upToSec
+	}
 	detectors := e.detectors
 	correlators := e.correlators
 	e.lastAnalyzedDataTime = upToSec
@@ -717,6 +731,13 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// can recreate state for series that are no longer relevant.
 	e.evictInactiveSeries(upToSec, detectors)
 	e.removeExpiredAnomalyDedup(upToSec)
+
+	if sampleFreshness {
+		freshCount := e.storage.FreshSeriesCount(observerdef.TelemetryNamespace, upToSec, previousCutoff)
+		if freshCount > 0 {
+			e.pendingFreshSeries.Add(uint64(freshCount))
+		}
+	}
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -1260,6 +1281,7 @@ func (e *engine) Reset() {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.resetFreshnessSamplingLocked()
 	e.emissionCounts = make(map[emissionKey]uint64)
 
 	for _, registration := range e.detectors {
@@ -1355,6 +1377,7 @@ func (e *engine) resetAnalysisState() error {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.resetFreshnessSamplingLocked()
 	e.emissionCounts = make(map[emissionKey]uint64)
 	for _, registration := range e.detectors {
 		if registration.timing != nil {
@@ -1385,6 +1408,13 @@ func (e *engine) resetAnalysisState() error {
 	}
 	e.resetCorrelations()
 	return nil
+}
+
+// resetFreshnessSamplingLocked starts a new freshness lifecycle. Callers must
+// hold e.mu.
+func (e *engine) resetFreshnessSamplingLocked() {
+	e.lastFreshnessSampleCutoff = math.MinInt64
+	e.pendingFreshSeries.Store(0)
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.

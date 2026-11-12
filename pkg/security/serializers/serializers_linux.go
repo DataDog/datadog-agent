@@ -105,6 +105,21 @@ type FileSerializer struct {
 	MountDetached *bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
+	// Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage.
+	Capabilities *FileCapabilitiesSerializer `json:"capabilities,omitempty"`
+}
+
+// FileCapabilitiesSerializer serializes the executable's file capabilities.
+// easyjson:json
+type FileCapabilitiesSerializer struct {
+	// Permitted capabilities attached to the executable, before the bounding-set check.
+	Permitted []string `json:"permitted"`
+	// Inheritable capabilities attached to the executable.
+	Inheritable []string `json:"inheritable"`
+	// File effective capability bit, not a capability set.
+	Effective bool `json:"effective"`
+	// Whether valid file capabilities were collected during exec or procfs resolution.
+	Available bool `json:"available"`
 }
 
 // FileMetadataSerializer serializes a file metadata
@@ -1010,6 +1025,26 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 	return fs
 }
 
+func newFileCapabilitiesSerializer(caps *model.FileCapabilities) *FileCapabilitiesSerializer {
+	if !caps.Available {
+		return nil
+	}
+	permitted := model.KernelCapability(caps.Permitted).StringArray()
+	if permitted == nil {
+		permitted = []string{}
+	}
+	inheritable := model.KernelCapability(caps.Inheritable).StringArray()
+	if inheritable == nil {
+		inheritable = []string{}
+	}
+	return &FileCapabilitiesSerializer{
+		Permitted:   permitted,
+		Inheritable: inheritable,
+		Effective:   caps.Effective,
+		Available:   true,
+	}
+}
+
 func newFileMetadataSerializer(m *model.FileMetadata) *FileMetadataSerializer {
 	return &FileMetadataSerializer{
 		Size:               m.Size,
@@ -1082,6 +1117,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
 			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
+
+		psSerializer.Executable.Capabilities = newFileCapabilitiesSerializer(&ps.FileCapabilities)
 
 		if ps.HasInterpreter() {
 			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e, 0, nil)
@@ -2028,6 +2065,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, &event.Exec.FileMetadata),
 		}
+		s.FileEventSerializer.Capabilities = newFileCapabilitiesSerializer(&event.ProcessContext.Process.FileCapabilities)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args

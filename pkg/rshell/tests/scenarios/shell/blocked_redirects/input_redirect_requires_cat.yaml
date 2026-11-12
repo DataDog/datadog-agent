@@ -1,0 +1,18 @@
+description: "< file must not bypass the command allowlist — with the file in allowed_paths and a stdin filter allowed but cat NOT in allowed_commands, the input redirect is refused before the file is opened."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: secret.txt
+      content: "top secret"
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands: ["rshell:tr", "rshell:echo"]
+  script: |+
+    tr a-z A-Z < secret.txt
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=1
+  stderr: |+
+    < secret.txt: file read not permitted (cat not in allowed commands)
+  exit_code: 0

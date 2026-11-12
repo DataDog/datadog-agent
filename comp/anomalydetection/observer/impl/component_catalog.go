@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -94,6 +95,10 @@ type ComponentSettings struct {
 	// previous configured detector workflow.
 	UseMetricPipeline bool
 
+	// MetricPipelineAnomalyCutoff controls whether reactivated-series anomalies
+	// are suppressed until a fresh point is observed. Nil uses the enabled default.
+	MetricPipelineAnomalyCutoff *bool
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
@@ -112,6 +117,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	}
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
+	}
+	if settings.MetricPipelineAnomalyCutoff == nil {
+		enabled := true
+		settings.MetricPipelineAnomalyCutoff = &enabled
 	}
 
 	bocpd := DefaultBOCPDConfig()
@@ -400,7 +409,13 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	components = make(map[string]*componentInstance, len(c.entries))
 
 	if settings.UseMetricPipeline {
-		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig())
+		logging.Info("metric pipeline enabled")
+		anomalyCutoff := settings.MetricPipelineAnomalyCutoff
+		if anomalyCutoff == nil {
+			enabled := true
+			anomalyCutoff = &enabled
+		}
+		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig(), *anomalyCutoff)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}

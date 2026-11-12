@@ -20,7 +20,7 @@ import (
 
 const (
 	// AmbientDefaultVersion is the Istio chart version installed by NewAmbientHelmInstallation
-	AmbientDefaultVersion = "1.30.7"
+	AmbientDefaultVersion = "1.30.8"
 	istioHub              = "gcr.io/istio-release"
 	gatewayAPIVersion     = "v1.7.0"
 	istioChartsRepo       = "https://istio-release.storage.googleapis.com/charts"

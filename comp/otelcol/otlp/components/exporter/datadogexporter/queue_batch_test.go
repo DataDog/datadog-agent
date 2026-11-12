@@ -252,7 +252,7 @@ func readOnlySafetyCorpus() ptrace.Traces {
 	span.Attributes().PutStr("http.method", "GET")
 	span.Attributes().PutInt("http.status_code", 500)
 
-	// One attribute of every value type MarshalEvents can meet.
+	// One attribute of every value type the span event conversion can meet.
 	event := span.Events().AppendEmpty()
 	event.SetName("exception")
 	event.SetDroppedAttributesCount(5)
@@ -268,7 +268,7 @@ func readOnlySafetyCorpus() ptrace.Traces {
 	sl.AppendEmpty().SetStr("a")
 	sl.AppendEmpty().SetInt(1)
 
-	// The two other shapes MarshalEvents branches on.
+	// An event with only a name, and an empty one.
 	span.Events().AppendEmpty().SetName("bare")
 	span.Events().AppendEmpty()
 

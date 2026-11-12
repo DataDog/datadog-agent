@@ -802,7 +802,6 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.storage.inactive_series_ttl", 5*time.Minute)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention", time.Duration(0))
-	config.BindEnvAndSetDefault("anomaly_detection.use_metric_pipeline", false)
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
 	config.BindEnvAndSetDefault("appsec.proxy.gke.gateway_classes", []string{

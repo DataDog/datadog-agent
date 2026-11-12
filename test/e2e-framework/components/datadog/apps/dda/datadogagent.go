@@ -174,6 +174,10 @@ func (d datadogAgentWorkload) fakeIntakeEnvVars() []map[string]interface{} {
 			"value": d.opts.FakeIntake.URL,
 		},
 		{
+			"name":  "DD_HEALTH_PLATFORM_FORWARDER_DD_URL",
+			"value": d.opts.FakeIntake.URL,
+		},
+		{
 			"name":  "DD_LOGS_CONFIG_LOGS_DD_URL",
 			"value": d.opts.FakeIntake.URL,
 		},

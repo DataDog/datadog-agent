@@ -82,6 +82,7 @@ func newConfiguredGPUCheck(
 
 	WithGPUConfigEnabled(t)
 	check.containerProvider = newMockContainerProvider(t, pidToContainerID)
+	check.sysRoot = t.TempDir() // NVML is mocked: keep the host's PCI inventory out of the test
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 
@@ -159,6 +160,7 @@ func TestConfigureSystemProbeCacheFeatureGating(t *testing.T) {
 			})
 
 			check.containerProvider = newMockContainerProvider(t, nil)
+			check.sysRoot = t.TempDir()
 			require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 			t.Cleanup(func() { check.Cancel() })
 
@@ -1049,6 +1051,7 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	WithGPUConfigEnabled(t)
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", false)
 	check.containerProvider = newMockContainerProvider(t, nil)
+	check.sysRoot = t.TempDir()
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 

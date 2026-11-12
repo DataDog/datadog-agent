@@ -36,6 +36,7 @@ new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.on_adp_version_bump] # TestADPGuardSuite runs ADP DogStatsD
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:

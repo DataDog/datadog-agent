@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fentry",
@@ -12,6 +13,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
             "//pkg/ebpf/ksyms",
@@ -29,6 +31,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/btf",
             "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
             "//pkg/ebpf/ksyms",
@@ -43,6 +46,29 @@ go_library(
             "//pkg/util/kernel",
             "//pkg/util/log",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "fentry_test",
+    srcs = ["probes_test.go"],
+    embed = [":fentry"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/btf",
+            "//pkg/network/config",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/btf",
+            "//pkg/network/config",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

@@ -8,6 +8,7 @@ go_library(
         "errors.go",
         "layout.go",
         "reader.go",
+        "reader_nodejs.go",
         "resolve.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/otelthreadctx",

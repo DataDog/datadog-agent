@@ -60,6 +60,8 @@ from tasks.libs.anomalydetection.eval import (
     print_eval_scenarios_summary,
     print_eval_tp_summary,
     random_component_combinations,
+    require_f1_report,
+    scenario_mode,
     validate_workflow_components,
     workflow_detectors,
 )
@@ -630,12 +632,13 @@ def eval_scenarios(
     retain_parquet: bool = False,
     use_metric_pipeline: bool = False,
 ) -> dict:
-    """Replay recordings from the latest LLMObs dataset and score existing fault F1.
+    """Replay recordings from the latest LLMObs dataset and score fault F1 or no-fault false positives.
 
     --dataset accepts any recording dataset name or UUID. --scenario or
     --scenarios filters its rows. --local reads existing recordings from
     --scenarios-dir without consulting LLMObs.
     --only automatically includes anomaly_scorer; --config takes precedence.
+    Healthy episode metadata selects false-positive scoring; no F1 is computed.
     Completed results include a command to inspect the same recording/settings.
     use_metric_pipeline is local-only and independent of component params.
     """
@@ -666,6 +669,8 @@ def eval_scenarios(
         print(color_message(f"Config: {config}", Color.BLUE))
         with open(config) as f:
             config_obj = json.load(f)
+        if isinstance(config_obj, dict) and config_obj.get("use_metric_pipeline", False):
+            use_metric_pipeline = True
 
     if build:
         build_testbench(ctx)
@@ -675,7 +680,7 @@ def eval_scenarios(
 
     os.makedirs(scenario_output_dir, exist_ok=True)
     Path(main_report_path).parent.mkdir(parents=True, exist_ok=True)
-    results = []
+    results: list[dict] = []
     # Rolling budget: total = timeout * #scenarios. Each scenario gets whatever
     # time remains; unused time rolls over to subsequent scenarios.
     budget_remaining = timeout * len(scenarios_to_run) if timeout else 0
@@ -685,13 +690,20 @@ def eval_scenarios(
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             # Fallback: check for *.parquet files directly in scenario root
             if not glob.glob(os.path.join(scenario_root, "*.parquet")):
-                scenario_logger.detail(f"skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE)
+                results.append({"name": name, "status": "error", "error": f"No parquet data at {parquet_dir}"})
                 continue
 
+        try:
+            with open(os.path.join(scenario_root, "episode.json")) as source:
+                episode = json.load(source)
+            mode = scenario_mode(episode)
+        except (OSError, ValueError) as error:
+            results.append({"name": name, "status": "error", "error": str(error)})
+            continue
         output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
         scenario_logger.step(name)
 
-        workflow_flag = " --use-metric-pipeline" if use_metric_pipeline else ""
+        Path(output_path).unlink(missing_ok=True)
         scenario_start = time.monotonic()
         command_args = [
             "bin/anomalydetection-testbench",
@@ -706,8 +718,8 @@ def eval_scenarios(
             command_args += ["--config", config]
         elif only_flag:
             command_args += ["--only", only_flag]
-        if workflow_flag:
-            command_args.append(workflow_flag)
+        if use_metric_pipeline:
+            command_args.append("--use-metric-pipeline")
         try:
             _run_headless_replay(
                 ctx,
@@ -718,9 +730,12 @@ def eval_scenarios(
         except Exception as e:
             if type(e).__name__ == "CommandTimedOut":
                 scenario_logger.detail(
-                    f"testbench timed out (budget {budget_remaining:.0f}s remaining) — scoring as zero",
+                    f"testbench timed out (budget {budget_remaining:.0f}s remaining)",
                     Color.ORANGE,
                 )
+                if mode == "no_faults":
+                    results.append({"name": name, "mode": mode, "status": "timed_out", "timed_out": True})
+                    continue
                 results.append(
                     {
                         "name": name,
@@ -733,6 +748,8 @@ def eval_scenarios(
                         "num_filtered_warmup": 0,
                         "num_filtered_cascading": 0,
                         "timed_out": True,
+                        "status": "timed_out",
+                        "mode": mode,
                     }
                 )
                 continue
@@ -742,45 +759,46 @@ def eval_scenarios(
                 budget_remaining -= time.monotonic() - scenario_start
 
         if not os.path.isfile(output_path):
-            scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
+            results.append({"name": name, "mode": mode, "status": "error", "error": "Replay produced no output"})
             continue
         try:
             with open(output_path) as f:
                 json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            scenario_logger.detail(f"testbench output not valid JSON: {e}", Color.RED)
+            results.append({"name": name, "mode": mode, "status": "error", "error": f"Invalid replay JSON: {e}"})
             continue
 
-        scorer_result = ctx.run(
-            join_command(
-                [
-                    "bin/anomalydetection-scorer",
-                    "--input",
-                    output_path,
-                    "--scenarios-dir",
-                    scenarios_dir,
-                    "--sigma",
-                    str(sigma),
-                    "--json",
-                ]
-            ),
-            hide=True,
-            warn=True,
-        )
+        scorer_args = [
+            "bin/anomalydetection-scorer",
+            "--input",
+            output_path,
+            "--scenarios-dir",
+            scenarios_dir,
+            "--sigma",
+            str(sigma),
+            "--json",
+        ]
+        if mode == "no_faults":
+            scorer_args.append("--score-no-faults")
+        scorer_result = ctx.run(join_command(scorer_args), hide=True, warn=True)
 
         if scorer_result.failed:
             scenario_logger.detail(f"scorer failed:\n{scorer_result.stderr}", Color.RED)
+            results.append({"name": name, "mode": mode, "status": "error", "error": scorer_result.stderr})
             continue
 
         try:
             score = json.loads(scorer_result.stdout.strip())
         except json.JSONDecodeError:
-            scenario_logger.detail(f"scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED)
+            results.append({"name": name, "mode": mode, "status": "error", "error": "Invalid scorer JSON"})
             continue
 
-        scenario_logger.detail(
-            f"F1={score.get('f1', 0):.4f}  prec={score.get('precision', 0):.4f}  rec={score.get('recall', 0):.4f}"
-        )
+        if mode == "no_faults":
+            scenario_logger.detail(f"False positives={score['false_positives']}")
+        else:
+            scenario_logger.detail(
+                f"F1={score.get('f1', 0):.4f}  prec={score.get('precision', 0):.4f}  rec={score.get('recall', 0):.4f}"
+            )
         inspect_args = [
             "dda",
             "inv",
@@ -797,13 +815,17 @@ def eval_scenarios(
             inspect_args += ["--config", str(replay_config.resolve())]
         elif only_flag:
             inspect_args += ["--only", only_flag]
+        if use_metric_pipeline:
+            inspect_args += ["--use-metric-pipeline"]
         inspect = join_command(inspect_args)
         results.append(
             {
                 "name": name,
+                "mode": mode,
+                "status": "completed",
                 **score,
-                "output": output_path,
                 "inspect_command": inspect,
+                "output": output_path,
                 "replay_mode": "retained" if retain_parquet else "streaming",
             }
         )
@@ -811,20 +833,38 @@ def eval_scenarios(
 
     print_eval_scenarios_summary(results, sigma)
 
-    f1_scores: list[float] = [float(r["f1"]) for r in results]
-    main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
+    f1_scores: list[float] = [float(r["f1"]) for r in results if "f1" in r]
+    main_score = sum(f1_scores) / len(f1_scores) if f1_scores else None
+    modes = {r.get("mode", "faults") for r in results}
+    total_fp = sum(
+        r["false_positives"] for r in results if r.get("status") == "completed" and r.get("mode") == "no_faults"
+    )
+    if len(modes) > 1:
+        main_score = None
+    if modes == {"no_faults"}:
+        main_score = total_fp if all(r.get("status") == "completed" for r in results) else None
     main_report = {
         "use_metric_pipeline": use_metric_pipeline,
         "score": main_score,
         "metadata": {r["name"]: r for r in results},
         "component_configs": config_obj,
+        "complete": len(results) == len(scenarios_to_run)
+        and all(r.get("status", "completed") == "completed" for r in results),
     }
+    if "no_faults" in modes:
+        main_report["false_positives"] = total_fp
+    if not main_report["complete"]:
+        main_report["score"] = None
+        main_score = None
     if dataset_info:
         main_report["dataset"] = {"id": dataset_info["id"], "name": dataset_info["name"]}
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
     print(f"Saved main report to {main_report_path}")
-    print(color_message(f"Main score: {main_score * 100:.1f}%", Color.GREEN))
+    if modes == {"no_faults"}:
+        print(f"Total false positives: {total_fp}" + (" [INCOMPLETE]" if not main_report["complete"] else ""))
+    elif main_score is not None:
+        print(color_message(f"Main F1: {main_score * 100:.1f}%", Color.GREEN))
 
     return main_report
 
@@ -1027,7 +1067,12 @@ def eval_combinations(
         combo_dir = os.path.join(output_dir, combo_label)
         os.makedirs(combo_dir, exist_ok=True)
 
-        config_data = _combo_to_config(combo["detectors"], combo["correlators"], force_disable=force_disable_list)
+        config_data = _combo_to_config(
+            combo["detectors"],
+            combo["correlators"],
+            force_disable=force_disable_list,
+            use_metric_pipeline=use_metric_pipeline,
+        )
         config_path = os.path.join(combo_dir, "config.json")
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
@@ -1057,6 +1102,7 @@ def eval_combinations(
                 _logger=combo_logger.child(len(scenario_names), "Scenario"),
                 use_metric_pipeline=use_metric_pipeline,
             )
+            require_f1_report(report)
         except Exception as e:
             combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
             report = None
@@ -1520,7 +1566,7 @@ def eval_bayesian(
         trial_dir = os.path.join(output_dir, trial_label)
         os.makedirs(trial_dir, exist_ok=True)
 
-        config_data = _build_optuna_config(trial, components_list, locked_set)
+        config_data = _build_optuna_config(trial, components_list, locked_set, use_metric_pipeline=use_metric_pipeline)
         config_path = os.path.join(trial_dir, "config.json")
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
@@ -1552,6 +1598,7 @@ def eval_bayesian(
                 _logger=trial_logger.child(len(scenarios_list), "Scenario"),
                 use_metric_pipeline=use_metric_pipeline,
             )
+            require_f1_report(report)
         except Exception as e:
             failure_reason = f"{eval_backend} eval raised {type(e).__name__}: {e}"
 
