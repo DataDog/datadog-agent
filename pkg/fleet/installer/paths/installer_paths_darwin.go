@@ -52,6 +52,11 @@ const (
 	// RunPath is where the installer daemon keeps its socket and task database: the Agent's run
 	// directory, alongside its remote configuration cache, which follows run_path's default.
 	RunPath = "/opt/datadog-agent/run"
+	// ConfigExperimentStatePath holds the state of a configuration experiment that root acts on,
+	// the experiment's deadline. It is root-owned, unlike RunPath, which belongs to the Agent's
+	// account. It is the packages root's run directory, which also holds the package's version
+	// link (see linkPackageEntry), outside the repository the installer garbage-collects.
+	ConfigExperimentStatePath = "/opt/datadog-packages/run"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/opt/datadog-agent/etc"
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
@@ -72,9 +77,10 @@ func SetupInstallerDataDir() error {
 // rootOwner is the owner every directory holding root installer state must have: root:wheel.
 var rootOwner = dirOwner{uid: 0, gid: 0}
 
-// installerDataDirs are the directories only root may write to: the packages root, which holds the
-// package entry the installer reports the Agent from.
-var installerDataDirs = []string{PackagesPath}
+// installerDataDirs are the directories only root may write to, parents first: the packages root,
+// which holds the package entry the installer reports the Agent from, and its run directory, which
+// holds the package's version link and the configuration experiment state root acts on.
+var installerDataDirs = []string{PackagesPath, ConfigExperimentStatePath}
 
 // EnsureInstallerDataDir makes sure installerDataDirs are real directories owned by root:wheel and
 // writable by root only, creating them when missing and repairing their ownership and mode when

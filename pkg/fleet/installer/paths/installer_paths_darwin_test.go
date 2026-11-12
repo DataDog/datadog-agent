@@ -73,7 +73,7 @@ func TestTheInstallerRunPathIsTheAgentsRunDirectory(t *testing.T) {
 // the packages root and the daemon's run directory, nothing under the install root, whose log
 // directory the Agent's account must keep writing to.
 func TestEnsureInstallerDataDirOnlyManagesTheInstallersOwnState(t *testing.T) {
-	assert.Equal(t, []string{PackagesPath}, installerDataDirs)
+	assert.Equal(t, []string{PackagesPath, ConfigExperimentStatePath}, installerDataDirs)
 	assert.NotContains(t, installerDataDirs, RunPath, "the Agent's run directory must keep its owner")
 	for _, dir := range installerDataDirs {
 		assert.False(t, strings.HasPrefix(dir, DefaultUserConfigsDir+"/"), dir)
