@@ -24,7 +24,7 @@ import (
 )
 
 //
-// Unit tests of the rebaser.
+// Unit tests of the accumulator.
 //
 
 func counterObservation(name string, value float64, labelValues ...string) observedSeries {
@@ -51,8 +51,8 @@ func histogramObservation(name string, count uint64, sum float64, buckets map[fl
 	}
 }
 
-// exposedMetrics returns what the rebaser exposes, keyed by metric name followed by the non-emitter label values.
-func exposedMetrics(t *testing.T, r *remoteTelemetryRebaser) map[string]*dto.Metric {
+// exposedMetrics returns what the accumulator exposes, keyed by metric name followed by the non-emitter label values.
+func exposedMetrics(t *testing.T, r *remoteTelemetryAccumulator) map[string]*dto.Metric {
 	t.Helper()
 	out := make(map[string]*dto.Metric)
 	r.emit(nil, func(m prometheus.Metric) {
@@ -71,15 +71,15 @@ func exposedMetrics(t *testing.T, r *remoteTelemetryRebaser) map[string]*dto.Met
 	return out
 }
 
-func exposedCounter(t *testing.T, r *remoteTelemetryRebaser, key string) float64 {
+func exposedCounter(t *testing.T, r *remoteTelemetryAccumulator, key string) float64 {
 	t.Helper()
 	m, ok := exposedMetrics(t, r)[key]
 	require.True(t, ok, "series %s is not exposed", key)
 	return m.GetCounter().GetValue()
 }
 
-func TestRebaserFirstScrapeIsBaselineOnly(t *testing.T) {
-	r := newRemoteTelemetryRebaser()
+func TestAccumulatorFirstScrapeIsBaselineOnly(t *testing.T) {
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	// The remote process has been counting for a long time when the first scrape happens.
@@ -93,8 +93,8 @@ func TestRebaserFirstScrapeIsBaselineOnly(t *testing.T) {
 	assert.Equal(t, 100.0, exposedCounter(t, r, "c{}"))
 }
 
-func TestRebaserSeriesAppearingAfterBaselineCountInFull(t *testing.T) {
-	r := newRemoteTelemetryRebaser()
+func TestAccumulatorSeriesAppearingAfterBaselineCountInFull(t *testing.T) {
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	r.observe("adp", []observedSeries{counterObservation("c", 10, "ok")}, now)
@@ -104,8 +104,8 @@ func TestRebaserSeriesAppearingAfterBaselineCountInFull(t *testing.T) {
 	assert.Equal(t, 3.0, exposedCounter(t, r, "c{error}"))
 }
 
-func TestRebaserCounterResetCountsFromZero(t *testing.T) {
-	r := newRemoteTelemetryRebaser()
+func TestAccumulatorCounterResetCountsFromZero(t *testing.T) {
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	r.observe("adp", []observedSeries{counterObservation("c", 100)}, now)
@@ -117,8 +117,8 @@ func TestRebaserCounterResetCountsFromZero(t *testing.T) {
 	assert.Equal(t, 110.0, exposedCounter(t, r, "c{}"))
 }
 
-func TestRebaserProcessesAreIndependent(t *testing.T) {
-	r := newRemoteTelemetryRebaser()
+func TestAccumulatorProcessesAreIndependent(t *testing.T) {
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	r.observe("old", []observedSeries{counterObservation("c", 500)}, now)
@@ -132,8 +132,8 @@ func TestRebaserProcessesAreIndependent(t *testing.T) {
 	assert.Equal(t, 37.0, exposedCounter(t, r, "c{}"))
 }
 
-func TestRebaserRetainsTotalOfExpiredSeries(t *testing.T) {
-	r := newRemoteTelemetryRebaser()
+func TestAccumulatorRetainsTotalOfExpiredSeries(t *testing.T) {
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	r.observe("old", []observedSeries{counterObservation("c", 500)}, now)
@@ -151,12 +151,12 @@ func TestRebaserRetainsTotalOfExpiredSeries(t *testing.T) {
 	assert.Equal(t, 35.0, exposedCounter(t, r, "c{}"))
 }
 
-func TestRebaserExpiryRules(t *testing.T) {
+func TestAccumulatorExpiryRules(t *testing.T) {
 	now := time.Now()
 	idle := now.Add(remoteTelemetrySeriesIdleTTL)
 
-	setup := func() *remoteTelemetryRebaser {
-		r := newRemoteTelemetryRebaser()
+	setup := func() *remoteTelemetryAccumulator {
+		r := newRemoteTelemetryAccumulator()
 		r.observe("adp", []observedSeries{counterObservation("c", 1)}, now)
 		r.observe("adp", []observedSeries{counterObservation("c", 5)}, now)
 		return r
@@ -207,11 +207,11 @@ func TestRebaserExpiryRules(t *testing.T) {
 	})
 }
 
-func TestRebaserHistograms(t *testing.T) {
+func TestAccumulatorHistograms(t *testing.T) {
 	buckets := func(a, b, c uint64) map[float64]uint64 {
 		return map[float64]uint64{0.5: a, 1: b, math.Inf(1): c}
 	}
-	r := newRemoteTelemetryRebaser()
+	r := newRemoteTelemetryAccumulator()
 	now := time.Now()
 
 	r.observe("adp", []observedSeries{histogramObservation("h", 30, 15, buckets(10, 20, 30))}, now)
@@ -242,6 +242,51 @@ func TestRebaserHistograms(t *testing.T) {
 	assert.Len(t, m.GetBucket(), 2)
 }
 
+func TestAccumulatorHistogramLayoutMismatchIsDeterministic(t *testing.T) {
+	exposedBounds := func(r *remoteTelemetryAccumulator) []float64 {
+		m, ok := exposedMetrics(t, r)["h{}"]
+		require.True(t, ok)
+		var bounds []float64
+		for _, b := range m.GetHistogram().GetBucket() {
+			bounds = append(bounds, b.GetUpperBound())
+		}
+		return bounds
+	}
+
+	// Each process reports twice, so its accumulated total is not zero: layout A is {1, +Inf}, layout B {2, +Inf}.
+	t.Run("the report seen last wins", func(t *testing.T) {
+		r := newRemoteTelemetryAccumulator()
+		older, newer := time.Now(), time.Now().Add(time.Minute)
+
+		r.observe("proc-a", []observedSeries{histogramObservation("h", 5, 5, map[float64]uint64{1: 2, math.Inf(1): 5})}, older)
+		r.observe("proc-a", []observedSeries{histogramObservation("h", 6, 6, map[float64]uint64{1: 3, math.Inf(1): 6})}, older)
+		r.observe("proc-b", []observedSeries{histogramObservation("h", 2, 2, map[float64]uint64{2: 1, math.Inf(1): 2})}, newer)
+		r.observe("proc-b", []observedSeries{histogramObservation("h", 3, 3, map[float64]uint64{2: 2, math.Inf(1): 3})}, newer)
+
+		// Whatever the iteration order of the internal maps, the exposed layout is always the newer one.
+		for i := 0; i < 10; i++ {
+			assert.Equal(t, []float64{2, math.Inf(1)}, exposedBounds(r))
+		}
+	})
+
+	t.Run("a live series beats a retained total of another layout", func(t *testing.T) {
+		r := newRemoteTelemetryAccumulator()
+		now := time.Now()
+		later := now.Add(2 * time.Minute)
+
+		r.observe("proc-a", []observedSeries{histogramObservation("h", 5, 5, map[float64]uint64{1: 2, math.Inf(1): 5})}, now)
+		r.observe("proc-a", []observedSeries{histogramObservation("h", 6, 6, map[float64]uint64{1: 3, math.Inf(1): 6})}, now)
+		r.observe("proc-b", []observedSeries{histogramObservation("h", 2, 2, map[float64]uint64{2: 1, math.Inf(1): 2})}, later)
+		r.observe("proc-b", []observedSeries{histogramObservation("h", 3, 3, map[float64]uint64{2: 2, math.Inf(1): 3})}, later)
+
+		// The old process leaves and its series is folded later than the new process was last seen.
+		r.expire(map[string]struct{}{"proc-b": {}}, map[string]struct{}{"proc-b": {}}, later.Add(remoteTelemetrySeriesIdleTTL-time.Minute))
+
+		// The live series wins even though the retained total is the more recent fold.
+		assert.Equal(t, []float64{2, math.Inf(1)}, exposedBounds(r))
+	})
+}
+
 //
 // Tests through the registry.
 //
@@ -254,7 +299,7 @@ func registerTelemetryAgent(t *testing.T, ipcComp ipc.Component, registryComp re
 	server.RegistrationData.ProcessInstanceID = processInstanceID
 	sessionID, _, err := registryComp.RegisterRemoteAgent(&server.RegistrationData)
 	require.NoError(t, err)
-	server.registeredSessionID = sessionID
+	server.setRegisteredSessionID(sessionID)
 	waitForTelemetryBaseline(t, registryComp, sessionID)
 	return server
 }
@@ -311,7 +356,7 @@ func TestTelemetryReRegistrationOfSameProcessKeepsCounting(t *testing.T) {
 	server.promText = counterText("adp_counter", 541)
 	sessionID, _, err := provides.Comp.RegisterRemoteAgent(&server.RegistrationData)
 	require.NoError(t, err)
-	server.registeredSessionID = sessionID
+	server.setRegisteredSessionID(sessionID)
 	waitForTelemetryBaseline(t, provides.Comp, sessionID)
 
 	assert.Equal(t, 41.0, gatheredCounter(t, telemetryComp, "adp_counter"))
@@ -438,24 +483,28 @@ func TestTelemetryBaselineScrapeToleratesRemoteAgentNotKnowingItsSessionYet(t *t
 	identity := remoteAgentIdentity(client.RegisteredAgent)
 	registry.agentMapMu.Unlock()
 
-	// Let the registry attempt the baseline scrape a few times against the wrong session ID.
-	time.Sleep(200 * time.Millisecond)
+	// Wait until the registry has attempted the baseline scrape at least twice against the wrong session ID.
+	require.Eventually(t, func() bool { return server.telemetryCalls.Load() >= 2 }, 10*time.Second, 5*time.Millisecond)
 
+	// The expected failures left no trace: the agent is not marked unhealthy, no error was counted, and the wrong
+	// session ID did not become the baseline.
 	client.unhealthyMu.Lock()
 	unhealthy := client.unhealthyReason
 	client.unhealthyMu.Unlock()
 	require.NoError(t, unhealthy, "the agent must not be marked unhealthy by a baseline scrape")
-	assert.False(t, registry.telemetryRebaser.isBaselined(identity))
+	require.False(t, registry.telemetryAccumulator.isBaselined(identity), "a wrong session ID must not become the baseline")
+
+	// The remote agent learns its session ID, and the baseline succeeds.
+	server.setRegisteredSessionID(sessionID)
+	server.clearSessionOverride()
+	require.Eventually(t, func() bool { return registry.telemetryAccumulator.isBaselined(identity) }, 10*time.Second, 5*time.Millisecond)
+
+	// What was counted before the baseline is not reported, and no attempt ever counted an error.
 	families, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range families {
 		assert.NotContains(t, family.GetName(), "action_error", "baseline attempts must not be counted as errors")
 	}
-
-	// The remote agent learns its session ID.
-	server.registeredSessionID = sessionID
-	server.overrideSessionID = false
-	require.Eventually(t, func() bool { return registry.telemetryRebaser.isBaselined(identity) }, 10*time.Second, 5*time.Millisecond)
 
 	server.promText = counterText("adp_counter", 1_040)
 	assert.Equal(t, 40.0, gatheredCounter(t, telemetryComp, "adp_counter"))

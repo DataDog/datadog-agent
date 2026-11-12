@@ -29,7 +29,7 @@ import (
 // that every counter starts from zero when the Core Agent starts. Passing the totals through unchanged therefore makes
 // them over-report whenever the Core Agent restarts while the remote agent keeps running.
 //
-// The rebaser fixes this by accumulating the increases the Core Agent itself observes, per remote process. What it
+// The accumulator fixes this by accumulating the increases the Core Agent itself observes, per remote process. What it
 // exposes is "everything counted since the Core Agent first saw this process", which behaves like the Core Agent's
 // own counters. The only decision to make is what the first observation of a series is worth:
 //
@@ -186,9 +186,9 @@ type processBaseline struct {
 	lastSeen  time.Time
 }
 
-// remoteTelemetryRebaser accumulates the counters and histograms of remote agents. See the comment at the top of
+// remoteTelemetryAccumulator accumulates the counters and histograms of remote agents. See the comment at the top of
 // the file.
-type remoteTelemetryRebaser struct {
+type remoteTelemetryAccumulator struct {
 	// scrapeMu serializes scrapes, so that observations of a process are applied in the order they were fetched. An
 	// observation applied out of order would look like a counter reset.
 	scrapeMu sync.Mutex
@@ -199,15 +199,15 @@ type remoteTelemetryRebaser struct {
 	retired   map[exposedSeriesKey]*retiredSeries
 }
 
-func newRemoteTelemetryRebaser() *remoteTelemetryRebaser {
-	return &remoteTelemetryRebaser{
+func newRemoteTelemetryAccumulator() *remoteTelemetryAccumulator {
+	return &remoteTelemetryAccumulator{
 		processes: make(map[string]*processBaseline),
 		live:      make(map[processSeriesKey]*liveSeries),
 		retired:   make(map[exposedSeriesKey]*retiredSeries),
 	}
 }
 
-func (r *remoteTelemetryRebaser) isBaselined(identity string) bool {
+func (r *remoteTelemetryAccumulator) isBaselined(identity string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p := r.processes[identity]
@@ -215,7 +215,7 @@ func (r *remoteTelemetryRebaser) isBaselined(identity string) bool {
 }
 
 // observe applies one successful scrape of the process with the given identity.
-func (r *remoteTelemetryRebaser) observe(identity string, observed []observedSeries, now time.Time) {
+func (r *remoteTelemetryAccumulator) observe(identity string, observed []observedSeries, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -251,7 +251,7 @@ func (r *remoteTelemetryRebaser) observe(identity string, observed []observedSer
 // expire folds the state of series that went away into the retained totals and drops state that is no longer needed.
 // registered holds the identities of the processes registered now, and scraped those that were just scraped
 // successfully.
-func (r *remoteTelemetryRebaser) expire(registered, scraped map[string]struct{}, now time.Time) {
+func (r *remoteTelemetryAccumulator) expire(registered, scraped map[string]struct{}, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -287,7 +287,7 @@ func (r *remoteTelemetryRebaser) expire(registered, scraped map[string]struct{},
 }
 
 // retire adds the accumulated total of a live series to the retained total of its exposed series. r.mu must be held.
-func (r *remoteTelemetryRebaser) retire(key exposedSeriesKey, series *liveSeries, now time.Time) {
+func (r *remoteTelemetryAccumulator) retire(key exposedSeriesKey, series *liveSeries, now time.Time) {
 	retired := r.retired[key]
 	if retired == nil {
 		r.retired[key] = &retiredSeries{meta: series.meta, total: series.total.clone(), retiredAt: now}
@@ -304,31 +304,55 @@ func (r *remoteTelemetryRebaser) retire(key exposedSeriesKey, series *liveSeries
 
 // emit passes the exposed value of every series to emit. The exposed value of a series is the retained total of its
 // retired processes plus the totals of the processes currently reporting it.
-func (r *remoteTelemetryRebaser) emit(canonicalHelp func(string) (string, bool), emit func(prometheus.Metric)) {
+func (r *remoteTelemetryAccumulator) emit(canonicalHelp func(string) (string, bool), emit func(prometheus.Metric)) {
 	type exposed struct {
 		meta        seriesMeta
 		total       seriesValue
+		seenAt      time.Time
 		fromRetired bool
 	}
 
 	r.mu.Lock()
 	totals := make(map[exposedSeriesKey]*exposed, len(r.retired))
 	for key, series := range r.retired {
-		totals[key] = &exposed{meta: series.meta, total: series.total.clone(), fromRetired: true}
+		totals[key] = &exposed{meta: series.meta, total: series.total.clone(), seenAt: series.retiredAt, fromRetired: true}
 	}
-	for key, series := range r.live {
+
+	// Walk the live series in a fixed order, so what is exposed never depends on the iteration order of a map.
+	keys := make([]processSeriesKey, 0, len(r.live))
+	for key := range r.live {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if a.identity != b.identity {
+			return a.identity < b.identity
+		}
+		if a.series.kind != b.series.kind {
+			return a.series.kind < b.series.kind
+		}
+		if a.series.name != b.series.name {
+			return a.series.name < b.series.name
+		}
+		return a.series.labels < b.series.labels
+	})
+
+	for _, key := range keys {
+		series := r.live[key]
 		e := totals[key.series]
 		switch {
 		case e == nil:
-			totals[key.series] = &exposed{meta: series.meta, total: series.total.clone()}
+			totals[key.series] = &exposed{meta: series.meta, total: series.total.clone(), seenAt: series.lastSeen}
 		case key.series.kind == dto.MetricType_HISTOGRAM && !sameBucketLayout(e.total.buckets, series.total.buckets):
-			// Totals with different buckets can't be added. Live series win over retained totals.
-			if e.fromRetired {
-				*e = exposed{meta: series.meta, total: series.total.clone()}
+			// Totals with different buckets can't be added. The newer report wins: a live series over a retained
+			// total, and among live series the one seen last.
+			if e.fromRetired || series.lastSeen.After(e.seenAt) {
+				*e = exposed{meta: series.meta, total: series.total.clone(), seenAt: series.lastSeen}
 			}
 		default:
 			addValue(key.series.kind, &e.total, series.total)
 			e.meta = series.meta
+			e.seenAt = series.lastSeen
 			e.fromRetired = false
 		}
 	}
@@ -401,7 +425,7 @@ func parsePromText(promText string, remoteAgentName string, canonicalMetricHelp 
 			case dto.MetricType_COUNTER:
 				value := *metric.Counter.Value
 
-				// Only well-formed series enter the rebaser, so a malformed one can't linger in its state.
+				// Only well-formed series enter the accumulator, so a malformed one can't linger in its state.
 				if _, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...); err != nil {
 					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
@@ -486,7 +510,7 @@ type telemetryScrape struct {
 // collectTelemetry scrapes the registered remote agents accepted by agentFilter, accounts for what they report, and
 // passes the current value of all their metrics to emit.
 func (ra *remoteAgentRegistry) collectTelemetry(agentFilter func(remoteagentregistry.RegisteredAgent) bool, emit func(prometheus.Metric)) {
-	r := ra.telemetryRebaser
+	r := ra.telemetryAccumulator
 	r.scrapeMu.Lock()
 	defer r.scrapeMu.Unlock()
 
@@ -532,7 +556,7 @@ func (ra *remoteAgentRegistry) scrapeAndObserve(agentFilter func(remoteagentregi
 			continue
 		}
 		scraped[scrape.identity] = struct{}{}
-		ra.telemetryRebaser.observe(scrape.identity, scrape.parsed.series, now)
+		ra.telemetryAccumulator.observe(scrape.identity, scrape.parsed.series, now)
 		for _, gauge := range scrape.parsed.gauges {
 			emitGauge(gauge)
 		}
@@ -583,7 +607,7 @@ func (ra *remoteAgentRegistry) primeTelemetryBaseline(sessionID string) {
 // this one doesn't count failures as errors, doesn't mark the agent unhealthy over a session ID that doesn't match
 // yet, logs at debug level, and doesn't wait for the connection to become ready, which would hold up other scrapes.
 func (ra *remoteAgentRegistry) primeTelemetryBaselineOnce(sessionID string) bool {
-	r := ra.telemetryRebaser
+	r := ra.telemetryAccumulator
 	r.scrapeMu.Lock()
 	defer r.scrapeMu.Unlock()
 

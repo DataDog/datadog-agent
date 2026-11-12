@@ -160,7 +160,7 @@ func TestCallAgentsForService(t *testing.T) {
 			for _, remoteAgent := range testCase.remoteAgent {
 				sessionID, _, err := component.RegisterRemoteAgent(&remoteAgent.RegistrationData)
 				require.NoError(t, err)
-				remoteAgent.registeredSessionID = sessionID
+				remoteAgent.setRegisteredSessionID(sessionID)
 			}
 
 			if testCase.withEphemeralAgent {

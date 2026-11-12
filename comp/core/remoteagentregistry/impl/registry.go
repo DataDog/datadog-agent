@@ -77,16 +77,16 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
-		conf:             reqs.Config,
-		ipc:              reqs.Ipc,
-		agentMap:         make(map[string]*remoteAgentClient),
-		shutdownChan:     shutdownChan,
-		telemetry:        reqs.Telemetry,
-		telemetryStore:   newTelemetryStore(reqs.Telemetry),
-		eventSubscribers: eventSubscribers,
-		telemetryRebaser: newRemoteTelemetryRebaser(),
-		ctx:              ctx,
-		cancel:           cancel,
+		conf:                 reqs.Config,
+		ipc:                  reqs.Ipc,
+		agentMap:             make(map[string]*remoteAgentClient),
+		shutdownChan:         shutdownChan,
+		telemetry:            reqs.Telemetry,
+		telemetryStore:       newTelemetryStore(reqs.Telemetry),
+		eventSubscribers:     eventSubscribers,
+		telemetryAccumulator: newRemoteTelemetryAccumulator(),
+		ctx:                  ctx,
+		cancel:               cancel,
 
 		telemetryBaselineDelay: telemetryBaselineInitialDelay,
 	}
@@ -213,9 +213,9 @@ type remoteAgentRegistry struct {
 	telemetry         telemetry.Component
 	telemetryStore    *telemetryStore
 	expvarCache       remoteExpvarCache
-	// telemetryRebaser turns the running totals reported by remote agents into totals since this Core Agent first
+	// telemetryAccumulator turns the running totals reported by remote agents into totals since this Core Agent first
 	// saw each remote process.
-	telemetryRebaser *remoteTelemetryRebaser
+	telemetryAccumulator *remoteTelemetryAccumulator
 	// telemetryBaselineDelay is the wait before the first baseline scrape of a new remote agent.
 	telemetryBaselineDelay time.Duration
 	// ctx is canceled when the registry stops, to end background work.

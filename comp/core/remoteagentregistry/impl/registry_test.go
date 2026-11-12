@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -236,7 +237,7 @@ func TestRegistryDialsUDSRemoteAgent(t *testing.T) {
 
 	sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
 	require.NoError(t, err)
-	agent.registeredSessionID = sessionID
+	agent.setRegisteredSessionID(sessionID)
 
 	// Issue a status RPC via the registry's normal call path and verify the response
 	// came from the UDS-backed agent.
@@ -324,6 +325,10 @@ type testRemoteAgentServer struct {
 	registeredSessionID string // session ID received during registration
 	overrideSessionID   bool   // if true, send the overrideSessionID instead of the correct session ID
 	fakeSessionID       string // if overrideSessionID is true, send this instead of the correct session ID
+	// sessionMu guards the session ID fields: tests can change them while the server is serving.
+	sessionMu sync.Mutex
+	// telemetryCalls counts the GetTelemetry RPCs the server has served.
+	telemetryCalls atomic.Int64
 
 	// gRPC embedded
 	server *grpc.Server
@@ -363,6 +368,7 @@ func (t *testRemoteAgentServer) UnaryEcho(_ context.Context, req *echo.EchoReque
 }
 
 func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pb.GetTelemetryRequest) (*pb.GetTelemetryResponse, error) {
+	t.telemetryCalls.Add(1)
 	return &pb.GetTelemetryResponse{
 		Payload: &pb.GetTelemetryResponse_PromText{
 			PromText: t.promText,
@@ -372,6 +378,18 @@ func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pb.GetTelemetryRe
 
 func (t *testRemoteAgentServer) Stop() {
 	t.server.Stop()
+}
+
+func (t *testRemoteAgentServer) setRegisteredSessionID(sessionID string) {
+	t.sessionMu.Lock()
+	defer t.sessionMu.Unlock()
+	t.registeredSessionID = sessionID
+}
+
+func (t *testRemoteAgentServer) clearSessionOverride() {
+	t.sessionMu.Lock()
+	defer t.sessionMu.Unlock()
+	t.overrideSessionID = false
 }
 
 type mockProvider func(*grpc.Server, *testRemoteAgentServer)
@@ -526,7 +544,7 @@ func buildAndRegisterRemoteAgent(t *testing.T, ipcComp ipc.Component, registryCo
 	sessionID, _, err := registryComp.RegisterRemoteAgent(&testServer.RegistrationData)
 	require.NoError(t, err)
 
-	testServer.registeredSessionID = sessionID
+	testServer.setRegisteredSessionID(sessionID)
 	if hasTelemetry {
 		waitForTelemetryBaseline(t, registryComp, sessionID)
 		testServer.promText = telemetryText
@@ -543,5 +561,5 @@ func waitForTelemetryBaseline(t *testing.T, registryComp remoteagent.Component, 
 	registry.agentMapMu.Unlock()
 	require.True(t, found, "session %s is not registered", sessionID)
 	identity := remoteAgentIdentity(agent.RegisteredAgent)
-	require.Eventually(t, func() bool { return registry.telemetryRebaser.isBaselined(identity) }, 10*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return registry.telemetryAccumulator.isBaselined(identity) }, 10*time.Second, 5*time.Millisecond)
 }

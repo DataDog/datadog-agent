@@ -277,7 +277,7 @@ func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing
 		agent.ProcessInstanceID = processID
 		sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
 		require.NoError(t, err)
-		agent.registeredSessionID = sessionID
+		agent.setRegisteredSessionID(sessionID)
 		return agent
 	}
 	read := func() int64 {
@@ -345,7 +345,7 @@ func TestRemoteExpvarPrefersNewestSessionForOneProcess(t *testing.T) {
 		agent.ProcessInstanceID = "same-process"
 		sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
 		require.NoError(t, err)
-		agent.registeredSessionID = sessionID
+		agent.setRegisteredSessionID(sessionID)
 		return agent
 	}
 	oldSession := register("10")
@@ -434,7 +434,7 @@ func TestRemoteExpvarOriginStateExpiresWhenIdentifiedAgentIsAbsent(t *testing.T)
 	agent.ProcessInstanceID = "process-a"
 	sessionID, _, err := component.RegisterRemoteAgent(&agent.RegistrationData)
 	require.NoError(t, err)
-	agent.registeredSessionID = sessionID
+	agent.setRegisteredSessionID(sessionID)
 	assert.Equal(t, int64(5), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_metric_packets"])
 
 	agent.Stop()
