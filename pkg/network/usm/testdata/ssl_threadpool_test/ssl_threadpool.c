@@ -18,8 +18,10 @@
  *    requests on randomly picked connections (one mutex per connection), so every
  *    connection is used by many threads
  * 4. Meanwhile the main thread closes and reopens connections <rotations> times
- * 5. Joins the workers and closes every connection cleanly (SSL_shutdown + SSL_free + close)
- * 6. Writes the number of completed requests to <out_dir>/requests and stays alive, so
+ * 5. Joins the workers, writes the number of completed requests to <out_dir>/paused and waits
+ *    for <out_dir>/close to exist, so the test can check the map while the connections are open
+ * 6. Closes every connection cleanly (SSL_shutdown + SSL_free + close)
+ * 7. Writes the number of completed requests to <out_dir>/requests and stays alive, so
  *    entries left in the map can't be removed by the dead-process cleaner
  *
  * Every request path is /200/ssl-threadpool/p<local port>, so the test can check that USM
@@ -167,8 +169,9 @@ int main(int argc, char *argv[]) {
     // A connection reset by the server must fail the request, not kill the process.
     signal(SIGPIPE, SIG_IGN);
 
-    char start_path[512];
+    char start_path[512], close_path[512];
     snprintf(start_path, sizeof(start_path), "%s/start", out_dir);
+    snprintf(close_path, sizeof(close_path), "%s/close", out_dir);
 
     ssl_ctx = SSL_CTX_new(TLS_client_method());
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -200,6 +203,12 @@ int main(int argc, char *argv[]) {
     for (int t = 0; t < num_threads; t++) {
         pthread_join(threads[t], NULL);
     }
+
+    write_int_file(out_dir, "paused", completed);
+    while (access(close_path, F_OK) != 0) {
+        usleep(100 * 1000);
+    }
+
     for (int i = 0; i < num_conns; i++) {
         close_connection(i);
     }

@@ -433,12 +433,13 @@ func TestFdBySSLBioMapLeak(t *testing.T) {
 // connection. In thread pools the other entries leaked until the process exited, so the map could
 // fill up and USM stopped seeing new native TLS connections.
 //
-// The fix: the key is per process (thread ID bits cleared), so all threads share one entry per
-// SSL context.
+// The fix: the key holds the process ID (TGID) instead of pid_tgid, so all threads share one
+// entry per SSL context.
 //
-// This test runs a helper with a thread pool sharing TLS connections, closes them all, and checks
-// (while the helper is still alive) that no entry is left for its PID and that its requests were
-// attributed to the right connections.
+// This test runs a helper with a thread pool sharing TLS connections. While they are still open,
+// it checks that the helper's PID has at most one entry per connection; then it closes them all and
+// checks (while the helper is still alive) that no entry is left for its PID and that its requests
+// were captured and attributed to the right connections.
 func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
 	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
@@ -467,7 +468,17 @@ func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
 	require.True(t, mapExists, "%s map does not exist", sslSockByCtxMap)
 
 	pid := helper.pid
-	requests := helper.run(t)
+	helper.runUntilPaused(t)
+
+	// The helper's connections are still open: there must be at least one entry, and at most one
+	// per connection (not one per thread). This also fails if the C and Go key layouts drift, since
+	// no entry would match the PID.
+	open := countSSLSockByCtxEntriesOfPID(t, sslSockMap, pid)
+	t.Logf("%s entries for pid %d with %d connections open: %d", sslSockByCtxMap, pid, sslThreadPoolConnections, open)
+	assert.GreaterOrEqual(t, open, 1, "%s has no entry for the open connections", sslSockByCtxMap)
+	assert.LessOrEqual(t, open, sslThreadPoolConnections, "%s has more than one entry per open connection", sslSockByCtxMap)
+
+	requests := helper.closeConnections(t)
 	require.Positive(t, requests, "the helper did not complete any request")
 
 	leftover := countSSLSockByCtxEntriesOfPID(t, sslSockMap, pid)
@@ -500,7 +511,7 @@ func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
 		}
 	}
 	t.Logf("requests sent: %d, captured on the right connection: %d, on another connection: %d", requests, captured, misattributed)
-	assert.Positive(t, captured, "no request of the helper was captured")
+	assert.GreaterOrEqual(t, captured, requests*9/10, "less than 90 percent of the helper's requests were captured")
 	assert.Zero(t, misattributed, "requests were attributed to the wrong connection")
 
 	if t.Failed() {
@@ -528,9 +539,20 @@ func TestSSLSockByCtxDeadPidCleaner(t *testing.T) {
 	// the cleaner never counts its own process as alive, so use a separate process
 	cmd, cancel := startDummyProgram(t)
 	alivePid := uint32(cmd.Process.Pid)
+	var sock http.SslSock
+
+	// A cleaner run takes its snapshot of live PIDs during its /proc walk and deletes at the end, so
+	// a run whose walk started before the dummy process existed would also delete its entries. Wait
+	// for a run to remove a sentinel inserted after the dummy started: runs don't overlap, so every
+	// later run starts its walk after the dummy exists.
+	sentinelKey := http.SSLCtxPidTGID{Pid: deadPid, Ctx: 0x9999}
+	require.NoError(t, sockByCtx.Put(unsafe.Pointer(&sentinelKey), unsafe.Pointer(&sock)))
+	require.Eventually(t, func() bool {
+		return !findKeyInMap(sockByCtx, sentinelKey)
+	}, 10*time.Second, 100*time.Millisecond, "the cleaner did not remove the sentinel entry")
+
 	deadKey := http.SSLCtxPidTGID{Pid: deadPid, Ctx: 0x1111}
 	aliveKey := http.SSLCtxPidTGID{Pid: alivePid, Ctx: 0x2222}
-	var sock http.SslSock
 	require.NoError(t, sockByCtx.Put(unsafe.Pointer(&deadKey), unsafe.Pointer(&sock)))
 	require.NoError(t, sockByCtx.Put(unsafe.Pointer(&aliveKey), unsafe.Pointer(&sock)))
 	deadTup := http.ConnTuple{Sport: 1111, Dport: 443, Pid: deadPid}
@@ -573,11 +595,11 @@ func countSSLSockByCtxEntriesOfPID(t *testing.T, m *ebpf.Map, pid int) int {
 	return count
 }
 
-// runSSLThreadPoolHelperDocker runs the ssl_threadpool helper in a Docker container, lets it start
-// once its process is traced, and waits for it to close all its connections. It returns the
-// helper's (host) PID and the number of requests it completed. The helper stays alive until the
-// test ends.
-// sslThreadPoolHelper is a running ssl_threadpool helper, waiting for the start signal.
+// sslThreadPoolConnections is the number of TLS connections the ssl_threadpool helper keeps open.
+const sslThreadPoolConnections = 20
+
+// sslThreadPoolHelper is a running ssl_threadpool helper, waiting for the start signal. The helper
+// stays alive until the test ends.
 type sslThreadPoolHelper struct {
 	pid    int
 	outDir string
@@ -592,18 +614,29 @@ func (h sslThreadPoolHelper) readInt(name string) (int, error) {
 	return strconv.Atoi(strings.TrimSpace(string(data)))
 }
 
-// run waits for the helper to be traced, lets it send its requests, and returns how many it sent.
-func (h sslThreadPoolHelper) run(t *testing.T) int {
+// runUntilPaused waits for the helper to be traced, lets it send its requests, and returns once
+// it has paused with all its connections still open.
+func (h sslThreadPoolHelper) runUntilPaused(t *testing.T) {
 	t.Helper()
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, h.pid, utils.ManualTracingFallbackEnabled)
 	require.NoError(t, os.WriteFile(filepath.Join(h.outDir, "start"), nil, 0o644))
+	require.Eventually(t, func() bool {
+		_, err := h.readInt("paused")
+		return err == nil
+	}, time.Minute, 200*time.Millisecond, "the helper did not finish its requests")
+}
 
+// closeConnections lets a paused helper close all its connections, and returns how many requests
+// it completed.
+func (h sslThreadPoolHelper) closeConnections(t *testing.T) int {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(h.outDir, "close"), nil, 0o644))
 	var requests int
 	require.Eventually(t, func() bool {
 		var err error
 		requests, err = h.readInt("requests")
 		return err == nil
-	}, time.Minute, 200*time.Millisecond, "the helper did not finish its requests")
+	}, time.Minute, 200*time.Millisecond, "the helper did not close its connections")
 	return requests
 }
 
@@ -622,7 +655,7 @@ func startSSLThreadPoolHelperDocker(t *testing.T, host, port string) sslThreadPo
 		"OUTDIR=" + outDir,
 		"HOST=" + host,
 		"PORT=" + port,
-		"CONNECTIONS=20",
+		"CONNECTIONS=" + strconv.Itoa(sslThreadPoolConnections),
 		"THREADS=16",
 		"REQUESTS_PER_THREAD=500",
 		"ROTATIONS=300",
