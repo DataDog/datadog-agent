@@ -4415,7 +4415,7 @@
 
 
 <h1 id="how-the-test-decides">How the test decides<a class="headerlink" href="#how-the-test-decides" title="Permanent link">&para;</a></h1>
-<p>The benchmark makes 11 comparisons today: three metrics for each of the three components, and the run times of two checks. For each one, it has the values of both versions over the two phases, and must answer three questions:</p>
+<p>The benchmark makes 11 comparisons today: three metrics for each of the three components, and the run times of two checks. For each one, it has the values of both versions over the four phases, and must answer three questions:</p>
 <ol>
 <li>How much did the comparison version change, without the bias of the machines?</li>
 <li>Is the change real, or is it noise?</li>
@@ -4423,40 +4423,49 @@
 </ol>
 <p>The code is in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmark/compare.go"><code>test/new-e2e/tests/containers/benchmark/compare.go</code></a> and <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmark/stats.go"><code>test/new-e2e/tests/containers/benchmark/stats.go</code></a>.</p>
 <h2 id="blocks">Blocks<a class="headerlink" href="#blocks" title="Permanent link">&para;</a></h2>
-<p>To tell a real change from noise, the test needs several roughly independent measurements of the difference between the versions. The points of the metrics don't qualify: there is one per minute, and the memory usage of a minute is nearly that of the minute before. So the test cuts each phase of 20 minutes into 4 blocks of 5 minutes, and computes the mean of each version over each block: <code>bₖ</code> for the baseline, <code>cₖ</code> for the comparison. The means of two blocks depend much less on one another than two consecutive points, and both means of a block are measured at the same time, with the same workload.</p>
-<p>Longer blocks would depend even less on one another, but there would be fewer of them to estimate the noise from: blocks of 5 minutes leave 4 per phase, one more than the minimum of 3. A shorter phase gets shorter blocks, down to 1 minute, so that it still holds at least 3.</p>
+<p>To tell a real change from noise, the test needs several roughly independent measurements of the difference between the versions. The points of the metrics don't qualify: there is one per minute, and the memory usage of a minute is nearly that of the minute before. So the test cuts each phase of 15 minutes into 3 blocks of 5 minutes, and computes the mean of each version over each block: <code>bᵢ</code> for the baseline, <code>cᵢ</code> for the comparison. The means of two blocks depend much less on one another than two consecutive points, and both means of a block are measured at the same time, with the same workload.</p>
+<p>Longer blocks would depend even less on one another, but there would be fewer of them to estimate the noise from: blocks of 5 minutes leave 3 per phase, the minimum, and 12 over the 4 phases. A shorter phase gets shorter blocks, down to 1 minute, so that it still holds at least 3.</p>
 <p>The run times of the checks are measured per block directly: see <a href="../how-it-works/#check-run-times">Check run times</a>.</p>
 <h2 id="cancelling-out-the-machines">Cancelling out the machines<a class="headerlink" href="#cancelling-out-the-machines" title="Permanent link">&para;</a></h2>
-<p>For each block, the test computes the log ratio of the comparison to the baseline, then averages these ratios over each phase, then over both phases:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> block k:    rₖ = ln(cₖ / bₖ)
+<p>For each block, the test computes the log ratio of the comparison to the baseline, then averages these ratios over each phase, then over the four phases:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> block i:    rᵢ = ln(cᵢ / bᵢ)
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> phase 1:    m₁ = mean of the rₖ of phase 1   ≈  ln(effect) + ln(β)
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> phase 2:    m₂ = mean of the rₖ of phase 2   ≈  ln(effect) − ln(β)
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a> both:       e  = (m₁ + m₂) / 2               ≈  ln(effect)
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a> change = exp(e) − 1
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> phase k:    mₖ = mean of the rᵢ of phase k
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>             m₁, m₃  ≈  ln(effect) + ln(β)   comparison on installation b
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>             m₂, m₄  ≈  ln(effect) − ln(β)   comparison on installation a
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a> all:        e  = (m₁ + m₂ + m₃ + m₄) / 4    ≈  ln(effect)
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> change = exp(e) − 1
 </span></code></pre></div>
-<p><code>effect</code> is what the test is after: how much more, or less, the comparison version uses than the baseline. <code>β</code> is how much more the machines of installation b use than those of installation a for the same work, for instance 1.1 when they use 10% more. In the first phase, the comparison runs on installation b, so the ratio measured in each block is the effect times <code>β</code>. Once swapped, the comparison runs on installation a, and the ratio is the effect divided by <code>β</code>. With logarithms, <code>β</code> turns into a term that the second phase subtracts as much as the first one adds. For instance, with a real effect of +3%, and machines of installation b using 10% more CPU for the same work:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> phase 1, comparison on installation b:   1.03 × 1.10 = 1.133   →  +13.3%
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> phase 2, comparison on installation a:   1.03 / 1.10 = 0.936   →   −6.4%
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> both phases:   exp((ln 1.133 + ln 0.936) / 2) − 1 = +3.0%
+<p><code>effect</code> is what the test is after: how much more, or less, the comparison version uses than the baseline. <code>β</code> is how much more the machines of installation b use than those of installation a for the same work, for instance 1.1 when they use 10% more. In phases 1 and 3, the comparison runs on installation b, so the ratio measured in each block is the effect times <code>β</code>. In phases 2 and 4, with the versions swapped, the comparison runs on installation a, and the ratio is the effect divided by <code>β</code>. With logarithms, <code>β</code> turns into a term that phases 2 and 4 subtract as much as phases 1 and 3 add. For instance, with a real effect of +3%, and machines of installation b using 10% more CPU for the same work:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a> phases 1 and 3, comparison on b:   1.03 × 1.10 = 1.133   →  +13.3%
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> phases 2 and 4, comparison on a:   1.03 / 1.10 = 0.936   →   −6.4%
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> all phases:   exp((2 ln 1.133 + 2 ln 0.936) / 4) − 1 = +3.0%
 </span></code></pre></div>
-<p>Without the swap, this run would have reported a regression of 13.3%.</p>
+<p>Without the swaps, this run would have reported a regression of 13.3%.</p>
 <p>Ratios also make the comparison independent of the scale: a 3% regression is 3% whether the Agent uses 100 or 500 millicores. And the logarithm treats increases and decreases alike: doubling is <code>+ln 2</code>, halving <code>−ln 2</code>.</p>
 <h2 id="is-the-change-real">Is the change real?<a class="headerlink" href="#is-the-change-real" title="Permanent link">&para;</a></h2>
-<p>If both versions cost the same, <code>e</code> would only differ from 0 by noise. The test estimates this noise from how much the log ratios <code>rₖ</code> vary from one block to the next in each phase, and computes <code>t</code>, the ratio of <code>e</code> to its standard error <code>SE(e)</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a> SE(e) = ½ √(s₁²/n₁ + s₂²/n₂)
+<p>If both versions cost the same, <code>e</code> would only differ from 0 by noise. The test estimates this noise from how much the log ratios <code>rᵢ</code> vary from one block to the next in each phase, and computes <code>t</code>, the ratio of <code>e</code> to its standard error <code>SE(e)</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a> vₖ = sₖ² / nₖ           the squared standard error of mₖ
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        e              m₁ + m₂
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a> t = ───────  =  ────────────────────
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>      SE(e)       √(s₁²/n₁ + s₂²/n₂)
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a> SE(e) = ¼ √(v₁ + v₂ + v₃ + v₄)
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        e           m₁ + m₂ + m₃ + m₄
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a> t = ───────  =  ───────────────────────
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>      SE(e)       √(v₁ + v₂ + v₃ + v₄)
 </span></code></pre></div>
-<p><code>s₁²</code> and <code>s₂²</code> are the variances of the <code>rₖ</code> of each phase, and <code>n₁</code> and <code>n₂</code> their numbers of blocks.</p>
-<p>The farther <code>t</code> is from 0, the less likely the change is due to noise alone. As in Welch's t-test, <code>t</code> follows Student's t-distribution, with degrees of freedom given by the Welch–Satterthwaite equation: between 3 and 6 with 4 blocks per phase. The <strong>p-value</strong> is the probability, if both versions cost the same, to get a <code>t</code> at least this far from 0 by chance alone. A change is significant when its p-value is below the significance level.</p>
+<p><code>sₖ²</code> is the variance of the <code>rᵢ</code> of phase k, and <code>nₖ</code> its number of blocks.</p>
+<p>The farther <code>t</code> is from 0, the less likely the change is due to noise alone. As in Welch's t-test, <code>t</code> follows Student's t-distribution, with degrees of freedom given by the Welch–Satterthwaite equation:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>                     (v₁ + v₂ + v₃ + v₄)²
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a> df = ───────────────────────────────────────────────────────────
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>       v₁²/(n₁ − 1) + v₂²/(n₂ − 1) + v₃²/(n₃ − 1) + v₄²/(n₄ − 1)
+</span></code></pre></div>
+<p>With another even number of phases, set with <code>E2E_BENCHMARKEKS_PHASES</code>, <code>e</code> is the mean of the <code>mₖ</code> of all the phases, half of them on each installation, the sums run over all the phases, and ¼ becomes 1 divided by their number.</p>
+<p>With 3 blocks in each of 4 phases, <code>df</code> is between 2 and 8: 8 when the four phases are about as noisy, 2 when one of them is much noisier than the others. <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmark/stats.go#L26"><code>meanOfMeansTTest</code></a> computes <code>t</code> and <code>df</code>. The <strong>p-value</strong> is the probability, if both versions cost the same, to get a <code>t</code> at least this far from 0 by chance alone. A change is significant when its p-value is below the significance level.</p>
 <h3 id="many-comparisons-at-once">Many comparisons at once<a class="headerlink" href="#many-comparisons-at-once" title="Permanent link">&para;</a></h3>
 <p>At a significance level of 5%, each comparison of two identical versions has a 5% chance to come out significant by chance. Over 11 comparisons, the chance that at least one does is 43%: nearly half of the runs comparing a version with itself would report a change.</p>
-<p>So the test divides the level by the number of comparisons, which is the Bonferroni correction: each comparison is significant below 0.05 / 11 ≈ 0.0045, and the chance of any false verdict in a run stays below 5%. With 4 blocks per phase, a change then needs a <code>t</code> beyond 4.4 to 7.7, depending on the degrees of freedom: it must stand well clear of the noise.</p>
+<p>So the test divides the level by the number of comparisons, which is the Bonferroni correction: each comparison is significant below 0.05 / 11 ≈ 0.0045, and the chance of any false verdict in a run stays below 5%. With 3 blocks in each of 4 phases, a change then needs a <code>t</code> beyond 3.9 to 14.8, depending on the degrees of freedom: it must stand well clear of the noise.</p>
 <h2 id="is-the-change-large-enough">Is the change large enough?<a class="headerlink" href="#is-the-change-large-enough" title="Permanent link">&para;</a></h2>
 <p>A significant change can still be too small to matter: with very stable data, a change of 1% can be significant. So a change must also be at least as large as two thresholds:</p>
 <ul>
@@ -4499,26 +4508,26 @@
 </tr>
 </tbody>
 </table>
-<p>The <code>kubelet</code> check gets a larger threshold because its run time varies from one Agent pod to another: see <a href="#limits">the limits</a>. The thresholds are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L96"><code>test/new-e2e/tests/containers/benchmarkeks_test.go</code></a>, and each report states those it applied.</p>
+<p>The <code>kubelet</code> check gets a larger threshold because its run time varies from one Agent pod to another: see <a href="#limits">the limits</a>. The thresholds are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L101"><code>test/new-e2e/tests/containers/benchmarkeks_test.go</code></a>, and each report states those it applied.</p>
 <h2 id="the-verdict">The verdict<a class="headerlink" href="#the-verdict" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a> p-value ≥ 0.05 / 11 ? ─────────── yes ──► unchanged: it could be noise
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>     │ no
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>     ▼
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a> |Δ| &lt; absolute threshold ? ────── yes ──► unchanged: too small to matter
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>     │ no
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>     ▼
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a> change ≥ +relative threshold ? ── yes ──► regression
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>     │ no
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>     ▼
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a> change ≤ −relative threshold ? ── yes ──► improvement
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>     │ no
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>     ▼
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a> unchanged: significant, but too small to matter
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a> p-value ≥ 0.05 / 11 ? ─────────── yes ──► unchanged: it could be noise
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>     │ no
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>     ▼
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a> |Δ| &lt; absolute threshold ? ────── yes ──► unchanged: too small to matter
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>     │ no
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>     ▼
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a> change ≥ +relative threshold ? ── yes ──► regression
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>     │ no
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>     ▼
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a> change ≤ −relative threshold ? ── yes ──► improvement
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>     │ no
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>     ▼
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a> unchanged: significant, but too small to matter
 </span></code></pre></div>
 <p><code>Δ</code> is the difference between the <strong>Comparison</strong> and <strong>Baseline</strong> columns of <a href="../#read-the-result">the report</a>.</p>
 <p>A comparison is an <strong>error</strong> when the test couldn't make it: a block without data for a version, a mean that isn't positive, an Agent status that couldn't be read. Missing data is never taken for a lack of change, as it could hide a regression. Errors and regressions fail the test.</p>
 <h2 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h2>
-<p>Before the benchmark was merged, it ran on pairs of releases whose differences were known:</p>
+<p>Before the benchmark was merged, it ran on pairs of releases whose differences were known, in 2 phases of 20 minutes, as it then did:</p>
 <table>
 <thead>
 <tr>
@@ -4563,7 +4572,7 @@
 <p>These runs compared the memory through <code>container.memory.usage</code>, which the benchmark has since replaced with <code>container.memory.working_set</code>.</p>
 <h2 id="limits">Limits<a class="headerlink" href="#limits" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Some noise escapes the p-value.</strong> The p-value only accounts for the noise from one block to the next. Some differences last as long as an Agent process, and are drawn anew at each start: for instance, the run time of the <code>kubelet</code> check varies from one Agent pod to another. In the A/A run of <a href="../#read-the-result">the example report</a>, it differed by 13.4% with a p-value of 0.001: significant, but below its threshold of 20%. The thresholds guard against such differences, which is why they are calibrated with A/A runs.</li>
+<li><strong>Some noise escapes the p-value.</strong> The p-value only accounts for the noise from one block to the next. Some differences last as long as an Agent process, and are drawn anew at each start: for instance, the run time of the <code>kubelet</code> check varies from one Agent pod to another. In the A/A run of <a href="../#read-the-result">the example report</a>, it differed by 13.4% with a p-value of 0.001: significant, but below its threshold of 20%. In a validation of 2026-11-07, with 2 phases, metrics that no change affected often had a p-value below 0.0045, such as the CPU usage of the node Agents in 3 runs of 8. The 4 phases average this noise over twice as many processes of each version as 2 phases did, which divides it by √2 (see <a href="../how-it-works/#why-four-phases">why four phases</a>), but the p-value still ignores it. The thresholds guard against such differences, which is why they are calibrated with A/A runs.</li>
 <li><strong>Small changes pass.</strong> A change below the thresholds is unchanged, however real: the benchmark catches large regressions, not slow drifts. Small regressions can add up over several versions, one at a time, as the memory of the node Agent did from 7.73.3 to 7.78.0.</li>
 <li><strong>Compare versions within a run, not results across runs.</strong> The node images of EKS and the version of KWOK aren't pinned, so two runs don't run on exactly the same system. Each run compares its two versions on the same system.</li>
 </ul>

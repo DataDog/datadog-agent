@@ -4274,7 +4274,7 @@
 <p>Each comparison gets a verdict: <strong>unchanged</strong>, <strong>improvement</strong>, <strong>regression</strong>, or <strong>error</strong> when it couldn't be measured. A regression or an error fails the test. Before measuring anything, the test <a href="how-it-works/#the-guards">verifies that both versions work</a>.</p>
 <p>The next pages explain <a href="how-it-works/">how the test works</a> and <a href="statistics/">how it decides that a change is real</a>.</p>
 <h2 id="run-it-in-ci">Run it in CI<a class="headerlink" href="#run-it-in-ci" title="Permanent link">&para;</a></h2>
-<p>The benchmark keeps an EKS cluster for about two hours, so it only runs on demand. When a pull request changes the benchmark or the code it measures, the job <code>new-e2e-containers-benchmarkeks-instructions</code> posts a comment on the pull request explaining how to run it.</p>
+<p>The benchmark keeps an EKS cluster for about two and a half hours, so it only runs on demand. When a pull request changes the benchmark or the code it measures, the job <code>new-e2e-containers-benchmarkeks-instructions</code> posts a comment on the pull request explaining how to run it.</p>
 <p>To run it, play the manual job <code>new-e2e-containers-benchmarkeks-baseline</code> of the pipeline. The other jobs of the benchmark wait for it, then start on their own:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>manual ▶ new-e2e-containers-benchmarkeks-baseline
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>           │  finds the baseline commit and copies its images to agent-qa
@@ -4290,7 +4290,7 @@
 <p>The baseline commit is the merge base of the branch with the <code>base_branch</code> of <code>release.json</code>, which is <code>main</code>, or the release branch for a branch based on one. When no pipeline built images for that commit, it is the closest older commit of the base branch with images, up to <a href="https://github.com/DataDog/datadog-agent/blob/main/tasks/libs/testing/benchmarkeks.py#L40">about 4 days old</a>. Otherwise, the job fails and asks to rebase the branch on its base branch. The E2E tests pull their images from <code>agent-qa</code>, where images expire after a day, so the job copies the baseline images there again from the registry of the builds, which keeps them for months.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The benchmark jobs only exist in the full pipelines of development branches. Following <a href="https://github.com/DataDog/datadog-agent/blob/main/.gitlab/test/e2e/e2e_containers_benchmarkeks.yml#L18">their rules</a>, they don't exist in:</p>
+<p>The benchmark jobs only exist in the full pipelines of development branches. Following <a href="https://github.com/DataDog/datadog-agent/blob/main/.gitlab/test/e2e/e2e_containers_benchmarkeks.yml#L19">their rules</a>, they don't exist in:</p>
 <ul>
 <li>the pipelines of <code>main</code>, release branches, the merge queue and tags;</li>
 <li>light pipelines, such as those of pull requests based on another branch than <code>main</code> or a release branch;</li>
@@ -4304,7 +4304,7 @@
 <li><code>report.json</code>, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;</li>
 <li><code>report.md</code>, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.</li>
 </ul>
-<p>The report gives the times of both phases, then a table like this one, from a CI run comparing two builds of the same Agent code:</p>
+<p>The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes:</p>
 <table>
 <thead>
 <tr>
@@ -4419,7 +4419,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Baseline</strong> and <strong>Comparison</strong> are the averages of each version over both phases, and the value in parentheses in <strong>Change</strong> is their difference. The percentage comes from the ratios of both versions block by block, averaged over both phases, which <a href="statistics/#cancelling-out-the-machines">cancels out the machines</a>: it can differ slightly from the ratio of the two columns. <a href="statistics/">How the test decides</a> explains the p-value and the verdict.</p>
+<p><strong>Baseline</strong> and <strong>Comparison</strong> are the averages of each version over the phases, and the value in parentheses in <strong>Change</strong> is their difference. The percentage comes from the ratios of both versions block by block, averaged over the phases, which <a href="statistics/#cancelling-out-the-machines">cancels out the machines</a>: it can differ slightly from the ratio of the two columns. <a href="statistics/">How the test decides</a> explains the p-value and the verdict.</p>
 <p>In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the <code>kubelet</code> check (−13.4%, under 20%). Both builds run the same code: these are differences that <a href="statistics/#limits">escape the p-value</a>, and that the thresholds absorb.</p>
 <p>The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.</p>
 <h2 id="run-it-locally">Run it locally<a class="headerlink" href="#run-it-locally" title="Permanent link">&para;</a></h2>
@@ -4458,7 +4458,7 @@
 <p class="admonition-title">Warning</p>
 <p>Set the Cluster Agent image too: without it, both versions run the same default Cluster Agent image. Without an explicit image, the E2E framework picks one in its usual <a href="https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/components/datadog/agent/docker_image.go#L56">resolution order</a>, which uses the images of the pipeline when <code>E2E_PIPELINE_ID</code> and <code>E2E_COMMIT_SHA</code> are set.</p>
 </div>
-<p>The test reads these environment variables:</p>
+<p>The test reads these environment variables, whose defaults are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L67">the suite</a>:</p>
 <table>
 <thead>
 <tr>
@@ -4469,14 +4469,19 @@
 </thead>
 <tbody>
 <tr>
+<td><code>E2E_BENCHMARKEKS_PHASES</code></td>
+<td><code>4</code></td>
+<td>The number of measurement phases, even and at least 2: the installations swap their versions between consecutive phases</td>
+</tr>
+<tr>
 <td><code>E2E_BENCHMARKEKS_WARMUP</code></td>
 <td><code>10m</code></td>
 <td>How long the Agents run before each measurement phase starts</td>
 </tr>
 <tr>
 <td><code>E2E_BENCHMARKEKS_DURATION</code></td>
-<td><code>20m</code></td>
-<td>How long each of the two measurement phases lasts, a whole number of minutes, at least <code>3m</code></td>
+<td><code>15m</code></td>
+<td>How long each measurement phase lasts, a whole number of minutes, at least <code>3m</code></td>
 </tr>
 <tr>
 <td><code>E2E_BENCHMARKEKS_REPORT_DIR</code></td>
@@ -4495,7 +4500,7 @@
 </tr>
 </tbody>
 </table>
-<p>Shorter durations make a quick try possible, at the cost of a less sensitive comparison: the <a href="statistics/#blocks">blocks</a> then shrink, down to 1 minute, so that each phase still holds at least 3 of them.</p>
+<p>Shorter durations, or 2 phases, make a quick try possible, at the cost of a less sensitive comparison: the <a href="statistics/#blocks">blocks</a> then shrink, down to 1 minute, so that each phase still holds at least 3 of them, and fewer phases average fewer Agent processes (see <a href="how-it-works/#why-four-phases">why four phases</a>).</p>
 <p>To look around the cluster without running the test, <code>dda inv aws.create-benchmarkeks</code> deploys the same scenario, and <code>dda inv aws.destroy-benchmarkeks</code> deletes it: see <a href="https://github.com/DataDog/datadog-agent/blob/main/tasks/e2e_framework/aws/benchmarkeks.py"><code>tasks/e2e_framework/aws/benchmarkeks.py</code></a> for their options, and the <a href="../../manual-qa/#stack-lifecycle">stack lifecycle</a> of manual QA.</p>
 <h2 id="where-the-code-lives">Where the code lives<a class="headerlink" href="#where-the-code-lives" title="Permanent link">&para;</a></h2>
 <table>

@@ -1452,6 +1452,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#why-four-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Why four phases
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4434,6 +4445,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#why-four-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Why four phases
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4517,7 +4539,7 @@
 
 
 <h1 id="how-the-benchmark-works">How the benchmark works<a class="headerlink" href="#how-the-benchmark-works" title="Permanent link">&para;</a></h1>
-<p>The benchmark runs the baseline and the comparison versions of the Agent at the same time, in the same EKS cluster, each in an installation of its own. Both installations monitor the same workload, so that the only difference between them is the version of the Agent. Half way through, the installations swap their versions, which cancels out the differences between their machines.</p>
+<p>The benchmark runs the baseline and the comparison versions of the Agent at the same time, in the same EKS cluster, each in an installation of its own. Both installations monitor the same workload, so that the only difference between them is the version of the Agent. The measurement runs in four phases, between which the installations swap their versions, which cancels out the differences between their machines.</p>
 <h2 id="the-cluster">The cluster<a class="headerlink" href="#the-cluster" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─ EKS cluster ────────────────────────────────────────────────────────────┐
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                                                                          │
@@ -4682,34 +4704,43 @@
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a> │    functional tests, during the warm-up
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a> │    warm-up · 10 min
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a> │
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a> ├─ phase 1 · 20 min ────────────  installation a: baseline
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a> ├─ phase 1 · 15 min ────────────  installation a: baseline
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a> │    ├ block 1 · 5 min             installation b: comparison
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a> │    ├ block 2 · 5 min
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a> │    ├ block 3 · 5 min
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a> │    └ block 4 · 5 min
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a> │
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a> ●  Swap: installation a gets the comparison images,
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a> │        installation b the baseline ones
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a> │    wait for all the Agents to be ready
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a> │    verify their checks again, during the warm-up
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a> │    warm-up · 10 min
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a> │
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a> ├─ phase 2 · 20 min ────────────  installation a: comparison
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a> │    ├ block 1 · 5 min             installation b: baseline
-</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a> │    ├ block 2 · 5 min
-</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a> │    ├ block 3 · 5 min
-</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a> │    └ block 4 · 5 min
-</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a> │
-</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a> ●  Wait for dddev to ingest the last minute,
-</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>    compare the versions, write the report
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a> │    └ block 3 · 5 min
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a> │
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a> ●  Swap: installation a gets the comparison images,
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a> │        installation b the baseline ones
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a> │    wait for all the Agents to be ready
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a> │    verify their checks again, during the warm-up
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a> │    warm-up · 10 min
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a> │
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a> ├─ phase 2 · 15 min ────────────  installation a: comparison
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a> │    └ 3 blocks of 5 min           installation b: baseline
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a> │
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a> ●  Swap back, same steps · warm-up · 10 min
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a> │
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a> ├─ phase 3 · 15 min ────────────  installation a: baseline
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a> │    └ 3 blocks of 5 min           installation b: comparison
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a> │
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a> ●  Swap, same steps · warm-up · 10 min
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a> │
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a> ├─ phase 4 · 15 min ────────────  installation a: comparison
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a> │    └ 3 blocks of 5 min           installation b: baseline
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a> │
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a> ●  Wait for dddev to ingest the last minute of each phase,
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>    compare the versions, write the report
 </span></code></pre></div>
 <p>A phase starts on a whole minute, once its warm-up is over and the checks are verified: see <a href="#the-guards">the guards</a>.</p>
-<p>The swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once. The suite reads the images to swap from the specs of the pods, so the swap works with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.</p>
-<p>With the default durations, the test lasts about 75 minutes once the Agents are ready.</p>
+<p>Each swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once, and its Cluster Agent and cluster checks runner too, as long as both versions have different images: each phase then runs new Agent processes. The suite reads the images to swap from the specs of the pods, so the swaps work with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.</p>
+<p>With the default durations, the test lasts about 110 minutes once the Agents are ready. <code>E2E_BENCHMARKEKS_PHASES</code> sets another even number of phases: see <a href="../#run-it-locally">Run it locally</a>. The phases and the swaps are in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L442"><code>Test10Performance</code></a>.</p>
 <h3 id="why-the-installations-swap-their-versions">Why the installations swap their versions<a class="headerlink" href="#why-the-installations-swap-their-versions" title="Permanent link">&para;</a></h3>
 <p>All the nodes have the same instance type, but not the same machine: for the same work, a node can use up to 20% more CPU time than another one. If the baseline always ran on the node pools of installation a, and the comparison on those of installation b, the difference between these machines would show up as a difference between the versions.</p>
-<p>So each version runs one phase on the node pools of each installation, and the machine difference cancels out between the phases: <a href="../statistics/#cancelling-out-the-machines">How the test decides</a> shows how.</p>
+<p>So each version runs half of the phases on the node pools of each installation, and the machine difference cancels out between the phases: <a href="../statistics/#cancelling-out-the-machines">How the test decides</a> shows how.</p>
 <p>Running both versions at the same time, rather than one after the other on the same nodes, also gives them the same workload, the same API server and the same conditions on AWS. Whatever happens in the cluster at a given time happens to both.</p>
+<h3 id="why-four-phases">Why four phases<a class="headerlink" href="#why-four-phases" title="Permanent link">&para;</a></h3>
+<p>Two phases, one on each installation, would cancel out the machines too, and the benchmark ran that way at first. But part of the noise is drawn anew at each start of an Agent process, and lasts as long as the process: two processes of the same binary, on the same machine, can settle at different costs. For instance, the working set of the Cluster Agent differed by up to ±5% from one process of the same binary to another, in a validation of 2026-11-07 made of A/A runs and of reverts of past optimizations. With 2 phases, a run compares a single process of each version on each installation: 2 pairs of processes for the Cluster Agent and the cluster checks runner, which made one false regression of +5.1% in that validation.</p>
+<p>With 4 phases, each version runs twice on each installation, in new processes at every phase: 4 Cluster Agents and 4 cluster checks runners per version rather than 2, and twice as many node Agents. The estimate averages 4 pairs of processes rather than 2, which divides the part of its noise drawn per process by √2, and the machines still cancel out, with two phases on each side. Each phase is shorter, 15 minutes rather than 20, so that the phases and their warm-ups take 100 minutes rather than 60.</p>
 <h2 id="what-is-measured">What is measured<a class="headerlink" href="#what-is-measured" title="Permanent link">&para;</a></h2>
 <h3 id="cpu-and-memory">CPU and memory<a class="headerlink" href="#cpu-and-memory" title="Permanent link">&para;</a></h3>
 <p>The benchmark queries dddev for three metrics of the <code>agent</code> container of the node Agents and of the cluster checks runners, and of the <code>cluster-agent</code> container of the Cluster Agents:</p>
@@ -4732,7 +4763,7 @@
 <li><code>kubelet</code>, on the node Agents;</li>
 <li><code>kubernetes_state_core</code>, on the cluster checks runners.</li>
 </ul>
-<p>The suite runs <code>agent status collector --json</code> in the <code>agent</code> container of each measured node Agent and cluster checks runner, at the start of each block and at the end of the phase. The Agent keeps the total number of runs of each check instance, and the durations of its last 32 runs, so the difference between two snapshots gives the exact runs of a block. A block of 5 minutes holds 20 runs of a check running every 15 seconds, below the 32 the Agent keeps. Each block then contributes the mean duration of the runs of the check in all the measured Agents of the installation.</p>
+<p>The suite runs <code>agent status collector --json</code> in the <code>agent</code> container of each measured node Agent and cluster checks runner, at the start of each block and at the end of each phase. The Agent keeps the total number of runs of each check instance, and the durations of its last 32 runs, so the difference between two snapshots gives the exact runs of a block. A block of 5 minutes holds 20 runs of a check running every 15 seconds, below the 32 the Agent keeps. Each block then contributes the mean duration of the runs of the check in all the measured Agents of the installation.</p>
 <p>The <code>container</code> and <code>containerd</code> checks aren't timed. They share a 2-second cache of the container stats that whichever runs first fills, and that order changes at each start of the Agent, so their run times swung by up to 97% between the two installations in runs whose profiles showed no change. Their cost still shows in the CPU usage of the node Agents, and their metric samples are still compared.</p>
 <h2 id="the-guards">The guards<a class="headerlink" href="#the-guards" title="Permanent link">&para;</a></h2>
 <p>A broken check costs nothing: it must never pass for a performance improvement. So the suite verifies that both versions work before and during the measurement.</p>
@@ -4758,7 +4789,7 @@
 </tr>
 <tr>
 <td><code>Test10Performance</code></td>
-<td>From the time the Agents are ready, before the warm-up, to the end of each phase, no measured container restarts and no measured pod is replaced: a restart skews the measurement, and hints at a crash or an OOM kill. The churn orchestrator doesn't restart either: a restart could leave the workload frozen. The checks still run after the swap</td>
+<td>From the time the Agents are ready, before the warm-up, to the end of each phase, no measured container restarts and no measured pod is replaced: a restart skews the measurement, and hints at a crash or an OOM kill. The churn orchestrator doesn't restart either: a restart could leave the workload frozen. The checks still run after each swap</td>
 </tr>
 </tbody>
 </table>
