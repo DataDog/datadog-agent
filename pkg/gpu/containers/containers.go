@@ -59,10 +59,7 @@ func HasGPUs(container *workloadmeta.Container) bool {
 		// We have no specific support for other runtimes, so fall back to the Kubernetes device
 		// assignment if it's there
 		for _, resource := range container.ResolvedAllocatedResources {
-			// The ID check makes a renamed shared resource (e.g.
-			// nvidia.com/gpu.shared) count as a GPU allocation the same way
-			// nvidia.com/gpu does.
-			if gpuutil.IsNvidiaKubernetesAllocation(resource.Name, resource.ID) {
+			if gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
 				return true
 			}
 		}
@@ -102,7 +99,7 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 // in its Kubernetes allocated resources, which an ECS task never does.
 func hasKubernetesGPUResources(container *workloadmeta.Container) bool {
 	for _, resource := range container.ResolvedAllocatedResources {
-		if gpuutil.IsNvidiaKubernetesAllocation(resource.Name, resource.ID) {
+		if gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
 			return true
 		}
 	}
@@ -236,11 +233,8 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 	draFullyMapped := draResources > 0 && mapped >= draResources
 
 	for _, resource := range container.ResolvedAllocatedResources {
-		// Only consider NVIDIA GPUs. The allocation is identified by its ID as
-		// well as its resource name: a GPU shared by the device plugin may be
-		// exposed under a renamed resource (e.g. nvidia.com/gpu.shared), while
-		// the device ID keeps its NVIDIA shape.
-		if !gpuutil.IsNvidiaKubernetesAllocation(resource.Name, resource.ID) {
+		// Only consider NVIDIA GPUs
+		if !gpuutil.IsNvidiaKubernetesResource(resource.Name, resource.ID) {
 			continue
 		}
 

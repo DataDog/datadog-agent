@@ -13,6 +13,12 @@ import (
 
 // NVIDIA device IDs, as the Kubernetes device plugin reports them, are
 // "GPU-<uuid>" for a physical GPU and "MIG-<uuid>" for a MIG instance.
+// The prefixes are NVML's documented UUID format and are always uppercase,
+// as NVML emits them and the kubelet reports them verbatim (GKE's
+// lowercase "nvidia<index>" scheme is a different, resource-name-based
+// path). Matching is case-sensitive end to end: the device UUID matcher
+// compares NVML's UUIDs exactly, so an unexpected case would surface as an
+// attribution error rather than a wrong match.
 const (
 	nvidiaPhysicalDeviceIDPrefix = "GPU-"
 	nvidiaMIGDeviceIDPrefix      = "MIG-"
@@ -72,17 +78,4 @@ func ParseNvidiaDeviceReplica(deviceID string) (NvidiaDeviceReplica, bool) {
 		BaseDeviceID: match[1] + match[2],
 		Replica:      replica,
 	}, true
-}
-
-// IsNvidiaKubernetesAllocation reports whether a device-plugin allocation is
-// an NVIDIA GPU: either its resource name is one of the known NVIDIA
-// resources, or its device ID has the shape of an NVIDIA device ID. The ID
-// check is what makes shared allocations work regardless of the resource
-// name: a time-sliced GPU may be exposed as "nvidia.com/gpu" or renamed
-// (e.g. "nvidia.com/gpu.shared"), while the device ID keeps its shape.
-func IsNvidiaKubernetesAllocation(resourceName, deviceID string) bool {
-	if IsNvidiaKubernetesResource(resourceName) {
-		return true
-	}
-	return IsNvidiaDeviceID(deviceID)
 }
