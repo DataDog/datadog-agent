@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTel Agent: On Linux with glibc, the ``otel-agent`` now caps the number of per-thread
+    malloc arenas at 2 to bound resident memory. glibc hands each contended thread its own
+    arena and never returns a secondary arena's memory to the operating system, so a
+    collector allocating from C on many threads used to settle at the sum of every arena's
+    high-water mark rather than its live set. Set ``MALLOC_ARENA_MAX`` or
+    ``GLIBC_TUNABLES=glibc.malloc.arena_max=N`` in the process environment to choose a
+    different limit; the ``otel-agent`` leaves an operator-provided value untouched.

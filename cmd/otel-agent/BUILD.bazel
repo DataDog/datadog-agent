@@ -16,6 +16,8 @@ go_library(
         "//cmd/otel-agent/command",
         "//comp/logs-library/metrics",
         "//pkg/util/flavor",
+        "//pkg/util/log",
+        "//pkg/util/mallocarena",
         "//pkg/version",
     ],
 )
