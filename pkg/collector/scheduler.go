@@ -108,11 +108,9 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
 
-	if onDemandDepsEnabled() {
-		checkScheduler.depInstaller = newDepInstallerClient()
-		log.Infof("On-demand python dependencies enabled: deferred checks will be retried every %s", deferredRetryInterval())
-		checkScheduler.startDeferredLoop()
-	}
+	checkScheduler.depInstaller = newDepInstallerClient()
+	log.Infof("On-demand python dependencies: deferred checks will be retried every %s", deferredRetryInterval())
+	checkScheduler.startDeferredLoop()
 
 	return checkScheduler
 }

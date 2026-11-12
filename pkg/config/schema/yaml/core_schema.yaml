@@ -9269,13 +9269,6 @@ properties:
         comment: Name of the OCI package providing the third-party python
           dependencies. Also used as the allowlist of the restricted installer
           endpoint.
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        comment: Defer python checks whose declared dependencies are missing and
-          trigger a background install of the dependency package through the
-          fleet installer instead of failing to load them.
       installer_socket_path:
         node_type: setting
         type: string

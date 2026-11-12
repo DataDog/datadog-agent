@@ -36,10 +36,6 @@ type deferredConfig struct {
 	deferredAt time.Time
 }
 
-func onDemandDepsEnabled() bool {
-	return pkgconfigsetup.Datadog().GetBool("on_demand_python_deps.enabled")
-}
-
 func deferredRetryInterval() time.Duration {
 	seconds := pkgconfigsetup.Datadog().GetInt("on_demand_python_deps.retry_interval")
 	if seconds < 1 {

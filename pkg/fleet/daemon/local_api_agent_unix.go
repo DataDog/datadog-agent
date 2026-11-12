@@ -42,12 +42,8 @@ type restrictedLocalAPIImpl struct {
 
 // NewRestrictedLocalAPI returns a LocalAPI exposing the restricted dependency
 // install/remove endpoint, served from a unix socket in the installer run
-// path with permissions allowing the dd-agent user. It returns a no-op
-// implementation when on_demand_python_deps is not enabled.
+// path with permissions allowing the dd-agent user.
 func NewRestrictedLocalAPI(daemon Daemon, config agentconfig.Reader) (LocalAPI, error) {
-	if !config.GetBool("on_demand_python_deps.enabled") {
-		return nil, nil
-	}
 	socketPath := filepath.Join(paths.RunPath, restrictedSocketName)
 	if err := os.RemoveAll(socketPath); err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)

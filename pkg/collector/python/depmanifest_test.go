@@ -27,7 +27,6 @@ func writeDepsManifest(t *testing.T, path string) {
 
 func TestDepsPendingFor(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.Set("on_demand_python_deps.enabled", true, pkgconfigmodel.SourceFile)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
 	writeDepsManifest(t, manifestPath)
@@ -50,23 +49,8 @@ func TestDepsPendingFor(t *testing.T) {
 	assert.Empty(t, missing, "disk declares no dependency, nothing should be deferred")
 }
 
-func TestDepsPendingForDisabled(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("on_demand_python_deps.enabled", false, pkgconfigmodel.SourceFile)
-
-	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
-	writeDepsManifest(t, manifestPath)
-	cfg.Set("on_demand_python_deps.manifest_path", manifestPath, pkgconfigmodel.SourceFile)
-
-	prevPythonPath := PythonPath
-	defer func() { PythonPath = prevPythonPath }()
-	PythonPath = "[]"
-	assert.Empty(t, depsPendingFor("mysql"))
-}
-
 func TestDistInfoAloneIsNotImportable(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.Set("on_demand_python_deps.enabled", true, pkgconfigmodel.SourceFile)
 
 	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
 	writeDepsManifest(t, manifestPath)

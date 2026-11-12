@@ -33,15 +33,11 @@ var (
 
 // loadDepsManifest reads the on-demand dependency manifest from the path
 // configured in on_demand_python_deps.manifest_path. It returns nil when the
-// feature is disabled or when the manifest cannot be read, in which case
-// dependency probing is skipped and checks load or fail exactly as they do
-// today.
+// manifest cannot be read, in which case dependency probing is skipped and
+// checks load or fail exactly as they do without the feature.
 func loadDepsManifest() *depsManifest {
 	depsManifestOnce.Do(func() {
 		cfg := pkgconfigsetup.Datadog()
-		if !cfg.GetBool("on_demand_python_deps.enabled") {
-			return
-		}
 		manifestPath := cfg.GetString("on_demand_python_deps.manifest_path")
 		if manifestPath == "" {
 			log.Debug("python loader: on_demand_python_deps.manifest_path is empty, dependency probing disabled")
