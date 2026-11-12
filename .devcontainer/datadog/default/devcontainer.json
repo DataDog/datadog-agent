@@ -2,7 +2,7 @@
 // configuration changes, edit prebuild-devcontainer.json in this folder instead
 {
 
-  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:e666984a3efc603c5ffb4063a6b4b97356ddd2b852473fdb724e5543f63865c6",
+  "image": "registry.ddbuild.io/workspaces/prebuilt/datadog/datadog-agent@sha256:7dc584087fd49842259f525a19b1cf8d6d82aad20c161a7b69cf11ff9aa59675",
   "runArgs": [
     "--pid=host",
     "--cgroupns=host",
