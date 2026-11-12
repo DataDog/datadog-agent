@@ -119,6 +119,7 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	// Verify tags on traces and spans
 	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
@@ -184,6 +185,7 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	// Verify tags on traces and spans
 	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
@@ -264,6 +266,7 @@ func TestTracesWithOperationAndResourceName(
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
 	require.NotEmpty(s.T(), tps)
@@ -1110,4 +1113,17 @@ func getTagMapFromSlice(t assert.TestingT, tagSlice []string) map[string]string 
 		m[kv[0]] = kv[1]
 	}
 	return m
+}
+
+// requireIdxTracePayloads checks that every trace payload was sent in the string-indexed
+// (V1) format, which is what the trace-agent emits for OTLP traces unless the
+// disable-convert-traces feature is set. LegacyTracerPayloads accepts both formats, so
+// without this check the tests would also pass if OTLP traces fell back to the legacy
+// pipeline.
+func requireIdxTracePayloads(t require.TestingT, traces []*aggregator.TracePayload) {
+	for _, tp := range traces {
+		require.NotNil(t, tp.AgentPayload)
+		require.Empty(t, tp.TracerPayloads, "OTLP traces should not be sent as legacy tracer payloads")
+		require.NotEmpty(t, tp.IdxTracerPayloads, "OTLP traces should be sent as indexed tracer payloads")
+	}
 }
