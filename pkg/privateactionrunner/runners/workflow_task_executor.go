@@ -7,6 +7,7 @@ package runners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -143,6 +144,26 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
 	timeoutSeconds := e.config.TaskTimeoutSeconds
+
+	action, err := e.getAllowedAction(preparedTask.Task)
+	if err != nil {
+		return nil, err
+	}
+	if provider, ok := action.(types.TaskTimeoutProvider); ok {
+		timeout, present, err := provider.TaskTimeout(preparedTask.Task)
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			output, err := e.RunTask(timeoutCtx, preparedTask)
+			if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
+				return nil, fmt.Errorf("task execution exceeded timeout of %s", timeout)
+			}
+			return output, err
+		}
+	}
 
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
 	defer timeoutCancel()

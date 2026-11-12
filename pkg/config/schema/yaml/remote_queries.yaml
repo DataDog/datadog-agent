@@ -1,0 +1,19 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/remote_queries.yaml
+node_type: section
+title: Remote Queries
+type: object
+visibility: public
+description: Remote query execution by supporting loaded integration checks.
+tags:
+- full-agent-only:true
+properties:
+  enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Enables remote queries over the authenticated local Agent IPC channel.
+      The Private Action Runner must also allow
+      com.datadoghq.remoteaction.queries.execute in its actions_allowlist.

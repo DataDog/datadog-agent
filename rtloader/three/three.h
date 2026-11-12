@@ -67,6 +67,9 @@ public:
     char *discoverConfig(RtLoaderPyObject *py_class, const char *service_json);
     char *runCheck(RtLoaderPyObject *check);
     void cancelCheck(RtLoaderPyObject *check);
+    bool hasRemoteQuery(RtLoaderPyObject *check);
+    char *remoteQuery(RtLoaderPyObject *check, const char *request);
+    bool cancelRemoteQuery(RtLoaderPyObject *check, const char *run_id);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);

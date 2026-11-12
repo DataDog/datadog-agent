@@ -7,6 +7,8 @@
 package middleware
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -33,6 +35,11 @@ type CheckWrapper struct {
 	done bool
 	// Locked while check is running.
 	runM sync.Mutex
+
+	// Remote-query admission never takes runM: scheduled and remote runs overlap.
+	remoteM       sync.Mutex
+	remoteStopped bool
+	remoteCalls   sync.WaitGroup
 }
 
 // NewCheckWrapper returns a wrapped check.
@@ -72,8 +79,63 @@ func (c *CheckWrapper) Run() (err error) {
 
 // Cancel implements Check#Cancel
 func (c *CheckWrapper) Cancel() {
+	c.StopRemoteQueries()
 	c.inner.Cancel()
+	// The integration's cancel waits for its runs. Also keep the wrapper alive
+	// until every admitted bridge call (including cancellation) has returned.
+	c.remoteCalls.Wait()
 	go c.destroySender()
+}
+
+// StopRemoteQueries closes admission before the check is signaled or torn down.
+// It does not wait for any run and is safe to call while the collector is locked.
+func (c *CheckWrapper) StopRemoteQueries() {
+	c.remoteM.Lock()
+	c.remoteStopped = true
+	c.remoteM.Unlock()
+}
+
+func (c *CheckWrapper) admitRemoteQuery() (check.RemoteQuerier, error) {
+	c.remoteM.Lock()
+	defer c.remoteM.Unlock()
+	if c.remoteStopped {
+		return nil, check.ErrRemoteQueryCancelled
+	}
+	inner, ok := c.inner.(check.RemoteQuerier)
+	if !ok {
+		return nil, errors.New("remote queries are not supported")
+	}
+	c.remoteCalls.Add(1)
+	return inner, nil
+}
+
+// RemoteQuery delegates a concurrently admitted call without locking scheduled Run.
+func (c *CheckWrapper) RemoteQuery(ctx context.Context, request string) (string, error) {
+	inner, err := c.admitRemoteQuery()
+	if err != nil {
+		return "", err
+	}
+	defer c.remoteCalls.Done()
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	return inner.RemoteQuery(ctx, request)
+}
+
+// CancelRemoteQuery cancels a run only while this check still admits calls.
+func (c *CheckWrapper) CancelRemoteQuery(runID string) error {
+	inner, err := c.admitRemoteQuery()
+	if err != nil {
+		return err
+	}
+	defer c.remoteCalls.Done()
+	return inner.CancelRemoteQuery(runID)
+}
+
+// SupportsRemoteQueries reports whether the underlying check exposes remote queries.
+func (c *CheckWrapper) SupportsRemoteQueries() bool {
+	inner, ok := c.inner.(check.RemoteQuerier)
+	return ok && inner.SupportsRemoteQueries()
 }
 
 func (c *CheckWrapper) destroySender() {

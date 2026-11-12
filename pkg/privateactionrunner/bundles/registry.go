@@ -61,6 +61,7 @@ import (
 	com_datadoghq_remoteaction_networkdevices "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices"
 	com_datadoghq_remoteaction_networks "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networks"
 	com_datadoghq_remoteaction_pcap "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/pcap"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
 	com_datadoghq_remoteaction_rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
@@ -129,6 +130,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(encryptionStore, ipcClient),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.pcap":                    com_datadoghq_remoteaction_pcap.NewPcap(pcapUploader, hostname),
+			"com.datadoghq.remoteaction.queries":                 queries.New(ipcClient),
 			"com.datadoghq.remoteaction.rshell":                  com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),

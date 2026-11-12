@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "queries",
+    srcs = ["queries.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/collector/remotequeries",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/flavor",
+    ],
+)

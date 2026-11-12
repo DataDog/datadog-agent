@@ -135,6 +135,10 @@ public:
     */
     virtual void cancelCheck(RtLoaderPyObject *check) = 0;
 
+    virtual bool hasRemoteQuery(RtLoaderPyObject *check) = 0;
+    virtual char *remoteQuery(RtLoaderPyObject *check, const char *request) = 0;
+    virtual bool cancelRemoteQuery(RtLoaderPyObject *check, const char *run_id) = 0;
+
     //! Pure virtual getCheckWarnings member.
     /*!
       \param check The python object pointer to the check we wish to collect existing warnings for.
