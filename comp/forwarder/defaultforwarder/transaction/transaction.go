@@ -420,7 +420,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			// cancellation. Surface the cancellation as a retryable error so shutdown
 			// keeps the transaction for retry/persistence, preferring at-least-once
 			// delivery over silent loss. This is not a real delivery failure, so error
-			// counters and the circuit breaker are intentionally left untouched.
+			// counters and blockedEndpoints are intentionally left untouched.
 			return 0, nil, fmt.Errorf("request canceled while sending transaction to %q, rescheduling it: %w", logURL, ctx.Err())
 		}
 		// Covers context.DeadlineExceeded (a genuine timeout) as well as any other
