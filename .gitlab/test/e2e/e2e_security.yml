@@ -161,3 +161,26 @@ new-e2e-cspm:
       - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAmazonLinux2023
       - EXTRA_PARAMS: --run TestContainerizedHostBenchmarksAlmaLinux9
   timeout: 35m
+
+new-e2e-cspm-aks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - pkg/compliance/k8sconfig/**/*
+          - test/new-e2e/tests/cspm/aks_test.go
+          - test/new-e2e/tests/cspm/node_config_test.go
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+    EXTRA_PARAMS: --run TestAKSCSPM
+  timeout: 1h
+  retry: !reference [.retry_only_infra_failure, retry]

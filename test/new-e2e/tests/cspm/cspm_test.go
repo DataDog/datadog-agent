@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
@@ -80,22 +81,22 @@ func (s *cspmTestSuite) TestFindings() {
 	}
 }
 
-func (s *cspmTestSuite) waitForSecurityAgentPodReady(namespace, podName string) string {
-	s.T().Helper()
+func waitForSecurityAgentPodReady(t *testing.T, cluster *components.KubernetesCluster, namespace, podName string) string {
+	t.Helper()
 
 	var selectedPodName string
-	require.Eventuallyf(s.T(), func() bool {
-		pod, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+	require.Eventuallyf(t, func() bool {
+		pod, err := cluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
 		if err != nil {
-			s.T().Logf("unable to get pod %s: %v", podName, err)
+			t.Logf("unable to get pod %s: %v", podName, err)
 			return false
 		}
 		if !podHasContainer(pod, "security-agent") {
-			s.T().Logf("pod %s does not contain security-agent yet", pod.Name)
+			t.Logf("pod %s does not contain security-agent yet", pod.Name)
 			return false
 		}
 		if !isContainerReady(pod, "security-agent") {
-			s.T().Logf("security-agent container is not ready yet in pod %s", pod.Name)
+			t.Logf("security-agent container is not ready yet in pod %s", pod.Name)
 			return false
 		}
 		selectedPodName = pod.Name
@@ -132,7 +133,7 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	})
 	require.NoError(s.T(), err)
 	require.Len(s.T(), pods.Items, 1)
-	agentPod := s.waitForSecurityAgentPodReady("datadog", pods.Items[0].Name)
+	agentPod := waitForSecurityAgentPodReady(s.T(), s.Env().KubernetesCluster, "datadog", pods.Items[0].Name)
 
 	// Without a reachable dockerd the scope gate would skip docker rules
 	// on its own, so the test would pass for the wrong reason.
