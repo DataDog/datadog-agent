@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The tags of the GPUs a container holds no longer flow into its GPU
+    metric series through the workload tags: device series carry their own
+    device's tags only, as the process-tag path already filtered.

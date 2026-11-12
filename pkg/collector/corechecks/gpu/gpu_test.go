@@ -1849,6 +1849,40 @@ func TestSharingFractionFollowsSpec(t *testing.T) {
 	}
 }
 
+func TestWorkloadTagCacheFiltersGPUTagsFromContainerTags(t *testing.T) {
+	// The tagger adds to container entities the tags of the GPUs the
+	// container holds, such as gpu_vendor. GPU metrics already carry the tags
+	// of their own device, so the workload tag cache filters the GPU tags
+	// out of the workload tags: keeping them would tag a device's series
+	// with the tags of the other GPUs used by the same container.
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "multi-gpu"},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+	}
+	wmeta.Set(container)
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetTags(
+		taggertypes.NewEntityID(taggertypes.ContainerID, container.ID),
+		"spec-test",
+		[]string{"gpu_vendor:nvidia", "gpu_uuid:gpu-other"},
+		[]string{"pod_name:multi-gpu"},
+		nil,
+		nil,
+	)
+
+	cache, err := NewWorkloadTagCache(fakeTagger, wmeta, nil, testutil.GetTelemetryMock(t), 10)
+	require.NoError(t, err)
+
+	tags, err := cache.GetOrCreateWorkloadTags(container.EntityID)
+	require.NoError(t, err)
+	assert.Contains(t, tags, "pod_name:multi-gpu")
+	for _, tag := range tags {
+		assert.NotContains(t, tag, "gpu_", "GPU tags are filtered from the workload tags")
+	}
+}
+
 func TestEmitSharingReplicasPerContainer(t *testing.T) {
 	// Two time-sliced GPUs: one shared by two pods -- one holding a single
 	// replica, one holding two -- and one shared by the second pod with two
