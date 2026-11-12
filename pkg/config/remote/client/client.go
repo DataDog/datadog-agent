@@ -650,7 +650,7 @@ func (c *Client) maybeResetTUFState() {
 	c.proofTargetFiles = make(map[string][]byte)
 	c.proofMu.Unlock()
 
-	log.Warnf("could not apply the remote-config update, dropping the TUF state to re-join from the embedded root")
+	log.Warnf("could not apply the remote-config update, dropped the TUF state to re-joined from the embedded root")
 }
 
 // takeResetRemovalProducts consumes the pending reset removals and returns
