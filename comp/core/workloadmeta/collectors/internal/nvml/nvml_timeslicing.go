@@ -37,36 +37,23 @@ const (
 // timeSlices is what one pull could establish about the shared NVIDIA device
 // replicas (time-slicing or MPS) allocated on this node.
 type timeSlices struct {
-	// byContainer holds, per container, the number of shared-device
-	// replicas of each base device it holds, keyed by container ID and
-	// then by base device UUID.
+	// byContainer holds, per container ID, the replica count of each
+	// base device UUID it holds.
 	byContainer map[string]map[string]int
-	// sharedGPUs holds the sharing verdict of each base device UUID that at
-	// least one replica allocation references: the device is shared by
-	// replication, whether or not more than one replica is currently held.
+	// sharedGPUs holds the sharing mode of each base device UUID a
+	// replica allocation references.
 	sharedGPUs map[string]workloadmeta.GPUSharingMode
-	// replicas holds the number of registered replicas of each base device
-	// UUID, 0 when it could not be counted.
+	// replicas holds the registered replica count of each base device.
 	replicas map[string]int
-	// claiming holds every container that holds a shared-replica allocation
-	// this pull, so that the caller retracts the mapping of the ones that
-	// stop holding one.
+	// claiming holds the containers holding a replica allocation this
+	// pull, for the caller's retraction.
 	claiming map[string]struct{}
 }
 
 // resolveTimeSlices scans the containers' kubelet-allocated resources for
-// shared NVIDIA device replicas. A replica allocation carries the device
-// plugin's replica suffix on its ID ("GPU-<uuid>::<n>", "MIG-<uuid>::<n>"),
-// whatever the resource name is: the suffix means the allocation is one of
-// the replicas the plugin registered of the base device, so the container
-// sees the whole base device and shares it with the holders of the other
-// replicas. The suffix is a device-plugin convention rather than a stable
-// API, so an unrecognized ID shape is simply not a replica.
-//
-// The node's sharing-strategy label tells which mechanism shares the device,
-// because time-slicing and MPS use the same ID scheme. Without the label the
-// verdict is "shared, mechanism unknown": the strategy is only labeled where
-// the GPU operator runs GPU Feature Discovery.
+// replica allocations (device IDs suffixed with "::<n>"), grouped by base
+// device. The node's sharing-strategy label disambiguates time-slicing from
+// MPS, which share the same ID scheme; without it the verdict is unknown.
 func (c *collector) resolveTimeSlices(ctx context.Context) timeSlices {
 	ts := timeSlices{
 		byContainer: make(map[string]map[string]int),
@@ -78,10 +65,6 @@ func (c *collector) resolveTimeSlices(ctx context.Context) timeSlices {
 	var mode workloadmeta.GPUSharingMode
 	for _, container := range c.store.ListContainers() {
 		for _, resource := range container.ResolvedAllocatedResources {
-			// Keyed off the ID rather than the resource name: a shared GPU
-			// may be exposed as nvidia.com/gpu or as the plugin's default
-			// rename nvidia.com/gpu.shared, while the device ID keeps its
-			// NVIDIA shape.
 			if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				continue
 			}
@@ -114,28 +97,19 @@ func (c *collector) resolveTimeSlices(ctx context.Context) timeSlices {
 	return ts
 }
 
-// sharingModeFromNode returns the sharing mechanism the node's GPUs are
-// shared by, from the GPU Feature Discovery sharing-strategy label. Time-
-// slicing and MPS allocate with the same replica device IDs, so the label is
-// what tells them apart. Without the label, the sharing is still detected
-// but its mechanism is unknown.
+// sharingModeFromNode returns the sharing mechanism from the GPU Feature
+// Discovery sharing-strategy node label, unknown when it is missing.
 func (c *collector) sharingModeFromNode(ctx context.Context) workloadmeta.GPUSharingMode {
 	labels, err := c.getNodeGPULabels(ctx)
 	if err != nil {
-		// A read failure is reported as unknown rather than retried within
-		// the pull: the sharing is a fact of the allocation whatever the
-		// label says, and the label read is cached, so the next pull with a
-		// working read refines the verdict.
 		log.Debugf("cannot read the node labels to resolve the GPU sharing strategy: %v", err)
 		return workloadmeta.GPUSharingModeUnknown
 	}
 	return sharingModeFromStrategyLabel(labels[gfdSharingStrategyLabel])
 }
 
-// sharingModeFromStrategyLabel maps a GPU Feature Discovery sharing-strategy
-// label value to its sharing mode. An unknown or missing value does not
-// contradict the sharing itself -- the allocation IDs say the devices are
-// shared -- so it yields unknown rather than none.
+// sharingModeFromStrategyLabel maps a sharing-strategy label value to its
+// sharing mode, unknown when unrecognized.
 func sharingModeFromStrategyLabel(strategy string) workloadmeta.GPUSharingMode {
 	switch strategy {
 	case "time-slicing":
@@ -147,11 +121,9 @@ func sharingModeFromStrategyLabel(strategy string) workloadmeta.GPUSharingMode {
 	}
 }
 
-// getNodeGPULabels returns the labels of this node, as the GPU sharing
-// strategy resolution needs them (GPU Feature Discovery, from the GPU
-// operator, labels the node's sharing strategy and replica count). The
-// result is cached: the read goes to the cluster agent or the API server,
-// and the labels change rarely.
+// getNodeGPULabels returns this node's labels, cached for
+// nodeGPULabelsCacheDuration: the read goes to the cluster agent or the
+// API server, and the labels change rarely.
 func (c *collector) getNodeGPULabels(ctx context.Context) (map[string]string, error) {
 	if c.nodeGPULabels != nil && time.Since(c.nodeGPULabelsAt) < nodeGPULabelsCacheDuration {
 		return c.nodeGPULabels, nil
@@ -167,11 +139,8 @@ func (c *collector) getNodeGPULabels(ctx context.Context) (map[string]string, er
 	return labels, nil
 }
 
-// countReplicas fills ts.replicas with the number of device replicas the
-// kubelet registered of each shared base device, from the registered device
-// IDs (one registered device per replica). Falls back to the node's replicas
-// label, which applies to every shared device, when the registered IDs cannot
-// be read.
+// countReplicas fills ts.replicas from the kubelet's registered devices
+// (one per replica), falling back to the node's replicas label.
 func (c *collector) countReplicas(ctx context.Context, ts timeSlices) {
 	ids, err := c.getKubeletDeviceIDs(ctx)
 	if err != nil {
@@ -184,10 +153,6 @@ func (c *collector) countReplicas(ctx context.Context, ts timeSlices) {
 		if ts.replicas[base] > 0 {
 			continue
 		}
-		// No registered ID for this base device: either the registered
-		// devices could not be read, or the replicas were unregistered. Use
-		// the node's replicas label, which counts the replicas of every
-		// shared GPU of the node.
 		if labels, err := c.getNodeGPULabels(ctx); err == nil {
 			if n, err := strconv.Atoi(labels[gfdReplicasLabel]); err == nil && n > 0 {
 				ts.replicas[base] = n
@@ -196,11 +161,8 @@ func (c *collector) countReplicas(ctx context.Context, ts timeSlices) {
 	}
 }
 
-// countRegisteredReplicas counts, per base device, the registered device IDs
-// that carry that device's replica suffix. A device shared by replication is
-// one registered device per replica, so the count is the number of replicas
-// of the device. IDs of other shapes (exclusive GPUs, other plugins) are
-// not replicas and do not count.
+// countRegisteredReplicas counts, per base device, the registered IDs
+// carrying its replica suffix: one registered device per replica.
 func countRegisteredReplicas(ts timeSlices, registeredIDs []string) {
 	for _, id := range registeredIDs {
 		if replica, ok := gpuutil.ParseNvidiaDeviceReplica(id); ok {
@@ -209,8 +171,8 @@ func countRegisteredReplicas(ts timeSlices, registeredIDs []string) {
 	}
 }
 
-// gpuSharingInfo returns the sharing verdict and replica count of the GPU
-// with the given UUID, if any shared-replica allocation references it.
+// gpuSharingInfo returns the sharing mode and replica count of the given
+// GPU, if a replica allocation references it.
 func (ts timeSlices) gpuSharingInfo(uuid string) (workloadmeta.GPUSharingMode, int, bool) {
 	mode, shared := ts.sharedGPUs[uuid]
 	if !shared {
@@ -219,9 +181,8 @@ func (ts timeSlices) gpuSharingInfo(uuid string) (workloadmeta.GPUSharingMode, i
 	return mode, ts.replicas[uuid], true
 }
 
-// containerReplicaUUIDs returns the base device UUIDs of the shared replicas
-// allocated to the given container, in a stable order, so that the
-// container's published GPUDeviceIDs does not change between pulls.
+// containerReplicaUUIDs returns the base device UUIDs of the given
+// container's replicas, sorted for a stable GPUDeviceIDs order.
 func (ts timeSlices) containerReplicaUUIDs(containerID string) []string {
 	replicas := ts.byContainer[containerID]
 	if len(replicas) == 0 {

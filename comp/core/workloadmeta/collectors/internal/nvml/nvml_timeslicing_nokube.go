@@ -9,9 +9,7 @@ package nvml
 
 import "context"
 
-// fetchNodeGPULabels reads no labels without kubelet access: the node's
-// labels are read through the kubelet's view of the node name, the cluster
-// agent or the API server.
+// fetchNodeGPULabels reads no labels without kubelet access.
 func (c *collector) fetchNodeGPULabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
 }
