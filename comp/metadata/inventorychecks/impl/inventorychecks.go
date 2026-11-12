@@ -23,6 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -42,6 +43,7 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	EncInfo       metadata              `json:"enc_info,omitempty"`
 	Hostname      string                `json:"hostname"`
 	Timestamp     int64                 `json:"timestamp"`
 	Metadata      map[string][]metadata `json:"check_metadata"`
@@ -79,10 +81,12 @@ type inventorychecksImpl struct {
 	coll     option.Option[collector.Component]
 	sources  option.Option[*sources.LogSources]
 	hostname string
+	secrets  secrets.Component
 }
 
 // Requires defines the component dependencies.
 type Requires struct {
+	Secrets    secrets.Component `optional:"true"`
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -104,6 +108,7 @@ func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
 		conf:     deps.Config,
+		secrets:  deps.Secrets,
 		log:      deps.Log,
 		coll:     deps.Coll,
 		sources:  option.None[*sources.LogSources](),
@@ -268,7 +273,18 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		filesMetadata = ic.getFilesMetadata()
 	}
 
+	var encInfo metadata
+	if withConfigs && !ic.conf.GetBool("metadata_skip_secrets") && ic.secrets != nil {
+		paths, handles := ic.secrets.GetPathsAndHandles()
+		encInfo = metadata{
+			"paths":          paths,
+			"handles":        handles,
+			"hash_secret_id": ic.secrets.GetHashValues(handles),
+		}
+	}
+
 	return &Payload{
+		EncInfo:       encInfo,
 		Hostname:      ic.hostname,
 		Timestamp:     time.Now().UnixNano(),
 		Metadata:      payloadData,

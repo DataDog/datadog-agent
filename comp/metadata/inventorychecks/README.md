@@ -160,18 +160,10 @@ Here an example of an inventory payload:
 }
 ```
 
-### Secret declarations in configuration files
+### Resolved secret metadata
 
-Each `files_metadata[filename].secrets` array describes the secret declarations in
-that file. Entries have `kind` (`enc` or `raw`), `path` (a dotted path relative to the file,
-including list indexes), and, for ENC declarations, `handle`. For example,
-`{"kind":"enc","path":"instances.0.password","handle":"db_password"}`.
-The filename and path together identify a location, including when two files
-configure the same integration. Values and hashes are never included in these entries.
-Raw references identify the field replaced by a scrubbing rule. When a rule
-replaces a list or mapping, the reference identifies that whole field (for example,
-`snmp_traps.community_strings`), rather than reconstructing its original leaves.
-ENC references always retain their original indexed paths and handles, even inside
-a replaced container. Repeated handles retain one entry per location. These entries describe file
-contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
-`metadata_skip_secrets` suppresses these entries as well as `enc_info`.
+The payload includes top-level `enc_info` alongside `files_metadata`, with the
+secret resolver's `paths`, `handles`, and `hash_secret_id` (SHA-256 hashes of
+resolved values). This is the resolver-wide snapshot, matching inventory-agent's
+ENC fields. It is omitted when `metadata_skip_secrets` is enabled, when the
+secrets component is unavailable, and from the unauthenticated expvar payload.

@@ -28,6 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -350,4 +351,31 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
+}
+
+func TestEncInfo(t *testing.T) {
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.None[logagent.Component](), nil)
+	require.Nil(t, ic.getPayload(true).(*Payload).EncInfo)
+	resolver := secretsmock.New(t)
+	resolver.SetPathsAndHandles([]string{"redis.instances.0.password"}, []string{"redis_password"})
+	resolver.SetSecrets(map[string]string{"redis_password": "test-secret"})
+	ic.secrets = resolver
+	payload := ic.getPayload(true).(*Payload)
+	assert.Equal(t, metadata{
+		"paths":          []string{"redis.instances.0.password"},
+		"handles":        []string{"redis_password"},
+		"hash_secret_id": resolver.GetHashValues([]string{"redis_password"}),
+	}, payload.EncInfo)
+	raw, err := payload.MarshalJSON()
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"enc_info":`)
+	assert.NotContains(t, string(raw), "test-secret")
+	for _, withConfigs := range []bool{false, true} {
+		if withConfigs {
+			ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+		}
+		raw, err := ic.getPayload(withConfigs).MarshalJSON()
+		require.NoError(t, err)
+		assert.NotContains(t, string(raw), `"enc_info"`)
+	}
 }
