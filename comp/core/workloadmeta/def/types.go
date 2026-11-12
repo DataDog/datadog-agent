@@ -693,6 +693,13 @@ type Container struct {
 	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
 	// way.
 	GPUShares map[string]GPUShare `proto:"ignore"`
+	// GPUDeviceReplicas holds, keyed by the base device UUID, the number
+	// of shared NVIDIA device replicas (time-slicing or MPS) allocated to
+	// this container. The kubelet PodResources API reports each replica
+	// allocation as a device ID with a replica suffix,
+	// "<base-device-id>::<replica>"; a container can hold several
+	// replicas of the same base device.
+	GPUDeviceReplicas map[string]int `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -798,6 +805,9 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
 		if len(c.GPUShares) > 0 {
 			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
+		if len(c.GPUDeviceReplicas) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device Replicas:", c.GPUDeviceReplicas)
 		}
 	}
 
@@ -2519,6 +2529,16 @@ const (
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
 	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
+	// GPU between workloads as time-sliced replicas of it.
+	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"
+	// GPUSharingModeMPS means that the NVIDIA device plugin shares the GPU
+	// between workloads as replicas served by Multi-Process Service.
+	GPUSharingModeMPS GPUSharingMode = "mps"
+	// GPUSharingModeUnknown means that the GPU is shared between workloads by
+	// a replication mechanism the node does not describe: a shared-replica
+	// allocation was detected, but the node carries no sharing-strategy label.
+	GPUSharingModeUnknown GPUSharingMode = "unknown"
 )
 
 // GPUShare is the share of a GPU assigned to a container that shares the GPU
@@ -2659,6 +2679,11 @@ type GPU struct {
 	// workloads. Empty when the collector does not detect sharing mechanisms,
 	// which means the same as GPUSharingModeNone.
 	SharingMode GPUSharingMode
+	// SharingReplicas is the number of device replicas the device plugin
+	// registered of this device when it is shared by replication (time-slicing
+	// or MPS), 0 when the device is not shared that way or the count is
+	// unknown.
+	SharingReplicas int
 }
 
 var _ Entity = &GPU{}
