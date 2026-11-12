@@ -179,6 +179,7 @@ func (jq *jobQueue) run(s *Scheduler) {
 
 	go func() {
 		log.Debugf("Job queue is running...")
+		defer jq.bucketTicker.Stop()
 		for jq.process(s) {
 			// empty
 		}
