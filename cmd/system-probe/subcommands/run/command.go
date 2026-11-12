@@ -248,7 +248,6 @@ func getSharedFxOption(coreAgentIPC bool) fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncOnInitTimeout)),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -284,7 +283,7 @@ func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
 			remotehostnameimpl.WithMaxAttempts(10),
 			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
 		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncOnInitTimeout)),
 		remoteagentfx.Module(),
 	)
 }
