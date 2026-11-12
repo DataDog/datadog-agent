@@ -268,13 +268,12 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		// response, not that the endpoint is unhealthy. Requeue the transaction so it
 		// can be retried or persisted, but do not trip the endpoint circuit breaker.
 		if errors.Is(err, context.Canceled) {
-			w.requeue(t)
 			w.log.Debugf("Transaction processing was canceled; requeued for retry: %v", err)
-			return
+		} else {
+			w.blockedList.close(target, time.Now())
+			w.log.Errorf("Error while processing transaction: %v", err)
 		}
-		w.blockedList.close(target, time.Now())
 		w.requeue(t)
-		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.recover(target, time.Now())
 	}
