@@ -3,6 +3,7 @@
   stage: lint
   extends: .macos_gitlab
   rules:
+    - if: $CI_COMMIT_BRANCH == "dd/cmourot/golangci-lint-discard-linkobj"  # TEMPORARY: test #60141 on native macOS, revert before merge
     - !reference [.on_native_os_linters]
   script:
     - dda inv -- -e linter.go --cpus 12 --debug --timeout 60
