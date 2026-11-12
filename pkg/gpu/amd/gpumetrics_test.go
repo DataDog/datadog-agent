@@ -35,11 +35,26 @@ func counters(values ...uint64) []Counter {
 
 func filled(v uint64) Counter { return Counter{Value: v, Valid: true} }
 
+// gfxBusyOffset returns GFX_ACTIVITY_ACC minus the mean of GFX_BUSY_ACC,
+// modulo the width of the former, and clears the fields used to compute it.
+func gfxBusyOffset(t *testing.T, gm *GPUMetrics) int64 {
+	t.Helper()
+	require.True(t, gm.gfxBusyMean.Valid)
+	mask := gm.gfxActivityMask
+	diff := (gm.GFXActivityAcc.Value - gm.gfxBusyMean.Value) & mask
+	gm.gfxBusyMean, gm.gfxActivityMask = Counter{}, 0
+	if diff > mask/2 {
+		return -int64((mask - diff + 1) & mask)
+	}
+	return int64(diff)
+}
+
 // The MI300X VF table (amdgpu-dkms 6.19.14) has 50 attributes; IDs 48, 50 and
 // 51 are unfilled.
 func TestParseGPUMetricsMI300XVF(t *testing.T) {
 	gm, err := ParseGPUMetrics(readGPUMetricsFixture(t, "mi300x_vf"))
 	require.NoError(t, err)
+	assert.Equal(t, int64(1), gfxBusyOffset(t, gm), "U32: wrapped, 1 off the mean of GFX_BUSY_ACC mod 2^32")
 	assert.Equal(t, &GPUMetrics{
 		Version:                GPUMetricsVersion{Format: 1, Content: 9},
 		SystemClockNs:          filled(72203597569180),
@@ -48,7 +63,7 @@ func TestParseGPUMetricsMI300XVF(t *testing.T) {
 		PPTResidency:           filled(350407088),
 		SocketThermalResidency: filled(12105768),
 		PCIeReplayCount:        filled(0),
-		GFXActivityAcc:         filled(1336391183), // U32: wrapped, 1 off the mean of GFX_BUSY_ACC mod 2^32
+		GFXActivityAcc:         filled(1336391183),
 		MemActivityAcc:         filled(2862819467),
 		XGMIReadKB:             counters(0, 1, 2, 1, 1, 1, 1, 1),
 		XGMIWriteKB:            counters(0, 1, 1, 1, 1, 1, 1, 1),
@@ -61,6 +76,7 @@ func TestParseGPUMetricsMI300XVF(t *testing.T) {
 func TestParseGPUMetricsMI350XVF(t *testing.T) {
 	gm, err := ParseGPUMetrics(readGPUMetricsFixture(t, "mi350x_vf"))
 	require.NoError(t, err)
+	assert.Equal(t, int64(-131), gfxBusyOffset(t, gm), "131 off the mean of GFX_BUSY_ACC")
 	assert.Equal(t, &GPUMetrics{
 		Version:                GPUMetricsVersion{Format: 1, Content: 9},
 		SystemClockNs:          filled(266856137538),
@@ -69,7 +85,7 @@ func TestParseGPUMetricsMI350XVF(t *testing.T) {
 		PPTResidency:           filled(23598934),
 		SocketThermalResidency: filled(0),
 		PCIeReplayCount:        filled(0),
-		GFXActivityAcc:         filled(2889439947), // 131 off the mean of GFX_BUSY_ACC
+		GFXActivityAcc:         filled(2889439947),
 		MemActivityAcc:         filled(715102902),
 		XGMIReadKB:             counters(0, 53615, 17933, 71768, 0, 0, 35882, 53828),
 		XGMIWriteKB:            counters(0, 17859, 17936, 17943, 17934, 17943, 17939, 17944),
@@ -83,6 +99,8 @@ func TestParseGPUMetricsMI350XVF(t *testing.T) {
 func TestParseGPUMetricsSMU1508(t *testing.T) {
 	gm, err := ParseGPUMetrics(readGPUMetricsFixture(t, "smu15_0_8_synthetic"))
 	require.NoError(t, err)
+	assert.False(t, gm.gfxBusyMean.Valid, "no XCD filled")
+	gm.gfxActivityMask = 0
 	assert.Equal(t, &GPUMetrics{
 		Version:                GPUMetricsVersion{Format: 1, Content: 9},
 		SystemClockNs:          filled(1e12),
@@ -129,7 +147,6 @@ func TestReadRealGPUMetrics(t *testing.T) {
 			require.NoError(t, m.GPUMetricsErr)
 			require.NotNil(t, m.GPUMetrics)
 			assert.Empty(t, m.GPUMetrics.Skipped)
-			assert.Empty(t, m.GPUMetrics.Implausible)
 		})
 	}
 }
@@ -309,37 +326,49 @@ func TestGPUMetricsSignaturesComplete(t *testing.T) {
 	assert.Panics(t, func() { byKernel("short", u32None, u64None) })
 }
 
-// GFX_ACTIVITY_ACC is the mean of the per-XCD GFX_BUSY_ACC, modulo its width.
-func TestParseGPUMetricsGFXBusyInvariant(t *testing.T) {
+// GFX_ACTIVITY_ACC increases as the mean of the per-XCD GFX_BUSY_ACC does,
+// modulo its width, whatever the offset between their totals.
+func TestGFXActivityMatchesBusy(t *testing.T) {
 	busy := func(values ...uint64) testAttr { return testAttr{attrGFXBusyAcc, typeU64, unitPercent, values} }
 	activity := func(v uint64) testAttr { return testAttr{attrGFXActivityAcc, typeU32, unitPercent, []uint64{v}} }
-	unfilled := uint64(math.MaxUint64)
-	xcds := []uint64{40e9, 40e9 + 800, 40e9 + 1600, 40e9 + 2400, unfilled, unfilled, unfilled, unfilled}
-	mean := uint64(40e9 + 1200)
-	for name, tc := range map[string]struct {
-		attrs []testAttr
-		valid bool
-	}{
-		"mean modulo 2^32":     {[]testAttr{activity(mean % u32), busy(xcds...)}, true},
-		"within the tolerance": {[]testAttr{activity((mean - gfxBusyTolerance) % u32), busy(xcds...)}, true},
-		"across the wrap":      {[]testAttr{activity(u32 - 3), busy(u32-10, u32-10, u32+20, u32+20, unfilled, unfilled, unfilled, unfilled)}, true},
-		"another quantity":     {[]testAttr{activity((mean + gfxBusyTolerance + 1) % u32), busy(xcds...)}, false},
-		"no XCD filled":        {[]testAttr{activity(7), busy(unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled)}, true},
-		"no GFX_BUSY_ACC":      {[]testAttr{activity(7)}, true},
-		"U64 on Linux 7.3": {[]testAttr{{attrGFXActivityAcc, typeU64, unitNone, []uint64{mean + u32}},
-			{attrGFXBusyAcc, typeU64, unitNone, xcds}}, false},
-	} {
-		t.Run(name, func(t *testing.T) {
-			gm, err := ParseGPUMetrics(buildGPUMetrics(1, 9, tc.attrs...))
-			require.NoError(t, err)
-			assert.Equal(t, tc.valid, gm.GFXActivityAcc.Valid)
-			if tc.valid {
-				assert.Empty(t, gm.Implausible)
-			} else {
-				assert.Equal(t, []string{"gfx_activity_acc"}, gm.Implausible)
-			}
-		})
+	parse := func(attrs ...testAttr) *GPUMetrics {
+		gm, err := ParseGPUMetrics(buildGPUMetrics(1, 9, attrs...))
+		require.NoError(t, err)
+		require.True(t, gm.GFXActivityAcc.Valid)
+		return gm
 	}
+	unfilled := uint64(math.MaxUint64)
+	xcds := func(mean uint64) testAttr {
+		return busy(mean-1200, mean-400, mean+400, mean+1200, unfilled, unfilled, unfilled, unfilled)
+	}
+	const periods = 15000 // 15 s at 1 ms per period
+	tolerance := gfxBusyTolerance(periods)
+	require.Equal(t, uint64(1900), tolerance)
+	const mean, offset, increase = uint64(40e9), uint64(1e6), uint64(356250)
+	previous := parse(activity((mean+offset)%u32), xcds(mean))
+	for name, tc := range map[string]struct {
+		current *GPUMetrics
+		valid   bool
+	}{
+		"same increase, offset totals": {parse(activity((mean+offset+increase)%u32), xcds(mean+increase)), true},
+		"within the tolerance":         {parse(activity((mean+offset+increase+tolerance)%u32), xcds(mean+increase)), true},
+		"beyond the tolerance":         {parse(activity((mean+offset+increase+tolerance+1)%u32), xcds(mean+increase)), false},
+		"another quantity":             {parse(activity((mean+offset+2*increase)%u32), xcds(mean+increase)), false},
+		"across the wrap":              {parse(activity((mean+offset+u32)%u32), xcds(mean+u32)), true},
+		"no XCD filled":                {parse(activity(7), busy(unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled)), true},
+		"no GFX_BUSY_ACC":              {parse(activity(7)), true},
+	} {
+		assert.Equal(t, tc.valid, GFXActivityMatchesBusy(previous, tc.current, periods), name)
+	}
+
+	// On Linux 7.3 GFX_ACTIVITY_ACC is U64: no modulo 2^32.
+	activity64 := func(v uint64) testAttr { return testAttr{attrGFXActivityAcc, typeU64, unitNone, []uint64{v}} }
+	busy64 := func(mean uint64) testAttr {
+		return testAttr{attrGFXBusyAcc, typeU64, unitNone, []uint64{mean, mean, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled}}
+	}
+	previous = parse(activity64(mean+offset), busy64(mean))
+	assert.True(t, GFXActivityMatchesBusy(previous, parse(activity64(mean+offset+increase), busy64(mean+increase)), periods))
+	assert.False(t, GFXActivityMatchesBusy(previous, parse(activity64(mean+offset+increase-u32), busy64(mean+increase)), periods))
 }
 
 const u32 = uint64(math.MaxUint32) + 1

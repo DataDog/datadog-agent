@@ -8,8 +8,11 @@
 package amd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -133,4 +136,56 @@ func TestMatchDRADeviceWithoutKFD(t *testing.T) {
 	require.NotNil(t, dev)
 	assert.Equal(t, "0000:83:00.0", dev.PCIBusID)
 	assert.Nil(t, MatchDRADevice(fs.Root, devices, "gpu-1-130", nil, nil))
+}
+
+// Kubelet appends the CDI devices of every device of a driver to one list, so
+// the CDI devices of device i also name devices 0..i-1 of the claim.
+func TestMatchDRADeviceCumulativeCDIDevices(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	pciIDs := []string{"0000:05:00.0", "0000:27:00.0", "0000:49:00.0"}
+	for i, pciID := range pciIDs {
+		fs.AddCard("card"+strconv.Itoa(i), fs.AddPCIDevice(pciID, "amdgpu", MI300XAttributes("")))
+		fs.AddKFDNode(i+1, uint64(4101+i), 0, uint32(0x0500+0x2200*i), 90402)
+		fs.SetKFDRenderMinor(i+1, 128+i)
+	}
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	require.Len(t, devices, 3)
+
+	const claimUID = "c8593c85-440d-4156-b199-aea592ff83df"
+	// Names that are not "gpu-<card>-<render>", so the CDI spec is used; the
+	// last one has the "-slot<N>" suffix of shared devices.
+	names := []string{"gpu-0-spx-nps1", "gpu-1-spx-nps1", "gpu-2-spx-nps1"}
+	cdiNames := []string{claimUID + "-" + names[0], claimUID + "-" + names[1], claimUID + "-" + names[2] + "-slot0"}
+	var spec strings.Builder
+	spec.WriteString("cdiVersion: 0.6.0\nkind: k8s.gpu.amd.com/gpu\ndevices:\n- name: common\n  containerEdits:\n    deviceNodes:\n    - path: /dev/kfd\n")
+	for i, cdiName := range cdiNames {
+		fmt.Fprintf(&spec, "- name: %s\n  containerEdits:\n    deviceNodes:\n    - path: /dev/dri/card%d\n    - path: /dev/dri/renderD%d\n", cdiName, i, 128+i)
+	}
+	cdiDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(cdiDir, "k8s.gpu.amd.com-gpu_"+claimUID+".yaml"), []byte(spec.String()), 0o644))
+
+	var cdi []string
+	for i, name := range names {
+		cdi = append(cdi, draCDIDevicePrefix+"common", draCDIDevicePrefix+cdiNames[i])
+		dev := MatchDRADevice(fs.Root, devices, name, cdi, []string{cdiDir})
+		require.NotNil(t, dev, "device %s", name)
+		assert.Equal(t, pciIDs[i], dev.PCIBusID, "device %s", name)
+	}
+}
+
+// A claim UID that climbs out of the spec directory, with a device key that
+// passes the name filter, must not reach a spec planted at the escaped path.
+func TestMatchDRADeviceSpecOutsideCDIDir(t *testing.T) {
+	fs, devices := partitionedHost(t)
+	root := t.TempDir()
+	cdiDir := filepath.Join(root, "a", "cdi")
+	require.NoError(t, os.MkdirAll(cdiDir, 0o755))
+	uid := "../../../" + strings.Repeat("z", claimUIDLength-len("../../../"))
+	require.Len(t, uid, claimUIDLength)
+	key := uid + "-gpu-0-cpx-nps4"
+	target := filepath.Join(cdiDir, draCDISpecPrefix+uid+".yaml")
+	require.False(t, strings.HasPrefix(target, cdiDir+string(filepath.Separator)), "target %s must be outside %s", target, cdiDir)
+	require.NoError(t, os.WriteFile(target, []byte("devices:\n- name: "+key+"\n  containerEdits:\n    deviceNodes:\n    - path: /dev/dri/renderD128\n"), 0o644))
+	assert.Nil(t, MatchDRADevice(fs.Root, devices, "gpu-0-cpx-nps4", []string{draCDIDevicePrefix + key}, []string{cdiDir}))
 }

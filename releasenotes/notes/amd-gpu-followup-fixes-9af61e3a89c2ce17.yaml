@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    AMD GPU check: pods with several AMD GPUs allocated through one DRA claim
+    are now attributed each GPU instead of all to the first one; the graphics
+    activity from ``gpu_metrics`` no longer falls back to the sysfs snapshot
+    after long uptimes; a runtime-suspended GPU no longer logs a
+    ``gpu_metrics`` read error on every run; and the XGMI throughput
+    plausibility bound no longer exceeds its maximum on fast links.
