@@ -97,7 +97,10 @@ type Profile struct {
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
-	observedRollups      bool
+	observedRollups bool
+	// insertingContainerID and insertingCGroupID hold the workload ID of the event
+	// being inserted under p.Mutex so MatchesSelector accepts its process lineage
+	// even if the container or cgroup already exited and is not in Instances.
 	insertingContainerID containerutils.ContainerID
 	insertingCGroupID    containerutils.CGroupID
 

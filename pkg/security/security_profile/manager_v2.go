@@ -141,6 +141,7 @@ type ManagerV2 struct {
 
 	sendAnomalyDetection func(*model.Event)
 	triggerNopEvent      func() error
+	afterProfileLookup   func()
 	pendingEventsReady   atomic.Bool
 	nopWakeupPending     atomic.Bool
 
@@ -1201,6 +1202,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if err != nil {
 		return nil, false
 	}
+	if m.afterProfileLookup != nil {
+		m.afterProfileLookup()
+	}
 	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
@@ -1215,24 +1219,8 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Evict surplus versions before the size check, since eviction can free enough space.
 	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
-	// Build workloadID for cache entry lookup
-	workloadID := getWorkloadIDFromEvent(event)
-
-	// Link this workload to the profile (tracks in profile.Instances)
-	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	if workload != nil {
-		m.pendingProfileRemovalsLock.Lock()
-		if _, pending := m.pendingProfileRemovals[selector]; pending {
-			delete(m.pendingProfileRemovals, selector)
-			seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
-		}
-		m.pendingProfileRemovalsLock.Unlock()
-		m.linkWorkloadToProfile(secprof, workload)
+	if workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event)); workload != nil {
 		m.seedMountsForWorkload(secprof, workload, event)
-	} else if !m.profileHasActiveInstances(secprof) {
-		m.pendingProfileRemovalsLock.Lock()
-		m.pendingProfileRemovals[selector] = time.Now()
-		m.pendingProfileRemovalsLock.Unlock()
 	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
@@ -1350,17 +1338,17 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	}
 
 	prof.InstancesLock.Lock()
-	defer prof.InstancesLock.Unlock()
-
 	// Check if already tracked
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
+			prof.InstancesLock.Unlock()
 			return
 		}
 	}
 
 	prof.Instances = append(prof.Instances, workload)
+	prof.InstancesLock.Unlock()
 
 	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
@@ -1500,41 +1488,61 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
 // It first tries to load the profile from local storage, and if not found, creates a new one.
 func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
+	workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
 	secprof := m.profiles[selector]
-	if secprof != nil {
-		return secprof, nil
-	}
-
-	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
-		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
-		return nil, errors.New("workload excluded")
-	}
-
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if m.imageExcluder.IsExcluded(imageName, imageTag) {
-		seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
-		return nil, errors.New("workload excluded")
-	}
-
-	// Try to load from local storage first
-	secprof, loaded := m.loadProfileFromStorage(selector, event)
-	if !loaded {
-		// Create a new profile if not found in storage
-		var err error
-		secprof, err = m.createNewProfile(selector, event)
-		if err != nil {
-			return nil, err
+	if secprof == nil {
+		containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
+		if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
+			seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
+			return nil, errors.New("workload excluded")
 		}
-		seclog.Debugf("created new profile for selector %s", selector.String())
-	} else {
-		seclog.Debugf("loaded profile from storage for selector %s", selector.String())
+
+		imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		if m.imageExcluder.IsExcluded(imageName, imageTag) {
+			seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
+			return nil, errors.New("workload excluded")
+		}
+
+		// Try to load from local storage first
+		var loaded bool
+		secprof, loaded = m.loadProfileFromStorage(selector, event)
+		if !loaded {
+			// Create a new profile if not found in storage
+			var err error
+			secprof, err = m.createNewProfile(selector, event)
+			if err != nil {
+				return nil, err
+			}
+			seclog.Debugf("created new profile for selector %s", selector.String())
+		} else {
+			seclog.Debugf("loaded profile from storage for selector %s", selector.String())
+		}
+
+		m.profiles[selector] = secprof
 	}
 
-	m.profiles[selector] = secprof
+	if secprof.IsEnabled() {
+		activeWorkload := workload != nil && !workload.GCroupCacheEntry.IsDeleted()
+		m.pendingProfileRemovalsLock.Lock()
+		if activeWorkload {
+			if _, pending := m.pendingProfileRemovals[selector]; pending {
+				delete(m.pendingProfileRemovals, selector)
+				seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
+			}
+		} else if !m.profileHasActiveInstances(secprof) {
+			m.pendingProfileRemovals[selector] = time.Now()
+		}
+		m.pendingProfileRemovalsLock.Unlock()
+
+		if activeWorkload {
+			m.linkWorkloadToProfile(secprof, workload)
+		}
+	}
+
 	return secprof, nil
 }
 

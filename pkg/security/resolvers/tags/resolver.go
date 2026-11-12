@@ -10,12 +10,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+var taggerResubscribeDelay = time.Second
 
 // Event defines the tags event type
 type Event int
@@ -160,16 +163,23 @@ func (t *DefaultResolver) SubscribeContainerTags(ctx context.Context, subscripti
 				return
 			case events, ok := <-sub.EventsChan():
 				if !ok {
-					if ctx.Err() != nil {
-						return
-					}
-					var err error
-					sub, err = subscribable.Subscribe(subscriptionID, filter)
-					if err != nil || sub == nil {
+					for {
+						if ctx.Err() != nil {
+							return
+						}
+						var err error
+						sub, err = subscribable.Subscribe(subscriptionID, filter)
+						if err == nil && sub != nil {
+							onTagsUpdated()
+							break
+						}
 						seclog.Warnf("failed to resubscribe to tagger events: %v", err)
-						return
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(taggerResubscribeDelay):
+						}
 					}
-					onTagsUpdated()
 					continue
 				}
 				for _, ev := range events {
