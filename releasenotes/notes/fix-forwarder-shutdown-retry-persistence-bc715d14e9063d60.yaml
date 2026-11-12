@@ -2,8 +2,6 @@
 fixes:
   - |
     Fixes an issue where in-flight HTTP payloads canceled during Agent shutdown were
-    dropped instead of being requeued for retry or persisted to disk when forwarder
-    storage is enabled. The payload may already have been accepted by the Datadog
-    intake before the cancellation; it is now treated as retryable rather than as a
-    delivery failure, so it no longer counts as an error against the endpoint or trips
-    its circuit breaker.
+    dropped instead of being persisted to disk when forwarder storage is enabled. The
+    Datadog intake may have already accepted a payload before cancellation, so this
+    fix changes to at-least-once delivery rather than silently dropping payloads.
