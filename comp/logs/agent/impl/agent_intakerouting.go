@@ -63,7 +63,7 @@ func (a *logAgent) registerIntakeRouting(base *config.Endpoints) (intakerouting.
 	var indices []int
 	for i := range base.Endpoints {
 		endpoint := &base.Endpoints[i]
-		if reason := endpoint.LogsIntakeRoutingExclusion(); reason != "" {
+		if eligible, reason := endpoint.IsIntakeRoutingEligible(); !eligible {
 			a.log.Debugf("Intake routing: logs endpoint #%d (%s) is not eligible: %s", i, endpointAddress(endpoint), reason)
 			continue
 		}
