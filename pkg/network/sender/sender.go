@@ -54,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -71,10 +72,11 @@ var senderTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
-// isSidecar and getFargateHost are variables so tests can override them.
+// isSidecar, getFargateHost and configuredHostname are variables so tests can override them.
 var (
-	isSidecar      = fargate.IsSidecar
-	getFargateHost = fargate.GetFargateHost
+	isSidecar          = fargate.IsSidecar
+	getFargateHost     = fargate.GetFargateHost
+	configuredHostname = func() string { return pkgconfigsetup.Datadog().GetString("hostname") }
 )
 
 // resolveHostname returns the hostname to attach to connections payloads.
@@ -88,6 +90,10 @@ var (
 // and the backend drops the payloads.
 func resolveHostname(ctx context.Context, hostnameComp hostname.Component, logger log.Component) (string, error) {
 	if isSidecar() {
+		// A configured hostname takes precedence, as it does for the process-agent.
+		if h := configuredHostname(); validate.ValidHostname(h) == nil {
+			return h, nil
+		}
 		h, err := retryGetFargateHost(ctx)
 		if err == nil {
 			return h, nil

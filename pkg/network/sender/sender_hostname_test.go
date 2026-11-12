@@ -27,6 +27,7 @@ func TestResolveHostname(t *testing.T) {
 	tests := []struct {
 		name        string
 		sidecar     bool
+		configured  string
 		fargateHost string
 		fargateErr  error
 		want        string
@@ -52,15 +53,30 @@ func TestResolveHostname(t *testing.T) {
 			sidecar: true,
 			want:    agentHost,
 		},
+		{
+			name:        "sidecar uses a configured hostname first",
+			sidecar:     true,
+			configured:  "configured-host",
+			fargateHost: taskHost,
+			want:        "configured-host",
+		},
+		{
+			name:        "sidecar ignores an invalid configured hostname",
+			sidecar:     true,
+			configured:  "not a valid hostname!",
+			fargateHost: taskHost,
+			want:        taskHost,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			origIsSidecar, origGetFargateHost, origDelay := isSidecar, getFargateHost, fargateHostRetryDelay
+			origIsSidecar, origGetFargateHost, origConfigured, origDelay := isSidecar, getFargateHost, configuredHostname, fargateHostRetryDelay
 			t.Cleanup(func() {
-				isSidecar, getFargateHost, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origDelay
+				isSidecar, getFargateHost, configuredHostname, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origConfigured, origDelay
 			})
 			fargateHostRetryDelay = time.Millisecond
+			configuredHostname = func() string { return tt.configured }
 
 			fargateCalled := false
 			isSidecar = func() bool { return tt.sidecar }
@@ -73,7 +89,8 @@ func TestResolveHostname(t *testing.T) {
 			got, err := resolveHostname(context.Background(), hostnameComp, logmock.New(t))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.sidecar, fargateCalled)
+			wantFargateCall := tt.sidecar && (tt.configured == "" || tt.want != tt.configured)
+			assert.Equal(t, wantFargateCall, fargateCalled)
 		})
 	}
 }
@@ -81,11 +98,12 @@ func TestResolveHostname(t *testing.T) {
 func TestResolveHostnameRetriesTransientFargateErrors(t *testing.T) {
 	const taskHost = "fargate_task:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
 
-	origIsSidecar, origGetFargateHost, origDelay := isSidecar, getFargateHost, fargateHostRetryDelay
+	origIsSidecar, origGetFargateHost, origConfigured, origDelay := isSidecar, getFargateHost, configuredHostname, fargateHostRetryDelay
 	t.Cleanup(func() {
-		isSidecar, getFargateHost, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origDelay
+		isSidecar, getFargateHost, configuredHostname, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origConfigured, origDelay
 	})
 	fargateHostRetryDelay = time.Millisecond
+	configuredHostname = func() string { return "" }
 
 	calls := 0
 	isSidecar = func() bool { return true }
