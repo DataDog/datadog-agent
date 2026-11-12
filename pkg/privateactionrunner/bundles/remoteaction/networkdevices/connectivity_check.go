@@ -27,7 +27,7 @@ import (
 
 type ConnectivityCheckRequest struct {
 	TimeoutSeconds       int32                               `json:"timeout,omitempty"`
-	TargetIPs            []string                            `json:"targetIPs"`
+	TargetIPs            []string                            `json:"targetIPs,omitempty"`
 	Checks               []string                            `json:"checks"`
 	PingOptions          *connectivity.PingOptions           `json:"pingOptions,omitempty"`
 	SNMPOptions          *connectivity.SNMPOptions           `json:"snmpOptions,omitempty"`

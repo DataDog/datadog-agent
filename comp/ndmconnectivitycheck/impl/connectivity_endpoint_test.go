@@ -39,17 +39,27 @@ func TestConnectivityCheckEndpointHandler(t *testing.T) {
 		},
 		{
 			name:           "rejects a target group naming an unknown credential",
-			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[{"id":"g1","targetIPs":["10.0.0.1"],"credentialIDs":["cred-z"]}]}`,
+			body:           `{"checks":[],"targetGroups":[{"credentialIDs":["cred-z"],"targetIPs":["10.0.0.1"]}]}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "rejects an empty target group list for targets",
-			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[]}`,
+			name:           "rejects an empty target group list",
+			body:           `{"checks":[],"targetGroups":[]}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "rejects both targets and target groups",
+			body:           `{"targets":["10.0.0.1"],"checks":[],"credentials":[{"id":"c1","version":"2c"}],"targetGroups":[{"credentialIDs":["c1"],"targetIPs":["10.0.0.1"]}]}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "rejects neither targets nor target groups",
+			body:           `{"checks":[]}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "accepts a grouped request",
-			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[{"id":"g1","targetIPs":["10.0.0.1"],"credentialIDs":[]}]}`,
+			body:           `{"checks":[],"credentials":[{"id":"c1","version":"2c"}],"targetGroups":[{"credentialIDs":["c1"],"targetIPs":["10.0.0.1"]}]}`,
 			expectedStatus: http.StatusOK,
 		},
 		{

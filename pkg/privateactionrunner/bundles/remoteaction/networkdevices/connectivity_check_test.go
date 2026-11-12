@@ -133,25 +133,25 @@ func (c *recordingIPCClient) Do(req *http.Request, _ ...ipc.RequestOption) ([]by
 func TestConnectivityCheckHandlerForwardsTargetGroups(t *testing.T) {
 	client := &recordingIPCClient{
 		HTTPClient: ipcmock.New(t).GetClient(),
-		response:   []byte(`{"devices":[{"ipAddress":"10.0.0.1","groupID":"group-1"}]}`),
+		response:   []byte(`{"devices":[{"ipAddress":"10.0.0.1"}]}`),
 	}
 	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
 
 	res, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
-		"targetIPs": []string{"10.0.0.1"},
-		"checks":    []string{"snmp"},
+		"checks": []string{"snmp"},
 		"targetGroups": []map[string]any{
-			{"id": "group-1", "targetIPs": []string{"10.0.0.1"}, "credentialIDs": []string{"cred-1"}},
+			{"credentialIDs": []string{"cred-1"}, "targetIPs": []string{"10.0.0.1"}},
 		},
 	}), nil)
 	require.NoError(t, err)
 
 	var sent connectivity.Request
 	require.NoError(t, json.Unmarshal(client.body, &sent))
+	require.Nil(t, sent.Targets, "targetIPs is optional when targetGroups is set")
 	require.Equal(t, []connectivity.TargetGroup{
-		{ID: "group-1", TargetIPs: []string{"10.0.0.1"}, CredentialIDs: []string{"cred-1"}},
+		{CredentialIDs: []string{"cred-1"}, TargetIPs: []string{"10.0.0.1"}},
 	}, sent.TargetGroups)
-	require.Equal(t, &connectivity.Result{Devices: []connectivity.DeviceResult{{IPAddress: "10.0.0.1", GroupID: "group-1"}}}, res)
+	require.Equal(t, &connectivity.Result{Devices: []connectivity.DeviceResult{{IPAddress: "10.0.0.1"}}}, res)
 }
 
 func TestConnectivityCheckHandlerSendsNoTargetGroupsForALegacyRequest(t *testing.T) {
@@ -174,7 +174,6 @@ func TestConnectivityCheckHandlerKeepsAnEmptyTargetGroupListGrouped(t *testing.T
 	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
 
 	_, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
-		"targetIPs":    []string{"10.0.0.1"},
 		"checks":       []string{"ping"},
 		"targetGroups": []map[string]any{},
 	}), nil)

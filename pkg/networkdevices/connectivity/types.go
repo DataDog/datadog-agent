@@ -77,21 +77,21 @@ type SNMPResult struct {
 }
 
 type DeviceResult struct {
-	IPAddress string `json:"ipAddress"`
-	// GroupID is the id of the TargetGroup the device was checked in, empty for a request without groups.
-	GroupID    string      `json:"groupID,omitempty"`
+	IPAddress  string      `json:"ipAddress"`
 	PingResult *PingResult `json:"pingResult,omitempty"`
 	SNMPResult *SNMPResult `json:"snmpResult,omitempty"`
 }
 
-// TargetGroup restricts the SNMP credentials tried on a set of targets to the
-// credentials whose id is listed in CredentialIDs.
+// TargetGroup is a set of targets tried only with the SNMP credentials whose id
+// is listed in CredentialIDs.
 type TargetGroup struct {
-	ID            string   `json:"id"`
-	TargetIPs     []string `json:"targetIPs"`
 	CredentialIDs []string `json:"credentialIDs"`
+	TargetIPs     []string `json:"targetIPs"`
 }
 
+// Request is one connectivity check. Exactly one of Targets and TargetGroups is
+// set (not nil): Targets tries every target with every credential, TargetGroups
+// tries each group's targets only with its own credentials.
 type Request struct {
 	Targets     []string         `json:"targets"`
 	Checks      []string         `json:"checks"`
@@ -99,9 +99,8 @@ type Request struct {
 	SNMPOptions *SNMPOptions     `json:"snmpOptions,omitempty"`
 	Workers     int              `json:"workers,omitempty"`
 	Credentials []SNMPCredential `json:"credentials,omitempty"`
-	// TargetGroups, when not nil, has every target tried only with its own
-	// group's credentials. A nil value tries every target with every credential.
-	// It has no omitempty so that an empty, non-nil list is still a grouped request.
+	// TargetGroups has no omitempty, like Targets, so that an empty list is
+	// still set and is rejected rather than read as unset.
 	TargetGroups []TargetGroup `json:"targetGroups"`
 }
 

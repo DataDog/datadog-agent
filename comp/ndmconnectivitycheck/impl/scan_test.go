@@ -16,46 +16,67 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-func TestScanTagsEachResultWithItsGroup(t *testing.T) {
+func TestScanReturnsAGroupedRunInGroupOrder(t *testing.T) {
 	c := newImpl(logmock.New(t))
 
 	res, err := c.scan(context.Background(), connectivity.Request{
-		Targets: []string{"10.0.0.1", "10.0.0.2"},
-		Checks:  []string{},
+		Checks:      []string{},
+		Credentials: []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c"}, {ID: "cred-b", Version: "2c"}},
 		TargetGroups: []connectivity.TargetGroup{
-			{ID: "group-1", TargetIPs: []string{"10.0.0.2"}},
-			{ID: "group-2", TargetIPs: []string{"10.0.0.1"}},
+			{CredentialIDs: []string{"cred-b"}, TargetIPs: []string{"10.0.0.3", "10.0.0.1"}},
+			{CredentialIDs: []string{"cred-a"}, TargetIPs: []string{"10.0.0.2"}},
 		},
 	})
 
 	require.NoError(t, err)
-	require.Len(t, res.Devices, 2)
-	assert.Equal(t, "10.0.0.1", res.Devices[0].IPAddress, "in the targets' order")
-	assert.Equal(t, "group-2", res.Devices[0].GroupID)
-	assert.Equal(t, "10.0.0.2", res.Devices[1].IPAddress)
-	assert.Equal(t, "group-1", res.Devices[1].GroupID)
+	require.Len(t, res.Devices, 3)
+	assert.Equal(t, "10.0.0.3", res.Devices[0].IPAddress)
+	assert.Equal(t, "10.0.0.1", res.Devices[1].IPAddress)
+	assert.Equal(t, "10.0.0.2", res.Devices[2].IPAddress)
 }
 
-func TestScanWithoutGroupsLeavesTheGroupEmpty(t *testing.T) {
+func TestScanWithoutGroupsTriesTheTargetsInOrder(t *testing.T) {
 	c := newImpl(logmock.New(t))
 
 	res, err := c.scan(context.Background(), connectivity.Request{
-		Targets: []string{"10.0.0.1"},
+		Targets: []string{"10.0.0.2", "10.0.0.1"},
 		Checks:  []string{},
 	})
 
 	require.NoError(t, err)
-	require.Len(t, res.Devices, 1)
-	assert.Empty(t, res.Devices[0].GroupID)
+	require.Len(t, res.Devices, 2)
+	assert.Equal(t, "10.0.0.2", res.Devices[0].IPAddress)
+	assert.Equal(t, "10.0.0.1", res.Devices[1].IPAddress)
+}
+
+func TestScanRequiresExactlyOneOfTargetsAndTargetGroups(t *testing.T) {
+	group := []connectivity.TargetGroup{{CredentialIDs: []string{"cred-a"}, TargetIPs: []string{"10.0.0.1"}}}
+	tests := map[string]connectivity.Request{
+		"both set": {
+			Targets:      []string{"10.0.0.1"},
+			Credentials:  []connectivity.SNMPCredential{{ID: "cred-a", Version: "2c"}},
+			TargetGroups: group,
+		},
+		"neither set": {Checks: []string{}},
+	}
+
+	for name, req := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := newImpl(logmock.New(t))
+
+			_, err := c.scan(context.Background(), req)
+
+			assert.ErrorIs(t, err, connectivity.ErrInvalidRequest)
+		})
+	}
 }
 
 func TestScanRejectsAnInvalidGroupedRequest(t *testing.T) {
 	c := newImpl(logmock.New(t))
 
 	_, err := c.scan(context.Background(), connectivity.Request{
-		Targets:      []string{"10.0.0.1"},
 		Checks:       []string{},
-		TargetGroups: []connectivity.TargetGroup{{ID: "group-1", TargetIPs: []string{"10.0.0.2"}}},
+		TargetGroups: []connectivity.TargetGroup{{CredentialIDs: []string{"cred-z"}, TargetIPs: []string{"10.0.0.1"}}},
 	})
 
 	assert.ErrorIs(t, err, connectivity.ErrInvalidRequest)

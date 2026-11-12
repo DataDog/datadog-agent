@@ -202,7 +202,6 @@ func TestToConnectivityResultKeepsATargetWithNoReading(t *testing.T) {
 
 func groupedRequest() connectivity.Request {
 	return connectivity.Request{
-		Targets:     []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
 		Checks:      []string{connectivity.CheckSNMP},
 		SNMPOptions: &connectivity.SNMPOptions{Port: 161},
 		Credentials: []connectivity.SNMPCredential{
@@ -211,8 +210,8 @@ func groupedRequest() connectivity.Request {
 			{ID: "cred-c", Version: "2c", Community: "c"},
 		},
 		TargetGroups: []connectivity.TargetGroup{
-			{ID: "group-1", TargetIPs: []string{"10.0.0.1", "10.0.0.2"}, CredentialIDs: []string{"cred-c", "cred-a"}},
-			{ID: "group-2", TargetIPs: []string{"10.0.0.3"}, CredentialIDs: []string{"cred-b"}},
+			{CredentialIDs: []string{"cred-c", "cred-a"}, TargetIPs: []string{"10.0.0.2", "10.0.0.1"}},
+			{CredentialIDs: []string{"cred-b"}, TargetIPs: []string{"10.0.0.3"}},
 		},
 	}
 }
@@ -229,31 +228,15 @@ func credentialIDs(opts probe.Options) []string {
 }
 
 func TestToTargetPlansTriesEachTargetOnlyWithItsGroupsCredentials(t *testing.T) {
-	plans, err := toTargetPlans(groupedRequest(), pingprobe.Capability{Available: true})
+	targets, plans, err := toTargetPlans(groupedRequest(), pingprobe.Capability{Available: true})
 
 	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.2", "10.0.0.1", "10.0.0.3"}, targets, "in group order, then in each group's order")
 	require.Len(t, plans, 3)
-	assert.Equal(t, "group-1", plans["10.0.0.1"].groupID)
-	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.1"].opts), "in the group's order")
-	assert.Equal(t, "group-1", plans["10.0.0.2"].groupID)
-	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.2"].opts))
-	assert.Equal(t, "group-2", plans["10.0.0.3"].groupID)
-	assert.Equal(t, []string{"cred-b"}, credentialIDs(plans["10.0.0.3"].opts))
-	assert.Equal(t, snmpprobe.Credential{ID: "cred-b", Version: "2c", Community: "b"}, plans["10.0.0.3"].opts.SNMP.Credentials[0])
-}
-
-func TestToTargetPlansRunsNoSNMPForAGroupWithNoCredential(t *testing.T) {
-	req := groupedRequest()
-	req.Checks = []string{connectivity.CheckPing, connectivity.CheckSNMP}
-	req.PingOptions = &connectivity.PingOptions{Count: 1}
-	req.TargetGroups[1].CredentialIDs = nil
-
-	plans, err := toTargetPlans(req, pingprobe.Capability{Available: true})
-
-	require.NoError(t, err)
-	assert.NotNil(t, plans["10.0.0.3"].opts.Ping)
-	assert.Nil(t, plans["10.0.0.3"].opts.SNMP)
-	assert.NotNil(t, plans["10.0.0.1"].opts.SNMP)
+	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.1"]), "in the group's order")
+	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.2"]))
+	assert.Equal(t, []string{"cred-b"}, credentialIDs(plans["10.0.0.3"]))
+	assert.Equal(t, snmpprobe.Credential{ID: "cred-b", Version: "2c", Community: "b"}, plans["10.0.0.3"].SNMP.Credentials[0])
 }
 
 func TestToTargetPlansRejectsWhatTheEndpointAnswersWith400(t *testing.T) {
@@ -273,20 +256,14 @@ func TestToTargetPlansRejectsWhatTheEndpointAnswersWith400(t *testing.T) {
 		"a credential id that is not unique": func(r *connectivity.Request) {
 			r.Credentials = append(r.Credentials, connectivity.SNMPCredential{ID: "cred-a", Version: "2c", Community: "other"})
 		},
-		"a target in no group": func(r *connectivity.Request) {
-			r.Targets = append(r.Targets, "10.0.0.4")
-		},
-		"a group target missing from the targets": func(r *connectivity.Request) {
-			r.Targets = r.Targets[:2]
-		},
-		"no group for the targets": func(r *connectivity.Request) {
+		"an empty group list": func(r *connectivity.Request) {
 			r.TargetGroups = []connectivity.TargetGroup{}
 		},
-		"a group with no id": func(r *connectivity.Request) {
-			r.TargetGroups[1].ID = ""
+		"a group with no target": func(r *connectivity.Request) {
+			r.TargetGroups[1].TargetIPs = nil
 		},
-		"a group id that is not unique": func(r *connectivity.Request) {
-			r.TargetGroups[1].ID = "group-1"
+		"a group with no credential": func(r *connectivity.Request) {
+			r.TargetGroups[1].CredentialIDs = []string{}
 		},
 	}
 
@@ -295,7 +272,7 @@ func TestToTargetPlansRejectsWhatTheEndpointAnswersWith400(t *testing.T) {
 			req := groupedRequest()
 			mutate(&req)
 
-			_, err := toTargetPlans(req, pingprobe.Capability{Available: true})
+			_, _, err := toTargetPlans(req, pingprobe.Capability{Available: true})
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, connectivity.ErrInvalidRequest)
