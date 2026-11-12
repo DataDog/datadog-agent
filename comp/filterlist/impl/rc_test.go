@@ -8,7 +8,6 @@
 package filterlistimpl
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +18,7 @@ import (
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -668,18 +668,19 @@ func TestFilterListUpdateWithMergedTags(t *testing.T) {
 	require.Len(results[state.ApplyStateAcknowledged], 2)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// Verify tags were merged
+	// The configuration reports both entries as received.
 	var tagEntries []MetricTagListEntry
 	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
 	require.NoError(err)
-	require.Len(tagEntries, 1)
-	slices.Sort(tagEntries[0].Tags)
-	require.Equal(
-		MetricTagListEntry{
-			MetricName: "test.metric",
-			Action:     "exclude",
-			Tags:       []string{"cluster", "env", "host", "pod"},
-		}, tagEntries[0])
+	require.ElementsMatch([]MetricTagListEntry{
+		{MetricName: "test.metric", Action: "exclude", Tags: []string{"env", "host"}},
+		{MetricName: "test.metric", Action: "exclude", Tags: []string{"pod", "cluster"}},
+	}, tagEntries)
+
+	// The matcher merges their tags.
+	list, ok := filterList.GetTagFilterList().ShouldStripTags("test.metric")
+	require.True(ok)
+	require.Equal(metricname.NewHashedMetricTagList(true, []string{"cluster", "env", "host", "pod"}), list)
 
 }
 
@@ -729,19 +730,19 @@ func TestFilterListUpdateWithConflictingActions(t *testing.T) {
 	filterList.onFilterListUpdateCallback(updates, callback)
 	require.Len(results[state.ApplyStateAcknowledged], 2)
 
-	// Verify exclude action was kept with new tags
+	// The configuration reports both entries as received.
 	var tagEntries []MetricTagListEntry
 	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
 	require.NoError(err)
-	require.Len(tagEntries, 1)
-	require.Equal(
-		MetricTagListEntry{
-			MetricName: "test.metric",
-			Action:     "exclude",
-			Tags:       []string{"pod"},
-		},
-		tagEntries[0],
-	)
+	require.ElementsMatch([]MetricTagListEntry{
+		{MetricName: "test.metric", Action: "include", Tags: []string{"env", "host"}},
+		{MetricName: "test.metric", Action: "exclude", Tags: []string{"pod"}},
+	}, tagEntries)
+
+	// The matcher keeps only the exclude entry.
+	list, ok := filterList.GetTagFilterList().ShouldStripTags("test.metric")
+	require.True(ok)
+	require.Equal(metricname.NewHashedMetricTagList(true, []string{"pod"}), list)
 
 }
 
@@ -1037,123 +1038,22 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	)
 }
 
-// TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have include action
-func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
+// TestBuildTagFilterListConfigReportsEntriesAsReceived verifies that RC entries
+// are reported in the configuration as received, and only normalized in the
+// compiled matcher.
+func TestBuildTagFilterListConfigReportsEntriesAsReceived(t *testing.T) {
 	require := require.New(t)
 
 	filterList, _ := newFilterList(t)
 
-	// Setup: current entry with include action
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "include",
-		Tags:       []string{"env", "host"},
-	}
+	updates := []filteredTags{{ByName: tagByName{Metrics: []tagEntry{
+		{Name: "my-metric", ExcludeTag: true, Tags: []string{"Pod Name"}},
+	}}}}
 
-	// New entry also with include action
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: false,
-		Tags:       []string{"pod", "cluster"},
-	}
+	entries := filterList.buildTagFilterListConfig(updates)
+	require.Equal([]MetricTagListEntry{{MetricName: "my-metric", Action: "exclude", Tags: []string{"Pod Name"}}}, entries)
 
-	// Execute merge
-	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
-
-	require.Equal(entryResult, MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "include",
-		Tags:       []string{"env", "host", "pod", "cluster"},
-	})
-}
-
-// TestMergeMetricTagListEntry_SameActionExclude tests merging tags when both entries have exclude action
-func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	// Setup: current entry with exclude action
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"env", "host"},
-	}
-
-	// New entry also with exclude action
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: true,
-		Tags:       []string{"pod", "cluster"},
-	}
-
-	// Execute merge
-	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
-
-	require.Equal(entryResult, MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"env", "host", "pod", "cluster"},
-	})
-}
-
-// TestMergeMetricTagListEntry_IncludeOverriddenByExclude tests that exclude overwrites include
-func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	// Setup: current entry with include action
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "include",
-		Tags:       []string{"env", "host"},
-	}
-
-	// New entry with exclude action (should overwrite)
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: true,
-		Tags:       []string{"pod"},
-	}
-
-	// Execute merge
-	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
-
-	require.Equal(entryResult, MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"pod"},
-	})
-}
-
-// TestMergeMetricTagListEntry_ExcludeIgnoresInclude tests that exclude entry ignores include updates
-func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
-	require := require.New(t)
-
-	filterList, _ := newFilterList(t)
-
-	// Setup: current entry with exclude action
-	currentEntry := MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"env", "host"},
-	}
-
-	// New entry with include action (should be ignored)
-	newMetric := tagEntry{
-		Name:       "test.metric",
-		ExcludeTag: false,
-		Tags:       []string{"pod"},
-	}
-
-	// Execute merge
-	entryResult := filterList.mergeMetricTagListEntry(newMetric, currentEntry)
-
-	// Result should be the original exclude
-	require.Equal(entryResult, MetricTagListEntry{
-		MetricName: "test.metric",
-		Action:     "exclude",
-		Tags:       []string{"env", "host"},
-	})
+	list, ok := compileTagFilterList(entries, filterList.log).ShouldStripTags("my_metric")
+	require.True(ok)
+	require.Equal(metricname.NewHashedMetricTagList(true, []string{"pod_name"}), list)
 }
