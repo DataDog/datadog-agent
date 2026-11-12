@@ -220,11 +220,11 @@ func (c *KataCheck) runScrape() {
 	}
 }
 
-// buildBaseTags returns sandbox_id tag plus any orchestrator tags from the tagger.
+// buildBaseTags returns orchestrator tags from the tagger.
 // All containers in the same pod share the same orchestrator tags, so we pick any
 // one container from the sandbox's set for the tagger lookup.
 func (c *KataCheck) buildBaseTags(sandboxID string) []string {
-	tags := []string{"sandbox_id:" + sandboxID}
+	var tags []string
 
 	c.mu.RLock()
 	var containerID string
@@ -348,7 +348,7 @@ func (c *KataCheck) buildSampleTags(baseTags []string, metric prom.Metric) []str
 	tags = append(tags, c.instance.Tags...)
 
 	for k, v := range metric {
-		if k == "__name__" {
+		if k == "__name__" || k == "sandbox_id" {
 			continue
 		}
 		if _, excluded := c.excludeSet[k]; excluded {

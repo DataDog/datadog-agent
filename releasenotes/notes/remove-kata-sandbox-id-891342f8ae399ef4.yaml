@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Remove the ``sandbox_id`` tag from Kata Containers metrics and service
+    checks to reduce metric cardinality. Sandbox identifiers remain available
+    in service check error messages.

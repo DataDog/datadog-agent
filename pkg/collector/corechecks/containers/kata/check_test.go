@@ -121,20 +121,24 @@ func TestScrapeSandbox_MetricCollection(t *testing.T) {
 		},
 	}
 
-	baseTags := []string{"sandbox_id:abc123"}
+	baseTags := append(c.buildBaseTags("abc123"), "service:kata")
 	c.scrapeSandbox(ms, "abc123", socketPath, baseTags)
 
 	// Gauge for kata_hypervisor_fds
-	ms.AssertMetricTaggedWith(t, "Gauge", "kata.hypervisor.fds", []string{"sandbox_id:abc123"})
+	ms.AssertMetricTaggedWith(t, "Gauge", "kata.hypervisor.fds", []string{"service:kata"})
 
 	// Rate for kata_shim_io_wait_duration_secs (COUNTER)
-	ms.AssertMetricTaggedWith(t, "Rate", "kata.shim.io.wait.duration.secs", []string{"sandbox_id:abc123"})
+	ms.AssertMetricTaggedWith(t, "Rate", "kata.shim.io.wait.duration.secs", []string{"service:kata"})
 
 	// Label rename: version → go_version
-	ms.AssertMetricTaggedWith(t, "Gauge", "kata.go.goroutines", []string{"sandbox_id:abc123", "go_version:1.21"})
+	ms.AssertMetricTaggedWith(t, "Gauge", "kata.go.goroutines", []string{"service:kata", "go_version:1.21"})
+
+	ms.AssertMetricNotTaggedWith(t, "Gauge", "kata.hypervisor.fds", []string{"sandbox_id:abc123"})
+	ms.AssertMetricNotTaggedWith(t, "Rate", "kata.shim.io.wait.duration.secs", []string{"sandbox_id:abc123"})
+	ms.AssertMetricNotTaggedWith(t, "Gauge", "kata.go.goroutines", []string{"sandbox_id:abc123"})
 
 	// OK service check
-	ms.AssertServiceCheck(t, "kata.openmetrics.health", servicecheck.ServiceCheckOK, "", []string{"sandbox_id:abc123"}, "")
+	ms.AssertServiceCheck(t, "kata.openmetrics.health", servicecheck.ServiceCheckOK, "", []string{"service:kata"}, "")
 }
 
 func TestScrapeSandbox_ConnectionFailure(t *testing.T) {
@@ -146,9 +150,9 @@ func TestScrapeSandbox_ConnectionFailure(t *testing.T) {
 	}
 
 	// Non-existent socket path → connection failure
-	c.scrapeSandbox(ms, "deadbeef", "/nonexistent/shim-monitor.sock", []string{"sandbox_id:deadbeef"})
+	c.scrapeSandbox(ms, "deadbeef", "/nonexistent/shim-monitor.sock", c.buildBaseTags("deadbeef"))
 
-	ms.Mock.AssertCalled(t, "ServiceCheck", "kata.openmetrics.health", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains([]string{"sandbox_id:deadbeef"}), mock.AnythingOfType("string"))
+	ms.Mock.AssertCalled(t, "ServiceCheck", "kata.openmetrics.health", servicecheck.ServiceCheckCritical, "", mock.MatchedBy(func(tags []string) bool { return len(tags) == 0 }), mock.AnythingOfType("string"))
 }
 
 func TestRunningShimCount(t *testing.T) {
@@ -186,14 +190,10 @@ func TestBuildSampleTags_ExcludeLabels(t *testing.T) {
 		"env":        "prod",
 	}
 
-	baseTags := []string{"sandbox_id:sandbox-001"}
+	baseTags := []string{"service:kata"}
 	tags := c.buildSampleTags(baseTags, metric)
 
-	assert.Contains(t, tags, "sandbox_id:sandbox-001")
-	assert.Contains(t, tags, "env:prod")
-	for _, tag := range tags {
-		assert.NotContains(t, tag, "job:")
-	}
+	assert.ElementsMatch(t, []string{"service:kata", "env:prod"}, tags)
 }
 
 func TestProcessContainerEvents_MultiContainerPodAndUnset(t *testing.T) {
@@ -271,7 +271,7 @@ func TestAssertServiceCheck_MessageContains(t *testing.T) {
 		instance: &KataConfig{},
 	}
 
-	c.scrapeSandbox(ms, "deadbeef", "/nonexistent/shim-monitor.sock", []string{"sandbox_id:deadbeef"})
+	c.scrapeSandbox(ms, "deadbeef", "/nonexistent/shim-monitor.sock", c.buildBaseTags("deadbeef"))
 
 	// Verify the service check message mentions the sandbox ID
 	calls := ms.Calls
