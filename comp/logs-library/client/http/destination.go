@@ -25,6 +25,7 @@ import (
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -89,6 +90,8 @@ type Destination struct {
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
 	isMRF               bool
+	// dropTarget names this destination in the dropped-logs health issue.
+	dropTarget metrics.DropTarget
 
 	// Concurrency
 	workerPool *workerPool
@@ -194,6 +197,7 @@ func newDestination(endpoint config.Endpoint,
 		expVars:             expVars,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
+		dropTarget:          dropTargetFor(endpoint, destMeta, shouldRetry),
 		pipelineMonitor:     pipelineMonitor,
 		utilization:         pipelineMonitor.MakeUtilizationMonitor(destMeta.MonitorTag(), instanceID),
 		instanceID:          instanceID,
@@ -294,6 +298,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				// Unreliable destinations don't feed the auditor: drop this copy.
 				metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 				metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+				droppedlogs.RecordPayload(payload, metrics.DropReasonCredentialUnavailable, d.dropTarget)
 				output <- payload
 				return destinationResult{latency: latency}
 			}
@@ -317,6 +322,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// this copy without acking rather than hold it forever.
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+			droppedlogs.RecordPayload(payload, metrics.DropReasonCredentialUnavailable, d.dropTarget)
 			return destinationResult{latency: latency}
 		}
 
@@ -346,6 +352,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// Permanent error, increment the logs dropped metric
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+			droppedlogs.RecordPayload(payload, dropReasonFor(err), d.dropTarget)
 		} else {
 			metrics.LogsSent.Add(payload.Count())
 			metrics.TlmLogsSent.Add(float64(payload.Count()))
@@ -454,15 +461,15 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 	if resp.StatusCode == http.StatusForbidden &&
 		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
 		d.secrets.Refresh() {
-		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
+		return client.NewRetryableError(newStatusError(errServer, resp))
 	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
-		return fmt.Errorf("%w: %s", errClient, resp.Status)
+		return newStatusError(errClient, resp)
 	} else if resp.StatusCode > http.StatusBadRequest {
-		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
+		return client.NewRetryableError(newStatusError(errServer, resp))
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 	return nil

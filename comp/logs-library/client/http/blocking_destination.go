@@ -11,6 +11,7 @@ import (
 
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -45,6 +46,7 @@ func (d *BlockingDestination) Send(ctx context.Context, payload *message.Payload
 		if errors.Is(err, errClient) {
 			metrics.DestinationLogsDropped.Add(d.destination.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.destination.host)
+			droppedlogs.RecordPayload(payload, dropReasonFor(err), d.destination.dropTarget)
 		}
 		return err
 	}

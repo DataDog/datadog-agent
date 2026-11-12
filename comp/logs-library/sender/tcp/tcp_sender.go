@@ -57,8 +57,16 @@ func tcpDestinationFactory(
 	return func(_ string) *client.Destinations {
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.GetReliableEndpoints() {
-			reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !isServerless, status))
+		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			destination := tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !isServerless, status)
+			// GetReliableEndpoints starts with the main endpoint. Set either way:
+			// serverless destinations do not retry, which would read as best effort.
+			kind := metrics.DropTargetPrimary
+			if i > 0 {
+				kind = metrics.DropTargetAdditional
+			}
+			destination.SetDropTargetKind(kind)
+			reliable = append(reliable, destination)
 		}
 		for _, endpoint := range endpoints.GetUnReliableEndpoints() {
 			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, status))

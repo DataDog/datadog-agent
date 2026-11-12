@@ -54,6 +54,17 @@ func (d *DestinationMetadata) MonitorTag() string {
 	return fmt.Sprintf("destination_%s_%s", d.kind, d.endpointID)
 }
 
+// Kind returns "reliable" or "unreliable", or "" for a noop metadata.
+func (d *DestinationMetadata) Kind() string {
+	return d.kind
+}
+
+// EndpointID returns the destination's position among the endpoints of its kind,
+// or "" for a noop metadata.
+func (d *DestinationMetadata) EndpointID() string {
+	return d.endpointID
+}
+
 // EvpCategory returns the EvP category for the destination
 func (d *DestinationMetadata) EvpCategory() string {
 	return d.evpCategory

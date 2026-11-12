@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "blocking_destination.go",
         "destination.go",
+        "dropped_logs.go",
         "sync_destination.go",
         "test_utils.go",
         "worker_pool.go",
@@ -17,6 +18,7 @@ go_library(
         "//comp/core/secrets/noop-impl",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
+        "//comp/logs-library/client/droppedlogs",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/model",
@@ -34,6 +36,7 @@ dd_agent_go_test(
     srcs = [
         "blocking_destination_test.go",
         "destination_test.go",
+        "dropped_logs_test.go",
         "worker_pool_test.go",
     ],
     embed = [":http"],
@@ -48,6 +51,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",

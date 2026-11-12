@@ -11,6 +11,7 @@ import (
 	"io"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -87,6 +88,16 @@ func (b *batch) resetBatch() {
 	b.encodedPayload = &encodedPayload
 }
 
+// Dropped before a payload exists, so no destination gets these logs.
+var dropTargetAll = metrics.DropTarget{Kind: metrics.DropTargetAll}
+
+// dropBuffered discards a batch that failed to encode, after recording the logs in
+// it as dropped.
+func (b *batch) dropBuffered() {
+	droppedlogs.RecordMessages(b.buffer.GetMessages(), metrics.DropReasonEncodeFailed, dropTargetAll)
+	b.resetBatch()
+}
+
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
@@ -94,7 +105,7 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 	added, err := b.addMessage(m)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
-		b.resetBatch()
+		b.dropBuffered()
 		return
 	}
 	if !added || b.buffer.IsFull() {
@@ -110,12 +121,13 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		added, err = b.addMessage(m)
 		if err != nil {
 			log.Warn("Encoding failed - dropping payload", err)
-			b.resetBatch()
+			b.dropBuffered()
 			return
 		}
 		if !added {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", b.pipelineName, len(m.GetContent()), b.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(b.pipelineName)
+			droppedlogs.RecordMessages([]*message.MessageMetadata{&m.MessageMetadata}, metrics.DropReasonMessageTooLarge, dropTargetAll)
 		}
 
 	}
@@ -145,7 +157,7 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 	b.utilization.Start()
 	if err := b.serializer.Finish(b.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
-		b.resetBatch()
+		b.dropBuffered()
 		b.utilization.Stop()
 		return
 	}
@@ -167,6 +179,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	b.compressor = nil // prevent double-free from defer resetBatch
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		droppedlogs.RecordMessages(messagesMetadata, metrics.DropReasonEncodeFailed, dropTargetAll)
 		b.utilization.Stop()
 		return
 	}
