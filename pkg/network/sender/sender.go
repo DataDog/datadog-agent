@@ -11,6 +11,7 @@ package sender
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -87,13 +88,42 @@ var (
 // and the backend drops the payloads.
 func resolveHostname(ctx context.Context, hostnameComp hostname.Component, logger log.Component) (string, error) {
 	if isSidecar() {
-		h, err := getFargateHost(ctx)
+		h, err := retryGetFargateHost(ctx)
+		if err == nil {
+			return h, nil
+		}
+		logger.Errorf("failed to get Fargate host, falling back to agent hostname: %v", err)
+	}
+	return hostnameComp.Get(ctx)
+}
+
+// fargateHostRetryDelay is a variable so tests can shorten it.
+var fargateHostRetryDelay = 250 * time.Millisecond
+
+// retryGetFargateHost retries the Fargate host lookup, since the ECS task metadata endpoint can be
+// briefly unavailable right after the task starts. The hostname is resolved once when the sender is
+// created, so a transient failure would otherwise leave it empty for the life of the task.
+func retryGetFargateHost(ctx context.Context) (string, error) {
+	const maxRetries = 4
+	var err error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		var h string
+		h, err = getFargateHost(ctx)
 		if err == nil && h != "" {
 			return h, nil
 		}
-		logger.Warnf("failed to get Fargate host, falling back to agent hostname: host=%q err=%v", h, err)
+		if err == nil {
+			err = errors.New("empty Fargate host")
+		}
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(time.Duration(attempt) * fargateHostRetryDelay):
+			}
+		}
 	}
-	return hostnameComp.Get(ctx)
+	return "", fmt.Errorf("failed to get Fargate host after %d attempts: %w", maxRetries, err)
 }
 
 // New creates a direct sender

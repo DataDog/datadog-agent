@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,8 +56,11 @@ func TestResolveHostname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			origIsSidecar, origGetFargateHost := isSidecar, getFargateHost
-			t.Cleanup(func() { isSidecar, getFargateHost = origIsSidecar, origGetFargateHost })
+			origIsSidecar, origGetFargateHost, origDelay := isSidecar, getFargateHost, fargateHostRetryDelay
+			t.Cleanup(func() {
+				isSidecar, getFargateHost, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origDelay
+			})
+			fargateHostRetryDelay = time.Millisecond
 
 			fargateCalled := false
 			isSidecar = func() bool { return tt.sidecar }
@@ -72,4 +76,30 @@ func TestResolveHostname(t *testing.T) {
 			assert.Equal(t, tt.sidecar, fargateCalled)
 		})
 	}
+}
+
+func TestResolveHostnameRetriesTransientFargateErrors(t *testing.T) {
+	const taskHost = "fargate_task:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
+
+	origIsSidecar, origGetFargateHost, origDelay := isSidecar, getFargateHost, fargateHostRetryDelay
+	t.Cleanup(func() {
+		isSidecar, getFargateHost, fargateHostRetryDelay = origIsSidecar, origGetFargateHost, origDelay
+	})
+	fargateHostRetryDelay = time.Millisecond
+
+	calls := 0
+	isSidecar = func() bool { return true }
+	getFargateHost = func(context.Context) (string, error) {
+		calls++
+		if calls < 3 {
+			return "", errors.New("metadata endpoint not ready")
+		}
+		return taskHost, nil
+	}
+
+	hostnameComp, _ := hostname.NewMock("agent-host")
+	got, err := resolveHostname(context.Background(), hostnameComp, logmock.New(t))
+	require.NoError(t, err)
+	assert.Equal(t, taskHost, got)
+	assert.Equal(t, 3, calls)
 }
