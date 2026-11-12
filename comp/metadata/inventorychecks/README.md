@@ -175,3 +175,15 @@ ENC references always retain their original indexed paths and handles, even insi
 a replaced container. Repeated handles retain one entry per location. These entries describe file
 contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
 `metadata_skip_secrets` suppresses these entries as well as `enc_info`.
+
+### Resolved secret hashes per file
+
+Each file with ENC declarations also includes `files_metadata[filename].enc_info`
+using the required secrets component (which may be a no-op resolver). Its aligned `paths` and `handles` arrays
+come directly from that file's ENC declarations; paths include the YAML section
+and instance index. `hash_secret_id` contains SHA-256 hashes only for those
+handles that have resolved values. Repeated references retain each path.
+Raw secret declarations are excluded from `enc_info`.
+
+`metadata_skip_secrets` suppresses both declarations and `enc_info`. Expvar
+excludes file metadata, and diagnostic and flare output scrub the hashes.

@@ -23,6 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -79,10 +81,12 @@ type inventorychecksImpl struct {
 	coll     option.Option[collector.Component]
 	sources  option.Option[*sources.LogSources]
 	hostname string
+	secrets  secrets.Component
 }
 
 // Requires defines the component dependencies.
 type Requires struct {
+	Secrets    secrets.Component
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -104,6 +108,7 @@ func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
 		conf:     deps.Config,
+		secrets:  deps.Secrets,
 		log:      deps.Log,
 		coll:     deps.Coll,
 		sources:  option.None[*sources.LogSources](),
@@ -279,8 +284,13 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 }
 
 func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := ic.GetAsJSON()
+	data, err := ic.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	// Scrub secret hashes from diagnostics, as the flare does.
+	scrubbed, err := scrubber.ScrubJSON(data)
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
@@ -296,16 +306,30 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	}
 
 	filesMetadata := metadata{}
+	includeSecrets := !ic.conf.GetBool("metadata_skip_secrets")
 	for _, configFile := range configFiles {
-		// Use the filename as key
-		filesMetadata[configFile.Filename] = metadata{
+		fileMetadata := metadata{
 			"raw_config": configFile.ConfigFormat,
 			"hash":       configFile.Hash,
 		}
-		if !ic.conf.GetBool("metadata_skip_secrets") {
-			filesMetadata[configFile.Filename].(metadata)["secrets"] = configFile.Secrets
+		if includeSecrets {
+			fileMetadata["secrets"] = configFile.Secrets
+			var paths, handles []string
+			for _, secret := range configFile.Secrets {
+				if secret.Kind == "enc" {
+					paths = append(paths, secret.Path)
+					handles = append(handles, secret.Handle)
+				}
+			}
+			if len(handles) > 0 {
+				fileMetadata["enc_info"] = metadata{
+					"paths":          paths,
+					"handles":        handles,
+					"hash_secret_id": ic.secrets.GetHashValues(handles),
+				}
+			}
 		}
+		filesMetadata[configFile.Filename] = fileMetadata
 	}
-
 	return filesMetadata
 }
