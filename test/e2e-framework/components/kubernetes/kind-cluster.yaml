@@ -26,14 +26,23 @@ nodes:
   - hostPath: ./certs.d
     containerPath: /etc/containerd/certs.d
 {{- end }}
-{{- if or .Labels .Taints }}
+{{- range .ExtraMounts }}
+  - hostPath: {{ .HostPath }}
+    containerPath: {{ .ContainerPath }}
+{{- end }}
+{{- if or .Labels .Taints .KubeletExtraArgs }}
   kubeadmConfigPatches:
     - |
       kind: JoinConfiguration
       nodeRegistration:
-{{- if .Labels }}
+{{- if or .Labels .KubeletExtraArgs }}
         kubeletExtraArgs:
+{{- if .Labels }}
           node-labels: "{{range $i, $l := .Labels}}{{if $i}},{{end}}{{$l.Key}}={{$l.Value}}{{end}}"
+{{- end }}
+{{- range $name, $value := .KubeletExtraArgs }}
+          {{ $name }}: "{{ $value }}"
+{{- end }}
 {{- end }}
 {{- if .Taints }}
         taints:
