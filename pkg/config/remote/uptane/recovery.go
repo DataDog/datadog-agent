@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
@@ -98,19 +99,6 @@ func rootRoleKeyIDs(rootJSON json.RawMessage) (map[string]struct{}, error) {
 	return keyIDs, nil
 }
 
-// sameKeyIDs reports whether two key ID sets are equal.
-func sameKeyIDs(a, b map[string]struct{}) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for keyID := range a {
-		if _, ok := b[keyID]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // trustedChainChanged reports whether the root chains of a verified
 // fresh-join payload differ from the ones currently latched, for both the
 // config and the director repositories. Each DC signs with its own keys, so
@@ -153,10 +141,10 @@ func (c *CoreAgentClient) trustedChainChanged(verified *verifiedFreshJoin) (bool
 		return false, fmt.Errorf("could not parse the verified director root: %w", err)
 	}
 
-	if sameKeyIDs(latchedConfigKeyIDs, verifiedConfigKeyIDs) {
+	if maps.Equal(latchedConfigKeyIDs, verifiedConfigKeyIDs) {
 		return false, nil
 	}
-	if sameKeyIDs(latchedDirectorKeyIDs, verifiedDirectorKeyIDs) {
+	if maps.Equal(latchedDirectorKeyIDs, verifiedDirectorKeyIDs) {
 		return false, nil
 	}
 	return true, nil
