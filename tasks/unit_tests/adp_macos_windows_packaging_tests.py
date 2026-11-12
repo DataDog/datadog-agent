@@ -24,10 +24,8 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         archives = (REPO_ROOT / "deps/agent_data_plane/BUILD.bazel").read_text()
         packages_agent = (REPO_ROOT / "packages/agent/BUILD.bazel").read_text()
 
-        # Agent Data Plane has no FIPS build for macOS: base_flavor (not fips_flavor)
-        # gates the macOS archive selection, so a FIPS+macOS build resolves no
-        # select() branch at all and fails loudly instead of silently falling
-        # back to the non-FIPS darwin archive.
+        # Agent Data Plane has no FIPS build for macOS: no macOS platform carries //bazel/platforms:fips,
+        # so a FIPS+macOS build fails loudly instead of silently falling back to the non-FIPS darwin archive.
         self.assertIn('"//packages/agent:macos_x86_64_base": "agent_data_plane_darwin_amd64"', archives)
         self.assertIn('"//packages/agent:macos_arm64_base": "agent_data_plane_darwin_arm64"', archives)
         self.assertNotIn("macos_x86_64_fips", archives)
@@ -41,7 +39,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_adp_all_files_is_wired_into_dependencies_for_linux_macos_and_windows(self):
         dependencies = (REPO_ROOT / "packages/agent/dependencies/BUILD.bazel").read_text()
 
-        self.assertIn('"//packages/agent:linux_default": [', dependencies)
+        self.assertIn('"@platforms//os:linux": [', dependencies)
         self.assertIn('"//packages/agent:linux_fips": [', dependencies)
         macos_srcs = dependencies.partition('"@platforms//os:macos": [')[2].partition("],")[0]
         self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)

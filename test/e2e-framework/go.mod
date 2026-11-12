@@ -32,14 +32,14 @@ require (
 	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.53.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.29.0
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.29.0
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.29.0
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.30.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.30.0
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.30.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.30.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0
 	github.com/pulumi/pulumi-command/sdk v1.3.0
-	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.1
+	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.2
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0
 	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
@@ -197,7 +197,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/go-tpm-tools v0.4.8 // indirect
-	github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0 // indirect
+	github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect

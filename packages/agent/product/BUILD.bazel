@@ -52,7 +52,7 @@ pkg_filegroup(
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
             ":cws_instrumentation_binary",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
@@ -327,7 +327,7 @@ pkg_filegroup(
         ":system_probe_llvm_bpf",
         ":system_probe_runtime_sources",
     ] + select({
-        "//packages/agent:fips_flavor": [],
+        "//bazel/platforms:fips": [],
         "//conditions:default": [":system_probe_binary"],
     }),
 )
