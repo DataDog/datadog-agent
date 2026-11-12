@@ -7348,23 +7348,9 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			check(process(workloadmeta.EventTypeSet, duplicate), false)
 			check(process(workloadmeta.EventTypeUnset, duplicate), true)
 
-			// Updates must retag the previous pod as well as the new target.
-			updated := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
-			updated.Labels[kubernetes.KueueJobUIDLabelKey] = "replacement-pod-uid"
-			check(process(workloadmeta.EventTypeSet, updated), false)
-			replacement := pod.DeepCopy().(*workloadmeta.KubernetesPod)
-			replacement.ID = "replacement-pod-uid"
-			require.NotNil(t, collector.getKueueWorkloadForPod(replacement))
-			check(process(workloadmeta.EventTypeSet, workload), true)
-			assert.Nil(t, collector.getKueueWorkloadForPod(replacement))
-
-			// Removing the label must clear the previous association too.
-			withoutLabel := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
-			withoutLabel.Labels = nil
-			check(process(workloadmeta.EventTypeSet, withoutLabel), false)
+			// Repeated metadata updates preserve the same association.
 			check(process(workloadmeta.EventTypeSet, workload), true)
 			check(process(workloadmeta.EventTypeUnset, workload), false)
-			assert.Empty(t, collector.kueueWorkloadPods)
 			assert.Empty(t, collector.kueueWorkloadsByPod)
 		})
 	}

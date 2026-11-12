@@ -89,9 +89,7 @@ type WorkloadMetaCollector struct {
 	autoscalers         map[string]workloadmeta.AutoscalerTarget
 	autoscalersByTarget map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind
 
-	// Kueue Workloads identify standalone pods with the job-uid label. Keep
-	// both directions so updates and deletes remove the previous association.
-	kueueWorkloadPods   map[string]string
+	// Kueue Workloads identify standalone pods with the job-uid label.
 	kueueWorkloadsByPod map[string]map[string]struct{}
 
 	// refreshCh routes tag refresh requests through the stream goroutine, avoiding races with staticTags reads in processEvents.
@@ -268,7 +266,6 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
 		autoscalers:                       make(map[string]workloadmeta.AutoscalerTarget),
 		autoscalersByTarget:               make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind),
-		kueueWorkloadPods:                 make(map[string]string),
 		kueueWorkloadsByPod:               make(map[string]map[string]struct{}),
 		refreshCh:                         make(chan refreshRequest),
 	}
