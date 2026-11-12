@@ -606,9 +606,10 @@ func (p *EBPFLessProbe) Start() error {
 	}
 
 	// on ECS Fargate, the tracers reaching system-probe over loopback run in its task
+	var lateECSTaskID <-chan string
 	metadataURI := os.Getenv(utils.ECSMetadataURIv4EnvVar)
 	if metadataURI != "" && fargate.GetOrchestrator() == fargate.ECS {
-		p.resolveECSTaskID(metadataURI)
+		lateECSTaskID = p.resolveECSTaskID(metadataURI)
 	}
 
 	// Start listening for TCP connections on the given address
@@ -648,6 +649,8 @@ func (p *EBPFLessProbe) Start() error {
 				listener.Close()
 
 				return
+			case taskID := <-lateECSTaskID:
+				p.Resolvers.ProcessResolver.SetECSTaskID(taskID)
 			case msg := <-ch:
 				if msg.Type == ebpfless.MessageTypeGoodbye {
 					if msg.client.containerID != "" {
@@ -666,37 +669,42 @@ func (p *EBPFLessProbe) Start() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) resolveECSTaskID(metadataURI string) {
-	resolve := func() error {
+// resolveECSTaskID returns a channel delivering the task ID if it's resolved after tracers can connect, nil otherwise
+func (p *EBPFLessProbe) resolveECSTaskID(metadataURI string) <-chan string {
+	fetch := func() (string, error) {
 		ctx, cancel := context.WithTimeout(p.ctx, ecscommon.MetadataTimeout())
 		defer cancel()
 
-		taskID, err := utils.GetECSTaskID(ctx, metadataURI)
-		if err != nil {
-			return err
-		}
-		p.Resolvers.ProcessResolver.SetECSTaskID(taskID)
-		seclog.Infof("ECS task ID resolved: %s", taskID)
-		return nil
+		return utils.GetECSTaskID(ctx, metadataURI)
 	}
 
 	// resolved before tracers connect, so that their first processes get it
-	err := resolve()
+	taskID, err := fetch()
 	if err == nil {
-		return
+		seclog.Infof("ECS task ID resolved: %s", taskID)
+		p.Resolvers.ProcessResolver.SetECSTaskID(taskID)
+		return nil
 	}
 	seclog.Warnf("unable to resolve the ECS task ID, retrying: %v", err)
+
+	lateTaskID := make(chan string, 1)
 
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 
-		if _, err := backoff.Retry(p.ctx, func() (struct{}, error) {
-			return struct{}{}, resolve()
-		}); err != nil && p.ctx.Err() == nil {
-			seclog.Errorf("unable to resolve the ECS task ID: %v", err)
+		taskID, err := backoff.Retry(p.ctx, fetch, backoff.WithMaxElapsedTime(10*time.Minute))
+		if err != nil {
+			if p.ctx.Err() == nil {
+				seclog.Errorf("unable to resolve the ECS task ID: %v", err)
+			}
+			return
 		}
+		seclog.Infof("ECS task ID resolved: %s", taskID)
+		lateTaskID <- taskID
 	}()
+
+	return lateTaskID
 }
 
 // Snapshot the already existing entities

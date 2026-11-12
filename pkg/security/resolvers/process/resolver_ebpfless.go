@@ -57,9 +57,18 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 	return p, nil
 }
 
-// SetECSTaskID sets the ECS task ID of the traced processes running in a container
+// SetECSTaskID sets the ECS task ID of the traced processes running in a container, including the cached ones.
+// It must be called from the goroutine handling the events, as it updates cached entries.
 func (p *EBPFLessResolver) SetECSTaskID(taskID string) {
 	p.ecsTaskID.Store(taskID)
+
+	p.Walk(func(entry *model.ProcessCacheEntry) {
+		for pce := entry; pce != nil; pce = pce.Ancestor {
+			if pce.ContainerContext.ContainerID != "" && pce.ContainerContext.ECSTaskID == "" {
+				pce.ContainerContext.ECSTaskID = taskID
+			}
+		}
+	})
 }
 
 // GetECSTaskID returns the ECS task ID of the traced processes running in a container

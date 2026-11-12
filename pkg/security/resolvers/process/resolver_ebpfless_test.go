@@ -241,3 +241,22 @@ func TestEBPFLessExecWithoutForkInvalidParent(t *testing.T) {
 		})
 	}
 }
+
+func TestEBPFLessSetECSTaskID(t *testing.T) {
+	const taskID = "bfa2636268144d039771334145e490c5"
+
+	r := &EBPFLessResolver{entryCache: make(map[CacheResolverKey]*model.ProcessCacheEntry)}
+	parentKey := CacheResolverKey{Pid: 100, NSID: 1}
+	parent := r.AddExecEntry(parentKey, 0, "/app", []string{"app"}, false, nil, false, "app-container", "app-cgroup", 100, "")
+	child := r.AddForkEntry(CacheResolverKey{Pid: 200, NSID: 1}, 100, 200)
+	outside := addEBPFLessTestExec(r, CacheResolverKey{Pid: 300, NSID: 1}, 0, "/outside", 300)
+	r.DeleteEntry(parentKey, time.Unix(0, 400))
+
+	r.SetECSTaskID(taskID)
+
+	assert.Equal(t, taskID, r.GetECSTaskID())
+	assert.Equal(t, taskID, child.ContainerContext.ECSTaskID)
+	// no longer cached, but still the child's ancestor
+	assert.Equal(t, taskID, parent.ContainerContext.ECSTaskID)
+	assert.Empty(t, outside.ContainerContext.ECSTaskID)
+}

@@ -366,44 +366,79 @@ func TestEBPFLessECSTaskID(t *testing.T) {
 	}
 }
 
+func newECSTaskMetadataTestServer(t *testing.T, taskID string, failedRequests int32) (string, *atomic.Int32) {
+	t.Helper()
+	requests := &atomic.Int32{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) <= failedRequests {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte(`{"TaskARN":"arn:aws:ecs:us-east-1:123456789012:task/MyCluster/` + taskID + `"}`))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL + "/v4/" + taskID + "-1117626119", requests
+}
+
+func newEBPFLessECSTestProbe(t *testing.T) (*EBPFLessProbe, *client) {
+	t.Helper()
+	p, cl := newEBPFLessContextTestProbe(t)
+	p.ctx, p.cancelFnc = context.WithCancel(t.Context())
+	t.Cleanup(func() {
+		p.cancelFnc()
+		p.wg.Wait()
+	})
+	return p, cl
+}
+
 func TestEBPFLessResolveECSTaskID(t *testing.T) {
 	const taskID = "bfa2636268144d039771334145e490c5"
 
-	tests := []struct {
-		name           string
-		failedRequests int32
-	}{
-		{name: "first-attempt"},
-		{name: "retry", failedRequests: 1},
+	metadataURI, requests := newECSTaskMetadataTestServer(t, taskID, 0)
+	p, _ := newEBPFLessECSTestProbe(t)
+
+	assert.Nil(t, p.resolveECSTaskID(metadataURI))
+	assert.Equal(t, taskID, p.Resolvers.ProcessResolver.GetECSTaskID())
+	assert.EqualValues(t, 1, requests.Load())
+}
+
+func TestEBPFLessResolveECSTaskIDLate(t *testing.T) {
+	const taskID = "bfa2636268144d039771334145e490c5"
+
+	metadataURI, requests := newECSTaskMetadataTestServer(t, taskID, 1)
+	p, cl := newEBPFLessECSTestProbe(t)
+
+	lateTaskID := p.resolveECSTaskID(metadataURI)
+	require.NotNil(t, lateTaskID)
+
+	// a process cached while the task ID is retried
+	handleEBPFLessContextTestMessage(t, p, cl, &ebpfless.SyscallMsg{
+		PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeExec,
+		ContainerID: "app-container", CGroupID: "app-cgroup",
+		Exec: &ebpfless.ExecSyscallMsg{File: ebpfless.FileSyscallMsg{Filename: "/app"}, Args: []string{"app"}},
+	})
+
+	select {
+	case resolved := <-lateTaskID:
+		// cached entries are only updated from the goroutine handling the events
+		assert.Empty(t, p.Resolvers.ProcessResolver.GetECSTaskID())
+		p.Resolvers.ProcessResolver.SetECSTaskID(resolved)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the ECS task ID wasn't resolved")
 	}
+	assert.EqualValues(t, 2, requests.Load())
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			var requests atomic.Int32
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if requests.Add(1) <= test.failedRequests {
-					w.WriteHeader(http.StatusServiceUnavailable)
-					return
-				}
-				_, _ = w.Write([]byte(`{"TaskARN":"arn:aws:ecs:us-east-1:123456789012:task/MyCluster/` + taskID + `"}`))
-			}))
-			defer server.Close()
-
-			p, _ := newEBPFLessContextTestProbe(t)
-			p.ctx, p.cancelFnc = context.WithCancel(t.Context())
-			defer func() {
-				p.cancelFnc()
-				p.wg.Wait()
-			}()
-
-			p.resolveECSTaskID(server.URL + "/v4/" + taskID + "-1117626119")
-			if test.failedRequests == 0 {
-				assert.Equal(t, taskID, p.Resolvers.ProcessResolver.GetECSTaskID())
-			}
-			require.Eventually(t, func() bool {
-				return p.Resolvers.ProcessResolver.GetECSTaskID() == taskID
-			}, 10*time.Second, 10*time.Millisecond)
-			assert.EqualValues(t, test.failedRequests+1, requests.Load())
-		})
-	}
+	calls := 0
+	require.NoError(t, p.probe.AddEventHandler(ebpflessContextEventHandler(func(event *model.Event) {
+		calls++
+		value, err := event.GetFieldValue("process.container.ecs_task_id")
+		require.NoError(t, err)
+		assert.Equal(t, taskID, value)
+	})))
+	handleEBPFLessContextTestMessage(t, p, cl, &ebpfless.SyscallMsg{
+		PID: 200, StartTime: 200, Timestamp: 400, Type: ebpfless.SyscallTypeOpen,
+		ContainerID: "app-container", CGroupID: "app-cgroup",
+		Open: &ebpfless.OpenSyscallMsg{FileSyscallMsg: ebpfless.FileSyscallMsg{Filename: "/etc/passwd"}},
+	})
+	assert.Equal(t, 1, calls)
 }
