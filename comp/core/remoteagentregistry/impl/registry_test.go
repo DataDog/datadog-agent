@@ -318,6 +318,7 @@ type testRemoteAgentServer struct {
 	statusNamed   map[string]map[string]string
 	flareFiles    map[string][]byte
 	promText      string
+	telemetryErr  error
 	responseDelay time.Duration
 	ConfigEvents  chan *pb.ConfigEvent
 
@@ -369,6 +370,9 @@ func (t *testRemoteAgentServer) UnaryEcho(_ context.Context, req *echo.EchoReque
 
 func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pb.GetTelemetryRequest) (*pb.GetTelemetryResponse, error) {
 	t.telemetryCalls.Add(1)
+	if t.telemetryErr != nil {
+		return nil, t.telemetryErr
+	}
 	return &pb.GetTelemetryResponse{
 		Payload: &pb.GetTelemetryResponse_PromText{
 			PromText: t.promText,

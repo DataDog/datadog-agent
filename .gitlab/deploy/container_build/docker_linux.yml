@@ -219,7 +219,7 @@ single_machine_performance-full-amd64-a7:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
     # All SMP client teams can read images in the global `agent` repository of SMP.
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64,agent:${CI_COMMIT_SHA}-7-full-amd64
+    IMG_DESTINATIONS: agent:${CI_COMMIT_SHA}-7-full-amd64
   script:
     # The global `agent` repository has immutable tags. A new pipeline on the
     # same commit builds a new image with the same tag, and ECR refuses that
