@@ -584,6 +584,7 @@ profiles:
         preserve_tags:
           - subscriber_name
           - status
+          - dropped_event
       - name: appsec_injector.watched_changes
         preserve_tags:
           - proxy_type

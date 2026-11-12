@@ -1,8 +1,10 @@
 ---
 enhancements:
   - |
-    The ``workloadmeta.notifications_sent`` telemetry counter, tagged by
-    ``subscriber_name`` and ``status``, is now collected by default in agent
-    telemetry (COAT). This makes it possible to observe subscriber notification
-    failures, such as missed Autodiscovery configurations on busy nodes, directly
-    from reported telemetry.
+    The ``workloadmeta.notifications_sent`` telemetry counter is now collected by
+    default in agent telemetry (COAT) and gains a ``dropped_event`` boolean tag.
+    Together with the existing ``subscriber_name`` and ``status`` tags, this makes
+    it possible to tell apart subscribers experiencing genuine data loss (events
+    dropped because the subscriber was not reading its channel) from those that
+    only acknowledged slowly, so issues such as missed Autodiscovery
+    configurations on busy nodes can be pinpointed directly from reported telemetry.
