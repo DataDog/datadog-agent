@@ -191,6 +191,15 @@ type engine struct {
 	inactiveSeriesEvictionChecked   bool
 	lastInactiveSeriesEvictionCheck int64
 
+	// lastFreshnessSampleCutoff is the last advance cutoff sampled for
+	// freshness. Freshness is sampled at most once per data-time second.
+	// Guarded by mu.
+	lastFreshnessSampleCutoff int64
+
+	// pendingFreshSeries batches sampled fresh-series counts until the next
+	// telemetry publication.
+	pendingFreshSeries atomic.Uint64
+
 	// Cross-advance detector deduplication is always active. Full anomaly history
 	// and its introspection indexes are populated only for testbench/replay.
 	anomalyDeduper             anomalyDeduper
@@ -655,6 +664,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		e.mu.Unlock()
 		return advanceResult{}
 	}
+	previousCutoff := e.lastAnalyzedDataTime
+	sampleFreshness := upToSec > e.lastFreshnessSampleCutoff
+	if sampleFreshness {
+		e.lastFreshnessSampleCutoff = upToSec
+	}
 	detectors := e.detectors
 	correlators := e.correlators
 	e.lastAnalyzedDataTime = upToSec
@@ -704,6 +718,13 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	// can recreate state for series that are no longer relevant.
 	e.evictInactiveSeries(upToSec, detectors)
 	e.removeExpiredAnomalyDedup(upToSec)
+
+	if sampleFreshness {
+		freshCount := e.storage.FreshSeriesCount(observerdef.TelemetryNamespace, upToSec, previousCutoff)
+		if freshCount > 0 {
+			e.pendingFreshSeries.Add(uint64(freshCount))
+		}
+	}
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
@@ -856,6 +877,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 	}
 
 	// Advance correlators and collect pending events.
+	e.advancePipelineKinds(detectors, upTo)
 	// accumulateCorrelations is called only in testbench mode (trackCorrelationHistory=true)
 	// to avoid map writes + eviction scans on every live Advance.
 	//
@@ -891,6 +913,25 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 	return advanceResult{
 		anomalies:        allAnomalies,
 		correlatorEvents: allCorrelatorEvents,
+	}
+}
+
+// advancePipelineKinds runs matching after detection so transitions apply on the next pass.
+func (e *engine) advancePipelineKinds(detectors []detectorRegistration, dataTime int64) {
+	for _, registration := range detectors {
+		if pipeline, ok := registration.detector.(*MetricPipeline); ok {
+			pipeline.advanceKinds(e.storage, dataTime)
+		}
+	}
+}
+
+// resetPipelineKinds clears committed assignments when restarting analysis on retained storage.
+func (e *engine) resetPipelineKinds() {
+	for _, registration := range e.detectors {
+		if _, ok := registration.detector.(*MetricPipeline); ok {
+			e.storage.ResetSeriesKinds()
+			return
+		}
 	}
 }
 
@@ -1200,6 +1241,7 @@ func (e *engine) Reset() {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.resetFreshnessSamplingLocked()
 
 	for _, registration := range e.detectors {
 		detector := registration.detector
@@ -1220,6 +1262,7 @@ func (e *engine) Reset() {
 	if e.logCounts != nil {
 		e.logCounts.reset()
 	}
+	e.resetPipelineKinds()
 
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
@@ -1290,6 +1333,7 @@ func (e *engine) resetAnalysisState() error {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.resetFreshnessSamplingLocked()
 	e.mu.Unlock()
 
 	for _, registration := range e.detectors {
@@ -1307,12 +1351,20 @@ func (e *engine) resetAnalysisState() error {
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
 	}
+	e.resetPipelineKinds()
 
 	if err := e.resetRawAnomalies(); err != nil {
 		return err
 	}
 	e.resetCorrelations()
 	return nil
+}
+
+// resetFreshnessSamplingLocked starts a new freshness lifecycle. Callers must
+// hold e.mu.
+func (e *engine) resetFreshnessSamplingLocked() {
+	e.lastFreshnessSampleCutoff = math.MinInt64
+	e.pendingFreshSeries.Store(0)
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.

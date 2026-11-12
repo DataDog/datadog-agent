@@ -307,6 +307,10 @@ class GoModule:
         """Return the posix path of the directory go.work and in-repo replace directives point to."""
         return self.workspace_path or self.path
 
+    def full_workspace_dir(self):
+        """Return the absolute path of workspace_dir(), whose go.mod `tidy` maintains, instead of a released snapshot."""
+        return os.path.abspath(self.workspace_dir())
+
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"

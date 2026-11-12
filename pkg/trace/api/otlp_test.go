@@ -7,7 +7,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -15,7 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
@@ -130,6 +128,33 @@ var otlpTestDDSpanLinks = []*pb.SpanLink{
 	},
 	{TraceID: 0xabcdef0123456789, TraceIDHigh: 0xabcdef0123456789, SpanID: 0xfedcba9876543210},
 	{TraceID: 0xabcdef0123456789, TraceIDHigh: 0xabcdef0123456789, SpanID: 0xfedcba9876543210},
+}
+
+// otlpTestDDSpanEvents returns the Datadog span events expected from the "boom" and
+// "exception" span events of the test spans, whose "boom" message is set under boomKey.
+func otlpTestDDSpanEvents(boomKey string) []*pb.SpanEvent {
+	str := func(s string) *pb.AttributeAnyValue {
+		return &pb.AttributeAnyValue{Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: s}
+	}
+	return []*pb.SpanEvent{
+		{
+			TimeUnixNano: 123,
+			Name:         "boom",
+			Attributes: map[string]*pb.AttributeAnyValue{
+				boomKey:    str("Out of memory"),
+				"accuracy": {Type: pb.AttributeAnyValue_DOUBLE_VALUE, DoubleValue: 2.4},
+			},
+		},
+		{
+			TimeUnixNano: 456,
+			Name:         "exception",
+			Attributes: map[string]*pb.AttributeAnyValue{
+				"exception.message":    str("Out of memory"),
+				"exception.type":       str("mem"),
+				"exception.stacktrace": str("1/2/3"),
+			},
+		},
+	}
 }
 
 var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
@@ -1837,14 +1862,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
-				Service:   "pylons",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "pylons",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("key"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -1858,7 +1884,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":               "v1.2.3",
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
-					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
@@ -1964,14 +1989,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:   "myservice",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "myservice",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("message"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -1984,7 +2010,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":               "v1.2.3",
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
-					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2103,14 +2128,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:   "pylons",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "pylons",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("message"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "staging",
@@ -2124,7 +2150,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
-					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2446,14 +2471,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:   "pylons",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "pylons",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("message"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.status_code":              "Error",
@@ -2465,7 +2491,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":               "v1.2.3",
 					"w3c.tracestate":                "state",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
-					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"http.route":                    "/path",
 					"_dd.span_events.has_exception": "true",
 					"http.method":                   "GET",
@@ -2653,26 +2678,10 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
 			for k, v := range want.Meta {
-				switch k {
-				case "events":
-					// events contain maps with no guaranteed order of
-					// traversal; best to unpack to compare
-					var gote, wante []testutil.OTLPSpanEvent
-					if err := json.Unmarshal([]byte(v), &wante); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					assert.Equal(wante, gote)
-				default:
-					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
-				}
+				assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 			}
 			for k, v := range got.Meta {
-				if k != "events" {
-					assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
-				}
+				assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 			}
 			if len(want.Metrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
@@ -2743,14 +2752,15 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
-				Service:   "pylons",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "pylons",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("key"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -2762,7 +2772,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":               "v1.2.3",
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
-					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
 					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
@@ -2869,14 +2878,15 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:   "myservice",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "myservice",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("message"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "prod",
@@ -2889,7 +2899,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"service.version":               "v1.2.3",
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
-					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2998,14 +3007,15 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:   "pylons",
-				TraceID:   2594128270069917171,
-				SpanID:    2594128270069917171,
-				ParentID:  0,
-				Start:     int64(now),
-				Duration:  200000000,
-				Error:     1,
-				SpanLinks: otlpTestDDSpanLinks,
+				Service:    "pylons",
+				TraceID:    2594128270069917171,
+				SpanID:     2594128270069917171,
+				ParentID:   0,
+				Start:      int64(now),
+				Duration:   200000000,
+				Error:      1,
+				SpanLinks:  otlpTestDDSpanLinks,
+				SpanEvents: otlpTestDDSpanEvents("message"),
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "staging",
@@ -3017,7 +3027,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
-					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -3233,21 +3242,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
 			for k, v := range want.Meta {
-				switch k {
-				case "events":
-					// events contain maps with no guaranteed order of
-					// traversal; best to unpack to compare
-					var gote, wante []testutil.OTLPSpanEvent
-					if err := json.Unmarshal([]byte(v), &wante); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					assert.Equal(wante, gote)
-				default:
-					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
-				}
+				assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 			}
 			if len(want.Metrics) != len(got.Metrics) {
 				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
@@ -4106,170 +4101,6 @@ func makeEventsSlice(name string, attrs map[string]any, timestamp int, dropped u
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
 	e.SetDroppedAttributesCount(dropped)
 	return s
-}
-
-func TestMarshalEvents(t *testing.T) {
-	for _, tt := range []struct {
-		in  ptrace.SpanEventSlice
-		out string
-	}{
-		{
-			in: makeEventsSlice("", map[string]any{
-				"message": "OOM",
-			}, 0, 3),
-			out: `[{
-					"attributes": {"message":"OOM"},
-					"dropped_attributes_count":3
-				}]`,
-		}, {
-			in:  makeEventsSlice("boom", nil, 0, 0),
-			out: `[{"name":"boom"}]`,
-		}, {
-			in: makeEventsSlice("boom", map[string]any{
-				"message": "OOM",
-			}, 0, 3),
-			out: `[{
-					"name":"boom",
-					"attributes": {"message":"OOM"},
-					"dropped_attributes_count":3
-				}]`,
-		}, {
-			in: makeEventsSlice("boom", map[string]any{
-				"message": "OOM",
-			}, 123, 2),
-			out: `[{
-					"time_unix_nano":123,
-					"name":"boom",
-					"attributes": { "message":"OOM" },
-					"dropped_attributes_count":2
-				}]`,
-		}, {
-			in:  makeEventsSlice("", nil, 0, 2),
-			out: `[{"dropped_attributes_count":2}]`,
-		}, {
-			in: makeEventsSlice("", map[string]any{
-				"message":  "OOM",
-				"accuracy": "2.40",
-			}, 123, 2),
-			out: `[{
-					"time_unix_nano":123,
-					"attributes": {
-						"accuracy":"2.40",
-						"message":"OOM"
-					},
-					"dropped_attributes_count":2
-				}]`,
-		}, {
-			in: makeEventsSlice("boom", map[string]any{
-				"message":  "OOM",
-				"accuracy": "2.40",
-			}, 123, 0),
-			out: `[{
-					"time_unix_nano":123,
-					"name":"boom",
-					"attributes": {
-						"accuracy":"2.40",
-						"message":"OOM"
-					}
-				}]`,
-		}, {
-			in: makeEventsSlice("boom", nil, 123, 2),
-			out: `[{
-					"time_unix_nano":123,
-					"name":"boom",
-					"dropped_attributes_count":2
-				}]`,
-		}, {
-			in: makeEventsSlice("boom", map[string]any{
-				"message":  "OOM",
-				"accuracy": "2.4",
-			}, 123, 2),
-			out: `[{
-					"time_unix_nano":123,
-					"name":"boom",
-					"attributes": {
-						"accuracy":"2.4",
-						"message":"OOM"
-					},
-					"dropped_attributes_count":2
-				}]`,
-		}, {
-			in: (func() ptrace.SpanEventSlice {
-				e1 := makeEventsSlice("boom", map[string]any{
-					"message":  "OOM",
-					"accuracy": "2.4",
-				}, 123, 2)
-				e2 := makeEventsSlice("exception", map[string]any{
-					"exception.message":    "OOM",
-					"exception.stacktrace": "1/2/3",
-					"exception.type":       "mem",
-				}, 456, 2)
-				e2.MoveAndAppendTo(e1)
-				return e1
-			})(),
-			out: `[{
-					"time_unix_nano":123,
-					"name":"boom",
-					"attributes": {
-						"accuracy":"2.4",
-						"message":"OOM"
-					},
-					"dropped_attributes_count":2
-				}, {
-					"time_unix_nano":456,
-					"name":"exception",
-					"attributes": {
-						"exception.message":"OOM",
-						"exception.stacktrace":"1/2/3",
-						"exception.type":"mem"
-					},
-					"dropped_attributes_count":2
-				}]`,
-		},
-	} {
-		assert.Equal(t, trimSpaces(tt.out), transform.MarshalEvents(tt.in))
-	}
-}
-
-func TestMarshalJSONUnsafeEvents(t *testing.T) {
-	name := `something:"nested"`
-	key := `abc\def\`
-	val := []any{`test\"1\`, `/test2\\`}
-
-	events := makeEventsSlice(name, map[string]any{
-		key: val,
-	}, 0, 3)
-
-	jsonName, err := json.Marshal(name)
-	if err != nil {
-		t.Fatal("Failure parsing name")
-	}
-	jsonKey, err := json.Marshal(key)
-	if err != nil {
-		t.Fatal("Failure parsing key")
-	}
-	jsonVal, err := json.Marshal(val)
-	if err != nil {
-		t.Fatal("Failure parsing val")
-	}
-
-	out := fmt.Sprintf(`[{
-				"name": %v,
-				"attributes": {%v: %v},
-				"dropped_attributes_count":3
-			}]`, string(jsonName), string(jsonKey), string(jsonVal))
-
-	assert.Equal(t, trimSpaces(out), transform.MarshalEvents(events))
-}
-
-func trimSpaces(str string) string {
-	var out strings.Builder
-	for _, ch := range str {
-		if !unicode.IsSpace(ch) {
-			out.WriteRune(ch)
-		}
-	}
-	return out.String()
 }
 
 func TestComputeTopLevelAndMeasured(t *testing.T) {
