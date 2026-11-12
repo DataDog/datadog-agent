@@ -47,6 +47,9 @@ minimal_cc_binary(
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":libseccomp.so.2",
+        # This is only so we have a explict dependency on the headers. We
+        # do not acutally link against it.
+        "@libseccomp",
     ],
 )
 

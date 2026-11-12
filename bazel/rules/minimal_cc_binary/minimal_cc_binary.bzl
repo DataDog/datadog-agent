@@ -94,11 +94,10 @@ def _minimal_cc_binary_impl(ctx):
             args.add_all(cctx.external_includes, before_each = "-isystem")
         args.add_all(cctx.defines, format_each = "-D%s")
 
-    for opt in ctx.attr.linkopts:
-        args.add(ctx.expand_location(opt, targets = ctx.attr.additional_linker_inputs))
-
     args.add("-o", output.path)
     args.add_all(ctx.files.srcs)
+    for opt in ctx.attr.linkopts:
+        args.add(ctx.expand_location(opt, targets = ctx.attr.additional_linker_inputs))
 
     inputs = depset(
         direct = ctx.files.srcs + ctx.files.deps + ctx.files.additional_linker_inputs,
