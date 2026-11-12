@@ -12,11 +12,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-viper/mapstructure/v2"
+	"go.yaml.in/yaml/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/version"
+	sigsyaml "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -380,6 +383,41 @@ type TracerConfig struct {
 	Value string `json:"value,omitempty"`
 	// ValueFrom is the source for the environment variable's value.
 	ValueFrom *corev1.EnvVarSource `json:"valueFrom,omitempty"`
+}
+
+// UnmarshalMapstructure decodes ValueFrom with its json tags, which mapstructure ignores (e.g. the inline
+// LocalObjectReference of secretKeyRef). Name and Value keep the lenient mapstructure decoding, so an unquoted
+// `value: true` is still accepted.
+func (c *TracerConfig) UnmarshalMapstructure(input any) error {
+	var raw struct {
+		Name      string
+		Value     string
+		ValueFrom any
+	}
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:           &raw,
+		WeaklyTypedInput: true,
+		ErrorUnused:      true,
+	})
+	if err != nil {
+		return err
+	}
+	if err := decoder.Decode(input); err != nil {
+		return err
+	}
+
+	*c = TracerConfig{Name: raw.Name, Value: raw.Value}
+	if raw.ValueFrom == nil {
+		return nil
+	}
+
+	// Go through YAML: config read from YAML files holds map[interface{}]interface{}, which encoding/json rejects.
+	data, err := yaml.Marshal(raw.ValueFrom)
+	if err != nil {
+		return err
+	}
+	c.ValueFrom = &corev1.EnvVarSource{}
+	return sigsyaml.UnmarshalStrict(data, c.ValueFrom)
 }
 
 // AsEnvVar converts the TracerConfig to a corev1.EnvVar.
