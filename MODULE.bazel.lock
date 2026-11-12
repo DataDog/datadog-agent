@@ -923,12 +923,12 @@
         "pulumi-resource-awsx-v3.12.0-windows-amd64.tar.gz": "sha1-w1TxQhidZaSDQDak7/OsDgh9QpQ=",
         "pulumi-resource-awsx-v3.12.0-windows-arm64.tar.gz": "sha1-GL1GedbkflYVbC0ygkeN3hIblkg="
       },
-      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.29.0/pulumi-azure-native_3.29.0_checksums.txt": {
-        "pulumi-resource-azure-native-v3.29.0-darwin-amd64.tar.gz": "sha1-cTQJm+ML5yhMWzVDWSlneZpKYv4=",
-        "pulumi-resource-azure-native-v3.29.0-darwin-arm64.tar.gz": "sha1-m0MYH17Sk4IQuDjbAtqaxRfHWtU=",
-        "pulumi-resource-azure-native-v3.29.0-linux-amd64.tar.gz": "sha1-M6Uq25uvIdJWE/BE2tAyj8ykHrU=",
-        "pulumi-resource-azure-native-v3.29.0-linux-arm64.tar.gz": "sha1-GdARgk5J71GCLdkIRxDNZH9FL18=",
-        "pulumi-resource-azure-native-v3.29.0-windows-amd64.tar.gz": "sha1-03UeEKdXagb47Tpk/yJV6Go578s="
+      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.30.0/pulumi-azure-native_3.30.0_checksums.txt": {
+        "pulumi-resource-azure-native-v3.30.0-darwin-amd64.tar.gz": "sha1-SDD6hUdB+YBeRlAiUQea6+7qxig=",
+        "pulumi-resource-azure-native-v3.30.0-darwin-arm64.tar.gz": "sha1-A31ivb6CR/x8f9Ai85QCloOj6Io=",
+        "pulumi-resource-azure-native-v3.30.0-linux-amd64.tar.gz": "sha1-Gnj9sUckffpfooT27vKCJNQaNuk=",
+        "pulumi-resource-azure-native-v3.30.0-linux-arm64.tar.gz": "sha1-+noQqnLlMxxtDasSeha7XUCnolI=",
+        "pulumi-resource-azure-native-v3.30.0-windows-amd64.tar.gz": "sha1-85TcPLIOLClXYpP5usb/jkvm+0w="
       },
       "https://github.com/pulumi/pulumi-command/releases/download/v1.3.0/pulumi-command_1.3.0_checksums.txt": {
         "pulumi-resource-command-v1.3.0-darwin-amd64.tar.gz": "sha256-s9krML7JXg+oT6O1Qwe0o1dh++Oux9FUxlrr52oaLX8=",
@@ -1039,7 +1039,7 @@
         "name": "awsx",
         "url": "https://github.com/pulumi/pulumi-awsx"
       },
-      "https://registry.npmjs.org/@pulumi/azure-native/3.29.0": {
+      "https://registry.npmjs.org/@pulumi/azure-native/3.30.0": {
         "dependencies": {},
         "name": "azure-native",
         "url": "https://github.com/pulumi/pulumi-azure-native"
