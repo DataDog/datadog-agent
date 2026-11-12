@@ -8,6 +8,10 @@
 package probe
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -272,4 +277,133 @@ func TestEBPFLessPartialContextBeforeCredentialChange(t *testing.T) {
 		SetUID: &ebpfless.SetUIDSyscallMsg{UID: 33, EUID: 34, User: "worker", EUser: "effective-worker"},
 	})
 	assert.Equal(t, 1, calls)
+}
+
+func TestEBPFLessECSTaskID(t *testing.T) {
+	const taskID = "bfa2636268144d039771334145e490c5"
+
+	exec := func(containerID containerutils.ContainerID) *ebpfless.SyscallMsg {
+		return &ebpfless.SyscallMsg{
+			PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeExec, ContainerID: containerID,
+			Exec: &ebpfless.ExecSyscallMsg{File: ebpfless.FileSyscallMsg{Filename: "/app"}, Args: []string{"app"}},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		taskID   string
+		parent   bool
+		syscall  *ebpfless.SyscallMsg
+		expected string
+	}{
+		{
+			name:     "exec",
+			taskID:   taskID,
+			syscall:  exec("app-container"),
+			expected: taskID,
+		},
+		{
+			name:     "exec-without-container",
+			taskID:   taskID,
+			syscall:  exec(""),
+			expected: "",
+		},
+		{
+			name:     "unknown-task",
+			syscall:  exec("app-container"),
+			expected: "",
+		},
+		{
+			name:   "procfs-snapshot",
+			taskID: taskID,
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeOpen, ContainerID: "app-container",
+				Exec: ebpflessTestSnapshot(1), Open: &ebpfless.OpenSyscallMsg{},
+			},
+			expected: taskID,
+		},
+		{
+			name:   "fork-of-unknown-parent",
+			taskID: taskID,
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeFork, ContainerID: "app-container",
+				Fork: &ebpfless.ForkSyscallMsg{PPID: 100},
+			},
+			expected: taskID,
+		},
+		{
+			name:   "fork-inherits-from-parent",
+			taskID: taskID,
+			parent: true,
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeFork,
+				Fork: &ebpfless.ForkSyscallMsg{PPID: 100},
+			},
+			expected: taskID,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, cl := newEBPFLessContextTestProbe(t)
+			if test.taskID != "" {
+				p.Resolvers.ProcessResolver.SetECSTaskID(test.taskID)
+			}
+			if test.parent {
+				p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: 100, NSID: cl.nsID},
+					1, "/parent", []string{"parent"}, false, nil, false, "app-container", "app-cgroup", 100, "")
+			}
+			calls := 0
+			require.NoError(t, p.probe.AddEventHandler(ebpflessContextEventHandler(func(event *model.Event) {
+				calls++
+				value, err := event.GetFieldValue("process.container.ecs_task_id")
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, value)
+			})))
+			handleEBPFLessContextTestMessage(t, p, cl, test.syscall)
+			assert.Equal(t, 1, calls)
+		})
+	}
+}
+
+func TestEBPFLessResolveECSTaskID(t *testing.T) {
+	const taskID = "bfa2636268144d039771334145e490c5"
+
+	tests := []struct {
+		name           string
+		failedRequests int32
+	}{
+		{name: "first-attempt"},
+		{name: "retry", failedRequests: 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if requests.Add(1) <= test.failedRequests {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				_, _ = w.Write([]byte(`{"TaskARN":"arn:aws:ecs:us-east-1:123456789012:task/MyCluster/` + taskID + `"}`))
+			}))
+			defer server.Close()
+
+			p, _ := newEBPFLessContextTestProbe(t)
+			p.ctx, p.cancelFnc = context.WithCancel(t.Context())
+			defer func() {
+				p.cancelFnc()
+				p.wg.Wait()
+			}()
+
+			p.resolveECSTaskID(server.URL + "/v4/" + taskID + "-1117626119")
+			if test.failedRequests == 0 {
+				assert.Equal(t, taskID, p.Resolvers.ProcessResolver.GetECSTaskID())
+			}
+			require.Eventually(t, func() bool {
+				return p.Resolvers.ProcessResolver.GetECSTaskID() == taskID
+			}, 10*time.Second, 10*time.Millisecond)
+			assert.EqualValues(t, test.failedRequests+1, requests.Load())
+		})
+	}
 }
