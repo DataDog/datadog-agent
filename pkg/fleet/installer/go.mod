@@ -31,7 +31,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/docker/cli v29.9.2+incompatible // indirect
+	github.com/docker/cli v29.9.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

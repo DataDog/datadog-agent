@@ -59,8 +59,8 @@ func (m *macosUpgradeSuite) SetupSuite() {
 // they must be the installer's:
 //   - the preinstall script handed the teardown to the released installer's pre-remove only if
 //     the released Agent ships one;
-//   - the installer postinst succeeded, with no fallback;
-//   - each stable job definition is the one the package ships, root:wheel 644, and loaded;
+//   - the installer postinst succeeded;
+//   - each stable job definition is the one the installer embeds, root:wheel 644, and loaded;
 //   - the Agent is healthy, and runs the upgraded version;
 //   - the configuration in etc/ is kept;
 //   - neither the installer daemon nor any experiment job is installed.
@@ -116,6 +116,7 @@ func (m *macosUpgradeSuite) TestUpgradeFromStable() {
 	require.NoError(t, err, "the installer binary is not shipped in the package")
 	assertMacosInstallerPostinstSucceeded(t, macosTestClient)
 	assertMacosStableLaunchDaemons(t, macosTestClient)
+	assertMacosInstallerLaunchDaemon(t, macosTestClient)
 	for label, legacy := range legacyDefinitions {
 		if legacy != macosReadRemoteFile(t, macosTestClient, macosLaunchDaemonPath(label)) {
 			t.Logf("%s was replaced with the installer's definition", label)

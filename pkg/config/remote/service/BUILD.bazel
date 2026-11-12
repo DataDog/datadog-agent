@@ -39,6 +39,7 @@ dd_agent_go_test(
     name = "service_test",
     srcs = [
         "clients_test.go",
+        "recovery_test.go",
         "service_test.go",
         "subscriptions_test.go",
         "tracer_predicates_test.go",

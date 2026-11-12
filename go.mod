@@ -36,8 +36,8 @@ require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
 	code.cloudfoundry.org/bbs/models v1.26.0
-	code.cloudfoundry.org/garden v0.10.0
-	code.cloudfoundry.org/lager/v3 v3.93.0
+	code.cloudfoundry.org/garden v0.11.0
+	code.cloudfoundry.org/lager/v3 v3.94.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
@@ -214,7 +214,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/DataDog/datadog-traceroute v1.0.22
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
-	github.com/DataDog/dd-trace-go/v2 v2.11.2
+	github.com/DataDog/dd-trace-go/v2 v2.12.0
 	github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791
 	github.com/DataDog/ebpf-manager v0.8.7
 	github.com/DataDog/go-acl v1.0.1
@@ -235,14 +235,14 @@ require (
 	github.com/aptly-dev/aptly v1.6.3
 	github.com/aquasecurity/trivy v0.76.1
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
-	github.com/aws/aws-sdk-go-v2 v1.47.5
-	github.com/aws/aws-sdk-go-v2/config v1.33.13
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.13
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.131.2
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.8
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.2
-	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6
+	github.com/aws/aws-sdk-go-v2 v1.47.6
+	github.com/aws/aws-sdk-go-v2/config v1.33.14
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.14
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.344.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.132.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.9
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.3
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.7
 	github.com/aws/karpenter-provider-aws v1.14.0
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.65.0
@@ -412,10 +412,10 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.42.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.43.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.35
-	go.mongodb.org/mongo-driver/v2 v2.9.2
+	go.mongodb.org/mongo-driver/v2 v2.9.3
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componentstatus v0.164.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -582,23 +582,23 @@ require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.5 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.104.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.104.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.60.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.49.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.1 // indirect
-	github.com/aws/smithy-go v1.28.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.12.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.39.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.2 // indirect
+	github.com/aws/smithy-go v1.28.8 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20260708223819-4da4c353c5fa // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
@@ -633,7 +633,7 @@ require (
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.206.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.6.0 // indirect
-	github.com/docker/cli v29.9.2+incompatible // indirect
+	github.com/docker/cli v29.9.3+incompatible // indirect
 	github.com/docker/docker v28.5.3-0.20260325154711-31a1689cb0a1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
@@ -700,7 +700,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
-	github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0 // indirect
+	github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
