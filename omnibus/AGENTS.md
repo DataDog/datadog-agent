@@ -95,7 +95,7 @@ when set, omnibus skips building and just repackages a pre-built tarball.
 | `linux_target?` / `windows_target?` | `select({"@platforms//os:linux": ..., "@platforms//os:windows": ...})` |
 | `redhat_target?` / `debian_target?` | *(pending — no distro constraint yet; use `# TODO: select()`)* |
 | `AGENT_FLAVOR` env var | `//packages/agent:flavor` string flag |
-| `fips_mode?` | `//packages/agent:fips_flavor` config setting |
+| `fips_mode?` | `//bazel/platforms:fips` constraint, carried by `//bazel/platforms:<os>_<cpu>_fips` platforms |
 | `heroku_target?` | dedicated package: `//packages/heroku` |
 | `build_version ENV['PACKAGE_VERSION']` | Bazel stamping *(TODO — hardcoded `"7"` for now)* |
 | `strip_build` | *(TODO — not yet migrated)* |

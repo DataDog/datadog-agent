@@ -3,17 +3,18 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude testdata/c
 
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
-genrule(
+expand_template(
     name = "include_headers_src",
-    srcs = ["include_headers.go"],
-    outs = ["include_headers_gen.go"],
-    cmd = "grep -v '^//go:build ignore' $< > $@",
+    out = "include_headers_gen.go",
+    substitutions = {"//go:build ignore\n": ""},
+    template = "include_headers.go",
 )
 
 go_binary(

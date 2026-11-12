@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -175,5 +176,9 @@ func syncDir(dir string) error {
 		return err
 	}
 	defer d.Close()
-	return d.Sync()
+	// AIX cannot fsync directories (EINVAL/EBADF).
+	if err := d.Sync(); err != nil && (runtime.GOOS != "aix" || (!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.EBADF))) {
+		return err
+	}
+	return nil
 }

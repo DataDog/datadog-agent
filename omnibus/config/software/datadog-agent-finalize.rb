@@ -77,6 +77,11 @@ build do
             Dir.glob(File.join(emb3, "**", "*.chm")).each do |chm|
                 delete chm
             end
+
+            # Build-time-only files: C headers, Cython declarations, static libraries (~1.1 MiB)
+            delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
+            delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
+            delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
