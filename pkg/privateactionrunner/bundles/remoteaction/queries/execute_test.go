@@ -458,7 +458,7 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	// internal stream.
 	require.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"status": "target_not_found",
+		"status": "FAILED",
 		"error": map[string]interface{}{
 			"code":    "target_not_found",
 			"message": "no matching integration check found",

@@ -25,6 +25,9 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+// remoteQueryStatusFailed is the execute-mode status of a run that ended with an error.
+const remoteQueryStatusFailed = "FAILED"
+
 // remoteQueryOperationProduceJSONPages is the one supported integration operation: the
 // integration produces bounded JSON page files and uploads them directly to
 // its-agent-intake. The AP input carries no operation field; the native request mapping
@@ -666,12 +669,13 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	return map[string]interface{}{"status": finalEvent.GetStatus()}, nil
 }
 
-// remoteQueryErrorOutput propagates a terminal error event. The error
-// object carries exactly code and message: the AP metadata ExecutionError schema is
-// strict and the worker reads only those two fields.
+// remoteQueryErrorOutput propagates a terminal error event as a failed status and
+// the error. The failure code travels in the error, not in the status (Agent spec
+// OUT-03). The error object carries exactly code and message: the AP metadata
+// ExecutionError schema is strict and the worker reads only those two fields.
 func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]interface{} {
 	output := map[string]interface{}{
-		"status": errEvent.GetCode(),
+		"status": remoteQueryStatusFailed,
 		"error": map[string]interface{}{
 			"code":    errEvent.GetCode(),
 			"message": errEvent.GetMessage(),
