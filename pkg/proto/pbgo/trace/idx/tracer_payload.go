@@ -12,7 +12,34 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-const maxSize = 25 * 1e6 // maxSize protects the decoder from payloads lying about their size
+const (
+	// maxCollectionSize bounds the element count any array or map header may declare. It matches the
+	// `//msgp:limit arrays:500000 maps:500000` directive applied to the generated decoders in
+	// pkg/proto/pbgo/trace/trace.go, so the hand-written decoders here accept the same shapes.
+	maxCollectionSize = 500_000
+	// maxStringTableSize bounds the number of entries in a string table (the v1 string table and the
+	// v0.5 dictionary). Strings are referenced by index from everywhere in the payload, so this keeps
+	// the historical 25M limit; the remaining-bytes check below still bounds what a payload can claim.
+	maxStringTableSize = 25 * 1e6
+)
+
+// readBoundedHeaderBytes reads an array or map header with `read` and rejects counts that are either above
+// `limit` or larger than the number of bytes left in the buffer. Every msgpack value takes at least one byte,
+// so a count larger than the remaining input can never be satisfied; rejecting it here keeps callers from
+// sizing a make(...) from a count the payload cannot back.
+func readBoundedHeaderBytes(bts []byte, read func([]byte) (uint32, []byte, error), limit uint32, tooLarge func(uint32) error) (sz uint32, o []byte, err error) {
+	sz, o, err = read(bts)
+	if err != nil {
+		return
+	}
+	if sz > limit {
+		return 0, nil, tooLarge(sz)
+	}
+	if uint64(sz) > uint64(len(o)) {
+		return 0, nil, msgp.ErrShortBytes
+	}
+	return
+}
 
 // UnmarshalMsg unmarshals a TracerPayload from a byte stream, updating the strings slice with new strings
 // Returns any leftover bytes after the tracer payload is unmarshalled and any error that occurred
@@ -21,7 +48,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 		tp.Strings = NewStringTable()
 	}
 	var numFields uint32
-	numFields, o, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read tracer payload fields header")
 		return
@@ -118,34 +145,28 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 	return
 }
 
-func limitedReadArrayHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
-	sz, o, err = msgp.ReadArrayHeaderBytes(bts)
-	if err != nil {
-		return
-	}
-	if sz > maxSize {
-		err = fmt.Errorf("Array too large: %d > %.0f", sz, maxSize)
-		return
-	}
-	return
+func limitedReadArrayHeaderBytes(bts []byte) (uint32, []byte, error) {
+	return readBoundedHeaderBytes(bts, msgp.ReadArrayHeaderBytes, maxCollectionSize, func(sz uint32) error {
+		return fmt.Errorf("Array too large: %d > %d", sz, maxCollectionSize)
+	})
 }
 
-func limitedReadMapHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
-	sz, o, err = msgp.ReadMapHeaderBytes(bts)
-	if err != nil {
-		return
-	}
-	if sz > maxSize {
-		err = fmt.Errorf("Map too large: %d > %.0f", sz, maxSize)
-		return
-	}
-	return
+func limitedReadMapHeaderBytes(bts []byte) (uint32, []byte, error) {
+	return readBoundedHeaderBytes(bts, msgp.ReadMapHeaderBytes, maxCollectionSize, func(sz uint32) error {
+		return fmt.Errorf("Map too large: %d > %d", sz, maxCollectionSize)
+	})
+}
+
+func limitedReadStringTableHeaderBytes(bts []byte) (uint32, []byte, error) {
+	return readBoundedHeaderBytes(bts, msgp.ReadArrayHeaderBytes, maxStringTableSize, func(sz uint32) error {
+		return fmt.Errorf("String table too large: %d > %.0f", sz, maxStringTableSize)
+	})
 }
 
 // unmarshalStringTable unmarshals a list of strings from a byte stream
 func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numStrings uint32
-	numStrings, o, err = limitedReadArrayHeaderBytes(bts)
+	numStrings, o, err = limitedReadStringTableHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read string list header")
 		return
@@ -156,6 +177,7 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 		str, o, err = msgp.ReadStringBytes(o)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read string")
+			return
 		}
 		if str == "" {
 			continue // Skip empty strings, we already have an empty string at index 0
@@ -278,7 +300,7 @@ func UnmarshalTraceChunkList(bts []byte, strings *StringTable) (chunks []*Intern
 // UnmarshalMsg unmarshals a TraceChunk from a byte stream, updating the strings slice with new strings
 func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var numFields uint32
-	numFields, o, err = msgp.ReadMapHeaderBytes(bts)
+	numFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read trace chunk fields header")
 		return
