@@ -1787,20 +1787,29 @@ func (s *TracerSuite) TestSendfileRegression() {
 
 		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
+		// Keep polling until the bytes are accounted for, not just until both
+		// connections exist. In eBPFless mode the tracer builds connections from
+		// captured packets, which reach userspace one TPACKET_V3 block at a time
+		// (64ms block retire timeout). The handshake can arrive in one block and the
+		// payload in a later one, so for a short time both connections exist with
+		// zero bytes.
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns, cleanup := getConnections(ct, tr)
 			defer cleanup()
-			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
-			if newOutConn != nil {
-				outConn = newOutConn
+			// copy the stats: the connection buffer is released by cleanup()
+			if newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr())); newOutConn != nil {
+				outCopy := *newOutConn
+				outConn = &outCopy
 			}
-			newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
-			if newInConn != nil {
-				inConn = newInConn
+			if newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr())); newInConn != nil {
+				inCopy := *newInConn
+				inConn = &inCopy
 			}
 			require.NotNil(ct, outConn)
 			require.NotNil(ct, inConn)
-		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
+			require.Equal(ct, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes))
+			require.InDelta(ct, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1)
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2) with all bytes traced")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
 			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
