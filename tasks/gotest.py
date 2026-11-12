@@ -518,17 +518,12 @@ def test(
         for target in module.test_targets
     ]
 
-    result = bazel(
+    bazel(
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
-        ignore_errors=True,
+        allowed_exit_codes=frozenset({BAZEL_EXIT_NO_TESTS_FOUND}) if only_modified_packages else frozenset(),
     )
-    if result.returncode == BAZEL_EXIT_NO_TESTS_FOUND and only_modified_packages:
-        print("No test targets in modified packages")
-        return
-    if result.returncode != 0:
-        raise SystemExit(result.returncode)
 
 
 @task

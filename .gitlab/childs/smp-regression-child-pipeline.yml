@@ -74,15 +74,11 @@ variables:
     }
 
 # Base template shared by all SMP run jobs.
-# BASELINE_SHA is written to regression_detector.env in before_script so the
-# script can source it the same way as if it were a job artifact.
 .single-machine-performance-run_regression_detector:
   stage: functional_test
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
-  before_script:
-    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -161,19 +157,17 @@ variables:
         exit $exit_code
       }
     - chmod +x smp
-    - source regression_detector.env
     - echo "Baseline SHA is ${BASELINE_SHA}"
     # Copy the baseline SHA to SMP for debugging purposes later
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
+    - BASELINE_IMAGE=${SMP_ECR_URL}/agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/agent:${CI_COMMIT_SHA}-7-full-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${PARENT_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
-    - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     # Get PR selection inputs only for the container job.
     # Empty inputs select only the always bucket.
     - |

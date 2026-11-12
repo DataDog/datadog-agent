@@ -35,7 +35,9 @@ var (
 	PullDuration telemetry.Histogram
 	// NotificationsSent tracks the number of notifications sent from the
 	// workloadmeta store to its subscribers. Note that each notification can
-	// include multiple events.
+	// include multiple events. The dropped_event tag distinguishes genuine data
+	// loss (subscriber not reading its channel) from slow acknowledgements where
+	// events were still delivered.
 	NotificationsSent telemetry.Counter
 	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
 	// client while receiving events.
@@ -91,7 +93,7 @@ func init() {
 	NotificationsSent = comp.NewCounterWithOpts(
 		subsystem,
 		"notifications_sent",
-		[]string{"subscriber_name", "status"},
+		[]string{"subscriber_name", "status", "dropped_event"},
 		"Number of notifications sent by workloadmeta to its subscribers",
 		opts,
 	)

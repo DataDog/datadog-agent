@@ -51,31 +51,58 @@ type Metrics struct {
 	PCIeMaxLinkWidth    Reading // max_link_width, lanes
 	PCIeLinkSpeedGTs    Reading // current_link_speed, GT/s per lane
 	PCIeMaxLinkSpeedGTs Reading // max_link_speed, GT/s per lane
+
+	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
+	// none. When GPUMetricsErr is set (ErrGPUMetricsUnsupported or
+	// ErrGPUMetricsMalformed), it only holds the version from the header, or
+	// is nil when the header itself is truncated.
+	GPUMetrics    *GPUMetrics
+	GPUMetricsErr error
+	// XGMIHiveSize is the number of GPUs in the XGMI hive of the device, 0
+	// when it is not in a hive.
+	XGMIHiveSize int
 }
 
-// ReadMetrics reads the current telemetry of the device. Attributes the device
-// does not implement are left invalid without an error; the returned error
-// only reports attributes that exist but could not be read or parsed, and the
-// returned metrics still contain every value that was read successfully.
+// ReadOptions selects the optional parts of a telemetry read.
+type ReadOptions struct {
+	// SkipGPUMetrics leaves the gpu_metrics table and the XGMI hive size unread.
+	SkipGPUMetrics bool
+}
+
+// ReadMetrics reads the current telemetry of the device, gpu_metrics included.
 func (d *Device) ReadMetrics() (Metrics, error) {
+	return d.ReadMetricsWithOptions(ReadOptions{})
+}
+
+// ReadMetricsWithOptions reads the current telemetry of the device. Attributes
+// the device does not implement are left invalid without an error; the
+// returned error only reports attributes that exist but could not be read or
+// parsed, and the returned metrics still contain every value that was read
+// successfully.
+func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	r := reader{}
 	var m Metrics
 
-	m.GPUBusyPercent = r.uint(filepath.Join(d.devicePath, "gpu_busy_percent"), 1)
-	m.MemoryBusyPercent = r.uint(filepath.Join(d.devicePath, "mem_busy_percent"), 1)
+	m.GPUBusyPercent = r.activity(d.devicePath, "gpu_busy_percent")
+	m.MemoryBusyPercent = r.activity(d.devicePath, "mem_busy_percent")
 	m.VRAMTotalBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_total"), 1)
 	m.VRAMUsedBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_used"), 1)
 
 	m.GraphicsClockMHz = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_sclk"))
 	m.MemoryClockMHz = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_mclk"))
 
-	m.PCIeLinkWidth = r.uint(filepath.Join(d.devicePath, "current_link_width"), 1)
-	m.PCIeMaxLinkWidth = r.uint(filepath.Join(d.devicePath, "max_link_width"), 1)
+	m.PCIeLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "current_link_width"))
+	m.PCIeMaxLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "max_link_width"))
 	m.PCIeLinkSpeedGTs = r.linkSpeed(filepath.Join(d.devicePath, "current_link_speed"))
 	m.PCIeMaxLinkSpeedGTs = r.linkSpeed(filepath.Join(d.devicePath, "max_link_speed"))
 
 	if hwmonDir := r.hwmonDir(d.devicePath); hwmonDir != "" {
 		r.readHwmon(hwmonDir, &m)
+	}
+
+	if !opts.SkipGPUMetrics {
+		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
+		m.XGMIHiveSize = d.XGMIHiveSize()
 	}
 
 	return m, errors.Join(r.errs...)
@@ -134,12 +161,52 @@ func (r *reader) uint(path string, scale float64) Reading {
 	if !ok {
 		return Reading{}
 	}
+	return r.parseUint(path, content, scale)
+}
+
+func (r *reader) parseUint(path, content string, scale float64) Reading {
 	value, err := strconv.ParseUint(content, 10, 64)
 	if err != nil {
 		r.errs = append(r.errs, fmt.Errorf("parse %s: %w", path, err))
 		return Reading{}
 	}
 	return valid(float64(value) * scale)
+}
+
+// readActivityFile reads a busy percentage attribute; tests replace it.
+var readActivityFile = os.ReadFile
+
+// activity reads a busy percentage. amdgpu returns EPERM for it while the
+// device is runtime-suspended, which reads as idle, but also during a GPU
+// reset, which stays an error.
+func (r *reader) activity(devicePath, name string) Reading {
+	path := filepath.Join(devicePath, name)
+	content, err := readActivityFile(path)
+	if errors.Is(err, syscall.EPERM) && runtimeSuspended(devicePath) {
+		return valid(0)
+	}
+	if err != nil {
+		if !isUnsupported(err) {
+			r.errs = append(r.errs, err)
+		}
+		return Reading{}
+	}
+	return r.parseUint(path, sysfsValue(content), 1)
+}
+
+// runtimeSuspended reports whether the device is runtime-suspended.
+func runtimeSuspended(devicePath string) bool {
+	content, err := os.ReadFile(filepath.Join(devicePath, "power", "runtime_status"))
+	return err == nil && sysfsValue(content) == "suspended"
+}
+
+// linkWidth reads a PCI link width. A width of 0 (no link trained) is unavailable.
+func (r *reader) linkWidth(path string) Reading {
+	width := r.uint(path, 1)
+	if width.Value == 0 {
+		return Reading{}
+	}
+	return width
 }
 
 func (r *reader) int(path string, scale float64) Reading {

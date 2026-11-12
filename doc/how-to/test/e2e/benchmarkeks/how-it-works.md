@@ -1,6 +1,6 @@
 # How the benchmark works
 
-The benchmark runs the baseline and the comparison versions of the Agent at the same time, in the same EKS cluster, each in an installation of its own. Both installations monitor the same workload, so that the only difference between them is the version of the Agent. Half way through, the installations swap their versions, which cancels out the differences between their machines.
+The benchmark runs the baseline and the comparison versions of the Agent at the same time, in the same EKS cluster, each in an installation of its own. Both installations monitor the same workload, so that the only difference between them is the version of the Agent. The measurement runs in four phases, between which the installations swap their versions, which cancels out the differences between their machines.
 
 ## The cluster
 
@@ -122,11 +122,10 @@ The sleeper DaemonSets tolerate the taints of the node-agent pools of both insta
  │    functional tests, during the warm-up
  │    warm-up · 10 min
  │
- ├─ phase 1 · 20 min ────────────  installation a: baseline
+ ├─ phase 1 · 15 min ────────────  installation a: baseline
  │    ├ block 1 · 5 min             installation b: comparison
  │    ├ block 2 · 5 min
- │    ├ block 3 · 5 min
- │    └ block 4 · 5 min
+ │    └ block 3 · 5 min
  │
  ●  Swap: installation a gets the comparison images,
  │        installation b the baseline ones
@@ -134,29 +133,42 @@ The sleeper DaemonSets tolerate the taints of the node-agent pools of both insta
  │    verify their checks again, during the warm-up
  │    warm-up · 10 min
  │
- ├─ phase 2 · 20 min ────────────  installation a: comparison
- │    ├ block 1 · 5 min             installation b: baseline
- │    ├ block 2 · 5 min
- │    ├ block 3 · 5 min
- │    └ block 4 · 5 min
+ ├─ phase 2 · 15 min ────────────  installation a: comparison
+ │    └ 3 blocks of 5 min           installation b: baseline
  │
- ●  Wait for dddev to ingest the last minute,
+ ●  Swap back, same steps · warm-up · 10 min
+ │
+ ├─ phase 3 · 15 min ────────────  installation a: baseline
+ │    └ 3 blocks of 5 min           installation b: comparison
+ │
+ ●  Swap, same steps · warm-up · 10 min
+ │
+ ├─ phase 4 · 15 min ────────────  installation a: comparison
+ │    └ 3 blocks of 5 min           installation b: baseline
+ │
+ ●  Wait for dddev to ingest the last minute of each phase,
     compare the versions, write the report
 ```
 
 A phase starts on a whole minute, once its warm-up is over and the checks are verified: see [the guards](#the-guards).
 
-The swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once. The suite reads the images to swap from the specs of the pods, so the swap works with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.
+Each swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once, and its Cluster Agent and cluster checks runner too, as long as both versions have different images: each phase then runs new Agent processes. The suite reads the images to swap from the specs of the pods, so the swaps work with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.
 
-With the default durations, the test lasts about 75 minutes once the Agents are ready.
+With the default durations, the test lasts about 110 minutes once the Agents are ready. `E2E_BENCHMARKEKS_PHASES` sets another even number of phases: see [Run it locally](index.md#run-it-locally). The phases and the swaps are in <<<repo("test/new-e2e/tests/containers/benchmarkeks_test.go", "`Test10Performance`", match="^func \\(s \\*benchmarkEKSSuite\\) Test10Performance\\(")>>>.
 
 ### Why the installations swap their versions
 
 All the nodes have the same instance type, but not the same machine: for the same work, a node can use up to 20% more CPU time than another one. If the baseline always ran on the node pools of installation a, and the comparison on those of installation b, the difference between these machines would show up as a difference between the versions.
 
-So each version runs one phase on the node pools of each installation, and the machine difference cancels out between the phases: [How the test decides](statistics.md#cancelling-out-the-machines) shows how.
+So each version runs half of the phases on the node pools of each installation, and the machine difference cancels out between the phases: [How the test decides](statistics.md#cancelling-out-the-machines) shows how.
 
 Running both versions at the same time, rather than one after the other on the same nodes, also gives them the same workload, the same API server and the same conditions on AWS. Whatever happens in the cluster at a given time happens to both.
+
+### Why four phases
+
+Two phases, one on each installation, would cancel out the machines too, and the benchmark ran that way at first. But part of the noise is drawn anew at each start of an Agent process, and lasts as long as the process: two processes of the same binary, on the same machine, can settle at different costs. For instance, the working set of the Cluster Agent differed by up to ±5% from one process of the same binary to another, in a validation of 2026-11-07 made of A/A runs and of reverts of past optimizations. With 2 phases, a run compares a single process of each version on each installation: 2 pairs of processes for the Cluster Agent and the cluster checks runner, which made one false regression of +5.1% in that validation.
+
+With 4 phases, each version runs twice on each installation, in new processes at every phase: 4 Cluster Agents and 4 cluster checks runners per version rather than 2, and twice as many node Agents. The estimate averages 4 pairs of processes rather than 2, which divides the part of its noise drawn per process by √2, and the machines still cancel out, with two phases on each side. Each phase is shorter, 15 minutes rather than 20, so that the phases and their warm-ups take 100 minutes rather than 60.
 
 ## What is measured
 
@@ -189,7 +201,7 @@ A check is a small part of the CPU usage of its container: a check twice as slow
 - `kubelet`, on the node Agents;
 - `kubernetes_state_core`, on the cluster checks runners.
 
-The suite runs `agent status collector --json` in the `agent` container of each measured node Agent and cluster checks runner, at the start of each block and at the end of the phase. The Agent keeps the total number of runs of each check instance, and the durations of its last 32 runs, so the difference between two snapshots gives the exact runs of a block. A block of 5 minutes holds 20 runs of a check running every 15 seconds, below the 32 the Agent keeps. Each block then contributes the mean duration of the runs of the check in all the measured Agents of the installation.
+The suite runs `agent status collector --json` in the `agent` container of each measured node Agent and cluster checks runner, at the start of each block and at the end of each phase. The Agent keeps the total number of runs of each check instance, and the durations of its last 32 runs, so the difference between two snapshots gives the exact runs of a block. A block of 5 minutes holds 20 runs of a check running every 15 seconds, below the 32 the Agent keeps. Each block then contributes the mean duration of the runs of the check in all the measured Agents of the installation.
 
 The `container` and `containerd` checks aren't timed. They share a 2-second cache of the container stats that whichever runs first fills, and that order changes at each start of the Agent, so their run times swung by up to 97% between the two installations in runs whose profiles showed no change. Their cost still shows in the CPU usage of the node Agents, and their metric samples are still compared.
 
@@ -202,6 +214,6 @@ A broken check costs nothing: it must never pass for a performance improvement. 
 | `Test00ChecksRun` | On both installations, the `kubelet`, `container` and `containerd` checks of the node Agents and `kubernetes_state_core` on the cluster checks runners each ran at least twice, without errors and emitting metrics. At least one `simple_check` instance ran once that way |
 | `Test01ChecksMatchBaseline` | The checks of the comparison, except `simple_check`, emit as many metric samples per run as those of the baseline, within 25% |
 | `Test02DataInDDDev` | The data of both installations reaches dddev, including that of every query `Test10Performance` compares |
-| `Test10Performance` | From the time the Agents are ready, before the warm-up, to the end of each phase, no measured container restarts and no measured pod is replaced: a restart skews the measurement, and hints at a crash or an OOM kill. The churn orchestrator doesn't restart either: a restart could leave the workload frozen. The checks still run after the swap |
+| `Test10Performance` | From the time the Agents are ready, before the warm-up, to the end of each phase, no measured container restarts and no measured pod is replaced: a restart skews the measurement, and hints at a crash or an OOM kill. The churn orchestrator doesn't restart either: a restart could leave the workload frozen. The checks still run after each swap |
 
 When a functional test fails, `Test10Performance` doesn't run: the performance of a broken Agent is meaningless.
