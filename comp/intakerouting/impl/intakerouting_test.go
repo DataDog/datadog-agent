@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -416,10 +417,7 @@ func TestTelemetryInitializedToZero(t *testing.T) {
 		var keys []string
 		for _, m := range metrics {
 			assert.Zero(t, m.Value(), "%s %v", name, m.Tags())
-			key := ""
-			for _, tag := range tagNames {
-				key += m.Tags()[tag] + ","
-			}
+			key := strings.Join(slices.Collect(maps.Values(m.Tags())), ",")
 			keys = append(keys, strings.TrimSuffix(key, ","))
 		}
 		return keys
