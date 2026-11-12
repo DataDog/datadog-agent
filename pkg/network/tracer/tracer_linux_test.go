@@ -1458,12 +1458,24 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 
 	// The counters are checked inside the retry loop: eBPFless mode counts
 	// packets asynchronously from an AF_PACKET ring, so a poll can return the
-	// connections before all the packets have been processed.
+	// connections before all the packets have been processed. The last stats
+	// seen for each direction are kept across polls, because a poll doesn't
+	// necessarily return a connection again once it has stopped changing.
+	var outgoing, incoming *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
 
-		outgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		// copy the stats: the connection buffer is released by cleanup()
+		if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil {
+			connCopy := *conn
+			outgoing = &connCopy
+		}
+		if conn, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns); conn != nil {
+			connCopy := *conn
+			incoming = &connCopy
+		}
+
 		if !assert.NotNil(collect, outgoing, "outgoing connection not found") {
 			return
 		}
@@ -1475,7 +1487,6 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 		assert.True(collect, outgoing.IntraHost, "outgoing intrahost")
 
 		// make sure the inverse values are seen for the other message
-		incoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
 		if !assert.NotNil(collect, incoming, "incoming connection not found") {
 			return
 		}
