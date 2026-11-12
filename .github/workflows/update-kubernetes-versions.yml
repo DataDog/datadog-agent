@@ -47,7 +47,7 @@ jobs:
         run: pip install requests==2.33.1 pyyaml==6.0.3 semver==3.0.4
 
       - name: Install kind
-        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           version: v0.33.0 # TODO: remove this once the action defaults to v0.32.0

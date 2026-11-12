@@ -169,19 +169,3 @@ go_e2e_deps:
         prefix: "go_e2e_deps_modcache_zstd"
       paths:
         - modcache_e2e.tar.zst
-
-fetch_openjdk:
-  needs: []
-  tags: ["arch:amd64", "specific:true"]
-  rules:
-    - !reference [.manual]
-  stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  variables:
-    JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.32.1_1.zip
-    JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.32.1%2B1
-    JDK_SHA256: f8c7da672f5dba36b6f870608820b6b598cfae91296929f1b8f21ef2f1e8a0dd
-  script:
-    - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
-    - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c
-    - $S3_CP_CMD "$JDK_FILENAME" "$S3_DD_AGENT_OMNIBUS_JAVA_URI/$JDK_FILENAME" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

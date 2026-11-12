@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    On startup with primary intake WIF and PAR self-enrollment enabled, the
+    Cluster Agent leader enrolls a replacement runner if the saved identity's
+    WIF organization or site differs from the configuration or is missing.
+    Followers wait for a matching identity in the shared Secret. Subsequent
+    restarts reuse that identity without depending on the intake API key.

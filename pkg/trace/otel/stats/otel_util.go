@@ -85,6 +85,7 @@ func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
 	ignoreResources := filters.NewBlacklister(conf.Ignore["resource"])
 	chunks := make(map[chunkKey]*pb.TraceChunk)
 	containerTagsByID := make(map[string][]string)
+	tagKeys := transform.NewOTelSpanTagKeys(peerTagKeys, primaryTagKeys)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		if _, ok := clientComputedResources[otelres]; ok {
@@ -145,7 +146,7 @@ func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys, primaryTagKeys)
+		ddSpan := transform.OtelSpanToDDSpanMinimalWithTagKeys(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, tagKeys)
 		if obfuscator != nil {
 			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
 		}

@@ -19,6 +19,12 @@ const (
 	DelaActivityDumpEndpointsKey = "runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints"
 )
 
+// HTTP consumers that share the logs endpoint configuration and credential updates.
+const (
+	DelaAgentTelemetryEndpointsKey = "agent_telemetry.additional_endpoints"
+	DelaNetworkPcapEndpointsKey    = "network_pcap.forwarder.additional_endpoints"
+)
+
 // DelaEventPlatformEndpointsPrefixes are the event-platform pipeline config prefixes
 // (see comp/forwarder/eventplatform/impl). Every pipeline ships through the same HTTP logs
 // pipeline sender, so each prefix's additional_endpoints setting is enrolled for delegated
@@ -60,7 +66,8 @@ func DelaEventPlatformEndpointsKeys() []string {
 // setting that delegated auth can write resolved API keys back into.
 func IsDelaListEndpointsKey(path string) bool {
 	switch path {
-	case DelaLogsEndpointsKey, DelaCWSEndpointsKey, DelaComplianceEndpointsKey, DelaActivityDumpEndpointsKey:
+	case DelaLogsEndpointsKey, DelaCWSEndpointsKey, DelaComplianceEndpointsKey, DelaActivityDumpEndpointsKey,
+		DelaAgentTelemetryEndpointsKey, DelaNetworkPcapEndpointsKey:
 		return true
 	}
 	for _, prefix := range DelaEventPlatformEndpointsPrefixes {

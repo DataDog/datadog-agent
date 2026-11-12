@@ -59,9 +59,9 @@
 //     lines can't stall the pipeline.
 //   - Once warm, it doesn't allocate. TokenizeBorrowed, Limit, IsMatch and
 //     IsImportant make 0 allocations per line; Tokenize makes 2 (tokens and
-//     offsets); Clone and Retained make 1. Warm means it has already read a
-//     line with at least as many tokens, because the buffers only grow to
-//     fit the densest line seen. TokensToString has no budget yet.
+//     offsets); TokensToString, Clone and Retained make 1. Warm means it has
+//     already read a line with at least as many tokens, because the buffers
+//     only grow to fit the densest line seen.
 //   - With a 10 to 64 byte window, like the Logs default of 60, it never
 //     allocates after NewTokenizer, not even on its first line.
 //

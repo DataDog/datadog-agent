@@ -233,8 +233,8 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 // EnrollWithWorkloadToken makes one enrollment attempt using an ETS workload
 // token bound to request.PublicKeyPEM. It sends no API/application key and never
 // falls back to API-key enrollment. The caller owns identity persistence and
-// retries: a short-lived token must be refreshed before a later attempt, and an
-// ambiguous response must not cause a new key/runner to be created.
+// any later enrollment attempts, each of which requires a valid token bound to
+// the submitted public key.
 // This endpoint creates new runners; it does not migrate an existing runner.
 func (p *publicClient) EnrollWithWorkloadToken(ctx context.Context, token string, request par.CreateRunnerRequest) (*par.CreateRunnerResponse, error) {
 	if token == "" {

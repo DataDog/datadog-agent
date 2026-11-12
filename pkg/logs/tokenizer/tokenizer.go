@@ -258,12 +258,31 @@ func (t *Tokenizer) collapseIPv4Tail() {
 // TokensToString returns the printed form of tokens, for example "CCC DDD" for
 // "abc 123". Consumers may hash this form, so changing it needs a
 // ProfileVersion bump.
+//
+// It makes one allocation: a first pass sums the token widths so that
+// strings.Builder.Grow sizes the result exactly. Tokens are gathered in a
+// 64-byte stack buffer and copied into the builder a chunk at a time, because
+// one WriteString per token is slower than the extra copy. AAD calls this on
+// every log, so dda inv logs-tokenizer.bench-compare measures it.
 func TokensToString(tokens []Token) string {
-	var builder strings.Builder
+	n := 0
 	for _, t := range tokens {
-		builder.WriteString(tokenToString(t))
+		n += len(tokenToString(t))
 	}
-	return builder.String()
+	var b strings.Builder
+	b.Grow(n)
+	var chunk [64]byte // holds any token: the longest prints 10 bytes
+	c := chunk[:0]
+	for _, t := range tokens {
+		s := tokenToString(t)
+		if len(c)+len(s) > len(chunk) {
+			b.Write(c)
+			c = c[:0]
+		}
+		c = append(c, s...)
+	}
+	b.Write(c)
+	return b.String()
 }
 
 // IsMatch compares two sequences of tokens and returns true if they match within the

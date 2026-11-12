@@ -30,8 +30,6 @@ type resizableSemaphore struct {
 	limit    int64
 	inFlight int64
 
-	// now is the clock used for saturation accounting; overridable in tests.
-	now func() time.Time
 	// saturatedSince is the time saturation began, or the zero value when the
 	// semaphore is not currently saturated.
 	saturatedSince time.Time
@@ -43,7 +41,7 @@ var _ weightedSemaphore = (*resizableSemaphore)(nil)
 
 // newResizableSemaphore returns a semaphore with the given initial limit.
 func newResizableSemaphore(limit int64) *resizableSemaphore {
-	s := &resizableSemaphore{limit: limit, now: time.Now}
+	s := &resizableSemaphore{limit: limit}
 	s.cond = sync.NewCond(&s.mu)
 	return s
 }
@@ -107,9 +105,9 @@ func (s *resizableSemaphore) updateSaturation() {
 	saturated := s.inFlight >= s.limit
 	switch {
 	case saturated && s.saturatedSince.IsZero():
-		s.saturatedSince = s.now()
+		s.saturatedSince = time.Now()
 	case !saturated && !s.saturatedSince.IsZero():
-		s.saturatedAccum += s.now().Sub(s.saturatedSince)
+		s.saturatedAccum += time.Since(s.saturatedSince)
 		s.saturatedSince = time.Time{}
 	}
 }
@@ -123,7 +121,7 @@ func (s *resizableSemaphore) takeSaturatedDuration() time.Duration {
 	defer s.mu.Unlock()
 
 	if !s.saturatedSince.IsZero() {
-		n := s.now()
+		n := time.Now()
 		s.saturatedAccum += n.Sub(s.saturatedSince)
 		s.saturatedSince = n
 	}

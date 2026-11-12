@@ -39,6 +39,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -295,6 +296,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func start(log log.Component,
 	config config.Component,
+	delegatedAuth delegatedauth.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
 	demultiplexer demultiplexer.Component,
@@ -724,7 +726,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
+		drain, err := startPrivateActionRunner(mainCtx, config, delegatedAuth, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -909,6 +911,7 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 func startPrivateActionRunner(
 	ctx context.Context,
 	config config.Component,
+	delegatedAuth delegatedauth.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient *rcclient.Client,
 	le *leaderelection.LeaderEngine,
@@ -939,7 +942,7 @@ func startPrivateActionRunner(
 
 	// No packet capture uploader: its only user, the packet capture bundle, is
 	// not registered in the Cluster Agent.
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka, enrollment.NewIdentityStorage(config, le))
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, delegatedAuth, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka, enrollment.NewIdentityStorage(config, le))
 	if err != nil {
 		return nil, err
 	}

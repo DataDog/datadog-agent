@@ -6228,6 +6228,19 @@ properties:
       memory used by checks with long runs or many metrics, which otherwise hold every
       metric in memory until the run ends. For these checks, gauge, count and monotonic
       count values are sent without waiting for the check run to end.
+  check_sampler_sketches_at_commit:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    description: |-
+      Whether distributions and histogram buckets submitted by checks are timestamped when the check
+      run completes, one point per run, like other check metrics. Set to false to timestamp them per
+      second of submission instead.
+    comment: |-
+      Temporary opt-out for timestamping check sketches at commit, to be removed once the new behavior
+      has shipped without issue.
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: string

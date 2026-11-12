@@ -5,6 +5,7 @@ go_library(
     name = "amd",
     srcs = [
         "device.go",
+        "gpumetrics.go",
         "kfd.go",
         "kubernetes.go",
         "metrics.go",
@@ -31,6 +32,7 @@ dd_agent_go_test(
     srcs = [
         "device_test.go",
         "fuzz_test.go",
+        "gpumetrics_test.go",
         "kfd_test.go",
         "kubernetes_test.go",
         "metrics_test.go",
@@ -39,10 +41,15 @@ dd_agent_go_test(
         "topology_test.go",
     ],
     data = glob([
+        "testdata/mi300x_vf/*",
+        "testdata/mi300x_vf/device/*",
+        "testdata/mi300x_vf/hwmon/*",
         "testdata/mi350x_vf/*",
         "testdata/mi350x_vf/device/*",
         "testdata/mi350x_vf/hwmon/*",
         "testdata/mi350x_vf/kfd/*",
+        "testdata/smu15_0_8_synthetic/*",
+        "testdata/smu15_0_8_synthetic/device/*",
     ]),
     embed = [":amd"],
     deps = select({

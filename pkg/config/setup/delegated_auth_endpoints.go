@@ -162,6 +162,8 @@ var listShapeDelegatedAuthEndpointKeys = []string{
 	pkgconfigmodel.DelaCWSEndpointsKey,
 	pkgconfigmodel.DelaComplianceEndpointsKey,
 	pkgconfigmodel.DelaActivityDumpEndpointsKey,
+	pkgconfigmodel.DelaAgentTelemetryEndpointsKey,
+	pkgconfigmodel.DelaNetworkPcapEndpointsKey,
 	// Event-platform pipelines (container image, kubeactions, event management, config-files
 	// discovery, SBOM, ...). All of them build endpoints through the same HTTP logs pipeline
 	// sender and hold pending directives like the logs setting does; composed from the model's

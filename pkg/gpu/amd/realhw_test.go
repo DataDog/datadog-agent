@@ -85,6 +85,9 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 
 	metrics, err := dev.ReadMetrics()
 	require.NoError(t, err)
+	require.NoError(t, metrics.GPUMetricsErr)
+	require.NotNil(t, metrics.GPUMetrics, "decoded in TestParseGPUMetricsMI350XVF")
+	metrics.GPUMetrics = nil
 	assert.Equal(t, Metrics{
 		GPUBusyPercent:       valid(0),
 		MemoryBusyPercent:    valid(0),
