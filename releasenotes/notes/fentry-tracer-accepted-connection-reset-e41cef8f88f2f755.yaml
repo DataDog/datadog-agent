@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Cloud Network Monitoring's fentry-based network tracer not reporting
+    connection resets on accepted (server-side) TCP connections.

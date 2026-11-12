@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix Cloud Network Monitoring reporting the data sent by a dual-stack UDP
+    socket to an IPv4 peer, such as a DNS server listening on ``[::]`` replying
+    to IPv4 clients, as a separate IPv6 connection. The sent data now stays on
+    the IPv4 connection, and DNS statistics for such clients are no longer
+    dropped. This affected the default (kprobe-based) network tracer.
