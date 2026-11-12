@@ -66,6 +66,8 @@ const (
 	KueueResourceFlavorResourceName = "resourceflavors"
 	// KueueWorkloadResourceName is the plural resource name for Kueue Workload objects
 	KueueWorkloadResourceName = "workloads"
+	// KueueJobUIDLabelKey identifies the job (a Pod for standalone pod integration) owning a Workload.
+	KueueJobUIDLabelKey = "kueue.x-k8s.io/job-uid"
 	// KueueWorkloadAnnotationKey is the pod annotation key set by Kueue with the admitted Workload name
 	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
 	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
