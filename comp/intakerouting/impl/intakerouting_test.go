@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -417,8 +416,12 @@ func TestTelemetryInitializedToZero(t *testing.T) {
 		var keys []string
 		for _, m := range metrics {
 			assert.Zero(t, m.Value(), "%s %v", name, m.Tags())
-			key := strings.Join(slices.Collect(maps.Values(m.Tags())), ",")
-			keys = append(keys, strings.TrimSuffix(key, ","))
+			// Tag values in the order of tagNames: map iteration order is random.
+			values := make([]string, len(tagNames))
+			for i, tag := range tagNames {
+				values[i] = m.Tags()[tag]
+			}
+			keys = append(keys, strings.Join(values, ","))
 		}
 		return keys
 	}
