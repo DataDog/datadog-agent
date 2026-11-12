@@ -73,6 +73,8 @@ tags:
     regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
   origin:
     regex: "^(driver|hardware)$"
+  xgmi_link:
+    regex: "^\\d+$"
   type:
     regex: "^\\d+$"
   kube_container_name: {}
@@ -139,6 +141,9 @@ tagsets:
   nvlink:
     tags:
       - nvlink_port
+  xgmi:
+    tags:
+      - xgmi_link
   process:
     workload_only: true
     tags:

@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // ResourcePrefix is the namespace of the Kubernetes extended resources that
@@ -67,4 +69,127 @@ func MatchDevicePluginID(sysRoot string, devices []*Device, id string) *Device {
 		}
 	}
 	return nil
+}
+
+const (
+	// DRADriverName is the Dynamic Resource Allocation driver of AMD GPUs
+	// (ROCm/k8s-gpu-dra-driver), the resource name kubelet reports for the
+	// devices it allocates.
+	DRADriverName = "gpu.amd.com"
+
+	// draCDIDevicePrefix starts the CDI device names of AMD DRA allocations:
+	// "k8s.gpu.amd.com/gpu=<claim UID>-<device name>".
+	draCDIDevicePrefix = "k8s.gpu.amd.com/gpu="
+	// draCDISpecPrefix starts the file name of the CDI spec of a claim:
+	// "k8s.gpu.amd.com-gpu_<claim UID>.yaml".
+	draCDISpecPrefix = "k8s.gpu.amd.com-gpu_"
+	// claimUIDLength is the length of a Kubernetes UID.
+	claimUIDLength = 36
+)
+
+var (
+	// draDeviceNameRegex matches the DRA device name of a GPU or partition,
+	// "gpu-<card minor>-<render minor>".
+	draDeviceNameRegex = regexp.MustCompile(`^gpu-[0-9]+-([0-9]+)$`)
+	// renderNodeRegex matches a DRM render node path and captures its minor.
+	renderNodeRegex = regexp.MustCompile(`^/dev/dri/renderD([0-9]+)$`)
+)
+
+// MatchDRADevice returns the device allocated through the AMD DRA driver with
+// the given device name and CDI devices, or nil. The device name carries the
+// render node of the GPU or partition; for other names (such as the
+// partitions the driver creates itself), the render node is read from the CDI
+// spec of the claim, in cdiSpecDirs.
+func MatchDRADevice(sysRoot string, devices []*Device, deviceName string, cdiDevices, cdiSpecDirs []string) *Device {
+	if m := draDeviceNameRegex.FindStringSubmatch(deviceName); m != nil {
+		if minor, err := strconv.Atoi(m[1]); err == nil {
+			if dev := deviceByRenderMinor(sysRoot, devices, minor); dev != nil {
+				return dev
+			}
+		}
+	}
+	for _, cdiName := range cdiDevices {
+		key, ok := strings.CutPrefix(cdiName, draCDIDevicePrefix)
+		if !ok || len(key) <= claimUIDLength {
+			continue // another vendor, or the "common" device of every claim
+		}
+		for _, minor := range draCDIRenderMinors(cdiSpecDirs, key) {
+			if dev := deviceByRenderMinor(sysRoot, devices, minor); dev != nil {
+				return dev
+			}
+		}
+	}
+	return nil
+}
+
+// deviceByRenderMinor returns the device owning a DRM render node: from the
+// render nodes of its KFD nodes, or, when the KFD topology is not readable,
+// from the PCI device of the render node in sysfs (the render node of an
+// unpartitioned GPU).
+func deviceByRenderMinor(sysRoot string, devices []*Device, minor int) *Device {
+	for _, dev := range devices {
+		if slices.Contains(dev.renderMinors, minor) {
+			return dev
+		}
+	}
+	target, err := filepath.EvalSymlinks(filepath.Join(sysRoot, "class", "drm", "renderD"+strconv.Itoa(minor), "device"))
+	if err != nil {
+		return nil
+	}
+	pciBusID := strings.ToLower(filepath.Base(target))
+	for _, dev := range devices {
+		if dev.PCIBusID == pciBusID {
+			return dev
+		}
+	}
+	return nil
+}
+
+// draCDISpec is the part of a CDI specification used here.
+type draCDISpec struct {
+	Devices []struct {
+		Name           string `yaml:"name"`
+		ContainerEdits struct {
+			DeviceNodes []struct {
+				Path string `yaml:"path"`
+			} `yaml:"deviceNodes"`
+		} `yaml:"containerEdits"`
+	} `yaml:"devices"`
+}
+
+// draCDIRenderMinors returns the render node minors of the CDI device
+// "<claim UID>-<device name>", from the spec file of the claim.
+func draCDIRenderMinors(cdiSpecDirs []string, deviceKey string) []int {
+	claimUID := deviceKey[:claimUIDLength]
+	if strings.ContainsAny(claimUID, `/\`) {
+		return nil // the UID comes from kubelet; it is joined to a path below
+	}
+	var data []byte
+	var err error
+	for _, dir := range cdiSpecDirs {
+		if data, err = os.ReadFile(filepath.Join(dir, draCDISpecPrefix+claimUID+".yaml")); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil
+	}
+	var spec draCDISpec
+	if yaml.Unmarshal(data, &spec) != nil {
+		return nil
+	}
+	var minors []int
+	for _, device := range spec.Devices {
+		if device.Name != deviceKey {
+			continue
+		}
+		for _, node := range device.ContainerEdits.DeviceNodes {
+			if m := renderNodeRegex.FindStringSubmatch(node.Path); m != nil {
+				if minor, err := strconv.Atoi(m[1]); err == nil {
+					minors = append(minors, minor)
+				}
+			}
+		}
+	}
+	return minors
 }

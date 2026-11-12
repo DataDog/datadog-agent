@@ -73,7 +73,7 @@ configure_make(
     args = select({
         # Stage `make install` under the sandbox instead of the absolute
         # --prefix. DESTDIR is prepended to INSTALLTOP, so files land at
-        # $BUILD_TMPDIR/dest/$(INSTALL_DIR)/embedded/...; postfix_script flattens
+        # $BUILD_TMPDIR/dest/invalid/runtime/path/...; postfix_script flattens
         # them into $INSTALLDIR. Wrapped $$BUILD_TMPDIR$$ is required: make `args`
         # skip make-variable expansion, so only the $$..$$ placeholder resolves.
         "@platforms//os:windows": [],
@@ -116,13 +116,15 @@ configure_make(
         ],
         "//conditions:default": [],
     }) + select({
-        # Bake OPENSSLDIR/MODULESDIR to their real runtime locations via
-        # --prefix. It wins over the --prefix=$$BUILD_TMPDIR$$/... that
-        # rules_foreign_cc injects earlier (later --prefix wins). Since it now
+        # OPENSSLDIR/ENGINESDIR/MODULESDIR are resolved at runtime relative to
+        # libcrypto (see patch 0003). The prefix is deliberately invalid so it
+        # does not depend on //:install_dir and a failed lookup does not pick
+        # up another installation. It wins over the --prefix=$$BUILD_TMPDIR$$/...
+        # that rules_foreign_cc injects earlier (later --prefix wins). Since it
         # points outside the sandbox, `make install` is redirected with DESTDIR
         # (see `args`) and flattened into $INSTALLDIR (see `postfix_script`).
         "@platforms//os:windows": [],
-        "//conditions:default": ["--prefix=$(INSTALL_DIR)/embedded"],
+        "//conditions:default": ["--prefix=/invalid/runtime/path"],
     }),
     configure_prefix = select({
         "@platforms//os:windows": "perl",
@@ -199,7 +201,7 @@ configure_make(
         # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
         # flat layout rules_foreign_cc collects outputs from. Not `cp -a`: preserving timestamps
         # fails with EPERM on the output directories pre-created by remote executors (Buildbarn).
-        "//conditions:default": 'cp -R "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
+        "//conditions:default": 'cp -R "$$BUILD_TMPDIR/dest/invalid/runtime/path/." "$$INSTALLDIR/"',
     }),
     resource_size = "enormous",
     targets = [
@@ -208,8 +210,6 @@ configure_make(
         "install_sw",
         "install_ssldirs",
     ],
-    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
-    toolchains = ["@@//:install_dir"],
     deps = select({
         "//conditions:default": [
             "@zlib",

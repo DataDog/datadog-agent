@@ -5873,6 +5873,21 @@ properties:
             comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
+      metric_pipeline:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Run only the kind-routed metric pipeline. Legacy detectors remain the
+              default.
+          anomaly_cutoff:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Suppress reactivated-series anomalies until a fresh point is observed.
     tags:
     - full-agent-only:true
   appsec:
@@ -6213,6 +6228,19 @@ properties:
       memory used by checks with long runs or many metrics, which otherwise hold every
       metric in memory until the run ends. For these checks, gauge, count and monotonic
       count values are sent without waiting for the check run to end.
+  check_sampler_sketches_at_commit:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - full-agent-only:true
+    description: |-
+      Whether distributions and histogram buckets submitted by checks are timestamped when the check
+      run completes, one point per run, like other check metrics. Set to false to timestamp them per
+      second of submission instead.
+    comment: |-
+      Temporary opt-out for timestamping check sketches at commit, to be removed once the new behavior
+      has shipped without issue.
   check_sampler_stateful_metric_expiration_time:
     node_type: setting
     type: string
@@ -6724,6 +6752,64 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      experimental:
+        node_type: section
+        type: object
+        description: Temporary, development-only settings that will be removed in the future.
+        properties:
+          otlp:
+            node_type: section
+            type: object
+            description: Temporary, development-only OTLP settings that will be removed in the future.
+            properties:
+              proxy:
+                node_type: section
+                type: object
+                description: Temporary, development-only OTLP proxy settings that will be removed in the future.
+                properties:
+                  agent_receiver_grpc_endpoint:
+                    node_type: setting
+                    type: string
+                    default: 127.0.0.1:4319
+                    description: |-
+                      Relocated Agent OTLP/gRPC listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
+                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address or, for Unix transports,
+                      a socket path. Any local process that can reach this endpoint can send OTLP data without TLS client authentication.
+                      When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
+                      is a configuration error and the Agent's OTLP ingest does not start.
+                      Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
+                  agent_receiver_http_endpoint:
+                    node_type: setting
+                    type: string
+                    default: 127.0.0.1:4320
+                    description: |-
+                      Relocated Agent OTLP/HTTP listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
+                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address. Any local process that
+                      can reach this endpoint can send OTLP data without TLS client authentication.
+                      Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
+                  logs:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP logs from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
+                  metrics:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP metrics from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
+                  traces:
+                    node_type: setting
+                    type: boolean
+                    default: false
+                    description: |-
+                      Proxy OTLP traces from the data plane to the Agent.
+                      Temporary and development-only; will be removed in the future.
       log_file:
         node_type: setting
         type: string
@@ -6736,57 +6822,6 @@ properties:
             node_type: setting
             type: boolean
             default: false
-          proxy:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-              logs:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-              metrics:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-              receiver:
-                node_type: section
-                type: object
-                properties:
-                  protocols:
-                    node_type: section
-                    type: object
-                    properties:
-                      grpc:
-                        node_type: section
-                        type: object
-                        properties:
-                          endpoint:
-                            node_type: setting
-                            type: string
-                            default: 127.0.0.1:4319
-                            comment: When the ADP OTLP proxy is enabled, ADP owns
-                              the gRPC endpoint configured for the receiver (default
-                              :4317) and the core agent uses the endpoint below
-              traces:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
       preflight_mode:
         node_type: setting
         type: boolean
