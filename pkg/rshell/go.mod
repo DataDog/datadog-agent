@@ -15,7 +15,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.33
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/sys v0.49.0
