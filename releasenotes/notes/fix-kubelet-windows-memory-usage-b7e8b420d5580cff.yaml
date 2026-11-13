@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the missing ``kubernetes.memory.usage`` metric on Windows nodes whose
+    container runtime does not report container memory usage to the kubelet,
+    such as containerd versions earlier than 2.2. On these nodes, the kubelet
+    check now reports the container commit bytes read from the container
+    runtime, the same value as ``container.memory.usage``.

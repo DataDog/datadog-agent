@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -75,7 +76,7 @@ func initProviders(filterStore workloadfilter.Component, config *common.KubeletC
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	summaryProvider := summary.NewProvider(filterStore, config, store, tagger)
+	summaryProvider := summary.NewProvider(filterStore, config, store, metrics.GetProvider(option.New(store)), tagger)
 
 	sliProvider, err := slis.NewProvider(config, store)
 	if err != nil {

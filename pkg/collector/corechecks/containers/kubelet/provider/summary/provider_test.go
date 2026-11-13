@@ -34,8 +34,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	kubeletmock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 var (
@@ -367,6 +370,7 @@ func TestProvider_Provide(t *testing.T) {
 				mockFilterStore,
 				config,
 				store,
+				metricsmock.NewMetricsProvider(),
 				fakeTagger,
 			)
 			assert.NoError(t, err)
@@ -549,7 +553,7 @@ func (suite *FilteringTestSuite) createProviderWithFilters() {
 		},
 		UseStatsSummaryAsSource: &[]bool{true}[0],
 	}
-	suite.provider = NewProvider(suite.workloadFilter, config, suite.store, fakeTagger)
+	suite.provider = NewProvider(suite.workloadFilter, config, suite.store, metricsmock.NewMetricsProvider(), fakeTagger)
 }
 
 func (suite *FilteringTestSuite) setupFilteredTestData() {
@@ -808,7 +812,7 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 			Tags: []string{"instance_tag:test"},
 		},
 	}
-	provider := NewProvider(mockFilterStore, config, store, fakeTagger)
+	provider := NewProvider(mockFilterStore, config, store, metricsmock.NewMetricsProvider(), fakeTagger)
 
 	// Run provider
 	err = provider.Provide(kubeletMock, mockSender)
@@ -819,4 +823,169 @@ func TestStaticPodUIDMismatchFallback(t *testing.T) {
 	mockSender.AssertMetricTaggedWith(t, "Gauge",
 		common.KubeletMetricsPrefix+"ephemeral_storage.usage",
 		[]string{"app:kube-apiserver"})
+}
+
+// TestProvider_WindowsMemoryUsage tests memory.usage on Windows nodes. Kubelet reports container usageBytes there
+// only when the runtime provides them (containerd >= 2.2). Otherwise, memory.usage is the commit bytes from the runtime.
+func TestProvider_WindowsMemoryUsage(t *testing.T) {
+	const podUID = "windows-pod-uid"
+	containerIDs := map[string]string{
+		"agent":         "windows-agent-id",
+		"process-agent": "windows-process-agent-id",
+		"trace-agent":   "windows-trace-agent-id",
+	}
+	workingSets := map[string]float64{
+		"agent":         112852992,
+		"process-agent": 76791808,
+		"trace-agent":   65417216,
+	}
+	containerdRuntime := provider.NewRuntimeMetadata(string(workloadmeta.ContainerRuntimeContainerd), "")
+
+	// agent and process-agent stats are shaped like the containerd collector's on Windows.
+	// trace-agent stats are shaped like the kubelet collector's, which only knows the working set.
+	runtimeEntries := map[string]metricsmock.ContainerEntry{
+		"windows-agent-id": {ContainerStats: &provider.ContainerStats{Memory: &provider.ContainerMemStats{
+			UsageTotal:        pointer.Ptr(272625664.0),
+			PrivateWorkingSet: pointer.Ptr(112852992.0),
+			CommitBytes:       pointer.Ptr(272625664.0),
+		}}},
+		"windows-process-agent-id": {ContainerStats: &provider.ContainerStats{Memory: &provider.ContainerMemStats{
+			UsageTotal:  pointer.Ptr(1.0),
+			CommitBytes: pointer.Ptr(1.0),
+		}}},
+		"windows-trace-agent-id": {ContainerStats: &provider.ContainerStats{Memory: &provider.ContainerMemStats{
+			UsageTotal:        pointer.Ptr(65417216.0),
+			PrivateWorkingSet: pointer.Ptr(65417216.0),
+		}}},
+	}
+	errorEntries := map[string]metricsmock.ContainerEntry{}
+	for id := range runtimeEntries {
+		errorEntries[id] = metricsmock.ContainerEntry{Error: errors.New("stats unavailable")}
+	}
+
+	tests := []struct {
+		name              string
+		registerCollector bool
+		runtimeEntries    map[string]metricsmock.ContainerEntry
+		storeContainers   bool
+		wantUsage         map[string]float64
+	}{
+		{
+			name:              "commit bytes from the runtime when kubelet has no usageBytes",
+			registerCollector: true,
+			runtimeEntries:    runtimeEntries,
+			storeContainers:   true,
+			wantUsage: map[string]float64{
+				"agent":         272625664,
+				"process-agent": 133685248,
+			},
+		},
+		{
+			name:              "no runtime collector",
+			registerCollector: false,
+			storeContainers:   true,
+			wantUsage:         map[string]float64{"process-agent": 133685248},
+		},
+		{
+			name:              "runtime stats error",
+			registerCollector: true,
+			runtimeEntries:    errorEntries,
+			storeContainers:   true,
+			wantUsage:         map[string]float64{"process-agent": 133685248},
+		},
+		{
+			name:              "container missing from workloadmeta",
+			registerCollector: true,
+			runtimeEntries:    runtimeEntries,
+			storeContainers:   false,
+			wantUsage:         map[string]float64{"process-agent": 133685248},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+			var podContainers []workloadmeta.OrchestratorContainer
+			for name, id := range containerIDs {
+				podContainers = append(podContainers, workloadmeta.OrchestratorContainer{ID: id, Name: name})
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, id), "foo",
+					[]string{"kube_container_name:" + name}, nil, nil, nil)
+				if tt.storeContainers {
+					store.Set(&workloadmeta.Container{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainer,
+							ID:   id,
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      name,
+							Namespace: "k8s.io",
+						},
+						Runtime: workloadmeta.ContainerRuntimeContainerd,
+					})
+				}
+			}
+			store.Set(&workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podUID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "datadog-agent-windows-abcde",
+					Namespace: "datadog",
+				},
+				Containers: podContainers,
+				Phase:      "Running",
+			})
+
+			metricsProvider := metricsmock.NewMetricsProvider()
+			if tt.registerCollector {
+				collector := metricsmock.NewCollector("containerd")
+				for id, entry := range tt.runtimeEntries {
+					collector.SetContainerEntry(id, entry)
+				}
+				metricsProvider.RegisterConcreteCollector(containerdRuntime, collector)
+			}
+
+			kubeletMock := kubeletmock.NewKubeletMock()
+			content, err := os.ReadFile("../../testdata/summary_windows.json")
+			if err != nil {
+				t.Fatalf("unable to read test file: %v", err)
+			}
+			kubeletMock.MockReplies["/stats/summary"] = &kubeletmock.HTTPReplyMock{
+				Data:         content,
+				ResponseCode: 200,
+			}
+
+			mockSender := mocksender.NewMockSender(t, checkid.ID(t.Name()))
+			mockSender.SetupAcceptAll()
+
+			config := &common.KubeletConfig{
+				OpenmetricsInstance: types.OpenmetricsInstance{
+					Tags: []string{"instance_tag:something"},
+				},
+				UseStatsSummaryAsSource: pointer.Ptr(true),
+			}
+			p := NewProvider(workloadfilterfxmock.SetupMockFilter(t), config, store, metricsProvider, fakeTagger)
+
+			err = p.Provide(kubeletMock, mockSender)
+			assert.NoError(t, err)
+
+			for name := range containerIDs {
+				tags := []string{"instance_tag:something", "kube_container_name:" + name}
+				mockSender.AssertMetricOnce(t, "Gauge", common.KubeletMetricsPrefix+"memory.working_set", workingSets[name], "", tags)
+				if usage, ok := tt.wantUsage[name]; ok {
+					mockSender.AssertMetricOnce(t, "Gauge", common.KubeletMetricsPrefix+"memory.usage", usage, "", tags)
+				} else {
+					mockSender.AssertMetricNotTaggedWith(t, "Gauge", common.KubeletMetricsPrefix+"memory.usage", tags)
+				}
+			}
+		})
+	}
 }
