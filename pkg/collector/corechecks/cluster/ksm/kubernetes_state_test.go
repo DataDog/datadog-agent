@@ -2433,6 +2433,37 @@ func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T)
 	}
 }
 
+// TestProcessMetrics_PodUnready checks that the sparse kube_pod_status_unready family produced by
+// the extended pod factory is submitted as kubernetes_state.pod.unready, alongside the untouched
+// kubernetes_state.pod.ready series.
+func TestProcessMetrics_PodUnready(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{LabelsMapper: defaultLabelsMapper()}, fakeTagger, nil)
+	s := mocksender.NewMockSender(t, k.ID())
+	s.SetupAcceptAll()
+
+	labels := map[string]string{"namespace": "default", "pod": "p1", "uid": "u1"}
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_status_unready": {{
+			Name:        "kube_pod_status_unready",
+			ListMetrics: []ksmstore.DDMetric{{Labels: labels, Val: 1}},
+		}},
+		"kube_pod_status_ready": {{
+			Name: "kube_pod_status_ready",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "condition": "false"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	k.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+
+	s.AssertMetric(t, "Gauge", "kubernetes_state.pod.unready", 1, "", []string{"kube_namespace:default", "pod_name:p1", "uid:u1"})
+	s.AssertMetric(t, "Gauge", "kubernetes_state.pod.ready", 1, "", []string{"kube_namespace:default", "pod_name:p1", "uid:u1", "condition:false"})
+	s.AssertNumberOfCalls(t, "Gauge", 2)
+}
+
 // TestDiscoverCustomResources_ClusterAggregatesOnly guards the wiring that makes
 // cluster_aggregates_only build ONLY the extended pod store: discoverCustomResources
 // must return exactly the extended pods GVR key (not the plain "pods" collector, and

@@ -8,6 +8,7 @@
 package customresources
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
 
 func TestExtendedPodFactoryEffectiveResourceRequestsMetric(t *testing.T) {
@@ -103,4 +105,59 @@ func TestExtendedPodFactoryEffectiveResourceRequestsMetric(t *testing.T) {
 	}, actual)
 
 	assert.Equal(t, resource.MustParse("500m"), pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU])
+}
+
+func TestExtendedPodFactoryUnreadyMetric(t *testing.T) {
+	factory := &extendedPodFactory{}
+	generators := factory.MetricFamilyGenerators()
+	unreadyGeneratorIndex := slices.IndexFunc(generators, func(g generator.FamilyGenerator) bool {
+		return g.Name == "kube_pod_status_unready"
+	})
+	require.NotEqual(t, -1, unreadyGeneratorIndex)
+
+	readyCondition := func(status corev1.ConditionStatus) []corev1.PodCondition {
+		return []corev1.PodCondition{
+			{Type: corev1.PodScheduled, Status: corev1.ConditionTrue},
+			{Type: corev1.PodReady, Status: status},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		phase    corev1.PodPhase
+		conds    []corev1.PodCondition
+		expected bool
+	}{
+		{name: "ready", phase: corev1.PodRunning, conds: readyCondition(corev1.ConditionTrue)},
+		{name: "ready condition false", phase: corev1.PodRunning, conds: readyCondition(corev1.ConditionFalse), expected: true},
+		{name: "ready condition unknown", phase: corev1.PodRunning, conds: readyCondition(corev1.ConditionUnknown), expected: true},
+		{name: "no ready condition yet", phase: corev1.PodPending, conds: []corev1.PodCondition{{Type: corev1.PodScheduled, Status: corev1.ConditionTrue}}, expected: true},
+		{name: "no conditions at all", phase: corev1.PodPending, expected: true},
+		{name: "succeeded pod is never ready", phase: corev1.PodSucceeded, conds: readyCondition(corev1.ConditionFalse)},
+		{name: "failed pod is never ready", phase: corev1.PodFailed, conds: readyCondition(corev1.ConditionFalse)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "test-namespace",
+					UID:       types.UID("test-uid"),
+				},
+				Status: corev1.PodStatus{Phase: tt.phase, Conditions: tt.conds},
+			}
+
+			family := generators[unreadyGeneratorIndex].Generate(pod)
+			if !tt.expected {
+				assert.Empty(t, family.Metrics)
+				return
+			}
+
+			require.Len(t, family.Metrics, 1)
+			assert.Equal(t, float64(1), family.Metrics[0].Value)
+			assert.Equal(t, []string{"namespace", "pod", "uid"}, family.Metrics[0].LabelKeys)
+			assert.Equal(t, []string{"test-namespace", "test-pod", "test-uid"}, family.Metrics[0].LabelValues)
+		})
+	}
 }
