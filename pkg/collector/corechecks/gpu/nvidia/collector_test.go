@@ -230,18 +230,91 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 				testutil.WithDeviceCount(2),
 			},
 			setupTagger: func(fakeTagger taggermock.Mock) {
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[0], "gpu_vendor=nvidia", "gpu_arch=pascal"}, nil, nil, nil)
-				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid=" + testutil.GPUUUIDs[1], "gpu_vendor=nvidia", "gpu_arch=turing"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[0]), "foo", []string{"gpu_uuid:" + testutil.GPUUUIDs[0], "gpu_vendor:nvidia", "gpu_arch:pascal", "gpu_device:tesla_t4"}, nil, nil, nil)
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.GPUUUIDs[1]), "foo", []string{"gpu_uuid:" + testutil.GPUUUIDs[1], "gpu_vendor:nvidia", "gpu_arch:turing", "gpu_device:tesla_t4"}, nil, nil, nil)
 			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Len(t, tagsMapping, 2)
 				tags, ok := tagsMapping[testutil.GPUUUIDs[0]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=pascal", "gpu_uuid=" + testutil.GPUUUIDs[0]})
+				require.ElementsMatch(t, []string{"gpu_vendor:nvidia", "gpu_arch:pascal", "gpu_uuid:" + testutil.GPUUUIDs[0], "gpu_device:tesla_t4"}, tags)
 
 				tags, ok = tagsMapping[testutil.GPUUUIDs[1]]
 				require.True(t, ok)
-				require.ElementsMatch(t, tags, []string{"gpu_vendor=nvidia", "gpu_arch=turing", "gpu_uuid=" + testutil.GPUUUIDs[1]})
+				require.ElementsMatch(t, []string{"gpu_vendor:nvidia", "gpu_arch:turing", "gpu_uuid:" + testutil.GPUUUIDs[1], "gpu_device:tesla_t4"}, tags)
+			},
+		},
+		{
+			name: "Tagger has not collected the GPU yet",
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.Equal(t, map[string][]string{
+					testutil.DefaultGpuUUID: {"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:tesla_t4"},
+				}, tagsMapping)
+			},
+		},
+		{
+			name: "NVML cache supplies the model observed on the affected host",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetNameFunc = func() (string, nvml.Return) { return "NVIDIA A10G", nvml.SUCCESS }
+				}),
+			},
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.Equal(t, map[string][]string{
+					testutil.DefaultGpuUUID: {"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:nvidia_a10g"},
+				}, tagsMapping)
+			},
+		},
+		{
+			name: "Tagger provides partial GPU tags",
+			setupTagger: func(fakeTagger taggermock.Mock) {
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.DefaultGpuUUID), "foo", []string{
+					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_vendor:nvidia",
+				}, nil, nil, nil)
+			},
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.ElementsMatch(t, []string{
+					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_vendor:nvidia", "gpu_device:tesla_t4",
+				}, tagsMapping[testutil.DefaultGpuUUID])
+			},
+		},
+		{
+			name: "Tagger model takes precedence over the NVML cache",
+			setupTagger: func(fakeTagger taggermock.Mock) {
+				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.DefaultGpuUUID), "foo", []string{
+					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:from_tagger",
+				}, nil, nil, nil)
+			},
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.ElementsMatch(t, []string{
+					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:from_tagger",
+				}, tagsMapping[testutil.DefaultGpuUUID])
+			},
+		},
+		{
+			name: "NVML cache has an empty model",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetNameFunc = func() (string, nvml.Return) { return "", nvml.SUCCESS }
+				}),
+			},
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.Equal(t, map[string][]string{
+					testutil.DefaultGpuUUID: {"gpu_uuid:" + testutil.DefaultGpuUUID},
+				}, tagsMapping)
+			},
+		},
+		{
+			name: "NVML cache has a whitespace-only model",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetNameFunc = func() (string, nvml.Return) { return "   ", nvml.SUCCESS }
+				}),
+			},
+			expected: func(t *testing.T, tagsMapping map[string][]string) {
+				require.Equal(t, map[string][]string{
+					testutil.DefaultGpuUUID: {"gpu_uuid:" + testutil.DefaultGpuUUID},
+				}, tagsMapping)
 			},
 		},
 		{
