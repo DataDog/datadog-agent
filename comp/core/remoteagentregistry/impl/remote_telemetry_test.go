@@ -35,9 +35,11 @@ func counterObservation(name string, value float64, labelValues ...string) obser
 		values = append(values, v)
 	}
 	return observedSeries{
-		key:   exposedSeriesKey{kind: dto.MetricType_COUNTER, name: name, labels: encodeLabels(names, values)},
-		meta:  seriesMeta{help: name, labelNames: names, labelValues: values},
-		value: seriesValue{counter: value},
+		key:         exposedSeriesKey{kind: dto.MetricType_COUNTER, name: name, labels: encodeLabels(names, values)},
+		help:        name,
+		labelNames:  names,
+		labelValues: values,
+		value:       seriesValue{counter: value},
 	}
 }
 
@@ -45,9 +47,11 @@ func histogramObservation(name string, count uint64, sum float64, buckets map[fl
 	names := []string{emitterMetricTagName}
 	values := []string{"adp"}
 	return observedSeries{
-		key:   exposedSeriesKey{kind: dto.MetricType_HISTOGRAM, name: name, labels: encodeLabels(names, values)},
-		meta:  seriesMeta{help: name, labelNames: names, labelValues: values},
-		value: seriesValue{count: count, sum: sum, buckets: buckets},
+		key:         exposedSeriesKey{kind: dto.MetricType_HISTOGRAM, name: name, labels: encodeLabels(names, values)},
+		help:        name,
+		labelNames:  names,
+		labelValues: values,
+		value:       seriesValue{count: count, sum: sum, buckets: buckets},
 	}
 }
 
@@ -55,7 +59,7 @@ func histogramObservation(name string, count uint64, sum float64, buckets map[fl
 func exposedMetrics(t *testing.T, r *remoteTelemetryAccumulator) map[string]*dto.Metric {
 	t.Helper()
 	out := make(map[string]*dto.Metric)
-	r.emit(nil, func(m prometheus.Metric) {
+	r.emit(func(m prometheus.Metric) {
 		var pb dto.Metric
 		require.NoError(t, m.Write(&pb))
 		var labels []string
@@ -117,40 +121,6 @@ func TestAccumulatorCounterResetCountsFromZero(t *testing.T) {
 	assert.Equal(t, 110.0, exposedCounter(t, r, "c{}"))
 }
 
-func TestAccumulatorProcessesAreIndependent(t *testing.T) {
-	r := newRemoteTelemetryAccumulator()
-	now := time.Now()
-
-	r.observe("old", []observedSeries{counterObservation("c", 500)}, now)
-	r.observe("old", []observedSeries{counterObservation("c", 530)}, now)
-
-	// A restarted remote agent is a new process with its own baseline. Its counters are small, which must not be
-	// read as a reset of the old process, and the exposed value must not go down.
-	r.observe("new", []observedSeries{counterObservation("c", 2)}, now)
-	assert.Equal(t, 30.0, exposedCounter(t, r, "c{}"))
-	r.observe("new", []observedSeries{counterObservation("c", 9)}, now)
-	assert.Equal(t, 37.0, exposedCounter(t, r, "c{}"))
-}
-
-func TestAccumulatorRetainsTotalOfExpiredSeries(t *testing.T) {
-	r := newRemoteTelemetryAccumulator()
-	now := time.Now()
-
-	r.observe("old", []observedSeries{counterObservation("c", 500)}, now)
-	r.observe("old", []observedSeries{counterObservation("c", 530)}, now)
-
-	// The old process is gone for good, and a new one reports the same series.
-	later := now.Add(remoteTelemetrySeriesIdleTTL)
-	r.observe("new", []observedSeries{counterObservation("c", 1)}, later)
-	r.expire(map[string]struct{}{"new": {}}, map[string]struct{}{"new": {}}, later)
-
-	assert.Empty(t, r.processes["old"], "the state of the old process is dropped once nothing refers to it")
-	assert.Len(t, r.live, 1)
-	assert.Equal(t, 30.0, exposedCounter(t, r, "c{}"))
-	r.observe("new", []observedSeries{counterObservation("c", 6)}, later)
-	assert.Equal(t, 35.0, exposedCounter(t, r, "c{}"))
-}
-
 func TestAccumulatorExpiryRules(t *testing.T) {
 	now := time.Now()
 	idle := now.Add(remoteTelemetrySeriesIdleTTL)
@@ -165,45 +135,87 @@ func TestAccumulatorExpiryRules(t *testing.T) {
 	t.Run("a failed scrape of a registered process does not expire its series", func(t *testing.T) {
 		r := setup()
 		r.expire(map[string]struct{}{"adp": {}}, map[string]struct{}{}, idle)
-		assert.Len(t, r.live, 1)
-		assert.Empty(t, r.retired)
+		assert.Equal(t, 4.0, exposedCounter(t, r, "c{}"))
 	})
 
-	t.Run("a series missing from a successful scrape expires and its total is retained", func(t *testing.T) {
+	t.Run("a series missing from a successful scrape expires", func(t *testing.T) {
 		r := setup()
 		r.expire(map[string]struct{}{"adp": {}}, map[string]struct{}{"adp": {}}, idle)
-		assert.Empty(t, r.live)
-		assert.Len(t, r.retired, 1)
-		assert.Equal(t, 4.0, exposedCounter(t, r, "c{}"))
-
-		// It comes back as a new series of the same process, so all of it is new.
-		r.observe("adp", []observedSeries{counterObservation("c", 3)}, idle)
-		assert.Equal(t, 7.0, exposedCounter(t, r, "c{}"))
-	})
-
-	t.Run("series of a process that left the registry expire", func(t *testing.T) {
-		r := setup()
-		r.expire(map[string]struct{}{}, map[string]struct{}{}, idle)
-		assert.Empty(t, r.live)
-		assert.Equal(t, 4.0, exposedCounter(t, r, "c{}"))
-	})
-
-	t.Run("retained totals expire eventually", func(t *testing.T) {
-		r := setup()
-		r.expire(map[string]struct{}{}, map[string]struct{}{}, idle)
-		r.expire(map[string]struct{}{}, map[string]struct{}{}, idle.Add(remoteTelemetryRetiredTTL))
-		assert.Empty(t, r.retired)
-		assert.Empty(t, r.processes)
+		assert.Empty(t, r.series)
 		assert.Empty(t, exposedMetrics(t, r))
+
+		// It comes back as a series of a process that is already being watched, so all of it is new.
+		r.observe("adp", []observedSeries{counterObservation("c", 3)}, idle)
+		assert.Equal(t, 3.0, exposedCounter(t, r, "c{}"))
 	})
 
-	t.Run("retained totals that a live series builds on are kept", func(t *testing.T) {
+	t.Run("series of a process that left the registry expire, and so does the process", func(t *testing.T) {
 		r := setup()
-		r.expire(map[string]struct{}{"adp": {}}, map[string]struct{}{"adp": {}}, idle)
-		r.observe("other", []observedSeries{counterObservation("c", 1)}, idle)
-		r.observe("other", []observedSeries{counterObservation("c", 2)}, idle)
-		r.expire(map[string]struct{}{"other": {}}, map[string]struct{}{"other": {}}, idle.Add(remoteTelemetryRetiredTTL))
-		assert.Equal(t, 5.0, exposedCounter(t, r, "c{}"))
+		r.expire(map[string]struct{}{}, map[string]struct{}{}, idle)
+		assert.Empty(t, r.series)
+		assert.Empty(t, r.processes)
+	})
+
+	t.Run("a process that still owns a series is kept", func(t *testing.T) {
+		r := setup()
+		r.expire(map[string]struct{}{}, map[string]struct{}{}, now.Add(remoteTelemetrySeriesIdleTTL-time.Second))
+		assert.Len(t, r.series, 1)
+		assert.Len(t, r.processes, 1)
+	})
+}
+
+func TestAccumulatorProcessHandover(t *testing.T) {
+	now := time.Now()
+
+	t.Run("the new process takes the series over where the old one left it", func(t *testing.T) {
+		r := newRemoteTelemetryAccumulator()
+		r.observe("old", []observedSeries{counterObservation("c", 500)}, now)
+		r.observe("old", []observedSeries{counterObservation("c", 530)}, now)
+
+		// The old process is gone and a new one reports the same series, starting small.
+		r.observe("new", []observedSeries{counterObservation("c", 4)}, now)
+		assert.Equal(t, 30.0, exposedCounter(t, r, "c{}"))
+
+		// It climbs past what the old one had reached, which comparing with the old process could not tell apart
+		// from continued counting.
+		r.observe("new", []observedSeries{counterObservation("c", 900)}, now)
+		assert.Equal(t, 30.0+896, exposedCounter(t, r, "c{}"))
+
+		// Nothing refers to the old process anymore.
+		r.expire(map[string]struct{}{"new": {}}, map[string]struct{}{"new": {}}, now.Add(remoteTelemetrySeriesIdleTTL))
+		assert.NotContains(t, r.processes, "old")
+	})
+
+	t.Run("a series a watched process starts reporting later counts in full", func(t *testing.T) {
+		r := newRemoteTelemetryAccumulator()
+		r.observe("old", []observedSeries{counterObservation("c", 10)}, now)
+		r.observe("old", []observedSeries{counterObservation("c", 15)}, now)
+		r.observe("new", []observedSeries{counterObservation("other", 1)}, now)
+
+		// "new" is being watched already, and "c" shows up in it now.
+		r.observe("new", []observedSeries{counterObservation("other", 2), counterObservation("c", 3)}, now)
+		assert.Equal(t, 8.0, exposedCounter(t, r, "c{}"))
+	})
+
+	t.Run("a histogram with other buckets starts over", func(t *testing.T) {
+		r := newRemoteTelemetryAccumulator()
+		layoutA := func(a, total uint64) map[float64]uint64 { return map[float64]uint64{1: a, math.Inf(1): total} }
+		layoutB := func(a, b, total uint64) map[float64]uint64 { return map[float64]uint64{2: a, 4: b, math.Inf(1): total} }
+
+		r.observe("old", []observedSeries{histogramObservation("h", 5, 5, layoutA(2, 5))}, now)
+		r.observe("old", []observedSeries{histogramObservation("h", 8, 8, layoutA(4, 8))}, now)
+		assert.Equal(t, uint64(3), exposedMetrics(t, r)["h{}"].GetHistogram().GetSampleCount())
+
+		// The new process, built with other buckets, is only a baseline for now. What was accounted for the old
+		// buckets can't be added to the new ones.
+		r.observe("new", []observedSeries{histogramObservation("h", 2, 2, layoutB(1, 1, 2))}, now)
+		m := exposedMetrics(t, r)["h{}"].GetHistogram()
+		assert.Equal(t, uint64(0), m.GetSampleCount())
+		assert.Len(t, m.GetBucket(), 3)
+
+		r.observe("new", []observedSeries{histogramObservation("h", 5, 5, layoutB(2, 3, 5))}, now)
+		m = exposedMetrics(t, r)["h{}"].GetHistogram()
+		assert.Equal(t, uint64(3), m.GetSampleCount())
 	})
 }
 
@@ -240,51 +252,6 @@ func TestAccumulatorHistograms(t *testing.T) {
 	m = exposedMetrics(t, r)["h{}"].GetHistogram()
 	assert.Equal(t, uint64(3), m.GetSampleCount())
 	assert.Len(t, m.GetBucket(), 2)
-}
-
-func TestAccumulatorHistogramLayoutMismatchIsDeterministic(t *testing.T) {
-	exposedBounds := func(r *remoteTelemetryAccumulator) []float64 {
-		m, ok := exposedMetrics(t, r)["h{}"]
-		require.True(t, ok)
-		var bounds []float64
-		for _, b := range m.GetHistogram().GetBucket() {
-			bounds = append(bounds, b.GetUpperBound())
-		}
-		return bounds
-	}
-
-	// Each process reports twice, so its accumulated total is not zero: layout A is {1, +Inf}, layout B {2, +Inf}.
-	t.Run("the report seen last wins", func(t *testing.T) {
-		r := newRemoteTelemetryAccumulator()
-		older, newer := time.Now(), time.Now().Add(time.Minute)
-
-		r.observe("proc-a", []observedSeries{histogramObservation("h", 5, 5, map[float64]uint64{1: 2, math.Inf(1): 5})}, older)
-		r.observe("proc-a", []observedSeries{histogramObservation("h", 6, 6, map[float64]uint64{1: 3, math.Inf(1): 6})}, older)
-		r.observe("proc-b", []observedSeries{histogramObservation("h", 2, 2, map[float64]uint64{2: 1, math.Inf(1): 2})}, newer)
-		r.observe("proc-b", []observedSeries{histogramObservation("h", 3, 3, map[float64]uint64{2: 2, math.Inf(1): 3})}, newer)
-
-		// Whatever the iteration order of the internal maps, the exposed layout is always the newer one.
-		for i := 0; i < 10; i++ {
-			assert.Equal(t, []float64{2, math.Inf(1)}, exposedBounds(r))
-		}
-	})
-
-	t.Run("a live series beats a retained total of another layout", func(t *testing.T) {
-		r := newRemoteTelemetryAccumulator()
-		now := time.Now()
-		later := now.Add(2 * time.Minute)
-
-		r.observe("proc-a", []observedSeries{histogramObservation("h", 5, 5, map[float64]uint64{1: 2, math.Inf(1): 5})}, now)
-		r.observe("proc-a", []observedSeries{histogramObservation("h", 6, 6, map[float64]uint64{1: 3, math.Inf(1): 6})}, now)
-		r.observe("proc-b", []observedSeries{histogramObservation("h", 2, 2, map[float64]uint64{2: 1, math.Inf(1): 2})}, later)
-		r.observe("proc-b", []observedSeries{histogramObservation("h", 3, 3, map[float64]uint64{2: 2, math.Inf(1): 3})}, later)
-
-		// The old process leaves and its series is folded later than the new process was last seen.
-		r.expire(map[string]struct{}{"proc-b": {}}, map[string]struct{}{"proc-b": {}}, later.Add(remoteTelemetrySeriesIdleTTL-time.Minute))
-
-		// The live series wins even though the retained total is the more recent fold.
-		assert.Equal(t, []float64{2, math.Inf(1)}, exposedBounds(r))
-	})
 }
 
 //
@@ -508,4 +475,21 @@ func TestTelemetryBaselineScrapeToleratesRemoteAgentNotKnowingItsSessionYet(t *t
 
 	server.promText = counterText("adp_counter", 1_040)
 	assert.Equal(t, 40.0, gatheredCounter(t, telemetryComp, "adp_counter"))
+}
+
+// Two registrations under one agent name report the same series, so only the newest one is scraped: the older one is
+// the one that went away. If both were scraped, the series would change owner on every scrape.
+func TestTelemetryOnlyTheNewestRegistrationOfANameIsScraped(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	require.NoError(t, lc.Start(context.Background()))
+	defer lc.Stop(context.Background())
+
+	old := registerTelemetryAgent(t, ipcComp, provides.Comp, "first-process", counterText("adp_counter", 100))
+	// The old process is still registered, and still answers with its own numbers.
+	restarted := registerTelemetryAgent(t, ipcComp, provides.Comp, "second-process", counterText("adp_counter", 7))
+
+	old.promText = counterText("adp_counter", 105)
+	restarted.promText = counterText("adp_counter", 9)
+
+	assert.Equal(t, 2.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 }

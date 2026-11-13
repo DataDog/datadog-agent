@@ -127,7 +127,7 @@ func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
 func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Metric) {
 	// Counters and histograms are exposed as the increases observed since the Core Agent first saw each remote process
 	// (see telemetry_rebase.go), not as the running totals of the remote process.
-	c.registry.collectTelemetry(c.registry.newestSessionFilter(), func(m prometheus.Metric) { ch <- m })
+	c.registry.collectTelemetry(c.registry.newestRegistrationFilter(), func(m prometheus.Metric) { ch <- m })
 }
 
 func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {

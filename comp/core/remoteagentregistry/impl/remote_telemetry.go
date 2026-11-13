@@ -7,6 +7,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -29,9 +30,9 @@ import (
 // that every counter starts from zero when the Core Agent starts. Passing the totals through unchanged therefore makes
 // them over-report whenever the Core Agent restarts while the remote agent keeps running.
 //
-// The accumulator fixes this by accumulating the increases the Core Agent itself observes, per remote process. What it
-// exposes is "everything counted since the Core Agent first saw this process", which behaves like the Core Agent's
-// own counters. The only decision to make is what the first observation of a series is worth:
+// The accumulator fixes this by accumulating the increases the Core Agent itself observes. What it exposes is
+// "everything counted since the Core Agent first saw this series", which behaves like the Core Agent's own counters.
+// The only decision to make is what the first observation of a series is worth:
 //
 //   - In the first successful scrape of a process, everything already counted is history from before this Core Agent
 //     knew the process, so it becomes the baseline and contributes nothing. The registry performs this scrape right
@@ -39,16 +40,21 @@ import (
 //   - A series that first appears in a later scrape came into existence while the Core Agent was watching, so all of
 //     its value is new.
 //
-// Counter resets are detected from a decrease (for example when the remote agent drops and later recreates an idle
-// counter) and counted from zero. Totals of replaced processes are retained per series, so the exposed value of a
-// series never goes down when a remote agent restarts.
+// There is one state per series, following the process that reports it. When the remote agent restarts, the new
+// process takes the series over where the old one left it: its first scrape is only a baseline, so the exposed value
+// keeps increasing. A decrease within one process means a counter was reset (for example when the remote agent drops
+// and later recreates an idle counter), and what it holds now is new.
+//
+// Histograms follow the same rules. A report with different buckets cannot be added to what was accumulated before,
+// so the series starts over with the new buckets and its exposed value goes down once.
 
 const (
-	// remoteTelemetrySeriesIdleTTL is how long a series can be absent from successful scrapes of its process (or its
-	// process can be absent from the registry) before its state is folded into the retained totals.
+	// remoteTelemetrySeriesIdleTTL is how long a series can go unreported, by a process that keeps answering or that is
+	// gone, before its state is dropped.
 	remoteTelemetrySeriesIdleTTL = 10 * time.Minute
-	// remoteTelemetryRetiredTTL is how long retained totals are kept once nothing updates them.
-	remoteTelemetryRetiredTTL = time.Hour
+	// remoteTelemetryExpireInterval is how often the state is checked for expiry. The TTL is far longer than the
+	// interval between scrapes, so there is no need to check on every one.
+	remoteTelemetryExpireInterval = time.Minute
 )
 
 var (
@@ -68,11 +74,6 @@ type exposedSeriesKey struct {
 	labels string
 }
 
-type processSeriesKey struct {
-	identity string
-	series   exposedSeriesKey
-}
-
 // seriesValue holds the value of a counter (counter) or of a histogram (count, sum and cumulative buckets).
 type seriesValue struct {
 	counter float64
@@ -87,6 +88,18 @@ func (v seriesValue) clone() seriesValue {
 		out.buckets = make(map[float64]uint64, len(v.buckets))
 		for bound, count := range v.buckets {
 			out.buckets[bound] = count
+		}
+	}
+	return out
+}
+
+// zeroLike returns an empty value with the same buckets.
+func (v seriesValue) zeroLike() seriesValue {
+	var out seriesValue
+	if v.buckets != nil {
+		out.buckets = make(map[float64]uint64, len(v.buckets))
+		for bound := range v.buckets {
+			out.buckets[bound] = 0
 		}
 	}
 	return out
@@ -154,31 +167,30 @@ func advanceValue(kind dto.MetricType, total *seriesValue, last, cur seriesValue
 	addValue(kind, total, delta)
 }
 
-// seriesMeta is what is needed to emit a series.
-type seriesMeta struct {
+// observedSeries is a counter or histogram series as reported by one scrape of a remote process.
+type observedSeries struct {
+	key         exposedSeriesKey
 	help        string
 	labelNames  []string
 	labelValues []string
+	value       seriesValue
 }
 
-// observedSeries is a counter or histogram series as reported by one scrape of a remote process.
-type observedSeries struct {
-	key   exposedSeriesKey
-	meta  seriesMeta
-	value seriesValue
-}
-
-type liveSeries struct {
-	meta     seriesMeta
-	last     seriesValue
-	total    seriesValue
+// remoteSeries is the state of one series.
+type remoteSeries struct {
+	// owner is the identity of the process the series follows.
+	owner string
+	// last is the value the owner reported last, and total what was accounted since the series was first seen.
+	last  seriesValue
+	total seriesValue
+	// lastSeen is when the owner last reported the series.
 	lastSeen time.Time
-}
 
-type retiredSeries struct {
-	meta      seriesMeta
-	total     seriesValue
-	retiredAt time.Time
+	// What is needed to build the metric. The descriptor is built once, since it does not change.
+	help        string
+	desc        *prometheus.Desc
+	labelNames  []string
+	labelValues []string
 }
 
 type processBaseline struct {
@@ -190,20 +202,19 @@ type processBaseline struct {
 // the file.
 type remoteTelemetryAccumulator struct {
 	// scrapeMu serializes scrapes, so that observations of a process are applied in the order they were fetched. An
-	// observation applied out of order would look like a counter reset.
-	scrapeMu sync.Mutex
+	// observation applied out of order would look like a counter reset. It also guards lastExpire.
+	scrapeMu   sync.Mutex
+	lastExpire time.Time
 
 	mu        sync.Mutex
 	processes map[string]*processBaseline
-	live      map[processSeriesKey]*liveSeries
-	retired   map[exposedSeriesKey]*retiredSeries
+	series    map[exposedSeriesKey]*remoteSeries
 }
 
 func newRemoteTelemetryAccumulator() *remoteTelemetryAccumulator {
 	return &remoteTelemetryAccumulator{
 		processes: make(map[string]*processBaseline),
-		live:      make(map[processSeriesKey]*liveSeries),
-		retired:   make(map[exposedSeriesKey]*retiredSeries),
+		series:    make(map[exposedSeriesKey]*remoteSeries),
 	}
 }
 
@@ -214,7 +225,7 @@ func (r *remoteTelemetryAccumulator) isBaselined(identity string) bool {
 	return p != nil && p.baselined
 }
 
-// observe applies one successful scrape of the process with the given identity.
+// observe applies one successful scrape of the process with the given identity. It takes ownership of observed.
 func (r *remoteTelemetryAccumulator) observe(identity string, observed []observedSeries, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -226,21 +237,41 @@ func (r *remoteTelemetryAccumulator) observe(identity string, observed []observe
 	}
 	baselining := !process.baselined
 
-	for _, s := range observed {
-		key := processSeriesKey{identity: identity, series: s.key}
-		series := r.live[key]
+	for i := range observed {
+		s := &observed[i]
+		series := r.series[s.key]
 		switch {
 		case series == nil:
-			series = &liveSeries{last: s.value.clone()}
-			if !baselining {
+			series = &remoteSeries{owner: identity, last: s.value, labelNames: s.labelNames, labelValues: s.labelValues}
+			if baselining {
+				series.total = s.value.zeroLike()
+			} else {
+				// The series came into existence while the process was being watched: all of it is new.
 				series.total = s.value.clone()
 			}
-			r.live[key] = series
+			r.series[s.key] = series
+		case series.owner != identity:
+			// Another process reports the series now, typically because the remote agent restarted. What it counted
+			// since its own start says nothing about what was accounted so far, so the series follows it from here:
+			// the first scrape of a new process is only a baseline, and a series it starts reporting later counts in
+			// full.
+			series.owner = identity
+			if s.key.kind == dto.MetricType_HISTOGRAM && !sameBucketLayout(series.last.buckets, s.value.buckets) {
+				// The new process has other buckets, which can't be added to what was accounted so far.
+				series.total = s.value.zeroLike()
+			}
+			if !baselining {
+				addValue(s.key.kind, &series.total, s.value)
+			}
+			series.last = s.value
 		default:
 			advanceValue(s.key.kind, &series.total, series.last, s.value)
-			series.last = s.value.clone()
+			series.last = s.value
 		}
-		series.meta = s.meta
+		if series.desc == nil || series.help != s.help {
+			series.help = s.help
+			series.desc = prometheus.NewDesc(s.key.name, s.help, series.labelNames, nil)
+		}
 		series.lastSeen = now
 	}
 
@@ -248,142 +279,64 @@ func (r *remoteTelemetryAccumulator) observe(identity string, observed []observe
 	process.lastSeen = now
 }
 
-// expire folds the state of series that went away into the retained totals and drops state that is no longer needed.
-// registered holds the identities of the processes registered now, and scraped those that were just scraped
-// successfully.
+// expire drops the state of series that went away and of processes nothing refers to anymore. registered holds the
+// identities of the processes registered now, and scraped those that were just scraped successfully.
 func (r *remoteTelemetryAccumulator) expire(registered, scraped map[string]struct{}, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	hasLive := make(map[exposedSeriesKey]struct{})
-	liveProcesses := make(map[string]struct{})
-	for key, series := range r.live {
-		_, isRegistered := registered[key.identity]
-		_, wasScraped := scraped[key.identity]
+	owners := make(map[string]struct{})
+	for key, series := range r.series {
+		_, isRegistered := registered[series.owner]
+		_, wasScraped := scraped[series.owner]
 		// A failed scrape of a registered process says nothing about its series.
 		if now.Sub(series.lastSeen) >= remoteTelemetrySeriesIdleTTL && (!isRegistered || wasScraped) {
-			r.retire(key.series, series, now)
-			delete(r.live, key)
+			delete(r.series, key)
 			continue
 		}
-		hasLive[key.series] = struct{}{}
-		liveProcesses[key.identity] = struct{}{}
-	}
-
-	for key, series := range r.retired {
-		// Dropping retained totals that a live series builds on would make the exposed value go down.
-		if _, ok := hasLive[key]; !ok && now.Sub(series.retiredAt) >= remoteTelemetryRetiredTTL {
-			delete(r.retired, key)
-		}
+		owners[series.owner] = struct{}{}
 	}
 
 	for identity, process := range r.processes {
 		_, isRegistered := registered[identity]
-		_, hasSeries := liveProcesses[identity]
-		if !isRegistered && !hasSeries && now.Sub(process.lastSeen) >= remoteTelemetrySeriesIdleTTL {
+		_, owns := owners[identity]
+		if !isRegistered && !owns && now.Sub(process.lastSeen) >= remoteTelemetrySeriesIdleTTL {
 			delete(r.processes, identity)
 		}
 	}
 }
 
-// retire adds the accumulated total of a live series to the retained total of its exposed series. r.mu must be held.
-func (r *remoteTelemetryAccumulator) retire(key exposedSeriesKey, series *liveSeries, now time.Time) {
-	retired := r.retired[key]
-	if retired == nil {
-		r.retired[key] = &retiredSeries{meta: series.meta, total: series.total.clone(), retiredAt: now}
-		return
-	}
-	if key.kind == dto.MetricType_HISTOGRAM && !sameBucketLayout(retired.total.buckets, series.total.buckets) {
-		retired.total = series.total.clone()
-	} else {
-		addValue(key.kind, &retired.total, series.total)
-	}
-	retired.meta = series.meta
-	retired.retiredAt = now
-}
-
-// emit passes the exposed value of every series to emit. The exposed value of a series is the retained total of its
-// retired processes plus the totals of the processes currently reporting it.
-func (r *remoteTelemetryAccumulator) emit(canonicalHelp func(string) (string, bool), emit func(prometheus.Metric)) {
-	type exposed struct {
-		meta        seriesMeta
-		total       seriesValue
-		seenAt      time.Time
-		fromRetired bool
-	}
-
+// emit passes the exposed value of every series to emit.
+func (r *remoteTelemetryAccumulator) emit(emit func(prometheus.Metric)) {
 	r.mu.Lock()
-	totals := make(map[exposedSeriesKey]*exposed, len(r.retired))
-	for key, series := range r.retired {
-		totals[key] = &exposed{meta: series.meta, total: series.total.clone(), seenAt: series.retiredAt, fromRetired: true}
-	}
-
-	// Walk the live series in a fixed order, so what is exposed never depends on the iteration order of a map.
-	keys := make([]processSeriesKey, 0, len(r.live))
-	for key := range r.live {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		a, b := keys[i], keys[j]
-		if a.identity != b.identity {
-			return a.identity < b.identity
-		}
-		if a.series.kind != b.series.kind {
-			return a.series.kind < b.series.kind
-		}
-		if a.series.name != b.series.name {
-			return a.series.name < b.series.name
-		}
-		return a.series.labels < b.series.labels
-	})
-
-	for _, key := range keys {
-		series := r.live[key]
-		e := totals[key.series]
-		switch {
-		case e == nil:
-			totals[key.series] = &exposed{meta: series.meta, total: series.total.clone(), seenAt: series.lastSeen}
-		case key.series.kind == dto.MetricType_HISTOGRAM && !sameBucketLayout(e.total.buckets, series.total.buckets):
-			// Totals with different buckets can't be added. The newer report wins: a live series over a retained
-			// total, and among live series the one seen last.
-			if e.fromRetired || series.lastSeen.After(e.seenAt) {
-				*e = exposed{meta: series.meta, total: series.total.clone(), seenAt: series.lastSeen}
-			}
-		default:
-			addValue(key.series.kind, &e.total, series.total)
-			e.meta = series.meta
-			e.seenAt = series.lastSeen
-			e.fromRetired = false
-		}
-	}
-	r.mu.Unlock()
-
-	for key, e := range totals {
-		help := e.meta.help
-		if canonicalHelp != nil {
-			if canonical, found := canonicalHelp(key.name); found {
-				help = canonical
-			}
-		}
-		desc := prometheus.NewDesc(key.name, help, e.meta.labelNames, nil)
+	metrics := make([]prometheus.Metric, 0, len(r.series))
+	for key, series := range r.series {
 		var metric prometheus.Metric
 		var err error
 		if key.kind == dto.MetricType_COUNTER {
-			metric, err = prometheus.NewConstMetric(desc, prometheus.CounterValue, e.total.counter, e.meta.labelValues...)
+			metric, err = prometheus.NewConstMetric(series.desc, prometheus.CounterValue, series.total.counter, series.labelValues...)
 		} else {
-			metric, err = prometheus.NewConstHistogram(desc, e.total.count, e.total.sum, e.total.buckets, e.meta.labelValues...)
+			// The metric keeps the buckets and reads them later, while the total keeps changing: give it a copy.
+			total := series.total.clone()
+			metric, err = prometheus.NewConstHistogram(series.desc, total.count, total.sum, total.buckets, series.labelValues...)
 		}
 		if err != nil {
-			log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", key.name, e.meta.labelValues[0], err)
+			log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", key.name, series.labelValues[0], err)
 			continue
 		}
+		metrics = append(metrics, metric)
+	}
+	r.mu.Unlock()
+
+	// Hand the metrics over without holding the lock: the receiver may block.
+	for _, metric := range metrics {
 		emit(metric)
 	}
 }
 
 // parsedTelemetry is the content of one remote agent's telemetry payload.
 type parsedTelemetry struct {
-	// series are the counters and histograms, which are rebased before being exposed.
+	// series are the counters and histograms, which are accumulated before being exposed.
 	series []observedSeries
 	// gauges are exposed as they are.
 	gauges []prometheus.Metric
@@ -419,22 +372,14 @@ func parsePromText(promText string, remoteAgentName string, canonicalMetricHelp 
 			}
 
 			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
-			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
 
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				value := *metric.Counter.Value
+				out.addSeries(seen, mf, dto.MetricType_COUNTER, help, labelNames, labelValues, seriesValue{counter: metric.GetCounter().GetValue()})
 
-				// Only well-formed series enter the accumulator, so a malformed one can't linger in its state.
-				if _, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...); err != nil {
-					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
-					continue
-				}
-				out.addSeries(seen, mf, dto.MetricType_COUNTER, help, labelNames, labelValues, seriesValue{counter: value})
 			case dto.MetricType_GAUGE:
-				value := *metric.Gauge.Value
-
-				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
+				desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
+				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, metric.GetGauge().GetValue(), labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
@@ -446,18 +391,12 @@ func parsePromText(promText string, remoteAgentName string, canonicalMetricHelp 
 				continue
 
 			case dto.MetricType_HISTOGRAM:
-				count := metric.Histogram.GetSampleCount()
-				sum := metric.Histogram.GetSampleSum()
-				buckets := make(map[float64]uint64)
-				for _, bucket := range metric.Histogram.GetBucket() {
+				buckets := make(map[float64]uint64, len(metric.GetHistogram().GetBucket()))
+				for _, bucket := range metric.GetHistogram().GetBucket() {
 					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
 				}
-
-				if _, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...); err != nil {
-					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
-					continue
-				}
-				out.addSeries(seen, mf, dto.MetricType_HISTOGRAM, help, labelNames, labelValues, seriesValue{count: count, sum: sum, buckets: buckets})
+				out.addSeries(seen, mf, dto.MetricType_HISTOGRAM, help, labelNames, labelValues,
+					seriesValue{count: metric.GetHistogram().GetSampleCount(), sum: metric.GetHistogram().GetSampleSum(), buckets: buckets})
 
 			default:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())
@@ -475,11 +414,7 @@ func (p *parsedTelemetry) addSeries(seen map[exposedSeriesKey]struct{}, mf *dto.
 		return
 	}
 	seen[key] = struct{}{}
-	p.series = append(p.series, observedSeries{
-		key:   key,
-		meta:  seriesMeta{help: help, labelNames: labelNames, labelValues: labelValues},
-		value: value,
-	})
+	p.series = append(p.series, observedSeries{key: key, help: help, labelNames: labelNames, labelValues: labelValues, value: value})
 }
 
 // encodeLabels encodes a label set independently of the order of the labels.
@@ -516,12 +451,15 @@ func (ra *remoteAgentRegistry) collectTelemetry(agentFilter func(remoteagentregi
 
 	scraped := ra.scrapeAndObserve(agentFilter, emit)
 
-	registered := make(map[string]struct{})
-	for _, agent := range ra.GetRegisteredAgents() {
-		registered[remoteAgentIdentity(agent)] = struct{}{}
+	if now := time.Now(); now.Sub(r.lastExpire) >= remoteTelemetryExpireInterval {
+		r.lastExpire = now
+		registered := make(map[string]struct{})
+		for _, agent := range ra.GetRegisteredAgents() {
+			registered[remoteAgentIdentity(agent)] = struct{}{}
+		}
+		r.expire(registered, scraped, now)
 	}
-	r.expire(registered, scraped, time.Now())
-	r.emit(ra.telemetry.CanonicalMetricHelp, emit)
+	r.emit(emit)
 }
 
 // scrapeAndObserve queries the remote agents and applies what they report. It returns the identities of the processes
@@ -564,22 +502,26 @@ func (ra *remoteAgentRegistry) scrapeAndObserve(agentFilter func(remoteagentregi
 	return scraped
 }
 
-// newestSessionFilter accepts only the most recently registered session of each remote process. A process can
-// briefly have two sessions after re-registering, and both report the same counters.
-func (ra *remoteAgentRegistry) newestSessionFilter() func(remoteagentregistry.RegisteredAgent) bool {
+// newestRegistrationFilter accepts only the most recent registration of each agent name that serves telemetry. The
+// name is the emitter label of the series, so two registrations with the same name would report the same series: that
+// happens briefly when a remote agent re-registers or restarts, and the older one is the one that went away.
+func (ra *remoteAgentRegistry) newestRegistrationFilter() func(remoteagentregistry.RegisteredAgent) bool {
 	newest := make(map[string]string)
 	orders := make(map[string]uint64)
 	ra.agentMapMu.Lock()
 	for _, agent := range ra.agentMap {
-		identity := remoteAgentIdentity(agent.RegisteredAgent)
-		if agent.registrationOrder >= orders[identity] {
-			newest[identity] = agent.SessionID
-			orders[identity] = agent.registrationOrder
+		if !slices.Contains(agent.services, TelemetryServiceName) {
+			continue
+		}
+		name := agent.SanitizedDisplayName
+		if agent.registrationOrder >= orders[name] {
+			newest[name] = agent.SessionID
+			orders[name] = agent.registrationOrder
 		}
 	}
 	ra.agentMapMu.Unlock()
 	return func(agent remoteagentregistry.RegisteredAgent) bool {
-		return newest[remoteAgentIdentity(agent)] == agent.SessionID
+		return newest[agent.SanitizedDisplayName] == agent.SessionID
 	}
 }
 
