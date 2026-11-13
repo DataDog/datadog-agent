@@ -1796,34 +1796,23 @@ func (s *TracerSuite) TestSendfileRegression() {
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns, cleanup := getConnections(ct, tr)
 			defer cleanup()
-			// copy the stats: the connection buffer is released by cleanup()
 			if newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr())); newOutConn != nil {
-				outCopy := *newOutConn
-				outConn = &outCopy
+				outConn = newOutConn
 			}
 			if newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr())); newInConn != nil {
-				inCopy := *newInConn
-				inConn = &inCopy
+				inConn = newInConn
 			}
-			require.NotNil(ct, outConn)
-			require.NotNil(ct, inConn)
-			require.Equal(ct, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes))
-			require.InDelta(ct, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1)
+			require.NotNil(ct, outConn, "couldn't find outgoing connection used by sendfile(2)")
+			require.NotNil(ct, inConn, "couldn't find incoming connection used by sendfile(2)")
+			assert.Equal(ct, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
+			assert.InDelta(ct, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
 		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2) with all bytes traced")
 
-		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
-			if connType == network.UDP {
-				assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
-				assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
-			}
-		}
-		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.InDeltaf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
-			if connType == network.UDP {
-				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
-				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
-			}
+		if connType == network.UDP && outConn != nil && inConn != nil {
+			assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
+			assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
+			assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
+			assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
 		}
 	}
 
