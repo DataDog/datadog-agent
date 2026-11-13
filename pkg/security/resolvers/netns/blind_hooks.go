@@ -145,7 +145,7 @@ func (nr *Resolver) DetectBlindHooks() {
 	defer nr.blindHooks.scanLock.Unlock()
 
 	mode := nr.tcResolver.AttachMode()
-	hooks, own, err := nr.listHostHooks()
+	hooks, own, err := nr.listHostHooks(mode)
 	if err != nil {
 		seclog.Debugf("couldn't list the hooks of the host interfaces: %v", err)
 		return
@@ -168,8 +168,8 @@ func (nr *Resolver) DetectBlindHooks() {
 }
 
 // listHostHooks returns the hooks of the host interfaces, along with the IDs of the classifiers attached in
-// the host network namespace
-func (nr *Resolver) listHostHooks() ([]hostHook, map[uint32]struct{}, error) {
+// the host network namespace. The legacy filters are only listed in legacy mode: they run after every TCX link.
+func (nr *Resolver) listHostHooks(mode manager.TCAttachMode) ([]hostHook, map[uint32]struct{}, error) {
 	if nr.blindHooks.hostNetNSID == 0 {
 		nsID, err := utils.NewNSPathFromPid(1, utils.NetNsType).GetNSID()
 		if err != nil {
@@ -215,21 +215,21 @@ func (nr *Resolver) listHostHooks() ([]hostHook, map[uint32]struct{}, error) {
 		}
 
 		for _, direction := range directions {
-			filters, err := ntl.Sock.FilterList(device, clsactParent(direction))
-			if err != nil {
-				if !errors.Is(err, unix.ENODEV) {
-					nr.countError(errorClassFilterList)
-					seclog.Debugf("couldn't list the tc filters of %s %s: %v", attrs.Name, direction, err)
+			hook := hostHook{device: attrs.Name, ifindex: attrs.Index, direction: direction}
+
+			if mode == manager.TCAttachModeLegacy {
+				filters, err := ntl.Sock.FilterList(device, clsactParent(direction))
+				if err != nil {
+					if !errors.Is(err, unix.ENODEV) {
+						nr.countError(errorClassFilterList)
+						seclog.Debugf("couldn't list the tc filters of %s %s: %v", attrs.Name, direction, err)
+					}
+					continue
 				}
-				continue
+				hook.programs.Filters = bpfFilters(filters)
 			}
 
-			hooks = append(hooks, hostHook{
-				device:    attrs.Name,
-				ifindex:   attrs.Index,
-				direction: direction,
-				programs:  tc.HookPrograms{Filters: bpfFilters(filters)},
-			})
+			hooks = append(hooks, hook)
 		}
 	}
 

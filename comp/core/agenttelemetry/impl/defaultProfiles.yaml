@@ -761,6 +761,26 @@ profiles:
           - platform_version
           - kernel
           - arch
+      - name: runtime_security.network__tc__attach_mode
+        preserve_tags:
+          - attach_mode
+          - platform
+          - platform_version
+          - kernel
+          - arch
+      - name: runtime_security.network__tc__tcx_unsupported
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
+      - name: runtime_security.network__tc__tcx_attach_errors
+        preserve_tags:
+          - reason
+          - platform
+          - platform_version
+          - kernel
+          - arch
       - name: runtime_security.network__tc__stale_links
         preserve_tags:
           - platform

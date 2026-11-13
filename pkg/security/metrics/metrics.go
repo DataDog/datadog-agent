@@ -740,11 +740,23 @@ var (
 	// MetricTCBlindHooks is the name of the metric used to report the hooks of host interfaces where a foreign
 	// program runs before the TC classifiers
 	// Tags: direction ('ingress', 'egress'), reason ('cilium_tcx', 'cilium_tc_filter', 'unknown_tcx',
-	// 'unknown_tc_filter'), attach_mode ('legacy')
+	// 'unknown_tc_filter'), attach_mode ('legacy', 'tcx')
 	MetricTCBlindHooks = newRuntimeMetric(".network.tc.blind_hooks")
 	// MetricTCBlindHooksTelemetry is the agent telemetry counterpart of MetricTCBlindHooks
 	// Tags: attach_mode, reason, direction, platform, platform_version, kernel, arch
 	MetricTCBlindHooksTelemetry = newITRuntimeMetric("network", "tc.blind_hooks")
+	// MetricTCAttachModeTelemetry is the name of the agent telemetry metric set to 1 for the attach mode of the TC
+	// classifiers
+	// Tags: attach_mode ('legacy', 'tcx'), platform, platform_version, kernel, arch
+	MetricTCAttachModeTelemetry = newITRuntimeMetric("network", "tc.attach_mode")
+	// MetricTCXUnsupportedTelemetry is the name of the agent telemetry metric set to 1 when TCX is enabled on a kernel
+	// that doesn't support it
+	// Tags: platform, platform_version, kernel, arch
+	MetricTCXUnsupportedTelemetry = newITRuntimeMetric("network", "tc.tcx_unsupported")
+	// MetricTCXAttachErrorsTelemetry is the name of the agent telemetry metric used to count the TC classifiers that
+	// couldn't be attached with TCX links
+	// Tags: reason ('setns', 'tcx_attach'), platform, platform_version, kernel, arch
+	MetricTCXAttachErrorsTelemetry = newITRuntimeMetric("network", "tc.tcx_attach_errors")
 	// MetricTCStaleLinksTelemetry is the agent telemetry counterpart of MetricTCStaleLinks
 	// Tags: platform, platform_version, kernel, arch
 	MetricTCStaleLinksTelemetry = newITRuntimeMetric("network", "tc.stale_links")

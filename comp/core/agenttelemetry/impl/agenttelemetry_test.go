@@ -3626,6 +3626,13 @@ func TestShippedRuntimeSecurityProfile(t *testing.T) {
 	blindHooks := tel.NewGauge("runtime_security__network", "tc__blind_hooks", append([]string{"attach_mode", "reason", "direction"}, platformTags...), "")
 	blindHooks.Set(2, withPlatform("legacy", "cilium_tcx", "ingress")...)
 	blindHooks.Set(0, withPlatform("legacy", "cilium_tcx", "egress")...)
+	attachMode := tel.NewGauge("runtime_security__network", "tc__attach_mode", append([]string{"attach_mode"}, platformTags...), "")
+	attachMode.Set(1, withPlatform("legacy")...)
+	attachMode.Set(0, withPlatform("tcx")...)
+	tel.NewGauge("runtime_security__network", "tc__tcx_unsupported", platformTags, "").Set(1, withPlatform()...)
+	tcxAttachErrors := tel.NewCounter("runtime_security__network", "tc__tcx_attach_errors", append([]string{"reason"}, platformTags...), "")
+	tcxAttachErrors.Add(3, withPlatform("tcx_attach")...)
+	tcxAttachErrors.Add(0, withPlatform("setns")...)
 	tel.NewCounter("runtime_security__network", "tc__stale_links", platformTags, "").Add(2, withPlatform()...)
 
 	sndr := &senderMock{}
@@ -3654,6 +3661,18 @@ func TestShippedRuntimeSecurityProfile(t *testing.T) {
 		"runtime_security.network__tc__blind_hooks": {
 			value:  2,
 			labels: platformLabels(map[string]string{"attach_mode": "legacy", "reason": "cilium_tcx", "direction": "ingress"}),
+		},
+		"runtime_security.network__tc__attach_mode": {
+			value:  1,
+			labels: platformLabels(map[string]string{"attach_mode": "legacy"}),
+		},
+		"runtime_security.network__tc__tcx_unsupported": {
+			value:  1,
+			labels: platformLabels(map[string]string{}),
+		},
+		"runtime_security.network__tc__tcx_attach_errors": {
+			value:  3,
+			labels: platformLabels(map[string]string{"reason": "tcx_attach"}),
 		},
 		"runtime_security.network__tc__stale_links": {
 			value:  2,

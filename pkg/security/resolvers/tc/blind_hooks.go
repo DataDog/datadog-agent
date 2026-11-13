@@ -101,6 +101,14 @@ func FindProgramAhead(mode manager.TCAttachMode, hook HookPrograms, filterPriori
 				ahead = append(ahead, newProgramAhead(filter.Name, BlindReasonCiliumTCFilter, BlindReasonUnknownTCFilter))
 			}
 		}
+
+	case manager.TCAttachModeTCX:
+		// legacy filters run after every TCX program, so only the TCX programs before a classifier can blind it
+		for _, prog := range hook.TCX[:lastOwnProgram(hook.TCX, isOwn)+1] {
+			if !isOwn(prog.ID) {
+				ahead = append(ahead, newProgramAhead(prog.Name, BlindReasonCiliumTCX, BlindReasonUnknownTCX))
+			}
+		}
 	}
 
 	if len(ahead) == 0 {
@@ -110,6 +118,16 @@ func FindProgramAhead(mode manager.TCAttachMode, hook HookPrograms, filterPriori
 		return ahead[i], true
 	}
 	return ahead[0], true
+}
+
+// lastOwnProgram returns the index of the last classifier among the programs of a TCX hook, or -1 if there is none
+func lastOwnProgram(programs []TCXProgram, isOwn func(programID uint32) bool) int {
+	for i := len(programs) - 1; i >= 0; i-- {
+		if isOwn(programs[i].ID) {
+			return i
+		}
+	}
+	return -1
 }
 
 func newProgramAhead(name string, cilium BlindReason, unknown BlindReason) ProgramAhead {
