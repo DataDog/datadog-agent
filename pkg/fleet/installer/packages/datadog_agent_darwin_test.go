@@ -43,8 +43,7 @@ func (e exitError) ExitCode() int { return int(e) }
 // stubLaunchd replaces the launchd client with one that records its invocations instead of
 // running launchctl. print always reports the label as not loaded, so Bootout's settle loop
 // (which polls print after every bootout) returns immediately instead of spinning for the full
-// BootoutSettleTimeout. It also stubs the processes.d catalog, so no test touches the real
-// install root.
+// BootoutSettleTimeout.
 func stubLaunchd(t *testing.T) *[][]string {
 	t.Helper()
 
@@ -859,7 +858,6 @@ func dmgHookContext(t *testing.T) HookContext {
 	return ctx
 }
 
-// assertLoaded checks every stable job was written and bootstrapped.
 func assertLoaded(t *testing.T, calls [][]string, dir string) {
 	t.Helper()
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {

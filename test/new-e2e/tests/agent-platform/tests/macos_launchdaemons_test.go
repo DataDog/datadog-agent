@@ -30,8 +30,6 @@ const (
 	macosPostinstallLogPath = "/opt/datadog-agent/logs/postinstall.log"
 	macosPreinstallLogPath  = "/opt/datadog-agent/logs/preinstall.log"
 
-	// The processes.d catalog dd-procmgrd loads, and the inert system-probe entry the installer
-	// writes into it.
 	macosInstallDir        = "/opt/datadog-agent"
 	macosProcessesDir      = macosInstallDir + "/processes.d"
 	macosSysprobeProcess   = "datadog-agent-sysprobe"
@@ -137,8 +135,7 @@ func assertMacosInstallerPostinstSucceeded(t *testing.T, client *common.MacOSTes
 
 // assertMacosStableLaunchDaemons checks each stable LaunchDaemon is installed from the definition
 // the installer embeds, owned by root:wheel with mode 644, and loaded. It also checks that
-// dd-procmgrd answers on its socket and lists the inert system-probe entry without running it, and
-// that the catalog it loads could only have been written by root.
+// dd-procmgrd answers on its socket and lists the inert system-probe entry without running it.
 func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	for _, label := range macosStableLaunchDaemons {
 		plist := macosLaunchDaemonPath(label)
@@ -218,9 +215,8 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args)
 }
 
-// assertMacosProcmgrCatalogFiles checks the installer wrote the install root, processes.d, and the
-// entry as root. WriteDarwinProcmgrCatalog sets the directory to 0755. service.WriteProcess sets
-// the entry to 0644.
+// assertMacosProcmgrCatalogFiles checks the owner and mode of the install root, processes.d,
+// and the entry.
 func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient) {
 	for path, expected := range map[string]string{
 		macosInstallDir:        "root 755",

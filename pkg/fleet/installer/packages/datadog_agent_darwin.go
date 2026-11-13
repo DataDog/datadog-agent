@@ -82,8 +82,7 @@ var (
 	launchdJobDir = launchd.System.Dir()
 )
 
-// writeProcmgrCatalog and removeProcmgrCatalog are indirected so the hook tests do not write to
-// the real install root.
+// Indirected so the hook tests never touch the real install root.
 var (
 	writeProcmgrCatalog  = processmanager.WriteDarwinProcmgrCatalog
 	removeProcmgrCatalog = processmanager.RemoveDarwinProcmgrCatalog

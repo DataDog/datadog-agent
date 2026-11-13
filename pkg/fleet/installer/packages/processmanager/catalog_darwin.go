@@ -22,8 +22,7 @@ import (
 )
 
 // WriteDarwinProcmgrCatalog writes the embedded macOS processes.d entries under installRoot.
-// Each entry is written the same way as on Linux: service.WriteProcess creates processes.d and
-// renames a temporary file into place, so a reader never sees a truncated definition.
+// Each entry is written the same way as on Linux, through service.WriteProcess.
 func WriteDarwinProcmgrCatalog(installRoot string) error {
 	names, err := embedded.DarwinProcmgrProcesses()
 	if err != nil {
