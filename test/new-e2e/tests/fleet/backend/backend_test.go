@@ -12,6 +12,108 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCatalogLatestMinus(t *testing.T) {
+	for _, prefix := range []string{"", "v"} {
+		name := "unprefixed"
+		if prefix != "" {
+			name = "prefixed"
+		}
+		t.Run(name, func(t *testing.T) {
+			// Match getCatalog's descending version order, including repeated
+			// patches/builds and interleaved entries for other packages/branches.
+			catalog := Catalog{packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchTesting, Version: prefix + "7.84.0-devel.git.123-1"},
+				{Package: "other-package", branch: BranchStable, Version: prefix + "7.83.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.82.3-2"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.82.3-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.82.1-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.81.4-2"},
+				{Package: "datadog-agent", branch: BranchTesting, Version: prefix + "7.81.4-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.81.3-1"},
+				{Package: "other-package", branch: BranchStable, Version: prefix + "7.81.2-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.81.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.80.2-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.80.1-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.79.1-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.79.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: prefix + "7.78.2-1"},
+			}}
+			for _, tc := range []struct {
+				name    string
+				offset  int
+				version string
+			}{
+				{name: "latest", offset: 0, version: "7.82.3-2"},
+				{name: "N-1", offset: 1, version: "7.81.4-2"},
+				{name: "N-2", offset: 2, version: "7.80.2-1"},
+				{name: "N-3", offset: 3, version: "7.79.1-1"},
+				{name: "N-4", offset: 4, version: "7.78.2-1"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var version string
+					require.NotPanics(t, func() {
+						version = catalog.LatestMinus(BranchStable, "datadog-agent", tc.offset)
+					})
+					require.Equal(t, prefix+tc.version, version)
+				})
+			}
+			require.Equal(t, prefix+"7.82.3-2", catalog.Latest(BranchStable, "datadog-agent"))
+			require.Equal(t, prefix+"7.84.0-devel.git.123-1", catalog.Latest(BranchTesting, "datadog-agent"))
+		})
+	}
+}
+
+func TestCatalogLatestMinusUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		packages []catalogEntry
+		branch   Branch
+		pkg      string
+		offset   int
+		message  string
+	}{
+		{
+			name: "empty catalog", branch: BranchStable, pkg: "datadog-agent",
+			message: "package datadog-agent stable 0 not found",
+		},
+		{
+			name: "missing package", branch: BranchStable, pkg: "datadog-agent",
+			packages: []catalogEntry{{Package: "other-package", branch: BranchStable, Version: "7.82.0-1"}},
+			message:  "package datadog-agent stable 0 not found",
+		},
+		{
+			name: "missing branch", branch: BranchTesting, pkg: "datadog-agent",
+			packages: []catalogEntry{{Package: "datadog-agent", branch: BranchStable, Version: "7.82.0-1"}},
+			message:  "package datadog-agent testing 0 not found",
+		},
+		{
+			name: "no older minor", branch: BranchStable, pkg: "datadog-agent", offset: 1,
+			packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.82.3-2"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.82.3-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "7.82.0-1"},
+			},
+			message: "package datadog-agent stable 1 not found",
+		},
+		{
+			name: "exhausted distinct minors", branch: BranchStable, pkg: "datadog-agent", offset: 2,
+			packages: []catalogEntry{
+				{Package: "datadog-agent", branch: BranchStable, Version: "v7.82.0-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "v7.81.3-1"},
+				{Package: "datadog-agent", branch: BranchStable, Version: "v7.81.0-1"},
+			},
+			message: "package datadog-agent stable 1 not found",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			catalog := Catalog{packages: tc.packages}
+			require.PanicsWithError(t, tc.message, func() {
+				catalog.LatestMinus(tc.branch, tc.pkg, tc.offset)
+			})
+		})
+	}
+}
+
 // crtDecode reimplements the Microsoft C runtime command-line parser
 // (the rules CommandLineToArgvW implements) and splits a command line into its
 // arguments. It is the inverse of windowsCRTEscape and is used to verify that an

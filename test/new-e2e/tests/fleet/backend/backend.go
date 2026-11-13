@@ -251,17 +251,20 @@ func (c *Catalog) Latest(branch Branch, pkg string) string {
 	return c.LatestMinus(branch, pkg, 0)
 }
 
-// LatestMinus returns the version that is N versions behind the latest, for a given package and branch.
+// LatestMinus returns the latest patch N distinct minor releases behind the latest for a package and branch.
+// The catalog must be sorted by descending version, as in getCatalog.
 func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 	var currentMinor string
 	for _, entry := range c.packages {
 		if entry.Package != pkg || entry.branch != branch {
 			continue
 		}
+		minor := semver.MajorMinor("v" + strings.TrimPrefix(entry.Version, "v"))
 		if currentMinor == "" {
-			currentMinor = semver.MajorMinor(entry.Version)
+			currentMinor = minor
 		}
-		if semver.MajorMinor(entry.Version) != currentMinor {
+		if minor != currentMinor {
+			currentMinor = minor
 			minus--
 		}
 		if minus == 0 {
