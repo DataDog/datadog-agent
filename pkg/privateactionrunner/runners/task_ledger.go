@@ -101,14 +101,16 @@ func (l *taskLedger) accept(taskID string, expiresAt time.Time) error {
 }
 
 // writeMarker creates the marker exclusively, so concurrent processes sharing
-// dir cannot both accept the same task.
+// dir cannot both accept the same task. It hard-links a file already carrying
+// the expiration, which a concurrent prune would otherwise see as expired.
 func (l *taskLedger) writeMarker(taskID string, expiresAt time.Time) error {
 	path := filepath.Join(l.dir, markerName(taskID))
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := os.CreateTemp(l.dir, ".accept-")
 	if err != nil {
 		return err
 	}
-	err = os.Chtimes(path, expiresAt, expiresAt)
+	defer os.Remove(f.Name())
+	err = os.Chtimes(f.Name(), expiresAt, expiresAt)
 	if err == nil {
 		err = f.Sync()
 	}
@@ -116,9 +118,12 @@ func (l *taskLedger) writeMarker(taskID string, expiresAt time.Time) error {
 		err = closeErr
 	}
 	if err == nil {
-		err = syncDir(l.dir)
+		err = os.Link(f.Name(), path)
 	}
 	if err != nil {
+		return err
+	}
+	if err := syncDir(l.dir); err != nil {
 		os.Remove(path)
 		return err
 	}
