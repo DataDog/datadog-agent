@@ -60,13 +60,19 @@ go_library(
 
 dd_agent_go_test(
     name = "agent_test",
-    srcs = ["docker_image_test.go"],
+    srcs = [
+        "docker_image_test.go",
+        "kubernetes_helm_test.go",
+    ],
     embed = [":agent"],
     tags = ["go_link:enormous"],
     deps = [
         "//test/e2e-framework/common/config",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
         "@com_github_pulumi_pulumi_sdk_v3//go/common/resource",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

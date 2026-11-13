@@ -58,3 +58,17 @@ func TestParseImageReference(t *testing.T) {
 		})
 	}
 }
+
+func TestKubernetesImageRegistry(t *testing.T) {
+	for _, tt := range []struct {
+		name, registry, want string
+	}{
+		{"public fallback", "", "registry.k8s.io"},
+		{"cache", "cache.example.com", "cache.example.com/k8s"},
+		{"multiple credentials", "cache.example.com,another.example.com", "cache.example.com/k8s"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, KubernetesImageRegistry(tt.registry))
+		})
+	}
+}

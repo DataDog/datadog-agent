@@ -48,7 +48,7 @@ func GetNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
 }
 
 // pullThroughCachePolicy allows importing into the pull-through cache prefixes behind
-// InternalDockerhubMirror and DatadogPublicRegistry
+// InternalDockerhubMirror, DatadogPublicRegistry, and KubernetesImageRegistry.
 const pullThroughCachePolicy = `{
   "Version": "2012-10-17",
   "Statement": [{
@@ -57,7 +57,8 @@ const pullThroughCachePolicy = `{
     "Resource": [
       "arn:aws:ecr:*:*:repository/dockerhub/*",
       "arn:aws:ecr:*:*:repository/ecr-public/*",
-      "arn:aws:ecr:*:*:repository/quay/*"
+      "arn:aws:ecr:*:*:repository/quay/*",
+      "arn:aws:ecr:*:*:repository/k8s/*"
     ]
   }]
 }`

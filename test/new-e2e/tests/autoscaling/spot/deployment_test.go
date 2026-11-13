@@ -293,9 +293,10 @@ func (s *spotSchedulingSuite) createDeployment(name string, replicas int32, conf
 					Labels: podSelector,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: s.imagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:  "app",
-						Image: "registry.k8s.io/pause:3.10.1",
+						Image: s.pauseImage,
 					}},
 				},
 			},

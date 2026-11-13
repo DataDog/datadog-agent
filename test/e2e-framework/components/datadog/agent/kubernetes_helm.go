@@ -243,6 +243,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	} else {
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS, true)
 	}
+	values.configureKubernetesImages(e.ImagePullRegistry())
 	values.configureImagePullSecret(imgPullSecret)
 	if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
 		return nil, err
@@ -297,6 +298,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 
 	if args.DeployWindows {
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
+		values.configureKubernetesImages(e.ImagePullRegistry())
 		values.configureImagePullSecret(imgPullSecret)
 		if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
 			return nil, err
@@ -980,12 +982,26 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 	}
 }
 
+// configureKubernetesImages routes the CSI registrar through the Kubernetes cache.
+// Its version remains pinned by the selected chart.
+func (values HelmValues) configureKubernetesImages(imagePullRegistry string) {
+	if imagePullRegistry == "" {
+		return
+	}
+	values["datadog-csi-driver"] = pulumi.Map{
+		"image": pulumi.Map{},
+		"registrar": pulumi.Map{
+			"image": pulumi.Map{"repository": pulumi.String(utils.KubernetesImageRegistry(imagePullRegistry) + "/sig-storage/csi-node-driver-registrar")},
+		},
+	}
+}
+
 func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 	if secret == nil {
 		return
 	}
 
-	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner", "otelAgentGateway"} {
+	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner", "otelAgentGateway", "datadog-csi-driver"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}

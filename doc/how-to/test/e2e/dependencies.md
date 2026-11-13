@@ -53,6 +53,12 @@ Real examples to copy from:
 - `test/new-e2e/tests/installer/host/host.go` — the mirrored-with-upstream-fallback pair, for when you need both forms
 ///
 
+For `registry.k8s.io` images, use `utils.KubernetesImageRegistry(e.ImagePullRegistry())`
+and append the upstream repository path and pinned tag. For example,
+`registry.k8s.io/pause:3.10.1` becomes `<cache>/k8s/pause:3.10.1`.
+The helper falls back to `registry.k8s.io` when no image-pull registry is configured.
+Cached workload images also need a namespace-local image pull secret, as described below.
+
 ### The Agent's own image
 
 You do not have to do anything for the images the framework itself deploys — the Agent, the

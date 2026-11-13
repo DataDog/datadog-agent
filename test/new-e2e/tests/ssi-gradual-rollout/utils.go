@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
 // deployTestWorkload creates a workload that triggers the admission webhook but never
@@ -43,6 +44,15 @@ func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespa
 	}
 
 	nsOpts := append(baseOpts, pulumi.DependsOn([]pulumi.Resource{ns}))
+	var imagePullSecrets corev1k8s.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		secret, err := utils.NewImagePullSecret(e, namespace, nsOpts...)
+		if err != nil {
+			return err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1k8s.LocalObjectReferenceArgs{Name: secret.Metadata.Name()})
+		nsOpts = append(nsOpts, utils.PulumiDependsOn(secret))
+	}
 	_, err = appsv1.NewDeployment(e.Ctx(), e.CommonNamer().ResourceName(appName+"-deployment"), &appsv1.DeploymentArgs{
 		Metadata: &metav1k8s.ObjectMetaArgs{
 			Name:      pulumi.String(appName),
@@ -61,12 +71,13 @@ func deployTestWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespa
 					Labels: pulumi.StringMap{"app": pulumi.String(appName)},
 				},
 				Spec: &corev1k8s.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1k8s.ContainerArray{
 						&corev1k8s.ContainerArgs{
 							Name: pulumi.String(appName),
 							// pause is a stable language-neutral placeholder; SSI targets
 							// match by namespace, not by workload image.
-							Image: pulumi.String("registry.k8s.io/pause:3.9"),
+							Image: pulumi.String(utils.KubernetesImageRegistry(e.ImagePullRegistry()) + "/pause:3.9"),
 						},
 					},
 				},

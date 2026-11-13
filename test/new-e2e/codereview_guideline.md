@@ -33,9 +33,11 @@ Use the ECR pull-through cache set up in the `datadog-agent-qa` account (`669783
 | DockerHub | `669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/…` |
 | Public ECR | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/…` |
 | Quay | `669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/…` |
+| Kubernetes (`registry.k8s.io`) | `669783387624.dkr.ecr.us-east-1.amazonaws.com/k8s/…` |
 
+- The `k8s/` prefix requires an ECR pull-through cache rule for `registry.k8s.io` in the target account. Provision that rule before enabling these image references; this repository does not manage the account-level cache rules.
 - DockerHub official images keep their `library/` path: `busybox:1.37.0` becomes `…/dockerhub/library/busybox:1.37.0`.
-- Only those three upstreams are supported. **GHCR is not** — if your image is only on GHCR, use an equivalent from a supported upstream if possible, otherwise leave unproxied.
+- Only the upstreams above are supported. **GHCR is not** — if your image is only on GHCR, use an equivalent from a supported upstream if possible, otherwise leave unproxied.
 - Pulling from `public.ecr.aws/…` or `mirror.gcr.io` **directly is not an approved alternative**, even though neither is rate limited today. Route it through the prefixes above. Existing code that does otherwise is debt, not precedent.
 - There is no pull-through cache in GCP or Azure. For a test that only ever runs on GCP, the provider's registry or `mirror.gcr.io` is acceptable — do not import that habit into an AWS test. Ask #agent-devx-help before relying on any other public mirror.
 <!-- --8<-- [end:registries] -->
