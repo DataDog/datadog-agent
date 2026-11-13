@@ -73,6 +73,19 @@ spec:
 
 `loggingEnabled` has no effect when the seccomp profile is disabled.
 
+## SELinux
+
+The Datadog Operator configures the Host Profiler with the `spc_t` SELinux type by default. If `spc_t` is not available in your environment, set `spec.features.hostProfiler.seLinuxType` to an equivalent type supported by your distribution and security policy:
+
+```yaml
+spec:
+  features:
+    hostProfiler:
+      seLinuxType: <SELINUX_TYPE>
+```
+
+The Operator applies this type to the Host Profiler and its seccomp setup init container. The replacement must provide the host and process access required by the Host Profiler.
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
