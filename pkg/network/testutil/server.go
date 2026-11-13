@@ -55,7 +55,9 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	ln, err := net.Listen(network, addr)
 	require.NoError(t, err)
 	l := &tcpTestServer{Listener: ln, conns: make(map[net.Conn]struct{})}
+	l.wg.Add(1)
 	go func() {
+		defer l.wg.Done()
 		close(ch)
 		for {
 			conn, err := l.Accept()
@@ -89,9 +91,10 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	return l
 }
 
-// tcpTestServer is the net.Listener returned by StartServerTCP. Closing it also
-// closes the connections that are still being drained, and waits for their
-// goroutines, so nothing outlives the server.
+// tcpTestServer is the net.Listener returned by StartServerTCP. Closing it
+// stops accepting, gives the connections still being drained a short grace
+// period to finish, and waits for every goroutine it started, so nothing
+// outlives the server.
 type tcpTestServer struct {
 	net.Listener
 
@@ -101,12 +104,16 @@ type tcpTestServer struct {
 	wg     sync.WaitGroup
 }
 
+// track registers conn and sets its drain deadline. It returns false once the
+// server is closed. The deadline is set under s.mu so that it can't overwrite
+// the shorter one Close sets.
 func (s *tcpTestServer) track(conn net.Conn) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return false
 	}
+	_ = conn.SetReadDeadline(time.Now().Add(tcpDrainTimeout))
 	s.conns[conn] = struct{}{}
 	s.wg.Add(1)
 	return true
@@ -119,23 +126,35 @@ func (s *tcpTestServer) untrack(conn net.Conn) {
 	s.wg.Done()
 }
 
-// Close stops accepting connections, closes the ones still open and waits for
-// their goroutines to exit.
+// Close stops accepting connections and waits for the accept loop and the
+// connection goroutines to exit.
+//
+// It doesn't close the open connections itself: closing a socket with unread
+// data makes the kernel send a RST, which is what respondAndCloseTCP avoids.
+// Instead it shortens their drain deadline to tcpCloseGrace, so each goroutine
+// keeps reading until its client closes or the grace period ends, and then
+// closes the socket with an empty receive queue.
 func (s *tcpTestServer) Close() error {
 	err := s.Listener.Close()
 	s.mu.Lock()
 	s.closed = true
+	deadline := time.Now().Add(tcpCloseGrace)
 	for conn := range s.conns {
-		conn.Close()
+		_ = conn.SetReadDeadline(deadline)
 	}
 	s.mu.Unlock()
 	s.wg.Wait()
 	return err
 }
 
-// tcpDrainTimeout bounds how long respondAndCloseTCP waits for the client to
-// close its side of the connection.
-const tcpDrainTimeout = 5 * time.Second
+const (
+	// tcpDrainTimeout bounds how long respondAndCloseTCP waits for the client
+	// to close its side of the connection.
+	tcpDrainTimeout = 5 * time.Second
+	// tcpCloseGrace bounds how long tcpTestServer.Close waits for the
+	// connections still being drained.
+	tcpCloseGrace = 200 * time.Millisecond
+)
 
 // respondAndCloseTCP writes "hello" to conn and closes it gracefully.
 //
@@ -145,14 +164,13 @@ const tcpDrainTimeout = 5 * time.Second
 // client's read fail with ECONNRESET and lose the data. To avoid that, the
 // server half-closes (FIN, which TCP orders correctly behind the data), then
 // reads and discards whatever the client sends until it closes its side or the
-// drain timeout expires, and only then closes the socket.
+// read deadline set by tcpTestServer expires, and only then closes the socket.
 func respondAndCloseTCP(conn net.Conn) {
 	defer conn.Close()
 	_, _ = conn.Write([]byte("hello"))
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		_ = tcpConn.CloseWrite()
 	}
-	_ = conn.SetReadDeadline(time.Now().Add(tcpDrainTimeout))
 	_, _ = io.Copy(io.Discard, conn)
 }
 
