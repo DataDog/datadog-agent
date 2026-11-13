@@ -45,7 +45,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.53.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
-	github.com/pulumi/pulumi/sdk/v3 v3.274.0
+	github.com/pulumi/pulumi/sdk/v3 v3.274.1
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -305,7 +305,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.30.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-cloud-sdk/go v1.20261027.1310 // indirect
+	github.com/pulumi/pulumi-cloud-sdk/go v1.20261104.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
