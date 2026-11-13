@@ -604,7 +604,7 @@ func TestDomainForwarderStopFlushesCanceledInflightTransactionToDisk(t *testing.
 // TestDomainForwarderSendHTTPTransactionDirectDoesNotBlockEndpointOnCancel
 // covers sendHTTPTransactionDirect (used by SubmitV1IntakeDirect and friends):
 // like Worker.process, a canceled context must be reported back to the
-// caller but must not trip the endpoint circuit breaker, since cancellation
+// caller but must not set the endpoint blocked list, since cancellation
 // means the caller stopped waiting for a response, not that the endpoint is
 // unhealthy.
 func TestDomainForwarderSendHTTPTransactionDirectDoesNotBlockEndpointOnCancel(t *testing.T) {
@@ -648,7 +648,7 @@ func TestDomainForwarderSendHTTPTransactionDirectDoesNotBlockEndpointOnCancel(t 
 	require.Error(t, err, "cancellation must still be surfaced to the direct-send caller")
 	assert.True(t, errors.Is(err, context.Canceled), "error must wrap context.Canceled: %v", err)
 	assert.False(t, forwarder.blockedList.isBlockForSend(txn.GetTarget(), time.Now()),
-		"a canceled direct-send request must not trip the endpoint circuit breaker")
+		"a canceled direct-send request must not set the endpoint blocked list")
 }
 
 func newDomainForwarderForTest(t *testing.T, config config.Component, log log.Component, connectionResetInterval time.Duration, ha bool) *domainForwarder {
