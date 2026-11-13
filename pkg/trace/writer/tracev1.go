@@ -202,14 +202,16 @@ func (w *TraceWriterV1) FlushSync() error {
 // Returns batches of prepared payloads to flush immediately.
 // Uses PreparedTracerPayload for accurate size calculations with pre-computed string compaction.
 func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTracerPayload {
+	// Prepare the payload - this computes string compaction and accurate size. It only reads
+	// pkg, which the caller hands over, so it is done before taking the lock: it walks the
+	// whole payload, and doing it under w.mu would serialize the agent's processing goroutines.
+	pbTracerPayload := pkg.TracerPayload.ToProto()
+	prepared := pb.PrepareTracerPayload(pbTracerPayload)
+	size := prepared.Size
+
 	var toFlush [][]*pb.PreparedTracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	pbTracerPayload := pkg.TracerPayload.ToProto()
-
-	// Prepare the payload - this computes string compaction and accurate size
-	prepared := pb.PrepareTracerPayload(pbTracerPayload)
-	size := prepared.Size
 
 	if size+w.bufferedSizeV1 <= MaxPayloadSize {
 		w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)

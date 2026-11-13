@@ -594,7 +594,7 @@ func requireOTelSpanIdxParity(t testing.TB, otelspan ptrace.Span, res pcommon.Re
 	tid := [16]byte(otelspan.TraceID())
 	fields.TraceIDUpper = binary.BigEndian.Uint64(tid[:8])
 	fields.TraceIDLower = transform.OTelTraceIDToUint64(tid)
-	span, _ := transform.OtelSpanToIdxSpanWithConvertedFields(otelspan, res, lib, conf, strs, fields)
+	span, _ := transform.OtelSpanToIdxSpanWithConvertedFields(otelspan, res, lib, conf, strs, fields, "")
 	var rootSampling idx.RootSamplingMergeState
 	rootSampling.ReconcileSamplingPriorityAfterChunkSpan(fields, span.ParentID())
 	chunk := &idx.InternalTraceChunk{Strings: strs, Attributes: map[uint32]*idx.AnyValue{}, Spans: []*idx.InternalSpan{span}}

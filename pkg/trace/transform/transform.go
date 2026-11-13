@@ -383,11 +383,11 @@ func OtelSpanToDDSpan(
 	isTopLevel, topLevelByKind := otelSpanTopLevel(otelspan, conf)
 	// Create one shared accessor for all span+resource lookups in this function and in the
 	// minimal span conversion below, avoiding repeated allocation of accessor objects.
-	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	var spanAccessor semantics.Accessor = semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
 	// No tag selections here: the full conversion below copies all span and
 	// resource attributes into Meta, so peer and primary tags are already present.
 	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, spanAccessor, OTelSpanTagKeys{})
-	convertOTelSpanFull((*pbSpanSink)(ddspan), otelspan, otelres, lib, conf, spanAccessor)
+	convertOTelSpanFull((*pbSpanSink)(ddspan), otelspan, otelres, lib, conf, spanAccessor, "")
 	return ddspan
 }
 
@@ -403,7 +403,8 @@ func otelSpanTopLevel(otelspan ptrace.Span, conf *config.AgentConfig) (isTopLeve
 }
 
 // convertOTelSpanFull writes into the sink everything that the full conversion adds on top of
-// convertOTelSpanMinimal, which must have been applied to the sink first.
+// convertOTelSpanMinimal, which must have been applied to the sink first. traceIDHex is the
+// hex-encoded trace ID of otelspan, or empty to have it computed here.
 func convertOTelSpanFull(
 	ddspan spanSink,
 	otelspan ptrace.Span,
@@ -411,6 +412,7 @@ func convertOTelSpanFull(
 	lib pcommon.InstrumentationScope,
 	conf *config.AgentConfig,
 	spanAccessor semantics.Accessor,
+	traceIDHex string,
 ) {
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -426,8 +428,11 @@ func convertOTelSpanFull(
 		return true
 	})
 
-	traceID := otelspan.TraceID()
-	ddspan.setMeta("otel.trace_id", hex.EncodeToString(traceID[:]))
+	if traceIDHex == "" {
+		traceID := otelspan.TraceID()
+		traceIDHex = hex.EncodeToString(traceID[:])
+	}
+	ddspan.setMeta("otel.trace_id", traceIDHex)
 	if !spanMetaHasKey(ddspan, "version") {
 		if version := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptServiceVersion, true); version != "" {
 			ddspan.setMeta("version", version)
@@ -492,10 +497,7 @@ func convertOTelSpanFull(
 	// Check for db.namespace and conditionally set db.name.
 	// db.namespace is a resource-level attribute; check resource attrs first, then span attrs.
 	if !spanMetaHasKey(ddspan, "db.name") {
-		if dbNamespace := LookupSemanticStringWithAccessor(
-			semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes()),
-			semantics.ConceptDBNamespace, false,
-		); dbNamespace != "" {
+		if dbNamespace := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDBNamespace, false); dbNamespace != "" {
 			ddspan.setMeta("db.name", dbNamespace)
 		}
 	}

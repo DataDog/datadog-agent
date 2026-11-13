@@ -32,7 +32,7 @@ func OtelSpanToIdxSpan(
 	conf *config.AgentConfig,
 	strings *idx.StringTable,
 ) *idx.InternalSpan {
-	span, _ := OtelSpanToIdxSpanWithConvertedFields(otelspan, otelres, lib, conf, strings, nil)
+	span, _ := OtelSpanToIdxSpanWithConvertedFields(otelspan, otelres, lib, conf, strings, nil, "")
 	return span
 }
 
@@ -53,7 +53,8 @@ type IdxSpanSamplingTags struct {
 // replaces fields.SamplingPriority when the span has one, and the env, app version, hostname, git
 // commit SHA, sampling mechanism, APM mode and origin are only set if fields doesn't have them yet.
 // The trace ID fields and the root sampling priority merge are left to the caller. It also returns
-// the sampling tags of the span.
+// the sampling tags of the span. traceIDHex is the hex-encoded trace ID of otelspan, which callers
+// converting several spans of a trace can compute once, or empty to have it computed.
 func OtelSpanToIdxSpanWithConvertedFields(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
@@ -61,9 +62,11 @@ func OtelSpanToIdxSpanWithConvertedFields(
 	conf *config.AgentConfig,
 	strings *idx.StringTable,
 	fields *idx.SpanConvertedFields,
+	traceIDHex string,
 ) (*idx.InternalSpan, IdxSpanSamplingTags) {
 	isTopLevel, topLevelByKind := otelSpanTopLevel(otelspan, conf)
-	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	// Converted to the interface once, rather than at each of the calls below.
+	var spanAccessor semantics.Accessor = semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
 	// The conversion adds up to about 10 attributes to those of the span and resource.
 	numAttrs := otelspan.Attributes().Len() + otelres.Attributes().Len() + lib.Attributes().Len() + 10
 	sink := idxSpanSink{
@@ -78,7 +81,7 @@ func OtelSpanToIdxSpanWithConvertedFields(
 	start, duration := convertOTelSpanMinimal(&sink, otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, spanAccessor, OTelSpanTagKeys{})
 	sink.span.Start = uint64(start)
 	sink.span.Duration = uint64(duration)
-	convertOTelSpanFull(&sink, otelspan, otelres, lib, conf, spanAccessor)
+	convertOTelSpanFull(&sink, otelspan, otelres, lib, conf, spanAccessor, traceIDHex)
 	if fields != nil {
 		sink.convertedFields(fields)
 	}
