@@ -739,6 +739,11 @@ var (
 	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
 	// Tags: rule_id
 	MetricRawPacketDropped = newRuntimeMetric(".network.raw_packet.dropped")
+
+	// MetricTCAttachModeTelemetry is the name of the agent telemetry metric set to 1 for the attach mode of the TC
+	// classifiers
+	// Tags: attach_mode ('legacy', 'tcx'), platform, platform_version, kernel, arch
+	MetricTCAttachModeTelemetry = newITRuntimeMetric("network", "tc.attach_mode")
 )
 
 var (

@@ -705,10 +705,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
+	// Default config has 26 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, runtime-security, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 25, totalProfiles)
+	assert.Equal(t, 26, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -3716,6 +3716,50 @@ func TestShippedIntakeRoutingProfile(t *testing.T) {
 		"intake_routing.rejected_answers":  {"telemetry_type": "logs", "reason": "invalid_host"},
 		"intake_routing.skipped_endpoints": {"telemetry_type": "logs", "reason": "private_address"},
 		"intake_routing.active_overrides":  {"telemetry_type": "logs"},
+	}, collected)
+}
+
+// TestShippedRuntimeSecurityProfile checks that the shipped runtime-security profile collects the attach mode of the
+// network classifiers without its zero values. The name and labels below must match pkg/security/metrics and
+// pkg/security/resolvers/netns/telemetry.go.
+func TestShippedRuntimeSecurityProfile(t *testing.T) {
+	platformTags := []string{"platform", "platform_version", "kernel", "arch"}
+	withPlatform := func(values ...string) []string {
+		return append(values, "ubuntu", "24.04", "6.8.0-1021-aws", "x86_64")
+	}
+
+	tel := makeTelMock(t)
+	attachMode := tel.NewGauge("runtime_security__network", "tc__attach_mode", append([]string{"attach_mode"}, platformTags...), "")
+	attachMode.Set(1, withPlatform("legacy")...)
+	attachMode.Set(0, withPlatform("tcx")...)
+
+	sndr := &senderMock{}
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
+	require.True(t, a.enabled, "default profiles must parse and compile")
+
+	sndr.sentMetrics = nil
+	_, err := a.loadPayloads(a.atelCfg.Profiles)
+	require.NoError(t, err)
+
+	type series struct {
+		value  float64
+		labels map[string]string
+	}
+	collected := make(map[string]series)
+	for _, m := range sndr.sentMetrics {
+		if !strings.HasPrefix(m.name, "runtime_security.network__tc__") {
+			continue
+		}
+		require.Len(t, m.metrics, 1, "zero values of %s must be excluded", m.name)
+		labels := metricLabels(m.metrics[0])
+		delete(labels, emitterTagName)
+		collected[m.name] = series{value: m.metrics[0].GetGauge().GetValue(), labels: labels}
+	}
+	assert.Equal(t, map[string]series{
+		"runtime_security.network__tc__attach_mode": {
+			value:  1,
+			labels: map[string]string{"attach_mode": "legacy", "platform": "ubuntu", "platform_version": "24.04", "kernel": "6.8.0-1021-aws", "arch": "x86_64"},
+		},
 	}, collected)
 }
 

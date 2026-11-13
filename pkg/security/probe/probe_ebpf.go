@@ -698,6 +698,7 @@ func (p *EBPFProbe) Init() error {
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
+	p.Resolvers.NamespaceResolver.ReportTCAttachMode()
 
 	err = p.monitors.Init()
 	if err != nil {
