@@ -207,17 +207,17 @@ func (s *TracerSuite) TestTCPRetransmit() {
 
 	rawConn, err := c.(*net.TCPConn).SyscallConn()
 	require.NoError(t, err)
-	// tcpInfo returns the kernel's view of the client socket, or nil on error
-	tcpInfo := func() *unix.TCPInfo {
-		var info *unix.TCPInfo
-		var infoErr error
+	// outq returns the bytes written to the client socket but not yet acknowledged, both the
+	// unacked in-flight ones and those still queued unsent (SIOCOUTQ: write_seq - snd_una)
+	outq := func() (int, error) {
+		var n int
+		var ioctlErr error
 		if err := rawConn.Control(func(fd uintptr) {
-			info, infoErr = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
-		}); err != nil || infoErr != nil {
-			t.Logf("TCP_INFO: %v %v", err, infoErr)
-			return nil
+			n, ioctlErr = unix.IoctlGetInt(int(fd), unix.SIOCOUTQ)
+		}); err != nil {
+			return 0, err
 		}
-		return info
+		return n, ioctlErr
 	}
 
 	iptablesWrapper(t, func() {
@@ -229,18 +229,23 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		// for a fixed time: the first RTO is at least 200ms and depends on the measured RTT, so a
 		// fixed window can end before any retransmission on a slow VM. tcpi_retransmits counts the
 		// RTOs of the current loss episode, and tcpi_total_retrans the segments actually resent.
-		require.Eventually(t, func() bool {
-			info := tcpInfo()
-			return info != nil && info.Retransmits > 0 && info.Total_retrans > 0
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			info, err := offsetguess.TCPGetInfo(c)
+			require.NoError(ct, err)
+			assert.Positive(ct, info.Retransmits, "tcpi_retransmits")
+			assert.Positive(ct, info.Total_retrans, "tcpi_total_retrans")
 		}, 10*time.Second, 10*time.Millisecond, "no retransmission while packets were dropped")
 	})
 
 	// Once the rule is gone, the data is only delivered at the next RTO, which is backed off by
-	// then. Wait for the kernel to see everything acknowledged, so that the eBPF-less tracer,
-	// which counts bytes from the packets it captures, can count them all.
-	require.Eventually(t, func() bool {
-		info := tcpInfo()
-		return info != nil && info.Unacked == 0
+	// then. Wait until the kernel has sent everything written and seen it acknowledged, so that
+	// the eBPF-less tracer, which counts bytes from the packets it captures, can count them all.
+	// tcpi_unacked alone isn't enough: after the losses the congestion window is small, so part
+	// of the data can still be queued unsent while nothing is in flight.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		n, err := outq()
+		require.NoError(ct, err)
+		assert.Zero(ct, n, "bytes not yet acknowledged")
 	}, 15*time.Second, 50*time.Millisecond, "data not acknowledged after packets stopped being dropped")
 
 	// A client only gets an active connection whose stats changed since its last fetch, so keep the
