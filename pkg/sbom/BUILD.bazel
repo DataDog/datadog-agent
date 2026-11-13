@@ -5,7 +5,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "sbom",
-    srcs = ["sbom.go"],
+    srcs = [
+        "sbom.go",
+        "usage.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom",
     visibility = ["//visibility:public"],
     deps = [
@@ -20,7 +23,10 @@ go_library(
 
 dd_agent_go_test(
     name = "sbom_test",
-    srcs = ["sbom_test.go"],
+    srcs = [
+        "sbom_test.go",
+        "usage_test.go",
+    ],
     embed = [":sbom"],
     deps = [
         "//comp/core/workloadmeta/def",

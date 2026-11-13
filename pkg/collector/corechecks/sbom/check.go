@@ -34,7 +34,7 @@ const (
 	metricPeriod = 15 * time.Minute
 
 	// usageGraceSweepPeriod is how often the SBOMs that waited long enough for
-	// their runtime usage go out.
+	// their runtime usage, or whose usage is unavailable, go out.
 	usageGraceSweepPeriod = 10 * time.Second
 )
 

@@ -11,6 +11,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -19,11 +22,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -915,4 +923,94 @@ func TestIsEnabled(t *testing.T) {
 			})
 		}
 	}
+}
+
+// fakeSBOMCollector serves one runtime usage report on each stream.
+type fakeSBOMCollector struct {
+	sbompb.UnimplementedSBOMCollectorServer
+}
+
+func (fakeSBOMCollector) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
+	if err := stream.Send(&sbompb.SBOMMessage{Kind: sbompkg.HostKind}); err != nil {
+		return err
+	}
+	<-stream.Context().Done()
+	return nil
+}
+
+// usageSocket returns the path of a unix socket in a directory of its own, short
+// enough for the bound on socket paths.
+func usageSocket(t *testing.T) string {
+	dir, err := os.MkdirTemp("/tmp", "sbom-usage-")
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, os.RemoveAll(dir)) })
+	return filepath.Join(dir, "cmd.sock")
+}
+
+// serveUsage serves gRPC on the unix socket at path, with collector as the SBOM
+// collector service unless it is nil.
+func serveUsage(t *testing.T, path string, collector sbompb.SBOMCollectorServer) {
+	l, err := net.Listen("unix", path)
+	require.NoError(t, err)
+	server := grpc.NewServer()
+	if collector != nil {
+		sbompb.RegisterSBOMCollectorServer(server, collector)
+	}
+	served := make(chan error, 1)
+	go func() { served <- server.Serve(l) }()
+	t.Cleanup(func() {
+		server.Stop()
+		assert.NoError(t, <-served)
+	})
+}
+
+// TestUsageStream checks what the streams of runtime usage reports from a
+// server tell of its usage service.
+func TestUsageStream(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("system-probe serves usage on Linux alone")
+	}
+	const wait = time.Minute
+
+	// open opens a stream from the server at path, recording in usage.
+	open := func(t *testing.T, path string) (*sbompkg.UsageStream, remote.Stream, error) {
+		conn, err := grpc.NewClient("unix://"+path, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+		usage := &sbompkg.UsageStream{}
+		stream, err := (&streamHandler{usage: usage}).NewClient(conn).StreamEntities(t.Context())
+		return usage, stream, err
+	}
+
+	t.Run("out of reach", func(t *testing.T) {
+		usage, _, err := open(t, usageSocket(t))
+		assert.Equal(t, codes.Unavailable, status.Code(err))
+		now := time.Now()
+		assert.True(t, usage.Available(now, wait), "usage can come for a while")
+		assert.False(t, usage.Available(now.Add(wait), wait))
+	})
+
+	t.Run("without the usage service", func(t *testing.T) {
+		path := usageSocket(t)
+		serveUsage(t, path, nil)
+
+		usage, stream, err := open(t, path)
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		assert.Equal(t, codes.Unimplemented, status.Code(err))
+		assert.False(t, usage.Available(time.Now(), wait))
+	})
+
+	t.Run("with the usage service", func(t *testing.T) {
+		path := usageSocket(t)
+		serveUsage(t, path, fakeSBOMCollector{})
+
+		usage, stream, err := open(t, path)
+		require.NoError(t, err)
+		usage.Unserved()
+		_, err = stream.Recv()
+		require.NoError(t, err)
+		assert.True(t, usage.Available(time.Now(), wait), "a report brings usage back")
+	})
 }
