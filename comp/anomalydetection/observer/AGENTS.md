@@ -111,6 +111,10 @@ anomaly_detection:
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
 Observer replay enables the scorer's internal transition watcher so configured
 correlation episodes are emitted through the normal correlator event path.
+The interactive testbench also sets `StorageConfig.TrackScorerHistory` to retain
+full buckets, emitted severity transitions, episode contributors, and each
+input's effective scoring second. Production leaves it off; `GET /api/scores`
+exposes the history and `/api/scores/replay` remains the retrospective view.
 
 ### Severity event subscriptions
 

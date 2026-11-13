@@ -16,6 +16,7 @@ import (
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type scorerConfigReader struct {
@@ -627,6 +628,68 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	if !found {
 		t.Errorf("pre-first-advance anomaly was clamped or dropped; buckets=%v", st.Buckets)
 	}
+}
+
+func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1
+	cfg.WindowSecs = 15
+	cfg.MaxBuckets = math.MaxInt64
+	cfg.CorrelationEvents = true
+	cfg.CooldownSecs = 300
+	scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+	scorer.enableHistory()
+
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, scorer, severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: cfg.CooldownSecs,
+	}, listener)
+
+	scorer.Advance(1000)
+	anomaly := makeAnomaly("bocpd", 900, nil)
+	anomaly.SourceRef = &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
+	scorer.ProcessAnomaly(anomaly)
+	scorer.Advance(1030)
+
+	history := scorer.historyState()
+	require.True(t, history.Available)
+	require.Len(t, history.Inputs, 1)
+	require.Equal(t, int64(1001), history.Inputs[0].ScoringSecond)
+	require.Equal(t, int64(900), history.Inputs[0].Anomaly.Timestamp)
+	require.Greater(t, len(history.Buckets), int(cfg.WindowSecs), "history must retain more than the production bucket window")
+	require.Equal(t, int64(1030), history.Buckets[len(history.Buckets)-1].Second)
+	require.Equal(t, listener.events, history.Events)
+	require.Len(t, history.Reports, 1)
+	require.Len(t, history.Reports[0].Contributors, 1)
+	require.Equal(t, int64(300), history.CooldownSecs)
+
+	// JSON numbers pass through float64 in the browser before replay.
+	encodedConfig, err := json.Marshal(history.Config)
+	require.NoError(t, err)
+	var browserConfig map[string]any
+	require.NoError(t, json.Unmarshal(encodedConfig, &browserConfig))
+	encodedConfig, err = json.Marshal(browserConfig)
+	require.NoError(t, err)
+	var replayConfig observer.AnomalyScorerConfig
+	require.NoError(t, json.Unmarshal(encodedConfig, &replayConfig))
+	expectedConfig := cfg.AnomalyScorerConfig
+	expectedConfig.MaxBuckets = 0
+	require.Equal(t, expectedConfig, replayConfig)
+	require.Equal(t, int64(math.MaxInt64), scorer.config.MaxBuckets)
+
+	scorer.Reset()
+	history = scorer.historyState()
+	require.True(t, history.Available)
+	require.Empty(t, history.Inputs)
+	require.Empty(t, history.Buckets)
+	require.Empty(t, history.Events)
+	require.Empty(t, history.Reports)
+}
+
+func TestScorerHistoryDisabledByDefault(t *testing.T) {
+	scorer := NewAnomalyScorer(DefaultAnomalyScorerConfig()).(*anomalyScorer)
+	require.False(t, scorer.historyState().Available)
 }
 
 // ---- Severity state machine helpers ----

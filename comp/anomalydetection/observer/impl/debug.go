@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // DebugView is a read-only introspection surface implemented by observerImpl.
@@ -80,6 +81,9 @@ type StateView interface {
 
 	// Scoring
 	ScoreState() observerdef.AnomalyScoreState
+	// ScorerHistory returns the original replay's scorer timeline when history
+	// tracking is enabled.
+	ScorerHistory() ScorerHistory
 	UniqueAnomalySourceCount() int
 	DetectorAnomalies(name string) []observerdef.Anomaly
 	AnomaliesByDetector() map[string][]observerdef.Anomaly
@@ -110,6 +114,30 @@ type StateView interface {
 type ComponentStateInfo struct {
 	Name    string
 	Enabled bool
+}
+
+// ScorerHistory is the replay-only record of one scorer run.
+type ScorerHistory struct {
+	Available    bool                              `json:"available"`
+	Buckets      []observerdef.AnomalyScoreBucket  `json:"buckets"`
+	Events       []severityeventsdef.SeverityEvent `json:"events"`
+	Reports      []ScorerHistoryReport             `json:"reports"`
+	Inputs       []ScorerHistoryInput              `json:"inputs"`
+	Config       observerdef.AnomalyScorerConfig   `json:"config"`
+	CooldownSecs int64                             `json:"cooldown_secs"`
+}
+
+// ScorerHistoryReport is the contributor snapshot captured when an episode
+// starts.
+type ScorerHistoryReport struct {
+	Timestamp    int64                           `json:"timestamp"`
+	Contributors []observerdef.ScorerContributor `json:"contributors"`
+}
+
+// ScorerHistoryInput records when the scorer actually consumed an anomaly.
+type ScorerHistoryInput struct {
+	ScoringSecond int64               `json:"scoring_second"`
+	Anomaly       observerdef.Anomaly `json:"anomaly"`
 }
 
 // Ensure observerImpl satisfies DebugView at compile time.

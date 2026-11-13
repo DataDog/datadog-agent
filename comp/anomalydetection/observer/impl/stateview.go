@@ -63,6 +63,17 @@ func (sv *stateView) ScoreState() observerdef.AnomalyScoreState {
 	return sv.engine.scorer.ScoreState()
 }
 
+// ScorerHistory returns the original replay's scorer timeline.
+func (sv *stateView) ScorerHistory() ScorerHistory {
+	sv.engine.mu.RLock()
+	scorer := sv.engine.scorer
+	sv.engine.mu.RUnlock()
+	if scorer == nil {
+		return ScorerHistory{}
+	}
+	return scorer.historyState()
+}
+
 // TotalAnomalyCount returns the total number of anomalies ever detected.
 func (sv *stateView) TotalAnomalyCount() int {
 	return sv.engine.TotalAnomalyCount()
