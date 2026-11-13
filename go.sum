@@ -100,8 +100,8 @@ github.com/DataDog/dd-trace-go/v2 v2.11.2 h1:HbANttl9UJGen/tRb+pX3nPNa4IQy2vXvUD
 github.com/DataDog/dd-trace-go/v2 v2.11.2/go.mod h1:V/CeQWG3+2fzAgZReAYfDRNjUXjHKOOW4KtEnV/yk2g=
 github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791 h1:m79i6ZV2KfOULyO87yznQTkgxk1YixN5LDVQY5wZwq8=
 github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791/go.mod h1:iF+gkvyZJQ9lmKp9MTMDk4fCiyscpXSZkBOVO7Qaxo8=
-github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
-github.com/DataDog/ebpf-manager v0.8.7/go.mod h1:cvd2jNW3M29BSZGk25t8e3ffuaazbMj1fHsANObRkVw=
+github.com/DataDog/ebpf-manager v0.8.8-0.20261106134341-60fad96e1ff9 h1:aENkmxe3KxuzLvdi2Nwvk7W68a+YWwaHTv/Rww5LxUM=
+github.com/DataDog/ebpf-manager v0.8.8-0.20261106134341-60fad96e1ff9/go.mod h1:91yifsFyJRJvejivmbB86QTxh42Pe/NaD3oxNgeIiM8=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d h1:ErpIQikDqtpE21afk2ExlJn0wg7gGWyUVu/RY4rBlMI=

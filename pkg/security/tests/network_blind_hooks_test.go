@@ -221,7 +221,7 @@ func assertBlindHookMetric(tb testing.TB, test *testModule, reason tc.BlindReaso
 	tb.Helper()
 
 	assert.NotZero(tb, test.statsdClient.Get(metrics.MetricTCBlindHooks+":reason:"+string(reason)), "no blind hook reported for %s", reason)
-	assert.NotZero(tb, test.statsdClient.Get(metrics.MetricTCBlindHooks+":attach_mode:"+string(tc.AttachModeLegacy)))
+	assert.NotZero(tb, test.statsdClient.Get(metrics.MetricTCBlindHooks+":attach_mode:"+manager.TCAttachModeLegacy.String()))
 }
 
 func statusWarnings(tb testing.TB, test *testModule) string {

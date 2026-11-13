@@ -180,6 +180,7 @@ type EBPFProbe struct {
 	useRingBuffers        bool
 	useMmapableMaps       bool
 	useSyscallTaskStorage bool
+	tcxUnsupported        bool
 	cgroup2MountPath      string
 
 	// On demand1
@@ -323,6 +324,21 @@ func (p *EBPFProbe) GetUseFentry() bool {
 	return p.useFentry
 }
 
+// GetUseTCX returns true if the TC classifiers are attached with TCX links
+func (p *EBPFProbe) GetUseTCX() bool {
+	return p.config.Probe.NetworkTCXEnabled
+}
+
+// selectTCAttachMode keeps TCX on, for every device of every namespace, only if the kernel supports it: probing needs TCX on
+func selectTCAttachMode(cfg *pconfig.Config, hasTCX func() bool) (tcxUnsupported bool) {
+	cfg.NetworkTCXEnabled = cfg.NetworkTCXEnabled && cfg.NetworkEnabled
+	if cfg.NetworkTCXEnabled && !hasTCX() {
+		cfg.NetworkTCXEnabled = false
+		return true
+	}
+	return false
+}
+
 var fentrySupportCache struct {
 	sync.Mutex
 	previousErr error
@@ -442,6 +458,19 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
+	p.tcxUnsupported = selectTCAttachMode(p.config.Probe, p.kernelVersion.HasTCX)
+	if p.tcxUnsupported {
+		// VerifyEnvironment warns when TCX is requested explicitly
+		seclog.Infof("TCX isn't supported on this kernel, the network classifiers of CWS are attached as legacy tc filters")
+	}
+
+	if p.config.Probe.NetworkTCXEnabled {
+		seclog.Infof("the network classifiers of CWS are attached with TCX links")
+		if settings := p.config.Probe.NetworkTCFilterSettings; len(settings) > 0 {
+			seclog.Warnf("%s only apply to legacy tc filters, they're ignored with TCX links", strings.Join(settings, ", "))
+		}
+	}
+
 	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.config.Probe.NetworkEnabled {
 		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
 	}
@@ -554,6 +583,11 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 				}
 			}
 		}
+	}
+
+	// once TCX is the default, kernels without it shouldn't all warn
+	if p.tcxUnsupported && p.config.Probe.NetworkTCXConfigured {
+		err = multierror.Append(err, errors.New("event_monitoring_config.network.tcx.enabled is set but this kernel doesn't support TCX, the network classifiers are attached as legacy tc filters"))
 	}
 
 	// the resolvers don't exist yet when the environment is first verified, at startup

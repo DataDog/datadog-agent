@@ -1105,6 +1105,7 @@ properties:
                 description: |-
                   Set to true to attach the network classifiers with TCX on kernels that support it.
                   Ignored on other kernels, where the classifiers are attached as legacy tc filters.
+                  With TCX, the classifier priority and handle settings are ignored.
       basename_approvers_size:
         node_type: setting
         type: integer

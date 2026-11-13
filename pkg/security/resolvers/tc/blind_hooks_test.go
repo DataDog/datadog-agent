@@ -10,6 +10,7 @@ package tc
 import (
 	"testing"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -130,7 +131,7 @@ func TestFindProgramAhead(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			prog, found := FindProgramAhead(AttachModeLegacy, test.hook, filterPriority, isOwn)
+			prog, found := FindProgramAhead(manager.TCAttachModeLegacy, test.hook, filterPriority, isOwn)
 			assert.Equal(t, test.found, found)
 			assert.Equal(t, test.expected, prog)
 		})

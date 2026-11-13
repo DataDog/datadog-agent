@@ -582,8 +582,9 @@ func newTmpFile(prefix string) (*os.File, error) {
 
 // NetworkDeviceDump is used to dump a network namespace
 type NetworkDeviceDump struct {
-	IfName  string
-	IfIndex int
+	IfName   string
+	IfIndex  int
+	Programs []tc.ProgramDump `json:",omitempty"`
 }
 
 // NetworkNamespaceDump is used to dump a network namespce
@@ -613,9 +614,13 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 		netnsDump := NetworkNamespaceDump{
 			NsID:          netns.nsID,
-			HandleFD:      int(netns.handle.Fd()),
-			HandlePath:    netns.handle.Name(),
+			HandleFD:      -1,
 			LonelyTimeout: netns.lonelyTimeout,
+		}
+		// namespaces holding queued devices may have no handle yet
+		if netns.hasValidHandle() {
+			netnsDump.HandleFD = int(netns.handle.Fd())
+			netnsDump.HandlePath = netns.handle.Name()
 		}
 
 		for _, dev := range netns.networkDevicesQueue {
@@ -636,10 +641,12 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 			if err == nil {
 				links, err = listLinks(ntl.Sock)
 				if err == nil {
+					programs := nr.tcResolver.DumpNetworkNamespacePrograms(netns.nsID, handle, ntl)
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{
-							IfName:  link.Attrs().Name,
-							IfIndex: link.Attrs().Index,
+							IfName:   link.Attrs().Name,
+							IfIndex:  link.Attrs().Index,
+							Programs: programs[uint32(link.Attrs().Index)],
 						})
 					}
 				}
