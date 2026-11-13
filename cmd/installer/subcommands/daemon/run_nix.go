@@ -11,7 +11,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"
@@ -20,20 +19,16 @@ import (
 )
 
 func runFxWrapper(global *command.GlobalParams) error {
-	return fxutil.Run(
+	err := fxutil.Run(
 		getCommonFxOption(global),
-		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ localapi.Component) {}),
+		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ telemetry.Component) {}),
-		fx.Invoke(startDaemon),
+		fx.Invoke(releaseMemory),
 	)
-}
-
-func startDaemon(shutdowner fx.Shutdowner, cfg config.Component) {
-	if !cfg.GetBool("remote_updates") {
+	if isDaemonDisabled(err) {
 		log.Infof("Datadog installer is not enabled, exiting")
-		_ = shutdowner.Shutdown()
-		return
+		return nil
 	}
-	releaseMemory()
+	return err
 }
