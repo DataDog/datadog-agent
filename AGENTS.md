@@ -36,13 +36,13 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 `doc/` is the sole source of Datadog Agent developer documentation. Consult `docs/README.md` before moving or deleting files remaining in `docs/`.
 
-### Critical: Always use `dda inv`, never raw `go` commands
+### Critical: Use repository tooling for Agent code
 
 This project uses extensive custom Go build tags. Most source files are ignored
 by the standard Go toolchain unless the correct tags are passed. The `dda inv`
-wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
+wrapper tasks (defined in `tasks/`) compute the right flags and build tags automatically.
 
-**Never run these commands directly:**
+**For Agent code, do not run these commands directly:**
 
 | Instead of | Use |
 |---|---|
@@ -52,9 +52,14 @@ wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
 | `go vet …` | `dda inv linter.go` |
 | `golangci-lint run …` | `dda inv linter.go` |
 
-This also applies to indirect usage — do not shell out to `go build` or
-`go test` for compilation checks. If you need to verify that code compiles,
-build the relevant component with `dda inv *.build`.
+This also applies to indirect usage for Agent code — do not shell out to
+`go build` or `go test` for compilation checks. To verify that Agent code
+compiles, build the relevant component with `dda inv *.build`.
+
+The `go test` restriction applies only to testing or compiling Agent code.
+Running `go test` directly is fine for code outside the Agent, such as testing
+a third-party dependency in the Go module cache or running an isolated throwaway
+test of Go language or standard-library behavior.
 
 ### Bazel dependency downloads
 
