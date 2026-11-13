@@ -39,6 +39,10 @@ const (
 	errorClassNetlinkSocket = "netlink_socket"
 	// errorClassLinkList is reported when the interfaces of a network namespace can't be listed
 	errorClassLinkList = "link_list"
+	// errorClassFilterList is reported when the tc filters of a host interface can't be listed
+	errorClassFilterList = "filter_list"
+	// errorClassTCXQuery is reported when the TCX programs of a host interface can't be listed
+	errorClassTCXQuery = "tcx_query"
 	// errorClassUnknown is reported for the failures we can't explain
 	errorClassUnknown = "unknown"
 )
@@ -54,6 +58,8 @@ var errorClasses = []string{
 	errorClassMountQueueFull,
 	errorClassNetlinkSocket,
 	errorClassLinkList,
+	errorClassFilterList,
+	errorClassTCXQuery,
 	errorClassUnknown,
 }
 

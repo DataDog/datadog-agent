@@ -81,6 +81,45 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
+// AttachMode returns the way the classifiers are attached to their hooks
+func (tcr *Resolver) AttachMode() AttachMode {
+	return AttachModeLegacy
+}
+
+// FilterPriority returns the priority of the filters of the classifiers
+func (tcr *Resolver) FilterPriority() uint16 {
+	// the eBPF manager falls back to its default priority when none is provided
+	if tcr.config.NetworkClassifierPriority == 0 {
+		return manager.DefaultTCFilterPriority
+	}
+	return tcr.config.NetworkClassifierPriority
+}
+
+// Directions returns the directions of the hooks the classifiers are attached to
+func (tcr *Resolver) Directions() []manager.TrafficType {
+	var directions []manager.TrafficType
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
+		if !slices.Contains(directions, tcProbe.NetworkDirection) {
+			directions = append(directions, tcProbe.NetworkDirection)
+		}
+	}
+	return directions
+}
+
+// ProgramIDs returns the IDs of the classifiers attached in the provided network namespace
+func (tcr *Resolver) ProgramIDs(netns uint32) map[uint32]struct{} {
+	tcr.RLock()
+	defer tcr.RUnlock()
+
+	ids := make(map[uint32]struct{})
+	for key, entry := range tcr.programs {
+		if key.NetNS == netns {
+			ids[entry.programID] = struct{}{}
+		}
+	}
+	return ids
+}
+
 // SelectTCProbes selects TC probes
 func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 	tcr.RLock()

@@ -556,6 +556,13 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 	}
 
+	// the resolvers don't exist yet when the environment is first verified, at startup
+	if p.Resolvers != nil {
+		if warning := p.Resolvers.NamespaceResolver.BlindHooksWarning(); warning != "" {
+			err = multierror.Append(err, errors.New(warning))
+		}
+	}
+
 	return err
 }
 
