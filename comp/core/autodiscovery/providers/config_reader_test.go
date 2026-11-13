@@ -186,8 +186,6 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.LogsConfig)
 }
 
-// YAML v2 accepts numeric and string keys with the same spelling, but the
-// structure-preserving metadata scrubber uses YAML v3, which rejects them.
 func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 	for _, relativePath := range []string{"compatibility.yaml", filepath.Join("compatibility.d", "conf.yaml")} {
 		t.Run(relativePath, func(t *testing.T) {
@@ -219,7 +217,6 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 			assert.Contains(t, format.ConfigFormat, "string-value")
 			assertLegacyConfigFormat(t, content, format)
 
-			// Safe files still report metadata, including raw and ENC declarations.
 			supportedFile := filepath.Join(dir, "supported.yaml")
 			require.NoError(t, os.WriteFile(supportedFile, []byte("instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n"), 0600))
 			supportedConfig, supportedFormat, err := getIntegrationConfigFromFile("supported", supportedFile, true)
@@ -230,7 +227,6 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 			}, supportedFormat.Secrets)
 			assertLegacyConfigFormat(t, "instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n", supportedFormat)
 
-			// Metadata collection must not remove integrations from the shared cache.
 			ResetReader([]string{dir})
 			t.Cleanup(func() { ResetReader(nil) })
 			configs, configErrors, err := ReadConfigFiles(GetAll)
@@ -247,8 +243,6 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 	}
 }
 
-// Compare against the pre-existing v2 loader and ScrubYamlString pipeline,
-// including its text fallback for configs rejected by the v3 parser.
 func assertLegacyConfigFormat(t *testing.T, input string, format ConfigFormatWrapper) {
 	t.Helper()
 	var cf configFormat

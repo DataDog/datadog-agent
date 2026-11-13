@@ -570,9 +570,7 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		// Secret references are optional metadata. Collect them independently so
-		// stricter YAML validation cannot change the existing config or format.
-		// In particular, YAML v2 accepts mappings with both 1 and "1" keys.
+		// YAML v3 can reject configurations accepted by the v2 loader.
 		if _, secrets, scrubErr := scrubber.ScrubYamlPreserveStructure(serializedConfigFormat); scrubErr != nil {
 			log.Debugf("omitting secret references for %q: strict scrubbing failed", fpath)
 		} else {

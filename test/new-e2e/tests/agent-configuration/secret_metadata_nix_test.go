@@ -33,8 +33,6 @@ type metadataSecretReference struct {
 	Handle string `json:"handle,omitempty"`
 }
 
-// TestSecretMetadataFiles checks file loading, assembled metadata providers and
-// forwarding with mixed raw/ENC secrets. Unit tests cover the path combinations.
 func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 	t := v.T()
 	const configDir = "/etc/datadog-agent/"

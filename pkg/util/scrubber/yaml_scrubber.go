@@ -250,7 +250,7 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 //
 // Returned secret declarations belong only to this call. Raw declarations identify
 // replaced fields, including whole containers; ENC declarations retain every
-// original path and handle. Errors return neither YAML nor declarations.
+// original path and handle.
 func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSecret, error) {
 	secrets := []ConfigSecret{}
 	if len(input) == 0 {
@@ -426,8 +426,7 @@ func (c *Scrubber) scrubYamlDataValue(key string, path string, value interface{}
 }
 
 // inspectYamlNode rejects aliases and records ENC handles before scrubbing can
-// hide them inside a replaced container. Paths use the same sanitized segments
-// as the scrubbed YAML; declarations belong only to this call.
+// hide them inside a replaced container.
 func (c *Scrubber) inspectYamlNode(node *yaml.Node, path string, secrets *[]ConfigSecret) error {
 	switch node.Kind {
 	case yaml.AliasNode:
