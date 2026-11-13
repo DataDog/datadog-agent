@@ -81,7 +81,6 @@ dda inv collector.generate # regenerates OTel Agent code from the new manifests
 dda inv components.lint-components --fix
 dda inv tidy               # reconcile transitive dependencies
 dda inv modules.add-all-replace  # must run AFTER tidy (see note below)
-bazel run //:go_mod_tidy_all
 dda inv generate-licenses  # update license inventory
 ```
 
