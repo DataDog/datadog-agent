@@ -49,7 +49,28 @@ def _test_versioned_install_dir(name):
 
 def _test_versioned_install_dir_impl(env, target):
     env.expect.that_str(target[DdBuildTimeInfo].values["agent_package_version"]).equals("7.99.0-1")
-    env.expect.that_str(target[platform_common.TemplateVariableInfo].variables["AGENT_PACKAGE_VERSION"]).equals("7.99.0-1")
+    variables = target[platform_common.TemplateVariableInfo].variables
+    env.expect.that_str(variables["AGENT_PACKAGE_VERSION"]).equals("7.99.0-1")
+    env.expect.that_str(variables["EMBEDDED_LIB_DIRS"]).equals(
+        "/opt/datadog-packages/datadog-agent/7.99.0-1/embedded/lib:/opt/datadog-packages/datadog-agent/stable/embedded/lib",
+    )
+
+def _test_unversioned_install_dir(name):
+    util.helper_target(
+        variables,
+        name = name + "_subject",
+    )
+    analysis_test(
+        name = name,
+        impl = _test_unversioned_install_dir_impl,
+        target = name + "_subject",
+        config_settings = {str(Label("//:install_dir")): "/opt/datadog-agent"},
+    )
+
+def _test_unversioned_install_dir_impl(env, target):
+    env.expect.that_str(target[platform_common.TemplateVariableInfo].variables["EMBEDDED_LIB_DIRS"]).equals(
+        "/opt/datadog-agent/embedded/lib",
+    )
 
 def _test_windows_package_version(name):
     util.helper_target(
@@ -75,6 +96,7 @@ def variables_test_suite(name):
         tests = [
             _test_provider_keys,
             _test_versioned_install_dir,
+            _test_unversioned_install_dir,
             _test_windows_package_version,
         ],
     )
