@@ -157,6 +157,40 @@ func testScanMWPipelineConfig() ScanMWConfig {
 	}
 }
 
+func TestMetricPipelineStableAnomalyScoringAndFormatting(t *testing.T) {
+	for _, detectorName := range []string{"scanmw", "scanwelch"} {
+		t.Run(detectorName, func(t *testing.T) {
+			original := observer.Anomaly{
+				Source:       observer.SeriesDescriptor{Name: "memory"},
+				DetectorName: detectorName,
+				Score:        scorePtr(20),
+				LevelChange:  &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 106},
+				DebugInfo:    &observer.AnomalyDebugInfo{BaselineMedian: 100, CurrentValue: 106, PValue: 1e-20},
+			}
+			stable, err := newStablePipeline(&stableStubDetector{
+				name: detectorName, anomalies: []observer.Anomaly{original},
+			}, DefaultStablePipelineConfig())
+			require.NoError(t, err)
+			pipeline, err := newMetricPipeline([]pipelineRegistration{{
+				kind: observer.STABLE, metricType: metrics.GaugeType, detector: stable,
+			}}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+			require.NoError(t, err)
+			result := pipeline.Detect(nil, 1000, observer.DetectionFilter{})
+			require.Len(t, result.Anomalies, 1)
+			anomaly := result.Anomalies[0]
+			require.Equal(t, "stable_pipeline:"+detectorName, anomaly.DetectorName)
+			cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+			require.Equal(t, 1, anomalyLevel(anomaly, cfg))
+			require.Equal(t, levelWeights[1], contributorWeight(anomaly, cfg))
+			wantTitle, wantDescription := observer.FormatAnomaly(original)
+			title, description := observer.FormatAnomaly(anomaly)
+			require.NotEmpty(t, description)
+			require.Equal(t, wantTitle, title)
+			require.Equal(t, wantDescription, description)
+		})
+	}
+}
+
 func TestMetricPipelineRoutedDetection(t *testing.T) {
 	stableReg, stable := newPipelineStub(observer.STABLE, "stable")
 	linearReg, linear := newPipelineStub(observer.LINEAR, "linear")

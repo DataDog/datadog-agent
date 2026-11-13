@@ -278,6 +278,11 @@ type Anomaly struct {
 	LevelChange *LevelChangeEvidence `json:"-"`
 }
 
+func (a Anomaly) DetectorAlgorithm() string {
+	names := strings.Split(a.DetectorName, ":")
+	return names[len(names)-1]
+}
+
 // LevelChangeEvidence holds the two levels of a detected change, in source
 // series units. Scan detectors set both to the medians around their split.
 type LevelChangeEvidence struct {

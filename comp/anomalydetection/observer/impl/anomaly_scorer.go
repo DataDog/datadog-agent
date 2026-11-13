@@ -93,7 +93,7 @@ func anomalySeverityLabel(level int) string {
 // detectorConfidenceLevel assigns a 0–4 confidence level from the detector
 // score. Detectors without calibrated thresholds default to Medium.
 func detectorConfidenceLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
-	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
+	if thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
@@ -166,7 +166,7 @@ func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfi
 		return levelWeights[anomalyLevel(a, cfg)]
 	}
 
-	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
 	}
