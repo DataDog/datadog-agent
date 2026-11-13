@@ -381,7 +381,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
 		strippedIdentities:          newStrippedIdentityTable(),
 		checkOutputMerger:           newCheckOutputMerger(flushInterval),
-		tagFilterEnabled:            tagFilterEnabled(),
+		tagFilterEnabled:            tagFilterEnabled(pkgconfigsetup.Datadog()),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,

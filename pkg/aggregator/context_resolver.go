@@ -14,6 +14,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -118,8 +119,7 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 
 // tagFilterEnabled returns whether metric_tag_filterlist rules apply: when data_plane.enabled is true, or
 // metric_tag_filterlist_adp_only is false.
-func tagFilterEnabled() bool {
-	cfg := pkgconfigsetup.Datadog()
+func tagFilterEnabled(cfg model.Reader) bool {
 	return cfg.GetBool("data_plane.enabled") || !cfg.GetBool("metric_tag_filterlist_adp_only")
 }
 
@@ -138,7 +138,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
 		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
-		tagFilterEnabled: tagFilterEnabled(),
+		tagFilterEnabled: tagFilterEnabled(cfg),
 	}
 }
 
