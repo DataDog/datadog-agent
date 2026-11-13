@@ -20,68 +20,56 @@ import (
 )
 
 // kmtPlatform identifies a KMT platform by the properties observable from
-// inside its microVM: the /etc/os-release ID and VERSION_ID, plus the
-// major.minor of the kernel release (uname -r) when ID+VERSION_ID alone is
-// ambiguous (Amazon Linux 2 ships 4.14, 5.4 and 5.10 kernels; AL2023 ships
-// 6.1 and 6.12).
+// inside its microVM: the /etc/os-release ID and VERSION_ID, the
+// architecture (uname -m), plus the major.minor of the kernel release
+// (uname -r) when ID+VERSION_ID alone is ambiguous (Amazon Linux 2 ships
+// 4.14, 5.4 and 5.10 kernels; AL2023 ships 6.1 and 6.12).
 type kmtPlatform struct {
-	name        string // platform name in test/new-e2e/system-probe/config/platforms.json
-	osID        string // /etc/os-release ID
-	osVersionID string // /etc/os-release VERSION_ID
-	kernel      string // uname release major.minor; empty matches any
+	name            string // platform name in test/new-e2e/system-probe/config/platforms.json
+	osID            string // /etc/os-release ID
+	osVersionID     string // /etc/os-release VERSION_ID
+	arch            string // KMT architecture (x86_64 or arm64); empty matches all architectures
+	kernel          string // uname release major.minor; empty matches any
+	fentrySupported bool   // whether the fentry support check is expected to succeed
 }
 
 // kmtPlatforms enumerates the KMT platforms the system-probe test jobs run
 // on: the union of the TAG matrices of kmt_run_sysprobe_tests_x64 and
 // kmt_run_sysprobe_tests_arm64 in
-// .gitlab/test/kernel_matrix_testing/system_probe.yml. When a platform is
-// added to those matrices it must be added here as well, with its fentry
-// expectation recorded in fentrySupportedPlatforms.
+// .gitlab/test/kernel_matrix_testing/system_probe.yml, with the fentry
+// expectation established empirically for each. When a platform is added to
+// those matrices it must be added here as well: unrecognized platforms are
+// assumed fentry-supported, so the test fails on a new platform until its
+// row is added. When fentry support legitimately changes on a platform
+// (e.g. a kernel image refresh), update the corresponding row in the same
+// commit. Platforms whose support differs per architecture need one row per
+// architecture.
 var kmtPlatforms = []kmtPlatform{
 	{name: "ubuntu_16.04", osID: "ubuntu", osVersionID: "16.04"},
 	{name: "ubuntu_18.04", osID: "ubuntu", osVersionID: "18.04"},
 	{name: "ubuntu_20.04", osID: "ubuntu", osVersionID: "20.04"},
-	{name: "ubuntu_22.04", osID: "ubuntu", osVersionID: "22.04"},
+	{name: "ubuntu_22.04", osID: "ubuntu", osVersionID: "22.04", arch: "x86_64", fentrySupported: true},
+	{name: "ubuntu_22.04", osID: "ubuntu", osVersionID: "22.04", arch: "arm64"},
 	{name: "ubuntu_24.04", osID: "ubuntu", osVersionID: "24.04"},
-	{name: "ubuntu_25.10", osID: "ubuntu", osVersionID: "25.10"},
+	{name: "ubuntu_25.10", osID: "ubuntu", osVersionID: "25.10", fentrySupported: true},
 	{name: "ubuntu_26.04", osID: "ubuntu", osVersionID: "26.04"},
 	{name: "amazon_4.14", osID: "amzn", osVersionID: "2", kernel: "4.14"},
 	{name: "amazon_5.4", osID: "amzn", osVersionID: "2", kernel: "5.4"},
-	{name: "amazon_5.10", osID: "amzn", osVersionID: "2", kernel: "5.10"},
+	{name: "amazon_5.10", osID: "amzn", osVersionID: "2", arch: "x86_64", kernel: "5.10", fentrySupported: true},
+	{name: "amazon_5.10", osID: "amzn", osVersionID: "2", arch: "arm64", kernel: "5.10"},
 	{name: "amazon_2023", osID: "amzn", osVersionID: "2023", kernel: "6.1"},
-	{name: "amazon_6.12", osID: "amzn", osVersionID: "2023", kernel: "6.12"},
+	{name: "amazon_6.12", osID: "amzn", osVersionID: "2023", kernel: "6.12", fentrySupported: true},
 	{name: "fedora_37", osID: "fedora", osVersionID: "37"},
 	{name: "fedora_38", osID: "fedora", osVersionID: "38"},
 	{name: "debian_9", osID: "debian", osVersionID: "9"},
 	{name: "debian_10", osID: "debian", osVersionID: "10"},
-	{name: "debian_11", osID: "debian", osVersionID: "11"},
+	{name: "debian_11", osID: "debian", osVersionID: "11", arch: "x86_64", fentrySupported: true},
+	{name: "debian_11", osID: "debian", osVersionID: "11", arch: "arm64"},
 	{name: "debian_12", osID: "debian", osVersionID: "12"},
 	{name: "centos_7.9", osID: "centos", osVersionID: "7"},
 	{name: "centos_8", osID: "centos", osVersionID: "8"},
 	{name: "rocky_8.4", osID: "rocky", osVersionID: "8.4"},
 	{name: "rocky_9.4", osID: "rocky", osVersionID: "9.4"},
-}
-
-// fentrySupportedPlatforms records, per KMT architecture, the platforms on
-// which the fentry support check (supportsFentry, the same probe that gates
-// the fentry build mode and the CNM fentry tracer) is expected to succeed.
-// Every other platform in kmtPlatforms is expected to evaluate to
-// fentry-unsupported. The expectations were established empirically from the
-// ebpf-fentry-cycle-refactor pipeline results; when fentry support
-// legitimately changes on a platform (e.g. a kernel image refresh), update
-// the corresponding entry in the same commit.
-var fentrySupportedPlatforms = map[string]map[string]bool{
-	"x86_64": {
-		"amazon_5.10":  true,
-		"amazon_6.12":  true,
-		"debian_11":    true,
-		"ubuntu_22.04": true,
-		"ubuntu_25.10": true,
-	},
-	"arm64": {
-		"amazon_6.12":  true,
-		"ubuntu_25.10": true,
-	},
 }
 
 // kmtArch maps the uname machine name to the KMT architecture naming used in
@@ -126,33 +114,45 @@ func kernelMajorMinor(release string) string {
 	return parts[0] + "." + parts[1]
 }
 
-// currentKMTPlatform returns the name of the KMT platform the test is running
-// on, or false if the runtime environment does not match any known platform.
-func currentKMTPlatform(tb testing.TB) (string, bool) {
+// expectedFentrySupport returns the fentry expectation for the platform the
+// test is running on, along with its KMT platform name ("" when no row
+// matches). Platforms missing from kmtPlatforms are assumed fentry-supported,
+// so a new KMT platform fails the test until its row is added.
+func expectedFentrySupport(tb testing.TB) (bool, string) {
 	tb.Helper()
 	osID, osVersionID := osReleaseID(tb)
 	release, err := kernel.Release()
 	require.NoError(tb, err)
+	machine, err := kernel.Machine()
+	require.NoError(tb, err)
+	arch := kmtArch(machine)
 	majorMinor := kernelMajorMinor(release)
 
-	matched := ""
-	for _, p := range kmtPlatforms {
+	matched := -1
+	for i, p := range kmtPlatforms {
 		if p.osID != osID || p.osVersionID != osVersionID {
 			continue
 		}
 		if p.kernel != "" && p.kernel != majorMinor {
 			continue
 		}
-		if matched != "" {
-			require.FailNowf(tb, "ambiguous KMT platform match", "os-release ID=%q VERSION_ID=%q kernel=%q matches both %q and %q", osID, osVersionID, release, matched, p.name)
+		if p.arch != "" && p.arch != arch {
+			continue
 		}
-		matched = p.name
+		if matched >= 0 {
+			require.FailNowf(tb, "ambiguous KMT platform match", "os-release ID=%q VERSION_ID=%q kernel=%q arch=%q matches both %q and %q", osID, osVersionID, release, arch, kmtPlatforms[matched].name, p.name)
+		}
+		matched = i
 	}
-	return matched, matched != ""
+	if matched < 0 {
+		return true, ""
+	}
+	p := kmtPlatforms[matched]
+	return p.fentrySupported, p.name
 }
 
 // TestFentrySupportByKMTPlatform asserts the fentry support check against the
-// hard-coded per-platform expectation recorded in fentrySupportedPlatforms.
+// hard-coded per-platform expectation recorded in kmtPlatforms.
 // The check itself (supportsFentry -> features.SupportsFentry) stays a
 // generic "does fentry work on this kernel" probe; this test pins the
 // CNM-level expectation per KMT platform so that a support change on any
@@ -168,41 +168,30 @@ func TestFentrySupportByKMTPlatform(t *testing.T) {
 		t.Skip("fentry platform expectations only apply to KMT CI runs")
 	}
 
-	machine, err := kernel.Machine()
-	require.NoError(t, err)
-	arch := kmtArch(machine)
-
-	platform, ok := currentKMTPlatform(t)
-	if !ok {
-		osID, osVersionID := osReleaseID(t)
-		release, _ := kernel.Release()
-		t.Fatalf("unrecognized KMT platform: os-release ID=%q VERSION_ID=%q kernel=%q arch=%q; "+
-			"if this is a new KMT platform, add it to kmtPlatforms and record its fentry expectation in fentrySupportedPlatforms",
-			osID, osVersionID, release, arch)
+	expected, platform := expectedFentrySupport(t)
+	if platform == "" {
+		platform = "<unrecognized, assumed fentry-supported>"
 	}
-
-	expected := fentrySupportedPlatforms[arch][platform]
 	assert.Equalf(t, expected, supportsFentry(),
-		"fentry support on %s (%s) does not match the hard-coded expectation; "+
-			"if fentry support on this platform legitimately changed, update fentrySupportedPlatforms",
-		platform, arch)
+		"fentry support on %s does not match the hard-coded expectation; "+
+			"if fentry support on this platform legitimately changed, update its row in kmtPlatforms, "+
+			"or add a row if the platform is new",
+		platform)
 }
 
-// TestFentryPlatformExpectationsWellFormed validates the hard-coded tables
+// TestFentryPlatformExpectationsWellFormed validates the hard-coded table
 // without any runtime probing, so it can catch typos on any host.
 func TestFentryPlatformExpectationsWellFormed(t *testing.T) {
-	known := make(map[string]bool)
-	for _, p := range kmtPlatforms {
-		require.Falsef(t, known[p.name], "duplicate entry %q in kmtPlatforms", p.name)
-		known[p.name] = true
+	type rowKey struct {
+		osID, osVersionID, arch, kernel string
 	}
-	// keyed by architectures the KMT system-probe jobs run on
-	require.Contains(t, fentrySupportedPlatforms, "x86_64")
-	require.Contains(t, fentrySupportedPlatforms, "arm64")
-	require.Len(t, fentrySupportedPlatforms, 2)
-	for arch, platforms := range fentrySupportedPlatforms {
-		for name := range platforms {
-			assert.Truef(t, known[name], "fentrySupportedPlatforms[%q] references unknown platform %q", arch, name)
+	seen := make(map[rowKey]string)
+	for _, p := range kmtPlatforms {
+		assert.Containsf(t, []string{"", "x86_64", "arm64"}, p.arch, "platform %q has invalid arch %q", p.name, p.arch)
+		key := rowKey{p.osID, p.osVersionID, p.arch, p.kernel}
+		if prev, ok := seen[key]; ok {
+			require.Failf(t, "duplicate rows in kmtPlatforms", "rows %q and %q match the same platform", prev, p.name)
 		}
+		seen[key] = p.name
 	}
 }
