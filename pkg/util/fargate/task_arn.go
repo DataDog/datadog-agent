@@ -7,11 +7,16 @@ package fargate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
-	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +47,9 @@ type TaskARNTag struct {
 // NewTaskARNTag returns a TaskARNTag for the current environment. Outside of ECS Fargate, its Tags
 // method always returns nil.
 func NewTaskARNTag() *TaskARNTag {
-	return newTaskARNTag(GetOrchestrator() == ECS, getECSTaskARN, time.Now)
+	return newTaskARNTag(GetOrchestrator() == ECS, func(ctx context.Context) (string, error) {
+		return getECSTaskARN(ctx, metadataClient, os.Getenv(metadataURIv4EnvVar))
+	}, time.Now)
 }
 
 func newTaskARNTag(enabled bool, getTaskARN func(context.Context) (string, error), now func() time.Time) *TaskARNTag {
@@ -79,16 +86,44 @@ func (t *TaskARNTag) Tags() []string {
 	return t.tags
 }
 
-// getECSTaskARN uses the v2 metadata endpoint, which ECS Fargate always exposes and which
-// doesn't need the docker build tag.
-func getECSTaskARN(ctx context.Context) (string, error) {
-	client, err := ecsmeta.V2()
+const (
+	metadataURIv4EnvVar = "ECS_CONTAINER_METADATA_URI_V4"
+	metadataV2TaskURL   = "http://169.254.170.2/v2/metadata"
+	maxTaskMetadataSize = 1 << 20
+)
+
+// metadataClient never uses a proxy: the task metadata endpoint is link-local.
+var metadataClient = &http.Client{Transport: &http.Transport{Proxy: nil}}
+
+// getECSTaskARN reads the task ARN from the ECS task metadata endpoint: v4 when ECS provides its
+// URI, otherwise v2.
+//
+// It queries the endpoint directly instead of using pkg/util/ecs/metadata, whose clients are stubs
+// that return an empty task in builds without the docker build tag, such as system-probe.
+func getECSTaskARN(ctx context.Context, client *http.Client, metadataURIv4 string) (string, error) {
+	url := metadataV2TaskURL
+	if metadataURIv4 != "" {
+		url = strings.TrimSuffix(metadataURIv4, "/") + "/task"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
-	task, err := client.GetTask(ctx)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, url)
+	}
+
+	var task struct {
+		TaskARN string `json:"TaskARN"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxTaskMetadataSize)).Decode(&task); err != nil {
+		return "", fmt.Errorf("decoding task metadata from %s: %w", url, err)
 	}
 	return task.TaskARN, nil
 }
