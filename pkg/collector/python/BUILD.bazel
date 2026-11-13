@@ -185,6 +185,7 @@ dd_agent_go_test(
     name = "python_test",
     srcs = [
         "check_test.go",
+        "config_yaml_test.go",
         "containers_test.go",
         "datadog_agent_test.go",
         "discovery_test.go",
@@ -205,7 +206,10 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core/autodiscovery/integration",
         "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

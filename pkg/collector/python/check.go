@@ -18,7 +18,8 @@ import (
 	"time"
 	"unsafe"
 
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yamlv2 "go.yaml.in/yaml/v2" // the deprecated check constructor path serializes agent settings for PyYAML (YAML 1.1) in rtloader; the v2 emitter keeps YAML 1.1-ambiguous scalars (e.g. "yes", "0777") quoted, which the v4 emitter would write plain
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -343,7 +344,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := pkgconfigsetup.Datadog().AllSettings()
-		agentConfig, err := yaml.Marshal(allSettings)
+		agentConfig, err := yamlv2.Marshal(allSettings)
 		if err != nil {
 			log.Errorf("error serializing agent config: %s", err)
 			return err
