@@ -48,6 +48,10 @@ func buildClusterAgentImagePath() string {
 type fipsServerClusterAgentSuite struct {
 	fipsServerSuite[environments.DockerHost]
 	clusterAgentImage string
+	// appsRegistry is the registry provisioning used for apps-fips-server.
+	// Per-subtest compose calls must pass it as DD_APPS_REGISTRY or the fixture
+	// falls back to ghcr.io/datadog.
+	appsRegistry string
 }
 
 func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
@@ -90,6 +94,10 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 
 	// Get the cluster agent image from the running container to use during docker-compose operations
 	s.clusterAgentImage = strings.TrimSpace(host.MustExecute(`docker inspect --format='{{.Config.Image}}' cluster-agent`))
+	fipsImage := strings.TrimSpace(host.MustExecute(`docker inspect --format='{{.Config.Image}}' dd-fips-server`))
+	registry, ok := appsRegistryFromImage(fipsImage)
+	require.Truef(s.T(), ok, "dd-fips-server image %q has no /apps-fips-server segment to derive DD_APPS_REGISTRY", fipsImage)
+	s.appsRegistry = registry
 
 	// supply workers to base fipsServerSuite (same as other tests)
 	s.fipsServer = newFIPSServer(host, formattedComposeFiles)
@@ -100,10 +108,9 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 		// This triggers TLS connections using the cluster agent's Go-Boring implementation
 		// Note: We bypass the default entrypoint to avoid Kubernetes API dependencies
 
-		// Include CLUSTER_AGENT_IMAGE environment variable to avoid compose parsing errors
-		envVars := map[string]string{
-			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
-		}
+		// CLUSTER_AGENT_IMAGE has no default in the fixture. DD_APPS_REGISTRY keeps
+		// the fips-server image on the registry provisioning already pulled.
+		envVars := s.composeEnv(nil)
 		cmd := fmt.Sprintf(
 			`docker-compose -f %s exec cluster-agent sh -c "DD_DD_URL=https://dd-fips-server:443 timeout 30 /opt/datadog-agent/bin/datadog-cluster-agent diagnose --include connectivity-datadog-core-endpoints || true"`,
 			formattedComposeFiles,
@@ -112,37 +119,54 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	}
 }
 
-// Override base test methods to add CLUSTER_AGENT_IMAGE environment variable
+// appsRegistryFromImage returns the registry prefix of a pulled apps-fips-server image.
+// The fixture interpolates ${DD_APPS_REGISTRY}/apps-fips-server, so the prefix is everything
+// before that path segment.
+func appsRegistryFromImage(image string) (string, bool) {
+	const marker = "/apps-fips-server"
+	i := strings.LastIndex(image, marker)
+	if i <= 0 {
+		return "", false
+	}
+	return image[:i], true
+}
 
-// startFIPSServerWithClusterAgentImage is a helper that adds CLUSTER_AGENT_IMAGE when starting the server
+func (s *fipsServerClusterAgentSuite) composeEnv(extra map[string]string) map[string]string {
+	env := map[string]string{
+		"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
+		"DD_APPS_REGISTRY":    s.appsRegistry,
+	}
+	for k, v := range extra {
+		env[k] = v
+	}
+	return env
+}
+
+// startFIPSServerWithClusterAgentImage restarts the fips server and the cluster-agent container.
+// The compose command runs once under a host timeout so a hung pull or health wait returns
+// an error instead of outliving the test timer.
 func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc cipherTestCase) {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		// stop currently running server, if any, so we can reset logs+env
-		s.stopFIPSServerWithClusterAgentImage()
+	s.stopFIPSServerWithClusterAgentImage()
 
-		// start datadog/apps-fips-server with env vars including CLUSTER_AGENT_IMAGE
-		envVars := map[string]string{
-			"CERT":                tc.cert,
-			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
-		}
-		if tc.cipher != "" {
-			envVars["CIPHER"] = "-c " + tc.cipher
-		}
-		if tc.tlsMax != "" {
-			envVars["TLS_MAX"] = "--tls-max " + tc.tlsMax
-		}
-		if tc.tlsMin != "" {
-			envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
-		}
+	extra := map[string]string{"CERT": tc.cert}
+	if tc.cipher != "" {
+		extra["CIPHER"] = "-c " + tc.cipher
+	}
+	if tc.tlsMax != "" {
+		extra["TLS_MAX"] = "--tls-max " + tc.tlsMax
+	}
+	if tc.tlsMin != "" {
+		extra["TLS_MIN"] = "--tls-min " + tc.tlsMin
+	}
 
-		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.fipsServer.composeFiles))
-		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
-		if err != nil {
-			s.T().Logf("Error starting fips-server: %v", err)
-			require.NoError(c, err)
-		}
-		assert.Nil(c, err)
-	}, 120*time.Second, 10*time.Second, "docker-compose timed out starting server")
+	cmd := fmt.Sprintf(
+		"timeout 150 docker-compose -f %s up --detach --wait --wait-timeout 90 dd-fips-server cluster-agent",
+		strings.TrimSpace(s.fipsServer.composeFiles),
+	)
+	if _, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(s.composeEnv(extra))); err != nil {
+		s.T().Logf("Error starting fips-server: %v", err)
+		require.NoError(s.T(), err)
+	}
 
 	// Wait for container to start and ensure it's a fresh instance (reuse base logic)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -152,18 +176,20 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 	}, 60*time.Second, 5*time.Second)
 }
 
-// stopFIPSServerWithClusterAgentImage is a helper that adds CLUSTER_AGENT_IMAGE when stopping the server
+// stopFIPSServerWithClusterAgentImage removes only the fips-server container.
+// The fixture service is dd-fips-server, so compose down of "fips-server" never matches it.
+// docker rm -f leaves the shared compose network that agent and cluster-agent use.
 func (s *fipsServerClusterAgentSuite) stopFIPSServerWithClusterAgentImage() {
-	fipsContainer := s.fipsServer.dockerHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
-	if fipsContainer != "" {
-		envVars := map[string]string{"CLUSTER_AGENT_IMAGE": s.clusterAgentImage}
-		cmd := fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(s.fipsServer.composeFiles))
-		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
-		if err != nil {
-			// Fallback to direct docker commands (same as base implementation)
-			s.fipsServer.dockerHost.MustExecute("docker stop dd-fips-server || true")
-			s.fipsServer.dockerHost.MustExecute("docker rm dd-fips-server || true")
-		}
+	names, err := s.fipsServer.dockerHost.Execute(`docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'`)
+	if err != nil {
+		s.T().Logf("listing dd-fips-server: %v", err)
+		return
+	}
+	if strings.TrimSpace(names) == "" {
+		return
+	}
+	if _, err := s.fipsServer.dockerHost.Execute("docker rm -f dd-fips-server"); err != nil {
+		s.T().Logf("removing dd-fips-server: %v", err)
 	}
 }
 
