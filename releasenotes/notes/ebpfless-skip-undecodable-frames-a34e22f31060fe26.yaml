@@ -7,7 +7,9 @@ fixes:
     ``network_tracer__ebpfless__skipped_packets`` metric with
     ``reason:decode_error``, or ``reason:ipv6_big_tcp`` for IPv6 BIG TCP
     packets larger than 64KiB, which cannot be decoded. Errors reading the
-    packet socket are now retried with a backoff and counted in
-    ``network_tracer__ebpfless__packet_source_errors``, and packet capture
-    stops only when the socket is closed or the errors persist. Before, the
-    system-probe had to be restarted to resume connection tracking.
+    packet socket are now counted in
+    ``network_tracer__ebpfless__packet_source_errors`` and retried with a
+    backoff. Packet capture stops after 10 errors in a row with no packet
+    read in between, or at once if the socket can no longer be polled.
+    Before, the system-probe had to be restarted to resume connection
+    tracking.

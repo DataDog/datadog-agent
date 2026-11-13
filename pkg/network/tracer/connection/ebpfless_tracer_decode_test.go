@@ -8,10 +8,13 @@
 package connection
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -36,11 +39,13 @@ func (f *fakePacketInfo) LinkLayerType() gopacket.LayerType { return layers.Laye
 func (f *fakePacketInfo) OriginalLength() int               { return f.length }
 func (f *fakePacketInfo) CapturedLength() int               { return f.length }
 
-// fakeItem is either a packet to visit, or, when err is set, an error for VisitPackets to return
+// fakeItem is a packet to visit, or, when err is set, an error for VisitPackets to return,
+// or, when idle is set, a nil return with no packet read, like an idle poll timeout on Linux
 type fakeItem struct {
 	data    []byte
 	pktType uint8
 	err     error
+	idle    bool
 }
 
 // fakePacketSource is a filter.PacketSource that delivers the items written to it.
@@ -69,6 +74,9 @@ func (f *fakePacketSource) VisitPackets(visit func(data []byte, info filter.Pack
 		case item := <-f.items:
 			if item.err != nil {
 				return item.err
+			}
+			if item.idle {
+				return nil
 			}
 			info := &fakePacketInfo{pktType: item.pktType, length: len(item.data)}
 			if err := visit(item.data, info, time.Now()); err != nil {
@@ -264,9 +272,17 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	send(badDataOffset(), filter.PacketBroadcast)
 
 	// An IPv6 BIG TCP frame: payload length 0 and no Hop-by-Hop jumbo option.
-	bigTCP := buildTCPFrame(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), clientPort, serverPort, 1, 0, tcpFlags{ack: true}, payload)
-	bigTCP[ethHeaderLen+4], bigTCP[ethHeaderLen+5] = 0, 0
-	send(bigTCP, filter.PacketOutgoing)
+	bigTCP := func() []byte {
+		f := buildTCPFrame(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), clientPort, serverPort, 1, 0, tcpFlags{ack: true}, payload)
+		f[ethHeaderLen+4], f[ethHeaderLen+5] = 0, 0
+		return f
+	}
+	send(bigTCP(), filter.PacketOutgoing)
+
+	// The same bytes behind an IPv4 EtherType are a corrupted IPv4 frame, not BIG TCP.
+	notBigTCP := bigTCP()
+	binary.BigEndian.PutUint16(notBigTCP[12:14], uint16(layers.EthernetTypeIPv4))
+	send(notBigTCP, filter.PacketOutgoing)
 
 	// a valid handshake followed by a data segment, then another undecodable frame
 	sent += sendHandshake(t, src, clientIP, serverIP, clientPort, serverPort, payload)
@@ -276,7 +292,7 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	// for every packet, the counters and the connection state are final
 	src.waitVisited(t, sent)
 	after := skippedCounts()
-	assert.Equal(t, float64(3), after[skipReasonDecodeError]-before[skipReasonDecodeError], "undecodable frames were not counted as decode errors")
+	assert.Equal(t, float64(4), after[skipReasonDecodeError]-before[skipReasonDecodeError], "undecodable frames were not counted as decode errors")
 	assert.Equal(t, float64(1), after[skipReasonIPv6BigTCP]-before[skipReasonIPv6BigTCP], "IPv6 BIG TCP frame was not counted")
 	assert.Equal(t, float64(1), after["unsupported_packet_type"]-before["unsupported_packet_type"], "broadcast frame was not filtered by packet type")
 	// A reader that processed the skipped frames anyway would count them here,
@@ -288,7 +304,8 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 
 // TestEbpfLessTracerRetriesPacketSourceErrors checks that the reader retries after a
 // transient packet source error, resets its error count once packets are read again,
-// and stops after too many consecutive errors.
+// and stops at the limit of consecutive errors, even when read passes that read no
+// packet come between them.
 func TestEbpfLessTracerRetriesPacketSourceErrors(t *testing.T) {
 	const maxErrors = 3
 	src := newFakePacketSource(32)
@@ -312,39 +329,56 @@ func TestEbpfLessTracerRetriesPacketSourceErrors(t *testing.T) {
 		}
 	}
 
-	// as many errors as tolerated, then packets: the reader must survive and read them
-	injectErrors(maxErrors)
+	// one error fewer than the limit, then packets: the reader must survive and read them
+	injectErrors(maxErrors - 1)
 	src.waitVisited(t, sendHandshake(t, src, clientIP, serverIP, clientPort, serverPort, payload))
 	requireConnection(t, tr, clientIP, serverIP, clientPort, serverPort, len(payload))
 
 	// reading packets reset the count, so the same number of errors is tolerated again
-	injectErrors(maxErrors)
+	injectErrors(maxErrors - 1)
 	src.items <- fakeItem{data: buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, 1006, 5001, tcpFlags{ack: true}, payload), pktType: filter.PacketOutgoing}
 	src.waitVisited(t, 1)
 	requireConnection(t, tr, clientIP, serverIP, clientPort, serverPort, 2*len(payload))
 
-	// one error more than tolerated in a row stops the reader
-	injectErrors(maxErrors + 1)
+	// The limit of errors in a row stops the reader. A pass that ends without error but
+	// reads no packet, like an idle poll timeout, does not reset the count.
+	for i := 0; i < maxErrors; i++ {
+		if i > 0 {
+			src.items <- fakeItem{idle: true}
+		}
+		injectErrors(1)
+	}
 	select {
 	case <-readerDone:
 	case <-time.After(10 * time.Second):
 		t.Fatal("packet reader did not stop after too many consecutive errors")
 	}
-	assert.Equal(t, float64(3*maxErrors+1), ebpfLessTracerTelemetry.packetSourceErrors.WithValues().Get()-errorsBefore)
+	assert.Equal(t, float64(3*maxErrors-2), ebpfLessTracerTelemetry.packetSourceErrors.WithValues().Get()-errorsBefore)
 }
 
-// TestEbpfLessTracerStopsOnFatalPacketSourceError checks that the reader stops at once
-// when the packet source reports it can no longer be read.
-func TestEbpfLessTracerStopsOnFatalPacketSourceError(t *testing.T) {
+// requireReaderStopsOnError checks that the reader stops at once, without retrying,
+// when the packet source returns err.
+func requireReaderStopsOnError(t *testing.T, err error) {
+	t.Helper()
 	src := newFakePacketSource(4)
 	_, readerDone := startFakeTracer(t, src, func(tr *ebpfLessTracer) {
 		// long enough that a retry would not exit in time
 		tr.readErrorBackoff = time.Hour
 	})
-	src.items <- fakeItem{err: fmt.Errorf("read: %w", net.ErrClosed)}
+	src.items <- fakeItem{err: err}
 	select {
 	case <-readerDone:
 	case <-time.After(10 * time.Second):
-		t.Fatal("packet reader did not stop after a fatal packet source error")
+		t.Fatalf("packet reader did not stop after fatal packet source error %q", err)
+	}
+}
+
+// TestEbpfLessTracerStopsOnFatalPacketSourceError checks that the reader stops at once
+// when the packet source reports it can no longer be read.
+func TestEbpfLessTracerStopsOnFatalPacketSourceError(t *testing.T) {
+	for _, err := range []error{net.ErrClosed, os.ErrClosed, syscall.EBADF} {
+		t.Run(err.Error(), func(t *testing.T) {
+			requireReaderStopsOnError(t, fmt.Errorf("read: %w", err))
+		})
 	}
 }
