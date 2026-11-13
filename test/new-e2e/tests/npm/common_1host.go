@@ -76,7 +76,7 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 	// Dump info for test1HostFakeIntakeNPM600cnxBucket
 	for _, h := range hostnameNetID {
 		for _, cc := range cnx.GetPayloadsByName(h) {
-			t.Logf("hostname+networkID %v time %v connections %d", h, cc.GetCollectedTime(), len(cc.Connections))
+			t.Logf("hostname+networkID %v time %v connections %d group %d/%d", h, cc.GetCollectedTime(), len(cc.Connections), cc.GroupId, cc.GroupSize)
 		}
 	}
 }
@@ -122,60 +122,91 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 	}, 150*time.Second, time.Second, "not enough connections received")
 }
 
+// maxConnsPerMessage is the default system_probe_config.max_conns_per_message,
+// the most connections the agent puts in one CollectorConnections payload.
+const maxConnsPerMessage = 600
+
+// maxChunkSpread bounds how long the fakeintake may take to receive every
+// chunk of one connections collection. The agent sends the chunks one after
+// another, and each send waits for the previous chunk's response, so the spread
+// depends on the fakeintake round-trip. CI has measured 6ms to 2.5s. The bound
+// stays well under the 30s check interval, so all chunks must still arrive
+// together rather than in a later cycle.
+const maxChunkSpread = 5 * time.Second
+
 // test1HostFakeIntakeNPM600cnxBucket Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - no payload has more than 600 connections
+//   - one collection (one GroupId) was split into GroupSize >= 2 payloads, one of them holding exactly 600 connections
+//   - all the payloads of that collection arrived within maxChunkSpread of each other
+//
+// It searches every payload received since the test started, not only the latest ones: the burst is
+// flushed in a single collection and newer collections only carry background connections.
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
 	t.Log(time.Now())
 
-	targetHostnameNetID := ""
-	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
-		assert.NoError(c, err, "GetConnectionsNames() errors")
-		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
-			return
-		}
-		targetHostnameNetID = hostnameNetID[0]
-
-		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-	}, 60*time.Second, time.Second, "no connections received")
-
-	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 200ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
-		assert.NoError(c, err)
-
-		if !assert.GreaterOrEqualf(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+		if !assert.NoError(c, err, "GetConnections() errors") {
+			return
+		}
+		hostnameNetIDs := cnx.GetNames()
+		if !assert.NotEmpty(c, hostnameNetIDs, "no connections yet") {
 			return
 		}
 
 		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, _ string) {
-			assert.LessOrEqualf(c, len(cnx.Connections), 600, "too many payloads")
+			assert.LessOrEqualf(c, len(cnx.Connections), maxConnsPerMessage, "too many connections in one payload")
 		})
 
-		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
-		lastTwoPayloads := hostPayloads[len(hostPayloads)-2:]
+		// Check every host, because a fakeintake can receive payloads from more
+		// than one host and the burst host is not always the first name.
+		found := false
+		for _, hostnameNetID := range hostnameNetIDs {
+			groups := make(map[int32][]*aggregator.Connections)
+			var groupOrder []int32
+			for _, payload := range cnx.GetPayloadsByName(hostnameNetID) {
+				if _, seen := groups[payload.GroupId]; !seen {
+					groupOrder = append(groupOrder, payload.GroupId)
+				}
+				groups[payload.GroupId] = append(groups[payload.GroupId], payload)
+			}
 
-		totalConnections := 0
-		// the last two should have 600+ connections. The benchmark is set to send 1500 connections,
-		// so if the connections check happens to occur exactly at the same time as the benchmark,
-		// one side or the other will have 600+ connections.
-		for _, payload := range lastTwoPayloads {
-			totalConnections += len(payload.Connections)
+			for _, groupID := range groupOrder {
+				chunks := groups[groupID]
+				groupSize := int(chunks[0].GroupSize)
+				if groupSize < 2 || len(chunks) < groupSize {
+					// a single-payload collection, or chunks still in flight
+					continue
+				}
+
+				totalConnections := 0
+				fullChunk := false
+				first, last := chunks[0].GetCollectedTime(), chunks[0].GetCollectedTime()
+				for _, chunk := range chunks {
+					totalConnections += len(chunk.Connections)
+					fullChunk = fullChunk || len(chunk.Connections) == maxConnsPerMessage
+					if ct := chunk.GetCollectedTime(); ct.Before(first) {
+						first = ct
+					} else if ct.After(last) {
+						last = ct
+					}
+				}
+				spread := last.Sub(first)
+				t.Logf("hostname+networkID %v group %d: %d chunks, %d connections, spread %v",
+					hostnameNetID, groupID, len(chunks), totalConnections, spread)
+
+				assert.Equalf(c, groupSize, len(chunks), "group %d has more payloads than its GroupSize", groupID)
+				assert.Truef(c, fullChunk, "group %d has no chunk with %d connections", groupID, maxConnsPerMessage)
+				assert.Greaterf(c, totalConnections, maxConnsPerMessage, "group %d does not hold %d+ connections", groupID, maxConnsPerMessage)
+				assert.LessOrEqualf(c, spread, maxChunkSpread, "group %d chunks arrived %v apart", groupID, spread)
+				found = true
+			}
 		}
-		assert.GreaterOrEqualf(c, totalConnections, 600, "can't find enough connections 600+")
-		cnx600PayloadTime := lastTwoPayloads[0].GetCollectedTime()
-		latestPayloadTime := lastTwoPayloads[1].GetCollectedTime()
-
-		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
-		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
-
-		assert.Greater(c, 0.2, dt, "delta between collection is higher than 200ms")
-	}, 90*time.Second, time.Second, "not enough connections received")
+		assert.True(c, found, "no collection split into several payloads yet")
+	}, 90*time.Second, time.Second, "no 600+ connections collection split into chunks")
 }
 
 // test1HostFakeIntakeNPMResolvConf validates that connections include resolv.conf
