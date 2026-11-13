@@ -33,12 +33,14 @@ go_library(
         "//comp/updater/localapiclient/def",
         "//comp/updater/localapiclient/fx",
         "//comp/updater/telemetry/fx",
+        "//comp/updater/updater/def",
         "//comp/updater/updater/fx",
         "//pkg/config/remote/service",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_dig//:dig",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:aix": [
