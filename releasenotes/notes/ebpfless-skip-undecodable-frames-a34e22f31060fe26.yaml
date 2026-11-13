@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Cloud Network Monitoring no longer stops tracking connections in eBPF-less
+    mode, and on macOS, after it captures a packet it cannot decode. Such
+    packets are now skipped and counted in the
+    ``network_tracer__ebpfless__skipped_packets`` metric with
+    ``reason:decode_error``. Before, the system-probe had to be restarted to
+    resume connection tracking.

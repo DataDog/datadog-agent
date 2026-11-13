@@ -43,6 +43,9 @@ var (
 		telemetryimpl.GetCompatComponent().NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets"),
 		telemetryimpl.GetCompatComponent().NewCounter(ebpfLessTelemetryPrefix, "dropped_connections", nil, "Counter measuring dropped connections"),
 	}
+
+	// decodeErrorLimiter rate-limits the log emitted when a captured frame cannot be decoded
+	decodeErrorLimiter = log.NewLogLimit(10, 10*time.Minute)
 )
 
 type ebpfLessTracer struct {
@@ -77,12 +80,17 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
 
+	return newEbpfLessTracerWithPacketSource(cfg, packetSrc), nil
+}
+
+// newEbpfLessTracerWithPacketSource creates a new ebpfLessTracer instance that reads from packetSrc
+func newEbpfLessTracerWithPacketSource(cfg *config.Config, packetSrc filter.PacketSource) *ebpfLessTracer {
 	dnsServerPorts := make(map[uint16]struct{}, len(cfg.DNSMonitoringPortList))
 	for _, port := range cfg.DNSMonitoringPortList {
 		dnsServerPorts[uint16(port)] = struct{}{}
 	}
 
-	tr := &ebpfLessTracer{
+	return &ebpfLessTracer{
 		config:         cfg,
 		packetSrc:      packetSrc,
 		packetSrcBusy:  sync.WaitGroup{},
@@ -95,8 +103,6 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		dnsServerPorts: dnsServerPorts,
 		connPool:       syncutil.NewDefaultTypedPool[network.ConnectionStats](),
 	}
-
-	return tr, nil
 }
 
 // Start begins collecting network connection data.
@@ -135,7 +141,15 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 					parser = ethernetParser
 				}
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
-					return fmt.Errorf("error decoding packet layers: %w", err)
+					// A malformed or truncated frame must not stop packet capture,
+					// so skip it and keep visiting. Skip the whole frame even if some
+					// layers were decoded: the layer structs of the layer that failed
+					// (and of any layer after it) may hold data from an earlier packet.
+					ebpfLessTracerTelemetry.skippedPackets.Inc("decode_error")
+					if decodeErrorLimiter.ShouldLog() {
+						log.Warnf("skipping packet that could not be decoded: %s", err)
+					}
+					return nil
 				}
 
 				pktType := info.PacketType()
