@@ -178,9 +178,12 @@ including list indexes), and, for ENC declarations, `handle`. For example,
 `{"kind":"enc","path":"instances.0.password","handle":"db_password"}`.
 The filename and path together identify a location, including when two files
 configure the same integration. Values and hashes are never included in these entries.
-Raw references identify the field replaced by a scrubbing rule. When a rule
-replaces a list or mapping, the reference identifies that whole field (for example,
-`snmp_traps.community_strings`), rather than reconstructing its original leaves.
+Raw references identify changed leaves when mapping keys and list indexes can be
+matched before and after scrubbing (for example,
+`logs_config.additional_endpoints.0.api_key`). Repeated values at different paths
+have separate entries. When a container is collapsed or its children cannot be
+matched unambiguously, the reference identifies that whole field (for example,
+`snmp_traps.community_strings`).
 ENC references always retain their original indexed paths and handles, even inside
 a replaced container. Repeated handles retain one entry per location. These entries describe file
 contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
