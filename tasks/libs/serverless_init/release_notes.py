@@ -8,12 +8,12 @@ that changed serverless-init between two release tags.
 from __future__ import annotations
 
 import re
-import shlex
 from dataclasses import dataclass
 
 import yaml
 
 from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.utils import join_command
 
 # Paths that make up the serverless-init image. Changes elsewhere (shared libraries, dependencies)
 # can also ship in the image, so the output of the task still has to be reviewed.
@@ -91,19 +91,20 @@ def format_section(version: str | None, bullets: list[str]) -> str:
 
 
 def ref_exists(ctx, ref: str) -> bool:
-    return ctx.run(f'git rev-parse --verify --quiet {shlex.quote(ref + "^{commit}")}', hide=True, warn=True).ok
+    command = join_command(['git', 'rev-parse', '--verify', '--quiet', f'{ref}^{{commit}}'])
+    return ctx.run(command, hide=True, warn=True).ok
 
 
 def list_commits(ctx, prev: str, sha: str) -> list[Commit]:
     """Lists the commits between `prev` and `sha` that changed serverless-init, oldest first"""
-    res = ctx.run(
-        f'git log --no-merges --reverse --format=%H%x09%s {shlex.quote(prev)}..{shlex.quote(sha)}'
-        f' -- {" ".join(SERVERLESS_INIT_PATHS)}',
-        hide=True,
+    # `--pretty=oneline` prints `<full sha> <subject>`. A `--format` string would need `%`, which cmd.exe expands
+    command = join_command(
+        ['git', 'log', '--pretty=oneline', '--no-merges', '--reverse', f'{prev}..{sha}', '--', *SERVERLESS_INIT_PATHS]
     )
+    res = ctx.run(command, hide=True, encoding='utf-8')
     commits = []
     for line in res.stdout.splitlines():
-        commit_sha, _, subject = line.partition('\t')
+        commit_sha, _, subject = line.partition(' ')
         if commit_sha:
             commits.append(Commit(commit_sha, subject))
     return commits
@@ -111,16 +112,16 @@ def list_commits(ctx, prev: str, sha: str) -> list[Commit]:
 
 def added_notes(ctx, commit_sha: str) -> list[str]:
     """Lists the reno notes added by a commit"""
-    res = ctx.run(
-        f'git show --diff-filter=A --name-only --format= {shlex.quote(commit_sha)} -- {shlex.quote(RENO_NOTES_PATHSPEC)}',
-        hide=True,
+    command = join_command(
+        ['git', 'show', '--diff-filter=A', '--name-only', '--format=', commit_sha, '--', RENO_NOTES_PATHSPEC]
     )
+    res = ctx.run(command, hide=True, encoding='utf-8')
     return [line for line in res.stdout.splitlines() if line.strip()]
 
 
 def read_note(ctx, sha: str, path: str) -> object | None:
     """Reads a reno note as it is at `sha`, or returns None if it no longer exists there"""
-    res = ctx.run(f'git show {shlex.quote(sha)}:{shlex.quote(path)}', hide=True, warn=True)
+    res = ctx.run(join_command(['git', 'show', f'{sha}:{path}']), hide=True, warn=True, encoding='utf-8')
     if res.failed:
         return None
     return yaml.safe_load(res.stdout)

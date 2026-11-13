@@ -114,23 +114,52 @@ class TestGit(unittest.TestCase):
         self.assertFalse(ref_exists(_ctx(ok=False), 'nope'))
 
     def test_list_commits(self):
-        ctx = _ctx('aaa\tfix a (#1)\nbbb\tfeat: b\n\n')
-        self.assertEqual(list_commits(ctx, 'p', 's'), [Commit('aaa', 'fix a (#1)'), Commit('bbb', 'feat: b')])
-        command = ctx.run.call_args.args[0]
-        self.assertIn('--no-merges --reverse', command)
-        self.assertIn('p..s', command)
-        self.assertTrue(command.endswith('-- cmd/serverless-init pkg/serverless comp/metadata/serverlessinit'))
+        ctx = _ctx('aaa fix a (#1)\nbbb feat: b\n\n')
+        with patch('tasks.libs.common.utils.is_windows', return_value=False):
+            self.assertEqual(list_commits(ctx, 'p', 's'), [Commit('aaa', 'fix a (#1)'), Commit('bbb', 'feat: b')])
+        self.assertEqual(
+            ctx.run.call_args.args[0],
+            'git log --pretty=oneline --no-merges --reverse p..s -- cmd/serverless-init pkg/serverless comp/metadata/serverlessinit',
+        )
 
     def test_added_notes(self):
         ctx = _ctx('releasenotes/notes/a-0123456789abcdef.yaml\n\n')
-        self.assertEqual(added_notes(ctx, 'aaa'), ['releasenotes/notes/a-0123456789abcdef.yaml'])
-        self.assertIn('--diff-filter=A', ctx.run.call_args.args[0])
+        with patch('tasks.libs.common.utils.is_windows', return_value=False):
+            self.assertEqual(added_notes(ctx, 'aaa'), ['releasenotes/notes/a-0123456789abcdef.yaml'])
+        self.assertEqual(
+            ctx.run.call_args.args[0],
+            "git show --diff-filter=A --name-only --format= aaa -- 'releasenotes/notes/*.yaml'",
+        )
 
     def test_read_note(self):
         self.assertEqual(read_note(_ctx('fixes:\n  - |\n    Fix.\n'), 's', 'path'), {'fixes': ['Fix.\n']})
 
     def test_read_note_deleted(self):
         self.assertIsNone(read_note(_ctx(ok=False), 's', 'path'))
+
+    def test_commands_that_read_text_use_utf8(self):
+        for helper, args in ((list_commits, ('p', 's')), (added_notes, ('aaa',)), (read_note, ('s', 'path'))):
+            ctx = _ctx('')
+            helper(ctx, *args)
+            self.assertEqual(ctx.run.call_args.kwargs.get('encoding'), 'utf-8', helper.__name__)
+
+    def test_commands_on_windows_do_not_use_posix_quotes_or_percent(self):
+        commands = []
+        for helper, args in (
+            (ref_exists, ('p',)),
+            (list_commits, ('p', 's')),
+            (added_notes, ('aaa',)),
+            (read_note, ('s', 'path')),
+        ):
+            ctx = _ctx('')
+            with patch('tasks.libs.common.utils.is_windows', return_value=True):
+                helper(ctx, *args)
+            commands.append(ctx.run.call_args.args[0])
+        for command in commands:
+            self.assertNotIn("'", command)
+            self.assertNotIn('%', command)
+        # `^` is a cmd.exe metacharacter, so the argument carrying it must be double-quoted
+        self.assertIn('"p^{commit}"', commands[0])
 
 
 class TestReleaseNotes(unittest.TestCase):
