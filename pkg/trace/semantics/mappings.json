@@ -545,16 +545,6 @@
         }
       ]
     },
-    "peer.aws.region": {
-      "canonical": "peer.aws.region",
-      "fallbacks": [
-        {
-          "name": "aws.region",
-          "provider": "datadog",
-          "type": "string"
-        }
-      ]
-    },
     "peer.aws.s3.bucket": {
       "canonical": "peer.aws.s3.bucket",
       "fallbacks": [
