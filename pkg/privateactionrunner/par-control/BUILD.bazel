@@ -1,7 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/variables:variables.bzl", "compute_version_variables")
 
 _BUILD_VARIABLES = compute_version_variables()
@@ -113,30 +114,19 @@ rust_test(
     target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
-pkg_files(
-    name = "all_files_linux",
-    srcs = [":par-control"],
-    attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//packages:__subpackages__"],
-)
-
-pkg_files(
-    name = "all_files_windows",
-    srcs = [":par-control"],
-    prefix = "bin/agent",
-    target_compatible_with = ["@platforms//os:windows"],
-    visibility = ["//packages:__subpackages__"],
+agent_binary_for_package(
+    name = "par_control_binary",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = ":par-control",
+    target_compatible_with = _LINUX_OR_WINDOWS,
 )
 
 pkg_filegroup(
     name = "all_files",
-    srcs = select({
-        "@platforms//os:linux": [":all_files_linux"],
-        "@platforms//os:windows": [":all_files_windows"],
-        "//conditions:default": [],
-    }),
+    srcs = [":par_control_binary"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//packages:__subpackages__"],
 )
