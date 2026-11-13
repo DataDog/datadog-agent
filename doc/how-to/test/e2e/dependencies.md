@@ -53,6 +53,24 @@ Real examples to copy from:
 - `test/new-e2e/tests/installer/host/host.go` — the mirrored-with-upstream-fallback pair, for when you need both forms
 ///
 
+### Public image registries
+
+For Datadog images outside the AWS cache, use the official `registry.datadoghq.com`
+endpoint. It may redirect to Google Artifact Registry, so network policies must
+allow `us-docker.pkg.dev/datadog-prod/public-images` too. AWS deployments continue
+to use the internal `ecr-public/datadog` prefix.
+
+For Istio images, use the official `docker.io/istio` repository instead of
+`gcr.io/istio-release`, which is being retired.
+
+`mirror.gcr.io` remains Google's supported Docker Hub cache, backed by Artifact
+Registry. It is separate from the retired Container Registry service and remains
+a public dependency where used.
+
+References: [Datadog registries](https://docs.datadoghq.com/containers/guide/changing_container_registry/),
+[Istio migration](https://istio.io/latest/blog/2026/retirement-of-gcp/),
+[Google transition](https://cloud.google.com/artifact-registry/docs/transition/transition-from-gcr).
+
 ### The Agent's own image
 
 You do not have to do anything for the images the framework itself deploys — the Agent, the
@@ -63,7 +81,7 @@ When a test targets a pipeline they come from `agent-qa`; otherwise they come fr
 | Cloud | Resolves to | Leaves the account? |
 |---|---|---|
 | AWS | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog/…` | no, it is the pull-through cache |
-| GCP, Azure, local | `gcr.io/datadoghq/…` | yes — no cache exists there |
+| GCP, Azure, local | `registry.datadoghq.com/…` | yes — no cache exists there |
 
 Use that accessor rather than naming a registry, the same way you would use
 `InternalDockerhubMirror()` for a third-party image. Two exceptions are deliberate and
