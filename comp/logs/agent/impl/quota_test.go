@@ -7,6 +7,8 @@ package agentimpl
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
@@ -32,7 +35,7 @@ var validQuota = fmt.Sprintf(`{"quotas":[{"tags":["team:a"],"expires_at":%d}]}`,
 
 func newTestQuotaManager(t *testing.T, product string) *quotaManager {
 	hostname, _ := hostnamemock.NewMock("my-host")
-	return &quotaManager{log: logmock.New(t), cfg: configmock.New(t), hostname: hostname, enforcer: quota.NewEnforcer(), product: product, clock: clock.NewMock()}
+	return &quotaManager{log: logmock.New(t), cfg: configmock.New(t), hostname: hostname, enforcer: quota.NewEnforcer(), product: product, clock: clock.NewMock(), stopCh: make(chan struct{})}
 }
 
 func quotaConfig(tags string) map[string]state.RawConfig {
@@ -117,6 +120,29 @@ func TestQuotaHostTagsPolled(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond, "polling stops once no quota is active")
 }
 
+func TestQuotaStopEndsPolling(t *testing.T) {
+	m := newTestQuotaManager(t, state.ProductLogsQuota)
+	mock := m.clock.(*clock.Mock)
+	m.onRCUpdate(quotaConfig(`"team:a"`), noopApply)
+	require.NoError(t, m.stop(context.Background()))
+	require.NoError(t, m.stop(context.Background()))
+
+	m.cfg.(model.Config).SetInTest("tags", []string{"team:a"})
+	for range 5 {
+		mock.Add(hostTagsPollEvery)
+	}
+	assert.False(t, m.enforcer.Check(newLocalMsg()), "no refresh after stop")
+}
+
+func TestQuotaNoPollingAfterStop(t *testing.T) {
+	m := newTestQuotaManager(t, state.ProductLogsQuota)
+	require.NoError(t, m.stop(context.Background()))
+	m.onRCUpdate(quotaConfig(`"team:a"`), noopApply)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	assert.False(t, m.polling)
+}
+
 func TestQuotaConcurrentPollAndRCUpdate(t *testing.T) {
 	m := newTestQuotaManager(t, state.ProductLogsQuota)
 	mock := m.clock.(*clock.Mock)
@@ -136,6 +162,44 @@ func TestQuotaConcurrentPollAndRCUpdate(t *testing.T) {
 		require.Equal(t, []string{fmt.Sprintf("team:%d", i)}, tags)
 	}
 	wg.Wait()
+}
+
+type fakeHostname struct {
+	hostname.Component
+	get func(ctx context.Context) (string, error)
+}
+
+func (f fakeHostname) Get(ctx context.Context) (string, error) { return f.get(ctx) }
+
+func TestQuotaHostnameErrorKeepsLastHostname(t *testing.T) {
+	m := newTestQuotaManager(t, state.ProductLogsQuota)
+	var fail bool
+	m.hostname = fakeHostname{get: func(context.Context) (string, error) {
+		if fail {
+			return "", errors.New("metadata timeout")
+		}
+		return "my-host", nil
+	}}
+	m.refreshHostTags()
+	fail = true
+	m.refreshHostTags()
+
+	hostname, _ := m.enforcer.HostTags()
+	assert.Equal(t, "my-host", hostname)
+}
+
+func TestQuotaHostnameLookupBounded(t *testing.T) {
+	m := newTestQuotaManager(t, state.ProductLogsQuota)
+	m.hostname = fakeHostname{get: func(ctx context.Context) (string, error) {
+		_, ok := ctx.Deadline()
+		assert.True(t, ok, "hostname lookup has a deadline")
+		if assert.True(t, m.mu.TryLock(), "hostname lookup runs without m.mu held") {
+			m.mu.Unlock()
+		}
+		return "my-host", nil
+	}}
+	m.onRCUpdate(quotaConfig(`"team:a"`), noopApply)
+	assert.True(t, m.pollOnce())
 }
 
 func TestQuotaStatusShowsHostTags(t *testing.T) {

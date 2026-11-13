@@ -135,7 +135,20 @@ func NewEnforcer() *Enforcer {
 func (e *Enforcer) Update(configs map[string][]byte) map[string]error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	return e.update(configs)
+}
 
+// UpdateWithHostTags is Update and SetHostTags in a single rule set rebuild.
+func (e *Enforcer) UpdateWithHostTags(configs map[string][]byte, tags []string, hostname string) map[string]error {
+	norm := normalizeHostTags(tags)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.hostname, e.hostTags = hostname, norm
+	return e.update(configs)
+}
+
+// update replaces the configs and rebuilds the rule set. e.mu must be held.
+func (e *Enforcer) update(configs map[string][]byte) map[string]error {
 	e.configs = make(map[string]*configEntry, len(configs))
 	result := make(map[string]error, len(configs))
 	for path, raw := range configs {
@@ -179,15 +192,7 @@ func (e *Enforcer) Update(configs map[string][]byte) map[string]error {
 
 // SetHostTags sets the tags that logs from hostname, or with no hostname, match quotas on without carrying them.
 func (e *Enforcer) SetHostTags(tags []string, hostname string) {
-	norm := make([]string, 0, len(tags))
-	for _, t := range tags {
-		if t != "" {
-			norm = append(norm, asciiLower(t))
-		}
-	}
-	slices.Sort(norm)
-	norm = slices.Compact(norm)
-
+	norm := normalizeHostTags(tags)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if hostname == e.hostname && slices.Equal(norm, e.hostTags) {
@@ -197,6 +202,17 @@ func (e *Enforcer) SetHostTags(tags []string, hostname string) {
 	if rs := e.active.Load(); rs != nil {
 		e.active.Store(newRuleSet(rs.quotas, e.now(), hostname, norm))
 	}
+}
+
+func normalizeHostTags(tags []string) []string {
+	norm := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t = strings.TrimSpace(t); t != "" {
+			norm = append(norm, asciiLower(t))
+		}
+	}
+	slices.Sort(norm)
+	return slices.Compact(norm)
 }
 
 // HostTags returns the hostname and normalized tags last passed to SetHostTags.

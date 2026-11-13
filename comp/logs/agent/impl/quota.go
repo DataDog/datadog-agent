@@ -28,7 +28,10 @@ const (
 	quotaRCProductKey = "logs_config.quota_enforcement.rc_product"
 )
 
-const hostTagsPollEvery = time.Minute
+const (
+	hostTagsPollEvery = time.Minute
+	hostnameTimeout   = 5 * time.Second
+)
 
 type quotaManager struct {
 	log      log.Component
@@ -38,9 +41,14 @@ type quotaManager struct {
 	product  string
 	clock    clock.Clock
 
-	// mu serializes host tag refreshes with quota updates so an older sample never lands last.
+	// refreshMu serializes host tag refreshes so an older sample never lands last.
+	refreshMu    sync.Mutex
+	lastHostname string
+
 	mu      sync.Mutex
 	polling bool
+	stopped bool
+	stopCh  chan struct{}
 }
 
 func newQuotaManager(logger log.Component, cfg model.Reader, hostnameComp hostname.Component) *quotaManager {
@@ -51,28 +59,37 @@ func newQuotaManager(logger log.Component, cfg model.Reader, hostnameComp hostna
 		enforcer: quota.Default(),
 		product:  cfg.GetString(quotaRCProductKey),
 		clock:    clock.New(),
+		stopCh:   make(chan struct{}),
 	}
-	m.mu.Lock()
 	m.refreshHostTags()
-	m.mu.Unlock()
 	return m
 }
 
-// refreshHostTags passes the locally configured host tags to the enforcer. m.mu must be held.
 func (m *quotaManager) refreshHostTags() {
+	m.refreshMu.Lock()
+	defer m.refreshMu.Unlock()
+	m.enforcer.SetHostTags(m.sampleHostTags())
+}
+
+// sampleHostTags returns the locally configured host tags and hostname, keeping the last hostname if lookup fails.
+// m.refreshMu must be held.
+func (m *quotaManager) sampleHostTags() ([]string, string) {
 	tags := configUtils.GetConfiguredTags(m.cfg, false)
 	if env := m.cfg.GetString("env"); env != "" {
 		tags = append(tags, "env:"+env)
 	}
-	name, err := m.hostname.Get(context.Background())
-	if err != nil {
-		m.log.Debugf("Logs quota enforcement: no hostname, host tags apply only to logs without one: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), hostnameTimeout)
+	defer cancel()
+	if name, err := m.hostname.Get(ctx); err == nil {
+		m.lastHostname = name
+	} else {
+		m.log.Debugf("Logs quota enforcement: hostname lookup failed, keeping %q: %v", m.lastHostname, err)
 	}
-	m.enforcer.SetHostTags(tags, name)
+	return tags, m.lastHostname
 }
 
 func (m *quotaManager) startPolling() {
-	if m.polling || !m.enforcer.Active() {
+	if m.polling || m.stopped || !m.enforcer.Active() {
 		return
 	}
 	m.polling = true
@@ -82,21 +99,37 @@ func (m *quotaManager) startPolling() {
 func (m *quotaManager) poll() {
 	t := m.clock.Ticker(hostTagsPollEvery)
 	defer t.Stop()
-	for range t.C {
-		if !m.pollOnce() {
+	for {
+		select {
+		case <-m.stopCh:
 			return
+		case <-t.C:
+			if !m.pollOnce() {
+				return
+			}
 		}
 	}
+}
+
+func (m *quotaManager) stop(context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.stopped {
+		m.stopped = true
+		close(m.stopCh)
+	}
+	return nil
 }
 
 // pollOnce refreshes the host tags and reports whether quotas are still active.
 func (m *quotaManager) pollOnce() bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if !m.enforcer.Active() {
+	if m.stopped || !m.enforcer.Active() {
 		m.polling = false
+		m.mu.Unlock()
 		return false
 	}
+	m.mu.Unlock()
 	m.refreshHostTags()
 	return true
 }
@@ -118,11 +151,13 @@ func (m *quotaManager) onRCUpdate(updates map[string]state.RawConfig, applyState
 		}
 		configs[path] = u.Config
 	}
+	m.refreshMu.Lock()
+	tags, name := m.sampleHostTags()
 	m.mu.Lock()
-	m.refreshHostTags()
-	results := m.enforcer.Update(configs)
+	results := m.enforcer.UpdateWithHostTags(configs, tags, name)
 	m.startPolling()
 	m.mu.Unlock()
+	m.refreshMu.Unlock()
 
 	for path, err := range results {
 		if err != nil {

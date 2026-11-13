@@ -227,6 +227,28 @@ func TestSetHostTagsRebuildsOnlyOnChange(t *testing.T) {
 	assert.False(t, e.Check(withHostname(src.msg(nil, nil), "h")), "a hostname change moves which logs are local")
 }
 
+func TestSetHostTagsTrimsWhitespace(t *testing.T) {
+	e := NewEnforcer()
+	e.SetHostTags([]string{" env:prod", "team:a ", "  "}, "h")
+	_, tags := e.HostTags()
+	assert.Equal(t, []string{"env:prod", "team:a"}, tags)
+}
+
+func TestUpdateWithHostTags(t *testing.T) {
+	now := t0
+	e := newTestEnforcer(&now)
+	e.Update(map[string][]byte{"c": snap(t0.Add(time.Hour), []string{"team:a"})})
+	old := e.active.Load()
+
+	e.UpdateWithHostTags(map[string][]byte{"c": snap(t0.Add(time.Hour), []string{"team:b"})}, []string{"Team:B"}, "h")
+	rs := e.active.Load()
+	assert.NotSame(t, old, rs)
+	hostname, tags := e.HostTags()
+	assert.Equal(t, "h", hostname)
+	assert.Equal(t, []string{"team:b"}, tags)
+	assert.True(t, e.Check(newMsg()), "new quotas match on the host tags set with them")
+}
+
 func TestHostTagsSurviveUpdateAndExpiry(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
