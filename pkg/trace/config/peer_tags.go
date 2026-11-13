@@ -32,7 +32,6 @@ var peerTagConcepts = []semantics.Concept{
 	semantics.ConceptPeerAWSKinesisStream,
 	semantics.ConceptPeerAWSARN,
 	semantics.ConceptPeerAWSSQSQueueURL,
-	semantics.ConceptPeerAWSRegion,
 	semantics.ConceptPeerGCPProjectID,
 	semantics.ConceptPeerKafkaClusterID,
 	semantics.ConceptPeerGCPPubSubTopicName,

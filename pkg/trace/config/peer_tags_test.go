@@ -125,7 +125,6 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 			}
 			return out
 		}
-		assert.Equal(t, []string{"aws.region"}, names(semantics.ConceptPeerAWSRegion))
 		assert.Equal(t, []string{"gcloud.project_id"}, names(semantics.ConceptPeerGCPProjectID))
 		assert.Equal(t, []string{"messaging.kafka.cluster_id", "kafka.cluster_id", "messaging.kafka.cluster.id"}, names(semantics.ConceptPeerKafkaClusterID))
 		// The Lambda extension sets region and aws_account from the function's own ARN,
