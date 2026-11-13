@@ -11,7 +11,6 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
-const INITIAL_METRIC_GROUPS = 5;
 const MAX_METRIC_GROUPS = 50;
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum'] as const;
@@ -104,7 +103,6 @@ export function MetricsView({
   const [selectedMetricTypes, setSelectedMetricTypes] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const seriesDataCacheRef = useRef(new Map<string, SeriesData>());
-  const autoSelectedScenarioRef = useRef<string | null>(null);
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
@@ -397,7 +395,6 @@ export function MetricsView({
     setSelectedGroups(new Set());
     setGroupSeriesData(new Map());
     seriesDataCacheRef.current = new Map();
-    autoSelectedScenarioRef.current = null;
     setSelectionScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [
@@ -405,14 +402,6 @@ export function MetricsView({
     selectionScenario,
     onTimeRangeChange,
   ]);
-
-  useEffect(() => {
-    if (!state.activeScenario || selectionScenario !== state.activeScenario ||
-        state.connectionState !== 'ready' || topAnomalousGroupKeys.length === 0 ||
-        autoSelectedScenarioRef.current === state.activeScenario) return;
-    autoSelectedScenarioRef.current = state.activeScenario;
-    setSelectedGroups(new Set(topAnomalousGroupKeys.slice(0, INITIAL_METRIC_GROUPS)));
-  }, [state.activeScenario, state.connectionState, selectionScenario, topAnomalousGroupKeys]);
 
   const canShowMoreMetrics = topAnomalousGroupKeys.some((key) => !selectedGroups.has(key));
 
