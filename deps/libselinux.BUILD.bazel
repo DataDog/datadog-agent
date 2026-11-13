@@ -47,6 +47,7 @@ cc_library(
         ],
     ),
     hdrs = glob(["include/selinux/*.h"]),
+    copts = ["-O2"],
     includes = [
         "include",
     ],
