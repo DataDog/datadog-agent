@@ -27,6 +27,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
+        "//pkg/networkdevices/connectivity",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
         "@com_github_stretchr_testify//require",

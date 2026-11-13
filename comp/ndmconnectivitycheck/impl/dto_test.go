@@ -199,3 +199,83 @@ func TestToConnectivityResultKeepsATargetWithNoReading(t *testing.T) {
 	assert.Nil(t, res.Devices[0].PingResult)
 	assert.Nil(t, res.Devices[0].SNMPResult)
 }
+
+func groupedRequest() connectivity.Request {
+	return connectivity.Request{
+		Checks:      []string{connectivity.CheckSNMP},
+		SNMPOptions: &connectivity.SNMPOptions{Port: 161},
+		Credentials: []connectivity.SNMPCredential{
+			{ID: "cred-a", Version: "2c", Community: "a"},
+			{ID: "cred-b", Version: "2c", Community: "b"},
+			{ID: "cred-c", Version: "2c", Community: "c"},
+		},
+		TargetGroups: []connectivity.TargetGroup{
+			{CredentialIDs: []string{"cred-c", "cred-a"}, TargetIPs: []string{"10.0.0.2", "10.0.0.1"}},
+			{CredentialIDs: []string{"cred-b"}, TargetIPs: []string{"10.0.0.3"}},
+		},
+	}
+}
+
+func credentialIDs(opts probe.Options) []string {
+	if opts.SNMP == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(opts.SNMP.Credentials))
+	for _, c := range opts.SNMP.Credentials {
+		ids = append(ids, c.ID)
+	}
+	return ids
+}
+
+func TestToTargetPlansTriesEachTargetOnlyWithItsGroupsCredentials(t *testing.T) {
+	targets, plans, err := toTargetPlans(groupedRequest(), pingprobe.Capability{Available: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.2", "10.0.0.1", "10.0.0.3"}, targets, "in group order, then in each group's order")
+	require.Len(t, plans, 3)
+	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.1"]), "in the group's order")
+	assert.Equal(t, []string{"cred-c", "cred-a"}, credentialIDs(plans["10.0.0.2"]))
+	assert.Equal(t, []string{"cred-b"}, credentialIDs(plans["10.0.0.3"]))
+	assert.Equal(t, snmpprobe.Credential{ID: "cred-b", Version: "2c", Community: "b"}, plans["10.0.0.3"].SNMP.Credentials[0])
+}
+
+func TestToTargetPlansRejectsWhatTheEndpointAnswersWith400(t *testing.T) {
+	tests := map[string]func(*connectivity.Request){
+		"a target in two groups": func(r *connectivity.Request) {
+			r.TargetGroups[1].TargetIPs = append(r.TargetGroups[1].TargetIPs, "10.0.0.1")
+		},
+		"a target twice in one group": func(r *connectivity.Request) {
+			r.TargetGroups[1].TargetIPs = append(r.TargetGroups[1].TargetIPs, "10.0.0.3")
+		},
+		"an unknown credential id": func(r *connectivity.Request) {
+			r.TargetGroups[0].CredentialIDs = append(r.TargetGroups[0].CredentialIDs, "cred-z")
+		},
+		"a credential named twice in one group": func(r *connectivity.Request) {
+			r.TargetGroups[1].CredentialIDs = append(r.TargetGroups[1].CredentialIDs, "cred-b")
+		},
+		"a credential id that is not unique": func(r *connectivity.Request) {
+			r.Credentials = append(r.Credentials, connectivity.SNMPCredential{ID: "cred-a", Version: "2c", Community: "other"})
+		},
+		"an empty group list": func(r *connectivity.Request) {
+			r.TargetGroups = []connectivity.TargetGroup{}
+		},
+		"a group with no target": func(r *connectivity.Request) {
+			r.TargetGroups[1].TargetIPs = nil
+		},
+		"a group with no credential": func(r *connectivity.Request) {
+			r.TargetGroups[1].CredentialIDs = []string{}
+		},
+	}
+
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			req := groupedRequest()
+			mutate(&req)
+
+			_, _, err := toTargetPlans(req, pingprobe.Capability{Available: true})
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, connectivity.ErrInvalidRequest)
+		})
+	}
+}

@@ -7,6 +7,8 @@ package com_datadoghq_remoteaction_networkdevices
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -15,6 +17,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -110,4 +113,73 @@ func TestConnectivityCheckHandlerTimeout(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+type recordingIPCClient struct {
+	ipc.HTTPClient
+	body     []byte
+	response []byte
+}
+
+func (c *recordingIPCClient) Do(req *http.Request, _ ...ipc.RequestOption) ([]byte, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	c.body = body
+	return c.response, nil
+}
+
+func TestConnectivityCheckHandlerForwardsTargetGroups(t *testing.T) {
+	client := &recordingIPCClient{
+		HTTPClient: ipcmock.New(t).GetClient(),
+		response:   []byte(`{"devices":[{"ipAddress":"10.0.0.1"}]}`),
+	}
+	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
+
+	res, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
+		"checks": []string{"snmp"},
+		"targetGroups": []map[string]any{
+			{"credentialIDs": []string{"cred-1"}, "targetIPs": []string{"10.0.0.1"}},
+		},
+	}), nil)
+	require.NoError(t, err)
+
+	var sent connectivity.Request
+	require.NoError(t, json.Unmarshal(client.body, &sent))
+	require.Nil(t, sent.Targets, "targetIPs is optional when targetGroups is set")
+	require.Equal(t, []connectivity.TargetGroup{
+		{CredentialIDs: []string{"cred-1"}, TargetIPs: []string{"10.0.0.1"}},
+	}, sent.TargetGroups)
+	require.Equal(t, &connectivity.Result{Devices: []connectivity.DeviceResult{{IPAddress: "10.0.0.1"}}}, res)
+}
+
+func TestConnectivityCheckHandlerSendsNoTargetGroupsForALegacyRequest(t *testing.T) {
+	client := &recordingIPCClient{HTTPClient: ipcmock.New(t).GetClient(), response: []byte(`{"devices":[]}`)}
+	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
+
+	_, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
+		"targetIPs": []string{"10.0.0.1"},
+		"checks":    []string{"ping"},
+	}), nil)
+	require.NoError(t, err)
+
+	var sent map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(client.body, &sent))
+	require.JSONEq(t, "null", string(sent["targetGroups"]), "a nil list keeps the request ungrouped")
+}
+
+func TestConnectivityCheckHandlerKeepsAnEmptyTargetGroupListGrouped(t *testing.T) {
+	client := &recordingIPCClient{HTTPClient: ipcmock.New(t).GetClient(), response: []byte(`{"devices":[]}`)}
+	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
+
+	_, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
+		"checks":       []string{"ping"},
+		"targetGroups": []map[string]any{},
+	}), nil)
+	require.NoError(t, err)
+
+	var sent map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(client.body, &sent))
+	require.JSONEq(t, "[]", string(sent["targetGroups"]), "the Agent must reject it rather than try every credential")
 }

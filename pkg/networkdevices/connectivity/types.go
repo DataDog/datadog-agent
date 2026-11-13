@@ -82,6 +82,16 @@ type DeviceResult struct {
 	SNMPResult *SNMPResult `json:"snmpResult,omitempty"`
 }
 
+// TargetGroup is a set of targets tried only with the SNMP credentials whose id
+// is listed in CredentialIDs.
+type TargetGroup struct {
+	CredentialIDs []string `json:"credentialIDs"`
+	TargetIPs     []string `json:"targetIPs"`
+}
+
+// Request is one connectivity check. Exactly one of Targets and TargetGroups is
+// set (not nil): Targets tries every target with every credential, TargetGroups
+// tries each group's targets only with its own credentials.
 type Request struct {
 	Targets     []string         `json:"targets"`
 	Checks      []string         `json:"checks"`
@@ -89,6 +99,9 @@ type Request struct {
 	SNMPOptions *SNMPOptions     `json:"snmpOptions,omitempty"`
 	Workers     int              `json:"workers,omitempty"`
 	Credentials []SNMPCredential `json:"credentials,omitempty"`
+	// TargetGroups has no omitempty, like Targets, so that an empty list is
+	// still set and is rejected rather than read as unset.
+	TargetGroups []TargetGroup `json:"targetGroups"`
 }
 
 type Result struct {
