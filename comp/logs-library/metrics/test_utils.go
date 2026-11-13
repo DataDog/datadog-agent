@@ -20,3 +20,9 @@ func ResetDroppedLogsForTest() {
 	droppedLogs.reset()
 	logsAgentRunning.Store(false)
 }
+
+// ResetUntailedFilesForTest clears the untailed-files state and the logs-running flag.
+func ResetUntailedFilesForTest() {
+	untailedFiles.reset()
+	logsAgentRunning.Store(false)
+}

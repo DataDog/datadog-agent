@@ -9,10 +9,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
-// missedBytesIdentity resolves the tuple to report a rotation loss under. The
+// ReportingIdentity resolves the tuple a file's Agent Health reports name it by: a
+// rotation loss, or files left untailed by the open files limit. The
 // IntegrationName fallback keeps integration-only configs off the bare tuple;
 // configs setting none of the three collapse onto ("unknown", "unknown").
-func missedBytesIdentity(cfg *config.LogsConfig) (source string, service string) {
+func ReportingIdentity(cfg *config.LogsConfig) (source string, service string) {
 	const unknown = "unknown"
 	if cfg == nil {
 		return unknown, unknown
