@@ -846,6 +846,10 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	network.Cloud = m
 
 	destAddr := net.ParseIP("8.8.8.8")
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
@@ -857,8 +861,6 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	calls := 0
-	oldSubnetFunc := network.SubnetForHwAddrFunc
-	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		if hwAddr.String() == ifi.HardwareAddr.String() {
 			calls++
@@ -919,6 +921,10 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	m.EXPECT().IsAWS().Return(true)
 	network.Cloud = m
 
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
@@ -966,8 +972,6 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
-	oldSubnetFunc := network.SubnetForHwAddrFunc
-	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
