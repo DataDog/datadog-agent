@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
@@ -274,6 +275,14 @@ func TestCheckSkippedWithoutConfigOrTPU(t *testing.T) {
 			require.NoError(t, configure(c))
 			assert.Equal(t, endpoint, c.endpoint)
 		}
+	})
+	t.Run("kubernetes without kubelet host", func(t *testing.T) {
+		c := newTestCheck()
+		enableTPU(t, true)
+		env.SetFeatures(t, env.Kubernetes)
+		c.sysRoot = fakeTPUHost(t)
+		assert.ErrorIs(t, configure(c), check.ErrSkipCheckInstance)
+		assert.Nil(t, c.host, "the TPU VM services are not used on Kubernetes")
 	})
 	t.Run("no TPU", func(t *testing.T) {
 		c := newTestCheck()

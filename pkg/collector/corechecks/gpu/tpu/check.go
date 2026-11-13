@@ -28,6 +28,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -130,6 +131,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	case host != "":
 		c.endpoint = "http://" + net.JoinHostPort(host, devicePluginPort) + "/metrics"
 		log.Infof("Collecting TPU metrics from the GKE TPU device plugin at %s", c.endpoint)
+	case env.IsFeaturePresent(env.Kubernetes):
+		// The TPU VM services are not reachable from a pod, and would lose pod attribution.
+		log.Warn("Not collecting TPU metrics: set kubernetes_kubelet_host to the node IP to read the GKE TPU device plugin")
+		return fmt.Errorf("%w: kubernetes_kubelet_host is not set", check.ErrSkipCheckInstance)
 	default:
 		hs, err := newHostSource(instanceIDURL, vbarAddress, runtimeAddress)
 		if err != nil {
