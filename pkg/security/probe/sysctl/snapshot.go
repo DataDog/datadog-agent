@@ -173,7 +173,16 @@ func WalkProcSys(ignoredBaseNames []string, fn func(name, value string)) error {
 func walkSystemControls(root string, ignoredBaseNames []string, fn func(name, value string)) error {
 	return filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			if file == root {
+				return err
+			}
+			// Skip what can't be read, such as fs/binfmt_misc when it is an
+			// automount point that can't be triggered from a container (ELOOP),
+			// rather than giving up on the remaining parameters.
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 
 		if d.IsDir() {
