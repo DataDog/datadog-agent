@@ -424,7 +424,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 			// cancellation. Surface the cancellation as a retryable error so shutdown
 			// keeps the transaction for retry/persistence, preferring at-least-once
 			// delivery over silent loss.
-			return 0, nil, fmt.Errorf("request canceled while sending transaction to %q, rescheduling it: %w", logURL, ctx.Err())
+			return 0, nil, fmt.Errorf("request canceled while sending transaction to %q: %w", logURL, ctx.Err())
 		}
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
