@@ -61,7 +61,7 @@ func TestLoadCustomSchemaEnforcement(t *testing.T) {
 			config.SetConfigFile(configPath)
 
 			// schema.enforce is read once the file is loaded, so it can come from the file itself
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config, false))
 			assert.Equal(t, tc.hostname, config.GetString("hostname"))
 		})
 	}
@@ -79,7 +79,7 @@ func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
 			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
 			config.SetConfigFile(configPath)
 
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf, false))
 			if enforce {
 				assert.Equal(t, "", config.GetString("hostname"))
 			} else {
@@ -642,7 +642,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -759,7 +759,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1533,7 +1533,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1581,7 +1581,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1623,7 +1623,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1676,7 +1676,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1723,7 +1723,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1872,7 +1872,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{}, false)
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

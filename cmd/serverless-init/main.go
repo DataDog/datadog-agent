@@ -284,7 +284,7 @@ func loadEarlyConfig() {
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
 	// view. The later loads resolve them for the config,
 	// but the already-snapshotted metricTags keep the raw values.
-	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}, false); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
 
@@ -527,7 +527,7 @@ func setup(
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, &schemanoopimpl.SchemaNoop{})
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, &schemanoopimpl.SchemaNoop{}, false)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
