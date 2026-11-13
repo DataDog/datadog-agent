@@ -22,7 +22,7 @@ new-e2e-orchestrator-ecs:
   variables:
     EXTRA_PARAMS: --run TestECSSuite
     TARGETS: ./tests/orchestrator
-    TEAM: kubernetes-experiences
+    TEAM: ecs-experiences
     ON_NIGHTLY_FIPS: "true"
   timeout: 55m
 
