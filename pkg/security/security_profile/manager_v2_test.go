@@ -2457,4 +2457,3 @@ func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 		assert.Same(t, other, m.cooldownExpiryHeap[0].node)
 	})
 }
-
