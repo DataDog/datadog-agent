@@ -590,12 +590,24 @@ func (s *TracerSuite) TestConntrackDelays() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
+	// The connection is idle after the write above, so it is reported in only one
+	// getConnections call. The conntrack entry can land after that call (the netlink
+	// conntracker, used on kernels < 4.14, registers it asynchronously), so keep the
+	// tuple from the fetch that reported it and keep looking up its translation.
+	var tuple *network.ConnectionTuple
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, ok)
-		require.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple))
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections); ok {
+			tup := conn.ConnectionTuple
+			tuple = &tup
+		}
+		var tl *network.IPTranslation
+		if tuple != nil {
+			tl = tr.conntracker.GetTranslationForConn(tuple)
+		}
+		require.NotNil(collect, tuple, "connection not found")
+		require.NotNil(collect, tl, "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
