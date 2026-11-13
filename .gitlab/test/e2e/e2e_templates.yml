@@ -4,6 +4,8 @@
 
 .new_e2e_template:
   extends: .bazel:defs:cache:progressive
+  # Let CI Visibility decide whether to retry test failures.
+  retry: !reference [.retry_only_infra_failure, retry]
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
