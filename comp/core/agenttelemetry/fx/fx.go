@@ -31,6 +31,17 @@ func Module() fxutil.Module {
 	)
 }
 
+// EventsOnlyModule defines the fx options for the events-only component, for short-lived commands
+// that only send events, such as `agent integration install`. See
+// agenttelemetryimpl.NewEventsOnlyComponent.
+func EventsOnlyModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			agenttelemetryimpl.NewEventsOnlyComponent,
+		),
+	)
+}
+
 // installErrortrackingHandler is a no-op when errortracking is disabled.
 // Registers synchronously (not via OnStart) so construction-time errors
 // (e.g. npcollector's) logged before app.Start() aren't dropped.

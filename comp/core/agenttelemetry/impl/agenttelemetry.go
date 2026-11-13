@@ -192,10 +192,6 @@ func createAtel(
 
 	installertelemetry.SetSamplingRate("agent.startup", atelCfg.StartupTraceSampling)
 
-	tracerHTTPClient := &http.Client{
-		Transport: httputils.CreateHTTPTransport(cfgComp),
-	}
-
 	// Only allocate the errortracking channel (and later spawn the flush
 	// goroutine in start) when the errortracking feature is enabled.
 	// Otherwise leave errLogsCh nil; SubmitErrorLog is then a no-op
@@ -249,13 +245,6 @@ func createAtel(
 		runner:  runner,
 		atelCfg: atelCfg,
 
-		lightTracer: installertelemetry.NewTelemetry(
-			tracerHTTPClient,
-			utils.SanitizeAPIKey(cfgComp.GetString("api_key")),
-			cfgComp.GetString("site"),
-			"datadog-agent",
-		),
-
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
 
@@ -280,6 +269,72 @@ func getNonNegativeErrortrackingInt(cfgComp config.Component, logComp log.Compon
 	return defaultValue
 }
 
+// newLightTracer creates the client that sends the Agent startup trace.
+func newLightTracer(cfgComp config.Component) *installertelemetry.Telemetry {
+	tracerHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfgComp),
+	}
+	return installertelemetry.NewTelemetry(
+		tracerHTTPClient,
+		utils.SanitizeAPIKey(cfgComp.GetString("api_key")),
+		cfgComp.GetString("site"),
+		"datadog-agent",
+	)
+}
+
+// createEventsOnlyAtel creates an agent telemetry instance that only sends events through SendEvent.
+// It never traces the Agent startup, runs the metric profiles, or collects error logs.
+func createEventsOnlyAtel(
+	cfgComp config.Component,
+	logComp log.Component,
+	telComp telemetry.Component,
+	sender sender,
+	runner runner) *atel {
+	a := createAtel(cfgComp, logComp, telComp, sender, runner)
+	a.errortrackingEnabled = false
+	a.errLogsCh = nil
+	return a
+}
+
+// startEventsOnly is called by FX when a command using the events-only component starts.
+// SendEvent needs the context it creates; nothing else is started.
+func (a *atel) startEventsOnly() {
+	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
+}
+
+// stopEventsOnly is called by FX when a command using the events-only component stops.
+func (a *atel) stopEventsOnly() {
+	a.cancel()
+}
+
+// EventsOnlyProvides defines the output of the events-only agenttelemetry component
+type EventsOnlyProvides struct {
+	compdef.Out
+
+	Comp agenttelemetry.Component
+}
+
+// NewEventsOnlyComponent creates an agent telemetry component for short-lived commands, such as
+// `agent integration install`, that only need to send events. Unlike NewComponent, it doesn't
+// trace the Agent startup, run the metric profiles, or collect error logs, none of which describe
+// a CLI process.
+func NewEventsOnlyComponent(deps Requires) EventsOnlyProvides {
+	a := createEventsOnlyAtel(deps.Config, deps.Log, deps.Telemetry, nil, nil)
+	if a.enabled {
+		deps.Lc.Append(compdef.Hook{
+			OnStart: func(_ context.Context) error {
+				a.startEventsOnly()
+				return nil
+			},
+			OnStop: func(_ context.Context) error {
+				a.stopEventsOnly()
+				return nil
+			},
+		})
+	}
+	return EventsOnlyProvides{Comp: a}
+}
+
 // NewComponent creates a new agent telemetry component.
 func NewComponent(deps Requires) Provides {
 	a := createAtel(
@@ -289,6 +344,9 @@ func NewComponent(deps Requires) Provides {
 		nil,
 		nil,
 	)
+	if a.enabled {
+		a.lightTracer = newLightTracer(deps.Config)
+	}
 	localEmitter := strings.ReplaceAll(flavor.GetFlavor(), "_", "-")
 	if localEmitter == "" {
 		localEmitter = defaultEmitter
