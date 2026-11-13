@@ -51,6 +51,52 @@ func TestMatchContainerDevices(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
+	t.Run("ContainerWithTimeSlicedGPU", func(t *testing.T) {
+		// A time-sliced replica allocation carries the replica suffix on its
+		// device ID; the container sees the whole base GPU.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-timesliced",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[1] + "::2",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("ContainerWithRenamedSharedResource", func(t *testing.T) {
+		// A shared GPU may be exposed under a renamed resource
+		// (renameByDefault: nvidia.com/gpu.shared); the device ID keeps its
+		// NVIDIA shape, so the allocation is still recognized.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-renamed",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: "nvidia.com/gpu.shared",
+					ID:   testutil.GPUUUIDs[1] + "::0",
+				},
+			},
+		}
+
+		require.True(t, HasGPUs(container))
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
 	t.Run("ContainerWithNvidiaDRAGPU", func(t *testing.T) {
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{

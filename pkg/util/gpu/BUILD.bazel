@@ -5,6 +5,7 @@ go_library(
     name = "gpu",
     srcs = [
         "common.go",
+        "device_id.go",
         "doc.go",
         "nvml.go",
         "pcie.go",
@@ -26,6 +27,7 @@ dd_agent_go_test(
     name = "gpu_test",
     srcs = [
         "common_test.go",
+        "device_id_test.go",
         "nvml_test.go",
         "pcie_test.go",
     ],
