@@ -41,7 +41,7 @@ func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Compon
 	}
 
 	if extendedSet {
-		handlers = append(handlers, NewPodCreationHandler(), NewContainerCreationHandler(store), NewPodStateHandler())
+		handlers = append(handlers, NewPodCreationHandler(), NewContainerCreationHandler(store), NewPodStateHandler(), NewContainerStateHandler())
 	}
 
 	return &processor{

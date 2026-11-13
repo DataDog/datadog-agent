@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 )
 
 // ownerStore is a configurable stub for container owner lookups. A container
@@ -807,5 +808,273 @@ func TestPodStateHandlerHandle(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, les, 1)
 		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, les[0].ProtoEvent.GetPod().GetTransition().GetMissedIntermediate())
+	})
+}
+
+// TestContainerStateHandlerCanHandle tests the CanHandle method for the ContainerStateHandler.
+func TestContainerStateHandlerCanHandle(t *testing.T) {
+	h := NewContainerStateHandler()
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
+	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
+
+	tests := []struct {
+		subdomain string
+		ev        workloadmeta.Event
+		want      bool
+	}{
+		{"event type set + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, true},
+		{"event type unset + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod}, true},
+		{"event type set + entity kind non-pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: cont}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subdomain, func(t *testing.T) {
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev, workloadmeta.SourceAll))
+		})
+	}
+}
+
+// TestContainerStateHandlerHandle tests the Handle method for the ContainerStateHandler.
+func TestContainerStateHandlerHandle(t *testing.T) {
+	podEvent := func(id string, mutate func(*workloadmeta.KubernetesPod)) workloadmeta.Event {
+		pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: id, Kind: workloadmeta.KindKubernetesPod}}
+		if mutate != nil {
+			mutate(pod)
+		}
+		return workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}
+	}
+
+	status := func(name, containerID string, state workloadmeta.KubernetesContainerState) workloadmeta.KubernetesContainerStatus {
+		return workloadmeta.KubernetesContainerStatus{Name: name, ContainerID: containerID, State: state}
+	}
+
+	container := func(t *testing.T, les []LifecycleEvent, index int) *model.ContainerEvent {
+		t.Helper()
+		require.Len(t, les, index+1)
+		require.Equal(t, types.ObjectKindContainer, les[index].ObjectKind)
+		assert.Equal(t, model.Event_Transition, les[index].ProtoEvent.GetEventType())
+		return les[index].ProtoEvent.GetContainer()
+	}
+
+	t.Run("entity type wrong", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{ID: "ben-bitdiddle"}},
+		}
+		_, err := h.Handle(ev)
+		assert.Error(t, err)
+	})
+
+	t.Run("container with no state emits nothing", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		les, err := h.Handle(podEvent("alyssa-hacker", func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{status("app", "docker://ben", workloadmeta.KubernetesContainerState{})}
+		}))
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("first observation of a running container reports an exact start", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		now := time.Now()
+		les, err := h.Handle(podEvent("lem-tweakit", func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: now}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		assert.Equal(t, "docker://ben", ctr.GetContainerID())
+		transition := ctr.GetTransition()
+		assert.Equal(t, model.ContainerKind_CONTAINER_KIND_REGULAR, transition.GetContainerKind())
+		assert.Nil(t, transition.GetLastObservedState())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING, transition.GetNewState().GetKind())
+		assert.Equal(t, now.Unix(), transition.GetTransitionTimestamp())
+		assert.Equal(t, model.Precision_PRECISION_EXACT, transition.GetPrecision())
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
+	})
+
+	t.Run("waiting without a container ID is approximate, then links to running within one run", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		podID := "louis-reasoner"
+		before := time.Now()
+
+		les, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "", workloadmeta.KubernetesContainerState{Waiting: &workloadmeta.KubernetesContainerStateWaiting{Reason: "ContainerCreating"}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		assert.Empty(t, ctr.GetContainerID())
+		transition := ctr.GetTransition()
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetNewState().GetKind())
+		assert.Equal(t, "ContainerCreating", transition.GetNewState().GetReason())
+		assert.Equal(t, model.Precision_PRECISION_APPROXIMATE, transition.GetPrecision())
+		assert.GreaterOrEqual(t, transition.GetTransitionTimestamp(), before.Unix())
+
+		startedAt := time.Now()
+		les, err = h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: startedAt}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr = container(t, les, 0)
+		transition = ctr.GetTransition()
+		assert.Equal(t, "docker://ben", ctr.GetContainerID())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetLastObservedState().GetKind())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING, transition.GetNewState().GetKind())
+		assert.Equal(t, startedAt.Unix(), transition.GetTransitionTimestamp())
+		assert.Equal(t, model.Precision_PRECISION_EXACT, transition.GetPrecision())
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
+	})
+
+	t.Run("waiting to terminated proves the missed running state and carries the exit details", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		podID := "eva-lu-ator"
+		finishedAt := time.Now()
+
+		_, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "", workloadmeta.KubernetesContainerState{Waiting: &workloadmeta.KubernetesContainerStateWaiting{Reason: "ContainerCreating"}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		les, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Terminated: &workloadmeta.KubernetesContainerStateTerminated{ExitCode: 1, Reason: "Error", FinishedAt: finishedAt}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		transition := ctr.GetTransition()
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetLastObservedState().GetKind())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_TERMINATED, transition.GetNewState().GetKind())
+		assert.Equal(t, "Error", transition.GetNewState().GetReason())
+		assert.Equal(t, int32(1), transition.GetNewState().GetExitCode())
+		assert.Equal(t, finishedAt.Unix(), transition.GetTransitionTimestamp())
+		assert.Equal(t, model.Precision_PRECISION_EXACT, transition.GetPrecision())
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN, transition.GetMissedIntermediate())
+	})
+
+	t.Run("unchanged state emits nothing", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		ev := podEvent("ben-bitdiddle", func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()}}),
+			}
+		})
+		_, err := h.Handle(ev)
+		require.NoError(t, err)
+
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
+
+	t.Run("a restart is a fresh first observation", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		podID := "alyssa-hacker"
+
+		_, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://run-1", workloadmeta.KubernetesContainerState{Terminated: &workloadmeta.KubernetesContainerStateTerminated{ExitCode: 0, Reason: "Completed", FinishedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		les, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "", workloadmeta.KubernetesContainerState{Waiting: &workloadmeta.KubernetesContainerStateWaiting{Reason: "CrashLoopBackOff"}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		assert.Nil(t, ctr.GetTransition().GetLastObservedState())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, ctr.GetTransition().GetNewState().GetKind())
+
+		les, err = h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://run-2", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr = container(t, les, 0)
+		transition := ctr.GetTransition()
+		assert.Equal(t, "CrashLoopBackOff", transition.GetLastObservedState().GetReason())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING, transition.GetNewState().GetKind())
+	})
+
+	t.Run("init and ephemeral statuses map to their container kinds", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		les, err := h.Handle(podEvent("lem-tweakit", func(p *workloadmeta.KubernetesPod) {
+			p.InitContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("init", "docker://init-ctr", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()}}),
+			}
+			p.EphemeralContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("debug", "docker://ephemeral-ctr", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		kinds := []model.ContainerKind{
+			container(t, les, 0).GetTransition().GetContainerKind(),
+			container(t, les, 1).GetTransition().GetContainerKind(),
+		}
+		assert.Equal(t, model.ContainerKind_CONTAINER_KIND_INIT, kinds[0])
+		assert.Equal(t, model.ContainerKind_CONTAINER_KIND_EPHEMERAL, kinds[1])
+	})
+
+	t.Run("unset clears shadow state, so a reappearing pod is treated as a first observation", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		podID := "eva-lu-ator"
+
+		_, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Running: &workloadmeta.KubernetesContainerStateRunning{StartedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		les, err := h.Handle(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: podID, Kind: workloadmeta.KindKubernetesPod}},
+		})
+		require.NoError(t, err)
+		assert.Nil(t, les)
+
+		les, err = h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Terminated: &workloadmeta.KubernetesContainerStateTerminated{ExitCode: 1, Reason: "Error", FinishedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		assert.Nil(t, ctr.GetTransition().GetLastObservedState())
+	})
+
+	t.Run("terminated with a zero finished-at falls back to an approximate transition", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		before := time.Now()
+
+		les, err := h.Handle(podEvent("cy-d-effect", func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Terminated: &workloadmeta.KubernetesContainerStateTerminated{ExitCode: 1, Reason: "Error"}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		transition := container(t, les, 0).GetTransition()
+		assert.Equal(t, model.Precision_PRECISION_APPROXIMATE, transition.GetPrecision())
+		assert.GreaterOrEqual(t, transition.GetTransitionTimestamp(), before.Unix())
 	})
 }
