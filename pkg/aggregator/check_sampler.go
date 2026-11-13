@@ -91,13 +91,13 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
+		// The observer sees each source with its full tags, even when its output is filtered.
 		context, _ := cs.contextResolver.get(contextKey)
-		observedKey, observedTags := cs.observedIdentity(contextKey, context)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
 			host:   context.Host,
-			tags:   observedTags,
-		}, uint64(observedKey))
+			tags:   context.Tags(),
+		}, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.insertSketch(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -122,14 +122,6 @@ func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoi
 	}
 
 	return ss
-}
-
-// observedIdentity returns the key and tags the observer sees a sample with: those its metric is sent with.
-func (cs *CheckSampler) observedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.ContextKey, tagset.CompositeTags) {
-	if stripped, ok := cs.contextResolver.resolver.strippedOf(ctx); ok {
-		return stripped.key, stripped.Tags()
-	}
-	return ck, ctx.Tags()
 }
 
 // mergedIdentity returns the key and tags of the series a context's output is merged into: stripped while a rule

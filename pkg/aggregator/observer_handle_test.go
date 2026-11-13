@@ -162,6 +162,8 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 	type samplerCase struct {
 		name    string
 		observe func(*testing.T, tagger.Component, *metrics.MetricSample, filterlistdef.TagMatcher) recordedCall
+		// filteredTags are the tags observed with a rule that excludes env and pod_name.
+		filteredTags []string
 	}
 	cases := []samplerCase{
 		{
@@ -175,6 +177,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 				require.Len(t, handle.calls, 1)
 				return handle.calls[0]
 			},
+			filteredTags: []string{"service:web", "image_name:image"},
 		},
 		{
 			name: "check sampler",
@@ -187,6 +190,8 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 				require.Len(t, handle.calls, 1)
 				return handle.calls[0]
 			},
+			// Check samplers filter tags only from their output.
+			filteredTags: []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"},
 		},
 	}
 
@@ -212,7 +217,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 				"metric.origin": {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t)))
 			assert.Equal(t, "host-a", filtered.host)
-			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
+			assert.ElementsMatch(t, tc.filteredTags, filtered.tags)
 			assertObservedContextKey(t, filtered)
 		})
 	}
@@ -379,7 +384,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	assertObservedContextKey(t, handle.calls[1])
 }
 
-func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
+func TestCheckSamplerObserverHandleUsesFullTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	store := tags.NewStore(false, "test")
 	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newStrippedIdentityTable())
@@ -400,7 +405,7 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
+	assert.ElementsMatch(t, []string{"env:prod", "service:web"}, handle.calls[0].tags, "check samplers filter tags only from their output")
 	assertObservedContextKey(t, handle.calls[0])
 }
 
