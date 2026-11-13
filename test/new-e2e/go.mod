@@ -219,7 +219,7 @@ require (
 	github.com/golang/glog v1.2.5 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
-	github.com/google/go-tpm v0.9.8 // indirect
+	github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
@@ -351,21 +351,21 @@ require (
 	github.com/zclconf/go-cty v1.16.3 // indirect
 	go.mongodb.org/mongo-driver v1.17.10 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.70.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.70.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.70.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.164.0 // indirect
+	go.opentelemetry.io/collector/component v1.71.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.71.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.71.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.165.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
-	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.23.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
-	go.opentelemetry.io/otel/metric v1.47.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.1-0.20261102082644-9c507082cd98 // indirect
+	go.opentelemetry.io/otel/sdk v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/otel/sdk/log v1.47.0 // indirect
-	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
