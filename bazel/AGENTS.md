@@ -253,9 +253,9 @@ the resulting diff is non-empty. If you do add one, explain why on the same line
 
 #### E2E suites are `dd_agent_go_test` targets tagged `manual`
 
-`test/new-e2e/tests/` is migrated. The root `BUILD.bazel` enables `# gazelle:dd_agent_go_test on`, so Gazelle emits a
-`dd_agent_go_test` (the macro in `//bazel/rules/go:dd_agent_go_test.bzl` appends the `dd_agent_go_test` tag). Each
-suite target also has `tags = ["manual"]`, and `manual` drops the target from wildcard patterns such as `//...`.
+Each suite under `test/new-e2e/tests/` is a `dd_agent_go_test` with `tags = ["manual"]`. `manual` drops the target
+from wildcard patterns such as `//...`. The macro in `//bazel/rules/go:dd_agent_go_test.bzl` also appends the
+`dd_agent_go_test` tag.
 
 Linux and macOS CI run `bazel test //...` (`.gitlab/build/bazel/test.yml`). Windows splits that pattern across
 `--config=no-dd-agent-go-tests` and `--config=dd-agent-go-tests-only` (`bazel/configs/go_tests.bazelrc`). A suite
