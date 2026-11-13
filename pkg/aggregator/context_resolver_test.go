@@ -82,7 +82,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 
 	matcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -127,7 +127,7 @@ func TestTrackContext(t *testing.T) {
 }
 
 func testRetainedContextTagsRemainValidAfterContextRemoval(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+	resolver := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 	sample := &metrics.MetricSample{
 		Name: "my.metric.name",
 		Tags: []string{"service:web", "env:prod"},
@@ -252,7 +252,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 func testTagDeduplication(t *testing.T, store *tags.Store) {
 	matcher := filterlistimpl.NewNoopTagMatcher()
 
-	resolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+	resolver := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
@@ -291,7 +291,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ tagger.Component) 
 
 func TestOriginTelemetry(t *testing.T) {
 	matcher := filterlistimpl.NewNoopTagMatcher()
-	r := newContextResolver(nooptagger.NewComponent(), tags.NewStore(true, "test"), "test")
+	r := newContextResolver(nooptagger.NewComponent(), tags.NewStore(true, "test"), "test", nil, false)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0, matcher)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0, matcher)
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}}, 0, matcher)
@@ -358,7 +358,7 @@ func testStrippingOriginTagsSameKey(t *testing.T, store *tags.Store) {
 				tc.metricName: {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t))
 			fakeTagger := setupTagger(t)
-			contextResolver := newContextResolver(fakeTagger, store, "test")
+			contextResolver := newContextResolver(fakeTagger, store, "test", nil, false)
 
 			s1 := &metrics.MetricSample{
 				Name:       tc.metricName,
@@ -409,7 +409,7 @@ func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {
 				tc.metricName: {Tags: []string{"env"}, Action: "exclude"},
 			}, logmock.New(t))
 			fakeTagger := setupTagger(t)
-			contextResolver := newContextResolver(fakeTagger, store, "test")
+			contextResolver := newContextResolver(fakeTagger, store, "test", nil, false)
 
 			s1 := &metrics.MetricSample{
 				Name:       tc.metricName,
@@ -452,7 +452,7 @@ func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
 
 	fakeTagger := setupTagger(t)
 
-	contextResolver := newContextResolver(fakeTagger, store, "test")
+	contextResolver := newContextResolver(fakeTagger, store, "test", nil, false)
 
 	dist1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
@@ -505,7 +505,7 @@ func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
 			matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 				tc.metricName: {Tags: []string{"env", "region"}, Action: "exclude"},
 			}, logmock.New(t))
-			contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+			contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 
 			s1 := &metrics.MetricSample{
 				Name:       tc.metricName,
@@ -558,7 +558,7 @@ func testStrippingMetricTagsDiffersKey(t *testing.T, store *tags.Store) {
 				tc.metricName: {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t))
 			fakeTagger := setupTagger(t)
-			contextResolver := newContextResolver(fakeTagger, store, "test")
+			contextResolver := newContextResolver(fakeTagger, store, "test", nil, false)
 
 			s1 := &metrics.MetricSample{
 				Name:       tc.metricName,
@@ -598,7 +598,7 @@ func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
 
 	fakeTagger := setupTagger(t)
 
-	contextResolver := newContextResolver(fakeTagger, store, "test")
+	contextResolver := newContextResolver(fakeTagger, store, "test", nil, false)
 
 	gauge1 := &metrics.MetricSample{
 		Name:  "distribution.metric",
@@ -648,7 +648,7 @@ func testTrackContextCountUnconfiguredTagsUnstripped(t *testing.T, store *tags.S
 		},
 	}, logmock.New(t))
 
-	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 
 	count1 := &metrics.MetricSample{
 		Name:       "count.metric",
@@ -734,7 +734,7 @@ func testTagFilterADPGate(t *testing.T, store *tags.Store) {
 				"dist.metric": {Tags: []string{"env"}, Action: "exclude"},
 			}, logmock.New(t))
 
-			cr := newContextResolver(nooptagger.NewComponent(), store, "test")
+			cr := newContextResolver(nooptagger.NewComponent(), store, "test", nil, false)
 			assert.Equal(t, tc.filteringEnabled, cr.tagFilterEnabled)
 
 			s1 := &metrics.MetricSample{

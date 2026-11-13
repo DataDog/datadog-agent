@@ -123,22 +123,26 @@ func tagFilterEnabled(cfg model.Reader) bool {
 	return cfg.GetBool("data_plane.enabled") || !cfg.GetBool("metric_tag_filterlist_adp_only")
 }
 
-func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
+// newContextResolver returns a resolver. stripped is set for check samplers, which keep the full tags of contexts and
+// strip only their output, and sketchesPerTimestamp when their sketches are stamped per second of submission.
+func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, stripped *strippedIdentityTable, sketchesPerTimestamp bool) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
 	return &contextResolver{
-		id:               id,
-		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
-		seendByMtype:     make([]bool, metrics.NumMetricTypes),
-		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
-		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
-		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
-		tagsCache:        cache,
-		tagger:           tagger,
-		keyGenerator:     ckey.NewKeyGenerator(),
-		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
-		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
-		tagFilterEnabled: tagFilterEnabled(cfg),
+		id:                   id,
+		contextsByKey:        make(map[ckey.ContextKey]resolverEntry),
+		seendByMtype:         make([]bool, metrics.NumMetricTypes),
+		countsByMtype:        make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:         make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype:     make([]uint64, metrics.NumMetricTypes),
+		tagsCache:            cache,
+		tagger:               tagger,
+		keyGenerator:         ckey.NewKeyGenerator(),
+		taggerBuffer:         tagset.NewHashingTagsAccumulator(),
+		metricBuffer:         tagset.NewHashingTagsAccumulator(),
+		tagFilterCache:       newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterEnabled:     tagFilterEnabled(cfg),
+		stripped:             stripped,
+		sketchesPerTimestamp: sketchesPerTimestamp,
 	}
 }
 
@@ -335,7 +339,7 @@ type timestampContextResolver struct {
 
 func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id string, contextExpireTime, counterExpireTime int64) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver: newContextResolver(tagger, cache, id),
+		resolver: newContextResolver(tagger, cache, id, nil, false),
 
 		contextExpireTime: contextExpireTime,
 		counterExpireTime: counterExpireTime,
@@ -396,11 +400,8 @@ type countBasedContextResolver struct {
 // newCountBasedContextResolver returns a resolver that records in stripped, if it's set, the identities contexts strip
 // to at output, instead of tracking stripped contexts.
 func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, stripped *strippedIdentityTable, sketchesPerTimestamp bool) *countBasedContextResolver {
-	resolver := newContextResolver(tagger, cache, id)
-	resolver.stripped = stripped
-	resolver.sketchesPerTimestamp = sketchesPerTimestamp
 	return &countBasedContextResolver{
-		resolver:            resolver,
+		resolver:            newContextResolver(tagger, cache, id, stripped, sketchesPerTimestamp),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}
