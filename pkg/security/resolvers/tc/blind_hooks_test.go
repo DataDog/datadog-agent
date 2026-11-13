@@ -138,6 +138,90 @@ func TestFindProgramAhead(t *testing.T) {
 	}
 }
 
+func TestFindProgramAheadTCX(t *testing.T) {
+	const filterPriority = 10
+	own := map[uint32]bool{41: true, 42: true}
+	isOwn := func(programID uint32) bool {
+		return own[programID]
+	}
+	rawPacket := TCXProgram{ID: 41, LinkID: 141}
+	classifier := TCXProgram{ID: 42, LinkID: 142}
+
+	for _, test := range []struct {
+		name     string
+		hook     HookPrograms
+		expected ProgramAhead
+		found    bool
+	}{
+		{
+			name: "no foreign program",
+			hook: HookPrograms{TCX: []TCXProgram{rawPacket, classifier}},
+		},
+		{
+			name: "cilium program at the tail",
+			hook: HookPrograms{TCX: []TCXProgram{rawPacket, classifier, {ID: 7, LinkID: 107, Name: "cil_from_netdev"}}},
+		},
+		{
+			name: "cilium filter with a lower priority value",
+			hook: HookPrograms{
+				TCX:     []TCXProgram{rawPacket, classifier},
+				Filters: []Filter{{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, DirectAction: true}},
+			},
+		},
+		{
+			name: "cilium program and no classifier",
+			hook: HookPrograms{TCX: []TCXProgram{{ID: 7, LinkID: 107, Name: "cil_from_netdev"}}},
+		},
+		{
+			name:     "cilium program at the head",
+			hook:     HookPrograms{TCX: []TCXProgram{{ID: 7, LinkID: 107, Name: "cil_from_netdev"}, rawPacket, classifier}},
+			expected: ProgramAhead{Name: "cil_from_netdev", Reason: BlindReasonCiliumTCX},
+			found:    true,
+		},
+		{
+			name:     "unknown program at the head",
+			hook:     HookPrograms{TCX: []TCXProgram{{ID: 7, LinkID: 107, Name: "foreign_prog"}, rawPacket, classifier}},
+			expected: ProgramAhead{Name: "foreign_prog", Reason: BlindReasonUnknownTCX},
+			found:    true,
+		},
+		{
+			name:     "program attached without a link at the head",
+			hook:     HookPrograms{TCX: []TCXProgram{{ID: 7, Name: "foreign_prog"}, rawPacket, classifier}},
+			expected: ProgramAhead{Name: "foreign_prog", Reason: BlindReasonUnknownTCX},
+			found:    true,
+		},
+		{
+			name:     "unknown program between the classifiers",
+			hook:     HookPrograms{TCX: []TCXProgram{rawPacket, {ID: 7, LinkID: 107, Name: "foreign_prog"}, classifier}},
+			expected: ProgramAhead{Name: "foreign_prog", Reason: BlindReasonUnknownTCX},
+			found:    true,
+		},
+		{
+			name: "cilium program behind an unknown one",
+			hook: HookPrograms{TCX: []TCXProgram{
+				{ID: 8, LinkID: 108, Name: "foreign_prog"},
+				{ID: 7, LinkID: 107, Name: "cil_from_netdev"},
+				rawPacket,
+				classifier,
+			}},
+			expected: ProgramAhead{Name: "cil_from_netdev", Reason: BlindReasonCiliumTCX},
+			found:    true,
+		},
+		{
+			name:     "program with a name that couldn't be read",
+			hook:     HookPrograms{TCX: []TCXProgram{{ID: 7, LinkID: 107}, rawPacket, classifier}},
+			expected: ProgramAhead{Reason: BlindReasonUnknownTCX},
+			found:    true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			prog, found := FindProgramAhead(manager.TCAttachModeTCX, test.hook, filterPriority, isOwn)
+			assert.Equal(t, test.found, found)
+			assert.Equal(t, test.expected, prog)
+		})
+	}
+}
+
 func TestBlindReasonEndsChain(t *testing.T) {
 	var endsChain []BlindReason
 	for _, reason := range BlindReasons {

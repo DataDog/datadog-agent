@@ -14,8 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -34,11 +36,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	secnetns "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -144,6 +149,13 @@ func TestTCX(t *testing.T) {
 
 	t.Run("net_device", testNetDevice)
 
+	t.Run("cilium_simulation", func(t *testing.T) {
+		if !tcxSupported {
+			t.Skip("TCX isn't supported, TestTCBlindHooks/legacy_blind_spot covers the blind spot of legacy tc filters")
+		}
+		testCiliumSimulation(t)
+	})
+
 	t.Run("device_moves", func(t *testing.T) {
 		if !tcxSupported {
 			t.Skip("device moves only matter to TCX links")
@@ -154,6 +166,121 @@ func TestTCX(t *testing.T) {
 	// last: it stops the module
 	t.Run("tc_filters", func(t *testing.T) {
 		testTCXFilters(t, tcxSupported, rawPacketSupported)
+	})
+}
+
+// testCiliumSimulation leaves the hooks of lo as Cilium leaves those of host interfaces in TCX mode: a program that ends
+// the hook at the TCX tail, and no legacy filter, its own pref 1 filters included. The classifiers run first, so they
+// still see the traffic of lo.
+func testCiliumSimulation(t *testing.T) {
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const rawPacketPort = 12345
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_cilium_simulation_dns",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "cilium-simulation.test" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_cilium_simulation_imds",
+			Expression: fmt.Sprintf(`imds.cloud_provider == "aws" && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_cilium_simulation_raw_packet",
+			Expression: fmt.Sprintf(`packet.filter == "ip dst %s and udp dst port %d" && process.file.name == "%s"`, testutils.IMDSTestServerIP, rawPacketPort, path.Base(executable)),
+		},
+	}
+
+	// the address is local, so the IMDS and raw packet traffic goes through lo
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
+	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
+	defer func() {
+		if err := testutils.StopIMDSserver(imdsServer); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	lo, err := netlink.LinkByName("lo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciliumPrograms := map[manager.TrafficType]string{manager.Ingress: "cil_from_netdev", manager.Egress: "cil_to_netdev"}
+	for direction, name := range ciliumPrograms {
+		attachForeignTCXProgram(t, lo, direction, name)
+		addForeignTCFilter(t, lo, direction, 1, name+"-lo")
+	}
+
+	for _, hook := range detectBlindHooks(t, test) {
+		assert.False(t, hook.Program.Reason.EndsChain(), "the %s hook of %s is reported as blind: %+v", hook.Direction, hook.Device, hook.Program)
+		assert.NotEqual(t, lo.Attrs().Name, hook.Device, "the %s hook of lo is reported as blind: %+v", hook.Direction, hook.Program)
+	}
+	for _, reason := range []tc.BlindReason{tc.BlindReasonCiliumTCX, tc.BlindReasonCiliumTCFilter} {
+		assert.Zero(t, test.statsdClient.Get(metrics.MetricTCBlindHooks+":reason:"+string(reason)), "blind hooks reported for %s", reason)
+	}
+	assert.NotContains(t, statusWarnings(t, test), "Cilium programs")
+
+	// as Cilium does once its TCX programs are attached
+	for direction := range ciliumPrograms {
+		deleteTCFilters(t, lo, direction)
+	}
+
+	t.Run("dns", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			return lookupIPAtPort(DNSPort)("cilium-simulation.test")
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "cilium-simulation.test", event.DNS.Question.Name, "wrong domain name")
+			assertFieldEqual(t, event, "network.device.ifname", "lo")
+		}, "test_rule_cilium_simulation_dns")
+	})
+
+	t.Run("imds", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
+			if err != nil {
+				return fmt.Errorf("failed to query IMDS server: %w", err)
+			}
+			return response.Body.Close()
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, testutils.IMDSSecurityCredentialsURL, event.IMDS.URL, "wrong IMDS request URL")
+			assertFieldEqual(t, event, "network.device.ifname", "lo")
+		}, "test_rule_cilium_simulation_imds")
+	})
+
+	t.Run("raw_packet", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			conn, err := net.Dial("udp4", net.JoinHostPort(testutils.IMDSTestServerIP, strconv.Itoa(rawPacketPort)))
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
+
+			_, err = conn.Write([]byte("cilium simulation"))
+			return err
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "packet", event.GetType(), "wrong event type")
+			assertFieldEqual(t, event, "packet.device.ifname", "lo")
+		}, "test_rule_cilium_simulation_raw_packet")
 	})
 }
 

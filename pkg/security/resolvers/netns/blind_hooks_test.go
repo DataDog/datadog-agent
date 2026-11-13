@@ -168,6 +168,26 @@ func TestBlindHooksReport(t *testing.T) {
 	assert.Empty(t, nr.BlindHooksWarning())
 }
 
+func TestBlindHooksReportTCX(t *testing.T) {
+	client := &gaugeRecorder{gauges: make(map[string]float64)}
+	nr := &Resolver{client: client}
+
+	nr.publishBlindHooks(manager.TCAttachModeTCX, []BlindHook{
+		{Device: "eth0", Direction: manager.Ingress, Program: tc.ProgramAhead{Name: "foreign_prog", Reason: tc.BlindReasonUnknownTCX}},
+	})
+	assert.False(t, nr.blindHooks.warned, "only the programs known to end the chain are worth a warning")
+
+	nr.sendBlindHookStats()
+	assert.Equal(t, map[string]float64{
+		metrics.MetricTCBlindHooks + "|direction:ingress,reason:unknown_tcx,attach_mode:tcx": 1,
+	}, client.gauges)
+	assert.Equal(t, 1.0, blindHooksTelemetry.WithValues(withPlatformTags("tcx", string(tc.BlindReasonUnknownTCX), "ingress")...).Get())
+	assert.Empty(t, nr.BlindHooksWarning())
+
+	nr.publishBlindHooks(manager.TCAttachModeTCX, nil)
+	assert.Zero(t, blindHooksTelemetry.WithValues(withPlatformTags("tcx", string(tc.BlindReasonUnknownTCX), "ingress")...).Get())
+}
+
 func TestBlindHooksWarning(t *testing.T) {
 	assert.Empty(t, blindHooksWarning([]BlindHook{
 		{Device: "eth0", Direction: manager.Ingress, Program: tc.ProgramAhead{Name: "foreign_prog", Reason: tc.BlindReasonUnknownTCX}},

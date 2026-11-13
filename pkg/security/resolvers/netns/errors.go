@@ -132,6 +132,7 @@ func (nr *Resolver) reportTCClassifierError(err error, device model.NetDevice) {
 	case errorClassUnknown:
 		seclog.Errorf("couldn't set up tc classifier on %+v: %v", device, err)
 	case errorClassSetns, errorClassTCXAttach:
+		countTCXAttachError(class)
 		seclog.Errorf("couldn't set up tc classifier on %+v [%s]: %v", device, class, err)
 	default:
 		seclog.Debugf("couldn't set up tc classifier on %+v [%s]: %v", device, class, err)
