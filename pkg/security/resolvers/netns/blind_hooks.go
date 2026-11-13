@@ -57,7 +57,7 @@ type blindHooks struct {
 	warned      bool
 
 	lock  sync.RWMutex
-	mode  tc.AttachMode
+	mode  manager.TCAttachMode
 	hooks []BlindHook
 
 	scanRequests chan struct{}
@@ -298,7 +298,7 @@ func programName(id uint32) (string, error) {
 	return info.Name, nil
 }
 
-func (nr *Resolver) publishBlindHooks(mode tc.AttachMode, hooks []BlindHook) {
+func (nr *Resolver) publishBlindHooks(mode manager.TCAttachMode, hooks []BlindHook) {
 	nr.blindHooks.lock.Lock()
 	nr.blindHooks.mode = mode
 	nr.blindHooks.hooks = hooks
@@ -309,7 +309,7 @@ func (nr *Resolver) publishBlindHooks(mode tc.AttachMode, hooks []BlindHook) {
 	for _, direction := range []manager.TrafficType{manager.Ingress, manager.Egress} {
 		for _, reason := range tc.BlindReasons {
 			count := counts[blindHookKey{direction: direction, reason: reason}]
-			blindHooksTelemetry.Set(float64(count), withPlatformTags(string(mode), string(reason), direction.String())...)
+			blindHooksTelemetry.Set(float64(count), withPlatformTags(mode.String(), string(reason), direction.String())...)
 		}
 	}
 
@@ -333,7 +333,7 @@ func (nr *Resolver) sendBlindHookStats() {
 	nr.blindHooks.lock.RUnlock()
 
 	for key, count := range countBlindHooks(hooks) {
-		tags := []string{"direction:" + key.direction.String(), "reason:" + string(key.reason), "attach_mode:" + string(mode)}
+		tags := []string{"direction:" + key.direction.String(), "reason:" + string(key.reason), "attach_mode:" + mode.String()}
 		_ = nr.client.Gauge(metrics.MetricTCBlindHooks, float64(count), tags, 1.0)
 	}
 }

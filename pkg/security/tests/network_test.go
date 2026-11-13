@@ -128,6 +128,10 @@ var _ = declare(TestRawPacket, testOpts{networkRawPacketEnabled: true})
 func TestRawPacket(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	testRawPacket(t)
+}
+
+func testRawPacket(t *testing.T) {
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
@@ -314,11 +318,15 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 var _ = declare(TestRawPacketAction, testOpts{networkRawPacketEnabled: true})
 
 func TestRawPacketAction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	testRawPacketAction(t)
+}
+
+func testRawPacketAction(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
 	}
-
-	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
@@ -1174,6 +1182,10 @@ var _ = declare(TestNetworkFlowSendUDP4,
 func TestNetworkFlowSendUDP4(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	testNetworkFlowSendUDP4(t)
+}
+
+func testNetworkFlowSendUDP4(t *testing.T) {
 	checkKernelCompatibility(t, "RHEL, SLES, SUSE and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
 		// OpenSUSE distributions are missing the dummy kernel module

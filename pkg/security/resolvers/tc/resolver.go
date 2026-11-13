@@ -54,21 +54,34 @@ type programEntry struct {
 	programID  uint32
 	probe      *manager.Probe
 	deviceName string
+	attachMode manager.TCAttachMode
 }
 
 // Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
-	config   *config.Config
-	programs map[ProgramKey]programEntry
+	config     *config.Config
+	attachMode manager.TCAttachMode
+	programs   map[ProgramKey]programEntry
 }
 
-// NewResolver returns a TC resolver
+// NewResolver returns a TC resolver, whose attach mode is read once from a config already checked against the kernel
 func NewResolver(config *config.Config) *Resolver {
-	return &Resolver{
-		config:   config,
-		programs: make(map[ProgramKey]programEntry),
+	attachMode := manager.TCAttachModeLegacy
+	if config.NetworkTCXEnabled {
+		attachMode = manager.TCAttachModeTCX
 	}
+
+	return &Resolver{
+		config:     config,
+		attachMode: attachMode,
+		programs:   make(map[ProgramKey]programEntry),
+	}
+}
+
+// AttachMode returns how the classifiers are attached to their devices
+func (tcr *Resolver) AttachMode() manager.TCAttachMode {
+	return tcr.attachMode
 }
 
 // SendTCProgramsStats sends TC programs stats
@@ -76,14 +89,14 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	if val := float64(len(tcr.programs)); val > 0 {
-		_ = statsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
+	counts := make(map[manager.TCAttachMode]int)
+	for _, entry := range tcr.programs {
+		counts[entry.attachMode]++
 	}
-}
 
-// AttachMode returns the way the classifiers are attached to their hooks
-func (tcr *Resolver) AttachMode() AttachMode {
-	return AttachModeLegacy
+	for mode, count := range counts {
+		_ = statsdClient.Gauge(metrics.MetricTCProgram, float64(count), []string{"attach_mode:" + mode.String()}, 1.0)
+	}
 }
 
 // FilterPriority returns the priority of the filters of the classifiers
@@ -176,13 +189,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
-		newProbe.TCFilterPrio = tcr.config.NetworkClassifierPriority
-
-		if slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
-		} else {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
-		}
+		tcr.setAttachPoint(newProbe)
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -203,6 +210,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 				programID:  newProbe.ID(),
 				probe:      newProbe,
 				deviceName: device.Name,
+				attachMode: newProbe.TCAttachMode,
 			}
 
 			tcr.programs[progKey] = entry
@@ -212,6 +220,23 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		}
 	}
 	return combinedErr.ErrorOrNil()
+}
+
+// setAttachPoint sets where a clone is attached on its device
+func (tcr *Resolver) setAttachPoint(probe *manager.Probe) {
+	probe.TCAttachMode = tcr.attachMode
+	if tcr.attachMode == manager.TCAttachModeTCX {
+		// as with legacy filters sharing a priority, the clone attached last runs first: raw packet, in both modes
+		probe.TCXAnchor = manager.TCXAnchorHead
+		return
+	}
+
+	probe.TCFilterPrio = tcr.config.NetworkClassifierPriority
+	if slices.Contains(probes.RawPacketTCProgram, probe.EBPFFuncName) {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
+	} else {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+	}
 }
 
 // detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held

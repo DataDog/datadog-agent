@@ -5,6 +5,7 @@ go_library(
     name = "tc",
     srcs = [
         "blind_hooks.go",
+        "dump.go",
         "resolver.go",
         "tcx.go",
     ],
@@ -47,14 +48,31 @@ go_library(
 
 dd_agent_go_test(
     name = "tc_test",
-    srcs = ["blind_hooks_test.go"],
+    srcs = [
+        "blind_hooks_test.go",
+        "resolver_test.go",
+    ],
     embed = [":tc"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/tests/statsdclient",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vishvananda_netlink//:netlink",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/tests/statsdclient",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vishvananda_netlink//:netlink",
         ],
         "//conditions:default": [],
     }),

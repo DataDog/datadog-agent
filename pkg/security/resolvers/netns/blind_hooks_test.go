@@ -127,7 +127,7 @@ func TestBlindHooksReport(t *testing.T) {
 		{Device: "eth1", Direction: manager.Ingress, Program: tc.ProgramAhead{Name: "cil_from_netdev", Reason: tc.BlindReasonCiliumTCX}},
 		{Device: "eth0", Direction: manager.Egress, Program: tc.ProgramAhead{Name: "foreign_filter", Reason: tc.BlindReasonUnknownTCFilter}},
 	}
-	nr.publishBlindHooks(tc.AttachModeLegacy, hooks)
+	nr.publishBlindHooks(manager.TCAttachModeLegacy, hooks)
 	assert.True(t, nr.blindHooks.warned)
 
 	nr.sendBlindHookStats()
@@ -141,7 +141,7 @@ func TestBlindHooksReport(t *testing.T) {
 	release, _ := kernel.Release()
 	arch, _ := kernel.Machine()
 	telemetryValue := func(reason tc.BlindReason, direction manager.TrafficType) float64 {
-		return blindHooksTelemetry.WithValues(string(tc.AttachModeLegacy), string(reason), direction.String(), platform, platformVersion, release, arch).Get()
+		return blindHooksTelemetry.WithValues(manager.TCAttachModeLegacy.String(), string(reason), direction.String(), platform, platformVersion, release, arch).Get()
 	}
 	assert.Equal(t, 2.0, telemetryValue(tc.BlindReasonCiliumTCX, manager.Ingress))
 	assert.Equal(t, 1.0, telemetryValue(tc.BlindReasonUnknownTCFilter, manager.Egress))
@@ -154,7 +154,7 @@ func TestBlindHooksReport(t *testing.T) {
 
 	// the hooks aren't blind anymore
 	clear(client.gauges)
-	nr.publishBlindHooks(tc.AttachModeLegacy, nil)
+	nr.publishBlindHooks(manager.TCAttachModeLegacy, nil)
 	nr.sendBlindHookStats()
 	assert.Empty(t, client.gauges)
 	assert.Zero(t, telemetryValue(tc.BlindReasonCiliumTCX, manager.Ingress))

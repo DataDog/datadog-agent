@@ -60,12 +60,16 @@ dd_agent_go_test(
     srcs = [
         "blind_hooks_test.go",
         "errors_test.go",
+        "resolver_test.go",
     ],
     embed = [":netns"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
+            "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
             "//pkg/util/kernel",
             "@com_github_cilium_ebpf//:ebpf",
@@ -79,7 +83,10 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
+            "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
             "//pkg/util/kernel",
             "@com_github_cilium_ebpf//:ebpf",
