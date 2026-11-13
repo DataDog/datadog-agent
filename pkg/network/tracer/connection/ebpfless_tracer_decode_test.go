@@ -8,6 +8,8 @@
 package connection
 
 import (
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -34,16 +36,18 @@ func (f *fakePacketInfo) LinkLayerType() gopacket.LayerType { return layers.Laye
 func (f *fakePacketInfo) OriginalLength() int               { return f.length }
 func (f *fakePacketInfo) CapturedLength() int               { return f.length }
 
-type fakePacket struct {
+// fakeItem is either a packet to visit, or, when err is set, an error for VisitPackets to return
+type fakeItem struct {
 	data    []byte
 	pktType uint8
+	err     error
 }
 
-// fakePacketSource is a filter.PacketSource that delivers the packets written to it.
+// fakePacketSource is a filter.PacketSource that delivers the items written to it.
 // It reports on visited once the callback has returned nil for a packet, and on
 // stopped if the callback returned an error, which makes the tracer's reader exit.
 type fakePacketSource struct {
-	packets   chan fakePacket
+	items     chan fakeItem
 	visited   chan struct{}
 	stopped   chan error
 	closed    chan struct{}
@@ -52,7 +56,7 @@ type fakePacketSource struct {
 
 func newFakePacketSource(capacity int) *fakePacketSource {
 	return &fakePacketSource{
-		packets: make(chan fakePacket, capacity),
+		items:   make(chan fakeItem, capacity),
 		visited: make(chan struct{}, capacity),
 		stopped: make(chan error, 1),
 		closed:  make(chan struct{}),
@@ -62,9 +66,12 @@ func newFakePacketSource(capacity int) *fakePacketSource {
 func (f *fakePacketSource) VisitPackets(visit func(data []byte, info filter.PacketInfo, timestamp time.Time) error) error {
 	for {
 		select {
-		case pkt := <-f.packets:
-			info := &fakePacketInfo{pktType: pkt.pktType, length: len(pkt.data)}
-			if err := visit(pkt.data, info, time.Now()); err != nil {
+		case item := <-f.items:
+			if item.err != nil {
+				return item.err
+			}
+			info := &fakePacketInfo{pktType: item.pktType, length: len(item.data)}
+			if err := visit(item.data, info, time.Now()); err != nil {
 				f.stopped <- err
 				return err
 			}
@@ -79,11 +86,14 @@ func (f *fakePacketSource) VisitPackets(visit func(data []byte, info filter.Pack
 // It fails the test if the callback returned an error first.
 func (f *fakePacketSource) waitVisited(t *testing.T, n int) {
 	t.Helper()
+	timeout := time.After(10 * time.Second)
 	for i := 0; i < n; i++ {
 		select {
 		case <-f.visited:
 		case err := <-f.stopped:
 			t.Fatalf("packet reader stopped after %d of %d packets: %s", i, n, err)
+		case <-timeout:
+			t.Fatalf("packet reader visited only %d of %d packets", i, n)
 		}
 	}
 }
@@ -98,19 +108,12 @@ type tcpFlags struct {
 	syn, ack, fin, rst bool
 }
 
-// buildTCPFrame serializes an Ethernet/IPv4/TCP frame from src to dst
+// buildTCPFrame serializes an Ethernet/IPv4/TCP or Ethernet/IPv6/TCP frame from src to dst
 func buildTCPFrame(t *testing.T, src, dst net.IP, sport, dport uint16, seq, ack uint32, flags tcpFlags, payload []byte) []byte {
+	t.Helper()
 	eth := &layers.Ethernet{
-		SrcMAC:       net.HardwareAddr{0x02, 0, 0, 0, 0, 1},
-		DstMAC:       net.HardwareAddr{0x02, 0, 0, 0, 0, 2},
-		EthernetType: layers.EthernetTypeIPv4,
-	}
-	ip4 := &layers.IPv4{
-		Version:  4,
-		TTL:      64,
-		Protocol: layers.IPProtocolTCP,
-		SrcIP:    src,
-		DstIP:    dst,
+		SrcMAC: net.HardwareAddr{0x02, 0, 0, 0, 0, 1},
+		DstMAC: net.HardwareAddr{0x02, 0, 0, 0, 0, 2},
 	}
 	tcp := &layers.TCP{
 		SrcPort: layers.TCPPort(sport),
@@ -123,11 +126,22 @@ func buildTCPFrame(t *testing.T, src, dst net.IP, sport, dport uint16, seq, ack 
 		RST:     flags.rst,
 		Window:  65535,
 	}
-	require.NoError(t, tcp.SetNetworkLayerForChecksum(ip4))
+	var ipLayer gopacket.SerializableLayer
+	if src.To4() != nil {
+		eth.EthernetType = layers.EthernetTypeIPv4
+		ip4 := &layers.IPv4{Version: 4, TTL: 64, Protocol: layers.IPProtocolTCP, SrcIP: src.To4(), DstIP: dst.To4()}
+		require.NoError(t, tcp.SetNetworkLayerForChecksum(ip4))
+		ipLayer = ip4
+	} else {
+		eth.EthernetType = layers.EthernetTypeIPv6
+		ip6 := &layers.IPv6{Version: 6, HopLimit: 64, NextHeader: layers.IPProtocolTCP, SrcIP: src, DstIP: dst}
+		require.NoError(t, tcp.SetNetworkLayerForChecksum(ip6))
+		ipLayer = ip6
+	}
 
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-	require.NoError(t, gopacket.SerializeLayers(buf, opts, eth, ip4, tcp, gopacket.Payload(payload)))
+	require.NoError(t, gopacket.SerializeLayers(buf, opts, eth, ipLayer, tcp, gopacket.Payload(payload)))
 	return buf.Bytes()
 }
 
@@ -136,91 +150,201 @@ const (
 	ipv4HeaderLen = 20
 )
 
-// TestEbpfLessTracerSkipsUndecodableFrames checks that a frame gopacket cannot decode is
-// skipped and counted, and that the tracer keeps processing the frames that follow it.
-func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
-	cfg := config.New()
-	src := newFakePacketSource(16)
-	tr := newEbpfLessTracerWithPacketSource(cfg, src)
+// unboundPort returns a port from 40000 up that the tracer's bound-ports lookup does not
+// report as a listening TCP port, so that the tracer guesses the direction from the SYN
+func unboundPort(t *testing.T, tr *ebpfLessTracer, after uint16) uint16 {
+	t.Helper()
+	for p := max(after+1, 40000); p < 60000; p++ {
+		if !tr.boundPorts.Find(network.TCP, p) {
+			return p
+		}
+	}
+	t.Fatal("no unbound port found")
+	return 0
+}
 
-	var closedMu sync.Mutex
-	var closed []network.ConnectionStats
-	require.NoError(t, tr.Start(func(c *network.ConnectionStats) {
-		closedMu.Lock()
-		defer closedMu.Unlock()
-		closed = append(closed, *c)
-	}))
+// skippedCounts reads the skipped_packets counter for every reason the test checks
+func skippedCounts() map[string]float64 {
+	counts := map[string]float64{}
+	for _, reason := range []string{skipReasonDecodeError, skipReasonIPv6BigTCP, "unsupported_packet_type", "not_tcp_udp"} {
+		counts[reason] = ebpfLessTracerTelemetry.skippedPackets.WithValues(reason).Get()
+	}
+	return counts
+}
+
+func startFakeTracer(t *testing.T, src *fakePacketSource, configure func(*ebpfLessTracer)) (*ebpfLessTracer, <-chan struct{}) {
+	t.Helper()
+	tr := newEbpfLessTracerWithPacketSource(config.New(), src)
+	if configure != nil {
+		configure(tr)
+	}
+	require.NoError(t, tr.Start(func(*network.ConnectionStats) {}))
 	t.Cleanup(tr.Stop)
 
-	skipped := ebpfLessTracerTelemetry.skippedPackets.WithValues("decode_error")
-	skippedBefore := skipped.Get()
+	// readerDone is closed once the packet reader goroutine has exited
+	readerDone := make(chan struct{})
+	go func() {
+		tr.packetSrcBusy.Wait()
+		close(readerDone)
+	}()
+	return tr, readerDone
+}
 
-	clientIP := net.ParseIP("10.0.0.1").To4()
-	serverIP := net.ParseIP("10.0.0.2").To4()
-	const clientPort, serverPort = 40000, 40001
+// sendHandshake writes a valid client SYN / SYN-ACK / ACK and a data segment, and
+// returns the number of packets written
+func sendHandshake(t *testing.T, src *fakePacketSource, clientIP, serverIP net.IP, clientPort, serverPort uint16, payload []byte) int {
+	t.Helper()
 	const clientISN, serverISN = 1000, 5000
-	payload := []byte("hello")
-
-	sent := 0
-	send := func(data []byte, pktType uint8) {
-		src.packets <- fakePacket{data: data, pktType: pktType}
-		sent++
+	frames := []fakeItem{
+		{data: buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN, 0, tcpFlags{syn: true}, nil), pktType: filter.PacketOutgoing},
+		{data: buildTCPFrame(t, serverIP, clientIP, serverPort, clientPort, serverISN, clientISN+1, tcpFlags{syn: true, ack: true}, nil), pktType: filter.PacketHost},
+		{data: buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN+1, serverISN+1, tcpFlags{ack: true}, nil), pktType: filter.PacketOutgoing},
+		{data: buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN+1, serverISN+1, tcpFlags{ack: true}, payload), pktType: filter.PacketOutgoing},
 	}
-
-	// A frame whose IPv4 header length is invalid. The Ethernet layer decodes,
-	// then IPv4 decoding fails.
-	badIHL := buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN, 0, tcpFlags{syn: true}, nil)
-	badIHL[ethHeaderLen] = 0x41 // version 4, IHL 1
-	send(badIHL, filter.PacketOutgoing)
-
-	// A RST for the same tuple whose TCP data offset points past the end of the
-	// frame. gopacket fills in the TCP ports and flags before failing, so this
-	// frame must be skipped as a whole and must not reset the connection.
-	badRST := func() []byte {
-		f := buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN+1, serverISN+1, tcpFlags{rst: true, ack: true}, nil)
-		f[ethHeaderLen+ipv4HeaderLen+12] = 0xf0 // data offset 15 (60 bytes), only 20 present
-		return f
+	for _, f := range frames {
+		src.items <- f
 	}
-	send(badRST(), filter.PacketOutgoing)
+	return len(frames)
+}
 
-	// a valid handshake followed by a data segment
-	send(buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN, 0, tcpFlags{syn: true}, nil), filter.PacketOutgoing)
-	send(buildTCPFrame(t, serverIP, clientIP, serverPort, clientPort, serverISN, clientISN+1, tcpFlags{syn: true, ack: true}, nil), filter.PacketHost)
-	send(buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN+1, serverISN+1, tcpFlags{ack: true}, nil), filter.PacketOutgoing)
-	send(buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, clientISN+1, serverISN+1, tcpFlags{ack: true}, payload), filter.PacketOutgoing)
-
-	// another undecodable RST, after the connection is established
-	send(badRST(), filter.PacketOutgoing)
-
-	// the callback processes each packet synchronously, so once it has returned
-	// for every packet, the counter and the connection state are final
-	src.waitVisited(t, sent)
-	assert.Equal(t, float64(3), skipped.Get()-skippedBefore, "undecodable frames were not counted")
-
-	expectedTuple := network.ConnectionTuple{
-		Source: util.AddressFromNetIP(clientIP),
-		Dest:   util.AddressFromNetIP(serverIP),
-		SPort:  clientPort,
-		DPort:  serverPort,
-		Type:   network.TCP,
-		Family: network.AFINET,
-	}
+// requireConnection checks that the tracer tracks exactly the given outgoing TCP connection
+func requireConnection(t *testing.T, tr *ebpfLessTracer, clientIP, serverIP net.IP, clientPort, serverPort uint16, sentBytes int) {
+	t.Helper()
 	buf := network.NewConnectionBuffer(4, 4)
 	require.NoError(t, tr.GetConnections(buf, nil))
 	conns := buf.Connections()
 	require.Len(t, conns, 1)
 	conn := conns[0]
-	assert.Equal(t, expectedTuple.Source, conn.Source)
-	assert.Equal(t, expectedTuple.Dest, conn.Dest)
-	assert.Equal(t, expectedTuple.SPort, conn.SPort)
-	assert.Equal(t, expectedTuple.DPort, conn.DPort)
-	assert.Equal(t, expectedTuple.Type, conn.Type)
-	assert.Equal(t, expectedTuple.Family, conn.Family)
+	assert.Equal(t, util.AddressFromNetIP(clientIP), conn.Source)
+	assert.Equal(t, util.AddressFromNetIP(serverIP), conn.Dest)
+	assert.Equal(t, clientPort, conn.SPort)
+	assert.Equal(t, serverPort, conn.DPort)
+	assert.Equal(t, network.TCP, conn.Type)
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assert.Equal(t, uint64(len(payload)), conn.Monotonic.SentBytes)
-	assert.Empty(t, conn.TCPFailures, "undecodable RST must not be counted as a failure")
+	assert.Equal(t, uint64(sentBytes), conn.Monotonic.SentBytes)
+}
 
-	closedMu.Lock()
-	defer closedMu.Unlock()
-	assert.Empty(t, closed, "undecodable RST must not close the connection")
+// TestEbpfLessTracerSkipsUndecodableFrames checks that a frame gopacket cannot decode is
+// skipped and counted under its own reason, without reaching the connection processing,
+// and that the tracer keeps processing the frames that follow it.
+func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
+	src := newFakePacketSource(32)
+	tr, _ := startFakeTracer(t, src, nil)
+	before := skippedCounts()
+
+	clientIP := net.ParseIP("10.0.0.1").To4()
+	serverIP := net.ParseIP("10.0.0.2").To4()
+	clientPort := unboundPort(t, tr, 0)
+	serverPort := unboundPort(t, tr, clientPort)
+	payload := []byte("hello")
+
+	sent := 0
+	send := func(data []byte, pktType uint8) {
+		src.items <- fakeItem{data: data, pktType: pktType}
+		sent++
+	}
+
+	// A frame whose IPv4 header length is invalid. The Ethernet layer decodes,
+	// then IPv4 decoding fails.
+	badIHL := buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, 1000, 0, tcpFlags{syn: true}, nil)
+	badIHL[ethHeaderLen] = 0x41 // version 4, IHL 1
+	send(badIHL, filter.PacketOutgoing)
+
+	// A segment whose TCP data offset points past the end of the frame. Ethernet
+	// and IPv4 decode, then TCP decoding fails.
+	badDataOffset := func() []byte {
+		f := buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, 1001, 5001, tcpFlags{ack: true}, nil)
+		f[ethHeaderLen+ipv4HeaderLen+12] = 0xf0 // data offset 15 (60 bytes), only 20 present
+		return f
+	}
+	send(badDataOffset(), filter.PacketOutgoing)
+
+	// The same undecodable frame, but broadcast: the packet type filter drops it
+	// before decoding, so it is not a decode error.
+	send(badDataOffset(), filter.PacketBroadcast)
+
+	// An IPv6 BIG TCP frame: payload length 0 and no Hop-by-Hop jumbo option.
+	bigTCP := buildTCPFrame(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), clientPort, serverPort, 1, 0, tcpFlags{ack: true}, payload)
+	bigTCP[ethHeaderLen+4], bigTCP[ethHeaderLen+5] = 0, 0
+	send(bigTCP, filter.PacketOutgoing)
+
+	// a valid handshake followed by a data segment, then another undecodable frame
+	sent += sendHandshake(t, src, clientIP, serverIP, clientPort, serverPort, payload)
+	send(badDataOffset(), filter.PacketOutgoing)
+
+	// the callback processes each packet synchronously, so once it has returned
+	// for every packet, the counters and the connection state are final
+	src.waitVisited(t, sent)
+	after := skippedCounts()
+	assert.Equal(t, float64(3), after[skipReasonDecodeError]-before[skipReasonDecodeError], "undecodable frames were not counted as decode errors")
+	assert.Equal(t, float64(1), after[skipReasonIPv6BigTCP]-before[skipReasonIPv6BigTCP], "IPv6 BIG TCP frame was not counted")
+	assert.Equal(t, float64(1), after["unsupported_packet_type"]-before["unsupported_packet_type"], "broadcast frame was not filtered by packet type")
+	// A reader that processed the skipped frames anyway would count them here,
+	// because the partially decoded frames have no transport layer.
+	assert.Zero(t, after["not_tcp_udp"]-before["not_tcp_udp"], "undecodable frames reached connection processing")
+
+	requireConnection(t, tr, clientIP, serverIP, clientPort, serverPort, len(payload))
+}
+
+// TestEbpfLessTracerRetriesPacketSourceErrors checks that the reader retries after a
+// transient packet source error, resets its error count once packets are read again,
+// and stops after too many consecutive errors.
+func TestEbpfLessTracerRetriesPacketSourceErrors(t *testing.T) {
+	const maxErrors = 3
+	src := newFakePacketSource(32)
+	tr, readerDone := startFakeTracer(t, src, func(tr *ebpfLessTracer) {
+		tr.readErrorBackoff = time.Millisecond
+		tr.maxReadErrorBackoff = 2 * time.Millisecond
+		tr.maxConsecutiveReadErrors = maxErrors
+	})
+	errorsBefore := ebpfLessTracerTelemetry.packetSourceErrors.WithValues().Get()
+
+	clientIP := net.ParseIP("10.0.0.1").To4()
+	serverIP := net.ParseIP("10.0.0.2").To4()
+	clientPort := unboundPort(t, tr, 0)
+	serverPort := unboundPort(t, tr, clientPort)
+	payload := []byte("hello")
+
+	transient := errors.New("packet poll failed")
+	injectErrors := func(n int) {
+		for i := 0; i < n; i++ {
+			src.items <- fakeItem{err: fmt.Errorf("error %d: %w", i, transient)}
+		}
+	}
+
+	// as many errors as tolerated, then packets: the reader must survive and read them
+	injectErrors(maxErrors)
+	src.waitVisited(t, sendHandshake(t, src, clientIP, serverIP, clientPort, serverPort, payload))
+	requireConnection(t, tr, clientIP, serverIP, clientPort, serverPort, len(payload))
+
+	// reading packets reset the count, so the same number of errors is tolerated again
+	injectErrors(maxErrors)
+	src.items <- fakeItem{data: buildTCPFrame(t, clientIP, serverIP, clientPort, serverPort, 1006, 5001, tcpFlags{ack: true}, payload), pktType: filter.PacketOutgoing}
+	src.waitVisited(t, 1)
+	requireConnection(t, tr, clientIP, serverIP, clientPort, serverPort, 2*len(payload))
+
+	// one error more than tolerated in a row stops the reader
+	injectErrors(maxErrors + 1)
+	select {
+	case <-readerDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("packet reader did not stop after too many consecutive errors")
+	}
+	assert.Equal(t, float64(3*maxErrors+1), ebpfLessTracerTelemetry.packetSourceErrors.WithValues().Get()-errorsBefore)
+}
+
+// TestEbpfLessTracerStopsOnFatalPacketSourceError checks that the reader stops at once
+// when the packet source reports it can no longer be read.
+func TestEbpfLessTracerStopsOnFatalPacketSourceError(t *testing.T) {
+	src := newFakePacketSource(4)
+	_, readerDone := startFakeTracer(t, src, func(tr *ebpfLessTracer) {
+		// long enough that a retry would not exit in time
+		tr.readErrorBackoff = time.Hour
+	})
+	src.items <- fakeItem{err: fmt.Errorf("read: %w", net.ErrClosed)}
+	select {
+	case <-readerDone:
+	case <-time.After(10 * time.Second):
+		t.Fatal("packet reader did not stop after a fatal packet source error")
+	}
 }

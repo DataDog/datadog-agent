@@ -8,11 +8,15 @@
 package connection
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"os"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -33,19 +37,39 @@ import (
 
 const (
 	ebpfLessTelemetryPrefix = "network_tracer__ebpfless"
+
+	// defaultReadErrorBackoff is the wait after the first packet source error. It doubles
+	// after each consecutive error, up to defaultMaxReadErrorBackoff.
+	defaultReadErrorBackoff    = 100 * time.Millisecond
+	defaultMaxReadErrorBackoff = 5 * time.Second
+	// defaultMaxConsecutiveReadErrors is how many packet source errors in a row, with no
+	// packet read in between, the reader tolerates before it stops (about 25s of retries).
+	defaultMaxConsecutiveReadErrors = 10
 )
 
 var (
 	ebpfLessTracerTelemetry = struct {
 		skippedPackets     telemetry.Counter
 		droppedConnections telemetry.Counter
+		packetSourceErrors telemetry.Counter
 	}{
 		telemetryimpl.GetCompatComponent().NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets"),
 		telemetryimpl.GetCompatComponent().NewCounter(ebpfLessTelemetryPrefix, "dropped_connections", nil, "Counter measuring dropped connections"),
+		telemetryimpl.GetCompatComponent().NewCounter(ebpfLessTelemetryPrefix, "packet_source_errors", nil, "Counter measuring errors returned by the packet source"),
 	}
 
 	// decodeErrorLimiter rate-limits the log emitted when a captured frame cannot be decoded
 	decodeErrorLimiter = log.NewLogLimit(10, 10*time.Minute)
+	// bigTCPLimiter rate-limits the log emitted when an IPv6 BIG TCP frame is skipped
+	bigTCPLimiter = log.NewLogLimit(10, 10*time.Minute)
+	// readErrorLimiter rate-limits the log emitted when the packet source returns an error
+	readErrorLimiter = log.NewLogLimit(10, 10*time.Minute)
+)
+
+const (
+	skipReasonDecodeError = "decode_error"
+	// skipReasonIPv6BigTCP counts IPv6 BIG TCP frames, which gopacket cannot decode
+	skipReasonIPv6BigTCP = "ipv6_big_tcp"
 )
 
 type ebpfLessTracer struct {
@@ -70,6 +94,11 @@ type ebpfLessTracer struct {
 	dnsServerPorts map[uint16]struct{}
 
 	connPool *syncutil.TypedPool[network.ConnectionStats]
+
+	// retry policy for errors returned by packetSrc.VisitPackets
+	readErrorBackoff         time.Duration
+	maxReadErrorBackoff      time.Duration
+	maxConsecutiveReadErrors int
 }
 
 // newEbpfLessTracer creates a new ebpfLessTracer instance
@@ -102,6 +131,10 @@ func newEbpfLessTracerWithPacketSource(cfg *config.Config, packetSrc filter.Pack
 		cookieHasher:   newCookieHasher(),
 		dnsServerPorts: dnsServerPorts,
 		connPool:       syncutil.NewDefaultTypedPool[network.ConnectionStats](),
+
+		readErrorBackoff:         defaultReadErrorBackoff,
+		maxReadErrorBackoff:      defaultMaxReadErrorBackoff,
+		maxConsecutiveReadErrors: defaultMaxConsecutiveReadErrors,
 	}
 }
 
@@ -132,31 +165,49 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		loopbackParser := gopacket.NewDecodingLayerParser(layers.LayerTypeLoopback, &loopback, &ip4, &ip6, &tcp, &udp)
 		loopbackParser.IgnoreUnsupported = true
 
+		readErrors := 0
+		backoff := t.readErrorBackoff
 		for {
+			progressed := false
 			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
-				var parser *gopacket.DecodingLayerParser
-				if info.LinkLayerType() == layers.LayerTypeLoopback {
-					parser = loopbackParser
-				} else {
-					parser = ethernetParser
-				}
-				if err := parser.DecodeLayers(b, &decoded); err != nil {
-					// A malformed or truncated frame must not stop packet capture,
-					// so skip it and keep visiting. Skip the whole frame even if some
-					// layers were decoded: the layer structs of the layer that failed
-					// (and of any layer after it) may hold data from an earlier packet.
-					ebpfLessTracerTelemetry.skippedPackets.Inc("decode_error")
-					if decodeErrorLimiter.ShouldLog() {
-						log.Warnf("skipping packet that could not be decoded: %s", err)
-					}
+				progressed = true
+				pktType := info.PacketType()
+
+				// only process PacketHost and PacketOutgoing packets. Filter before
+				// decoding, so that malformed frames we would ignore anyway (broadcast,
+				// multicast, other hosts) are not counted as decode errors.
+				if pktType != filter.PacketHost && pktType != filter.PacketOutgoing {
+					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
 					return nil
 				}
 
-				pktType := info.PacketType()
-
-				// only process PacketHost and PacketOutgoing packets
-				if pktType != filter.PacketHost && pktType != filter.PacketOutgoing {
-					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
+				var parser *gopacket.DecodingLayerParser
+				var linkPayload *[]byte
+				if info.LinkLayerType() == layers.LayerTypeLoopback {
+					parser = loopbackParser
+					linkPayload = &loopback.Payload
+				} else {
+					parser = ethernetParser
+					linkPayload = &eth.Payload
+				}
+				if err := parser.DecodeLayers(b, &decoded); err != nil {
+					// A malformed or truncated frame must not stop packet capture, so
+					// skip it and keep visiting. Skip it even if its link and network
+					// layers decoded: processConnection would only count it as
+					// not_tcp_udp, and it belongs in the decode_error count.
+					// decoded holds only the layers decoded before the failure, so
+					// linkPayload is valid only when the link layer is the one decoded.
+					if len(decoded) == 1 && isIPv6BigTCP(*linkPayload) {
+						ebpfLessTracerTelemetry.skippedPackets.Inc(skipReasonIPv6BigTCP)
+						if bigTCPLimiter.ShouldLog() {
+							log.Warnf("skipping IPv6 BIG TCP packet (payload length 0 and no jumbo option) of %d bytes, which cannot be decoded; its bytes are not counted", info.OriginalLength())
+						}
+						return nil
+					}
+					ebpfLessTracerTelemetry.skippedPackets.Inc(skipReasonDecodeError)
+					if decodeErrorLimiter.ShouldLog() {
+						log.Warnf("skipping packet that could not be decoded: %s", err)
+					}
 					return nil
 				}
 
@@ -167,21 +218,63 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 				return nil
 			})
 
-			if err != nil {
-				log.Errorf("exiting visiting packets: %s", err)
-				return
-			}
-
 			// Properly synchronizes termination process
 			select {
 			case <-t.exit:
 				return
 			default:
 			}
+
+			if err == nil {
+				readErrors, backoff = 0, t.readErrorBackoff
+				continue
+			}
+
+			// The visitor never returns an error, so err comes from the packet source.
+			ebpfLessTracerTelemetry.packetSourceErrors.Inc()
+			if isFatalPacketSourceError(err) {
+				log.Errorf("exiting visiting packets: %s", err)
+				return
+			}
+			if progressed {
+				// packets were read since the last error, so this is a new error streak
+				readErrors, backoff = 0, t.readErrorBackoff
+			}
+			readErrors++
+			if readErrors > t.maxConsecutiveReadErrors {
+				log.Errorf("exiting visiting packets after %d consecutive packet source errors: %s", readErrors, err)
+				return
+			}
+			if readErrorLimiter.ShouldLog() {
+				log.Warnf("error visiting packets, retrying in %s: %s", backoff, err)
+			}
+			select {
+			case <-t.exit:
+				return
+			case <-time.After(backoff):
+			}
+			backoff = min(2*backoff, t.maxReadErrorBackoff)
 		}
 	}()
 
 	return nil
+}
+
+// isFatalPacketSourceError reports whether err means the packet source can no longer be read,
+// so retrying is pointless. Other errors are retried with a backoff.
+func isFatalPacketSourceError(err error) bool {
+	return errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) || errors.Is(err, syscall.EBADF)
+}
+
+// isIPv6BigTCP reports whether netLayer starts with an IPv6 header whose payload length is 0
+// and that has no Hop-by-Hop header. Linux hands IPv6 BIG TCP packets (GSO/GRO packets larger
+// than 64KiB) to packet sockets this way, and gopacket refuses to decode them.
+func isIPv6BigTCP(netLayer []byte) bool {
+	const ipv6HeaderLen = 40
+	return len(netLayer) >= ipv6HeaderLen &&
+		netLayer[0]>>4 == 6 &&
+		binary.BigEndian.Uint16(netLayer[4:6]) == 0 &&
+		layers.IPProtocol(netLayer[6]) != layers.IPProtocolIPv6HopByHop
 }
 
 func (t *ebpfLessTracer) processConnection(
