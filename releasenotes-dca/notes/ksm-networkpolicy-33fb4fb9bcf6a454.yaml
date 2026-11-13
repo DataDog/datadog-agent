@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Kubernetes State Metrics Core check now collects NetworkPolicy metrics:
+    ``kubernetes_state.networkpolicy.count``,
+    ``kubernetes_state.networkpolicy.spec_ingress_rules``, and
+    ``kubernetes_state.networkpolicy.spec_egress_rules``.
