@@ -72,6 +72,7 @@ type Resolver struct {
 	netnsHandleRequests chan networkNamespaceHandleRequest
 	netnsMountRequests  chan networkNamespaceMountRequest
 	errorCounters       map[string]*atomic.Int64
+	blindHooks          blindHooks
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
@@ -91,6 +92,10 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		netnsMountRequests:  make(chan networkNamespaceMountRequest, 64),
 
 		errorCounters: newErrorCounters(),
+		blindHooks: blindHooks{
+			tcx:          tcxQuerier{query: tc.QueryTCXPrograms},
+			scanRequests: make(chan struct{}, 1),
+		},
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -331,6 +336,9 @@ func (nr *Resolver) SyncCache() bool {
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
+	// the scan needs the handle on the host network namespace taken above
+	nr.requestBlindHooksScan()
+
 	return len(newEntries) > 0
 }
 
@@ -367,6 +375,12 @@ func (nr *Resolver) Start(ctx context.Context) error {
 	go func() {
 		defer nr.wg.Done()
 		nr.flushNamespaces(nr.ctx)
+	}()
+
+	nr.wg.Add(1)
+	go func() {
+		defer nr.wg.Done()
+		nr.detectBlindHooksPeriodically(nr.ctx)
 	}()
 	return nil
 }
@@ -535,6 +549,7 @@ func (nr *Resolver) SendStats() error {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
 
+	nr.sendBlindHookStats()
 	nr.sendErrorStats()
 	return nil
 }

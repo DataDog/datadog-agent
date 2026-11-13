@@ -489,7 +489,7 @@ var (
 	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
 	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
 	// Tags: error_type ('link_not_found', 'no_such_device', 'filter_not_found', 'classifier_exists',
-	// 'queue_full', 'netlink_socket', 'link_list', 'unknown')
+	// 'queue_full', 'netlink_socket', 'link_list', 'filter_list', 'tcx_query', 'unknown')
 	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
@@ -732,6 +732,15 @@ var (
 	// MetricRawPacketDropped is the name of the metric used to count packets dropped by network_filter actions
 	// Tags: rule_id
 	MetricRawPacketDropped = newRuntimeMetric(".network.raw_packet.dropped")
+
+	// MetricTCBlindHooks is the name of the metric used to report the hooks of host interfaces where a foreign
+	// program runs before the TC classifiers
+	// Tags: direction ('ingress', 'egress'), reason ('cilium_tcx', 'cilium_tc_filter', 'unknown_tcx',
+	// 'unknown_tc_filter'), attach_mode ('legacy')
+	MetricTCBlindHooks = newRuntimeMetric(".network.tc.blind_hooks")
+	// MetricTCBlindHooksTelemetry is the agent telemetry counterpart of MetricTCBlindHooks
+	// Tags: attach_mode, reason, direction, platform, platform_version, kernel, arch
+	MetricTCBlindHooksTelemetry = newITRuntimeMetric("network", "tc.blind_hooks")
 )
 
 var (

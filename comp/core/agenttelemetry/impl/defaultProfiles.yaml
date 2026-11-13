@@ -746,6 +746,25 @@ profiles:
     start_after: 300 # 5 minutes
     iterations: 1
     period: 900
+- name: runtime-security
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Registered in system-probe
+      - name: runtime_security.network__tc__blind_hooks
+        preserve_tags:
+          - attach_mode
+          - reason
+          - direction
+          - platform
+          - platform_version
+          - kernel
+          - arch
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: data-plane-preflight-mode
   metric:
     exclude:

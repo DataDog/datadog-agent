@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Workload Protection now detects the host network interfaces where another
+    tool, such as Cilium, attaches programs that run before its network
+    classifiers and can hide the traffic from them. The new
+    ``datadog.runtime_security.network.tc.blind_hooks`` metric counts these
+    interfaces, and the system-probe status warns about those where Cilium's
+    programs keep the classifiers from running.
