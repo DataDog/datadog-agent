@@ -139,7 +139,9 @@ func (p *Publisher) publishDevice(now time.Time, device Device, sender Submitter
 		return false, nil
 	}
 	event := &genresources.GenericResourceEvent{
-		Source: "agent",
+		// REDAPL only copies the authenticated org into events for this source.
+		// Using "agent" would attribute these resources to org 0.
+		Source: "integrations-core",
 		Resource: &genresources.GenericResource{
 			Type: "gpu_device", Key: key, FieldsJson: encodedFields,
 			SeenAt: timestamppb.New(now), ExpireAt: timestamppb.New(now.Add(p.options.TTL)),

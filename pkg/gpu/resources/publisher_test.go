@@ -55,7 +55,7 @@ func TestPublisherEnvelopeAndRefresh(t *testing.T) {
 	require.NoError(t, p.Publish(now, "canonical-host", []Device{device}, sender))
 	require.Len(t, sender.payloads, 1)
 	event, fields := decodeEvent(t, sender.payloads[0])
-	require.Equal(t, "agent", event.Source)
+	require.Equal(t, "integrations-core", event.Source)
 	require.Equal(t, "gpu_device", event.Resource.Type)
 	require.Equal(t, strings.ToLower(testUUID), event.Resource.Key)
 	require.Equal(t, event.Resource.Key, fields["gpu_uuid"])

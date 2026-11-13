@@ -82,7 +82,7 @@ func (suite *EventPlatformForwarderTestSuite) TestGPUResourcesProtobufHTTP() {
 		suite.Equal("test-gpu-api-key", received.headers.Get("DD-API-KEY"))
 		var event genresources.GenericResourceEvent
 		suite.Require().NoError(proto.Unmarshal(received.body, &event))
-		suite.Equal("agent", event.Source)
+		suite.Equal("integrations-core", event.Source)
 		suite.Equal("gpu_device", event.Resource.Type)
 		suite.Equal(now, event.Resource.SeenAt.AsTime())
 		suite.Equal(now.Add(15*time.Minute), event.Resource.ExpireAt.AsTime())
