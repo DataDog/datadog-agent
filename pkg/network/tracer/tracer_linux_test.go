@@ -590,25 +590,28 @@ func (s *TracerSuite) TestConntrackDelays() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// The connection is idle after the write above, so it is reported in only one
-	// getConnections call. The conntrack entry can land after that call (the netlink
-	// conntracker, used on kernels < 4.14, registers it asynchronously), so keep the
-	// tuple from the fetch that reported it and keep looking up its translation.
-	var tuple *network.ConnectionTuple
+	// The tracer looks up the NAT translation of every active connection on each
+	// fetch, and the delayedConntracker makes its first lookup miss, so the test
+	// passes only if a later fetch retries the lookup. With the netlink conntracker
+	// (the fallback when the eBPF conntracker is unavailable, e.g. on kernels before
+	// 4.14 other than RHEL 7) the entry is also registered asynchronously and can land
+	// after several fetches. An idle connection is reported in only one fetch per
+	// client, so write on every tick to keep it in each delta.
+	var seen, sawMiss bool
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := c.Write([]byte("ping"))
+		require.NoError(collect, err)
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections); ok {
-			tup := conn.ConnectionTuple
-			tuple = &tup
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		require.True(collect, ok, "connection not found")
+		if !seen {
+			seen = true
+			sawMiss = conn.IPTranslation == nil
 		}
-		var tl *network.IPTranslation
-		if tuple != nil {
-			tl = tr.conntracker.GetTranslationForConn(tuple)
-		}
-		require.NotNil(collect, tuple, "connection not found")
-		require.NotNil(collect, tl, "connection does not have NAT translation")
+		require.NotNil(collect, conn.IPTranslation, "connection reported without NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
+	require.True(t, sawMiss, "the tracer's first translation lookup should have been delayed")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
