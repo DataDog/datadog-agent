@@ -36,10 +36,10 @@ func NewRoleBindingHandlers(tagger tagger.Component) *RoleBindingHandlers {
 	return &RoleBindingHandlers{tagger: tagger}
 }
 
-// EnrichModel is a handler called before cache lookup.
+// BeforeCacheCheck is a handler called before cache lookup.
 //
 //nolint:revive
-func (h *RoleBindingHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (h *RoleBindingHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	r := resource.(*rbacv1.RoleBinding)
 	m := resourceModel.(*model.RoleBinding)
 
@@ -114,24 +114,10 @@ func (h *RoleBindingHandlers) ResourceList(ctx processors.ProcessorContext, list
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *RoleBindingHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*rbacv1.RoleBinding).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (h *RoleBindingHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*rbacv1.RoleBinding).ResourceVersion
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.

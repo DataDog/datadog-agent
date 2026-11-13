@@ -73,7 +73,7 @@ func (h *ConfigMapHandlers) ResourceList(_ processors.ProcessorContext, list int
 	resourceList := list.([]*metav1.PartialObjectMetadata)
 	resources := make([]interface{}, 0, len(resourceList))
 	for _, r := range resourceList {
-		resources = append(resources, r)
+		resources = append(resources, r.DeepCopy()) // TEST ONLY: as the handlers did before #51611
 	}
 	return resources
 }

@@ -44,7 +44,7 @@ func TestNodeHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewNodeHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -112,16 +112,16 @@ func TestNodeHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*corev1.Node)
 	assert.True(t, ok)
 	assert.Equal(t, "node-1", resource1.Name)
-	assert.Same(t, node1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, node1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*corev1.Node)
 	assert.True(t, ok)
 	assert.Equal(t, "node-2", resource2.Name)
-	assert.Same(t, node2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, node2, resource2) // Should be a copy
 }
 
 func TestNodeHandlers_ResourceUID(t *testing.T) {
@@ -472,14 +472,4 @@ func createTestNode(name, namespace string) *corev1.Node {
 			},
 		},
 	}
-}
-
-func TestNodeHandlers_CloneResource(t *testing.T) {
-	handlers := &NodeHandlers{}
-	original := createTestNode("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*corev1.Node)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

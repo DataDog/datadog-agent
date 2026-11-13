@@ -56,16 +56,16 @@ func TestCRHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*unstructured.Unstructured)
 	assert.True(t, ok)
 	assert.Equal(t, "cr-1", resource1.GetName())
-	assert.Same(t, cr1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, cr1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*unstructured.Unstructured)
 	assert.True(t, ok)
 	assert.Equal(t, "cr-2", resource2.GetName())
-	assert.Same(t, cr2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, cr2, resource2) // Should be a copy
 }
 
 func TestCRHandlers_ResourceUID(t *testing.T) {
@@ -421,14 +421,4 @@ func createTestCustomResource(name, namespace string) *unstructured.Unstructured
 			},
 		},
 	}
-}
-
-func TestCRHandlers_CloneResource(t *testing.T) {
-	handlers := &CRHandlers{}
-	original := createTestCustomResource("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*unstructured.Unstructured)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }

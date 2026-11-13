@@ -70,7 +70,7 @@ func (h *HelmReleaseConfigMapHandlers) ResourceList(_ processors.ProcessorContex
 	resourceList := list.([]*corev1.ConfigMap)
 	resources := make([]interface{}, 0, len(resourceList))
 	for _, r := range resourceList {
-		resources = append(resources, r)
+		resources = append(resources, r.DeepCopy()) // TEST ONLY: as the handlers did before #51611
 	}
 	return resources
 }
