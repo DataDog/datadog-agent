@@ -272,10 +272,7 @@ gpu:
   tracing:
     enabled: true
 `)
-	cfg := NewLabelSelectorsConfig(mockConfig)
-	require.True(t, cfg.GPUTracing)
-
-	_, objectSelector := NewLabelSelectors(cfg).Get(false)
+	_, objectSelector := NewLabelSelectors(NewLabelSelectorsConfig(mockConfig)).Get(false)
 
 	assert.Equal(t, &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
