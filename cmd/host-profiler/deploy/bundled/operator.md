@@ -40,7 +40,6 @@ spec:
               memory: "1Gi"
 ```
 
-The Operator configures the required capabilities, seccomp profile, SELinux, and AppArmor settings on the host-profiler container automatically. A manual security context override is no longer needed; `spec.override.nodeAgent.containers.host-profiler.securityContext` remains available for exceptions.
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
