@@ -141,23 +141,14 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		wasOverridden = true
 	} else {
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
-			var toAdd []*ActionDefinition
 			for _, action := range rd2.Def.Actions {
-				duplicated := false
-				for _, a := range rd1.Def.Actions {
-					if isSameOverrideAction(action, a) {
-						duplicated = true
-						break
-					}
+				if slices.ContainsFunc(rd1.Def.Actions, func(a *ActionDefinition) bool {
+					return isSameOverrideAction(action, a)
+				}) {
+					continue
 				}
-				if !duplicated {
-					toAdd = append(toAdd, alignOverrideSetActionPrivate(action, rd1.Def.Actions))
-				}
-			}
-
-			if len(toAdd) > 0 {
+				rd1.Def.Actions = append(rd1.Def.Actions, alignOverrideSetActionPrivate(action, rd1.Def.Actions))
 				wasOverridden = true
-				rd1.Def.Actions = append(rd1.Def.Actions, toAdd...)
 			}
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideEveryField) {
