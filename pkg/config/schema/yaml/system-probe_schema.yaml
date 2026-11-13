@@ -1106,6 +1106,16 @@ properties:
                   Set to true to attach the network classifiers with TCX on kernels that support it.
                   Ignored on other kernels, where the classifiers are attached as legacy tc filters.
                   With TCX, the classifier priority and handle settings are ignored.
+              settle_delay:
+                node_type: setting
+                type: string
+                default: 5s
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_TCX_SETTLE_DELAY
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_TCX_SETTLE_DELAY
+                comment: |-
+                  With TCX, how long a new device of a kind that container runtimes move into another network namespace
+                  is left alone before its classifiers are attached, since TCX links follow moved devices.
       basename_approvers_size:
         node_type: setting
         type: integer

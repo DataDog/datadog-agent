@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -63,6 +64,7 @@ type Resolver struct {
 	config     *config.Config
 	attachMode manager.TCAttachMode
 	programs   map[ProgramKey]programEntry
+	staleLinks atomic.Int64
 }
 
 // NewResolver returns a TC resolver, whose attach mode is read once from a config already checked against the kernel
@@ -97,6 +99,7 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	for mode, count := range counts {
 		_ = statsdClient.Gauge(metrics.MetricTCProgram, float64(count), []string{"attach_mode:" + mode.String()}, 1.0)
 	}
+	tcr.sendStaleLinksStats(statsdClient)
 }
 
 // FilterPriority returns the priority of the filters of the classifiers
@@ -270,16 +273,19 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 }
 
 // FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
-// per network namespace (ignoring the interfaces that are lazily deleted).
-func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+// per network namespace (ignoring the interfaces that are lazily deleted), and the number of stale TCX links it detached.
+func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) (map[uint32]int, int) {
 	tcr.Lock()
 	defer tcr.Unlock()
 
 	probesCountNoLazyDeletion := make(map[uint32]int)
+	var staleLinks int
 
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
-			tcr.detachHook(tcKey, entry, m)
+			if tcr.detachInactiveHook(tcKey, entry, m) {
+				staleLinks++
+			}
 		} else {
 			link, err := entry.probe.ResolveLink()
 			if err != nil {
@@ -292,7 +298,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 		}
 	}
 
-	return probesCountNoLazyDeletion
+	return probesCountNoLazyDeletion, staleLinks
 }
 
 // ResolveNetworkDeviceIfName resolves network device name

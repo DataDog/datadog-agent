@@ -199,6 +199,7 @@ dd_agent_go_test(
         "network_blind_hooks_test.go",
         "network_device_test.go",
         "network_foreign_tc_test.go",
+        "network_tcx_moves_test.go",
         "network_tcx_test.go",
         "network_test.go",
         "ondemand_test.go",

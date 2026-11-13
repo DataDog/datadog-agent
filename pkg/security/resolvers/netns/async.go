@@ -10,6 +10,7 @@ package netns
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -34,6 +35,9 @@ const (
 	TcNewDeviceRequestType TcClassifierRequestType = iota
 	// TcDeviceUpdateRequestType indicates a device update TC classifier request.
 	TcDeviceUpdateRequestType
+	// TcRegisteredDeviceRequestType indicates a new device TC classifier request, for a device that may still move
+	// to another network namespace.
+	TcRegisteredDeviceRequestType
 )
 
 // TcClassifierRequest represents an async TC classifier setup request.
@@ -111,17 +115,26 @@ func (tcr *Resolver) handleNetworkNamespaceMountRequest(request networkNamespace
 }
 
 func (tcr *Resolver) startSetupNewTCClassifierLoop() {
+	var settled <-chan time.Time
+	if tcr.settler != nil {
+		tcr.settler.resolveHostNetNS()
+		defer tcr.settler.stop()
+	}
+
 	for {
 		// select picks a random ready case, so a cancelled context alone wouldn't stop the queue from being drained
 		if tcr.ctx.Err() != nil {
 			return
+		}
+		if tcr.settler != nil {
+			settled = tcr.settler.arm(time.Now())
 		}
 
 		select {
 		case <-tcr.ctx.Done():
 			return
 		case request := <-tcr.tcRequests:
-			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
+			if err := tcr.handleTCClassifierRequest(request); err != nil {
 				var qnde QueuedNetworkDeviceError
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
@@ -136,7 +149,26 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 			})
 		case request := <-tcr.netnsMountRequests:
 			tcr.handleNetworkNamespaceMountRequest(request)
+		case <-settled:
+			tcr.attachSettledDevices(time.Now())
+		case <-tcr.hostSnapshotRequests:
+			tcr.snapshotHostDevices(time.Now())
 		}
+	}
+}
+
+func (tcr *Resolver) handleTCClassifierRequest(request TcClassifierRequest) error {
+	if tcr.settler == nil {
+		return tcr.setupNewTCClassifier(request.Device)
+	}
+
+	switch request.RequestType {
+	case TcRegisteredDeviceRequestType:
+		return tcr.handleRegisteredDevice(request.Device, time.Now())
+	case TcDeviceUpdateRequestType:
+		return tcr.handleMovedDevice(request.Device)
+	default:
+		return tcr.setupNewTCClassifier(request.Device)
 	}
 }
 

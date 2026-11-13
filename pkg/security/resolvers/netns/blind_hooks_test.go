@@ -91,6 +91,12 @@ func TestHasPeerInOtherNetNS(t *testing.T) {
 	assert.False(t, hasPeerInOtherNetNS(&netlink.Netkit{LinkAttrs: attrs(-1)}, pairs...), "both ends of the pair are in the host")
 	assert.False(t, hasPeerInOtherNetNS(&netlink.Dummy{LinkAttrs: attrs(-1)}, pairs...))
 	assert.False(t, hasPeerInOtherNetNS(&netlink.Macvlan{LinkAttrs: attrs(2)}, pairs...))
+
+	// the host snapshot only leaves out veth ends: the host end of a netkit pair is pod facing, it's attached like any
+	// other host device
+	assert.True(t, hasPeerInOtherNetNS(&netlink.Veth{LinkAttrs: attrs(2)}, "veth"))
+	assert.False(t, hasPeerInOtherNetNS(&netlink.Veth{LinkAttrs: attrs(-1)}, "veth"))
+	assert.False(t, hasPeerInOtherNetNS(&netlink.Netkit{LinkAttrs: attrs(2)}, "veth"))
 }
 
 func TestBPFFilters(t *testing.T) {
