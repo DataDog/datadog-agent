@@ -5,9 +5,21 @@ Bazel can use them without network access to S3.
 
 - `text/<name>`: one file per object in `https://dd-agent-omnibus.s3.amazonaws.com/licenses/`,
   copied byte for byte on 2026-11-09.
-- `standard_licenses.bzl`: `STANDARD_LICENSES` (license id -> file) and
+- `standard_licenses.bzl`: `STANDARD_LICENSES` (license id -> file), the license-kind mapping and
   `standard_license(id)`, ported from `STANDARD_LICENSES` in omnibus-ruby
   `lib/omnibus/licensing.rb` (last changed in f1254809).
+
+## Bazel targets
+
+`BUILD.bazel` declares a `license` (from `@package_metadata//licenses/rules:license.bzl`) for each
+text, named after its file. The kind is `@rules_license//licenses/spdx:<file name>`, except:
+
+- `SPDX_KIND_OVERRIDES` (in `standard_licenses.bzl`) maps omnibus names that differ from the SPDX
+  id, e.g. `UPL` -> `UPL-1.0` and `FPL-1.0.0` -> `0BSD`.
+- `NON_SPDX_KINDS` covers texts with no SPDX id (Chef-MLSA, Oracle-Binary, Public-Domain); each gets a
+  local `license_kind` with a `LicenseRef-*` identifier.
+
+`standard_license(id)` returns the `license` target for a license id.
 
 ## How omnibus uses these
 

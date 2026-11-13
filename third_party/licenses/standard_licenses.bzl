@@ -105,8 +105,36 @@ STANDARD_LICENSES = {
     "BSD-2-Clause-Views": "BSD-2-Clause-Views",  # From SPDX license-list-data v3.27.0.
 }
 
+# File name under text/ -> SPDX id, where the omnibus name is not the SPDX id. Names not listed
+# here or in NON_SPDX_KINDS are already SPDX ids.
+SPDX_KIND_OVERRIDES = {
+    "AALAAL": "AAL",
+    "Erlang-Public": "ErlPL-1.1",
+    "FPL-1.0.0": "0BSD",  # OSI lists 0BSD as the "Free Public License 1.0.0".
+    "LiLiQ-P": "LiLiQ-P-1.1",
+    "LiLiQ-R": "LiLiQ-R-1.1",
+    "LiLiQ-R+": "LiLiQ-Rplus-1.1",
+    "OPL-2.1": "OSET-PL-2.1",
+    "UPL": "UPL-1.0",
+    "WXwindows": "wxWindows",
+}
+
+# File name under text/ -> (identifier, full name) for licenses that have no SPDX id. BUILD.bazel
+# declares a license_kind named "kind_<file name>" for each.
+NON_SPDX_KINDS = {
+    "Chef-MLSA": ("LicenseRef-Chef-MLSA", "Chef Master License and Services Agreement"),
+    "Oracle-Binary": ("LicenseRef-Oracle-Binary", "Oracle Binary Code License Agreement"),
+    "Public-Domain": ("LicenseRef-Public-Domain", "Public Domain"),
+}
+
+def license_kind_label(name):
+    """Returns the license_kind label for the text file `name` under text/."""
+    if name in NON_SPDX_KINDS:
+        return ":kind_" + name
+    return "@rules_license//licenses/spdx:" + SPDX_KIND_OVERRIDES.get(name, name)
+
 def standard_license(license_id):
-    """Returns the label of the standard license text for `license_id`.
+    """Returns the label of the `license` target for `license_id`.
 
     Unlike omnibus, which only warned, an unknown id is an error.
 
@@ -114,7 +142,7 @@ def standard_license(license_id):
       license_id: license id, e.g. "Apache-2.0".
 
     Returns:
-      Label of a filegroup holding the license text.
+      Label of a `license` target; its text is in its PackageAttributeInfo files.
     """
     name = STANDARD_LICENSES.get(license_id)
     if not name:
