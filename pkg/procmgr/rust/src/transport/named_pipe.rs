@@ -39,6 +39,13 @@ pub struct BoundSocket;
 
 pub fn cleanup(_path: &Path, _bound: BoundSocket) {}
 
+/// Matches the Unix `serve` return. There is nothing to unlink.
+pub struct SocketCleanup;
+
+impl SocketCleanup {
+    pub async fn wait(self) {}
+}
+
 #[derive(Clone)]
 pub struct PipeCallerAuth {
     pipe: PipeHandle,
@@ -155,7 +162,10 @@ impl AsyncWrite for NamedPipeIo {
     }
 }
 
-pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
+pub async fn serve<F>(
+    router: tonic::transport::server::Router,
+    shutdown: F,
+) -> Result<SocketCleanup>
 where
     F: Future<Output = ()>,
 {
@@ -197,7 +207,7 @@ where
     }
 
     info!("gRPC server stopped");
-    Ok(())
+    Ok(SocketCleanup)
 }
 
 /// Hands connected pipe instances to the gRPC server until it stops taking them.

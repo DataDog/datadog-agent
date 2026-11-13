@@ -70,6 +70,19 @@ impl BoundSocket {
     }
 }
 
+/// The unlink of the socket `serve` bound, running on a blocking thread from the moment
+/// the server stops. Await `wait` once the child processes have stopped, so a contended
+/// lock never delays their signals.
+pub struct SocketCleanup(tokio::task::JoinHandle<()>);
+
+impl SocketCleanup {
+    pub async fn wait(self) {
+        if let Err(e) = self.0.await {
+            warn!("socket cleanup task failed: {e}");
+        }
+    }
+}
+
 fn lock_path(path: &Path) -> PathBuf {
     let mut lock = path.as_os_str().to_owned();
     lock.push(".lock");
@@ -194,12 +207,22 @@ pub fn set_permissions(path: &Path) {
     }
 }
 
-pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
+/// `bind` waits for the lock with a blocking sleep, so it must not run on a runtime worker.
+async fn bind_blocking(path: PathBuf) -> Result<(UnixListener, BoundSocket)> {
+    tokio::task::spawn_blocking(move || bind(&path))
+        .await
+        .context("socket bind task failed")?
+}
+
+pub async fn serve<F>(
+    router: tonic::transport::server::Router,
+    shutdown: F,
+) -> Result<SocketCleanup>
 where
     F: Future<Output = ()>,
 {
     let path = ipc_path();
-    let (uds, bound) = bind(&path)?;
+    let (uds, bound) = bind_blocking(path.clone()).await?;
     info!("gRPC server listening on {}", path.display());
 
     let uds_stream = UnixListenerStream::new(uds);
@@ -210,8 +233,11 @@ where
         .context("gRPC server error")?;
 
     info!("gRPC server stopped");
-    cleanup(&path, bound);
-    Ok(())
+    // Start the unlink now: it takes the lock on a blocking thread, so it neither delays
+    // the caller nor leaves the socket path behind while the children drain.
+    Ok(SocketCleanup(tokio::task::spawn_blocking(move || {
+        cleanup(&path, bound)
+    })))
 }
 
 /// Unlinks the socket unless a newer daemon has replaced it since `bind`.
@@ -320,6 +346,42 @@ mod tests {
         cleanup(&sock, old);
         assert!(sock.exists(), "the newer daemon's socket must survive");
         assert_eq!(identity(&sock), replacement_identity);
+    }
+
+    #[tokio::test]
+    async fn test_bind_blocking_binds_inside_the_runtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("blocking.sock");
+        let (listener, _bound) = bind_blocking(sock.clone()).await.unwrap();
+        assert!(sock.exists());
+
+        // The listener registered inside the blocking thread must still drive IO here.
+        let (accepted, client) =
+            tokio::join!(listener.accept(), tokio::net::UnixStream::connect(&sock));
+        accepted.unwrap();
+        client.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_socket_cleanup_waits_for_a_contended_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("contended-cleanup.sock");
+        let (_listener, bound) = bind(&sock).unwrap();
+        let held = acquire_lock(&lock_path(&sock), LOCK_TIMEOUT).unwrap();
+
+        let path = sock.clone();
+        let pending = SocketCleanup(tokio::task::spawn_blocking(move || cleanup(&path, bound)));
+        // Several retry intervals: an unlocked cleanup would have finished long before.
+        tokio::time::sleep(LOCK_RETRY_INTERVAL * 4).await;
+        assert!(
+            !pending.0.is_finished(),
+            "cleanup must keep waiting while the lock is held"
+        );
+        assert!(sock.exists(), "nothing unlinks while the lock is held");
+
+        drop(held);
+        pending.wait().await;
+        assert!(!sock.exists(), "cleanup unlinks once the lock is free");
     }
 
     #[test]
