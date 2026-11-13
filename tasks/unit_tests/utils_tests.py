@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from tasks.libs.common.utils import clean_nested_paths, environ
+from tasks.libs.common.utils import DEFAULT_GITLAB_PROJECT_URL, clean_nested_paths, environ, gitlab_project_url
 from tasks.libs.package.utils import get_package_name
 
 
@@ -91,3 +91,13 @@ class TestGetPackageName(unittest.TestCase):
         result = get_package_name(binary, flavor)
 
         self.assertEqual(result, "datadog-dogstatsd")
+
+
+class TestGitlabProjectUrl(unittest.TestCase):
+    def test_uses_ci_project_url(self):
+        with environ({"CI_PROJECT_URL": "https://gitlab.example.com/ddoghq/datadog-agent"}):
+            self.assertEqual(gitlab_project_url(), "https://gitlab.example.com/ddoghq/datadog-agent")
+
+    def test_defaults_outside_ci(self):
+        with environ({"CI_PROJECT_URL": "DELETE"}):
+            self.assertEqual(gitlab_project_url(), DEFAULT_GITLAB_PROJECT_URL)
