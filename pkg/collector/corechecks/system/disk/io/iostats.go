@@ -9,7 +9,7 @@ package io
 import (
 	"regexp"
 
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yaml "go.yaml.in/yaml/v3" // lowercase_device_tag keeps accepting unquoted YAML 1.1 spellings through check.ToLenientBool
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -54,7 +54,7 @@ func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integ
 	}
 
 	if lowercaseDeviceTagOption, ok := conf["lowercase_device_tag"]; ok {
-		if lowercaseDeviceTag, ok := lowercaseDeviceTagOption.(bool); ok {
+		if lowercaseDeviceTag, ok := check.ToLenientBool(lowercaseDeviceTagOption); ok {
 			c.lowercaseDeviceTag = lowercaseDeviceTag
 		} else {
 			log.Warn("Can't cast value of 'lowercase_device_tag' option to boolean: ", lowercaseDeviceTagOption)

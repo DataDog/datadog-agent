@@ -81,6 +81,7 @@ go_library(
 dd_agent_go_test(
     name = "diskv2_test",
     srcs = [
+        "config_bool_test.go",
         "disk_nix_test.go",
         "disk_test.go",
         "disk_windows_internal_test.go",
