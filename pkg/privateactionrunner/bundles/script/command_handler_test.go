@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -127,6 +128,13 @@ func TestScriptHandlerReportsTimeoutAfterScriptExit(t *testing.T) {
 		done <- err
 	}()
 	child := waitForTestChild(t, pidFile)
+	// Expiring while the script still runs would kill it and pass without the after-exit path.
+	data, err := os.ReadFile(scriptPidFile(pidFile))
+	require.NoError(t, err)
+	scriptPid, err := strconv.Atoi(string(data))
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return processStopped(scriptPid) },
+		15*time.Second, 10*time.Millisecond, "script did not exit")
 	ctx.expire()
 	fired := time.Now()
 	select {
