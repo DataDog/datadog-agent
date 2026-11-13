@@ -538,6 +538,10 @@ var (
 	// MetricTCProgram is the name of the metric used to report the count of active TC programs
 	// Tags: attach_mode ('legacy', 'tcx')
 	MetricTCProgram = newRuntimeMetric(".tc_program")
+	// MetricTCStaleLinks is the name of the metric used to count the TCX links detached because their device left
+	// the network namespace in which they were attached
+	// Tags: -
+	MetricTCStaleLinks = newRuntimeMetric(".tc.stale_links")
 
 	// Security Agent metrics
 

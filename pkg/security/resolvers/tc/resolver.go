@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -66,6 +67,7 @@ type Resolver struct {
 	config     *config.Config
 	attachMode manager.TCAttachMode
 	programs   map[ProgramKey]programEntry
+	staleLinks atomic.Int64
 }
 
 // NewResolver returns a TC resolver, whose attach mode is read once from a config already checked against the kernel
@@ -100,6 +102,7 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	for mode, count := range counts {
 		_ = statsdClient.Gauge(metrics.MetricTCProgram, float64(count), []string{"attach_mode:" + mode.String()}, 1.0)
 	}
+	tcr.sendStaleLinksStats(statsdClient)
 }
 
 // FilterPriority returns the priority of the filters of the classifiers
@@ -306,7 +309,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	var linkName string
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
-			tcr.detachHook(tcKey, entry, m)
+			tcr.detachInactiveHook(tcKey, entry, m)
 		} else {
 			link, err := entry.probe.ResolveLink()
 			if err == nil {

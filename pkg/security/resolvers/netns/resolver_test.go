@@ -33,7 +33,8 @@ func TestTCProbesLockOrder(t *testing.T) {
 	lonelyNamespaceTimeout = 0
 	t.Cleanup(func() { lonelyNamespaceTimeout = defaultLonelyNamespaceTimeout })
 
-	cfg := &config.Config{NetworkEnabled: true, NetworkIngressEnabled: true, NetworkRawPacketEnabled: true}
+	// TCX, since moved devices are only detached with TCX links
+	cfg := &config.Config{NetworkEnabled: true, NetworkIngressEnabled: true, NetworkRawPacketEnabled: true, NetworkTCXEnabled: true}
 	m := &manager.Manager{}
 	tcResolver := tc.NewResolver(cfg)
 	nr, err := NewResolver(cfg, m, &statsd.NoOpClient{}, tcResolver)
@@ -73,6 +74,7 @@ func TestTCProbesLockOrder(t *testing.T) {
 	loop(func(nsID uint32) {
 		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(model.NetDevice{IfIndex: 1, NetNS: nsID}, handle, m)
 	})
+	loop(func(nsID uint32) { _ = nr.handleMovedDevice(model.NetDevice{IfIndex: 1, NetNS: nsID}) })
 	loop(func(nsID uint32) { tcResolver.ResolveNetworkDeviceIfName(1, nsID) })
 	loop(func(uint32) { _ = nr.SendStats() })
 
