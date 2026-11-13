@@ -166,6 +166,12 @@ Here an example of an inventory payload:
 
 ### Secret declarations in configuration files
 
+This metadata is intended to support Fleet Automation for VM-based Agents and only
+covers configuration files reported in `files_metadata`. Secrets supplied only
+through other configuration sources, such as environment variables or Kubernetes
+Autodiscovery annotations, are not included. It is not a complete inventory of
+secrets in the effective configuration.
+
 Each `files_metadata[filename].secrets` array describes the secret declarations in
 that file. Entries have `kind` (`enc` or `raw`), `path` (a dotted path relative to the file,
 including list indexes), and, for ENC declarations, `handle`. For example,
