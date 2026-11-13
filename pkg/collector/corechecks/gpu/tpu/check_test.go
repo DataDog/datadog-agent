@@ -249,6 +249,15 @@ func TestScrapeErrorFailsRun(t *testing.T) {
 	assert.ErrorContains(t, c.Run(), "503")
 }
 
+func TestOversizedScrapeFailsRun(t *testing.T) {
+	// Valid text up to the limit: truncating it would parse without error.
+	body := strings.Repeat("#\n", maxScrapeBytes/2) + "#\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+	t.Cleanup(srv.Close)
+	c, _, _, _ := setupTPUCheck(t, srv.URL+"/metrics", nil)
+	assert.ErrorContains(t, c.Run(), "exceeds")
+}
+
 func TestCheckSkippedWithoutConfigOrTPU(t *testing.T) {
 	configure := func(c *Check) error {
 		return c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
