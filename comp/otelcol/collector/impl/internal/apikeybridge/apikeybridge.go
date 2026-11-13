@@ -37,9 +37,10 @@ const apiKeySetting = "api_key"
 // Agent's shared configuration into the Datadog extension's private one.
 //
 // It deliberately subscribes to the config rather than to any particular writer, so it
-// covers every way the Agent's key can change: configsync pulling from a core Agent in
-// connected mode (SourceLocalConfigProcess), and the otel-agent's own secrets backend
-// refreshing an ENC[] handle in standalone mode (SourceSecret).
+// covers every way the Agent's key can change: configsync pulling from a core Agent
+// (SourceLocalConfigProcess), and a secrets backend refreshing an ENC[] handle
+// (SourceSecret). Only connected mode matters in practice -- the converter does not
+// autoconfigure this extension when otel_standalone is set.
 func Option(shared coreconfig.Component, logger log.Component) agentcomponents.ConfigOption {
 	return func(priv pkgconfigmodel.Config) {
 		armedKey := shared.GetString(apiKeySetting)
@@ -53,6 +54,11 @@ func Option(shared coreconfig.Component, logger log.Component) agentcomponents.C
 		// left alone -- the converter's reuseExtension does not touch it either.
 		// Comparing keys rather than matching on the dd-autoconfigured instance name
 		// also covers a user who declared the extension with the same key.
+		//
+		// The seeded key came from this same setting one confmap resolution earlier
+		// (converter/impl/autoconfigure.go). A rotation landing in that window makes the
+		// two differ and leaves the autoconfigured extension untracked until restart.
+		// ConfigOption carries no instance ID, so the key is the only discriminator.
 		if privateKey(priv) != armedKey {
 			if logger != nil {
 				logger.Debug("Datadog extension is configured with an API key that differs " +
@@ -74,6 +80,8 @@ func Option(shared coreconfig.Component, logger log.Component) agentcomponents.C
 			// Agent is actually using.
 			key := shared.GetString(apiKeySetting)
 			if key == "" {
+				// An emptied key is not propagated: clearing the extension's would only
+				// break it, so it keeps the last good one until a real key arrives.
 				return
 			}
 			// SourceAgentRuntime matches the rank agentcomponents.WithAPIConfig seeded
