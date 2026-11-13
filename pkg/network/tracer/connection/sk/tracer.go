@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -134,4 +135,33 @@ func initSKTracer(ar bytecode.AssetReader, o manager.Options, config *config.Con
 	}
 
 	return m.InitWithOptions(ar, &o)
+}
+
+// orphanSocketsIterator is the iterator program listing the TCP sockets that have been closed by
+// the application, but not yet torn down by the kernel. It isn't a manager probe, because a map
+// iterator must be attached to its map, which the manager can't do.
+const orphanSocketsIterator = "bpf_iter__sk_storage_map_tcp_orphans"
+
+// AttachOrphanSocketsIterator attaches the iterator listing TCP sockets that have no file anymore,
+// but whose close event hasn't been sent yet. They are still active connections.
+func AttachOrphanSocketsIterator(m *manager.Manager) (*link.Iter, error) {
+	progs, ok, err := m.GetProgram(manager.ProbeIdentificationPair{EBPFFuncName: orphanSocketsIterator})
+	if err != nil {
+		return nil, fmt.Errorf("error getting program %s: %w", orphanSocketsIterator, err)
+	}
+	if !ok || len(progs) == 0 || progs[0] == nil {
+		return nil, fmt.Errorf("program %s not found", orphanSocketsIterator)
+	}
+	tcpStats, ok, err := m.GetMap("sk_tcp_stats")
+	if err != nil {
+		return nil, fmt.Errorf("error getting map sk_tcp_stats: %w", err)
+	}
+	if !ok {
+		return nil, errors.New("map sk_tcp_stats not found")
+	}
+	it, err := link.AttachIter(link.IterOptions{Program: progs[0], Map: tcpStats})
+	if err != nil {
+		return nil, fmt.Errorf("error attaching %s: %w", orphanSocketsIterator, err)
+	}
+	return it, nil
 }

@@ -23,7 +23,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -267,73 +266,6 @@ func (s *TracerSuite) TestTCPShortLived() {
 	defer cleanup()
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
-}
-
-// TestTCPCloseReportedOnce checks that a closed TCP connection is reported only once, even when
-// the kernel finishes tearing down the socket well after the application closed it. Here the
-// client closes first, and its socket only reaches TIME_WAIT (and tcp_done) once the server
-// closes its side, after the client's close has already been reported.
-func (s *TracerSuite) TestTCPCloseReportedOnce() {
-	t := s.T()
-	cfg := testConfig()
-	if cfg.EnableEbpfless {
-		t.Skip("ebpf-less tracks connections from packets, not socket close events")
-	}
-	tr := setupTracer(t, cfg)
-
-	closeServerSide := make(chan struct{})
-	var closeServerSideOnce sync.Once
-	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
-	t.Cleanup(releaseServer)
-
-	server := testutil.NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		<-closeServerSide
-		c.Close()
-	})
-	t.Cleanup(server.Shutdown)
-	require.NoError(t, server.Run())
-
-	c, err := server.Dial()
-	require.NoError(t, err)
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
-
-	// the client closes first, so its socket waits in FIN_WAIT2 for the server's FIN
-	c.Close()
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		connections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, ok)
-		assert.Equal(collect, clientMessageSize, int(conn.Monotonic.SentBytes))
-		assert.Equal(collect, uint16(1), conn.Monotonic.TCPClosed)
-	}, 3*time.Second, 100*time.Millisecond, "closed connection not found")
-
-	// The server's FIN moves the client socket to TIME_WAIT, which runs tcp_done. From here on
-	// the client side must not be reported again. Keep polling until the server side has been
-	// reported closed (so the teardown really happened), plus a margin for late events.
-	releaseServer()
-	var serverClosedAt time.Time
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && (serverClosedAt.IsZero() || time.Since(serverClosedAt) < 300*time.Millisecond) {
-		time.Sleep(50 * time.Millisecond)
-		connections, cleanup := getConnections(t, tr)
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if ok {
-			assert.Fail(t, "closed connection reported a second time", "%+v", conn)
-		}
-		if srv, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections); ok && srv.Monotonic.TCPClosed > 0 && serverClosedAt.IsZero() {
-			serverClosedAt = time.Now()
-		}
-		cleanup()
-	}
-	require.False(t, serverClosedAt.IsZero(), "server side of the connection never reported as closed")
 }
 
 func (s *TracerSuite) TestTCPOverIPv6() {
