@@ -17,9 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
-// metricVersion changes when the meaning of the values changes, not when thresholds do.
-const metricVersion = 1
-
 type observationPoint string
 
 const (

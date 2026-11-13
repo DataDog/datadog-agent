@@ -32,10 +32,10 @@ func (r Report) Submit(s sender.Sender, logger log.Component) {
 		}
 		logger.Infof("NetFlow interface entropy (shadow): namespace=%s exporter_ip=%s interface_index=%d observation_point=%s "+
 			"window_start=%d window_end=%d entropy_bytes=%.4f normalized_entropy_bytes=%s entropy_packets=%.4f entropy_records=%.4f "+
-			"total_weight=%d total_packets=%d record_count=%d distinct_count=%d quality_status=%s metric_version=%d agent_version=%s",
+			"total_weight=%d total_packets=%d record_count=%d distinct_count=%d agent_version=%s",
 			w.Namespace, w.Exporter, w.InterfaceIndex, w.observationPoint,
 			w.Start.Unix(), w.End.Unix(), w.ByteEntropy, normalized, w.PacketEntropy, w.RecordEntropy,
-			w.TotalWeight, w.TotalPackets, w.RecordCount, w.DistinctCount, w.Status, metricVersion, version.AgentVersion)
+			w.TotalWeight, w.TotalPackets, w.RecordCount, w.DistinctCount, version.AgentVersion)
 	}
 	for status, n := range windowsByStatus {
 		s.Count(metricPrefix+"windows", float64(n), "", []string{"quality_status:" + string(status)})
