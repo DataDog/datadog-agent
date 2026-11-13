@@ -3734,6 +3734,17 @@ func (env *netemTestEnv) addNetem(t *testing.T, args ...string) {
 	})
 }
 
+// setLoopbackMTU sets the MTU of the loopback device inside the namespace.
+// A fresh netns loopback has a 64KiB MTU, so each segment can be as large as
+// a whole receive window. Tests that need several segments in flight for
+// netem reordering or loss to have an effect should lower it before dialing.
+func (env *netemTestEnv) setLoopbackMTU(t *testing.T, mtu int) {
+	t.Helper()
+	testutil.RunCommands(t, []string{
+		fmt.Sprintf("ip -n %s link set lo mtu %d", env.Netns, mtu),
+	}, false)
+}
+
 // changeNetem modifies an existing netem qdisc on the loopback device inside
 // the namespace. The qdisc must have been added with addNetem first.
 func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
@@ -4031,14 +4042,25 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	})
 	t.Cleanup(func() { close(doneCh) })
 
+	// A fresh netns loopback has a 64KiB MTU, so a segment is about as large
+	// as the initial 64KiB receive window. On 6.17 and 7.0 the receiver
+	// sometimes doesn't grow its window for many seconds. Only one segment
+	// is in flight then, and reordering can't produce out-of-order arrivals.
+	// An Ethernet-sized MTU puts ~45 segments in that window.
+	env.setLoopbackMTU(t, 1500)
+
 	c := env.dialInNs(t)
 	defer c.Close()
 
 	// Apply reordering on loopback inside the namespace.
-	// "delay 50ms reorder 75%" delays 75% of packets by 50ms, sending the
-	// rest immediately, causing reliable out-of-order delivery.
+	// "delay 50ms reorder 75%" sends 75% of packets immediately and delays
+	// the rest by 50ms, causing out-of-order delivery.
 	env.addNetem(t, "delay", "50ms", "reorder", "75%")
 
+	// rcv_ooopack is 0 before netem is applied, so the monotonic value is
+	// the count caused by netem. Keep the highest value seen across fetches
+	// instead of requiring the connection in the latest one.
+	var rcvOOOPack uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Drain available data to trigger tcp_recvmsg snapshots.
 		c.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -4046,11 +4068,10 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
-			return
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			rcvOOOPack = max(rcvOOOPack, conn.Monotonic.TCPRcvOOOPack)
 		}
-		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
+		assert.Greater(ct, rcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
