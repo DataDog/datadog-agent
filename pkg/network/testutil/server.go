@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,8 +52,9 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 		addr = fmt.Sprintf("[%s]:%d", ip, port)
 	}
 
-	l, err := net.Listen(network, addr)
+	ln, err := net.Listen(network, addr)
 	require.NoError(t, err)
+	l := &tcpTestServer{Listener: ln, conns: make(map[net.Conn]struct{})}
 	go func() {
 		close(ch)
 		for {
@@ -65,7 +67,14 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 				continue
 			}
 
-			go respondAndCloseTCP(conn)
+			if !l.track(conn) {
+				conn.Close()
+				return
+			}
+			go func() {
+				defer l.untrack(conn)
+				respondAndCloseTCP(conn)
+			}()
 		}
 	}()
 	<-ch
@@ -78,6 +87,50 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for TCP server to come up")
 
 	return l
+}
+
+// tcpTestServer is the net.Listener returned by StartServerTCP. Closing it also
+// closes the connections that are still being drained, and waits for their
+// goroutines, so nothing outlives the server.
+type tcpTestServer struct {
+	net.Listener
+
+	mu     sync.Mutex
+	closed bool
+	conns  map[net.Conn]struct{}
+	wg     sync.WaitGroup
+}
+
+func (s *tcpTestServer) track(conn net.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.conns[conn] = struct{}{}
+	s.wg.Add(1)
+	return true
+}
+
+func (s *tcpTestServer) untrack(conn net.Conn) {
+	s.mu.Lock()
+	delete(s.conns, conn)
+	s.mu.Unlock()
+	s.wg.Done()
+}
+
+// Close stops accepting connections, closes the ones still open and waits for
+// their goroutines to exit.
+func (s *tcpTestServer) Close() error {
+	err := s.Listener.Close()
+	s.mu.Lock()
+	s.closed = true
+	for conn := range s.conns {
+		conn.Close()
+	}
+	s.mu.Unlock()
+	s.wg.Wait()
+	return err
 }
 
 // tcpDrainTimeout bounds how long respondAndCloseTCP waits for the client to
