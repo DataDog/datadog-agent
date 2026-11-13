@@ -1525,6 +1525,16 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 
 	t.Logf("port is %d", port)
 
+	// The byte counters are checked inside the retry loop, not after it. In
+	// eBPFless mode the tracer counts packets asynchronously: they reach
+	// userspace one TPACKET_V3 block at a time (64ms block retire timeout) and a
+	// goroutine processes them, so all four connections can be visible before
+	// the replies have been counted.
+	//
+	// conns keeps the last-seen copy of each connection across polls, because a
+	// connection that has stopped changing isn't necessarily returned again.
+	// The stats are stored by value, since cleanup() releases the buffer.
+	serverBytes, clientBytes := 3, 6
 	conns := map[network.ConnectionTuple]network.ConnectionStats{}
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
@@ -1543,38 +1553,37 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		t.Log(conns)
 
 		require.Len(collect, conns, 4)
-	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
 
-	var incoming, outgoing []network.ConnectionStats
-	for _, c := range conns {
-		if c.SPort == uint16(port) {
-			incoming = append(incoming, c)
-		} else if c.DPort == uint16(port) {
-			outgoing = append(outgoing, c)
+		var incoming, outgoing []network.ConnectionStats
+		for _, c := range conns {
+			if c.SPort == uint16(port) {
+				incoming = append(incoming, c)
+			} else if c.DPort == uint16(port) {
+				outgoing = append(outgoing, c)
+			}
 		}
-	}
 
-	serverBytes, clientBytes := 3, 6
-	if assert.Len(t, incoming, 2, "unable to find incoming connections") {
-		for _, c := range incoming {
-			assert.Equal(t, network.INCOMING, c.Direction, "incoming direction")
+		if assert.Len(collect, incoming, 2, "unable to find incoming connections") {
+			for _, c := range incoming {
+				assert.Equal(collect, network.INCOMING, c.Direction, "incoming direction")
 
-			// make sure the inverse values are seen for the other message
-			assert.Equal(t, serverBytes, int(c.Monotonic.SentBytes), "incoming sent")
-			assert.Equal(t, clientBytes, int(c.Monotonic.RecvBytes), "incoming recv")
-			assert.True(t, c.IntraHost, "incoming intrahost")
+				// make sure the inverse values are seen for the other message
+				assert.Equal(collect, serverBytes, int(c.Monotonic.SentBytes), "incoming sent")
+				assert.Equal(collect, clientBytes, int(c.Monotonic.RecvBytes), "incoming recv")
+				assert.True(collect, c.IntraHost, "incoming intrahost")
+			}
 		}
-	}
 
-	if assert.Len(t, outgoing, 2, "unable to find outgoing connections") {
-		for _, c := range outgoing {
-			assert.Equal(t, network.OUTGOING, c.Direction, "outgoing direction")
+		if assert.Len(collect, outgoing, 2, "unable to find outgoing connections") {
+			for _, c := range outgoing {
+				assert.Equal(collect, network.OUTGOING, c.Direction, "outgoing direction")
 
-			assert.Equal(t, clientBytes, int(c.Monotonic.SentBytes), "outgoing sent")
-			assert.Equal(t, serverBytes, int(c.Monotonic.RecvBytes), "outgoing recv")
-			assert.True(t, c.IntraHost, "outgoing intrahost")
+				assert.Equal(collect, clientBytes, int(c.Monotonic.SentBytes), "outgoing sent")
+				assert.Equal(collect, serverBytes, int(c.Monotonic.RecvBytes), "outgoing recv")
+				assert.True(collect, c.IntraHost, "outgoing intrahost")
+			}
 		}
-	}
+	}, 3*time.Second, 100*time.Millisecond, "could not find the 4 expected udp connections with the expected byte counts")
 }
 
 func (s *TracerSuite) TestUDPReusePort() {
