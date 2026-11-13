@@ -1279,6 +1279,8 @@ func (p *EBPFProbe) newSysCtlEventFromProcFSSnapshot(name, value string, anchor 
 
 	event.SysCtl.Action = uint32(model.SysCtlReadAction)
 	event.SysCtl.Name = name
+	// as for the read events from the kernel, both values are the current one
+	event.SysCtl.OldValue = value
 	event.SysCtl.Value = value
 
 	return event

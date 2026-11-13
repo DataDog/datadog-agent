@@ -398,8 +398,8 @@ func TestReplay(t *testing.T) {
 			{
 				ID: "test_rule_replay_sysctl",
 				Expression: fmt.Sprintf(
-					`event.source == "replay" && sysctl.action == SYSCTL_READ && sysctl.name == "kernel/kptr_restrict" && sysctl.value == "%s"`,
-					value,
+					`event.source == "replay" && sysctl.action == SYSCTL_READ && sysctl.name == "kernel/kptr_restrict" && sysctl.old_value == "%s" && sysctl.value == "%s"`,
+					value, value,
 				),
 			},
 		}
