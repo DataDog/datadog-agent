@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const probeUID = "net"
@@ -123,6 +124,10 @@ func initSKTracer(ar bytecode.AssetReader, o manager.Options, config *config.Con
 			o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
+	// not a manager probe, see AttachOrphanSocketsIterator
+	if !OrphanSocketsIteratorEnabled(config) {
+		o.ExcludedFunctions = append(o.ExcludedFunctions, orphanSocketsIterator)
+	}
 	for funcName := range enabledProbes {
 		o.ActivatedProbes = append(
 			o.ActivatedProbes,
@@ -141,6 +146,32 @@ func initSKTracer(ar bytecode.AssetReader, o manager.Options, config *config.Con
 // the application, but not yet torn down by the kernel. It isn't a manager probe, because a map
 // iterator must be attached to its map, which the manager can't do.
 const orphanSocketsIterator = "bpf_iter__sk_storage_map_tcp_orphans"
+
+// haveSkStorageMapIterator returns whether the kernel supports iterators over BPF_MAP_TYPE_SK_STORAGE
+// maps (5.9). ddfeatures.HaveIteratorType can't check it: a map iterator can only be attached to a map.
+var haveSkStorageMapIterator = funcs.MemoizeNoError(func() bool {
+	prog, err := ebpf.NewProgramWithOptions(&ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceIter,
+		AttachTo:   "bpf_sk_storage_map",
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+		License: "GPL",
+	}, ebpf.ProgramOptions{LogDisabled: true})
+	if err != nil {
+		log.Warnf("TCP sockets closed by the application won't be reported as active until the kernel destroys them: sk_storage map iterators aren't supported: %s", err)
+		return false
+	}
+	_ = prog.Close()
+	return true
+})
+
+// OrphanSocketsIteratorEnabled returns whether the iterator listing orphaned TCP sockets is used
+func OrphanSocketsIteratorEnabled(config *config.Config) bool {
+	return (config.CollectTCPv4Conns || config.CollectTCPv6Conns) && haveSkStorageMapIterator()
+}
 
 // AttachOrphanSocketsIterator attaches the iterator listing TCP sockets that have no file anymore,
 // but whose close event hasn't been sent yet. They are still active connections.

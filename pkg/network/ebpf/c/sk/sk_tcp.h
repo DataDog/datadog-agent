@@ -3,6 +3,7 @@
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
+#include "bpf_telemetry.h"
 
 #include "defs.h"
 #include "maps.h"
@@ -86,12 +87,14 @@ static __always_inline void send_tcp_close_event(struct sock *sk, sk_tcp_stats_t
     }
     conn_t conn = {};
     if (create_tcp_conn(&conn, sk, sk_stats, NULL)) {
-        bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+        // a full ring buffer is counted in the helper error telemetry
+        bpf_ringbuf_output_with_telemetry(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
     }
-    // Only set once the event is in the ring buffer: from here on the iterators skip the socket,
-    // and userspace flushes the ring buffer after iterating, so a check sees the connection either
-    // as active or as closed. Set even if the event couldn't be sent, so the socket isn't listed
-    // as active forever.
+    // Set whether or not the event could be sent: from here on the iterators skip the socket, so
+    // that a check sees the connection either as active or (once userspace flushes the ring
+    // buffer, after iterating) as closed. Retrying from a later hook isn't possible: after
+    // tcp_disconnect the kernel counters are zeroed, and tcp_v4_destroy_sock is the last hook.
+    // So if the ring buffer is full, the connection's final stats are lost.
     sk_stats->close_sent = 1;
 }
 

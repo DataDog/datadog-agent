@@ -130,18 +130,8 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
     return 0;
 }
 
-struct sock___pre_7_0 {
-    unsigned long sk_flags;
-};
-
 static __always_inline bool is_sock_dead(struct sock *sk) {
-    unsigned long flags = 0;
-    // 7.0 moved sk_flags into sock_common, as skc_flags
-    if (bpf_core_field_exists(((struct sock___pre_7_0 *)sk)->sk_flags)) {
-        flags = BPF_CORE_READ((struct sock___pre_7_0 *)sk, sk_flags);
-    } else {
-        flags = BPF_CORE_READ(sk, __sk_common.skc_flags);
-    }
+    unsigned long flags = BPF_CORE_READ(sk, __sk_common.skc_flags);
     return flags & (1UL << SOCK_DEAD);
 }
 

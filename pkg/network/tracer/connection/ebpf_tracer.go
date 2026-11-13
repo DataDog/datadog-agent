@@ -345,7 +345,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			return nil, errors.New("error retrieving socket dump iter")
 		}
 
-		if config.CollectTCPv4Conns || config.CollectTCPv6Conns {
+		if sk.OrphanSocketsIteratorEnabled(config) {
 			tr.orphanSocketIter, err = sk.AttachOrphanSocketsIterator(m.Manager)
 			if err != nil {
 				tr.Stop()
