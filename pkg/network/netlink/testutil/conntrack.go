@@ -124,9 +124,16 @@ func teardownDNAT6(t *testing.T, ifName string, linkName string) {
 	nettestutil.RunCommands(t, cmds, true)
 }
 
+const (
+	// VethPairRootAddr is the address SetupVethPair assigns to veth1, in the root namespace
+	VethPairRootAddr = "2.2.2.3"
+	// VethPairNSAddr is the address SetupVethPair assigns to veth2, inside the namespace it creates
+	VethPairNSAddr = "2.2.2.4"
+)
+
 // SetupVethPair sets up a network namespace, along with two IP addresses
-// 2.2.2.3 and 2.2.2.4 to be used for namespace aware tests.
-// 2.2.2.4 is within the specified namespace, while 2.2.2.3 is a peer in the root namespace.
+// VethPairRootAddr (2.2.2.3) and VethPairNSAddr (2.2.2.4) to be used for namespace aware tests.
+// VethPairNSAddr is within the specified namespace, while VethPairRootAddr is a peer in the root namespace.
 func SetupVethPair(tb testing.TB) (ns string) {
 	ns = AddNS(tb)
 	tb.Cleanup(func() {
@@ -136,11 +143,11 @@ func SetupVethPair(tb testing.TB) (ns string) {
 	cmds := []string{
 		"ip link add veth1 type veth peer name veth2",
 		"ip link set veth2 netns " + ns,
-		"ip address add 2.2.2.3/24 dev veth1",
-		fmt.Sprintf("ip -n %s address add 2.2.2.4/24 dev veth2", ns),
+		"ip address add " + VethPairRootAddr + "/24 dev veth1",
+		fmt.Sprintf("ip -n %s address add %s/24 dev veth2", ns, VethPairNSAddr),
 		"ip link set veth1 up",
 		fmt.Sprintf("ip -n %s link set veth2 up", ns),
-		fmt.Sprintf("ip netns exec %s ip route add default via 2.2.2.3", ns),
+		fmt.Sprintf("ip netns exec %s ip route add default via %s", ns, VethPairRootAddr),
 	}
 	nettestutil.RunCommands(tb, cmds, false)
 	return
