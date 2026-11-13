@@ -75,6 +75,44 @@ func TestReadResolvConfMissingVsProcessRootGone(t *testing.T) {
 	require.ErrorIs(t, err, errProcessRootGone)
 }
 
+func TestReadResolvConfProcessExitsDuringRead(t *testing.T) {
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	// simulate the process exiting during the read: its root no longer resolves
+	// once the lookup is done
+	oldProcessRootGone := processRootGone
+	processRootGone = func(string) bool { return true }
+	t.Cleanup(func() { processRootGone = oldProcessRootGone })
+
+	// pid 42: the lookup finds a resolv.conf, e.g. the image's own one after the
+	// bind mount was detached
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "42", "root", "etc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(fakeProc, "42", "root", "etc", "resolv.conf"),
+		[]byte("nameserver 9.9.9.9\n"), 0644))
+	// pid 43: the lookup finds no resolv.conf
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "43", "root", "etc"), 0755))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	for _, pid := range []uint32{42, 43} {
+		_, err := rs.readResolvConf(&events.Process{
+			Pid:         pid,
+			ContainerID: intern.GetByString("test-container"),
+		})
+		require.ErrorIs(t, err, errProcessRootGone, "pid %d", pid)
+	}
+}
+
+func TestReadResolvConfInRootMissingRoot(t *testing.T) {
+	// a missing host root is a missing resolv.conf, not an exiting process
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConfInRoot(filepath.Join(t.TempDir(), "does-not-exist"))
+	require.NoError(t, err)
+	require.Equal(t, "<missing>", result)
+}
+
 func TestStripResolvConf(t *testing.T) {
 	resolvConf := `
 ; comment goes here
