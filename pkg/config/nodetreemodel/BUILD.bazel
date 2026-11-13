@@ -47,6 +47,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
+        "//pkg/util/log",
         "@com_github_spf13_cast//:cast",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
