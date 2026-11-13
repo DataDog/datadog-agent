@@ -34,6 +34,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/bundle-support/httpclient",
         "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
