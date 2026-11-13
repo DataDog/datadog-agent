@@ -227,8 +227,27 @@ build do
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
-      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+      sysprobe_env = env
+      # embedded/lib is owned by dd-agent; system-probe runs as root. A DT_RPATH
+      # on that directory would load a library planted there as root.
+      # with_standard_compiler_flags also sets LD_RUN_PATH, which ld uses when
+      # the link line has no -rpath (the libpcap cgo flags replace CGO_LDFLAGS).
+      # FIPS builds dlopen the embedded OpenSSL, so they keep both.
+      unless fips_mode?
+        without_rpath = lambda { |flags|
+          flags.to_s.gsub(/-Wl,-rpath(?:=|,)\S+/, '').gsub(/[[:space:]]+/, ' ').strip
+        }
+        sysprobe_env = env.merge(
+          'LDFLAGS' => without_rpath.call(env['LDFLAGS']),
+          'CGO_LDFLAGS' => without_rpath.call(env['CGO_LDFLAGS']),
+        )
+        sysprobe_env.delete('LD_RUN_PATH')
+      end
+      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: sysprobe_env, :live_stream => Omnibus.logger.live_stream(:info)
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
+      unless fips_mode?
+        command "!(objdump -p ./bin/system-probe/system-probe | egrep '^[[:space:]]*(RPATH|RUNPATH)[[:space:]]')"
+      end
     else
       command "dda inv -- -e system-probe.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     end
