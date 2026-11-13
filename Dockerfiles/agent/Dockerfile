@@ -46,21 +46,14 @@ RUN if [ "$CI" = "true" ]; then \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM baseimage AS nosys-seccomp
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
-
 FROM baseimage AS extract-base
-RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
+RUN apt update && apt install --no-install-recommends -y curl ca-certificates xz-utils
 
 ############################################################
 #  Preparation stage: retrieval of 3rd party dependencies  #
 ############################################################
 
 FROM extract-base AS external-deps
-ARG WITH_JMX_FIPS
 ARG TARGETARCH
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
@@ -75,10 +68,6 @@ COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
 # curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
 RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
-
-# Download BouncyCastle FIPS provider jar files.
-COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
-RUN if [ -n "$WITH_JMX_FIPS" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
 
 ########################################################################
 #  Construct the base image for the release, everything but the Agent  #
@@ -135,13 +124,14 @@ COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Copy BouncyCastle Java FIPS provider binaries and configuration
-COPY --from=external-deps /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN mkdir /opt/bouncycastle-fips
+COPY --chmod=644 bouncycastle-fips/ /opt/bouncycastle-fips/
 RUN if [ -z "$WITH_JMX_FIPS" ]; then rm -rf /opt/bouncycastle-fips; fi
 # Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
 # Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
 ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
+# Run the BouncyCastle self check on JMX FIPS images.
+RUN if [ -n "$WITH_JMX_FIPS" ]; then java org.bouncycastle.util.DumpInfo; fi
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
@@ -288,11 +278,13 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/var/log/datadog"]
+VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+COPY --from=artifacts nosys.so /opt/lib/nosys.so
+# Use jemalloc for native allocations while preserving the syscall compatibility wrapper.
+# Set LD_PRELOAD=/opt/lib/nosys.so at runtime to disable jemalloc.
+ENV LD_PRELOAD=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so.2
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh

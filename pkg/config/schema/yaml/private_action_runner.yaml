@@ -32,7 +32,17 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      Requires an app_key with Actions API Enable and the following permissions:
+      When primary intake WIF is configured through delegated_auth.org_uuid,
+      use its mapping's PAR enrollment permission. A saved identity is replaced
+      when its WIF organization or site differs or is missing. The replacement
+      gets a new runner ID and private key. Cluster Agent replicas share the
+      replacement through the identity Secret. Failed enrollment stops PAR
+      startup without changing the saved identity or falling back to API-key
+      enrollment. Later restarts reuse the identity while the WIF organization
+      and site match.
+      Otherwise, use the configured API-key enrollment mode.
+      API-key and application-key enrollment (api_key_only_enrollment: false)
+      requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
   task_concurrency:
@@ -109,7 +119,9 @@ properties:
         description: |-
           Named credentials with a required value field supporting ENC[...] secrets.
           allowed_actions accepts case-sensitive action names or wildcards such as
-          com.datadoghq.mongodb.*. allowed_http_domains limits use to HTTP actions
+          com.datadoghq.mongodb.*. Connection tests and other supporting actions are
+          inferred from allowed integrations, as with the runner's actions_allowlist.
+          allowed_http_domains limits use to HTTP actions
           whose initial destination matches a case-insensitive hostname, IP address,
           or *.example.com subdomain pattern (excluding the parent domain).
           Omitted restriction lists are unrestricted; empty lists deny all; null is invalid.

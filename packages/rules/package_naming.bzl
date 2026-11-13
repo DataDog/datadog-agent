@@ -104,26 +104,22 @@ def _extract_arch(ctx, cpu, style):
     # of target CPU is often better.
     return _arch_names[style].get(target_cpu) or target_cpu
 
-def _inject_flavor(name, flavor):
-    """Forms a canonical name from the base product name and the flavor.
+def _inject_fips(name):
+    """Forms a canonical FIPS name from the base product name.
 
     Only fips is a variant of an existing product. Other flavors are
     standalone products and keep their own name.
     """
-    if flavor != "fips":
-        return name
-    if not "-" in name:
-        return "%s-%s" % (name, flavor)
-    words = name.split("-")
-    return "%s-%s-%s" % (words[0], flavor, "-".join(words[1:]))
+    head, sep, tail = name.partition("-")
+    return "{}-fips{}{}".format(head, sep, tail)
 
 def _package_name_variables_impl(ctx):
     common = ctx.attr._variables[DdBuildTimeInfo].values
 
     values = {}
 
-    flavor = ctx.attr._flavor[BuildSettingInfo].value
-    values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor)
+    fips = ctx.target_platform_has_constraint(ctx.attr._fips[platform_common.ConstraintValueInfo])
+    values["product_name"] = _inject_fips(ctx.attr.product_name) if fips else ctx.attr.product_name
     values["version"] = make_version()
     values["base_branch"] = common["base_branch"]
     values["milestone"] = common["milestone"]
@@ -151,7 +147,7 @@ package_name_variables = rule(
             doc = "Placeholder for our final product name.",
             default = "datadog-agent",
         ),
-        "_flavor": attr.label(default = "//packages/agent:flavor"),
+        "_fips": attr.label(default = "//bazel/platforms:fips"),
         "_install_dir": attr.label(default = "//:install_dir"),
         "_variables": attr.label(default = "//bazel/rules/variables"),
     },

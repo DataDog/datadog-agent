@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	installerFile "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -175,4 +176,144 @@ func TestExperimentStartUnits(t *testing.T) {
 		[]string{"datadog-agent-exp.service"},
 		experimentStartUnits(ctx, "datadog-agent-exp.service"),
 	)
+}
+
+func TestStopProcmgrOnOptOut(t *testing.T) {
+	originalInitSystem := currentInitSystem
+	originalStop := stopProcmgrService
+	t.Cleanup(func() {
+		currentInitSystem = originalInitSystem
+		stopProcmgrService = originalStop
+	})
+
+	var stopped []service.Type
+	stopProcmgrService = func(_ HookContext, manager service.Type) error {
+		stopped = append(stopped, manager)
+		return errors.New("not running")
+	}
+	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
+
+	currentInitSystem = func() service.Type { return service.SystemdType }
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
+	stopProcmgrOnOptOut(ctx)
+	assert.Empty(t, stopped)
+
+	currentInitSystem = func() service.Type { return service.UpstartType }
+	stopProcmgrOnOptOut(ctx)
+	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
+
+	require.NoError(t, os.Unsetenv("DD_PROCESS_MANAGER_ENABLED"))
+	stopped = nil
+	stopProcmgrOnOptOut(ctx)
+	assert.Empty(t, stopped)
+
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "true")
+	stopProcmgrOnOptOut(ctx)
+	assert.Empty(t, stopped)
+
+	currentInitSystem = func() service.Type { return service.SysvinitType }
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "FALSE")
+	stopProcmgrOnOptOut(ctx)
+	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
+}
+
+// TestOnlyOwnerOfProcmgrStopsItOnOptOut checks that DDOT, which shares EnableStable,
+// does not stop the main Agent's procmgr.
+func TestOnlyOwnerOfProcmgrStopsItOnOptOut(t *testing.T) {
+	stubServiceManager(t, service.UpstartType, service.UpstartType)
+	originalStop := stopProcmgrService
+	t.Cleanup(func() {
+		stopProcmgrService = originalStop
+	})
+
+	var stopped []service.Type
+	stopProcmgrService = func(_ HookContext, manager service.Type) error {
+		stopped = append(stopped, manager)
+		return nil
+	}
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
+	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+
+	require.NoError(t, agentDDOTService.EnableStable(ctx))
+	assert.Empty(t, stopped)
+
+	require.NoError(t, agentService.EnableStable(ctx))
+	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
+}
+
+func stubServiceManager(t *testing.T, manager service.Type, initSystem service.Type) {
+	t.Helper()
+	originalManager := currentServiceManager
+	originalInitSystem := currentInitSystem
+	currentServiceManager = func(string) service.Type { return manager }
+	currentInitSystem = func() service.Type { return initSystem }
+	t.Cleanup(func() {
+		currentServiceManager = originalManager
+		currentInitSystem = originalInitSystem
+	})
+}
+
+// TestProcmgrOnSysVAndUpstartKeepsPlainResults covers the procmgr branches that do not shell out.
+func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "")
+	for _, initSystem := range []service.Type{service.UpstartType, service.SysvinitType} {
+		t.Run(string(initSystem), func(t *testing.T) {
+			stubServiceManager(t, service.ProcmgrType, initSystem)
+			ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+
+			assert.NoError(t, agentService.WriteStable(ctx))
+			assert.NoError(t, agentService.RemoveStable(ctx))
+			assert.NoError(t, agentService.StopExperiment(ctx))
+			assert.NoError(t, agentService.RemoveExperiment(ctx))
+			assert.EqualError(t, agentService.StartExperiment(ctx), "experiments are not supported on "+string(initSystem))
+			assert.EqualError(t, agentService.WriteExperiment(ctx), "experiments are not supported on "+string(initSystem))
+			if initSystem == service.UpstartType {
+				assert.NoError(t, agentService.EnableStable(ctx))
+				assert.NoError(t, agentService.DisableStable(ctx))
+			}
+		})
+	}
+}
+
+func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
+	require.NotEmpty(t, agentService.ProcmgrProcesses)
+	stubServiceManager(t, service.UpstartType, service.UpstartType)
+	packagePath := t.TempDir()
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	_, err := os.Stat(service.ConfigDir(packagePath))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+
+	dir := service.ConfigDir(packagePath)
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	for _, process := range agentService.ProcmgrProcesses {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, process), []byte("managed"), 0644))
+	}
+	custom := filepath.Join(dir, "custom.yaml")
+	require.NoError(t, os.WriteFile(custom, []byte("admin"), 0644))
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	for _, process := range agentService.ProcmgrProcesses {
+		_, err := os.Stat(filepath.Join(dir, process))
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	}
+	assert.FileExists(t, custom)
+
+	stubServiceManager(t, service.ProcmgrType, service.UpstartType)
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	for _, process := range agentService.ProcmgrProcesses {
+		path := filepath.Join(dir, process)
+		assert.FileExists(t, path)
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	}
+	assert.FileExists(t, custom)
+}
+
+// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists include procmgr
+// ahead of the action service. StopStable reverses the lists.
+func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
+	upstart := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
+	sysvinit := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
+	assert.Equal(t, upstart, agentService.UpstartServices)
+	assert.Equal(t, sysvinit, agentService.SysvinitServices)
 }

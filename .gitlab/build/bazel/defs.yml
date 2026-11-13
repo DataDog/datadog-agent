@@ -87,6 +87,8 @@
   tags: [ "arch:amd64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
+    # Bazel jobs keep fixed resources: VPA rightsizing is not needed for them
+    DD_DISABLE_VPA: true
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
 
@@ -97,6 +99,8 @@
   tags: [ "arch:arm64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
+    # Bazel jobs keep fixed resources: VPA rightsizing is not needed for them
+    DD_DISABLE_VPA: true
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
 
@@ -119,6 +123,7 @@
       $FailFast = @'
       $ErrorActionPreference = 'Stop'
       $PSNativeCommandUseErrorActionPreference = $true
+      $ProgressPreference = 'SilentlyContinue' # avoid CLIXML garbage
       Set-StrictMode -Version 3.0
       '@
       Invoke-Expression $FailFast

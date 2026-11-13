@@ -27,6 +27,7 @@ from tasks.gointegrationtest import (
     containerized_integration_tests,
 )
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -171,7 +172,7 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
         include_python="python" in build_tags,
-        platform=target_platform,
+        target_platform=target_platform,
     )
 
     if target_platform == 'win32':
@@ -466,10 +467,12 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
+    nosys_so_dest = build_nosys_so(arch, build_context)
+
     if tag is None:
         tag = AGENT_TAG
 
-    common_build_opts = f"-t {tag} -f {dockerfile_path}"
+    common_build_opts = f"-t {tag} -f {dockerfile_path} --build-context artifacts={build_context}"
 
     # Build with the testing target
     if not skip_tests:
@@ -481,6 +484,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         ctx.run(f"docker push {tag}")
 
     ctx.run(f"rm {build_context}/{deb_glob}")
+    ctx.run(f"rm -f {nosys_so_dest}")
 
 
 @task(
@@ -564,9 +568,6 @@ def hacky_dev_image_build(
             # TODO: this is the last usage of this flag, we should remove it once this
             # task has been deprecated long enough
             legacy_rtloader_cmake=True,
-        )
-        ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
     copy_checks_d = ""

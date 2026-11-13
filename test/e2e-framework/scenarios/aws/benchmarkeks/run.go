@@ -50,8 +50,8 @@ const (
 
 	// VariantA and VariantB are the variants of the two Agent installations, each running on
 	// node pools of its own. The variants play symmetric roles, so that a benchmark can swap
-	// the images of the installations half way through to cancel out the difference between
-	// the machines of the node pools.
+	// the images of the installations between its measurement phases to cancel out the
+	// difference between the machines of the node pools.
 	VariantA = "a"
 	VariantB = "b"
 
@@ -89,6 +89,44 @@ var nodePools = []struct {
 
 //go:embed simple_check.py
 var simpleCheckPy string
+
+// ksmCustomResources are the custom resources the KSM checks collect: the DatadogMetric ones
+// of the e2e framework defaults, repeated because Helm replaces lists, and the Widget ones of
+// the churn workload.
+var ksmCustomResources = []map[string]any{
+	{
+		"groupVersionKind": map[string]string{"group": "datadoghq.com", "version": "v1alpha1", "kind": "DatadogMetric"},
+		"commonLabels":     map[string]string{"cr_type": "ddm"},
+		"labelsFromPath": map[string][]string{
+			"ddm_namespace": {"metadata", "namespace"},
+			"ddm_name":      {"metadata", "name"},
+		},
+		"metrics": []map[string]any{{
+			"name": "ddm_value",
+			"help": "DatadogMetric value",
+			"each": map[string]any{
+				"type":  "gauge",
+				"gauge": map[string][]string{"path": {"status", "currentValue"}},
+			},
+		}},
+	},
+	{
+		"groupVersionKind": map[string]string{"group": "benchmark.datadoghq.com", "version": "v1", "kind": "Widget"},
+		"commonLabels":     map[string]string{"cr_type": "widget"},
+		"labelsFromPath": map[string][]string{
+			"widget_namespace": {"metadata", "namespace"},
+			"widget_name":      {"metadata", "name"},
+		},
+		"metrics": []map[string]any{{
+			"name": "widget_replicas",
+			"help": "Widget replicas",
+			"each": map[string]any{
+				"type":  "gauge",
+				"gauge": map[string][]string{"path": {"spec", "replicas"}},
+			},
+		}},
+	},
+}
 
 // internalProfilingEnv makes the Agents upload their profiles. The chart only passes
 // datadog.env[Dict] to the node Agent, so it is also set on the Cluster Agent and the
@@ -252,9 +290,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 					"podLabelsAsTags": map[string]any{
 						"app": "app",
 					},
-					// Replaces the tags of the e2e framework defaults, which the benchmark doesn't use.
 					"kubeStateMetricsCore": map[string]any{
-						"tags": []string{AgentVariantTag + ":" + param.variant},
+						// Replaces the tags of the e2e framework defaults, which the benchmark doesn't use.
+						"tags":             []string{AgentVariantTag + ":" + param.variant},
+						"collectCrMetrics": ksmCustomResources,
 					},
 					"envDict": internalProfilingEnv,
 					"checksd": map[string]string{
