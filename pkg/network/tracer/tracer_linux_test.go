@@ -205,34 +205,66 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	// tcpInfo returns the kernel's view of the client socket, or nil on error
+	tcpInfo := func() *unix.TCPInfo {
+		var info *unix.TCPInfo
+		var infoErr error
+		if err := rawConn.Control(func(fd uintptr) {
+			info, infoErr = unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
+		}); err != nil || infoErr != nil {
+			t.Logf("TCP_INFO: %v %v", err, infoErr)
+			return nil
+		}
+		return info
+	}
+
 	iptablesWrapper(t, func() {
 		for i := 0; i < 99; i++ {
 			// Send a bunch of messages
 			c.Write(genPayload(clientMessageSize))
 		}
-		time.Sleep(time.Second)
+		// Keep dropping until the retransmission timer has fired and retransmitted, instead of
+		// for a fixed time: the first RTO is at least 200ms and depends on the measured RTT, so a
+		// fixed window can end before any retransmission on a slow VM. tcpi_retransmits counts the
+		// RTOs of the current loss episode, and tcpi_total_retrans the segments actually resent.
+		require.Eventually(t, func() bool {
+			info := tcpInfo()
+			return info != nil && info.Retransmits > 0 && info.Total_retrans > 0
+		}, 10*time.Second, 10*time.Millisecond, "no retransmission while packets were dropped")
 	})
 
+	// Once the rule is gone, the data is only delivered at the next RTO, which is backed off by
+	// then. Wait for the kernel to see everything acknowledged, so that the eBPF-less tracer,
+	// which counts bytes from the packets it captures, can count them all.
+	require.Eventually(t, func() bool {
+		info := tcpInfo()
+		return info != nil && info.Unacked == 0
+	}, 15*time.Second, 50*time.Millisecond, "data not acknowledged after packets stopped being dropped")
+
+	// A client only gets an active connection whose stats changed since its last fetch, so keep the
+	// latest copy: once the connection is idle, it is in one fetch only.
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
-
-		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.NotNil(ct, conn)
+		// findConnection returns a copy, which stays valid after cleanup
+		if found, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections); ok {
+			conn = found
+		}
+		cleanup()
+		require.NotNil(ct, conn, "connection not found")
 
 		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentBytes), 100*clientMessageSize)
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
+		// confirm at least one retransmission
+		assert.Positive(ct, conn.Monotonic.Retransmits)
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
 		}
 
 		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
 	}, 3*time.Second, 100*time.Millisecond)
-
-	// confirm at least one retransmission
-	require.True(t, int(conn.Monotonic.Retransmits) > 0)
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
