@@ -1037,21 +1037,28 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	assert.Equal(t, linkName, "valid_name")
 }
 
-// TestNormalizeTraceChunkV1TraceIDLength verifies that normalizeTraceChunkV1
-// coerces a chunk TraceID to exactly 16 bytes, so downstream fixed-offset slices
-// (LegacyTraceID's TraceID[8:], the probabilistic sampler's TraceID[:8]) cannot
-// panic on a malformed/truncated v1.0 payload. A short ID is right-aligned
-// (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
-func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
+// TestNormalizeTraceChunkV1TraceID verifies that normalizeTraceChunkV1 coerces a chunk TraceID
+// to exactly 16 bytes, so downstream fixed-offset slices (LegacyTraceID's TraceID[8:], the
+// probabilistic sampler's TraceID[:8]) cannot panic on a malformed/truncated v1.0 payload. A short
+// ID is right-aligned (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
+// Like the legacy normalize, a zero trace ID drops the chunk as TraceIDZero; all 128 bits are
+// checked, so an ID whose low-order 64 bits are zero is a valid W3C/OTel trace ID and is kept.
+func TestNormalizeTraceChunkV1TraceID(t *testing.T) {
 	cases := []struct {
-		name string
-		tid  []byte
-		want []byte
+		name     string
+		tid      []byte
+		want     []byte
+		wantDrop bool
 	}{
-		{"empty", []byte{}, make([]byte, 16)},
-		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}},
-		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
-		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}, false},
+		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, false},
+		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, false},
+		{"low-64-bits-zero", []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}, false},
+		{"high-64-bits-zero", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, false},
+		{"all-zero", make([]byte, 16), nil, true},
+		{"empty", []byte{}, nil, true},
+		{"nil", nil, nil, true},
+		{"short-zero", []byte{0, 0, 0, 0}, nil, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1063,8 +1070,14 @@ func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
 				TraceID: tc.tid,
 				Spans:   []*idx.InternalSpan{newTestSpanV1(st)},
 			}
-			require.NoError(t, a.normalizeTraceChunkV1(ts, chunk))
-			assert.Len(t, chunk.TraceID, 16)
+			err := a.normalizeTraceChunkV1(ts, chunk)
+			if tc.wantDrop {
+				require.ErrorContains(t, err, "reason:trace_id_zero")
+				assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: *atomic.NewInt64(1)}), ts)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, newTagStats(), ts)
 			assert.Equal(t, tc.want, chunk.TraceID)
 			// Downstream fixed-offset slices must not panic after normalization.
 			assert.NotPanics(t, func() {
