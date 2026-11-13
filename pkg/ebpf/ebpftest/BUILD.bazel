@@ -58,6 +58,7 @@ dd_agent_go_test(
     name = "ebpftest_test",
     srcs = [
         "buildmode_test.go",
+        "fentry_platforms_linux_test.go",
         "jobenv_test.go",
         "trace_pipe_linux_test.go",
     ],
@@ -67,11 +68,15 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/util/kernel",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/util/kernel",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
