@@ -7,6 +7,7 @@ go_library(
         "check.go",
         "handler.go",
         "handler_container_creation.go",
+        "handler_container_state.go",
         "handler_container_termination.go",
         "handler_pod_creation.go",
         "handler_pod_state.go",
