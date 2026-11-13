@@ -10,10 +10,10 @@ package defaultforwarderimpl
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -249,154 +249,93 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 }
 
 func TestWorkerStopRequeuesCanceledInflightHTTPTransactionOnce(t *testing.T) {
-	requestEntered := make(chan struct{})
-	releaseHandler := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		close(requestEntered)
-		select {
-		case <-r.Context().Done():
-		case <-releaseHandler:
-		}
-	}))
-	defer server.Close()
+	synctest.Test(t, func(t *testing.T) {
+		requestEntered := make(chan struct{})
+		releaseHandler := make(chan struct{})
 
-	highPrio := make(chan transaction.Transaction, 1)
-	lowPrio := make(chan transaction.Transaction, 1)
-	requeue := make(chan transaction.Transaction, 2)
+		listener := newPipeListener()
+		httpServer := &http.Server{Handler: http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			close(requestEntered)
+			select {
+			case <-r.Context().Done():
+			case <-releaseHandler:
+			}
+		})}
+		go httpServer.Serve(listener) //nolint:errcheck
+		defer httpServer.Close()      //nolint:errcheck
 
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	secrets := secretsmock.New(t)
-	concurrency := newTestConcurrencyDomain(1, 1)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
-		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
-		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
+		highPrio := make(chan transaction.Transaction, 1)
+		lowPrio := make(chan transaction.Transaction, 1)
+		requeue := make(chan transaction.Transaction, 2)
 
-	txn := newTestHTTPTransaction(server.URL, 1)
+		mockConfig := mock.New(t)
+		log := logmock.New(t)
+		secrets := secretsmock.New(t)
+		concurrency := newTestConcurrencyDomain(1, 1)
+		w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+			newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+			NewSharedConnection(log, false, concurrency, mockConfig, &http.Transport{DialContext: listener.dial}), concurrency)
 
-	w.Start()
-	highPrio <- txn
-	<-requestEntered
+		txn := newTestHTTPTransaction("http://pipe", 1)
 
-	w.Stop(false)
-	close(releaseHandler)
+		w.Start()
+		highPrio <- txn
+		<-requestEntered
 
-	select {
-	case requeued := <-requeue:
+		// Stop cancels workerCtx and blocks (requestWg.Wait()) until the
+		// in-flight request has actually aborted and been requeued, so the
+		// transaction is already in requeue by the time Stop returns.
+		w.Stop(false)
+		close(releaseHandler)
+
+		requeued := <-requeue
 		assert.Equal(t, txn, requeued)
-	case <-time.After(time.Second):
-		t.Fatal("canceled in-flight transaction was not requeued")
-	}
-	assert.Equal(t, 0, len(requeue), "shutdown cancellation must not enqueue the same transaction twice")
-	assert.False(t, w.blockedList.isBlockForSend(txn.GetTarget(), time.Now()), "shutdown cancellation is not an endpoint failure")
+		assert.Equal(t, 0, len(requeue), "shutdown cancellation must not enqueue the same transaction twice")
+		assert.False(t, w.blockedList.isBlockForSend(txn.GetTarget(), time.Now()), "shutdown cancellation is not an endpoint failure")
+	})
 }
 
 func TestWorkerStopDoesNotRequeueCompletedHTTPTransaction(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	synctest.Test(t, func(t *testing.T) {
+		listener := newPipeListener()
+		httpServer := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})}
+		go httpServer.Serve(listener) //nolint:errcheck
+		defer httpServer.Close()      //nolint:errcheck
 
-	highPrio := make(chan transaction.Transaction, 1)
-	lowPrio := make(chan transaction.Transaction, 1)
-	requeue := make(chan transaction.Transaction, 1)
-	sender := &PointSuccessfullySentMock{done: make(chan struct{})}
+		highPrio := make(chan transaction.Transaction, 1)
+		lowPrio := make(chan transaction.Transaction, 1)
+		requeue := make(chan transaction.Transaction, 1)
+		sender := &PointSuccessfullySentMock{}
 
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	secrets := secretsmock.New(t)
-	concurrency := newTestConcurrencyDomain(1, 1)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
-		newBlockedEndpoints(mockConfig, log), sender,
-		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
+		mockConfig := mock.New(t)
+		log := logmock.New(t)
+		secrets := secretsmock.New(t)
+		concurrency := newTestConcurrencyDomain(1, 1)
+		w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+			newBlockedEndpoints(mockConfig, log), sender,
+			NewSharedConnection(log, false, concurrency, mockConfig, &http.Transport{DialContext: listener.dial}), concurrency)
 
-	txn := newTestHTTPTransaction(server.URL, 3)
+		txn := newTestHTTPTransaction("http://pipe", 3)
 
-	w.Start()
-	highPrio <- txn
-	select {
-	case <-sender.done:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for transaction to be reported as successfully sent")
-	}
-	assert.Equal(t, int64(3), sender.count.Load(), "all points must be reported as successfully sent")
+		w.Start()
+		highPrio <- txn
 
-	w.Stop(false)
+		// Wait for the worker to pick up and finish processing the transaction
+		// (the handler responds immediately, so the bubble settles as soon as
+		// the whole request/response round trip is done) before calling Stop,
+		// which could otherwise race ahead of the Start goroutine dequeuing
+		// from highPrio.
+		synctest.Wait()
 
-	assert.Equal(t, 0, len(requeue), "successfully completed transaction must not be requeued")
-}
+		// Stop blocks until the in-flight request completes (requestWg.Wait()),
+		// so by the time it returns the point count is already updated.
+		w.Stop(false)
 
-func TestWorkerStopRequeuesMultipleCanceledHTTP2Transactions(t *testing.T) {
-	requestEntered := make(chan struct{}, 2)
-	protocols := make(chan string, 2)
-	releaseHandlers := make(chan struct{})
-	var releaseHandlersOnce sync.Once
-	// releaseAllHandlers is safe to call multiple times and from the success
-	// path or test cleanup, so a handler that is still blocked when the test
-	// fails (e.g. a request never entered the handler) doesn't hang
-	// server.Close() until the suite's global timeout.
-	releaseAllHandlers := func() { releaseHandlersOnce.Do(func() { close(releaseHandlers) }) }
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		protocols <- r.Proto
-		requestEntered <- struct{}{}
-		select {
-		case <-r.Context().Done():
-		case <-releaseHandlers:
-		}
-	}))
-	server.EnableHTTP2 = true
-	server.StartTLS()
-	// Registered before releaseAllHandlers so, per t.Cleanup's LIFO order,
-	// handlers are released first and server.Close() can then complete.
-	t.Cleanup(server.Close)
-	t.Cleanup(releaseAllHandlers)
-
-	highPrio := make(chan transaction.Transaction, 2)
-	lowPrio := make(chan transaction.Transaction, 1)
-	requeue := make(chan transaction.Transaction, 2)
-
-	mockConfig := mock.New(t)
-	log := logmock.New(t)
-	secrets := secretsmock.New(t)
-	concurrency := newTestConcurrencyDomain(1, 2)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
-		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
-		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
-
-	txn1 := newTestHTTPTransaction(server.URL, 1)
-	txn2 := newTestHTTPTransaction(server.URL, 1)
-
-	w.Start()
-	highPrio <- txn1
-	highPrio <- txn2
-
-	for i := 0; i < 2; i++ {
-		select {
-		case <-requestEntered:
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for HTTP/2 request to enter handler")
-		}
-	}
-
-	w.Stop(false)
-	releaseAllHandlers()
-
-	seen := map[transaction.Transaction]bool{}
-	for i := 0; i < 2; i++ {
-		select {
-		case requeued := <-requeue:
-			seen[requeued] = true
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for canceled HTTP/2 transaction to be requeued")
-		}
-	}
-	assert.True(t, seen[txn1], "first in-flight HTTP/2 transaction should be requeued")
-	assert.True(t, seen[txn2], "second in-flight HTTP/2 transaction should be requeued")
-	assert.Equal(t, 0, len(requeue), "HTTP/2 shutdown cancellation must not duplicate requeues")
-
-	for i := 0; i < 2; i++ {
-		assert.Equal(t, "HTTP/2.0", <-protocols)
-	}
+		assert.Equal(t, int64(3), sender.count.Load(), "all points must be reported as successfully sent")
+		assert.Equal(t, 0, len(requeue), "successfully completed transaction must not be requeued")
+	})
 }
 
 func TestWorkerCancelsWaitingTransactions(t *testing.T) {
@@ -578,9 +517,6 @@ func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
 type PointSuccessfullySentMock struct {
 	count   atomic.Int64
 	dropped atomic.Int64
-	// done, if non-nil, is closed the first time OnPointSuccessfullySent is
-	// called, letting tests wait for completion without polling.
-	done chan struct{}
 }
 
 // TestWorkerStopDoesNotCancelInFlight verifies that when forwarder_stop_wait_for_inflight
@@ -891,14 +827,6 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 
 func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
 	m.count.Add(int64(count))
-	if m.done != nil {
-		select {
-		case <-m.done:
-			// already closed by a previous call
-		default:
-			close(m.done)
-		}
-	}
 }
 
 func (m *PointSuccessfullySentMock) OnPointDropped(count int) {

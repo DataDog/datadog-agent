@@ -9,6 +9,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -256,6 +257,66 @@ func (tr handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	tr(rec, req)
 	return rec.Result(), nil
 }
+
+// pipeAddr is a placeholder net.Addr for pipeListener, which has no real
+// network address.
+type pipeAddr struct{}
+
+func (pipeAddr) Network() string { return "pipe" }
+func (pipeAddr) String() string  { return "pipe" }
+
+// pipeListener is a net.Listener backed by in-memory net.Pipe connections.
+// Tests that run an http.Server inside a testing/synctest bubble use it
+// instead of a real TCP listener (e.g. httptest.NewServer): a goroutine
+// blocked reading or writing a real socket is never "durably blocked" (see
+// the testing/synctest docs), which would prevent the bubble from ever going
+// idle. net.Pipe, by contrast, is implemented entirely with plain channels,
+// so blocking reads/writes on it are recognized by synctest and the bubble
+// can still make progress deterministically.
+type pipeListener struct {
+	conns  chan net.Conn
+	closed chan struct{}
+}
+
+func newPipeListener() *pipeListener {
+	return &pipeListener{
+		conns:  make(chan net.Conn),
+		closed: make(chan struct{}),
+	}
+}
+
+// dial creates a new in-memory connection pair, hands the server half to a
+// pending (or future) Accept call, and returns the client half. It is meant
+// to be used as an http.Transport's DialContext/DialTLSContext dependency.
+func (l *pipeListener) dial(_ context.Context, _, _ string) (net.Conn, error) {
+	serverConn, clientConn := net.Pipe()
+	select {
+	case l.conns <- serverConn:
+		return clientConn, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-l.conns:
+		return c, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *pipeListener) Close() error {
+	select {
+	case <-l.closed:
+	default:
+		close(l.closed)
+	}
+	return nil
+}
+
+func (l *pipeListener) Addr() net.Addr { return pipeAddr{} }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
 func NewTestForwarder(params defaultforwarderdef.Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
