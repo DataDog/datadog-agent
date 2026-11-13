@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
@@ -923,45 +924,452 @@ func TestFromAgentConfigDebug(t *testing.T) {
 	}
 }
 
-func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
-	env := map[string]string{
-		"DD_DATA_PLANE_OTLP_PROXY_ENABLED":                          "true",
-		"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":           "0.0.0.0:4317",
-		"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "127.0.0.1:4319",
+func TestRelocateReceiverListenersStripsTLS(t *testing.T) {
+	for _, protocol := range []string{"grpc", "http"} {
+		t.Run(protocol, func(t *testing.T) {
+			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
+			require.NoError(t, err)
+			receiver := map[string]interface{}{
+				"protocols": map[string]interface{}{
+					protocol: map[string]interface{}{
+						"include_metadata": true,
+						"tls": map[string]interface{}{
+							"cert_file":      "cert.pem",
+							"key_file":       "key.pem",
+							"client_ca_file": "ca.pem",
+						},
+					},
+				},
+			}
+
+			require.NoError(t, relocateReceiverListeners(cfg, receiver))
+			endpoints := map[string]string{"grpc": "127.0.0.1:4319", "http": "127.0.0.1:4320"}
+			assert.Equal(t, map[string]interface{}{
+				"protocols": map[string]interface{}{
+					protocol: map[string]interface{}{
+						"endpoint":         endpoints[protocol],
+						"include_metadata": true,
+					},
+				},
+			}, receiver)
+		})
 	}
-
-	for k, v := range env {
-		t.Setenv(k, v)
-	}
-
-	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
-	require.NoError(t, err)
-	pcfg, err := FromAgentConfig(cfg)
-	require.NoError(t, err)
-
-	receiverConfig := pcfg.OTLPReceiverConfig
-	protocols, _ := receiverConfig["protocols"].(map[string]interface{})
-
-	grpc, _ := protocols["grpc"].(map[string]interface{})
-	assert.Equal(t, "127.0.0.1:4319", grpc["endpoint"])
 }
 
-func TestADPOTLPProxyEmptyEndpointError(t *testing.T) {
-	cfg, err := testutil.LoadConfig(t, "./testdata/adp_proxy_empty_grpc.yaml")
+func TestDataPlaneOTLPRelocationKeepsTLSForDataPlane(t *testing.T) {
+	t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+	t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+	cfg, err := testutil.LoadConfig(t, "./testdata/receiver/tls.yaml")
 	require.NoError(t, err)
-	_, err = FromAgentConfig(cfg)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProxyGRPCEndpointNotConfigured)
+	before := cfg.Get("otlp_config.receiver")
+
+	got, err := FromAgentConfig(cfg)
+	require.NoError(t, err)
+	protocols, ok := got.OTLPReceiverConfig["protocols"].(map[string]interface{})
+	require.True(t, ok)
+	for _, protocol := range []string{"grpc", "http"} {
+		section, ok := protocols[protocol].(map[string]interface{})
+		require.True(t, ok, protocol)
+		assert.NotContains(t, section, "tls", protocol)
+	}
+	assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+
+	// The data plane reads the receiver TLS settings from the flattened configuration stream.
+	settings, _ := cfg.AllFlattenedSettingsWithSequenceID()
+	for key, value := range map[string]string{
+		"otlp_config.receiver.protocols.grpc.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
+		"otlp_config.receiver.protocols.grpc.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
+		"otlp_config.receiver.protocols.grpc.tls.client_ca_file": "/etc/datadog-agent/otlp/ca.pem",
+		"otlp_config.receiver.protocols.http.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
+		"otlp_config.receiver.protocols.http.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
+	} {
+		assert.Equal(t, value, settings[key], key)
+	}
 }
 
-func TestADPOTLPProxyEndpointCollisionError(t *testing.T) {
-	t.Setenv("DD_DATA_PLANE_OTLP_PROXY_ENABLED", "true")
-	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
-	t.Setenv("DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
+func TestDataPlaneOTLPRelocationGate(t *testing.T) {
+	tests := []struct {
+		name             string
+		dataPlaneEnabled string
+		otlpEnabled      string
+	}{
+		{name: "data plane disabled", dataPlaneEnabled: "false", otlpEnabled: "true"},
+		{name: "OTLP disabled", dataPlaneEnabled: "true", otlpEnabled: "false"},
+		{name: "both disabled", dataPlaneEnabled: "false", otlpEnabled: "false"},
+		{name: "data plane unset", otlpEnabled: "true"},
+		{name: "OTLP unset", dataPlaneEnabled: "true"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.dataPlaneEnabled != "" {
+				t.Setenv("DD_DATA_PLANE_ENABLED", tt.dataPlaneEnabled)
+			}
+			if tt.otlpEnabled != "" {
+				t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", tt.otlpEnabled)
+			}
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_AGENT_RECEIVER_GRPC_ENDPOINT", "0.0.0.0:5678")
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_AGENT_RECEIVER_HTTP_ENDPOINT", "localhost:1234")
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_LOGS", "true")
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS", "true")
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES", "true")
+			// receiver/tls.yaml pins that TLS and non-loopback relocation endpoints are untouched outside proxy mode.
+			for _, path := range []string{"receiver/advanced.yaml", "receiver/tls.yaml"} {
+				t.Run(path, func(t *testing.T) {
+					cfg, err := testutil.LoadConfig(t, "./testdata/"+path)
+					require.NoError(t, err)
+					before := cfg.Get("otlp_config.receiver")
+					want := configcheck.ReadConfigSection(cfg, "otlp_config.receiver").ToStringMap()
 
-	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
-	require.NoError(t, err)
-	_, err = FromAgentConfig(cfg)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrProxyGRPCEndpointCollision)
+					got, err := FromAgentConfig(cfg)
+					require.NoError(t, err)
+					assert.Equal(t, want, got.OTLPReceiverConfig)
+					assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+				})
+			}
+		})
+	}
+}
+
+func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
+	const (
+		grpcEndpointEnv = "DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_AGENT_RECEIVER_GRPC_ENDPOINT"
+		httpEndpointEnv = "DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_AGENT_RECEIVER_HTTP_ENDPOINT"
+	)
+	defaultEndpoints := map[string]string{"grpc": "127.0.0.1:4319", "http": "127.0.0.1:4320"}
+	tests := []struct {
+		name        string
+		path        string
+		env         map[string]string
+		endpoints   map[string]string
+		err         error
+		alsoErr     error
+		errContains []string
+		numErrs     int
+	}{
+		{
+			name:      "both protocols with default relocation endpoints",
+			path:      "receiver/advanced.yaml",
+			endpoints: defaultEndpoints,
+		},
+		{
+			name: "custom relocation endpoints from environment",
+			path: "receiver/advanced.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "127.0.0.1:14319",
+				httpEndpointEnv: "127.0.0.1:14320",
+			},
+			endpoints: map[string]string{"grpc": "127.0.0.1:14319", "http": "127.0.0.1:14320"},
+		},
+		{
+			name: "gRPC only ignores configured HTTP relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:4317",
+				httpEndpointEnv: "127.0.0.1:4319",
+			},
+			endpoints: map[string]string{"grpc": "127.0.0.1:4319"},
+		},
+		{
+			name: "HTTP only ignores configured gRPC relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:4318",
+				grpcEndpointEnv: "127.0.0.1:4320",
+			},
+			endpoints: map[string]string{"http": "127.0.0.1:4320"},
+		},
+		{
+			name:      "null protocols are enabled",
+			path:      "receiver/null.yaml",
+			endpoints: defaultEndpoints,
+		},
+		{
+			name:      "empty protocols are enabled",
+			path:      "receiver/simple.yaml",
+			endpoints: defaultEndpoints,
+		},
+		{
+			name: "signal proxy flags do not control relocation",
+			path: "receiver/simple.yaml",
+			env: map[string]string{
+				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_LOGS":    "true",
+				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS": "true",
+				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES":  "true",
+			},
+			endpoints: defaultEndpoints,
+		},
+		{
+			name: "unix transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/configured-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unix",
+			},
+			err:         ErrAgentReceiverEndpointNotConfigured,
+			errContains: []string{"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint must be explicitly configured with a Unix socket path"},
+		},
+		{
+			name: "unixgram transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/configured-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unixgram",
+			},
+			err: ErrAgentReceiverEndpointNotConfigured,
+		},
+		{
+			name: "unixpacket transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/configured-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unixpacket",
+			},
+			err: ErrAgentReceiverEndpointNotConfigured,
+		},
+		{
+			name: "preserves unix transport",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/configured-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unix",
+				grpcEndpointEnv: "/tmp/agent-otlp.sock",
+			},
+			endpoints: map[string]string{"grpc": "/tmp/agent-otlp.sock"},
+		},
+		{
+			name: "empty gRPC relocation endpoint",
+			path: "adp_proxy_empty_grpc.yaml",
+			err:  ErrAgentReceiverEndpointNotConfigured,
+		},
+		{
+			name: "empty HTTP relocation endpoint",
+			path: "adp_proxy_empty_grpc.yaml",
+			env:  map[string]string{grpcEndpointEnv: "127.0.0.1:4319"},
+			err:  ErrAgentReceiverEndpointNotConfigured,
+		},
+		{
+			name: "explicit configured gRPC endpoint collision",
+			path: "receiver/advanced.yaml",
+			env:  map[string]string{grpcEndpointEnv: "0.0.0.0:5678"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "explicit configured HTTP endpoint collision",
+			path: "receiver/advanced.yaml",
+			env:  map[string]string{httpEndpointEnv: "localhost:1234"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "default configured gRPC endpoint collision",
+			path: "receiver/simple.yaml",
+			env:  map[string]string{grpcEndpointEnv: "localhost:4317"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "default configured HTTP endpoint collision",
+			path: "receiver/null.yaml",
+			env:  map[string]string{httpEndpointEnv: "localhost:4318"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "relocated gRPC collides with configured HTTP endpoint",
+			path: "receiver/advanced.yaml",
+			env:  map[string]string{grpcEndpointEnv: "localhost:1234"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "relocated HTTP collides with configured gRPC endpoint",
+			path: "receiver/advanced.yaml",
+			env:  map[string]string{httpEndpointEnv: "0.0.0.0:5678"},
+			err:  ErrAgentReceiverEndpointCollision,
+		},
+		{
+			name: "swapping configured endpoints still collides",
+			path: "receiver/advanced.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "localhost:1234",
+				httpEndpointEnv: "0.0.0.0:5678",
+			},
+			err:     ErrAgentReceiverEndpointCollision,
+			numErrs: 2,
+		},
+		{
+			name:        "relocated endpoints collide",
+			path:        "receiver/simple.yaml",
+			env:         map[string]string{httpEndpointEnv: "127.0.0.1:4319"},
+			err:         ErrAgentReceiverEndpointCollision,
+			errContains: []string{"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint = \"127.0.0.1:4319\" conflicts with OTLP/http"},
+			numErrs:     1,
+		},
+		{
+			name: "endpoint comparison is exact",
+			path: "receiver/simple.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "127.0.0.1:4317",
+				httpEndpointEnv: "127.0.0.1:4318",
+			},
+			endpoints: map[string]string{"grpc": "127.0.0.1:4317", "http": "127.0.0.1:4318"},
+		},
+		{
+			name:      "TLS is stripped from default loopback relocation endpoints",
+			path:      "receiver/tls.yaml",
+			endpoints: defaultEndpoints,
+		},
+		{
+			name: "TLS is stripped from IPv6 and 127/8 loopback relocation endpoints",
+			path: "receiver/tls.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "[::1]:4319",
+				httpEndpointEnv: "127.10.0.1:4320",
+			},
+			endpoints: map[string]string{"grpc": "[::1]:4319", "http": "127.10.0.1:4320"},
+		},
+		{
+			name:      "null TLS section is treated as configured TLS",
+			path:      "receiver/tls_null.yaml",
+			endpoints: map[string]string{"grpc": "127.0.0.1:4319"},
+		},
+		{
+			name:      "TLS is stripped from Unix socket relocation endpoint",
+			path:      "receiver/tls_unix.yaml",
+			env:       map[string]string{grpcEndpointEnv: "/tmp/agent-otlp.sock"},
+			endpoints: map[string]string{"grpc": "/tmp/agent-otlp.sock"},
+		},
+		{
+			name:        "TLS rejects wildcard relocation endpoint",
+			path:        "receiver/tls.yaml",
+			env:         map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
+			err:         ErrAgentReceiverPlaintextNotLoopback,
+			errContains: []string{"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint = \"0.0.0.0:4319\" for OTLP/grpc (transport \"tcp\")"},
+		},
+		{
+			name: "TLS rejects empty-host relocation endpoint",
+			path: "receiver/tls.yaml",
+			env:  map[string]string{grpcEndpointEnv: ":4319"},
+			err:  ErrAgentReceiverPlaintextNotLoopback,
+		},
+		{
+			name: "TLS rejects routable relocation endpoint",
+			path: "receiver/tls.yaml",
+			env:  map[string]string{grpcEndpointEnv: "192.0.2.10:4319"},
+			err:  ErrAgentReceiverPlaintextNotLoopback,
+		},
+		{
+			name:        "TLS rejects hostname relocation endpoint",
+			path:        "receiver/tls.yaml",
+			env:         map[string]string{httpEndpointEnv: "agent.example.com:4320"},
+			err:         ErrAgentReceiverPlaintextNotLoopback,
+			errContains: []string{"OTLP/http (transport \"tcp\")"},
+		},
+		{
+			name: "TLS rejects localhost relocation endpoints",
+			path: "receiver/tls.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "localhost:4319",
+				httpEndpointEnv: "LOCALHOST:4320",
+			},
+			err: ErrAgentReceiverPlaintextNotLoopback,
+			errContains: []string{
+				"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint = \"localhost:4319\" for OTLP/grpc (transport \"tcp\")",
+				"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint = \"LOCALHOST:4320\" for OTLP/http (transport \"tcp\")",
+			},
+			numErrs: 2,
+		},
+		{
+			name:    "reports invalid gRPC and HTTP relocations together",
+			path:    "receiver/unix_grpc_tls_http.yaml",
+			env:     map[string]string{httpEndpointEnv: "0.0.0.0:4320"},
+			err:     ErrAgentReceiverEndpointNotConfigured,
+			alsoErr: ErrAgentReceiverPlaintextNotLoopback,
+			errContains: []string{
+				"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint must be explicitly configured with a Unix socket path when OTLP/grpc transport is \"unix\"",
+				"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint = \"0.0.0.0:4320\" for OTLP/http (transport \"tcp\")",
+			},
+			numErrs: 2,
+		},
+		{
+			name:    "reports invalid gRPC relocation and HTTP collision together",
+			path:    "adp_proxy_empty_grpc.yaml",
+			env:     map[string]string{httpEndpointEnv: "0.0.0.0:4318"},
+			err:     ErrAgentReceiverEndpointNotConfigured,
+			alsoErr: ErrAgentReceiverEndpointCollision,
+			errContains: []string{
+				"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint",
+				"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint = \"0.0.0.0:4318\" conflicts with OTLP/http",
+			},
+			numErrs: 2,
+		},
+		{
+			name: "null TLS section rejects wildcard relocation endpoint",
+			path: "receiver/tls_null.yaml",
+			env:  map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
+			err:  ErrAgentReceiverPlaintextNotLoopback,
+		},
+		{
+			name:      "without TLS a wildcard relocation endpoint is allowed",
+			path:      "receiver/advanced.yaml",
+			env:       map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
+			endpoints: map[string]string{"grpc": "0.0.0.0:4319", "http": "127.0.0.1:4320"},
+		},
+		{
+			name: "no protocols ignores relocation endpoints",
+			path: "receiver/noprotocols.yaml",
+			env: map[string]string{
+				grpcEndpointEnv: "localhost:4317",
+				httpEndpointEnv: "localhost:4317",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+			t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+tt.path)
+			require.NoError(t, err)
+			before := cfg.Get("otlp_config.receiver")
+			want := configcheck.ReadConfigSection(cfg, "otlp_config.receiver").ToStringMap()
+			for protocol, endpoint := range tt.endpoints {
+				protocols, ok := want["protocols"].(map[string]interface{})
+				require.True(t, ok)
+				require.Contains(t, protocols, protocol)
+				section, _ := protocols[protocol].(map[string]interface{})
+				if section == nil {
+					section = map[string]interface{}{}
+				}
+				section["endpoint"] = endpoint
+				delete(section, "tls")
+				protocols[protocol] = section
+			}
+
+			got, err := FromAgentConfig(cfg)
+			if tt.err != nil {
+				require.ErrorIs(t, err, tt.err)
+				if tt.alsoErr != nil {
+					require.ErrorIs(t, err, tt.alsoErr)
+				}
+				for _, contains := range tt.errContains {
+					assert.ErrorContains(t, err, contains)
+				}
+				if tt.numErrs != 0 {
+					assert.Len(t, multierr.Errors(err), tt.numErrs)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, want, got.OTLPReceiverConfig)
+			assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+
+			again, err := FromAgentConfig(cfg)
+			if tt.err != nil {
+				require.ErrorIs(t, err, tt.err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, got, again)
+			assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+		})
+	}
 }

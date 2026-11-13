@@ -9,7 +9,6 @@ package eval
 // State defines the current state of the rule compilation
 type State struct {
 	model       Model
-	field       Field
 	fieldValues map[Field][]FieldValue
 	registers   []Register
 }
@@ -40,9 +39,8 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 }
 
 // NewState returns a new State
-func NewState(model Model, field Field) *State {
+func NewState(model Model) *State {
 	return &State{
-		field:       field,
 		model:       model,
 		fieldValues: make(map[Field][]FieldValue),
 	}
