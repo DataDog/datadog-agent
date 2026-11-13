@@ -146,6 +146,28 @@ func TestIdentArrayError(t *testing.T) {
 	}
 }
 
+func TestCompareLeftOperandError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`["a", "b"] == "a"`:                        "string expected: 1:1",
+		`process.uid == 0 && ["a"] =~ "a*"`:        "string expected: 1:21",
+		`[1.1.1.1, 10.0.0.0/8] != 1.1.1.1`:         "struct expected: 1:1",
+		`process.array.flag in [true]`:             "bool expected: 1:1",
+		`process.uid == 0 && [true] not in [true]`: "bool expected: 1:21",
+	} {
+		model := &testModel{}
+		opts := newOptsWithParams(testConstants, nil)
+		rule, err := parseRule(expr, model, opts)
+		if rule == nil {
+			t.Fatal(err)
+		}
+
+		_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
+		if err == nil || err.Error() != expected {
+			t.Errorf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
+	}
+}
+
 func TestSimpleString(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
@@ -597,6 +619,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
+
+		// an event with the same field value and another uid matches
+		{Expr: `!(open.filename == "xyz" && process.uid == 456)`, Field: "open.filename", IsDiscarder: false},
+		// an event with the same field value and another uid matches
+		{Expr: `process.uid + 1 - 1 == process.gid`, Field: "process.gid", IsDiscarder: false},
 	}
 
 	for _, test := range tests {
@@ -2000,7 +2027,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}
