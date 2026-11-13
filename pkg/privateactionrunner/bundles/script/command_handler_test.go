@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -117,15 +118,51 @@ func TestScriptHandlerReportsTimeoutAfterScriptExit(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
-	start := time.Now()
-	// The script exits at once while its child holds the output pipes until the deadline.
-	_, err = runProcessTestHandler(t, context.Background(), processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "exit", pidFile}), false, 1)
-	require.ErrorContains(t, err, "timed out after 1 seconds")
-	// Stay under the 5s pipe wait delay so the deadline, not the wait delay, ended the run.
-	require.Less(t, time.Since(start), 4*time.Second)
+	// Fire the deadline only once the child runs, so slow script startup cannot race it.
+	ctx := newManualDeadlineContext()
+	done := make(chan error, 1)
+	go func() {
+		// The script exits at once while its child holds the output pipes until the deadline.
+		_, err := runProcessTestHandler(t, ctx, processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "exit", pidFile}), false, 60)
+		done <- err
+	}()
 	child := waitForTestChild(t, pidFile)
+	ctx.expire()
+	fired := time.Now()
+	select {
+	case err := <-done:
+		require.ErrorContains(t, err, "timed out after 60 seconds")
+		// Stay under the 5s pipe wait delay so the deadline, not the wait delay, ended the run.
+		require.Less(t, time.Since(fired), 4*time.Second)
+	case <-time.After(10 * time.Second):
+		t.Fatal("handler did not return after the deadline")
+	}
 	require.Eventually(t, func() bool { return processStopped(child.Pid) },
 		2*time.Second, 10*time.Millisecond, "child survived the timeout")
+}
+
+// manualDeadlineContext reports context.DeadlineExceeded once expire is called.
+type manualDeadlineContext struct {
+	context.Context
+	done chan struct{}
+	once sync.Once
+}
+
+func newManualDeadlineContext() *manualDeadlineContext {
+	return &manualDeadlineContext{Context: context.Background(), done: make(chan struct{})}
+}
+
+func (c *manualDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
+
+func (c *manualDeadlineContext) Done() <-chan struct{} { return c.done }
+
+func (c *manualDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
 }
 
 func TestScriptHandlerTerminatesDetachedDescendants(t *testing.T) {
