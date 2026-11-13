@@ -83,7 +83,7 @@ bazel_dep(name = "gawk", version = "5.4.0.bcr.5")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
-bazel_dep(name = "llvm", version = "0.8.26")
+bazel_dep(name = "llvm", version = "0.8.27")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
@@ -123,7 +123,7 @@ single_version_override(
         # Additional -L directory so -static links find real glibc archives; upstream proposal pending
         "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
     ],
-    version = "0.8.26",
+    version = "0.8.27",
 )
 
 single_version_override(
