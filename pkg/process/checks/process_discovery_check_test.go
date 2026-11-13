@@ -10,13 +10,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *mocks.Probe) {
@@ -122,21 +123,6 @@ func TestProcessDiscoveryCheckChunking(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
 		})
-	}
-}
-
-func TestProcessDiscoveryChunking(t *testing.T) {
-	tests := []struct{ procs, chunkSize, expectedChunks int }{
-		{100, 10, 10}, // Normal behavior
-		{50, 30, 2},   // Number of chunks does not split cleanly
-		{10, 100, 1},  // Larger chunk size than there are procs
-		{0, 100, 0},   // No procs
-	}
-
-	for _, test := range tests {
-		procs := make([]*model.ProcessDiscovery, test.procs)
-		chunkedProcs := chunkProcessDiscoveries(procs, test.chunkSize)
-		assert.Len(t, chunkedProcs, test.expectedChunks)
 	}
 }
 

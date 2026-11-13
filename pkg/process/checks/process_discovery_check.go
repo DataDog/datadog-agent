@@ -9,13 +9,13 @@ import (
 	"errors"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -102,6 +102,9 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 	if err != nil {
 		return nil, err
 	}
+	if len(procs) == 0 {
+		return nil, nil
+	}
 
 	host := &model.Host{
 		Name:        d.info.HostName,
@@ -117,19 +120,16 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 		runMaxBatchSize = len(procDiscoveries)
 	}
 
-	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, runMaxBatchSize)
-	payload := make([]model.MessageBody, len(procDiscoveryChunks))
-
 	groupID := nextGroupID()
-	for i, procDiscoveryChunk := range procDiscoveryChunks {
-		payload[i] = &model.CollectorProcDiscovery{
+	payload := chunkMessages(procDiscoveries, runMaxBatchSize, func(chunk []*model.ProcessDiscovery, groupSize int32) model.MessageBody {
+		return &model.CollectorProcDiscovery{
 			HostName:           d.info.HostName,
 			GroupId:            groupID,
-			GroupSize:          int32(len(procDiscoveryChunks)),
-			ProcessDiscoveries: procDiscoveryChunk,
+			GroupSize:          groupSize,
+			ProcessDiscoveries: chunk,
 			Host:               host,
 		}
-	}
+	})
 
 	return StandardRunResult(payload), nil
 }
@@ -151,23 +151,6 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 	}
 
 	return pd
-}
-
-// chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
-// This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
-func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
-	chunkCount := len(procs) / size
-	if chunkCount*size < len(procs) {
-		chunkCount++
-	}
-	chunks := make([][]*model.ProcessDiscovery, 0, chunkCount)
-
-	for i := 0; i < len(procs); i += size {
-		end := min(i+size, len(procs))
-		chunks = append(chunks, procs[i:end])
-	}
-
-	return chunks
 }
 
 // Needed to calculate the correct normalized cpu metric value

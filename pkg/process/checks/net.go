@@ -475,7 +475,7 @@ func batchConnections(
 	listeners map[remoteservice.ListenKey]int32,
 	netnsReattributed map[*model.Connection]string,
 ) []model.MessageBody {
-	groupSize := groupSize(len(cxs), maxConnsPerMessage)
+	groupSize := getGroupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
@@ -669,7 +669,7 @@ func batchConnections(
 			NetworkId:              networkID,
 			Connections:            batchConns,
 			GroupId:                groupID,
-			GroupSize:              groupSize,
+			GroupSize:              int32(groupSize),
 			ContainerForPid:        ctrIDForPID,
 			EncodedDomainDatabase:  encodedNameDb,
 			EncodedDnsLookups:      mappedDNSLookups,
@@ -702,14 +702,6 @@ func batchConnections(
 		cxs = cxs[batchSize:]
 	}
 	return batches
-}
-
-func groupSize(total, maxBatchSize int) int32 {
-	groupSize := total / maxBatchSize
-	if total%maxBatchSize > 0 {
-		groupSize++
-	}
-	return int32(groupSize)
 }
 
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
