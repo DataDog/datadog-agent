@@ -8,7 +8,10 @@
 package utils
 
 import (
+	"errors"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +91,61 @@ func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid
 	require.Eventuallyf(t, func() bool {
 		return IsProgramTraced(moduleName, programType, pid)
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
+}
+
+// missingTracedLibraries returns the entries of libPrefixes for which pid is not yet traced
+// through a library whose file name starts with that prefix.
+func missingTracedLibraries(moduleName, programType string, pid int, libPrefixes []string) []string {
+	traced := GetTracedPrograms(moduleName, programType)
+	var missing []string
+	for _, prefix := range libPrefixes {
+		found := slices.ContainsFunc(traced, func(p TracedProgram) bool {
+			return slices.Contains(p.PIDs, uint32(pid)) && strings.HasPrefix(filepath.Base(p.FilePath), prefix)
+		})
+		if !found {
+			missing = append(missing, prefix)
+		}
+	}
+	return missing
+}
+
+// WaitForLibrariesToBeTraced waits until pid is traced through a library matching each of
+// libPrefixes (e.g. "libssl.so", "libcrypto.so"). Use it instead of WaitForProgramsToBeTraced
+// when the probes span several libraries: the attacher registers each library separately, as
+// its open event arrives, so a pid can be traced through one library before the others.
+//
+// If the libraries are not all traced within 5 seconds and traceManually is set, it attaches
+// the pid manually. AttachPID attaches every matching library in the pid's maps and skips the
+// ones that are already registered, so it fills in whichever library was missed.
+func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pid int, libPrefixes []string, traceManually TraceMethod) {
+	waitForAll := func(timeout time.Duration) []string {
+		end := time.Now().Add(timeout)
+		for {
+			missing := missingTracedLibraries(moduleName, programType, pid, libPrefixes)
+			if len(missing) == 0 || !time.Now().Before(end) {
+				return missing
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	missing := waitForAll(5 * time.Second)
+	if len(missing) == 0 {
+		return
+	}
+	if !traceManually {
+		t.Fatalf("process %v is not traced by %v through %v", pid, programType, missing)
+	}
+	t.Logf("process %v is not traced by %v through %v, trying to attach manually", pid, programType, missing)
+
+	attacher, ok := debugger.attachers[moduleName][programType]
+	require.True(t, ok, "attacher for %v not found", programType)
+	if err := attacher.AttachPID(uint32(pid)); err != nil && !errors.Is(err, ErrPathIsAlreadyRegistered) {
+		require.NoError(t, err)
+	}
+	if missing = waitForAll(5 * time.Second); len(missing) != 0 {
+		t.Fatalf("process %v is not traced by %v through %v after manual attach", pid, programType, missing)
+	}
 }
 
 // WaitForPathToBeBlocked waits for the path to be blocked from tracing in the

@@ -3439,27 +3439,6 @@ func getExampleCertPaths() (string, string, error) {
 	return filepath.Join(curDir, "testdata/example.com.crt"), filepath.Join(curDir, "testdata/example.com.key"), nil
 }
 
-// waitForSSLAndCryptoToBeTraced waits until pid is traced through both libssl and libcrypto.
-// The cert is captured only if the libssl uprobes (SSL_do_handshake etc.) and the libcrypto
-// uprobes (i2d_X509) are both attached during the handshake. The attacher registers each
-// library separately, so WaitForProgramsToBeTraced can return once the first one is attached,
-// before the second one is.
-func waitForSSLAndCryptoToBeTraced(t *testing.T, pid int) {
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		var sslTraced, cryptoTraced bool
-		for _, p := range usmutils.GetTracedPrograms(ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName) {
-			if !slices.Contains(p.PIDs, uint32(pid)) {
-				continue
-			}
-			lib := filepath.Base(p.FilePath)
-			sslTraced = sslTraced || strings.HasPrefix(lib, "libssl.so")
-			cryptoTraced = cryptoTraced || strings.HasPrefix(lib, "libcrypto.so")
-		}
-		assert.True(ct, sslTraced, "libssl is not traced for pid %d", pid)
-		assert.True(ct, cryptoTraced, "libcrypto is not traced for pid %d", pid)
-	}, 5*time.Second, 50*time.Millisecond)
-}
-
 func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *network.ConnectionStats) bool) {
 	cfg := testConfig()
 	cfg.EnableCertCollection = true
@@ -3487,8 +3466,11 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 		KeyPath:   keyPath,
 	})
 
-	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
-	waitForSSLAndCryptoToBeTraced(t, cmd.Process.Pid)
+	// The cert is captured only if both the libssl uprobes (SSL_do_handshake etc.) and the
+	// libcrypto uprobes (i2d_X509) are attached before the handshake, and the attacher
+	// registers each library separately.
+	usmutils.WaitForLibrariesToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid,
+		[]string{"libssl.so", "libcrypto.so"}, usmutils.ManualTracingFallbackEnabled)
 
 	code, _, err := tracertestutil.HTTPGet(client, "https://"+serverAddr+"/status/200/foobar")
 	require.NoError(t, err)
