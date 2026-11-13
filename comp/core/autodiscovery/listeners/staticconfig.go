@@ -58,6 +58,7 @@ func (l *StaticConfigListener) createServices() {
 		{"gpu.enabled", "_gpu", ""},
 		{"gpu.nccl.enabled", "_gpu_nccl", ""},
 		{"gpu.amd.enabled", "_gpu_amd", "gpu.enabled"},
+		{"gpu.tpu.enabled", "_gpu_tpu", "gpu.enabled"},
 	} {
 		if !pkgconfigsetup.Datadog().GetBool(entry.configKey) {
 			continue

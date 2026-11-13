@@ -463,7 +463,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent.
+        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent. On Cloud TPUs, the HBM bandwidth utilization in percent of the peak.
       aggregation: relative_activity
     tagsets:
       - device
@@ -857,7 +857,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent.
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent. On Cloud TPUs, the TensorCore duty cycle.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -2531,7 +2531,7 @@ metrics:
       metric_type: gauge
       unit: percent
       description: >-
-        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available.
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available. On Cloud TPUs, the TensorCore utilization.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:

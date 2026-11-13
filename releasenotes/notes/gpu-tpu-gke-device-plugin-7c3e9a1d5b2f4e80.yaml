@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU monitoring: add preliminary support for Google Cloud TPUs. A new ``tpu``
+    check reads TensorCore, memory bandwidth, duty cycle and HBM metrics and
+    reports them with the GPU metric names: on GKE from the TPU device plugin,
+    tagged with the pods using each chip, and on TPU VMs from the TPU host
+    services. Enable it with
+    ``gpu.tpu.enabled: true`` alongside ``gpu.enabled: true``; the Agent does not
+    need a RuntimeClass or device access on TPU nodes. Hosts with TPUs get the
+    ``gpu_host:true`` host tag only when TPU collection is enabled, and the
+    NVIDIA GPU check stays idle on them.
