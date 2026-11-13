@@ -381,7 +381,6 @@ use_repo(
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
-    "in_yaml_go_yaml_v4",
     "io_etcd_go_bbolt",
     "io_etcd_go_etcd_client_v2",
     "io_istio_api",

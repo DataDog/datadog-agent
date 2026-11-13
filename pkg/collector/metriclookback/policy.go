@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	yaml "go.yaml.in/yaml/v4"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -114,7 +114,7 @@ func instanceLookbackEnabled(instance integration.Data) (enabled bool, validOver
 		return false, false
 	}
 
-	// yaml v4 decodes string-keyed nested maps as map[string]interface{}
+	// yaml v3 decodes string-keyed nested maps as map[string]interface{}
 	instanceConfig, ok := value.(map[string]interface{})
 	if !ok {
 		return false, false

@@ -21,7 +21,6 @@ go_library(
         "//pkg/metriclookback/ringbuffer",
         "//pkg/metrics",
         "@in_yaml_go_yaml_v3//:yaml",
-        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 
@@ -45,6 +44,5 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
-        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )

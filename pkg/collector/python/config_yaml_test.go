@@ -12,14 +12,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v4"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 // TestCommonInstanceConfigYAML11BooleanCompat pins the decode behavior that
 // check.go relies on since its switch from go.yaml.in/yaml/v2 to
-// go.yaml.in/yaml/v4. yaml v3 and v4 keep the YAML 1.1 compatibility of the
+// go.yaml.in/yaml/v3. yaml v3 keeps the YAML 1.1 compatibility of the
 // old parser when unmarshaling into typed bool fields, so the common options
 // empty_default_hostname and no_index keep accepting the legacy spellings.
 // Generic map reads are the ones that lost them (see TestIsJMXInstance and

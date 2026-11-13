@@ -6,7 +6,7 @@
 package check
 
 import (
-	yaml "go.yaml.in/yaml/v4"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )

@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v4"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -71,7 +71,7 @@ func TestSelectShadowCandidatesSelectsEnabledChecks(t *testing.T) {
 	raw := integration.RawMap{}
 	require.NoError(t, yaml.Unmarshal(candidate.Instance, &raw))
 	assert.Equal(t, "first", raw["name"])
-	// yaml v4 decodes string-keyed nested maps as map[string]interface{}
+	// yaml v3 decodes string-keyed nested maps as map[string]interface{}
 	assert.Equal(t, map[string]interface{}{"execution_mode": "shadow"}, raw["_datadog"])
 }
 
@@ -113,7 +113,7 @@ func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.
 
 func TestSelectShadowCandidatesYAML11BooleanEnabledIsUnset(t *testing.T) {
 	// YAML 1.1 boolean spellings are no longer interpreted as booleans since
-	// the switch from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v4: `enabled: yes`
+	// the switch from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v3: `enabled: yes`
 	// parses as the string "yes", which is not a valid setting, so it is
 	// treated as unset (unlike `enabled: true`).
 	configs := []integration.Config{
