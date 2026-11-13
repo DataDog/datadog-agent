@@ -26,6 +26,11 @@ const (
 	envService          = "DATADOG_SERVICE"
 	envSamplingPriority = "DATADOG_SAMPLING_PRIORITY"
 	telemetrySubdomain  = "instrumentation-telemetry-intake"
+
+	// stopFlushTimeout bounds how long Stop waits on sends, both a periodic send already in
+	// flight and the final flush, so an unreachable intake cannot hold up process shutdown for
+	// the full send timeout.
+	stopFlushTimeout = 2 * time.Second
 )
 
 // reGovCloudSite matches GovCloud sites (e.g. "ddog-gov.com", "xxxx99.ddog-gov.com").
@@ -42,35 +47,24 @@ func normalizeSite(site string) string {
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
-	telemetryClient  *client
-	done             chan struct{}
-	flushed          chan struct{}
-	stopFlushTimeout time.Duration
-	sendCtx          context.Context
-	cancelSends      context.CancelFunc
+	telemetryClient *client
+	done            chan struct{}
+	flushed         chan struct{}
+	sendCtx         context.Context
+	cancelSends     context.CancelFunc
 
 	env     string
 	service string
 }
 
-// Option configures a Telemetry instance.
-type Option func(*Telemetry)
-
-// WithStopFlushTimeout bounds how long Stop waits on sends, both a periodic send already in
-// flight and the final flush, so an unreachable intake cannot hold up process shutdown for the
-// full send timeout.
-func WithStopFlushTimeout(timeout time.Duration) Option {
-	return func(t *Telemetry) { t.stopFlushTimeout = timeout }
-}
-
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
-	t := newTelemetry(client, apiKey, site, service, opts...)
+func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+	t := newTelemetry(client, apiKey, site, service)
 	t.Start()
 	return t
 }
 
-func newTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
+func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
 	if site == "" {
 		site = "datadoghq.com"
 	}
@@ -89,7 +83,7 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 	}
 
 	sendCtx, cancelSends := context.WithCancel(context.Background())
-	t := &Telemetry{
+	return &Telemetry{
 		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
@@ -98,10 +92,6 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 		env:             env,
 		service:         service,
 	}
-	for _, opt := range opts {
-		opt(t)
-	}
-	return t
 }
 
 // Start starts the telemetry
@@ -123,10 +113,8 @@ func (t *Telemetry) Start() {
 
 // Stop stops the telemetry
 func (t *Telemetry) Stop() {
-	if t.stopFlushTimeout > 0 {
-		deadline := time.AfterFunc(t.stopFlushTimeout, t.cancelSends)
-		defer deadline.Stop()
-	}
+	deadline := time.AfterFunc(stopFlushTimeout, t.cancelSends)
+	defer deadline.Stop()
 	close(t.done)
 	<-t.flushed
 	t.cancelSends()

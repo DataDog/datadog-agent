@@ -25,9 +25,9 @@ func (u *unreachableIntake) RoundTrip(r *http.Request) (*http.Response, error) {
 	return nil, r.Context().Err()
 }
 
-func newTelemetryWithUnreachableIntake(opts ...Option) (*Telemetry, *unreachableIntake) {
+func newTelemetryWithUnreachableIntake() (*Telemetry, *unreachableIntake) {
 	intake := &unreachableIntake{requests: make(chan struct{}, 10)}
-	return newTelemetry(&http.Client{Transport: intake}, "api", "datadoghq.com", "test-service", opts...), intake
+	return newTelemetry(&http.Client{Transport: intake}, "api", "datadoghq.com", "test-service"), intake
 }
 
 func finishTestSpan() {
@@ -35,7 +35,7 @@ func finishTestSpan() {
 	span.Finish(nil)
 }
 
-func TestStopWithoutTimeoutWaitsForSendTimeout(t *testing.T) {
+func TestStopBoundsFinalFlush(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		telem, intake := newTelemetryWithUnreachableIntake()
 		telem.Start()
@@ -45,29 +45,13 @@ func TestStopWithoutTimeoutWaitsForSendTimeout(t *testing.T) {
 		telem.Stop()
 
 		assert.Len(t, intake.requests, 1)
-		assert.Equal(t, defaultSendPayloadTimeout, time.Since(start))
+		assert.Equal(t, stopFlushTimeout, time.Since(start))
 	})
 }
 
-func TestStopFlushTimeoutBoundsFinalFlush(t *testing.T) {
+func TestStopBoundsInFlightPeriodicSend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		const timeout = 2 * time.Second
-		telem, intake := newTelemetryWithUnreachableIntake(WithStopFlushTimeout(timeout))
-		telem.Start()
-		finishTestSpan()
-
-		start := time.Now()
-		telem.Stop()
-
-		assert.Len(t, intake.requests, 1)
-		assert.Equal(t, timeout, time.Since(start))
-	})
-}
-
-func TestStopFlushTimeoutBoundsInFlightPeriodicSend(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		const timeout = 2 * time.Second
-		telem, intake := newTelemetryWithUnreachableIntake(WithStopFlushTimeout(timeout))
+		telem, intake := newTelemetryWithUnreachableIntake()
 		telem.Start()
 		finishTestSpan()
 
@@ -78,6 +62,6 @@ func TestStopFlushTimeoutBoundsInFlightPeriodicSend(t *testing.T) {
 		start := time.Now()
 		telem.Stop()
 
-		assert.Equal(t, timeout, time.Since(start))
+		assert.Equal(t, stopFlushTimeout, time.Since(start))
 	})
 }

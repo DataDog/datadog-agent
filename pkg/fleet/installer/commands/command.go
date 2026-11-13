@@ -43,11 +43,6 @@ const (
 	//
 	// For example, `setup` is run by humans and its output should be human readable.
 	AnnotationHumanReadableErrors = "human-readable-errors"
-
-	// commandTelemetryStopFlushTimeout bounds the telemetry flush when a command exits. The daemon
-	// records a task's result only after its subprocess exits, so on Windows a 10s flush to an
-	// unreachable intake can outlast the service stop budget during an Agent restart.
-	commandTelemetryStopFlushTimeout = 2 * time.Second
 )
 
 // agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
@@ -233,7 +228,7 @@ func newTelemetry(env *env.Env) (*telemetry.Telemetry, error) {
 	env.APIKey = apiKey
 	env.Site = site
 
-	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer", telemetry.WithStopFlushTimeout(commandTelemetryStopFlushTimeout)) // No sampling rules for commands
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t, nil
 }
 

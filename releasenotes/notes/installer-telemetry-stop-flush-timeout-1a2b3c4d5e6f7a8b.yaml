@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    The installer and installer daemon now spend at most 2 seconds flushing
-    telemetry when they exit. Previously, an unreachable telemetry intake could
-    delay exit by 10 seconds, which on Windows could push the Datadog Installer
-    service past its stop timeout during an Agent restart and leave a Fleet
-    Automation configuration task unreported.
