@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU monitoring: on AMD Instinct GPUs (Linux 6.19+ or a recent
+    amdgpu-dkms), the ``amd_gpu`` check now reports XGMI throughput
+    (``gpu.xgmi.throughput.data.*``), PCIe replays
+    (``gpu.pci.replay_counter``) and the ``sw_power_cap``,
+    ``sw_thermal_slowdown`` and ``hw_slowdown`` throttle reasons, as
+    the fraction of the interval spent throttled.
+    ``gpu.gr_engine_active``, ``gpu.sm_active`` and ``gpu.dram_active``
+    become averages over the collection interval.

@@ -172,12 +172,23 @@ pkg_install(
     srcs = [":all_files"],
 )
 
+# Go 1.26.11+ rejects .llvmbc/.llvmcmd sections in cgo -L libraries.
+# genrule: only way to get the cc toolchain $(OBJCOPY) without a new .bzl file.
+genrule(
+    name = "libdd_discovery_no_bitcode",
+    srcs = [":libdd_discovery"],
+    outs = ["no_bitcode/libdd_discovery.a"],
+    cmd = "$(OBJCOPY) --remove-section=.llvmbc --remove-section=.llvmcmd $< $@",
+    toolchains = ["@rules_cc//cc:current_cc_toolchain"],
+    tools = ["@rules_cc//cc:current_cc_toolchain"],
+)
+
 # Install target for the libdd_discovery static library. Invoked with
 # `--destdir=pkg/discovery/module/rust` so the .a file lands next to the Go
 # source where cgo LDFLAGS will find it.
 pkg_files(
     name = "libdd_discovery_files",
-    srcs = [":libdd_discovery"],
+    srcs = [":libdd_discovery_no_bitcode"],
     attributes = pkg_attributes(mode = "0644"),
 )
 

@@ -4,6 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package dogstatsdunit contains e2e tests verifying that DogStatsD timing (ms)
-// metrics carry a "millisecond" unit through the Agent pipeline, while plain
-// counter and histogram metrics do not.
+// metrics carry a "millisecond" unit only when dogstatsd_set_timing_unit is enabled,
+// while counter and histogram metrics remain unitless.
 package dogstatsdunit

@@ -23,22 +23,6 @@ function Install-Service {
 }
 
 if ("$env:WITH_JMX" -ne "false") {
-    . ./install-utils.ps1
-    $JDK_UPSTREAM = "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.32.1%2B1"
-    $JDK_FILENAME = "OpenJDK11U-jre_x64_windows_hotspot_11.0.32.1_1.zip"
-    $JDK_DIR = "jdk-11.0.32.1+1-jre"
-    $JDK_SHA256 = "f8c7da672f5dba36b6f870608820b6b598cfae91296929f1b8f21ef2f1e8a0dd"
-
-    $JDK_DOWNLOAD_URL = if ($env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL) {"${env:GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/openjdk"} else {$JDK_UPSTREAM}
-    Invoke-WebRequestWithRetry -OutFile jre.zip "${JDK_DOWNLOAD_URL}/${JDK_FILENAME}"
-    if ((Get-FileHash -Algorithm SHA256 jre.zip).Hash -eq "$JDK_SHA256") {
-        Write-Host "JDK checksum match"
-    } else {
-        Write-Error "JDK checksum mismatch"
-    }
-    Expand-Archive -Path jre.zip -DestinationPath C:/
-    Remove-Item jre.zip
-    Move-Item "C:/$JDK_DIR/" C:/java
     # Add java to the path for jmxfetch
     setx /m PATH "$Env:Path;C:/java/bin"
     $Env:Path="$Env:Path;C:/java/bin"

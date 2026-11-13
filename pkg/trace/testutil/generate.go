@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"math/rand"
 	"time"
 
@@ -227,6 +228,12 @@ func GenerateTraceV1(strings *idx.StringTable, tc *TraceConfig, sc *SpanConfig) 
 		}
 		chunk.Spans = append(chunk.Spans, s)
 	}
+	// As in GenerateTrace, the low-order 64 bits of the trace ID are the root span ID. The
+	// high-order bits are random and non-zero, so the 128-bit trace ID is never zero.
+	traceID := make([]byte, 16)
+	binary.BigEndian.PutUint64(traceID[:8], rand.Uint64()|1)
+	binary.BigEndian.PutUint64(traceID[8:], root.SpanID())
+	chunk.TraceID = traceID
 	for _, span := range chunk.Spans {
 		if span == root {
 			continue

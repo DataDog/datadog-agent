@@ -90,15 +90,6 @@ func TestProbeResponse_ProbeObject(t *testing.T) {
 	assert.Equal(t, "true", annotations[admicommon.ProbeReceivedAnnotationKey])
 }
 
-// newTestServer skips NewServer to avoid leaking a health.RegisterReadiness
-// goroutine that these tests never drain or deregister.
-func newTestServer(t *testing.T) *Server {
-	t.Helper()
-	s := &Server{mux: http.NewServeMux()}
-	s.initDecoder()
-	return s
-}
-
 // countingFiller hands out up to `remaining` bytes without allocating them
 // up front, and records how many were actually read.
 type countingFiller struct {
@@ -170,7 +161,7 @@ func TestHandleBodyLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestServer(t)
+			s := NewServer(nil)
 			hit := false
 			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(_ *Request) *admiv1.AdmissionResponse {
 				hit = true
@@ -204,7 +195,7 @@ func TestHandleBodyLimits(t *testing.T) {
 }
 
 func TestHandlePassesRequestContextToWebhook(t *testing.T) {
-	s := newTestServer(t)
+	s := NewServer(nil)
 	var webhookContext context.Context
 	s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(request *Request) *admiv1.AdmissionResponse {
 		webhookContext = request.Context
@@ -226,7 +217,7 @@ func TestHandlePassesRequestContextToWebhook(t *testing.T) {
 }
 
 func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
-	s := newTestServer(t)
+	s := NewServer(nil)
 	for _, uri := range []string{"/injectconfig", "/autoscaling"} {
 		s.Register(uri, "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
 			t.Fatalf("webhook func should not be called for an oversized request to %s", uri)
@@ -260,7 +251,7 @@ func TestHandleReviewWithoutRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestServer(t)
+			s := NewServer(nil)
 			hit := false
 			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
 				hit = true
@@ -293,7 +284,7 @@ func TestHandleWebhookResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestServer(t)
+			s := NewServer(nil)
 			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
 				return tt.response
 			}, nil, nil)

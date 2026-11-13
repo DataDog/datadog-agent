@@ -128,14 +128,21 @@ func (c *KataCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 // events to maintain a sandboxID→containerID cache, and periodically scrapes
 // all discovered Kata shim sockets.
 func (c *KataCheck) Run() error {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
 		Build()
 	containerEventsCh := c.store.Subscribe(CheckName, workloadmeta.NormalPriority, filter)
 	defer c.store.Unsubscribe(containerEventsCh)
 
-	ticker := time.NewTicker(defaultScrapeInterval)
-	defer ticker.Stop()
+	// Scrapes run on their own goroutine: a slow shim socket can block for up
+	// to shimDialTimeout+shimReadTimeout per sandbox, and workloadmeta drops
+	// events for subscribers that stop reading.
+	done := make(chan struct{})
+	defer close(done)
+	wg.Go(func() { c.scrapeLoop(done) })
 
 	for {
 		select {
@@ -144,10 +151,22 @@ func (c *KataCheck) Run() error {
 				return nil
 			}
 			c.processContainerEvents(eventBundle)
-		case <-ticker.C:
-			c.runScrape()
 		case <-c.stopCh:
 			return nil
+		}
+	}
+}
+
+func (c *KataCheck) scrapeLoop(done <-chan struct{}) {
+	ticker := time.NewTicker(defaultScrapeInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.runScrape(done)
+		case <-done:
+			return
 		}
 	}
 }
@@ -203,7 +222,7 @@ func (c *KataCheck) processContainerEvents(eventBundle workloadmeta.EventBundle)
 }
 
 // runScrape discovers sandboxes and scrapes each one.
-func (c *KataCheck) runScrape() {
+func (c *KataCheck) runScrape(done <-chan struct{}) {
 	s, err := c.GetSender()
 	if err != nil {
 		_ = c.Warnf("kata_containers: failed to get sender: %v", err)
@@ -215,6 +234,11 @@ func (c *KataCheck) runScrape() {
 	s.Gauge("kata.running_shim_count", float64(len(sandboxes)), "", c.instance.Tags)
 
 	for sandboxID, socketPath := range sandboxes {
+		select {
+		case <-done:
+			return
+		default:
+		}
 		baseTags := c.buildBaseTags(sandboxID)
 		c.scrapeSandbox(s, sandboxID, socketPath, baseTags)
 	}

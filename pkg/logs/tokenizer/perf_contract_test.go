@@ -49,6 +49,9 @@ var allocBudgets = []struct {
 	{"TokenizeBorrowed+Retained", 1, func(tok *Tokenizer, line []byte, _, _ []Token) {
 		retainedSink = tok.TokenizeBorrowed(line).Retained()
 	}},
+	{"TokensToString", 1, func(_ *Tokenizer, _ []byte, owned, _ []Token) {
+		stringSink = TokensToString(owned)
+	}},
 	{"IsImportant", 0, func(_ *Tokenizer, _ []byte, owned, _ []Token) {
 		if IsImportant(owned) {
 			benchSink++
@@ -73,6 +76,7 @@ var (
 	ownedSink    []Token
 	indexSink    []int
 	retainedSink BorrowedTokens
+	stringSink   string
 )
 
 // contractLines is perfLines plus two edge cases: an empty line, and a 134 KB
@@ -277,30 +281,43 @@ func skipWithCoarseClock(t *testing.T) {
 	}
 }
 
-// fastest returns the shortest time one call to f took, over 7 samples of at
-// least 1 ms each. The shortest sample is the one with the least noise from
-// the rest of the machine.
-func fastest(f func()) time.Duration {
+// fastestPair returns the shortest time one call to a and one call to b took,
+// over 15 interleaved rounds of at least 1 ms each. Interleaving matters: on a
+// shared CI machine the core can slow down or change between two back-to-back
+// measurements, which skews a ratio far more than noise within one round. Each
+// round times both functions, alternating which goes first, so both see the
+// same machine. The shortest sample is the one with the least noise.
+func fastestPair(a, b func()) (time.Duration, time.Duration) {
 	reps := 1
 	for {
 		start := time.Now()
 		for range reps {
-			f()
+			a()
+			b()
 		}
 		if time.Since(start) >= time.Millisecond {
 			break
 		}
 		reps *= 2
 	}
-	best := time.Duration(1<<63 - 1)
-	for range 7 {
+	sample := func(f func()) time.Duration {
 		start := time.Now()
 		for range reps {
 			f()
 		}
-		best = min(best, time.Since(start)/time.Duration(reps))
+		return time.Since(start) / time.Duration(reps)
 	}
-	return best
+	bestA, bestB := time.Duration(1<<63-1), time.Duration(1<<63-1)
+	for i := range 15 {
+		if i%2 == 0 {
+			bestA = min(bestA, sample(a))
+			bestB = min(bestB, sample(b))
+		} else {
+			bestB = min(bestB, sample(b))
+			bestA = min(bestA, sample(a))
+		}
+	}
+	return bestA, bestB
 }
 
 // TestWindowBoundsWork checks that bytes past the window cost nothing: a 16 MiB
@@ -313,8 +330,11 @@ func TestWindowBoundsWork(t *testing.T) {
 	for _, c := range consumers {
 		tok := NewTokenizer(c.maxEvalBytes)
 		window := long[:c.maxEvalBytes]
-		ratio := float64(fastest(func() { tok.TokenizeBorrowed(long) })) /
-			float64(fastest(func() { tok.TokenizeBorrowed(window) }))
+		longTime, windowTime := fastestPair(
+			func() { tok.TokenizeBorrowed(long) },
+			func() { tok.TokenizeBorrowed(window) },
+		)
+		ratio := float64(longTime) / float64(windowTime)
 		assert.Less(t, ratio, 4.0, "%s: a 16 MiB line costs %.1fx a %d-byte line", c.name, ratio, c.maxEvalBytes)
 	}
 }
