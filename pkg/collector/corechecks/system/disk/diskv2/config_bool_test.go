@@ -35,19 +35,26 @@ func TestConfigureYAML11BooleanSpellings(t *testing.T) {
 
 	c := newCheck()
 	require.NoError(t, c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash,
-		integration.Data("use_mount: yes\nall_partitions: on\ntag_by_filesystem: 'no'\nlowercase_device_tag: Y\n"),
+		integration.Data("use_mount: yes\nall_partitions: on\nlowercase_device_tag: Y\ntag_by_label: no\n"),
 		integration.Data(""), "test", ""))
 	assert.True(t, c.instanceConfig.UseMount)
 	assert.True(t, c.instanceConfig.AllPartitions)
-	assert.False(t, c.instanceConfig.TagByFilesystem)
 	assert.True(t, c.instanceConfig.LowercaseDeviceTag)
+	// TagByLabel defaults to true, so this pins the false direction
+	assert.False(t, c.instanceConfig.TagByLabel)
+
+	// String "true"/"false" are not boolean spellings: the typed
+	// unmarshaling rejects them, like it did with yaml v3.
+	c = newCheck()
+	require.Error(t, c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash,
+		integration.Data("use_mount: \"true\"\n"),
+		integration.Data(""), "test", ""))
 
 	c = newCheck()
 	require.NoError(t, c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash,
-		integration.Data("use_mount: true\nall_partitions: false\n"),
+		integration.Data("use_mount: true\n"),
 		integration.Data(""), "test", ""))
 	assert.True(t, c.instanceConfig.UseMount)
-	assert.False(t, c.instanceConfig.AllPartitions)
 
 	// Values that are not boolean spellings are rejected by the typed
 	// unmarshaling, so the check configuration fails to load.

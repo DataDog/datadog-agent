@@ -292,21 +292,34 @@ func TestDiskCheckTags(t *testing.T) {
 
 func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
 	// The disk check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v4 but
-	// keeps accepting YAML 1.1 boolean spellings on its boolean options
-	// (fleet data shows customers relying on e.g. `use_mount: yes`), while
-	// values that are not boolean spellings keep their default, as before
-	// the migration.
+	// keeps accepting unquoted YAML 1.1 boolean spellings on its boolean
+	// options (fleet data shows customers relying on e.g. `use_mount: yes`
+	// in verbatim autodiscovery configs). Values that are not boolean
+	// spellings keep their default, as before the migration; the
+	// false-direction coverage lives in TestToLenientBool.
 	diskCheck := new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: yes\nall_partitions: on\ntag_by_filesystem: 'no'\n")))
+	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: yes\nall_partitions: on\ntag_by_filesystem: true\n")))
 	assert.True(t, diskCheck.cfg.useMount)
 	assert.True(t, diskCheck.cfg.allPartitions)
-	assert.False(t, diskCheck.cfg.tagByFilesystem)
+	assert.True(t, diskCheck.cfg.tagByFilesystem)
+
+	// Real booleans keep working.
+	diskCheck = new(Check)
+	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: true\n")))
+	assert.True(t, diskCheck.cfg.useMount)
+
+	// A quoted spelling now also applies (it was ignored by the yaml v2
+	// generic map reads), but string "true"/"false" values are still
+	// ignored, like before the migration: fleet data shows many customers
+	// with such string values on disk options, honoring them would
+	// silently change their metrics.
+	diskCheck = new(Check)
+	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: 'yes'\n")))
+	assert.True(t, diskCheck.cfg.useMount)
 
 	diskCheck = new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: false\nall_partitions: TRUE\ntag_by_filesystem: true\n")))
+	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: \"true\"\n")))
 	assert.False(t, diskCheck.cfg.useMount)
-	assert.True(t, diskCheck.cfg.allPartitions)
-	assert.True(t, diskCheck.cfg.tagByFilesystem)
 
 	// Values that are not boolean spellings keep their default.
 	diskCheck = new(Check)

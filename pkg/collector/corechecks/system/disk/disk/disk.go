@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v4" // boolean options accept YAML 1.1 spellings through check.ToLenientBool
+	yaml "go.yaml.in/yaml/v4" // boolean options keep accepting unquoted YAML 1.1 spellings through check.ToLenientBool (conf.d files are normalized upstream, this matters for verbatim autodiscovery configs)
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -141,27 +141,29 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 
 	deviceTagRe, found := conf["device_tag_re"]
 	if found {
-		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
 		// yaml v4 decodes string-keyed nested maps as map[string]interface{},
-		// but non-string keys can still produce map[interface{}]interface{}
+		// while non-string keys can still produce map[interface{}]interface{}
+		tagRes := make(map[string]string)
 		switch deviceTagRe := deviceTagRe.(type) {
 		case map[string]interface{}:
 			for reString, tags := range deviceTagRe {
 				if tags, ok := tags.(string); ok {
-					if err := c.addDeviceTagRe(reString, tags); err != nil {
-						return err
-					}
+					tagRes[reString] = tags
 				}
 			}
 		case map[interface{}]interface{}:
 			for reString, tags := range deviceTagRe {
 				if reString, ok := reString.(string); ok {
 					if tags, ok := tags.(string); ok {
-						if err := c.addDeviceTagRe(reString, tags); err != nil {
-							return err
-						}
+						tagRes[reString] = tags
 					}
 				}
+			}
+		}
+		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string, len(tagRes))
+		for reString, tags := range tagRes {
+			if err := c.addDeviceTagRe(reString, tags); err != nil {
+				return err
 			}
 		}
 	}
