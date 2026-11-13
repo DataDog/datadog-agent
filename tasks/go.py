@@ -4,6 +4,7 @@ Golang related tasks go here
 
 from __future__ import annotations
 
+import contextlib
 import glob
 import os
 import posixpath
@@ -22,7 +23,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
@@ -43,6 +44,28 @@ GOARCH_MAPPING = {
     "arm64": "arm64",
     "ppc64": "ppc64",
 }
+
+
+def _user_cache_dir() -> str:
+    """Mirrors Go's os.UserCacheDir: unlike the temporary directory on Linux, other users can't write to it."""
+    if sys.platform == "win32":
+        return os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Caches")
+    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+
+
+def _gcflags_goflag(flag: str) -> str | None:
+    """Returns the GOFLAGS entry passing `flag` to the compiler of every package, or None if it can't be expressed.
+
+    cmd/go splits both GOFLAGS and the -gcflags value on whitespace, and only honors quotes around a whole field,
+    without escapes: a flag containing whitespace needs a different quote at each level, and can't contain either.
+    """
+    if not any(c in flag for c in " \t\n\r"):
+        return f"-gcflags=all={flag}"
+    if "'" in flag or '"' in flag:
+        return None
+    return f"\"-gcflags=all='{flag}'\""
 
 
 def run_golangci_lint(
@@ -92,18 +115,42 @@ def run_golangci_lint(
     cmd += ["--build-tags", tags_arg, "--path-prefix", base_path] + golangci_lint_kwargs.split() + target_patterns
     if not headless_mode:
         print(f"running golangci-lint on: {targets_str}")
-    result, time_result = TimedOperationResult.run(
-        lambda: bazel(
-            "run",
-            *(f"--run_env={k}={v}" for k, v in env.items()),
-            "//internal/tools:golangci-lint",
-            "--",
-            *cmd,
-            ignore_errors=True,
-        ),
-        "golangci-lint",
-        f"Lint {targets_str}",
-    )
+    # golangci-lint only reads the export data of the archives `go list -export` compiles, not their linker object,
+    # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
+    # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
+    # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
+    # Every compile overwrites the same file, so it is only as large as the largest package. Concurrent compiles and
+    # runs can share it, since nothing ever reads it. Its path must not change between runs, as it is part of the
+    # cache key, and must not be writable by other users. It can't be os.devnull: the compiler seeks back in it to write
+    # the archive headers, which fails in NUL on Windows.
+    linkobj = os.path.join(_user_cache_dir(), "golangci-lint-linkobj.o")
+    if linkobj_goflag := _gcflags_goflag(f"-linkobj={linkobj}"):
+        os.makedirs(os.path.dirname(linkobj), exist_ok=True)
+        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} {linkobj_goflag}".lstrip()
+    else:
+        print(
+            color_message(
+                f"Warning: can't pass {linkobj!r} to the compiler, linting will need more disk", Color.ORANGE
+            ),
+            file=sys.stderr,
+        )
+    try:
+        result, time_result = TimedOperationResult.run(
+            lambda: bazel(
+                "run",
+                *(f"--run_env={k}={v}" for k, v in env.items()),
+                "//internal/tools:golangci-lint",
+                "--",
+                *cmd,
+                ignore_errors=True,
+            ),
+            "golangci-lint",
+            f"Lint {targets_str}",
+        )
+    finally:
+        # Fails on Windows while a concurrent run still has it open, which leaves it for that run to remove.
+        with contextlib.suppress(OSError):
+            os.remove(linkobj)
     return [result], [time_result]
 
 
