@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"math"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -74,7 +76,8 @@ type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
 	wg                 sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out                chan<- *Payload     // the outgoing payload channel
+	out                chan<- *PayloadV1   // the outgoing payload channel
+	legacyOut          chan<- *Payload     // the outgoing payload channel used when the disable-convert-traces feature is set, if not nil
 	conf               *config.AgentConfig // receiver config
 	cidProvider        IDProvider          // container ID provider
 	statsd             statsd.ClientInterface
@@ -84,8 +87,26 @@ type OTLPReceiver struct {
 	mu                 sync.RWMutex
 }
 
+// NewOTLPReceiverV1 returns a new OTLPReceiver which sends any incoming traces down the out channel,
+// encoded as V1 (string-indexed) payloads and processed by the V1 trace pipeline.
+func NewOTLPReceiverV1(out chan<- *PayloadV1, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	return NewOTLPReceiverWithLegacyOut(out, nil, cfg, statsd, timing)
+}
+
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
+//
+// Deprecated: OTLP traces are converted to the V1 (string-indexed) trace format now, so this
+// constructor no longer reflects the default behavior of the receiver. Use NewOTLPReceiverV1
+// instead. This one is kept, still sending legacy (non-V1) payloads, for consumers of the
+// published pkg/trace module until the legacy trace pipeline is removed.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	return NewOTLPReceiverWithLegacyOut(nil, out, cfg, statsd, timing)
+}
+
+// NewOTLPReceiverWithLegacyOut returns a new OTLPReceiver which sends any incoming traces down the
+// out channel. When the disable-convert-traces feature is set and legacyOut is not nil, the traces
+// are instead sent down legacyOut, to be processed by the legacy (non-V1) trace pipeline.
+func NewOTLPReceiverWithLegacyOut(out chan<- *PayloadV1, legacyOut chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
 	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
@@ -124,7 +145,7 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, legacyOut: legacyOut, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -287,12 +308,58 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		return source.Source{}, errors.New("OTLPReceiver in trace agent is already stopped")
 	}
 	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler), nil
+		p, src := o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
+		if o.useLegacyOut() {
+			o.legacyOut <- p
+		} else {
+			o.out <- payloadToV1(p)
+		}
+		return src, nil
 	}
-	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler), nil
+	clientComputedStats := isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats))
+	if o.useLegacyOut() {
+		p, src := o.receiveResourceSpansV2(ctx, rspans, clientComputedStats, hostFromAttributesHandler)
+		o.legacyOut <- p
+		return src, nil
+	}
+	p, src := o.receiveResourceSpansV2Idx(ctx, rspans, clientComputedStats, hostFromAttributesHandler)
+	o.out <- p
+	return src, nil
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+// useLegacyOut reports whether payloads are sent to the legacy (non-V1) trace pipeline. A receiver
+// with no V1 out channel, such as the one built by the deprecated NewOTLPReceiver, always uses it.
+func (o *OTLPReceiver) useLegacyOut() bool {
+	return o.legacyOut != nil && (o.out == nil || o.conf.HasFeature("disable-convert-traces"))
+}
+
+// payloadToV1 converts a payload built by the legacy OTLP receiver into a V1 payload.
+func payloadToV1(p *Payload) *PayloadV1 {
+	return &PayloadV1{
+		Source:                 p.Source,
+		ClientComputedTopLevel: p.ClientComputedTopLevel,
+		ClientComputedStats:    p.ClientComputedStats,
+		ClientDroppedP0s:       p.ClientDroppedP0s,
+		ProcessTags:            p.ProcessTags,
+		ContainerTags:          p.ContainerTags,
+		TracerPayload:          ConvertToIdx(p.TracerPayload, ""),
+	}
+}
+
+// otlpResourceV2 holds the resource-level values that receiveResourceSpansV2 and
+// receiveResourceSpansV2Idx compute from the resource of the received spans.
+type otlpResourceV2 struct {
+	src           source.Source
+	otelres       pcommon.Resource // the resource, without the container tags it held unless disable_otlp_container_tags_v2 is set
+	hostname      string
+	containerID   string
+	env           string
+	containerTags string
+	tagstats      *info.TagStats
+}
+
+// resourceV2 computes the resource-level values of rspans for the V2 receivers.
+func (o *OTLPReceiver) resourceV2(ctx context.Context, rspans ptrace.ResourceSpans, hostFromAttributesHandler attributes.HostFromAttributesHandler) otlpResourceV2 {
 	otelres := rspans.Resource()
 
 	// Get the hostname or set to empty if source is empty
@@ -330,7 +397,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	env := transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptDeploymentEnv, true)
 
 	// Get container tags from OTel semantic conventions
-	var containerTags string
 	var builder *strings.Builder
 	if !o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		// As part of extracting container tags, we remove some of the corresponding resource attributes
@@ -354,28 +420,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 		}
 	}
-	containerTags = builder.String()
-
-	tracesByID := make(map[uint64]pb.Trace)
-	priorityByID := make(map[uint64]sampler.SamplingPriority)
-	var spancount int64
-	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
-		libspans := rspans.ScopeSpans().At(i)
-		for j := 0; j < libspans.Spans().Len(); j++ {
-			otelspan := libspans.Spans().At(j)
-			spancount++
-			traceID := transform.OTelTraceIDToUint64(otelspan.TraceID())
-			if tracesByID[traceID] == nil {
-				tracesByID[traceID] = pb.Trace{}
-			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
-
-			if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
-				priorityByID[traceID] = sampler.SamplingPriority(p)
-			}
-			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
-		}
-	}
 
 	lang := transform.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.TelemetrySDKLanguageKey))
 	tagstats := &info.TagStats{
@@ -386,35 +430,279 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		},
 		Stats: info.NewStats(),
 	}
+	return otlpResourceV2{
+		src:           src,
+		otelres:       otelres,
+		hostname:      hostname,
+		containerID:   containerID,
+		env:           env,
+		containerTags: builder.String(),
+		tagstats:      tagstats,
+	}
+}
 
+// countSpansAndTraces reports the number of received spans and traces.
+func (o *OTLPReceiver) countSpansAndTraces(tagstats *info.TagStats, spancount int64, tracecount int) {
 	tags := tagstats.AsTags()
 	_ = o.statsd.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
-	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
-	p := Payload{
-		Source:                 tagstats,
-		ClientComputedStats:    resolveClientComputedStats(otelres.Attributes(), clientComputedStats),
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
-		TracerPayload: &pb.TracerPayload{
-			Hostname:      hostname,
-			Chunks:        o.createChunks(tracesByID, priorityByID),
-			Env:           env,
-			ContainerID:   containerID,
-			LanguageName:  tagstats.Lang,
-			TracerVersion: tagstats.TracerVersion,
-		},
-	}
+	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(tracecount), tags, 1)
+}
 
-	if len(containerTags) > 0 {
-		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: containerTags,
+// receiveResourceSpansV2 converts rspans into a legacy (pb) payload. It is used when the
+// disable-convert-traces feature is set; otherwise receiveResourceSpansV2Idx is used.
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) (*Payload, source.Source) {
+	res := o.resourceV2(ctx, rspans, hostFromAttributesHandler)
+	otelres := res.otelres
+
+	tracesByID := make(map[uint64]pb.Trace)
+	priorityByID := make(map[uint64]sampler.SamplingPriority)
+	var order []uint64 // the trace IDs in the order they are first seen
+	var spancount int64
+	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
+		libspans := rspans.ScopeSpans().At(i)
+		for j := 0; j < libspans.Spans().Len(); j++ {
+			otelspan := libspans.Spans().At(j)
+			spancount++
+			traceID := transform.OTelTraceIDToUint64(otelspan.TraceID())
+			if tracesByID[traceID] == nil {
+				tracesByID[traceID] = pb.Trace{}
+				order = append(order, traceID)
+			}
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
+
+			if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
+				priorityByID[traceID] = sampler.SamplingPriority(p)
+			}
+			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
 	}
 
-	o.out <- &p
-	return src
+	o.countSpansAndTraces(res.tagstats, spancount, len(tracesByID))
+	p := Payload{
+		Source:                 res.tagstats,
+		ClientComputedStats:    resolveClientComputedStats(otelres.Attributes(), clientComputedStats),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
+		TracerPayload: &pb.TracerPayload{
+			Hostname:      res.hostname,
+			Chunks:        o.createChunksInOrder(order, tracesByID, priorityByID),
+			Env:           res.env,
+			ContainerID:   res.containerID,
+			LanguageName:  res.tagstats.Lang,
+			TracerVersion: res.tagstats.TracerVersion,
+		},
+	}
+
+	if len(res.containerTags) > 0 {
+		p.TracerPayload.Tags = map[string]string{
+			tagContainersTags: res.containerTags,
+		}
+	}
+	return &p, res.src
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+// idxChunkBuilder collects the spans of one trace for receiveResourceSpansV2Idx.
+type idxChunkBuilder struct {
+	spans []*idx.InternalSpan
+	// tracerDM is the first valid _dd.p.dm tag of the spans of the trace, if hasTracerDM.
+	tracerDM    string
+	hasTracerDM bool
+	// tracestates are the non-empty w3c.tracestate tags of the spans of the trace, in order.
+	// They are only parsed when the trace needs a decision maker and no span has a valid one.
+	tracestates []string
+	// traceIDHex is the hex encoding of the 128-bit trace ID of the first span of the trace,
+	// otelTraceID. Spans are grouped by the lower 64 bits of their trace ID, so the spans of the
+	// trace whose upper 64 bits differ encode their own.
+	otelTraceID  pcommon.TraceID
+	traceIDHex   string
+	fields       idx.SpanConvertedFields
+	rootSampling idx.RootSamplingMergeState
+	// priority is the sampling priority of the last span of the trace that has one, if hasPriority.
+	priority    sampler.SamplingPriority
+	hasPriority bool
+}
+
+// receiveResourceSpansV2Idx converts rspans into a V1 payload, converting the OTel spans directly
+// into idx spans. Its output is equivalent to converting the output of receiveResourceSpansV2 with
+// ConvertToIdx.
+func (o *OTLPReceiver) receiveResourceSpansV2Idx(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) (*PayloadV1, source.Source) {
+	res := o.resourceV2(ctx, rspans, hostFromAttributesHandler)
+	otelres := res.otelres
+
+	// Size the string table for the strings shared by every span (the resource attribute
+	// keys and values, and the keys the conversion adds) plus a few unique strings per span,
+	// rather than growing it from a single entry. Spans of a payload share most of their
+	// strings, and the writer keeps the table until it flushes, so don't oversize it: growing
+	// a slightly undersized table is cheap.
+	numSpans := 0
+	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
+		numSpans += rspans.ScopeSpans().At(i).Spans().Len()
+	}
+	numResourceAttrs := rspans.Resource().Attributes().Len()
+	strs := idx.NewStringTableWithCapacity(min(48+2*numResourceAttrs+4*numSpans, 1024))
+	builderByID := make(map[uint64]*idxChunkBuilder)
+	var builders []*idxChunkBuilder // in the order the traces are first seen
+	var spancount int64
+	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
+		libspans := rspans.ScopeSpans().At(i)
+		for j := 0; j < libspans.Spans().Len(); j++ {
+			otelspan := libspans.Spans().At(j)
+			spancount++
+			otelTraceID := otelspan.TraceID()
+			traceID := transform.OTelTraceIDToUint64(otelTraceID)
+			b := builderByID[traceID]
+			if b == nil {
+				// As with ConvertToIdx, the trace ID of the chunk is the one of its first span.
+				b = &idxChunkBuilder{fields: *idx.NewSpanConvertedFields()}
+				b.fields.TraceIDUpper = binary.BigEndian.Uint64(otelTraceID[:8])
+				b.fields.TraceIDLower = traceID
+				b.otelTraceID = otelTraceID
+				b.traceIDHex = hex.EncodeToString(otelTraceID[:])
+				builderByID[traceID] = b
+				builders = append(builders, b)
+			}
+			traceIDHex := "" // computed by the conversion
+			if otelTraceID == b.otelTraceID {
+				traceIDHex = b.traceIDHex
+			}
+			span, samplingTags := transform.OtelSpanToIdxSpanWithConvertedFields(otelspan, otelres, libspans.Scope(), o.conf, strs, &b.fields, traceIDHex)
+			b.rootSampling.ReconcileSamplingPriorityAfterChunkSpan(&b.fields, span.ParentID())
+			if p, ok := idxDoubleAttribute(span, string(semantics.ConceptSamplingPriority)); ok {
+				b.priority = sampler.SamplingPriority(p)
+				b.hasPriority = true
+			}
+			b.spans = append(b.spans, span)
+			if !b.hasTracerDM && isValidDecisionMaker(samplingTags.DecisionMaker) {
+				b.tracerDM, b.hasTracerDM = samplingTags.DecisionMaker, true
+			}
+			if samplingTags.Tracestate != "" {
+				b.tracestates = append(b.tracestates, samplingTags.Tracestate)
+			}
+		}
+	}
+
+	o.countSpansAndTraces(res.tagstats, spancount, len(builders))
+	tp := &idx.InternalTracerPayload{
+		Strings:    strs,
+		Attributes: make(map[uint32]*idx.AnyValue, 1),
+	}
+	var chunkConvertedFields idx.ChunkConvertedFields
+	tp.Chunks = o.createChunksIdx(builders, strs, &chunkConvertedFields)
+	if len(res.containerTags) > 0 {
+		tp.SetStringAttribute(tagContainersTags, res.containerTags)
+	}
+	tp.SetEnv(res.env)
+	tp.SetHostname(res.hostname)
+	tp.SetContainerID(res.containerID)
+	tp.SetLanguageName(res.tagstats.Lang)
+	tp.SetTracerVersion(res.tagstats.TracerVersion)
+	tp.ApplyPromotedFields(&chunkConvertedFields)
+	return &PayloadV1{
+		Source:                 res.tagstats,
+		ClientComputedStats:    resolveClientComputedStats(otelres.Attributes(), clientComputedStats),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
+		TracerPayload:          tp,
+	}, res.src
+}
+
+// createChunksIdx creates the idx trace chunks of the given traces, applying the same sampling
+// decisions as createChunks, and the chunk fields promoted from the spans the same way as
+// ConvertToIdx. The fields promoted from the chunks to the payload are set in chunkConvertedFields.
+func (o *OTLPReceiver) createChunksIdx(builders []*idxChunkBuilder, strs *idx.StringTable, chunkConvertedFields *idx.ChunkConvertedFields) []*idx.InternalTraceChunk {
+	chunks := make([]*idx.InternalTraceChunk, 0, len(builders))
+	rateRef := strs.Add(strconv.FormatFloat(o.samplingRate(), 'f', 2, 64))
+	srKeyRef := strs.Add("_dd.otlp_sr")
+	for _, b := range builders {
+		chunk := &idx.InternalTraceChunk{
+			Strings:    strs,
+			Attributes: map[uint32]*idx.AnyValue{srKeyRef: {Value: &idx.AnyValue_StringValueRef{StringValueRef: rateRef}}},
+			Spans:      b.spans,
+		}
+		decided := sampler.PriorityNone
+		if !o.conf.ProbabilisticSamplerEnabled {
+			// Otherwise SamplingPriority is not related to the decision of ProbabilisticSampler and
+			// ErrorsSampler, and making a sampling decision is skipped at this point: either
+			// ProbabilisticSampler enabled by this config or ErrorsSampler will decide.
+			var decisionMaker string
+			if b.hasPriority {
+				decided = b.priority
+				if dm, ok := b.tracerDecisionMaker(); ok {
+					// the sampling decision was made upstream by a Datadog SDK exporting OTLP
+					// (e.g. remote or adaptive sampling rules); preserve its decision maker.
+					decisionMaker = dm
+				} else {
+					// a manual decision has been made by the user
+					decisionMaker = "-4"
+				}
+			} else {
+				// we use the probabilistic sampler to decide
+				decided = o.sample(b.fields.TraceIDLower)
+				decisionMaker = "-9"
+			}
+			// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
+			// Traces with a drop decision by the OTLPReceiver's probabilistic sampler are re-evaluated by ErrorsSampler later.
+			if decided.IsKeep() {
+				setIdxDecisionMaker(b.spans[0], decisionMaker)
+				// The first span of the chunk now has a decision maker, so it is the one promoted to
+				// the chunk sampling mechanism.
+				dm, _ := strings.CutPrefix(decisionMaker, "-")
+				samplingMechanism, _ := strconv.ParseUint(dm, 10, 32)
+				b.fields.SamplingMechanism = uint32(samplingMechanism)
+			}
+		}
+		chunk.ApplyPromotedFields(&b.fields, chunkConvertedFields)
+		if decided != sampler.PriorityNone && chunk.Priority == int32(sampler.PriorityNone) {
+			// If no span has a sampling priority, the priority decided here applies.
+			chunk.Priority = int32(decided)
+		}
+		chunks = append(chunks, chunk)
+	}
+	return chunks
+}
+
+// idxDoubleAttribute returns the value of the double attribute key of the span.
+func idxDoubleAttribute(span *idx.InternalSpan, key string) (float64, bool) {
+	// GetAttribute reports a nil value as found when key is in the string table
+	// shared with other spans but not set on this one.
+	v, ok := span.GetAttribute(key)
+	if !ok || v == nil {
+		return 0, false
+	}
+	d, ok := v.Value.(*idx.AnyValue_DoubleValue)
+	if !ok {
+		return 0, false
+	}
+	return d.DoubleValue, true
+}
+
+// setIdxDecisionMaker sets the `_dd.p.dm` tag of the span to dm, unless the span has a numeric
+// `_dd.p.dm` attribute, which takes precedence over the tag as with ConvertToIdx.
+func setIdxDecisionMaker(span *idx.InternalSpan, dm string) {
+	if _, ok := idxDoubleAttribute(span, "_dd.p.dm"); ok {
+		return
+	}
+	span.SetStringAttribute("_dd.p.dm", dm)
+}
+
+// tracerDecisionMaker is tracerDecisionMaker for the sampling tags of the idx spans of the trace:
+// the first valid _dd.p.dm tag of its spans, else the first decision maker found in their
+// w3c.tracestate tags.
+func (b *idxChunkBuilder) tracerDecisionMaker() (string, bool) {
+	if b.hasTracerDM {
+		return b.tracerDM, true
+	}
+	for _, ts := range b.tracestates {
+		if dm, ok := decisionMakerFromTracestate(ts); ok {
+			return dm, true
+		}
+	}
+	return "", false
+}
+
+// receiveResourceSpansV1 converts rspans into a legacy (pb) payload with the legacy OTLP receiver,
+// which is used when the disable_receive_resource_spans_v2 feature is set. That feature is
+// deprecated: unless disable-convert-traces is also set, the payload is then converted with
+// ConvertToIdx, so the legacy receiver costs a second conversion.
+func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (*Payload, source.Source) {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), transform.SignalTypeSet, hostFromAttributesHandler)
@@ -550,9 +838,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			tagContainersTags: payloadTags.String(),
 		}
 	}
-
-	o.out <- &p
-	return src
+	return &p, src
 }
 
 func appendTags(str *strings.Builder, tags string) {
@@ -579,8 +865,19 @@ func flatten(m map[string]string) *strings.Builder {
 // - a map from trace ID to the spans sharing that trace ID
 // - a map of user-set sampling priorities by trace ID, if set
 func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
+	order := make([]uint64, 0, len(tracesByID))
+	for k := range tracesByID {
+		order = append(order, k)
+	}
+	return o.createChunksInOrder(order, tracesByID, prioritiesByID)
+}
+
+// createChunksInOrder is createChunks, creating the chunks in the order of the trace IDs of order,
+// which must hold every trace ID of tracesByID once.
+func (o *OTLPReceiver) createChunksInOrder(order []uint64, tracesByID map[uint64]pb.Trace, prioritiesByID map[uint64]sampler.SamplingPriority) []*pb.TraceChunk {
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
-	for k, spans := range tracesByID {
+	for _, k := range order {
+		spans := tracesByID[k]
 		if len(spans) == 0 {
 			continue
 		}

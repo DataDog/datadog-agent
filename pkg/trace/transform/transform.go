@@ -46,81 +46,107 @@ func otelSpanToDDSpanMinimal(
 	spanAccessor semantics.Accessor,
 	tagKeys OTelSpanTagKeys,
 ) *pb.Span {
+	sattr := otelspan.Attributes()
+	rattr := otelres.Attributes()
+
+	ddspan := &pb.Span{
+		TraceID:  OTelTraceIDToUint64(otelspan.TraceID()),
+		SpanID:   OTelSpanIDToUint64(otelspan.SpanID()),
+		ParentID: OTelSpanIDToUint64(otelspan.ParentSpanID()),
+		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
+		Metrics:  make(map[string]float64),
+	}
+	ddspan.Start, ddspan.Duration = convertOTelSpanMinimal((*pbSpanSink)(ddspan), otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, spanAccessor, tagKeys)
+	return ddspan
+}
+
+// convertOTelSpanMinimal writes the fields needed for APM stats calculation into the sink, and
+// returns the normalized start and duration of the span.
+func convertOTelSpanMinimal(
+	ddspan spanSink,
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	spanAccessor semantics.Accessor,
+	tagKeys OTelSpanTagKeys,
+) (start, duration int64) {
 	spanKind := otelspan.Kind()
 
 	sattr := otelspan.Attributes()
 	rattr := otelres.Attributes()
 
-	ddspan := &pb.Span{
-		Service:  GetOTelServiceWithAccessor(spanAccessor, true),
-		TraceID:  OTelTraceIDToUint64(otelspan.TraceID()),
-		SpanID:   OTelSpanIDToUint64(otelspan.SpanID()),
-		ParentID: OTelSpanIDToUint64(otelspan.ParentSpanID()),
-		Start:    int64(otelspan.StartTimestamp()),
-		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
-		Metrics:  make(map[string]float64),
-	}
+	ddspan.setService(GetOTelServiceWithAccessor(spanAccessor, true))
+	start = int64(otelspan.StartTimestamp())
+	duration = int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp())
 
 	if otelspan.Status().Code() == ptrace.StatusCodeError {
-		ddspan.Error = 1
+		ddspan.setError(1)
 	}
 
+	var name string
 	if OperationAndResourceNameV2Enabled(conf) {
-		ddspan.Name = GetOTelOperationNameV2WithAccessor(otelspan, spanAccessor)
-		ddspan.Resource = GetOTelResourceV2WithAccessor(otelspan, spanAccessor)
+		name = GetOTelOperationNameV2WithAccessor(otelspan, spanAccessor)
+		ddspan.setResource(GetOTelResourceV2WithAccessor(otelspan, spanAccessor))
 	} else {
-		ddspan.Name = GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
-		ddspan.Resource = GetOTelResourceV1(otelspan, otelres)
+		name = GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+		ddspan.setResource(GetOTelResourceV1(otelspan, otelres))
 	}
 	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
-	ddspan.Name, _ = normalizeutil.NormalizeName(ddspan.Name)
+	name, _ = normalizeutil.NormalizeName(name)
+	ddspan.setName(name)
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
-		ddspan.Type = GetOTelSpanTypeWithAccessor(otelspan, spanAccessor)
+		ddspan.setSpanType(GetOTelSpanTypeWithAccessor(otelspan, spanAccessor))
 	} else {
-		ddspan.Type = LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
-		if ddspan.Type == "" {
-			ddspan.Type = SpanKind2Type(otelspan, otelres)
+		typ := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
+		if typ == "" {
+			typ = SpanKind2Type(otelspan, otelres)
 		}
+		ddspan.setSpanType(typ)
 	}
 
-	ddspan.Meta["span.kind"] = OTelSpanKindName(spanKind)
+	ddspan.setMeta("span.kind", OTelSpanKindName(spanKind))
 
 	reg := semantics.DefaultRegistry()
 	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
-		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
+		ddspan.setMetric(traceutil.TagStatusCode, float64(code))
 	}
 	if grpcCode := semantics.LookupString(reg, spanAccessor, semantics.ConceptGRPCStatusCode); grpcCode != "" {
-		ddspan.Meta[string(semantics.ConceptGRPCStatusCode)] = grpcCode
+		ddspan.setMeta(string(semantics.ConceptGRPCStatusCode), grpcCode)
 	}
 	if isTopLevel {
-		traceutil.SetTopLevel(ddspan, true)
+		// Equivalent to traceutil.SetTopLevel(span, true).
+		ddspan.setMetric(keyTopLevel, 1)
 	}
 	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDMeasured); ok && v == 1 {
-		traceutil.SetMeasured(ddspan, true)
+		// Equivalent to traceutil.SetMeasured(span, true).
+		ddspan.setMetric(keyMeasured, 1)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
-		traceutil.SetMeasured(ddspan, true)
+		ddspan.setMetric(keyMeasured, 1)
 	}
 	// TODO(DSEM-658): migrate peer tag lookups to use the semantics library.
 	// Use direct lookup only: the peer tag keys already list every precursor from peer_tags.ini (semantic-core).
-	copyOTelAttributeTags(sattr, rattr, tagKeys.peer, ddspan.Meta)
+	copyOTelAttributeTags(sattr, rattr, tagKeys.peer, ddspan)
 	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
-	if pSvc, ok := ddspan.Meta[string(semantics.ConceptPeerService)]; ok {
-		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
+	if pSvc, ok := ddspan.meta(string(semantics.ConceptPeerService)); ok {
+		pSvc, _ = normalizeutil.NormalizePeerService(pSvc)
+		ddspan.setMeta(string(semantics.ConceptPeerService), pSvc)
 	}
-	if bSvc, ok := ddspan.Meta[string(semantics.ConceptDDBaseService)]; ok {
-		ddspan.Meta[string(semantics.ConceptDDBaseService)], _ = normalizeutil.NormalizePeerService(bSvc)
+	if bSvc, ok := ddspan.meta(string(semantics.ConceptDDBaseService)); ok {
+		bSvc, _ = normalizeutil.NormalizePeerService(bSvc)
+		ddspan.setMeta(string(semantics.ConceptDDBaseService), bSvc)
 	}
-	ddspan.Duration, _ = normalizeutil.FixDuration(ddspan.Start, ddspan.Duration)
-	ddspan.Start, _ = normalizeutil.FixStartTime(ddspan.Start, ddspan.Duration)
+	duration, _ = normalizeutil.FixDuration(start, duration)
+	start, _ = normalizeutil.FixStartTime(start, duration)
 	// Copy span-derived primary tag values into Meta so the APM stats
 	// Concentrator's matchingAdditionalMetricTags (which reads span.Meta[key])
 	// can aggregate on them. The minimal conversion does not copy all
 	// attributes, so these must be pulled in explicitly like peer tags above.
-	copyOTelAttributeTags(sattr, rattr, tagKeys.primary, ddspan.Meta)
+	copyOTelAttributeTags(sattr, rattr, tagKeys.primary, ddspan)
 	// Preserve the raw W3C tracestate so downstream consumers of the minimal
 	// span (e.g. the APM stats Concentrator) can recover head-sampling
 	// probability and weight stats accordingly. The full OtelSpanToDDSpan
@@ -128,16 +154,16 @@ func otelSpanToDDSpanMinimal(
 	// An explicit _sample_rate attribute set by an upstream tracer takes
 	// precedence over the value decoded from the tracestate below. Apply it first
 	// so SetSampleRateFromTracestate's "gated on absence" guard preserves it.
-	SetSampleRateFromAttribute(ddspan, sattr)
+	setSampleRateFromAttribute(ddspan, sattr)
 	if ts := otelspan.TraceState().AsRaw(); ts != "" {
-		ddspan.Meta["w3c.tracestate"] = ts
+		ddspan.setMeta("w3c.tracestate", ts)
 		// Decode the head-based sampling probability from the tracestate and set
 		// _sample_rate so the APM stats Concentrator scales stats back up by the
 		// head-sampling weight (1/_sample_rate). Gated on absence to preserve any
 		// explicit upstream value (including the _sample_rate attribute above).
-		SetSampleRateFromTracestate(ddspan, ts)
+		setSampleRateFromTracestate(ddspan, ts)
 	}
-	return ddspan
+	return start, duration
 }
 
 // OTelSpanTagKeys holds immutable peer and primary tag selections reusable across spans.
@@ -196,7 +222,7 @@ func OtelSpanToDDSpanMinimalWithTagKeys(
 	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, spanAccessor, tagKeys)
 }
 
-func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, meta map[string]string) {
+func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, meta metaSink) {
 	if len(keys) == 0 {
 		return
 	}
@@ -207,7 +233,7 @@ func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, m
 				continue
 			}
 			if s := value.AsString(); s != "" {
-				meta[key] = s
+				meta.setMeta(key, s)
 			}
 		}
 	}
@@ -235,29 +261,29 @@ func GetDDKeyForOTLPAttribute(k string) string {
 	return mappedKey
 }
 
-func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span) {
+func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan spanSink) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
-	if ddspan.Meta[mappedKey] != "" {
+	if v, _ := ddspan.meta(mappedKey); v != "" {
 		return
 	}
 
 	// Exclude Datadog APM conventions.
 	// These are handled explicitly elsewhere.
 	if mappedKey != "" {
-		SetMetaOTLPIfEmpty(ddspan, mappedKey, value)
+		setMetaOTLPIfEmpty(ddspan, mappedKey, value)
 	}
 }
 
-func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.Span) {
+func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan spanSink) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
-	if _, ok := ddspan.Metrics[mappedKey]; ok {
+	if _, ok := ddspan.metric(mappedKey); ok {
 		return
 	}
 
 	// Exclude Datadog APM conventions.
 	// These are handled explicitly elsewhere.
 	if mappedKey != "" {
-		SetMetricOTLPIfEmpty(ddspan, mappedKey, value)
+		setMetricOTLPIfEmpty(ddspan, mappedKey, value)
 	}
 }
 
@@ -354,19 +380,40 @@ func OtelSpanToDDSpan(
 	lib pcommon.InstrumentationScope,
 	conf *config.AgentConfig,
 ) *pb.Span {
-	spanKind := otelspan.Kind()
-	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
-	isTopLevel := false
-	if topLevelByKind {
-		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
-	}
+	isTopLevel, topLevelByKind := otelSpanTopLevel(otelspan, conf)
 	// Create one shared accessor for all span+resource lookups in this function and in the
 	// minimal span conversion below, avoiding repeated allocation of accessor objects.
-	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	var spanAccessor semantics.Accessor = semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
 	// No tag selections here: the full conversion below copies all span and
 	// resource attributes into Meta, so peer and primary tags are already present.
 	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, spanAccessor, OTelSpanTagKeys{})
+	convertOTelSpanFull((*pbSpanSink)(ddspan), otelspan, otelres, lib, conf, spanAccessor, "")
+	return ddspan
+}
 
+// otelSpanTopLevel returns whether the span is top-level when enable_otlp_compute_top_level_by_span_kind
+// is set, and whether that feature is set.
+func otelSpanTopLevel(otelspan ptrace.Span, conf *config.AgentConfig) (isTopLevel, topLevelByKind bool) {
+	spanKind := otelspan.Kind()
+	topLevelByKind = conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
+	if topLevelByKind {
+		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
+	}
+	return isTopLevel, topLevelByKind
+}
+
+// convertOTelSpanFull writes into the sink everything that the full conversion adds on top of
+// convertOTelSpanMinimal, which must have been applied to the sink first. traceIDHex is the
+// hex-encoded trace ID of otelspan, or empty to have it computed here.
+func convertOTelSpanFull(
+	ddspan spanSink,
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	conf *config.AgentConfig,
+	spanAccessor semantics.Accessor,
+	traceIDHex string,
+) {
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
@@ -381,50 +428,53 @@ func OtelSpanToDDSpan(
 		return true
 	})
 
-	traceID := otelspan.TraceID()
-	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
+	if traceIDHex == "" {
+		traceID := otelspan.TraceID()
+		traceIDHex = hex.EncodeToString(traceID[:])
+	}
+	ddspan.setMeta("otel.trace_id", traceIDHex)
 	if !spanMetaHasKey(ddspan, "version") {
 		if version := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptServiceVersion, true); version != "" {
-			ddspan.Meta["version"] = version
+			ddspan.setMeta("version", version)
 		}
 	}
 
 	if otelspan.Events().Len() > 0 {
-		ddspan.SpanEvents = OTelSpanEventsToDD(otelspan.Events())
+		ddspan.setEvents(otelspan.Events())
 	}
-	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
+	tagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
-		ddspan.SpanLinks = OTelSpanLinksToDD(otelspan.Links())
+		ddspan.setLinks(otelspan.Links())
 	}
 
-	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	// Note: w3c.tracestate is set by convertOTelSpanMinimal above.
 	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
 		if scopeConventionGateEnabled {
-			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
+			ddspan.setMeta(string(semconv.OtelScopeNameKey), lib.Name())
 		}
 		// otel.library.name is a deprecated alias of otel.scope.name but MUST still be
 		// reported with the same value for backward compatibility.
-		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
+		ddspan.setMeta(string(semconv.OtelLibraryNameKey), lib.Name())
 	}
 	if lib.Version() != "" {
 		if scopeConventionGateEnabled {
-			ddspan.Meta[string(semconv.OtelScopeVersionKey)] = lib.Version()
+			ddspan.setMeta(string(semconv.OtelScopeVersionKey), lib.Version())
 		}
-		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
+		ddspan.setMeta(string(semconv.OtelLibraryVersionKey), lib.Version())
 	}
-	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()
+	ddspan.setMeta(string(semconv.OtelStatusCodeKey), otelspan.Status().Code().String())
 	if msg := otelspan.Status().Message(); msg != "" {
-		ddspan.Meta[string(semconv.OtelStatusDescriptionKey)] = msg
+		ddspan.setMeta(string(semconv.OtelStatusDescriptionKey), msg)
 	}
 
 	if !spanMetaHasKey(ddspan, "error.msg") || !spanMetaHasKey(ddspan, "error.type") || !spanMetaHasKey(ddspan, "error.stack") {
-		ddspan.Error = Status2Error(otelspan.Status(), otelspan.Events(), ddspan.Meta)
+		ddspan.setError(status2Error(otelspan.Status(), ddspan))
 	}
 
 	if !spanMetaHasKey(ddspan, "env") {
 		if env := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDeploymentEnv, true); env != "" {
-			ddspan.Meta["env"] = env
+			ddspan.setMeta("env", env)
 		}
 	}
 
@@ -432,7 +482,7 @@ func OtelSpanToDDSpan(
 		// Span attributes take precedence over resource attributes. Numeric span attributes
 		// are stored in Metrics rather than Meta, so skip resource attributes whose key is
 		// already present in Metrics to avoid emitting a stale duplicate in Meta.
-		if _, ok := ddspan.Metrics[GetDDKeyForOTLPAttribute(k)]; ok {
+		if _, ok := ddspan.metric(GetDDKeyForOTLPAttribute(k)); ok {
 			return true
 		}
 		value := v.AsString()
@@ -441,28 +491,27 @@ func OtelSpanToDDSpan(
 	})
 
 	for k, v := range lib.Attributes().Range {
-		ddspan.Meta[k] = v.AsString()
+		ddspan.setMeta(k, v.AsString())
 	}
 
 	// Check for db.namespace and conditionally set db.name.
 	// db.namespace is a resource-level attribute; check resource attrs first, then span attrs.
-	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := LookupSemanticStringWithAccessor(
-			semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes()),
-			semantics.ConceptDBNamespace, false,
-		); dbNamespace != "" {
-			ddspan.Meta["db.name"] = dbNamespace
+	if !spanMetaHasKey(ddspan, "db.name") {
+		if dbNamespace := LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDBNamespace, false); dbNamespace != "" {
+			ddspan.setMeta("db.name", dbNamespace)
 		}
 	}
-
-	return ddspan
 }
 
 // TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
 func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
+	tagSpanIfContainsExceptionEvent(otelspan, mapMetaSink(ddspan.Meta))
+}
+
+func tagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan metaSink) {
 	for i := range otelspan.Events().Len() {
 		if otelspan.Events().At(i).Name() == "exception" {
-			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			ddspan.setMeta("_dd.span_events.has_exception", "true")
 			return
 		}
 	}
@@ -660,6 +709,40 @@ func SetMetaOTLPIfEmpty(s *pb.Span, k, v string) {
 	}
 }
 
+// setMetaOTLPIfEmpty is SetMetaOTLPIfEmpty over a spanSink.
+func setMetaOTLPIfEmpty(s spanSink, k, v string) {
+	switch k {
+	case "operation.name":
+		if s.name() == "" {
+			s.setName(v)
+		}
+	case "service.name":
+		if s.service() == "" {
+			s.setService(v)
+		}
+	case "resource.name":
+		if s.resource() == "" {
+			s.setResource(v)
+		}
+	case "span.type":
+		if s.spanType() == "" {
+			s.setSpanType(v)
+		}
+	case "analytics.event":
+		if v, err := strconv.ParseBool(v); err == nil {
+			if _, ok := s.metric(sampler.KeySamplingRateEventExtraction); !ok {
+				if v {
+					s.setMetric(sampler.KeySamplingRateEventExtraction, 1)
+				} else {
+					s.setMetric(sampler.KeySamplingRateEventExtraction, 0)
+				}
+			}
+		}
+	default:
+		s.setMeta(k, v)
+	}
+}
+
 // SetMetricOTLP sets the k/v OTLP attribute pair as a metric on span s.
 func SetMetricOTLP(s *pb.Span, k string, v float64) {
 	switch k {
@@ -684,31 +767,48 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 	}
 }
 
+// setMetricOTLPIfEmpty is SetMetricOTLPIfEmpty over a spanSink.
+func setMetricOTLPIfEmpty(s spanSink, k string, v float64) {
+	var key string
+	switch k {
+	case "sampling.priority":
+		key = "_sampling_priority_v1"
+	default:
+		key = k
+	}
+	if _, ok := s.metric(key); !ok {
+		s.setMetric(key, v)
+	}
+}
+
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
 // Note: This function uses the semantic registry for http.status_code lookup precedence.
 // Previously it used NEW-first precedence (http.response.status_code before http.status_code).
 func Status2Error(status ptrace.Status, _ ptrace.SpanEventSlice, metaMap map[string]string) int32 {
+	return status2Error(status, mapMetaSink(metaMap))
+}
+
+func status2Error(status ptrace.Status, meta metaSink) int32 {
 	if status.Code() != ptrace.StatusCodeError {
 		return 0
 	}
-	if _, ok := metaMap["error.msg"]; !ok {
+	if _, ok := meta.meta("error.msg"); !ok {
 		// no error message was extracted, find alternatives
 		if status.Message() != "" {
 			// use the status message
-			metaMap["error.msg"] = status.Message()
+			meta.setMeta("error.msg", status.Message())
 		} else {
 			// Use semantic registry lookup for http.status_code
 			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-			accessor := semantics.NewStringMapAccessor(metaMap)
-			httpCode := semantics.LookupString(semantics.DefaultRegistry(), accessor, semantics.ConceptHTTPStatusCode)
+			httpCode := semantics.LookupString(semantics.DefaultRegistry(), metaAccessor{meta}, semantics.ConceptHTTPStatusCode)
 			if httpCode != "" {
 				httpCodeInt, _ := strconv.Atoi(httpCode) // Value returned in case of error will not pass the next test
 				if httptext := http.StatusText(httpCodeInt); httptext != "" {
-					metaMap["error.msg"] = fmt.Sprintf("%s %s", httpCode, httptext)
+					meta.setMeta("error.msg", fmt.Sprintf("%s %s", httpCode, httptext))
 				} else {
-					metaMap["error.msg"] = httpCode
+					meta.setMeta("error.msg", httpCode)
 				}
 			}
 		}
@@ -727,7 +827,14 @@ func GetFirstFromMap(m map[string]string, keys ...string) (string, string) {
 	return "", ""
 }
 
-func spanMetaHasKey(s *pb.Span, k string) bool {
-	_, ok := s.Meta[k]
+func spanMetaHasKey(s metaSink, k string) bool {
+	_, ok := s.meta(k)
 	return ok
 }
+
+// keyTopLevel and keyMeasured mirror the unexported keys used by traceutil.SetTopLevel and
+// traceutil.SetMeasured.
+const (
+	keyTopLevel = "_top_level"
+	keyMeasured = "_dd.measured"
+)

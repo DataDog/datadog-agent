@@ -90,17 +90,18 @@ func SetSampleRateFromTracestate(span *pb.Span, rawTracestate string) bool {
 	if span == nil {
 		return false
 	}
-	if _, exists := span.Metrics[keySamplingRateGlobal]; exists {
+	return setSampleRateFromTracestate((*pbSpanSink)(span), rawTracestate)
+}
+
+func setSampleRateFromTracestate(span spanSink, rawTracestate string) bool {
+	if _, exists := span.metric(keySamplingRateGlobal); exists {
 		return false // preserve an explicitly set value from upstream
 	}
 	prob, ok := samplingProbFromTracestate(rawTracestate)
 	if !ok {
 		return false
 	}
-	if span.Metrics == nil {
-		span.Metrics = make(map[string]float64)
-	}
-	span.Metrics[keySamplingRateGlobal] = prob
+	span.setMetric(keySamplingRateGlobal, prob)
 	return true
 }
 
@@ -114,6 +115,10 @@ func SetSampleRateFromAttribute(span *pb.Span, sattr pcommon.Map) bool {
 	if span == nil {
 		return false
 	}
+	return setSampleRateFromAttribute((*pbSpanSink)(span), sattr)
+}
+
+func setSampleRateFromAttribute(span spanSink, sattr pcommon.Map) bool {
 	v, ok := sattr.Get(keySamplingRateGlobal)
 	if !ok {
 		return false
@@ -127,9 +132,6 @@ func SetSampleRateFromAttribute(span *pb.Span, sattr pcommon.Map) bool {
 	default:
 		return false
 	}
-	if span.Metrics == nil {
-		span.Metrics = make(map[string]float64)
-	}
-	span.Metrics[keySamplingRateGlobal] = rate
+	span.setMetric(keySamplingRateGlobal, rate)
 	return true
 }

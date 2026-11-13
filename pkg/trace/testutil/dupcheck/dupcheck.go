@@ -667,10 +667,67 @@ func CheckTracerPayloadV1(in *idx.InternalTracerPayload, out *pb.AgentPayload) [
 // attribute that the conversion creates or changes is compared with
 // everything else.
 func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Finding {
+	inputs := otlpConversionInputs(in)
+	outPayload := tracerPayloadFields(out)
+	findings := compareFields(nil, outPayload, nil, payloadBase(out.Hostname))
+	for _, c := range out.Chunks {
+		if len(c.Spans) == 0 {
+			continue
+		}
+		outUpper := concat(outPayload, chunkFields(c))
+		findings = append(findings, compareFields(nil, outUpper, involvesChunk, chunkBase(strconv.FormatUint(c.Spans[0].TraceID, 10)))...)
+		for _, s := range c.Spans {
+			inSpan := inputs.spanFields(s.SpanID, "span.meta", nil)
+			base := spanBase(s.Service, s.Name, s.Type, s.SpanID)
+			findings = append(findings, compareFields(inSpan, spanFields(s), nil, base)...)
+			findings = append(findings, compareFields(inSpan, concat(spanFields(s), outUpper), spanCrossLevel, base)...)
+		}
+	}
+	return findings
+}
+
+// CheckOTLPConversionV1 is CheckOTLPConversion for the conversion of OTLP
+// resource spans into a v1 tracer payload. The attributes that the v1 span
+// holds as top-level fields (env, version, component) are keyed like those
+// fields in the stage input.
+func CheckOTLPConversionV1(in ptrace.ResourceSpans, out *idx.InternalTracerPayload) []Finding {
+	inputs := otlpConversionInputs(in)
+	outPayload := tracerPayloadFieldsV1(out)
+	findings := compareFields(nil, outPayload, nil, payloadBase(out.Hostname()))
+	for _, c := range out.Chunks {
+		if len(c.Spans) == 0 {
+			continue
+		}
+		outUpper := concat(outPayload, chunkFieldsV1(c))
+		findings = append(findings, compareFields(nil, outUpper, involvesChunk, chunkBase(hex.EncodeToString(c.TraceID)))...)
+		for _, s := range c.Spans {
+			inSpan := inputs.spanFields(s.SpanID(), "span.attributes", map[string]Location{
+				"env":       LocationEnv,
+				"version":   LocationVersion,
+				"component": LocationComponent,
+			})
+			base := spanBase(s.Service(), s.Name(), s.Type(), s.SpanID())
+			findings = append(findings, compareFields(inSpan, spanFieldsV1(s), nil, base)...)
+			findings = append(findings, compareFields(inSpan, concat(spanFieldsV1(s), outUpper), spanCrossLevel, base)...)
+		}
+	}
+	return findings
+}
+
+// otlpInputs holds the stage inputs of the OTLP conversion, by span ID.
+type otlpInputs struct {
+	meta   map[uint64]map[string]string
+	events map[uint64][]map[string]string
+	links  map[uint64][]map[string]string
+}
+
+func otlpConversionInputs(in ptrace.ResourceSpans) otlpInputs {
 	resourceAttrs := stringAttributes(in.Resource().Attributes())
-	inMeta := make(map[uint64]map[string]string)
-	inEvents := make(map[uint64][]map[string]string)
-	inLinks := make(map[uint64][]map[string]string)
+	inputs := otlpInputs{
+		meta:   make(map[uint64]map[string]string),
+		events: make(map[uint64][]map[string]string),
+		links:  make(map[uint64][]map[string]string),
+	}
 	for i := 0; i < in.ScopeSpans().Len(); i++ {
 		ss := in.ScopeSpans().At(i)
 		// The conversion writes every scope attribute to the meta with
@@ -689,40 +746,43 @@ func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Findi
 			}
 			maps.Copy(meta, scopeAttrs)
 			id := binary.BigEndian.Uint64(spanID[:])
-			inMeta[id] = meta
+			inputs.meta[id] = meta
 			for k := 0; k < s.Events().Len(); k++ {
-				inEvents[id] = append(inEvents[id], stringAttributes(s.Events().At(k).Attributes()))
+				inputs.events[id] = append(inputs.events[id], stringAttributes(s.Events().At(k).Attributes()))
 			}
 			for k := 0; k < s.Links().Len(); k++ {
-				inLinks[id] = append(inLinks[id], stringAttributes(s.Links().At(k).Attributes()))
+				inputs.links[id] = append(inputs.links[id], stringAttributes(s.Links().At(k).Attributes()))
 			}
 		}
 	}
-	outPayload := tracerPayloadFields(out)
-	findings := compareFields(nil, outPayload, nil, payloadBase(out.Hostname))
-	for _, c := range out.Chunks {
-		if len(c.Spans) == 0 {
-			continue
+	return inputs
+}
+
+// spanFields returns the stage input of the span spanID, with its attributes
+// keyed under prefix except those of topLevel, keyed at their location.
+func (in otlpInputs) spanFields(spanID uint64, prefix string, topLevel map[string]Location) fieldList {
+	var inSpan fieldList
+	if meta, ok := in.meta[spanID]; ok {
+		attrs := meta
+		if len(topLevel) > 0 {
+			attrs = make(map[string]string, len(meta))
+			for _, k := range slices.Sorted(maps.Keys(meta)) {
+				if loc, ok := topLevel[k]; ok {
+					inSpan.topLevel(spanLevel, loc, meta[k])
+				} else {
+					attrs[k] = meta[k]
+				}
+			}
 		}
-		outUpper := concat(outPayload, chunkFields(c))
-		findings = append(findings, compareFields(nil, outUpper, involvesChunk, chunkBase(strconv.FormatUint(c.Spans[0].TraceID, 10)))...)
-		for _, s := range c.Spans {
-			var inSpan fieldList
-			if meta, ok := inMeta[s.SpanID]; ok {
-				inSpan.stringMap(spanLevel, "span.meta", meta, true)
-			}
-			for i, attrs := range inEvents[s.SpanID] {
-				inSpan.stringMap(spanLevel, fmt.Sprintf("span.events[%d].attributes", i), attrs, false)
-			}
-			for i, attrs := range inLinks[s.SpanID] {
-				inSpan.stringMap(spanLevel, fmt.Sprintf("span.links[%d].attributes", i), attrs, false)
-			}
-			base := spanBase(s.Service, s.Name, s.Type, s.SpanID)
-			findings = append(findings, compareFields(inSpan, spanFields(s), nil, base)...)
-			findings = append(findings, compareFields(inSpan, concat(spanFields(s), outUpper), spanCrossLevel, base)...)
-		}
+		inSpan.stringMap(spanLevel, prefix, attrs, true)
 	}
-	return findings
+	for i, attrs := range in.events[spanID] {
+		inSpan.stringMap(spanLevel, fmt.Sprintf("span.events[%d].attributes", i), attrs, false)
+	}
+	for i, attrs := range in.links[spanID] {
+		inSpan.stringMap(spanLevel, fmt.Sprintf("span.links[%d].attributes", i), attrs, false)
+	}
+	return inSpan
 }
 
 // stringAttributes returns the OTLP attributes that the conversion stores as

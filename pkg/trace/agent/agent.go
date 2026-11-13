@@ -254,7 +254,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, inV1, agnt, telemetryCollector, statsd, timing)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
+	// OTLP traces go to the V1 pipeline, or to the legacy one when disable-convert-traces is set, like the HTTP receiver.
+	agnt.OTLPReceiver = api.NewOTLPReceiverWithLegacyOut(inV1, in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
 	agnt.TraceWriterV1 = writer.NewTraceWriterV1(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
@@ -771,7 +772,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			if a.SpanModifierV1 != nil {
 				a.SpanModifierV1.ModifySpanV1(chunk, span)
 			}
-			a.obfuscateSpanInternal(span)
+			a.obfuscateSpanV1(span)
 			a.TruncateV1(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevelV1(span)

@@ -56,11 +56,11 @@ func TestCopyOTelAttributeTags(t *testing.T) {
 	}, want)
 
 	peer := map[string]string{}
-	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(keys, nil).peer, peer)
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(keys, nil).peer, mapMetaSink(peer))
 	assert.Equal(t, want, peer)
 
 	primary := map[string]string{}
-	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(nil, keys).primary, primary)
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(nil, keys).primary, mapMetaSink(primary))
 	assert.Equal(t, want, primary)
 }
 

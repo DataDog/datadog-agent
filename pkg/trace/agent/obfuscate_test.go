@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -760,6 +761,92 @@ func TestObfuscateSpanEvent(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestObfuscateSpanV1CreditCards(t *testing.T) {
+	const card = "5105-1051-0510-5100"
+	newAgent := func(t *testing.T, enabled bool) *Agent {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Obfuscation = &config.ObfuscationConfig{
+			CreditCards: obfuscate.CreditCardsConfig{Enabled: enabled},
+		}
+		return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	}
+	newSpan := func() *idx.InternalSpan {
+		st := idx.NewStringTable()
+		str := func(s string) *idx.AnyValue {
+			return &idx.AnyValue{Value: &idx.AnyValue_StringValueRef{StringValueRef: st.Add(s)}}
+		}
+		span := idx.NewInternalSpan(st, &idx.Span{
+			Events: []*idx.SpanEvent{{
+				NameRef: st.Add("evt"),
+				Attributes: map[uint32]*idx.AnyValue{
+					st.Add("str"):    str(card),
+					st.Add("int"):    {Value: &idx.AnyValue_IntValue{IntValue: 5105105105105100}},
+					st.Add("double"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 5105105105105100}},
+					st.Add("bool"):   {Value: &idx.AnyValue_BoolValue{BoolValue: true}},
+					st.Add("plain"):  str("hello"),
+					st.Add("error"):  str(card), // excluded by ShouldObfuscateCCKey
+					st.Add("array"): {Value: &idx.AnyValue_ArrayValue{ArrayValue: &idx.ArrayValue{Values: []*idx.AnyValue{
+						str(card),
+						{Value: &idx.AnyValue_IntValue{IntValue: 5105105105105100}},
+						{Value: &idx.AnyValue_BoolValue{BoolValue: false}},
+						str("hello"),
+					}}}},
+					st.Add("nil-array"): {Value: &idx.AnyValue_ArrayValue{}},
+				},
+			}},
+		})
+		span.SetComponent(card)
+		span.SetStringAttribute("card.number", card)
+		return span
+	}
+	get := func(t *testing.T, span *idx.InternalSpan, key string) *idx.AnyValue {
+		v, ok := span.Events()[0].GetAttribute(key)
+		require.True(t, ok, key)
+		require.NotNil(t, v, key)
+		return v
+	}
+	asString := func(span *idx.InternalSpan, v *idx.AnyValue) string { return v.AsString(span.Strings) }
+
+	t.Run("enabled", func(t *testing.T) {
+		span := newSpan()
+		newAgent(t, true).obfuscateSpanV1(span)
+
+		assert.Equal(t, "?", span.Component())
+		cc, _ := span.GetAttributeAsString("card.number")
+		assert.Equal(t, "?", cc)
+		for _, k := range []string{"str", "int", "double"} {
+			v := get(t, span, k)
+			assert.IsType(t, &idx.AnyValue_StringValueRef{}, v.Value, k)
+			assert.Equal(t, "?", asString(span, v), k)
+		}
+		assert.Equal(t, &idx.AnyValue_BoolValue{BoolValue: true}, get(t, span, "bool").Value)
+		assert.Equal(t, "hello", asString(span, get(t, span, "plain")))
+		assert.Equal(t, card, asString(span, get(t, span, "error")))
+		assert.Equal(t, "[?,?,false,hello]", asString(span, get(t, span, "array")))
+		assert.Nil(t, get(t, span, "nil-array").GetArrayValue())
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		span := newSpan()
+		newAgent(t, false).obfuscateSpanV1(span)
+
+		assert.Equal(t, card, span.Component())
+		assert.Equal(t, card, asString(span, get(t, span, "str")))
+		assert.Equal(t, &idx.AnyValue_IntValue{IntValue: 5105105105105100}, get(t, span, "int").Value)
+		assert.Equal(t, "["+card+",5105105105105100,false,hello]", asString(span, get(t, span, "array")))
+	})
+
+	t.Run("component not a card", func(t *testing.T) {
+		span := newSpan()
+		span.SetComponent("net/http")
+		newAgent(t, true).obfuscateSpanV1(span)
+		assert.Equal(t, "net/http", span.Component())
+	})
 }
 
 func TestLexerObfuscation(t *testing.T) {

@@ -99,11 +99,11 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 		if !assert.NotEmpty(c, traces) {
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+		if !assert.NotEmpty(s.T(), tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := tps[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
@@ -119,9 +119,12 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+	require.NotEmpty(s.T(), tps)
+	tp := tps[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
@@ -167,11 +170,11 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+		if !assert.NotEmpty(s.T(), tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := tps[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
@@ -182,9 +185,12 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+	require.NotEmpty(s.T(), tps)
+	tp := tps[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
@@ -245,11 +251,11 @@ func TestTracesWithOperationAndResourceName(
 			s.T().Log("Traces empty", s.T().Name())
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+		if !assert.NotEmpty(s.T(), tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := tps[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
@@ -260,8 +266,11 @@ func TestTracesWithOperationAndResourceName(
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
-	tp := traces[0].TracerPayloads[0]
+	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+	require.NotEmpty(s.T(), tps)
+	tp := tps[0]
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
@@ -427,9 +436,9 @@ func TestHosts(s OTelTestSuite) {
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
-	trace := traces[0]
-	require.NotEmpty(s.T(), trace.TracerPayloads)
-	tp := trace.TracerPayloads[0]
+	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+	require.NotEmpty(s.T(), tps)
+	tp := tps[0]
 	traceHostname := tp.Hostname
 
 	var metricHostname string
@@ -735,7 +744,7 @@ func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload
 	spanMap := make(map[string][]*trace.Span)
 	spans := 0
 	for _, tracePayload := range traces {
-		for _, tracerPayload := range tracePayload.TracerPayloads {
+		for _, tracerPayload := range fakeintake.LegacyTracerPayloads(tracePayload.AgentPayload) {
 			for _, chunk := range tracerPayload.Chunks {
 				for _, span := range chunk.Spans {
 					if len(spanMap[span.Service]) < 3 {
@@ -1104,4 +1113,17 @@ func getTagMapFromSlice(t assert.TestingT, tagSlice []string) map[string]string 
 		m[kv[0]] = kv[1]
 	}
 	return m
+}
+
+// requireIdxTracePayloads checks that every trace payload was sent in the string-indexed
+// (V1) format, which is what the trace-agent emits for OTLP traces unless the
+// disable-convert-traces feature is set. LegacyTracerPayloads accepts both formats, so
+// without this check the tests would also pass if OTLP traces fell back to the legacy
+// pipeline.
+func requireIdxTracePayloads(t require.TestingT, traces []*aggregator.TracePayload) {
+	for _, tp := range traces {
+		require.NotNil(t, tp.AgentPayload)
+		require.Empty(t, tp.TracerPayloads, "OTLP traces should not be sent as legacy tracer payloads")
+		require.NotEmpty(t, tp.IdxTracerPayloads, "OTLP traces should be sent as indexed tracer payloads")
+	}
 }
