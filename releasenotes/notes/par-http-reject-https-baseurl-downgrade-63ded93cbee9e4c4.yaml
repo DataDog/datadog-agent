@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The Private Action Runner ``com.datadoghq.http.request`` action now rejects
+    a ``url`` input that does not use ``https://`` when the connection's base
+    URL uses ``https://``.

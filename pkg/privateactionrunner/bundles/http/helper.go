@@ -404,6 +404,11 @@ func hasSameDomain(source, target string) bool {
 		return false
 	}
 
+	// An https base URL (target) pins the scheme; an http one still accepts https sources.
+	if targetURL.Scheme == "https" && sourceURL.Scheme != "https" {
+		return false
+	}
+
 	return sourceURL.Host == targetURL.Host
 }
 

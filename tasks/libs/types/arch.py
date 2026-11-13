@@ -33,6 +33,7 @@ class Arch:
         kmt_arch: KMTArchName | None,
         windows_arch: str,
         ci_arch: str,
+        bazel_cpu: str,
         spellings: set[str],
     ):
         self.name = name  #: Unique name for this architecture within this file.
@@ -45,6 +46,7 @@ class Arch:
         self.windows_arch = windows_arch  #: Architecture name for Windows compilation
         self.kernel_arch = kernel_arch  #: Name for the architecture in the Linux kernel
         self.ci_arch = ci_arch  #: Name for the architecture in CI jobs
+        self.bazel_cpu = bazel_cpu  #: Name for the architecture in @platforms//cpu
 
     def is_cross_compiling(self) -> bool:
         """Check whether this architecture is different from one this code is running on."""
@@ -143,6 +145,7 @@ ARCH_ARM64 = Arch(
     kmt_arch="arm64",
     windows_arch="arm64",
     ci_arch="arm64",
+    bazel_cpu="arm64",
     spellings={"arm64", "aarch64"},
 )
 ARCH_AMD64 = Arch(
@@ -153,6 +156,7 @@ ARCH_AMD64 = Arch(
     kmt_arch="x86_64",
     windows_arch="x64",
     ci_arch="x64",
+    bazel_cpu="x86_64",
     spellings={"amd64", "x86_64", "x64", "x86-64", "x86"},
 )
 
@@ -164,6 +168,7 @@ ARCH_PPC64 = Arch(
     kmt_arch=None,
     windows_arch="",
     ci_arch="ppc64",
+    bazel_cpu="ppc",
     spellings={"ppc64", "powerpc64", "powerpc"},
 )
 

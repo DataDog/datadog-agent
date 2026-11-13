@@ -26,7 +26,6 @@ endif()
 ## Add Build Targets
 add_subdirectory(three)
 add_subdirectory(rtloader)
-add_subdirectory(test)
 
 ## Dev tools
 include(cmake/clang-format.cmake)

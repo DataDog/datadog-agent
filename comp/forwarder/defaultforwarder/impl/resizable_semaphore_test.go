@@ -170,52 +170,114 @@ func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
 	})
 }
 
+// startBlockedAcquire starts an Acquire that is expected to block, and waits
+// until it does. The returned channel receives its result, and the returned
+// function cancels it.
+func startBlockedAcquire(t *testing.T, s *resizableSemaphore) (<-chan error, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.Acquire(ctx, 1)
+	}()
+	synctest.Wait()
+	require.Empty(t, errCh, "Acquire should block")
+	return errCh, cancel
+}
+
 func TestSaturatedDurationAccumulates(t *testing.T) {
-	s := newResizableSemaphore(2)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+		acquired, _ := startBlockedAcquire(t, s)
 
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 1 < 2: not saturated
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 2 == 2: saturation begins
+		time.Sleep(3 * time.Second)
+		s.Release(1) // the waiter takes the freed token: saturation ends
+		synctest.Wait()
+		require.NoError(t, <-acquired)
 
-	clock.advance(3 * time.Second)
-	s.Release(1) // inFlight 1 < 2: saturation ends, 3s banked
+		assert.Equal(t, 3*time.Second, s.takeSaturatedDuration())
+		// The accumulator resets after a read.
+		assert.Equal(t, time.Duration(0), s.takeSaturatedDuration())
+	})
+}
 
-	assert.Equal(t, 3*time.Second, s.takeSaturatedDuration())
-	// The accumulator resets after a read.
-	assert.Equal(t, time.Duration(0), s.takeSaturatedDuration())
+func TestSaturatedDurationIgnoresFullWithoutWaiters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+
+		// All tokens are in use but nobody is waiting for one.
+		time.Sleep(5 * time.Second)
+		assert.Equal(t, time.Duration(0), s.takeSaturatedDuration())
+	})
 }
 
 func TestSaturatedDurationFoldsOpenInterval(t *testing.T) {
-	s := newResizableSemaphore(1)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+		startBlockedAcquire(t, s)
 
-	require.NoError(t, s.Acquire(ctx, 1)) // saturated immediately
+		time.Sleep(2 * time.Second)
+		// Still saturated: the open interval is folded in and keeps running.
+		assert.Equal(t, 2*time.Second, s.takeSaturatedDuration())
 
-	clock.advance(2 * time.Second)
-	// Still saturated: the open interval is folded in and keeps running.
-	assert.Equal(t, 2*time.Second, s.takeSaturatedDuration())
-
-	clock.advance(time.Second)
-	assert.Equal(t, time.Second, s.takeSaturatedDuration())
+		time.Sleep(time.Second)
+		assert.Equal(t, time.Second, s.takeSaturatedDuration())
+	})
 }
 
 func TestSaturatedDurationTracksLimitChanges(t *testing.T) {
-	s := newResizableSemaphore(2)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(2)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+		s.SetLimit(1)
+		acquired, _ := startBlockedAcquire(t, s)
 
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 1 < 2: not saturated
-	s.SetLimit(1)                         // inFlight 1 >= 1: saturation begins
+		time.Sleep(5 * time.Second)
+		s.SetLimit(2) // the waiter gets a token: saturation ends
+		synctest.Wait()
+		require.NoError(t, <-acquired)
 
-	clock.advance(5 * time.Second)
-	s.Release(1) // inFlight 0 < 1: saturation ends, 5s banked
+		time.Sleep(time.Second)
+		assert.Equal(t, 5*time.Second, s.takeSaturatedDuration())
+	})
+}
 
-	assert.Equal(t, 5*time.Second, s.takeSaturatedDuration())
+func TestSaturatedDurationEndsWhenWaiterCancels(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+		acquired, cancel := startBlockedAcquire(t, s)
+
+		time.Sleep(2 * time.Second)
+		cancel()
+		synctest.Wait()
+		require.ErrorIs(t, <-acquired, context.Canceled)
+
+		time.Sleep(time.Second)
+		assert.Equal(t, 2*time.Second, s.takeSaturatedDuration())
+	})
+}
+
+func TestSaturatedDurationContinuesWithRemainingWaiters(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
+		first, _ := startBlockedAcquire(t, s)
+		second, _ := startBlockedAcquire(t, s)
+
+		time.Sleep(time.Second)
+		// One waiter takes the freed token, the other keeps waiting.
+		s.Release(1)
+		synctest.Wait()
+		require.Equal(t, 1, len(first)+len(second), "exactly one waiter should acquire")
+
+		time.Sleep(2 * time.Second)
+		assert.Equal(t, 3*time.Second, s.takeSaturatedDuration())
+	})
 }
 
 // TestResizableSemaphoreScalingUnderLoad proves the limit can be scaled up and

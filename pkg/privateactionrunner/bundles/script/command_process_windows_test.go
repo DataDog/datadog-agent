@@ -9,6 +9,7 @@ package com_datadoghq_script
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -47,4 +48,17 @@ func timeoutTestConfig() ScriptBundleConfig {
 	return ScriptBundleConfig{SchemaId: schemaIdV1, RunPredefinedPowershellScript: map[string]RunPredefinedPowershellScriptConfig{
 		"test": {Script: "Start-Sleep -Seconds 60"},
 	}}
+}
+
+// errorInvalidParameter is what OpenProcess returns for a pid that no longer exists.
+const errorInvalidParameter = syscall.Errno(87)
+
+func processStopped(pid int) bool {
+	handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(pid))
+	if err != nil {
+		return errors.Is(err, errorInvalidParameter)
+	}
+	defer syscall.CloseHandle(handle)
+	event, err := syscall.WaitForSingleObject(handle, 0)
+	return err == nil && event == syscall.WAIT_OBJECT_0
 }

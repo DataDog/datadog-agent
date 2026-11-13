@@ -45,7 +45,7 @@ dd_agent_go_binary(
     }),
     embed = [":secret-generic-connector_lib"],
     pure = select({
-        "//packages/agent:linux_default": "on",
+        "@platforms//os:linux": "on",
         "//conditions:default": "auto",
     }),
     visibility = ["//visibility:public"],
