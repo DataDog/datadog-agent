@@ -149,8 +149,17 @@ func (c *Config) IsDomainAllowed(hostname string) bool {
 	if c.DomainAllowlist == nil {
 		return true
 	}
+	// Require ASCII (including punycode) so Unicode case folding cannot
+	// authorize a different hostname from the one used by the transport.
+	isNonASCII := func(r rune) bool { return r > '\x7f' }
+	if strings.IndexFunc(hostname, isNonASCII) >= 0 {
+		return false
+	}
 	hostname = strings.ToLower(hostname)
 	for _, pattern := range c.DomainAllowlist {
+		if strings.IndexFunc(pattern, isNonASCII) >= 0 {
+			continue
+		}
 		pattern = strings.ToLower(pattern)
 		if pattern == hostname {
 			return true
