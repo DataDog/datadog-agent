@@ -140,12 +140,16 @@ const maxChunkSpread = 5 * time.Second
 //   - one collection (one GroupId) was split into GroupSize >= 2 payloads, one of them holding exactly 600 connections
 //   - all the payloads of that collection arrived within maxChunkSpread of each other
 //
-// It searches every payload received since the test started, not only the latest ones: the burst is
-// flushed in a single collection and newer collections only carry background connections.
-func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
+// It searches every payload the fakeintake received from workloadStart on, not only the latest ones:
+// the burst is flushed in a single collection and newer collections only carry background connections.
+// workloadStart must be taken just before the caller starts generating connections. Payloads received
+// earlier are ignored, because dev mode skips the fakeintake flush between tests and an old split
+// collection would otherwise satisfy the check. The cutoff compares the runner's clock with the
+// fakeintake's receive time; the burst arrives seconds after workloadStart, far more than any skew.
+func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake, workloadStart time.Time) {
 	t := v.T()
 	t.Helper()
-	t.Log(time.Now())
+	t.Logf("%v, ignoring payloads received before %v", time.Now(), workloadStart)
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
@@ -168,6 +172,9 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 			groups := make(map[int32][]*aggregator.Connections)
 			var groupOrder []int32
 			for _, payload := range cnx.GetPayloadsByName(hostnameNetID) {
+				if payload.GetCollectedTime().Before(workloadStart) {
+					continue
+				}
 				if _, seen := groups[payload.GroupId]; !seen {
 					groupOrder = append(groupOrder, payload.GroupId)
 				}
