@@ -75,6 +75,10 @@ type Resolver struct {
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
+
+	// settler and hostSnapshotRequests are only set with TCX links, which follow moved devices
+	settler              *deviceSettler
+	hostSnapshotRequests chan struct{}
 }
 
 // NewResolver returns a new instance of Resolver
@@ -91,6 +95,10 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		netnsMountRequests:  make(chan networkNamespaceMountRequest, 64),
 
 		errorCounters: newErrorCounters(),
+	}
+	if nr.usesTCX() {
+		nr.settler = newDeviceSettler(config.NetworkTCXSettleDelay)
+		nr.hostSnapshotRequests = make(chan struct{}, 1)
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -390,6 +398,8 @@ func (nr *Resolver) manualFlushNamespaces() {
 	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
 	// no new device.
 	nr.preventNetworkNamespaceDrift(probesCount)
+
+	nr.requestHostSnapshot()
 }
 
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
