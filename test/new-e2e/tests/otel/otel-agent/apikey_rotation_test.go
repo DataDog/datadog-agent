@@ -70,13 +70,22 @@ const (
 	apiKeyRotationIPCPort     = 5009
 	apiKeyRotationSyncSeconds = 15
 
-	// The forwarder's domain resolver logs this on every rotation, once per forwarder
-	// wired to the config that changed. See
+	// A forwarder's domain resolver logs this on every rotation, once per forwarder
+	// wired to the config that changed, and comp/logs/agent/config emits the same text
+	// for its endpoints. Several of each run in this process, so the marker on its own
+	// says nothing about *which* one rotated. See
 	// comp/forwarder/defaultforwarder/resolver.OnUpdateConfig.
 	rotationLogMarker = "rotating API key for 'api_key'"
 
 	// The converter names the extension it autoconfigures from the Agent's api_key.
 	ddExtensionInstance = "datadog/dd-autoconfigured"
+
+	// What makes the extension's own rotation line identifiable. The collector hands
+	// each extension a logger tagged with its component attributes, the Agent's zap core
+	// turns those into log context, and the text format renders them just before the
+	// message. The extension builds its forwarder on that logger, so only its lines
+	// carry the tag.
+	ddExtensionLogScope = "otelcol.component.id:" + ddExtensionInstance
 )
 
 // rotatedAPIKey returns a fresh well-formed fake key to rotate to.
@@ -271,31 +280,56 @@ func (s *apiKeyRotationTestSuite) otelAgentLogs(ctx context.Context, podName str
 	return string(body)
 }
 
+// linesWith returns the log lines that contain every one of substrs.
+func linesWith(logs string, substrs ...string) []string {
+	var matched []string
+	for _, line := range strings.Split(logs, "\n") {
+		keep := true
+		for _, substr := range substrs {
+			if !strings.Contains(line, substr) {
+				keep = false
+				break
+			}
+		}
+		if keep {
+			matched = append(matched, line)
+		}
+	}
+	return matched
+}
+
 // TestAPIKeyReachesDatadogExtension rotates the API key through the secrets backend and
-// asserts that *two* forwarders rotate: the exporter's, which has always worked, and the
-// `datadog` extension's own, which is the bug this change fixes.
+// asserts that the `datadog` extension's own forwarder rotates, which is the bug this
+// change fixes, alongside some other forwarder in the process, which has always worked.
 //
 // Before the fix the extension's private config was never written to after startup, so
-// only one rotation line appeared and the extension kept 403ing on /api/v1/metadata.
+// its forwarder kept 403ing on /api/v1/metadata with the stale key.
+//
+// Counting rotation lines in bulk cannot show that: this process also runs the
+// serializer's forwarder and the logs agent's endpoints on the same `api_key` setting,
+// and they log the identical text. The extension's lines are the ones carrying its
+// collector component scope.
 func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
 	ctx := context.Background()
 	pod := s.otelAgentPod(ctx)
 
-	// Sanity-check the starting state: the extension must actually be running, otherwise
-	// a missing second rotation line would prove nothing.
+	// Sanity-check the starting state. The extension must be running, and its logs must
+	// carry the component scope the assertion below keys off -- the collector tags every
+	// extension's startup lines with it -- otherwise a missing rotation line would prove
+	// nothing.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs := s.otelAgentLogs(ctx, pod.Name)
-		assert.Contains(c, logs, ddExtensionInstance,
-			"the datadog extension should have been autoconfigured from the Agent api_key")
+		assert.NotEmpty(c, linesWith(logs, ddExtensionLogScope),
+			"the datadog extension should have been autoconfigured from the Agent api_key "+
+				"and should tag its logs with %q", ddExtensionLogScope)
 	}, 3*time.Minute, 10*time.Second)
 
-	// Count markers relative to a baseline rather than from zero. Connected mode emits
-	// one at startup: the otel-agent's own serializer forwarder is built before
-	// configsync's first write lands, so it sees api_key change once. The extension's
-	// forwarder is built later and gets the resolved key at construction, logging
-	// nothing. What proves the fix is still +2 from here -- one per forwarder.
-	baseline := strings.Count(s.otelAgentLogs(ctx, pod.Name), rotationLogMarker)
-	s.T().Logf("rotation markers before rotating: %d", baseline)
+	// Count relative to a baseline rather than from zero: forwarders built before
+	// configsync's first write lands already saw api_key change once.
+	before := s.otelAgentLogs(ctx, pod.Name)
+	baseExtension := len(linesWith(before, rotationLogMarker, ddExtensionLogScope))
+	baseTotal := len(linesWith(before, rotationLogMarker))
+	s.T().Logf("rotations before rotating: %d total, %d from the datadog extension", baseTotal, baseExtension)
 
 	s.T().Log("Rotating the API key in the Kubernetes secret")
 	secrets := s.Env().KubernetesCluster.Client().CoreV1().Secrets(apiKeyRotationNamespace)
@@ -309,11 +343,17 @@ func (s *apiKeyRotationTestSuite) TestAPIKeyReachesDatadogExtension() {
 	// the mounted secret (up to ~1 minute), the core Agent's secret refresh re-resolves
 	// the ENC[] handle, and the otel-agent's configsync then polls the core Agent. Allow
 	// generously.
-	s.T().Log("Waiting for both forwarders to rotate")
+	s.T().Log("Waiting for the datadog extension's forwarder to rotate")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs := s.otelAgentLogs(ctx, pod.Name)
-		assert.GreaterOrEqual(c, strings.Count(logs, rotationLogMarker), baseline+2,
-			"expected both the exporter's and the datadog extension's forwarder to rotate; "+
-				"only one more than the baseline means the extension is still on the stale key")
+		rotations := linesWith(logs, rotationLogMarker)
+
+		// Separating the two keeps a rotation that never reached the process at all from
+		// reading as a failure of the extension bridge.
+		assert.Greater(c, len(rotations), baseTotal,
+			"no forwarder rotated: the new key never reached the otel-agent")
+		assert.Greater(c, len(linesWith(logs, rotationLogMarker, ddExtensionLogScope)), baseExtension,
+			"the datadog extension's forwarder did not rotate, so it is still on the stale key; rotations seen: %v",
+			rotations)
 	}, 6*time.Minute, 15*time.Second)
 }
