@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the llm_d metric origin for Agent-side serialization.

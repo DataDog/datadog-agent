@@ -3,22 +3,21 @@ from __future__ import annotations
 import os
 import os.path
 import platform
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from time import sleep
-from typing import cast
 
 from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
-from invoke.runners import Local, Result
 
 from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import join_command, timed
 from tasks.schema.generate import schema_codegen
 
 
@@ -134,10 +133,11 @@ def go_build(
     coverage: bool = False,
     trimpath: bool = True,
     fips_backend: FipsBackend = FipsBackend.none,
-) -> Result:
+) -> None:
     env = env or {}
-    if check_deadcode and sys.platform == "aix":
-        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+    with_bazel = fips_backend == FipsBackend.msgo or shutil.which("bazelisk") is not None
+    if check_deadcode and not with_bazel:
+        print(color_message("Ignoring check_deadcode without Bazel", "orange"), file=sys.stderr)
         check_deadcode = False
 
     # TODO: remove once Bazel is used to build the Agent
@@ -156,88 +156,79 @@ def go_build(
             if sys.platform == "win32":
                 env = _with_hermetic_mingw_path(ctx, env)
 
-    cmd = "go build"
+    args = ["build"]
     if coverage:
-        cmd += " -cover -covermode=atomic"
+        args += ["-cover", "-covermode=atomic"]
         build_tags = build_tags or []
         build_tags.append("e2ecoverage")
     if mod:
-        cmd += f" -mod={mod}"
+        args.append(f"-mod={mod}")
     if race:
-        cmd += " -race"
+        args.append("-race")
     if rebuild:
-        cmd += " -a"
+        args.append("-a")
     if verbose:
-        cmd += " -v"
+        args.append("-v")
     if echo:
-        cmd += " -x"
+        args.append("-x")
     if build_tags:
         # sort build tags to have the same order and ensure caching hits properly
-        cmd += f" -tags \"{','.join(sorted(build_tags))}\""
+        args += ["-tags", ",".join(sorted(build_tags))]
     if bin_path:
-        cmd += f" -o {bin_path}"
+        args += ["-o", str(bin_path)]
     if gcflags:
-        cmd += f" -gcflags=\"{gcflags}\""
+        args.append(f"-gcflags={gcflags}")
     if check_deadcode:
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
-        cmd += f" -ldflags=\"{ldflags}\""
+        args.append(f"-ldflags={ldflags}")
     if trimpath and 'DELVE' not in os.environ:
-        cmd += " -trimpath"
+        args.append("-trimpath")
 
-    cmd += f" {entrypoint}"
+    args.append(str(entrypoint))
 
     if fips_backend == FipsBackend.boringcrypto:
         env = env | {"GOEXPERIMENT": "boringcrypto"}
     elif fips_backend == FipsBackend.msgo and target_os == "linux":
         env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
 
-    if check_deadcode:
-        result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), cmd, env)
-    else:
-        result = cast(Result, ctx.run(cmd, env=env))
+    if with_bazel:
+        stderr = bazel(
+            "run",
+            "//:msgo" if fips_backend == FipsBackend.msgo else "@rules_go//go",
+            "--",
+            "-C",
+            os.getcwd(),
+            *args,
+            capture_stderr=check_deadcode,
+            env=env,
+        )
+    else:  # AIX and the Docker images building the OTel agent
+        ctx.run(join_command(["go", *args]), env=env)
 
-    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
-        return result
+    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
+    # it returns 0, even if dead code elimination is disabled
+    # so we check whether stdout is empty to know if dead code elimination is disabled
+    if check_deadcode and (
+        whydeadcode_out := bazel(
+            "run",
+            *(f"--run_env={k}={v}" for k, v in env.items()),
+            "@com_github_aarzilli_whydeadcode//:whydeadcode",
+            "--",
+            "--ignore-unrecognized-input",
+            input=stderr,
+            capture_output=True,
+        )
+    ):
+        print(
+            f"dead code elimination is disabled for {os.path.basename(entrypoint)} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
+        )
+
+    if sys.platform == "win32" or bin_path is None:
+        return
 
     if os.path.exists(bin_path):
         uid = os.environ.get("HOST_UID", "-1")
         gid = os.environ.get("HOST_GID", "-1")
         if uid != "-1" and gid != "-1":
             os.chown(bin_path, int(uid), int(gid))
-
-    return result
-
-
-def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str, str] | None = None) -> Result:
-    """
-    - Runs `go build` with the `dumpdep` flag in a custom runner. This runner reads big chunks to improve invoke I/O performance, see https://github.com/pyinvoke/invoke/issues/774
-    - Calls `whydeadcode` in the same runner using an associated custom reader.
-    """
-    runner = Local(ctx)
-    runner.read_chunk_size = 1024 * 1024 * 10
-    _ = runner.read_chunk_size  # please linters
-    runner.input_sleep = 0
-    _ = runner.input_sleep  # please linters
-
-    # -dumpdep is very verbose so we hide that
-    result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
-
-    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
-    # it returns 0, even if dead code elimination is disabled
-    # so we check whether stdout is empty to know if dead code elimination is disabled
-    whydeadcode_out = bazel(
-        "run",
-        *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
-        "@com_github_aarzilli_whydeadcode//:whydeadcode",
-        "--",
-        "--ignore-unrecognized-input",
-        input=result.stderr,
-        capture_output=True,
-    )
-    if whydeadcode_out:
-        print(
-            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
-        )
-
-    return result

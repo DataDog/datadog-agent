@@ -17,6 +17,7 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.flavor import FipsBackend
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.dependencies import get_effective_dependencies_env
 
@@ -159,7 +160,8 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     shutil.copy2(latest_file, exec_path)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copy2(secret_generic_connector.BIN_PATH, secret_connector_dest)
-    shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
+
+    nosys_so_dest = build_nosys_so(arch, build_context)
     par_config_src = "pkg/privateactionrunner/autoconnections/conf/script-config.yaml"
     par_config_dest = f"{build_context}/private-action-runner"
     os.makedirs(par_config_dest, exist_ok=True)
@@ -171,6 +173,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"rm -rf {cws_instrumentation_base}")
     ctx.run(f"rm -f {secret_connector_dest}")
     ctx.run(f"rm -rf {par_config_dest}")
+    ctx.run(f"rm -f {nosys_so_dest}")
 
     if push:
         ctx.run(f"docker push {tag}")

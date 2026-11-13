@@ -20,8 +20,37 @@ new-e2e-agent-runtimes:
   variables:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
-    EXTRA_PARAMS: --skip "Windows"
+    EXTRA_PARAMS: --skip "Windows|TestProcmgrAIODockerSuite"
     ON_NIGHTLY_FIPS: "true"
+
+.on_procmgr_aio_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.sh
+        - Dockerfiles/agent/cont-init.d/**/*
+        - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/probe.sh
+        - Dockerfiles/agent/processes.d/aio/**/*
+        - pkg/procmgr/**/*
+        - test/new-e2e/tests/agent-runtimes/procmgr/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-agent-runtimes-procmgr-aio-docker:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.except_light_pipeline]
+    - !reference [.on_procmgr_aio_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes/procmgr
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --run "TestProcmgrAIODockerSuite"
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template

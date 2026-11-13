@@ -1,3 +1,5 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
@@ -32,7 +34,7 @@ dd_agent_go_test(
     name = "syslog_test",
     srcs = [
         "cef_leef_test.go",
-        "corpus_golden_test.go",
+        "corpus_coverage_test.go",
         "parser_test.go",
         "structured_content_test.go",
         "syslog_fuzz_test.go",
@@ -48,4 +50,25 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+# Regenerate testdata/corpus.json's "want" fields from the current parser
+# output (see generators/corpus).
+run_binary(
+    name = "corpus_golden_gen",
+    srcs = ["testdata/corpus.json"],
+    outs = ["corpus_golden_gen/corpus.json"],
+    args = [
+        "-in=$(execpath :testdata/corpus.json)",
+        "-out=$@",
+    ],
+    tool = "//pkg/logs/internal/parsers/syslog/generators/corpus",
+)
+
+exports_files(["testdata/corpus.json"])
+
+write_source_file(
+    name = "corpus_golden",
+    in_file = ":corpus_golden_gen",
+    out_file = "testdata/corpus.json",
 )

@@ -9,12 +9,18 @@
         - cmd/privateactionrunner/**/*
         - comp/privateactionrunner/**/*
         - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.sh
+        - Dockerfiles/agent/cont-init.d/**/*
         - Dockerfiles/agent/entrypoint.d/privateactionrunner
+        - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/entrypoint.d/_default
         - Dockerfiles/agent/par-probe.sh
         - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent.yaml
         - Dockerfiles/agent/processes.d/aio/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
         - pkg/rshell/**/*

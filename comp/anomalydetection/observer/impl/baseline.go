@@ -5,11 +5,7 @@
 
 package observerimpl
 
-import (
-	"sort"
-
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-)
+import "sort"
 
 // BaselineConfig controls detector-specific baseline qualification windows.
 // DurationSec is the qualification duration after a detector becomes ready.
@@ -84,9 +80,10 @@ func newBaselineController(cfg BaselineConfig, detectorNames []string) *baseline
 	return b
 }
 
-func detectorNames(detectors []observerdef.Detector) []string {
+func detectorNames(detectors []detectorRegistration) []string {
 	names := make([]string, 0, len(detectors))
-	for _, detector := range detectors {
+	for _, registration := range detectors {
+		detector := registration.detector
 		names = append(names, detector.Name())
 	}
 	return names

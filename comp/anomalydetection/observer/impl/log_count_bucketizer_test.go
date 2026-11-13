@@ -317,7 +317,7 @@ func TestEngineCapacityEvictionDuringLogFlushPreservesRealObservations(t *testin
 		detector := &inactiveEvictionDetector{}
 		e := mustNewEngine(engineConfig{
 			storage:         storage,
-			detectors:       []observerdef.Detector{detector},
+			detectors:       []detectorRegistration{{detector: detector}},
 			extractors:      []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
 			logCountBuckets: LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 20},
 		})

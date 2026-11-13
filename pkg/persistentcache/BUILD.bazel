@@ -3,19 +3,38 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "persistentcache",
-    srcs = ["persistentcache.go"],
+    srcs = [
+        "persistentcache.go",
+        "replace_other.go",
+        "replace_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/persistentcache",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/config/setup"],
+    deps = [
+        "//pkg/config/setup",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "persistentcache_test",
-    srcs = ["persistentcache_test.go"],
+    srcs = [
+        "persistentcache_test.go",
+        "replace_windows_test.go",
+    ],
     embed = [":persistentcache"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )

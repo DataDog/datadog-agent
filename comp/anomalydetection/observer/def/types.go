@@ -258,6 +258,7 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
+	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -724,6 +725,13 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
+// DetectionFilter is borrowed: never mutate or retain it; telemetry is excluded.
+type DetectionFilter struct {
+	MetricKind   *MetricKind         // nil: any kind; value/nil fixed across calls and resets
+	MetricType   *metrics.MetricType // nil: any type; value/nil fixed across calls and resets
+	Aggregations []Aggregate         // Valid unique values in order; empty selects Average then Count.
+}
+
 // Detector analyzes stored series for anomalies.
 type Detector interface {
 	Name() string
@@ -736,7 +744,8 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs. Each returned
 	// anomaly must identify its source series and aggregate with SourceRef.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) DetectionResult
+	// Excluded state is neither advanced nor removed; empty filters preserve defaults.
+	Detect(storage StorageReader, dataTime int64, filter DetectionFilter) DetectionResult
 }
 
 // DetectorPointWindow bounds a detector's raw-observation history.

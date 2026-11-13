@@ -45,11 +45,12 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: a count per log signature (`log.pattern.<hash>.count`), plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
+| `impl/logsignature/` | Log signatures (via `pkg/logs/tokenizer`) used by log metrics extractor |
 
 ### Component catalog (defaults)
 
@@ -66,6 +67,20 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+Construct detectors with statistical config values; normalize once and reset only
+runtime state.
+
+`Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
+restrictions and authoritative aggregation selection. Empty aggregations select
+average then count; explicit selections keep order, skipping duplicates and invalid
+values. Kind/type values and nil presence must stay constant per instance,
+including resets; equal-valued
+replacement pointers are allowed. Aggregations may vary per call. Empty means
+unrestricted workload detection; telemetry is always excluded. Filtering neither
+advances excluded state nor removes it; callers own reset/transition cleanup.
+Catalog registrations bind one filter per detector instance; no configuration
+populates it yet.
 
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
@@ -175,6 +190,32 @@ recovery. Matching the committed kind cancels pending evidence. Each batch count
 future points and unchanged-data advances provide no evidence. Classification
 uses constant/OLS linear fits with robust residual checks; plateau drift uses
 half-window medians so isolated spikes do not dominate it.
+
+### Metric pipeline
+
+Legacy detectors remain the default.
+Set `anomaly_detection.metric_pipeline.enabled: true` to run only `MetricPipeline`,
+with its own detector instances and defaults; legacy detector settings do not
+configure the pipeline.
+Baseline and scorer settings apply in both workflows.
+`anomaly_detection.metric_pipeline.anomaly_cutoff` (default true) gates
+post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
+
+`MetricPipeline` runs registered committed-kind detectors before matching.
+Matching uses the matcher window; detector history
+requirements stay independent. Transitions clean the previous detector state,
+commit the successor kind, and reuse retained history.
+
+After reactivation to a supported kind, only anomalies after the cutoff are
+emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
+not gated. Engine resets clear kinds, and series eviction clears pipeline state.
+
+The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
+mean detector call durations every second. Timings identify inner detectors and
+registration kinds, excluding pipeline overhead; legacy calls use `unset`.
+`detections.kind_emissions` adds kind attribution after baseline/muting/dedup;
+existing `detections.detector_emissions` tags stay unchanged. Pending transition
+and timing counts clear on analysis reset.
 
 ### Non-blocking ingestion
 

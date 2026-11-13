@@ -110,7 +110,7 @@ func TestDiscoverCapturedTopologies(t *testing.T) {
 				assert.Equal(t, i, dev.Index)
 				assert.Equal(t, gpu.pciBusID(), dev.PCIBusID)
 				assert.Equal(t, gpu.deviceID, dev.DeviceID)
-				assert.Equal(t, fmt.Sprintf("amd-%016x", gpu.uniqueID), dev.UUID)
+				assert.Equal(t, amdSMIUUID(gpu.uniqueID, gpu.deviceID), dev.UUID)
 				assert.NotContains(t, dev.Name, "AMD GPU 0x", "device ID %#04x has a known name", gpu.deviceID)
 
 				m, err := dev.ReadMetrics()

@@ -34,6 +34,17 @@ var (
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
 	procPdhRemoveCounter            = modPdhDll.NewProc("PdhRemoveCounter")
 	procPdhGetFormattedCounterArray = modPdhDll.NewProc("PdhGetFormattedCounterArrayW")
+
+	callPdhGetFormattedCounterArray = func(hCounter PDH_HCOUNTER, format uint32, bufLen *uint32, itemCount *uint32, itemBuffer *uint8) uintptr {
+		r, _, _ := procPdhGetFormattedCounterArray.Call(
+			uintptr(hCounter),
+			uintptr(format),
+			uintptr(unsafe.Pointer(bufLen)),
+			uintptr(unsafe.Pointer(itemCount)),
+			uintptr(unsafe.Pointer(itemBuffer)),
+		)
+		return r
+	}
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/winperf/ns-winperf-perf_object_type
@@ -258,28 +269,25 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems
 		format |= PDH_FMT_NOCAP100
 	}
 
-	r, _, _ := procPdhGetFormattedCounterArray.Call(
-		uintptr(hCounter),
-		uintptr(format),
-		uintptr(unsafe.Pointer(&bufLen)),
-		uintptr(unsafe.Pointer(&itemCount)),
-		uintptr(0),
-	)
+	r := callPdhGetFormattedCounterArray(hCounter, format, &bufLen, &itemCount, nil)
 
 	if r != PDH_MORE_DATA {
 		return nil, fmt.Errorf("Failed to get formatted counter array buffer size %#x", r)
 	}
 
+	// Preserve the item count from the sizing call because when the last instance in the array
+	// has a negative delta (e.g. `_Total` when a short-lived instance disconnects), Windows pdh.dll
+	// still populates all items in `buf` with their per-instance `CStatus`, but returns
+	// `PDH_CALC_NEGATIVE_*` and zeroes out `itemCount` on return.
+	expectedItemCount := itemCount
 	buf = make([]uint8, bufLen)
 
-	r, _, _ = procPdhGetFormattedCounterArray.Call(
-		uintptr(hCounter),
-		uintptr(format),
-		uintptr(unsafe.Pointer(&bufLen)),
-		uintptr(unsafe.Pointer(&itemCount)),
-		uintptr(unsafe.Pointer(&buf[0])),
-	)
-	if windows.Errno(r) != windows.ERROR_SUCCESS {
+	r = callPdhGetFormattedCounterArray(hCounter, format, &bufLen, &itemCount, &buf[0])
+	switch r {
+	case uintptr(windows.ERROR_SUCCESS):
+	case PDH_CALC_NEGATIVE_DENOMINATOR, PDH_CALC_NEGATIVE_TIMEBASE, PDH_CALC_NEGATIVE_VALUE:
+		itemCount = expectedItemCount
+	default:
 		return nil, fmt.Errorf("Error getting formatted counter array %#x", r)
 	}
 
@@ -299,6 +307,9 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems
 	// Instance names are packed in the buffer following the items structs
 	strBufLen := int(bufLen - uint32(unsafe.Sizeof(PDH_FMT_COUNTERVALUE_ITEM_DOUBLE{}))*itemCount)
 	for _, item := range items {
+		if item.szName == nil {
+			continue
+		}
 		var u []uint16
 
 		// Accessing the `SliceHeader` to manipulate the `u` slice

@@ -27,6 +27,7 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/internal/anomalydetection/scorer/scoring"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -59,8 +60,20 @@ type EpisodeScenario struct {
 	LongDescription string `json:"long_description"`
 }
 
+// UnmarshalJSON also accepts the scenario name used by recording metadata.
+func (scenario *EpisodeScenario) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &scenario.AppName)
+	}
+	type plain EpisodeScenario
+	return json.Unmarshal(data, (*plain)(scenario))
+}
+
 // EpisodeInfo holds the parsed episode.json metadata for a scenario run.
 type EpisodeInfo struct {
+	scoring.HealthyEpisode
+	Name        string          `json:"name,omitempty"`
+	Status      string          `json:"status,omitempty"`
 	Episode     string          `json:"episode,omitempty"`
 	Cycle       int             `json:"cycle,omitempty"`
 	Scenario    EpisodeScenario `json:"scenario,omitempty"`
@@ -73,6 +86,16 @@ type EpisodeInfo struct {
 	Baseline    *EpisodePhase   `json:"baseline,omitempty"`
 	Disruption  *EpisodePhase   `json:"disruption,omitempty"`
 	Cooldown    *EpisodePhase   `json:"cooldown,omitempty"`
+}
+
+// UnmarshalJSON preserves the raw disruption for healthy-label validation, alongside
+// the typed phase used to display fault scenarios.
+func (info *EpisodeInfo) UnmarshalJSON(data []byte) error {
+	type plain EpisodeInfo
+	if err := json.Unmarshal(data, (*plain)(info)); err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &info.HealthyEpisode)
 }
 
 // Config configures the Bench.
@@ -147,24 +170,27 @@ type BaselineInfo struct {
 
 // StatusResponse is the response for /api/status.
 type StatusResponse struct {
-	Ready                 bool          `json:"ready"`
-	Scenario              string        `json:"scenario,omitempty"`
-	SeriesCount           int           `json:"seriesCount"`
-	AnomalyCount          int           `json:"anomalyCount"`
-	LogAnomalyCount       int           `json:"logAnomalyCount"`
-	ComponentCount        int           `json:"componentCount"`
-	CorrelatorsProcessing bool          `json:"correlatorsProcessing"`
-	ScenarioStart         *int64        `json:"scenarioStart,omitempty"`
-	ScenarioEnd           *int64        `json:"scenarioEnd,omitempty"`
-	EpisodeInfo           *EpisodeInfo  `json:"episodeInfo,omitempty"`
-	ServerConfig          ServerConfig  `json:"serverConfig"`
-	Baseline              *BaselineInfo `json:"baseline,omitempty"`
+	NoFaultEvaluation     *scoring.NoFaultResult `json:"noFaultEvaluation,omitempty"`
+	EvaluationError       string                 `json:"evaluationError,omitempty"`
+	Ready                 bool                   `json:"ready"`
+	Scenario              string                 `json:"scenario,omitempty"`
+	SeriesCount           int                    `json:"seriesCount"`
+	AnomalyCount          int                    `json:"anomalyCount"`
+	LogAnomalyCount       int                    `json:"logAnomalyCount"`
+	ComponentCount        int                    `json:"componentCount"`
+	CorrelatorsProcessing bool                   `json:"correlatorsProcessing"`
+	ScenarioStart         *int64                 `json:"scenarioStart,omitempty"`
+	ScenarioEnd           *int64                 `json:"scenarioEnd,omitempty"`
+	EpisodeInfo           *EpisodeInfo           `json:"episodeInfo,omitempty"`
+	ServerConfig          ServerConfig           `json:"serverConfig"`
+	Baseline              *BaselineInfo          `json:"baseline,omitempty"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	Components map[string]bool `json:"components"`
-	LogsOnly   bool            `json:"logsOnly"`
+	UseMetricPipeline bool            `json:"useMetricPipeline"`
+	Components        map[string]bool `json:"components"`
+	LogsOnly          bool            `json:"logsOnly"`
 }
 
 // Bench is the main controller for the observer test bench.
@@ -390,6 +416,9 @@ func (tb *Bench) LoadScenario(name string) error {
 	if data, err := os.ReadFile(filepath.Join(scenarioPath, "episode.json")); err == nil {
 		var info EpisodeInfo
 		if jsonErr := json.Unmarshal(data, &info); jsonErr == nil {
+			if info.Mode == "healthy-control" && info.Warmup == nil && info.StartTime != "" && info.EvaluationWindow != nil {
+				info.Warmup = &EpisodePhase{Start: info.StartTime, End: info.EvaluationWindow.Start}
+			}
 			tb.episodeInfo = &info
 		}
 	}
@@ -726,13 +755,16 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 
 // streamingStorageCfg preserves production storage policies for the configured
 // detectors. Only output-history capture is enabled for finite replay evaluation.
-func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
-	cfg := observerimpl.StorageConfigForComponents(settings)
+func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) (observerimpl.StorageConfig, error) {
+	cfg, err := observerimpl.StorageConfigForComponents(settings)
+	if err != nil {
+		return observerimpl.StorageConfig{}, err
+	}
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
-	return cfg
+	return cfg, nil
 }
 
 // resetAllState resets engine state via DebugView.Reset.
@@ -744,7 +776,11 @@ func (tb *Bench) resetAllState() error {
 	tb.baselineMu.Unlock()
 	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		cfg, err := streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		if err != nil {
+			return err
+		}
+		storageCfg = cfg
 	}
 	return tb.debug.Reset(tb.settings, storageCfg)
 }
@@ -752,7 +788,17 @@ func (tb *Bench) resetAllState() error {
 // catalogEntries includes testbench-only adapters in addition to production
 // observer components.
 func (tb *Bench) catalogEntries() []observerimpl.CatalogEntry {
-	return observerimpl.TestbenchCatalogEntries()
+	entries := observerimpl.TestbenchCatalogEntries()
+	if !tb.settings.UseMetricPipeline {
+		return entries
+	}
+	filtered := make([]observerimpl.CatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Kind != "detector" {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // correlationsLocked returns production correlations plus testbench-only
@@ -836,7 +882,28 @@ func (tb *Bench) GetStatus() StatusResponse {
 		}
 	}
 
+	var noFaultEvaluation *scoring.NoFaultResult
+	var evaluationError string
+	if tb.ready && tb.episodeInfo != nil && (tb.episodeInfo.Mode == "healthy-control" || tb.episodeInfo.Expectation == "healthy") {
+		if tb.replayStats == nil || tb.replayStats.InputLogsCount+int(tb.replayStats.InputMetricsCount) == 0 {
+			evaluationError = "Replay consumed no input"
+		} else if !tb.isComponentEnabled("anomaly_scorer") {
+			evaluationError = "No-fault evaluation requires the anomaly scorer to be enabled"
+		} else {
+			periods := []scoring.Period{}
+			for _, corr := range tb.correlationsLocked(sv) {
+				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(corr.FirstSeen), End: float64(corr.LastUpdated)})
+			}
+			var err error
+			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode)
+			if err != nil {
+				evaluationError = err.Error()
+			}
+		}
+	}
 	return StatusResponse{
+		NoFaultEvaluation:     noFaultEvaluation,
+		EvaluationError:       evaluationError,
 		Ready:                 tb.ready,
 		Scenario:              tb.loadedScenario,
 		SeriesCount:           sv.TotalSeriesCount(),
@@ -848,8 +915,9 @@ func (tb *Bench) GetStatus() StatusResponse {
 		ScenarioEnd:           scenarioEndPtr,
 		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
-			Components: compMap,
-			LogsOnly:   tb.config.LogsOnly,
+			Components:        compMap,
+			UseMetricPipeline: tb.settings.UseMetricPipeline,
+			LogsOnly:          tb.config.LogsOnly,
 		},
 		Baseline: baselineInfo,
 	}

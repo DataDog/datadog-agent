@@ -151,7 +151,7 @@ func TestStateView_DetectorOutputAnomaliesRetainsPrePipelineResults(t *testing.T
 	detector := &outputDetector{name: "detector_a", anomalies: []observerdef.Anomaly{anomaly}}
 	e := mustNewEngine(engineConfig{
 		storage:                    storage,
-		detectors:                  []observerdef.Detector{detector},
+		detectors:                  []detectorRegistration{{detector: detector}},
 		trackAnomalyHistory:        true,
 		trackDetectorOutputHistory: true,
 	})
@@ -344,7 +344,7 @@ func TestStateView_DetectorsAndCorrelators(t *testing.T) {
 
 	e := mustNewEngine(engineConfig{
 		storage:     newTimeSeriesStorage(),
-		detectors:   []observerdef.Detector{detector},
+		detectors:   []detectorRegistration{{detector: detector}},
 		correlators: []observerdef.Correlator{correlator},
 	})
 	sv := e.StateView()
@@ -390,13 +390,13 @@ type outputDetector struct {
 
 func (d *outputDetector) Name() string { return d.name }
 func (*outputDetector) Ready() bool    { return true }
-func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{Anomalies: d.anomalies}
 }
 
 func (d *mockDetector) Name() string { return d.name }
 func (*mockDetector) Ready() bool    { return true }
-func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (d *mockDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 
@@ -418,7 +418,7 @@ func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 
 	e := mustNewEngine(engineConfig{
 		storage:   storage,
-		detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
+		detectors: []detectorRegistration{{detector: &mockDetector{name: "det1"}}},
 	})
 	sv := e.StateView()
 
@@ -428,9 +428,7 @@ func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
-			e.SetDetectors([]observerdef.Detector{
-				&mockDetector{name: fmt.Sprintf("det_%d", i)},
-			})
+			e.SetDetectors([]detectorRegistration{{detector: &mockDetector{name: fmt.Sprintf("det_%d", i)}}})
 		}
 	}()
 

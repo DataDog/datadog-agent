@@ -47,4 +47,48 @@
 // or their TokensToString form change without a ProfileVersion bump.
 // Consumers that store token streams, or strings made from them, should
 // record ProfileVersion with them.
+//
+// # Performance
+//
+// Every log line the Agent handles goes through the tokenizer, so a slower
+// tokenizer means a slower Agent. Three rules keep it cheap:
+//
+//   - It reads at most maxEvalBytes bytes of a line (60 for Logs auto
+//     multiline, 2048 for the adaptive sampler, 4096 for AAD; 0 means the
+//     whole line). A 16 MiB line costs the same as a 60-byte one => long
+//     lines can't stall the pipeline.
+//   - Once warm, it doesn't allocate. TokenizeBorrowed, Limit, IsMatch and
+//     IsImportant make 0 allocations per line; Tokenize makes 2 (tokens and
+//     offsets); TokensToString, Clone and Retained make 1. Warm means it has
+//     already read a line with at least as many tokens, because the buffers
+//     only grow to fit the densest line seen.
+//   - With a 10 to 64 byte window, like the Logs default of 60, it never
+//     allocates after NewTokenizer, not even on its first line.
+//
+// perf_contract_test.go checks all three in every unit test job, including
+// the race and coverage runs. The checks count allocations, so a slow runner
+// can't make them fail. The window check times two calls in the same
+// process and skips on Windows, whose clock is too coarse. To run them under
+// the race detector locally:
+//
+//	dda inv test --targets=./pkg/logs/tokenizer --race
+//
+// Speed is checked differently: CPU time only compares on one machine. After
+// changing this package, run
+//
+//	dda inv logs-tokenizer.bench-compare --targets=pkg/logs/tokenizer --bench='^BenchmarkConsumer' --bench-files=consumer_benchmark_test.go
+//
+// It benchmarks each consumer's real per-line calls at its real window,
+// against the merge base, in about 2 minutes. It checks CPU and memory: it
+// fails if one benchmark, or the geomean, is more than 5% slower, if one
+// allocates more often, or if one's bytes per call grow by more than 5%. The
+// last one catches an allocation that keeps its count but gets bigger, which
+// the allocation tests can't see.
+//
+// Adding a consumer: the Bazel visibility in BUILD.bazel lists every package
+// that may import this one, so a new importer doesn't build until it is
+// added there. That file is owned by agent-log-pipelines => the change gets
+// a Logs review. In the same change, add the new consumer's calls and window
+// to consumers in consumer_benchmark_test.go, so the checks and benchmarks
+// cover it.
 package tokenizer

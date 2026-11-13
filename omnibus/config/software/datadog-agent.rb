@@ -83,9 +83,6 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-  if fips_mode?
-    add_msgo_to_env(env)
-  end
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
@@ -304,8 +301,11 @@ build do
     else
       copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
-    mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    # On Linux, //packages/agent/linux:license_files_install ships this license.
+    unless linux_target?
+      mkdir "#{install_dir}/LICENSES"
+      copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
   end
 
   if osx_target?

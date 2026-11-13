@@ -233,28 +233,57 @@ func (d *dispatcher) updateRunnersStats() {
 		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
-	d.store.Lock()
-	defer d.store.Unlock()
+	type runnerResult struct {
+		node     *nodeStore
+		ip       string
+		workers  int
+		stats    types.CLCRunnersStats
+		statsErr error
+	}
+
+	// Each runner call can take up to the client timeout, so the runners are
+	// queried without holding the store lock.
+	d.store.RLock()
+	results := make(map[string]*runnerResult, len(d.store.nodes))
 	for name, node := range d.store.nodes {
 		node.RLock()
-		ip := node.clientIP
+		results[name] = &runnerResult{node: node, ip: node.clientIP}
 		node.RUnlock()
+	}
+	d.store.RUnlock()
 
-		workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
+	for name, r := range results {
+		workers, err := d.clcRunnersClient.GetRunnerWorkers(r.ip)
 		if err != nil {
 			// This can happen in old versions of the runners that do not expose this information.
-			log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
-			node.workers = constants.DefaultNumWorkers
+			log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, r.ip, err)
+			r.workers = constants.DefaultNumWorkers
 		} else {
-			node.workers = workers.Count
+			r.workers = workers.Count
 		}
+		r.stats, r.statsErr = d.clcRunnersClient.GetRunnerStats(r.ip)
+	}
 
-		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
-		if err != nil {
-			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", node.clientIP, name, err)
+	d.store.Lock()
+	defer d.store.Unlock()
+	for name, r := range results {
+		node := r.node
+		if d.store.nodes[name] != node {
+			// Expired while we were querying it: don't bring its metrics back.
+			continue
+		}
+		if node.clientIP != r.ip {
+			// Re-registered from another IP: these results describe the old one.
+			continue
+		}
+		node.workers = r.workers
+
+		if r.statsErr != nil {
+			log.Debugf("Cannot get CLC Runner stats with IP %s on node %s: %v", r.ip, name, r.statsErr)
 			statsCollectionFails.Inc(name, le.JoinLeaderValue)
 			continue
 		}
+		stats := r.stats
 		node.Lock()
 		for idStr, checkStats := range stats {
 			id := checkid.ID(idStr)

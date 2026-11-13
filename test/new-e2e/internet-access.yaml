@@ -44,6 +44,10 @@ entries:
   function: errorTrackingClusterAgentSuite.TestDisabledByDefault
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/autoscaling/spot/suite_test.go
+  function: TestSpotSchedulingKindCI
+  status: debt
+  reason: The Agent Helm release pulls public Operator and CSI driver subchart images and the test workloads use registry.k8s.io/pause; mirror them internally before removing this exception.
 - file: test/new-e2e/tests/containers/filtering_test.go
   function: TestK8SCELFilteringSuite
   status: debt
@@ -491,19 +495,19 @@ entries:
 - file: test/new-e2e/tests/agent-subcommands/secret_nix_test.go
   function: TestLinuxSecretSuite
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret_nix_test.go
   function: linuxSecretSuite.TestAgentConfigRefresh
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret_win_test.go
   function: TestWindowsSecretSuite
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret_win_test.go
   function: windowsSecretSuite.TestAgentConfigRefresh
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/status_win_test.go
   function: TestWindowsStatusSuite
   status: untriaged

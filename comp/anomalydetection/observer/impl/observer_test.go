@@ -14,6 +14,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPublishSeriesFreshness(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	engine := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	engine.pendingFreshSeries.Store(2)
+	observer := &observerImpl{engine: engine, telemetry: newObserverTelemetry(telComp)}
+
+	observer.publishSeriesFreshness()
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() == "observer__"+telemetrySeriesFresh {
+			require.Len(t, family.GetMetric(), 1)
+			require.Nil(t, family.GetMetric()[0].GetLabel())
+			require.Equal(t, 2.0, family.GetMetric()[0].GetCounter().GetValue())
+			found = true
+		}
+	}
+	require.True(t, found)
+	require.Zero(t, engine.pendingFreshSeries.Load())
+}
+
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	if err != nil {
@@ -67,13 +90,13 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 		anomalies: []observerdef.Anomaly{{
 			Timestamp: 100,
 		}},
-	}, []observerdef.Aggregate{observerdef.AggregateAverage})
+	})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
-	second := adapter.Detect(storage, 101)
+	second := adapter.Detect(storage, 101, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(second.Anomalies) != 0 {
 		t.Fatalf("expected 0 anomalies without new data, got %d", len(second.Anomalies))
 	}
@@ -87,16 +110,16 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 		anomalies: []observerdef.Anomaly{{
 			Timestamp: 100,
 		}},
-	}, []observerdef.Aggregate{observerdef.AggregateAverage})
+	})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
 
 	adapter.Reset()
 
-	afterReset := adapter.Detect(storage, 100)
+	afterReset := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(afterReset.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly after reset, got %d", len(afterReset.Anomalies))
 	}

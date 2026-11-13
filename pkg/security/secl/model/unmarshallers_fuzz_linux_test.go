@@ -171,7 +171,11 @@ func FuzzArgsEnvsEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzProcess_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, 300)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &Process{} }, ProcessEntrySize+PidCacheEntrySize+PathKeySize+28)
+}
+
+func FuzzFileCapabilities_UnmarshalBinary(f *testing.F) {
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &FileCapabilities{} }, FileCapabilitiesSize)
 }
 
 func FuzzBPFEvent_UnmarshalBinary(f *testing.F) {

@@ -18,6 +18,9 @@ permissions:
 
 jobs:
   CLAAssistant:
+    # The CLA only applies to the public repository: the signatures token policy
+    # (DataDog/cla-signatures) doesn't trust private mirrors, so the job would just fail there.
+    if: github.repository == 'DataDog/datadog-agent'
     runs-on: ubuntu-latest
     steps:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
@@ -28,7 +31,7 @@ jobs:
 
       - name: "CLA Assistant"
         if: github.event_name != 'merge_group' && ((github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target')
-        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        uses: step-security/contributor-assistant-github-action@b9bd60bf1b766fa48dae03427059187137236239 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN: ${{ steps.octo-sts.outputs.token }}

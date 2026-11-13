@@ -8,7 +8,6 @@ package compute
 import (
 	_ "embed"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 
@@ -27,6 +26,14 @@ import (
 const (
 	imageURNSeparator = ":"
 	AdminUsername     = "azureuser"
+
+	// Azure resource name length limits (characters). Exceeding them makes
+	// provisioning fail with an InvalidParameter error, so cap the generated
+	// names and let the namer truncate with a hash suffix instead of emitting
+	// an over-long, invalid name.
+	maxVMNameLength               = 64
+	maxOSDiskNameLength           = 80
+	maxNetworkInterfaceNameLength = 80
 )
 
 func NewLinuxInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, userData pulumi.StringPtrInput, opts ...pulumi.ResourceOption) (vm *compute.VirtualMachine, privateIP pulumi.StringOutput, err error) {
@@ -155,12 +162,12 @@ func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, ena
 	copy(nwOpts, opts)
 	nwOpts = append(nwOpts, e.WithProviders(config.ProviderAzure))
 	nwInt, err := network.NewNetworkInterface(e.Ctx(), e.Namer.ResourceName(name), &network.NetworkInterfaceArgs{
-		NetworkInterfaceName:        e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
+		NetworkInterfaceName:        e.Namer.DisplayName(maxNetworkInterfaceNameLength, pulumi.String(name)),
 		ResourceGroupName:           pulumi.String(e.DefaultResourceGroup()),
 		EnableAcceleratedNetworking: pulumi.BoolPtr(enableAcceleratedNetworking),
 		IpConfigurations: network.NetworkInterfaceIPConfigurationArray{
 			network.NetworkInterfaceIPConfigurationArgs{
-				Name: e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
+				Name: e.Namer.DisplayName(maxNetworkInterfaceNameLength, pulumi.String(name)),
 				Subnet: network.SubnetTypeArgs{
 					Id: pulumi.String(e.DefaultSubnet()),
 				},
@@ -178,13 +185,13 @@ func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, ena
 	vmOpts = append(vmOpts, e.WithProviders(config.ProviderAzure))
 	vm, err := compute.NewVirtualMachine(e.Ctx(), e.Namer.ResourceName(name), &compute.VirtualMachineArgs{
 		ResourceGroupName: pulumi.String(e.DefaultResourceGroup()),
-		VmName:            e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
+		VmName:            e.Namer.DisplayName(maxVMNameLength, pulumi.String(name)),
 		HardwareProfile: compute.HardwareProfileArgs{
 			VmSize: pulumi.StringPtr(instanceType),
 		},
 		StorageProfile: compute.StorageProfileArgs{
 			OsDisk: compute.OSDiskArgs{
-				Name:         e.Namer.DisplayName(math.MaxInt, pulumi.String(name), pulumi.String("os-disk")),
+				Name:         e.Namer.DisplayName(maxOSDiskNameLength, pulumi.String(name), pulumi.String("os-disk")),
 				CreateOption: pulumi.String(compute.DiskCreateOptionFromImage),
 				ManagedDisk: compute.ManagedDiskParametersArgs{
 					StorageAccountType: pulumi.String("StandardSSD_LRS"),
