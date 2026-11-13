@@ -51,6 +51,12 @@ func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
 	return ddzstd.NewWriterLevel(w, level), nil
 }
 
+// NewWriterLevelWithOptions creates a libzstd writer at the given level.
+// The pure-Go tuning options are ignored by this backend.
+func NewWriterLevelWithOptions(w io.Writer, level Level, _ ...WriterOption) (Writer, error) {
+	return NewWriterLevel(w, level)
+}
+
 // NewReader returns a streaming zstd reader.
 func NewReader(r io.Reader) (io.ReadCloser, error) {
 	return ddzstd.NewReader(r), nil
