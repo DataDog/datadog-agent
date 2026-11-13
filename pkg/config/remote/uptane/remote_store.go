@@ -27,11 +27,18 @@ const (
 // Its goal is to serve TUF metadata updates coming to the backend in a way go-tuf understands
 // See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 type remoteStore struct {
-	targetStore *targetStore
+	targetStore targetFileProvider
 	metas       map[role]map[uint64][]byte
 }
 
-func newRemoteStore(targetStore *targetStore) remoteStore {
+// targetFileProvider provides the raw content of a target file.
+// It is implemented by the on-disk targetStore and by in-memory
+// implementations used to verify updates without touching the DB.
+type targetFileProvider interface {
+	getTargetFile(path string) ([]byte, bool, error)
+}
+
+func newRemoteStore(targetStore targetFileProvider) remoteStore {
 	return remoteStore{
 		metas: map[role]map[uint64][]byte{
 			roleRoot:      make(map[uint64][]byte),
@@ -110,21 +117,24 @@ func (sd *remoteStoreDirector) update(update *pbgo.LatestConfigsResponse) {
 	if update.DirectorMetas == nil {
 		return
 	}
-	metas := update.DirectorMetas
+	sd.updateDirectorMetas(update.DirectorMetas)
+}
+
+func (s *remoteStore) updateDirectorMetas(metas *pbgo.DirectorMetas) {
 	for _, root := range metas.Roots {
-		sd.metas[roleRoot][root.Version] = root.Raw
+		s.metas[roleRoot][root.Version] = root.Raw
 	}
 	if metas.Timestamp != nil {
-		sd.resetRole(roleTimestamp)
-		sd.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
+		s.resetRole(roleTimestamp)
+		s.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
 	}
 	if metas.Snapshot != nil {
-		sd.resetRole(roleSnapshot)
-		sd.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
+		s.resetRole(roleSnapshot)
+		s.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
 	}
 	if metas.Targets != nil {
-		sd.resetRole(roleTargets)
-		sd.metas[roleTargets][metas.Targets.Version] = metas.Targets.Raw
+		s.resetRole(roleTargets)
+		s.metas[roleTargets][metas.Targets.Version] = metas.Targets.Raw
 	}
 }
 
@@ -145,25 +155,28 @@ func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
 	if update.ConfigMetas == nil {
 		return
 	}
-	metas := update.ConfigMetas
+	sc.updateConfigMetas(update.ConfigMetas)
+}
+
+func (s *remoteStore) updateConfigMetas(metas *pbgo.ConfigMetas) {
 	for _, root := range metas.Roots {
-		sc.metas[roleRoot][root.Version] = root.Raw
+		s.metas[roleRoot][root.Version] = root.Raw
 	}
 	for _, delegatedMeta := range metas.DelegatedTargets {
 		role := role(delegatedMeta.Role)
-		sc.resetRole(role)
-		sc.metas[role][delegatedMeta.Version] = delegatedMeta.Raw
+		s.resetRole(role)
+		s.metas[role][delegatedMeta.Version] = delegatedMeta.Raw
 	}
 	if metas.Timestamp != nil {
-		sc.resetRole(roleTimestamp)
-		sc.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
+		s.resetRole(roleTimestamp)
+		s.metas[roleTimestamp][metas.Timestamp.Version] = metas.Timestamp.Raw
 	}
 	if metas.Snapshot != nil {
-		sc.resetRole(roleSnapshot)
-		sc.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
+		s.resetRole(roleSnapshot)
+		s.metas[roleSnapshot][metas.Snapshot.Version] = metas.Snapshot.Raw
 	}
 	if metas.TopTargets != nil {
-		sc.resetRole(roleTargets)
-		sc.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
+		s.resetRole(roleTargets)
+		s.metas[roleTargets][metas.TopTargets.Version] = metas.TopTargets.Raw
 	}
 }

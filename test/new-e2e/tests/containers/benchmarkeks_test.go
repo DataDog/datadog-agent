@@ -41,11 +41,14 @@ import (
 )
 
 const (
+	// benchmarkPhasesEnvVar overrides the number of measurement phases, even and at least 2:
+	// the installations swap their images between consecutive phases.
+	benchmarkPhasesEnvVar = "E2E_BENCHMARKEKS_PHASES"
 	// benchmarkWarmupEnvVar overrides, as a Go duration, how long the Agents run before
 	// each measurement phase starts.
 	benchmarkWarmupEnvVar = "E2E_BENCHMARKEKS_WARMUP"
-	// benchmarkDurationEnvVar overrides, as a Go duration, how long each of the two
-	// measurement phases lasts.
+	// benchmarkDurationEnvVar overrides, as a Go duration, how long each measurement phase
+	// lasts.
 	benchmarkDurationEnvVar = "E2E_BENCHMARKEKS_DURATION"
 	// benchmarkReportDirEnvVar is the directory the reports are written to, the session
 	// output directory of the suite by default.
@@ -58,10 +61,12 @@ const (
 	benchmarkBaselineClusterAgentImageEnvVar = "E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE"
 	benchmarkBaselineCommitEnvVar            = "E2E_BENCHMARKEKS_BASELINE_SHA"
 
-	// With the defaults, the test lasts about 75 minutes once the Agents are ready: two
-	// phases of warm-up and measurement, and the swap of the images in between.
+	// With the defaults, the test lasts about 110 minutes once the Agents are ready: four
+	// phases of warm-up and measurement, and the swaps of the images in between. Why four:
+	// see doc/how-to/test/e2e/benchmarkeks/how-it-works.md.
+	defaultBenchmarkPhases   = 4
 	defaultBenchmarkWarmup   = 10 * time.Minute
-	defaultBenchmarkDuration = 20 * time.Minute
+	defaultBenchmarkDuration = 15 * time.Minute
 	// benchmarkBlock is the duration of the blocks whose means the significance test
 	// compares. It is shortened for a measurement too short to hold benchmark.MinBlocks. The
 	// run times of the checks are read at the end of each block, so a block must hold at
@@ -205,9 +210,10 @@ func stableChecks() []stableCheck {
 // -c ddagent:baselineFullImagePath=<image> -c ddagent:baselineClusterAgentFullImagePath=<image>.
 //
 // Each of the two installations, of variants a and b, runs on node pools of its own, whose
-// machines can differ by up to 20% in CPU time for the same work. So the installations swap
-// their images half way through the measurement: each version runs on the node pools of both
-// variants, which cancels this bias out (see benchmark.Compare).
+// machines can differ by up to 20% in CPU time for the same work. So the measurement runs in
+// an even number of phases, between which the installations swap their images: each version
+// runs half of the phases on the node pools of each variant, which cancels this bias out (see
+// benchmark.Compare).
 type benchmarkEKSSuite struct {
 	baseSuite[environments.BenchmarkEKS]
 
@@ -232,9 +238,9 @@ func TestBenchmarkEKSSuite(t *testing.T) {
 	)))
 }
 
-// benchmarkVariant is one of the two Agent installations of the benchmark. Until the swap,
+// benchmarkVariant is one of the two Agent installations of the benchmark. In the first phase,
 // the installation of variant a runs the baseline images, and that of variant b the
-// comparison images.
+// comparison images; they swap them between consecutive phases (see benchmark.SwapInPhase).
 type benchmarkVariant struct {
 	name  string
 	agent *components.KubernetesAgent
@@ -400,35 +406,39 @@ func (s *benchmarkEKSSuite) dataInDDDev(variant benchmarkVariant) bool {
 	}, benchmarkIngestionTimeout, 30*time.Second, "the data of installation %s doesn't reach dddev", variant.name)
 }
 
-// measurementIngested waits for dddev to hold the last bucket of window of the timeseries of
-// every container whose average the performance test compares, ingested with a delay, and
-// reports whether it does.
-func (s *benchmarkEKSSuite) measurementIngested(window benchmark.Window) bool {
+// measurementIngested waits for dddev to hold the last bucket of each of windows of the
+// timeseries of every container whose average the performance test compares, ingested with a
+// delay, and reports whether it does.
+func (s *benchmarkEKSSuite) measurementIngested(windows []benchmark.Window) bool {
 	ctx := s.T().Context()
-	lastBucket := window.To.Add(-benchmarkRollup)
 	return s.EventuallyWithTf(func(c *assert.CollectT) {
-		for _, variant := range s.variants() {
-			for _, component := range benchmarkComponents {
-				for _, metric := range benchmarkMetrics {
-					query := s.benchmarkQueryBy(metric.name, variant.name, component.scope, "container_id")
-					series, err := s.dddev.querySeries(ctx, query, window.From, window.To)
-					require.NoError(c, err)
-					require.NotEmptyf(c, series, "no data for %s", query)
-					for _, points := range series {
-						require.NotEmptyf(c, points, "no data for %s", query)
-						require.Falsef(c, points[len(points)-1].Timestamp.Before(lastBucket), "no data for a container of %s from %s", query, lastBucket.UTC().Format(time.RFC3339))
+		// The last window first: until it is ingested, a failing query ends the attempt before
+		// querying the earlier ones, ingested long ago.
+		for _, window := range slices.Backward(windows) {
+			lastBucket := window.To.Add(-benchmarkRollup)
+			for _, variant := range s.variants() {
+				for _, component := range benchmarkComponents {
+					for _, metric := range benchmarkMetrics {
+						query := s.benchmarkQueryBy(metric.name, variant.name, component.scope, "container_id")
+						series, err := s.dddev.querySeries(ctx, query, window.From, window.To)
+						require.NoError(c, err)
+						require.NotEmptyf(c, series, "no data for %s", query)
+						for _, points := range series {
+							require.NotEmptyf(c, points, "no data for %s", query)
+							require.Falsef(c, points[len(points)-1].Timestamp.Before(lastBucket), "no data for a container of %s from %s", query, lastBucket.UTC().Format(time.RFC3339))
+						}
 					}
 				}
 			}
 		}
-	}, benchmarkIngestionTimeout, 30*time.Second, "the last points of the measurement don't reach dddev")
+	}, benchmarkIngestionTimeout, 30*time.Second, "the last points of the measurement phases don't reach dddev")
 }
 
 // Test10Performance compares the CPU and memory usage of the components of the two
-// variants, and the run times of their checks, in two phases, the installations swapping
-// their images in between, writes the report, and fails on a regression. A test running
-// after it would get the original images back: BaseSuite.BeforeTest reprovisions the stack
-// with the original provisioner, without waiting for the Agents to be ready.
+// variants, and the run times of their checks, over an even number of phases, between which
+// the installations swap their images, writes the report, and fails on a regression. A test
+// running after it would get the original images back: BaseSuite.BeforeTest reprovisions the
+// stack with the original provisioner, without waiting for the Agents to be ready.
 func (s *benchmarkEKSSuite) Test10Performance() {
 	if s.failedTest != "" {
 		s.T().Skipf("%s failed: the performance of an Agent failing the functional tests is meaningless", s.failedTest)
@@ -442,6 +452,8 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	}
 	s.Require().True(s.checksMatchBaseline())
 
+	phases, err := phasesFromEnv(benchmarkPhasesEnvVar, defaultBenchmarkPhases)
+	s.Require().NoError(err)
 	warmup, err := durationFromEnv(benchmarkWarmupEnvVar, defaultBenchmarkWarmup)
 	s.Require().NoError(err)
 	duration, err := durationFromEnv(benchmarkDurationEnvVar, defaultBenchmarkDuration)
@@ -453,66 +465,50 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().GreaterOrEqualf(block, benchmarkRollup, "%s=%s is too short: each phase must hold %d blocks of at least %s", benchmarkDurationEnvVar, duration, benchmark.MinBlocks, benchmarkRollup)
 
 	ctx := s.T().Context()
+	// The images are those of the specs of the pods, so that the swaps also work when an
+	// installation runs the default images, e.g. those of the pipeline in CI.
 	baselineImages, err := s.installationImages(ctx, s.variantA())
 	s.Require().NoError(err)
 	comparisonImages, err := s.installationImages(ctx, s.variantB())
 	s.Require().NoError(err)
-
-	first := measurementWindow(s.readyAt, warmup, duration, block)
-	s.firstPhase = first
-	s.T().Logf("Phase 1: measuring the baseline images on installation a and the comparison images on installation b from %s to %s",
-		first.From.UTC().Format(time.RFC3339), first.To.UTC().Format(time.RFC3339))
-	var snapshots [2]map[string]installationSnapshots
-	var snapshotErrs [2]error
-	snapshots[0], snapshotErrs[0] = s.runSnapshots(ctx, first)
-	// A restart during the measurement skews it, and hints at a crash or an OOM kill.
-	s.Require().NoError(s.compareRestarts(ctx, s.readyRestarts), "an Agent restarted between the end of SetupSuite and the end of the first phase")
-	s.Require().NoError(s.waitForWorkload(time.Minute), "the workload stopped during the first phase")
-
-	report := benchmark.Report{ClusterName: s.clusterName}
-	report.Baseline, err = s.reportVersion(ctx, "baseline", s.variantA(), os.Getenv(benchmarkBaselineCommitEnvVar), first)
-	s.Require().NoError(err)
 	// The commit of the pipeline images, which the comparison runs by default, e.g. in CI.
 	comparisonCommit, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CommitSHA, "")
 	s.Require().NoError(err)
-	report.Comparison, err = s.reportVersion(ctx, "comparison", s.variantB(), comparisonCommit, first)
-	s.Require().NoError(err)
 
-	// The images are those of the specs of the pods, so that the swap also works when an
-	// installation runs the default images, e.g. those of the pipeline in CI.
-	s.T().Logf("Swapping the images: %+v on installation a, %+v on installation b", comparisonImages, baselineImages)
-	s.UpdateEnv(provbenchmarkeks.Provisioner(provbenchmarkeks.WithRunOptions(
-		scenbenchmarkeks.WithVariantA(comparisonImages),
-		scenbenchmarkeks.WithVariantB(baselineImages),
-	)))
-	s.Require().True(s.EventuallyWithTf(func(c *assert.CollectT) {
-		images, err := s.installationImages(ctx, s.variantA())
-		require.NoError(c, err)
-		require.Equal(c, comparisonImages, images, "images of installation a")
-		images, err = s.installationImages(ctx, s.variantB())
-		require.NoError(c, err)
-		require.Equal(c, baselineImages, images, "images of installation b")
-	}, benchmarkSwapTimeout, 10*time.Second, "the installations didn't swap their images"))
-	s.Require().NoError(s.waitForAgents(benchmarkReadinessTimeout), "the Agents didn't become ready after swapping their images")
-	swappedReadyAt := time.Now()
-	swappedRestarts, err := s.restarts(ctx)
-	s.Require().NoError(err)
-	s.T().Logf("All the Agents are ready with the swapped images at %s", swappedReadyAt.UTC().Format(time.RFC3339))
-	// An image working on a single node pool, or a single installation, must not slip through.
-	for _, variant := range s.variants() {
-		s.Require().Truef(s.checksRun(variant), "the checks of installation %s don't run as expected with the swapped images", variant.name)
+	report := benchmark.Report{ClusterName: s.clusterName, Phases: make([]benchmark.Window, phases)}
+	snapshots := make([]map[string]installationSnapshots, phases)
+	snapshotErrs := make([]error, phases)
+	readyAt, readyRestarts := s.readyAt, s.readyRestarts
+	for phase := range phases {
+		if phase > 0 {
+			imagesA, imagesB := benchmark.SwapInPhase(phase, baselineImages, comparisonImages)
+			readyAt, readyRestarts = s.swapImages(ctx, imagesA, imagesB)
+		}
+
+		window := measurementWindow(readyAt, warmup, duration, block)
+		report.Phases[phase] = window
+		baselineVariant, comparisonVariant := benchmark.SwapInPhase(phase, s.variantA(), s.variantB())
+		if phase == 0 {
+			s.firstPhase = window
+		}
+		s.T().Logf("Phase %d of %d: measuring the baseline images on installation %s and the comparison images on installation %s from %s to %s",
+			phase+1, phases, baselineVariant.name, comparisonVariant.name, window.From.UTC().Format(time.RFC3339), window.To.UTC().Format(time.RFC3339))
+		snapshots[phase], snapshotErrs[phase] = s.runSnapshots(ctx, window)
+		// A restart during the measurement skews it, and hints at a crash or an OOM kill.
+		s.Require().NoErrorf(s.compareRestarts(ctx, readyRestarts), "an Agent restarted during phase %d or the warm-up before it", phase+1)
+		s.Require().NoErrorf(s.waitForWorkload(time.Minute), "the workload stopped during phase %d", phase+1)
+		// After the measurement, not to delay its first snapshot when the window starts right away.
+		if phase == 0 {
+			report.Baseline, err = s.reportVersion(ctx, "baseline", baselineVariant, os.Getenv(benchmarkBaselineCommitEnvVar), window)
+			s.Require().NoError(err)
+			report.Comparison, err = s.reportVersion(ctx, "comparison", comparisonVariant, comparisonCommit, window)
+			s.Require().NoError(err)
+		}
 	}
+	s.Require().True(s.measurementIngested(report.Phases))
 
-	swapped := measurementWindow(swappedReadyAt, warmup, duration, block)
-	s.T().Logf("Phase 2: measuring the baseline images on installation b and the comparison images on installation a from %s to %s",
-		swapped.From.UTC().Format(time.RFC3339), swapped.To.UTC().Format(time.RFC3339))
-	snapshots[1], snapshotErrs[1] = s.runSnapshots(ctx, swapped)
-	s.Require().NoError(s.compareRestarts(ctx, swappedRestarts), "an Agent restarted during the swapped phase")
-	s.Require().NoError(s.waitForWorkload(time.Minute), "the workload stopped during the swapped phase")
-	s.Require().True(s.measurementIngested(swapped))
-
-	report.Phases = [2]benchmark.Window{first, swapped}
-	report.DashboardURL = s.dashboardURL(s.readyAt, swapped.To, first)
+	first, last := report.Phases[0], report.Phases[len(report.Phases)-1]
+	report.DashboardURL = s.dashboardURL(s.readyAt, last.To, first)
 	timedChecks := slices.DeleteFunc(stableChecks(), func(stable stableCheck) bool {
 		return slices.Contains(untimedChecks, stable.check)
 	})
@@ -530,7 +526,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 				Thresholds:  thresholds,
 				QueryA:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantA, component.scope),
 				QueryB:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantB, component.scope),
-				ExplorerURL: benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"kube_namespace"}, first.From, swapped.To),
+				ExplorerURL: benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"kube_namespace"}, first.From, last.To),
 			}
 			report.Results = append(report.Results, compareResult(result, report.Phases, func(_ int, window benchmark.Window) ([]benchmark.Point, []benchmark.Point, error) {
 				installationA, err := s.dddev.query(ctx, result.QueryA, window.From, window.To)
@@ -597,25 +593,50 @@ func measurementWindow(readyAt time.Time, warmup, duration, block time.Duration)
 	return benchmark.Window{From: from, To: from.Add(duration), Block: block}
 }
 
+// swapImages has installation a run imagesA and installation b imagesB, through a Helm
+// upgrade of both, then waits for all the Agents to be ready and verifies their checks again.
+// It returns the time the Agents were ready at, and the restart counts of the containers of
+// the measured pods then.
+func (s *benchmarkEKSSuite) swapImages(ctx context.Context, imagesA, imagesB scenbenchmarkeks.Images) (time.Time, map[string]int32) {
+	s.T().Logf("Swapping the images: %+v on installation a, %+v on installation b", imagesA, imagesB)
+	s.UpdateEnv(provbenchmarkeks.Provisioner(provbenchmarkeks.WithRunOptions(
+		scenbenchmarkeks.WithVariantA(imagesA),
+		scenbenchmarkeks.WithVariantB(imagesB),
+	)))
+	s.Require().True(s.EventuallyWithTf(func(c *assert.CollectT) {
+		images, err := s.installationImages(ctx, s.variantA())
+		require.NoError(c, err)
+		require.Equal(c, imagesA, images, "images of installation a")
+		images, err = s.installationImages(ctx, s.variantB())
+		require.NoError(c, err)
+		require.Equal(c, imagesB, images, "images of installation b")
+	}, benchmarkSwapTimeout, 10*time.Second, "the installations didn't swap their images"))
+	s.Require().NoError(s.waitForAgents(benchmarkReadinessTimeout), "the Agents didn't become ready after swapping their images")
+	readyAt := time.Now()
+	restarts, err := s.restarts(ctx)
+	s.Require().NoError(err)
+	s.T().Logf("All the Agents are ready after the swap at %s", readyAt.UTC().Format(time.RFC3339))
+	// An image working on a single node pool, or a single installation, must not slip through.
+	for _, variant := range s.variants() {
+		s.Require().Truef(s.checksRun(variant), "the checks of installation %s don't run as expected after the swap to %+v on installation a and %+v on installation b", variant.name, imagesA, imagesB)
+	}
+	return readyAt, restarts
+}
+
 // compareResult returns result compared over the phases of windows, from the points of the
 // installations of variants a and b points returns for each phase.
-func compareResult(result benchmark.Result, windows [2]benchmark.Window, points func(phase int, window benchmark.Window) (installationA, installationB []benchmark.Point, err error)) benchmark.Result {
-	var phases [2]benchmark.Phase
+func compareResult(result benchmark.Result, windows []benchmark.Window, points func(phase int, window benchmark.Window) (installationA, installationB []benchmark.Point, err error)) benchmark.Result {
+	phases := make([]benchmark.Phase, len(windows))
 	for i, window := range windows {
 		installationA, installationB, err := points(i, window)
 		if err != nil {
 			result.Fail(fmt.Errorf("phase %d: %w", i+1, err))
 			return result
 		}
-		// Installation a runs the baseline images in the first phase, and the comparison
-		// images in the swapped one.
-		baseline, comparison := installationA, installationB
-		if i == 1 {
-			baseline, comparison = comparison, baseline
-		}
+		baseline, comparison := benchmark.SwapInPhase(i, installationA, installationB)
 		phases[i] = benchmark.Phase{Window: window, Baseline: baseline, Comparison: comparison}
 	}
-	result.Compare(phases[0], phases[1])
+	result.Compare(phases)
 	return result
 }
 
@@ -719,7 +740,7 @@ func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benc
 	}
 
 	// The cluster checks runner runs the image of the node Agent (see the Helm values of
-	// components/datadog/agent/kubernetes_helm.go): the swap can't set it apart.
+	// components/datadog/agent/kubernetes_helm.go): the swaps can't set it apart.
 	if images[clusterChecksComponent] != images[nodeAgentComponent] {
 		return scenbenchmarkeks.Images{}, fmt.Errorf("the cluster checks runner of installation %s runs %s, but its node Agent %s", variant.name, images[clusterChecksComponent], images[nodeAgentComponent])
 	}
@@ -969,6 +990,20 @@ func (s *benchmarkEKSSuite) sleepUntil(deadline time.Time) {
 	}
 	s.T().Logf("Waiting %s, until %s", wait.Round(time.Second), deadline.UTC().Format(time.RFC3339))
 	time.Sleep(wait)
+}
+
+// phasesFromEnv returns the number of measurement phases the environment variable name is
+// set to, or def.
+func phasesFromEnv(name string, def int) (int, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return def, nil
+	}
+	phases, err := benchmark.ParsePhaseCount(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	return phases, nil
 }
 
 // durationFromEnv returns the duration the environment variable name is set to, or def.
