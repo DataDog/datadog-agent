@@ -1,0 +1,57 @@
+diff --git a/go/config/BUILD.bazel b/go/config/BUILD.bazel
+index 72c73ee..7625213 100644
+--- a/go/config/BUILD.bazel
++++ b/go/config/BUILD.bazel
+@@ -64,6 +64,14 @@ string_list_flag(
+     visibility = ["//visibility:public"],
+ )
+ 
++# Extra C and C++ compiler options for cgo code only, unlike --copt.
++# They come before --copt, --conlyopt and --cxxopt, which can override them.
++string_list_flag(
++    name = "cgo_copts",
++    build_setting_default = [],
++    visibility = ["//visibility:public"],
++)
++
+ string_flag(
+     name = "cover_format",
+     build_setting_default = "lcov",
+diff --git a/go/private/context.bzl b/go/private/context.bzl
+index 3fb201b..8a5174c 100644
+--- a/go/private/context.bzl
++++ b/go/private/context.bzl
+@@ -86,6 +86,7 @@ CGO_ATTRS = {
+     "_xcode_config": attr.label(default = configuration_field(fragment = "apple", name = "xcode_config_label")),
+     "_pure_flag": attr.label(default = "//go/config:pure"),
+     "_pure_constraint": attr.label(default = "//go/toolchain:cgo_off"),
++    "_cgo_copts": attr.label(default = "//go/config:cgo_copts"),
+ }
+ CGO_TOOLCHAINS = [
+     # In pure mode, a C++ toolchain isn't needed when transitioning.
+@@ -865,6 +866,7 @@ def cgo_context_data_impl(ctx):
+ 
+     # TODO(jayconrod): keep the environment separate for different actions.
+     env = {}
++    cgo_copts = ctx.attr._cgo_copts[BuildSettingInfo].value
+ 
+     c_compile_variables = cc_common.create_compile_variables(
+         feature_configuration = feature_configuration,
+@@ -879,7 +881,7 @@ def cgo_context_data_impl(ctx):
+             feature_configuration = feature_configuration,
+             action_name = C_COMPILE_ACTION_NAME,
+             variables = c_compile_variables,
+-        ) + ctx.fragments.cpp.copts + ctx.fragments.cpp.conlyopts,
++        ) + cgo_copts + ctx.fragments.cpp.copts + ctx.fragments.cpp.conlyopts,
+         _COMPILER_OPTIONS_DENYLIST,
+     )
+     env.update(cc_common.get_environment_variables(
+@@ -897,7 +899,7 @@ def cgo_context_data_impl(ctx):
+             feature_configuration = feature_configuration,
+             action_name = CPP_COMPILE_ACTION_NAME,
+             variables = cxx_compile_variables,
+-        ) + ctx.fragments.cpp.copts + ctx.fragments.cpp.cxxopts,
++        ) + cgo_copts + ctx.fragments.cpp.copts + ctx.fragments.cpp.cxxopts,
+         _COMPILER_OPTIONS_DENYLIST,
+     )
+     env.update(cc_common.get_environment_variables(
