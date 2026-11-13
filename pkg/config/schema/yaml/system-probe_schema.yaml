@@ -744,7 +744,9 @@ properties:
           Short-lived closed connections that differ only by their ephemeral
           (client-side) port are reported as a single rolled-up connection,
           reducing cardinality. Active and longer-lived connections are not
-          rolled up. Requires process event monitoring
+          rolled up. Requires both
+          service_monitoring_config.enable_connection_rollup (disabled by
+          default) and process event monitoring
           (event_monitoring_config.network_process.enabled); the rollup is
           disabled with a warning otherwise.
       enable_dns_by_querytype:
