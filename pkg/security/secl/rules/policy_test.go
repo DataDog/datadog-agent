@@ -4138,6 +4138,33 @@ func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
 													Append: true,
 												},
 											},
+											{
+												Set: &SetDefinition{
+													Name:         "override_only_var",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      true,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:         "override_only_var",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:         "override_only_var",
+													Field:        "process.parent.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
 										},
 									},
 									{
@@ -4146,7 +4173,9 @@ func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
 											`"/usr/bin/child" in ${imds_v1_usage_services} && ` +
 											`"/usr/bin/parent" in ${imds_v1_usage_services} && ` +
 											`"/usr/bin/child" in ${process.scoped_var} && ` +
-											`"/usr/bin/parent" in ${process.scoped_var}`,
+											`"/usr/bin/parent" in ${process.scoped_var} && ` +
+											`"/usr/bin/child" in ${override_only_var} && ` +
+											`"/usr/bin/parent" in ${override_only_var}`,
 									},
 								},
 							},
@@ -4163,8 +4192,8 @@ func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
 
 	rule := rs.GetRuleByID("imds_v1_usage")
 	require.NotNil(t, rule)
-	require.Len(t, rule.Def.Actions, 5)
-	require.Len(t, rule.Actions, 5)
+	require.Len(t, rule.Def.Actions, 7)
+	require.Len(t, rule.Actions, 7)
 	assert.Equal(t, "process.file.path", rule.Def.Actions[0].Set.Field)
 	assert.True(t, rule.Def.Actions[0].Set.Private)
 	assert.Equal(t, "process.file.path", rule.Def.Actions[1].Set.Field)
@@ -4175,6 +4204,12 @@ func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
 	assert.True(t, rule.Def.Actions[3].Set.Private)
 	assert.Equal(t, Scope("container"), rule.Def.Actions[4].Set.Scope)
 	assert.False(t, rule.Def.Actions[4].Set.Private)
+	assert.Equal(t, "override_only_var", rule.Def.Actions[5].Set.Name)
+	assert.Equal(t, "process.file.path", rule.Def.Actions[5].Set.Field)
+	assert.True(t, rule.Def.Actions[5].Set.Private)
+	assert.Equal(t, "override_only_var", rule.Def.Actions[6].Set.Name)
+	assert.Equal(t, "process.parent.file.path", rule.Def.Actions[6].Set.Field)
+	assert.True(t, rule.Def.Actions[6].Set.Private)
 
 	globalVar := rs.GetVariableStore().Get("imds_v1_usage_services")
 	require.NotNil(t, globalVar)
@@ -4187,6 +4222,10 @@ func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
 	containerVar := rs.GetVariableStore().Get("container.scoped_var")
 	require.NotNil(t, containerVar)
 	assert.False(t, containerVar.GetVariableOpts().Private)
+
+	overrideOnlyVar := rs.GetVariableStore().Get("override_only_var")
+	require.NotNil(t, overrideOnlyVar)
+	assert.True(t, overrideOnlyVar.GetVariableOpts().Private)
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
