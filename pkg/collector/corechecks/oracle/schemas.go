@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	go_version "github.com/hashicorp/go-version"
 	"github.com/jmoiron/sqlx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -881,7 +882,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			if d.Immutable != nil {
 				t.Properties = append(t.Properties, "immutable")
 			}
-			if d.PropertiesIncomplete {
+			if d.PropertiesIncomplete && len(t.Properties) == 0 {
 				t.Properties = nil
 			}
 		}
@@ -1457,13 +1458,10 @@ func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []s
 	for _, query := range queries {
 		args, err := c.schemaQueryArguments(query)
 		if err != nil {
+			log.Warnf("%s failed to prepare table detail %q: %s", c.logPrompt, name, err)
 			return err
 		}
 		if err := c.queryMetadata(ctx, query.text, scan, args...); err != nil {
-			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
-				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
-				return err
-			}
 			log.Warnf("%s failed to collect table detail %q: %s", c.logPrompt, name, err)
 			return err
 		}
@@ -2196,20 +2194,6 @@ func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
 	return keys
 }
 
-func schemaCollectionVersionSupported(version string) bool {
-	major, rest, _ := strings.Cut(version, ".")
-	n, err := strconv.Atoi(major)
-	if err != nil || n < 12 {
-		return false
-	}
-	if n > 12 {
-		return true
-	}
-	minor, _, _ := strings.Cut(rest, ".")
-	n, err = strconv.Atoi(minor)
-	return err == nil && n >= 2
-}
-
 func (c *Check) SchemaCollection() error {
 	return c.schemaCollection(context.Background())
 }
@@ -2261,7 +2245,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !schemaCollectionVersionSupported(c.dbVersion) {
+	if _, err := go_version.NewVersion(c.dbVersion); err != nil || isDbVersionLessThan(c, "12.2") {
 		log.Warnf("%s schema collection requires Oracle 12.2 or later", c.logPrompt)
 		return nil
 	}

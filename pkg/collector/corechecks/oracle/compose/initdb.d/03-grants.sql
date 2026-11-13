@@ -58,7 +58,6 @@ grant select on cdb_constraints to c##datadog container=all;
 grant select on cdb_cons_columns to c##datadog container=all;
 grant select on cdb_part_tables to c##datadog container=all;
 grant select on cdb_part_key_columns to c##datadog container=all;
-grant select on cdb_tab_modifications to c##datadog container=all;
 grant select on cdb_external_tables to c##datadog container=all;
 grant select on cdb_external_locations to c##datadog container=all;
 grant select on cdb_mviews to c##datadog container=all;

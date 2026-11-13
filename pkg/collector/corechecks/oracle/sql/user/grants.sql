@@ -59,7 +59,6 @@ declare
     'cdb_cons_columns',
     'cdb_part_tables',
     'cdb_part_key_columns',
-    'cdb_tab_modifications',
     'cdb_external_tables',
     'cdb_external_locations',
     'cdb_mviews',

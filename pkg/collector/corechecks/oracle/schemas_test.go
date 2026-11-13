@@ -602,20 +602,36 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 }
 
 func TestSchemaCollectionRequiresSupportedVersion(t *testing.T) {
-	for _, version := range []string{"11.2.0.4.0", "12.0.0.0.0", "12.1.0.2.0", "12", "12.unknown", "", "unknown"} {
-		t.Run(version, func(t *testing.T) {
-			assert.False(t, schemaCollectionVersionSupported(version))
+	for _, tc := range []struct {
+		version   string
+		supported bool
+	}{
+		{version: "11.2.0.4.0"},
+		{version: "12.0.0.0.0"},
+		{version: "12.1.0.2.0"},
+		{version: "12"},
+		{version: "12.unknown"},
+		{version: ""},
+		{version: "unknown"},
+		{version: "23.unknown"},
+		{version: "12.2.0.1.0", supported: true},
+		{version: "23.26.2.0.0", supported: true},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
 			c, _, dbMock, closeDB := newSchemaCheck(t)
 			defer closeDB()
-			c.dbVersion = version
+			c.dbVersion = tc.version
 
-			require.NoError(t, c.SchemaCollection())
+			queryErr := errors.New("container lookup failed")
+			if tc.supported {
+				dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnError(queryErr)
+				require.ErrorIs(t, c.SchemaCollection(), queryErr)
+			} else {
+				require.NoError(t, c.SchemaCollection())
+			}
 			assert.NoError(t, dbMock.ExpectationsWereMet())
 		})
 	}
-
-	assert.True(t, schemaCollectionVersionSupported("12.2.0.1.0"))
-	assert.True(t, schemaCollectionVersionSupported("23.26.2.0.0"))
 }
 
 func TestQueryMetadataReturnsIterationError(t *testing.T) {
@@ -1197,6 +1213,11 @@ func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 }
 
 func TestTableDetailsCollectionPresence(t *testing.T) {
+	var logs bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logs, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "debug") })
 	for _, tc := range []struct {
 		name            string
 		constraints     []string
@@ -1247,15 +1268,30 @@ func TestTableDetailsCollectionPresence(t *testing.T) {
 			blockchainErr:   errors.New("ORA-00942: table or view does not exist"),
 			readOnly:        true,
 			wantConstraints: `[]`,
+			wantProperties:  `["read_only"]`,
+		},
+		{
+			name:            "blockchain unavailable without known properties",
+			blockchainErr:   errors.New("ORA-00942: table or view does not exist"),
+			wantConstraints: `[]`,
+		},
+		{
+			name:            "blockchain column unavailable",
+			blockchainErr:   errors.New("ORA-00904: invalid identifier"),
+			readOnly:        true,
+			wantConstraints: `[]`,
+			wantProperties:  `["read_only"]`,
 		},
 		{
 			name:            "immutable query failed",
 			immutableErr:    errors.New("ORA-01031: insufficient privileges"),
 			readOnly:        true,
 			wantConstraints: `[]`,
+			wantProperties:  `["read_only"]`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			logs.Reset()
 			c, _, dbMock, closeDB := newSchemaCheck(t)
 			defer closeDB()
 			dbMock.MatchExpectationsInOrder(false)
@@ -1299,6 +1335,13 @@ func TestTableDetailsCollectionPresence(t *testing.T) {
 			allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
 			details := c.tableDetails(context.Background(), allowed, nil)
 			require.NoError(t, dbMock.ExpectationsWereMet())
+			log.Flush()
+			for name, queryErr := range map[string]error{"blockchain": tc.blockchainErr, "immutable": tc.immutableErr} {
+				if queryErr != nil {
+					assert.Contains(t, logs.String(), fmt.Sprintf("failed to collect table detail %q: %s", name, queryErr))
+					assert.Equal(t, 1, strings.Count(logs.String(), queryErr.Error()))
+				}
+			}
 			var payload []byte
 			collector := newSchemaCollector(t, &c, func(value []byte) { payload = value }, details,
 				map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
@@ -1600,11 +1643,7 @@ func TestTableRetentionQueriesAreVersionGated(t *testing.T) {
 				collector.finish()
 				orders := findTable([]schemaEvent{event}, "APP", "ORDERS")
 				require.NotNil(t, orders)
-				if incomplete {
-					require.Nil(t, orders.Properties)
-				} else {
-					require.Equal(t, []string{"temporary", "partitioned", "attribute_clustered", "read_only"}, orders.Properties)
-				}
+				require.Equal(t, []string{"temporary", "partitioned", "attribute_clustered", "read_only"}, orders.Properties)
 			})
 		}
 	}
