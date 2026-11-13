@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    On Linux hosts using systemd with the privileged rshell helper enabled,
+    the ``datadog-agent-rshell-privileged.socket`` unit no longer creates an
+    ordering cycle with ``sockets.target``. The cycle could make systemd drop the
+    start job of ``datadog-agent.service`` or ``datadog-agent-action.service`` at
+    boot. The socket unit, and its Fleet experiment counterpart, now set
+    ``DefaultDependencies=no`` and keep the remaining default dependencies
+    explicitly.
