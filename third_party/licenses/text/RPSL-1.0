@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head profile="http://www.w3.org/1999/xhtml/vocab">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="Generator" content="Drupal 7 (http://drupal.org)" />
+<link rel="canonical" href="/licenses/RPSL-1.0" />
+<link rel="shortlink" href="/node/82" />
+<meta name="MobileOptimized" content="width" />
+<meta name="HandheldFriendly" content="true" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="shortcut icon" href="https://opensource.org/files/osi_favicon.png" type="image/png" />
+  <title>RealNetworks Public Source License Version 1.0 (RPSL-1.0) | Open Source Initiative</title>
+  <link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_xE-rWrJf-fncB6ztZfd2huxqgxu4WO-qwma6Xer30m4.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_gh8wMJiOGewsPCJRDYXmqv3eEGGGSn0O_fqsi_9a-LY.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_qMtvtYjDyL3jyvKhdeFzZVkBLhrAzESpT6WEC6RDrBo.css" media="all" />
+<link type="text/css" rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_KGZcOm3i1wmtbgZsjo-3V9FM4wZ-5UDcpJ7Vfzmt45E.css" media="all" />
+<link type="text/css" rel="stylesheet" href="https://opensource.org/files/css/css_ulIzRpfhtuifCQvQJ8NpvGx_J9mvqUlZZLik4d4ZG-s.css" media="all" />
+
+<!--[if (lt IE 9)]>
+<link type="text/css" rel="stylesheet" href="https://opensource.org/sites/all/themes/bootstrap-business/css/ie8.css?r42bxq" media="all" />
+<![endif]-->
+
+    
+  <!-- HTML5 element support for IE6-8 -->
+  <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.10.2.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+window.jQuery || document.write("<script src='/sites/all/modules/jquery_update/replace/jquery/1.10/jquery.min.js'>\x3C/script>")
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_Hfha9RCTNm8mqMDLXriIsKGMaghzs4ZaqJPLj2esi7s.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+
+      (function ($, D) {
+        D.behaviors.webform_civicrm_1125_3 = {
+          attach: function (context) {
+            var toHide = [];
+            var field = $('.webform-client-form-1125 :input.civicrm-enabled[name$="civicrm_1_contact_1_contact_existing]"]', context);
+            field.change(function() {
+                  wfCivi.existingSelect(1, 1125, "/webform-civicrm/js/1125-3", toHide, 'hide', 0, $(this).val(), true, {"disclaimer":"Sign up with your email to receive OSI's newsletter \u2014 your resource for industry news, upcoming events, insights from open source thought leaders and more.","civicrm-1-contact-1-email-email":"[current-user:mail]","civicrm-1-contact-1-contact-first-name":"[current-user:civicrm-contact:contact-id-contact:first-name]","civicrm-1-contact-1-contact-last-name":"[current-user:civicrm-contact:contact-id-contact:last-name]"});
+                });
+          }
+        };
+      })(jQuery, Drupal);
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_DUNTYodva32GqgFb5T11Sne7vNBydw_Kz6E6zejEPcs.js"></script>
+<script type="text/javascript" src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery(document).ready(function($) { 
+		$(window).scroll(function() {
+			if($(this).scrollTop() != 0) {
+				$("#toTop").fadeIn();	
+			} else {
+				$("#toTop").fadeOut();
+			}
+		});
+		
+		$("#toTop").click(function() {
+			$("body,html").animate({scrollTop:0},800);
+		});	
+		
+		});
+//--><!]]>
+</script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_ruOYJN6FkJU2O5L1dAKVnDloSn5R6LjnLW88zFxS1Uw.js"></script>
+<script type="text/javascript" src="https://opensource.org/files/js/js_JQHTvV_SkyFlN3f2BnQwnusF-eI6tkX8wrKAk2siiZU.js"></script>
+<script type="text/javascript">
+<!--//--><![CDATA[//><!--
+jQuery.extend(Drupal.settings, {"basePath":"\/","pathPrefix":"","setHasJsCookie":0,"ajaxPageState":{"theme":"bootstrap_business","theme_token":"vR1wKCE-MXGD487v-7zNQw27CJ926Gwa2zNg7U620Xg","js":{"sites\/all\/modules\/webform_civicrm\/js\/webform_civicrm_forms.js":1,"\/\/code.jquery.com\/jquery-1.10.2.min.js":1,"0":1,"misc\/jquery-extend-3.4.0.js":1,"misc\/jquery-html-prefilter-3.5.0-backport.js":1,"misc\/jquery.once.js":1,"misc\/drupal.js":1,"1":1,"sites\/all\/modules\/antibot\/js\/antibot.js":1,"sites\/all\/modules\/webform\/js\/webform.js":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/js\/bootstrap.min.js":1,"2":1,"sites\/all\/libraries\/superfish\/jquery.hoverIntent.minified.js":1,"sites\/all\/libraries\/superfish\/sftouchscreen.js":1,"sites\/all\/libraries\/superfish\/sfsmallscreen.js":1,"sites\/all\/libraries\/superfish\/supposition.js":1,"sites\/all\/libraries\/superfish\/superfish.js":1,"sites\/all\/libraries\/superfish\/supersubs.js":1,"sites\/all\/modules\/superfish\/superfish.js":1,"sites\/all\/themes\/bootstrap-business\/js\/jquery.browser.min.js":1},"css":{"modules\/system\/system.base.css":1,"modules\/system\/system.menus.css":1,"modules\/system\/system.messages.css":1,"modules\/system\/system.theme.css":1,"modules\/aggregator\/aggregator.css":1,"modules\/comment\/comment.css":1,"modules\/field\/theme\/field.css":1,"modules\/node\/node.css":1,"modules\/search\/search.css":1,"modules\/user\/user.css":1,"sites\/all\/modules\/views\/css\/views.css":1,"sites\/all\/modules\/ckeditor\/css\/ckeditor.css":1,"sites\/all\/modules\/ctools\/css\/ctools.css":1,"sites\/all\/modules\/civicrm\/css\/crm-i.css":1,"sites\/all\/modules\/civicrm\/css\/civicrm.css":1,"sites\/all\/civicustom\/extras.css":1,"public:\/\/honeypot\/honeypot.css":1,"sites\/all\/modules\/webform\/css\/webform.css":1,"sites\/all\/modules\/webform_civicrm\/css\/webform_civicrm_forms.css":1,"\/\/maxcdn.bootstrapcdn.com\/bootstrap\/3.2.0\/css\/bootstrap.min.css":1,"sites\/all\/libraries\/superfish\/css\/superfish.css":1,"sites\/all\/themes\/bootstrap-business\/css\/style.css":1,"sites\/all\/themes\/bootstrap-business\/color\/colors.css":1,"sites\/all\/themes\/bootstrap-business\/css\/local.css":1,"sites\/all\/themes\/bootstrap-business\/css\/ie8.css":1}},"urlIsAjaxTrusted":{"\/licenses\/RPSL-1.0":true},"superfish":{"1":{"id":"1","sf":{"animation":{"opacity":"show","height":"show"},"speed":"\u0027fast\u0027","autoArrows":false,"dropShadows":true,"disableHI":false},"plugins":{"touchscreen":{"mode":"window_width"},"smallscreen":{"mode":"window_width","addSelected":false,"menuClasses":false,"hyperlinkClasses":false,"title":"Navigation"},"supposition":true,"bgiframe":false,"supersubs":{"minWidth":"12","maxWidth":"27","extraWidth":1}}}},"antibot":{"forms":{"webform-client-form-1125":{"action":"\/licenses\/RPSL-1.0","key":"899fb40be12e159cb2de5f89a4e3e2c1"}}}});
+//--><!]]>
+</script>
+</head>
+<body class="html not-front not-logged-in one-sidebar sidebar-second page-node page-node- page-node-82 node-type-page" >
+  <div id="skip-link">
+    <a href="#main-content" class="element-invisible element-focusable">Skip to main content</a>
+  </div>
+    <div id="toTop"><span class="glyphicon glyphicon-chevron-up"></span></div>
+
+
+
+<!-- #header-top -->
+<div id="header-top" class="clearfix">
+    <div class="container">
+
+        <!-- #header-top-inside -->
+        <div id="header-top-inside" class="clearfix">
+            <div class="row">
+            
+                        <div class="col-md-8">
+                <!-- #header-top-left -->
+                <div id="header-top-left" class="clearfix">
+                      <div class="region region-header-top-left">
+    <div id="block-menu-secondary-menu" class="block block-menu clearfix">
+
+    
+  <div class="content">
+    <ul class="menu"><li class="first leaf"><a href="/" title="">Home</a></li>
+<li class="leaf"><a href="/contact" title="">Contact</a></li>
+<li class="leaf"><a href="/civicrm/contribute/transact?reset=1&amp;id=2" title="">Donate</a></li>
+<li class="last leaf"><a href="/user/login" title="">Login</a></li>
+</ul>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-left -->
+            </div>
+                        
+                        <div class="col-md-4">
+                <!-- #header-top-right -->
+                <div id="header-top-right" class="clearfix">
+                      <div class="region region-header-top-right">
+    <div id="block-search-form" class="block block-search clearfix">
+
+    
+  <div class="content">
+    <form action="/licenses/RPSL-1.0" method="post" id="search-block-form" accept-charset="UTF-8"><div><div class="container-inline">
+      <h2 class="element-invisible">Search form</h2>
+    <div class="form-item form-type-textfield form-item-search-block-form">
+ <input onblur="if (this.value == &#039;&#039;) {this.value = &#039;Search this website...&#039;;}" onfocus="if (this.value == &#039;Search this website...&#039;) {this.value = &#039;&#039;;}" type="text" id="edit-search-block-form--2" name="search_block_form" value="Search this website..." size="15" maxlength="128" class="form-text" />
+</div>
+<div class="form-actions form-wrapper" id="edit-actions"><input value="" type="submit" id="edit-submit" name="op" class="form-submit" /></div><input type="hidden" name="form_build_id" value="form--u0mot6m4ddX6_fIUYlrem9F89pG2BZ3MQ4hTMdpUWo" />
+<input type="hidden" name="form_id" value="search_block_form" />
+</div>
+</div></form>  </div>
+</div>
+  </div>
+                </div>
+                <!-- EOF:#header-top-right -->
+            </div>
+                        
+            </div>
+        </div>
+        <!-- EOF: #header-top-inside -->
+
+    </div>
+</div>
+<!-- EOF: #header-top -->    
+
+<!-- header -->
+<header id="header" role="banner" class="clearfix">
+    <div class="container">
+
+        <!-- #header-inside -->
+        <div id="header-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-8">
+
+                                <div id="logo">
+                <a href="/" title="Home" rel="home"> <img src="https://opensource.org/files/osi_keyhole_300X300_90ppi_0.png" alt="Home" /> </a>
+                </div>
+                
+                                <div id="site-name">
+                <a href="/" title="Home">Open Source Initiative</a>
+                </div>
+                                
+                                <div id="site-slogan">
+                Guaranteeing the 'our' in source...                </div>
+                                
+                </div>
+                
+                <div class="col-md-4">
+                
+                
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #header-inside -->
+
+    </div>
+</header>
+<!-- EOF: #header --> 
+
+<!-- #main-navigation --> 
+<div id="main-navigation" class="clearfix">
+    <div class="container">
+
+        <!-- #main-navigation-inside -->
+        <div id="main-navigation-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <nav role="navigation">
+                                                  <div class="region region-navigation">
+    <div id="block-superfish-1" class="block block-superfish clearfix">
+
+    
+  <div class="content">
+    <ul id="superfish-1" class="menu sf-menu sf-navigation sf-horizontal sf-style-none sf-total-items-6 sf-parent-items-6 sf-single-items-0"><li id="menu-37-1" class="first odd sf-item-1 sf-depth-1 sf-total-children-4 sf-parent-children-2 sf-single-children-2 menuparent"><a href="/about" title="About the Open Source Initiative" class="sf-depth-1 menuparent">About</a><ul><li id="menu-75-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/history" title="History of the OSI" class="sf-depth-2">History</a></li><li id="menu-82-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-7 sf-parent-children-0 sf-single-children-7 menuparent"><a href="/board" title="Board of Directors" class="sf-depth-2 menuparent">Board</a><ul><li id="menu-83-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/docs/board-annotated" title="OSI Board -- With Annotations" class="sf-depth-3">Board - Annotated</a></li><li id="menu-96-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/minutes" title="Public Minutes of Board Meetings" class="sf-depth-3">Minutes</a></li><li id="menu-185-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/organization" title="These portfolios represent the activities of the current OSI board." class="sf-depth-3">Organization &amp; Operations</a></li><li id="menu-95-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/articles-of-incorporation" title="OSI incorporation record" class="sf-depth-3">Articles of Incorporation</a></li><li id="menu-1475-1" class="middle odd sf-item-5 sf-depth-3 sf-no-children"><a href="/elections" class="sf-depth-3">Board Elections</a></li><li id="menu-84-1" class="middle even sf-item-6 sf-depth-3 sf-no-children"><a href="/bylaws" title="Bylaws of the Open Source Initiative" class="sf-depth-3">Bylaws</a></li><li id="menu-1317-1" class="last odd sf-item-7 sf-depth-3 sf-no-children"><a href="/conflict_of_interest_policy" class="sf-depth-3">Conflict of Interest</a></li></ul></li><li id="menu-1843-1" class="middle odd sf-item-3 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/trademark" title="" class="sf-depth-2 menuparent">Trademark &amp; Logo</a><ul><li id="menu-184-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/trademark-guidelines" title="OSI&#039;s Trademark Policy" class="sf-depth-3">Trademark Guidelines</a></li><li id="menu-183-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/logo-usage-guidelines" title="Guidelines for appearance and usage of OSI Logo" class="sf-depth-3">Logo Guidelines</a></li></ul></li><li id="menu-126-1" class="last even sf-item-4 sf-depth-2 sf-no-children"><a href="/ToS" title="Rules for posting content on this site" class="sf-depth-2">Terms of Service</a></li></ul></li><li id="menu-65-1" class="middle even sf-item-2 sf-depth-1 sf-total-children-5 sf-parent-children-2 sf-single-children-3 menuparent"><a href="/licenses" class="sf-depth-1 menuparent">Licenses</a><ul><li id="menu-61-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/osd" title="The actual OSD defining what constitutes an Open Source licence" class="sf-depth-2">Open Source Definition</a></li><li id="menu-77-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/licenses/category" title="Licenses by Category" class="sf-depth-2">Licenses by Category</a></li><li id="menu-72-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/licenses/alphabetical" title="Licenses that are approved by the OSI as conforming to the OSD" class="sf-depth-2">Licenses by Name</a></li><li id="menu-66-1" class="middle even sf-item-4 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/approval" title="Certifying licences as OSD-compliant" class="sf-depth-2 menuparent">License Review Process</a><ul><li id="menu-67-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/proliferation" title="Supporting choice while maintaining sanity" class="sf-depth-3">Licence Proliferation</a></li><li id="menu-69-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/proliferation-report" title="License Proliferation Committee&#039;s report to the OSI Board" class="sf-depth-3">LP report to the Board</a></li></ul></li><li id="menu-99-1" class="last odd sf-item-5 sf-depth-2 sf-total-children-4 sf-parent-children-0 sf-single-children-4 menuparent"><a href="/osr-intro" title="Open Standards Requirement for Software" class="sf-depth-2 menuparent">Open Standards</a><ul><li id="menu-101-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/osr" title="An &quot;open standard&quot; must not prohibit conforming implementations in open source software." class="sf-depth-3">The Open Standards Requirement</a></li><li id="menu-102-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/osr-compliance" class="sf-depth-3">Open Standards Requirement Compliance</a></li><li id="menu-100-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/osr-rationale" class="sf-depth-3">Open Standards Requirement Rationale</a></li><li id="menu-103-1" class="last even sf-item-4 sf-depth-3 sf-no-children"><a href="/osr-faq" title="Frequently asked questions about the Open Standards Requirement" class="sf-depth-3">OSR Frequently Asked Questions</a></li></ul></li></ul></li><li id="menu-1842-1" class="middle odd sf-item-3 sf-depth-1 sf-total-children-3 sf-parent-children-2 sf-single-children-1 menuparent"><a href="/membership" title="Page for our various membership programs" class="sf-depth-1 menuparent">Membership</a><ul><li id="menu-914-1" class="first odd sf-item-1 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/members" class="sf-depth-2 menuparent">Individuals</a><ul><li id="menu-897-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/civicrm/contribute/transact?reset=1&amp;id=1" title="" class="sf-depth-3">Join</a></li><li id="menu-2265-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/benefits" class="sf-depth-3">Benefits</a></li></ul></li><li id="menu-675-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/osi-affiliate-membership" title="Home page for OSI&#039;s membership scheme for non-profits and not-for-profits" class="sf-depth-2 menuparent">Affiliates</a><ul><li id="menu-676-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/affiliates/about" class="sf-depth-3">Become an Affiliate</a></li><li id="menu-2071-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/AffiliateRequirements" class="sf-depth-3">Affiliate  Criteria</a></li></ul></li><li id="menu-1436-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/corporate-sponsors-support" title="" class="sf-depth-2">Sponsors &amp; Support</a></li></ul></li><li id="menu-1841-1" class="middle even sf-item-4 sf-depth-1 sf-total-children-5 sf-parent-children-1 sf-single-children-4 menuparent"><a href="/community" title="Page for our various community members." class="sf-depth-1 menuparent">Community</a><ul><li id="menu-2271-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/associations" class="sf-depth-2">Associations</a></li><li id="menu-63-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-5 sf-parent-children-0 sf-single-children-5 menuparent"><a href="/lists" title="The virtual committees where the OSI&#039;s work gets done" class="sf-depth-2 menuparent">Mailing lists</a><ul><li id="menu-1072-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/codeofconduct/licensing" class="sf-depth-3">Licensing Code of Conduct</a></li><li id="menu-78-1" class="middle even sf-item-2 sf-depth-3 sf-no-children"><a href="/codeofconduct" title="Guidelines for OSI Mailing Lists" class="sf-depth-3">General Code of Conduct</a></li><li id="menu-2272-1" class="middle odd sf-item-3 sf-depth-3 sf-no-children"><a href="/node/960" title="Monthly reports summarizing the OSI&#039;s License-Discuss and License-Review mailing lists." class="sf-depth-3">Discussion List Reports</a></li><li id="menu-2111-1" class="middle even sf-item-4 sf-depth-3 sf-no-children"><a href="/public_forums_disclaimer" class="sf-depth-3">Disclaimer for OSI Public Forums</a></li><li id="menu-2110-1" class="last odd sf-item-5 sf-depth-3 sf-no-children"><a href="/public_archives_policy" class="sf-depth-3">Policy on Public Communications and Archives</a></li></ul></li><li id="menu-2032-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/volunteersandstaff" class="sf-depth-2">Volunteers &amp; Staff</a></li><li id="menu-2192-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/AdvocateCircle" class="sf-depth-2">Advocate Circle</a></li><li id="menu-1846-1" class="last odd sf-item-5 sf-depth-2 sf-no-children"><a href="http://wiki.opensource.org" title="" class="sf-depth-2">Wiki</a></li></ul></li><li id="menu-1840-1" class="middle odd sf-item-5 sf-depth-1 sf-total-children-6 sf-parent-children-1 sf-single-children-5 menuparent"><a href="/resources" title="Page offering resources to OSI personas" class="sf-depth-1 menuparent">Resources</a><ul><li id="menu-342-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/faq" title="Frequently Asked Questions about open source and about the OSI." class="sf-depth-2">FAQ</a></li><li id="menu-45-1" class="middle even sf-item-2 sf-depth-2 sf-total-children-2 sf-parent-children-0 sf-single-children-2 menuparent"><a href="/help" title="Resources for questions and further exploration" class="sf-depth-2 menuparent">Getting Help</a><ul><li id="menu-76-1" class="first odd sf-item-1 sf-depth-3 sf-no-children"><a href="/links" title="Links and References to Open Source" class="sf-depth-3">Bibliography</a></li><li id="menu-125-1" class="last even sf-item-2 sf-depth-3 sf-no-children"><a href="/advocacy/case_for_business.php" title="How to advocate Open Source to businesses" class="sf-depth-3">Open Source Case for Business</a></li></ul></li><li id="menu-1514-1" class="middle odd sf-item-3 sf-depth-2 sf-no-children"><a href="/working_groups" class="sf-depth-2">Working Groups &amp; Incubator Projects</a></li><li id="menu-12-1" class="middle even sf-item-4 sf-depth-2 sf-no-children"><a href="/osi-open-source-education" title="OSI&#039;s Open Source Education Initiative and Activities" class="sf-depth-2">Open Source Education</a></li><li id="menu-3046-1" class="middle odd sf-item-5 sf-depth-2 sf-no-children"><a href="/node/1012" class="sf-depth-2">Articles &amp; Books</a></li><li id="menu-2193-1" class="last even sf-item-6 sf-depth-2 sf-no-children"><a href="/authority" class="sf-depth-2">International Authority &amp; Recognition</a></li></ul></li><li id="menu-1844-1" class="last even sf-item-6 sf-depth-1 sf-total-children-3 sf-parent-children-0 sf-single-children-3 menuparent"><a href="/news" title="Page dedicated to the latest news and events." class="sf-depth-1 menuparent">News &amp; Events</a><ul><li id="menu-1845-1" class="first odd sf-item-1 sf-depth-2 sf-no-children"><a href="/news" title="Index of newsletters" class="sf-depth-2">Blog</a></li><li id="menu-1999-1" class="middle even sf-item-2 sf-depth-2 sf-no-children"><a href="/events" class="sf-depth-2">Events</a></li><li id="menu-4709-1" class="last odd sf-item-3 sf-depth-2 sf-no-children"><a href="/newsletter" title="" class="sf-depth-2">Newsletters</a></li></ul></li></ul>  </div>
+</div>
+  </div>
+                                            </nav>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #main-navigation-inside -->
+
+    </div>
+</div>
+<!-- EOF: #main-navigation -->
+
+<!-- #banner -->
+<div id="banner" class="clearfix">
+    <div class="container">
+        
+        <!-- #banner-inside -->
+        <div id="banner-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                  <div class="region region-banner">
+    <div id="block-block-21" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="banner" style="&#10;   height: 150px; &#10;   background-image: url(https://join.opensource.org/static/img/audience.jpg);&#10;   background-repeat: no-repeat;&#10;   background-position: center center;&#10;   ">
+<h2 class="rtecenter" style="font-size: min(max(1.5rem, 7.258vw), 55px); line-height: 1;font-weight: bold; padding-top: 15px;"><a href="https://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Join today</a></h2>
+
+<h3 class="rtecenter" style="font-size: min(max(.5rem, 1.258vw), 24px); line-height: 5px; color: white;"><a href="http://join.opensource.org?utm_source=web&amp;utm_medium=banner&amp;utm_campaign=300in30" style="text-decoration:none;color: white;">Get involved in open source community development and advocacy.</a></h3>
+</div>
+  </div>
+</div>
+  </div>
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #banner-inside -->        
+
+    </div>
+</div>
+<!-- EOF:#banner -->
+
+<!-- #page -->
+<div id="page" class="clearfix">
+    
+    
+    <!-- #main-content -->
+    <div id="main-content">
+        <div class="container">
+        
+            <!-- #messages-console -->
+                        <!-- EOF: #messages-console -->
+            
+            <div class="row">
+
+                
+
+                <section class="col-md-10">
+
+                    <!-- #main -->
+                    <div id="main" class="clearfix">
+                    
+                        
+                        
+                        <!-- EOF:#content-wrapper -->
+                        <div id="content-wrapper">
+
+                                                                                    <h1 class="page-title">RealNetworks Public Source License Version 1.0 (RPSL-1.0)</h1>
+                                                        
+                                                  
+                            <!-- #tabs -->
+                                                            <div class="tabs">
+                                                                </div>
+                                                        <!-- EOF: #tabs -->
+
+                            <!-- #action links -->
+                                                        <!-- EOF: #action links -->
+
+                              <div class="region region-content">
+    <div id="block-system-main" class="block block-system clearfix">
+
+    
+  <div class="content">
+    <article id="node-82" class="node node-page clearfix">
+
+  
+  <div class="content">
+    <div class="field field-name-body field-type-text-with-summary field-label-hidden"><div class="field-items"><div class="field-item even"><p><a href="https://tldrlegal.com/license/realnetworks-public-source-license-v1.0-(rpsl-1.0)" style="color:rgb(92, 138, 208)">View Summary of <b>RealNetworks Public Source License v1.0 (RPSL-1.0)</b> on TLDRLegal » </a> <a href="/node/778"><b>(Disclaimer)</b></a></p>
+
+<div class="app">
+<p>1. <strong>General Definitions.</strong> This License applies to any program or other work which RealNetworks, Inc., or any other entity that elects to use this license, ("Licensor") makes publicly available and which contains a notice placed by Licensor identifying such program or work as "Original Code" and stating that it is subject to the terms of this RealNetworks Public Source License version 1.0 (or subsequent version thereof) ("License"). You are not required to accept this License. However, nothing else grants You permission to use, copy, modify or distribute the software or its derivative works. These actions are prohibited by law if You do not accept this License. Therefore, by modifying, copying or distributing the software (or any work based on the software), You indicate your acceptance of this License to do so, and all its terms and conditions. In addition, you agree to the terms of this License by clicking the Accept button or downloading the software. As used in this License:</p>
+
+<p>1.1 "Applicable Patent Rights" mean: (a) in the case where Licensor is the grantor of rights, claims of patents that (i) are now or hereafter acquired, owned by or assigned to Licensor and (ii) are necessarily infringed by using or making the Original Code alone and not in combination with other software or hardware; and (b) in the case where You are the grantor of rights, claims of patents that (i) are now or hereafter acquired, owned by or assigned to You and (ii) are infringed (directly or indirectly) by using or making Your Modifications, taken alone or in combination with Original Code.</p>
+
+<p>1.2 "Compatible Source License" means any one of the licenses listed on Exhibit B or at <a href="https://www.helixcommunity.org/content/complicense">https://www.helixcommunity.org/content/complicense</a> or other licenses specifically identified by Licensor in writing. Notwithstanding any term to the contrary in any Compatible Source License, any code covered by any Compatible Source License that is used with Covered Code must be made readily available in Source Code format for royalty-free use under the terms of the Compatible Source License or this License.</p>
+
+<p>1.3 "Contributor" means any person or entity that creates or contributes to the creation of Modifications.</p>
+
+<p>1.4 "Covered Code" means the Original Code, Modifications, the combination of Original Code and any Modifications, and/or any respective portions thereof.</p>
+
+<p>1.5 "Deploy" means to use, sublicense or distribute Covered Code other than for Your internal research and development (R&amp;D) and/or Personal Use, and includes without limitation, any and all internal use or distribution of Covered Code within Your business or organization except for R&amp;D use and/or Personal Use, as well as direct or indirect sublicensing or distribution of Covered Code by You to any third party in any form or manner.</p>
+
+<p>1.6 "Derivative Work" means either the Covered Code or any derivative work under United States copyright law, and including any work containing or including any portion of the Covered Code or Modifications, either verbatim or with modifications and/or translated into another language. Derivative Work also includes any work which combines any portion of Covered Code or Modifications with code not otherwise governed by the terms of this License.</p>
+
+<p>1.7 "Externally Deploy" means to Deploy the Covered Code in any way that may be accessed or used by anyone other than You, used to provide any services to anyone other than You, or used in any way to deliver any content to anyone other than You, whether the Covered Code is distributed to those parties, made available as an application intended for use over a computer network, or used to provide services or otherwise deliver content to anyone other than You.</p>
+
+<p>1.8. "Interface" means interfaces, functions, properties, class definitions, APIs, header files, GUIDs, V-Tables, and/or protocols allowing one piece of software, firmware or hardware to communicate or interoperate with another piece of software, firmware or hardware.</p>
+
+<p>1.9 "Modifications" mean any addition to, deletion from, and/or change to, the substance and/or structure of the Original Code, any previous Modifications, the combination of Original Code and any previous Modifications, and/or any respective portions thereof. When code is released as a series of files, a Modification is: (a) any addition to or deletion from the contents of a file containing Covered Code; and/or (b) any new file or other representation of computer program statements that contains any part of Covered Code.</p>
+
+<p>1.10 "Original Code" means (a) the Source Code of a program or other work as originally made available by Licensor under this License, including the Source Code of any updates or upgrades to such programs or works made available by Licensor under this License, and that has been expressly identified by Licensor as such in the header file(s) of such work; and (b) the object code compiled from such Source Code and originally made available by Licensor under this License.</p>
+
+<p>1.11 "Personal Use" means use of Covered Code by an individual solely for his or her personal, private and non-commercial purposes. An individual's use of Covered Code in his or her capacity as an officer, employee, member, independent contractor or agent of a corporation, business or organization (commercial or non-commercial) does not qualify as Personal Use.</p>
+
+<p>1.12 "Source Code" means the human readable form of a program or other work that is suitable for making modifications to it, including all modules it contains, plus any associated interface definition files, scripts used to control compilation and installation of an executable (object code).</p>
+
+<p>1.13 "You" or "Your" means an individual or a legal entity exercising rights under this License. For legal entities, "You" or "Your" includes any entity which controls, is controlled by, or is under common control with, You, where "control" means (a) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (b) ownership of fifty percent (50%) or more of the outstanding shares or beneficial ownership of such entity.</p>
+
+<p>2. <strong>Permitted Uses</strong>; <b>Conditions &amp; Restrictions.</b> Subject to the terms and conditions of this License, Licensor hereby grants You, effective on the date You accept this License (via downloading or using Covered Code or otherwise indicating your acceptance of this License), a worldwide, royalty-free, non-exclusive copyright license, to the extent of Licensor's copyrights cover the Original Code, to do the following:</p>
+
+<p>2.1 You may reproduce, display, perform, modify and Deploy Covered Code, provided that in each instance:</p>
+
+<p>(a) You must retain and reproduce in all copies of Original Code the copyright and other proprietary notices and disclaimers of Licensor as they appear in the Original Code, and keep intact all notices in the Original Code that refer to this License;</p>
+
+<p>(b) You must include a copy of this License with every copy of Source Code of Covered Code and documentation You distribute, and You may not offer or impose any terms on such Source Code that alter or restrict this License or the recipients' rights hereunder, except as permitted under Section 6;</p>
+
+<p>(c) You must duplicate, to the extent it does not already exist, the notice in Exhibit A in each file of the Source Code of all Your Modifications, and cause the modified files to carry prominent notices stating that You changed the files and the date of any change;</p>
+
+<p>(d) You must make Source Code of all Your Externally Deployed Modifications publicly available under the terms of this License, including the license grants set forth in Section 3 below, for as long as you Deploy the Covered Code or twelve (12) months from the date of initial Deployment, whichever is longer. You should preferably distribute the Source Code of Your Deployed Modifications electronically (e.g. download from a web site); and</p>
+
+<p>(e) if You Deploy Covered Code in object code, executable form only, You must include a prominent notice, in the code itself as well as in related documentation, stating that Source Code of the Covered Code is available under the terms of this License with information on how and where to obtain such Source Code. You must also include the Object Code Notice set forth in Exhibit A in the "about" box or other appropriate place where other copyright notices are placed, including any packaging materials.</p>
+
+<p>2.2 You expressly acknowledge and agree that although Licensor and each Contributor grants the licenses to their respective portions of the Covered Code set forth herein, no assurances are provided by Licensor or any Contributor that the Covered Code does not infringe the patent or other intellectual property rights of any other entity. Licensor and each Contributor disclaim any liability to You for claims brought by any other entity based on infringement of intellectual property rights or otherwise. As a condition to exercising the rights and licenses granted hereunder, You hereby assume sole responsibility to secure any other intellectual property rights needed, if any. For example, if a third party patent license is required to allow You to make, use, sell, import or offer for sale the Covered Code, it is Your responsibility to acquire such license(s).</p>
+
+<p>2.3 Subject to the terms and conditions of this License, Licensor hereby grants You, effective on the date You accept this License (via downloading or using Covered Code or otherwise indicating your acceptance of this License), a worldwide, royalty-free, perpetual, non-exclusive patent license under Licensor's Applicable Patent Rights to make, use, sell, offer for sale and import the Covered Code, provided that in each instance you comply with the terms of this License.</p>
+
+<p>3. <strong>Your Grants.</strong> In consideration of, and as a condition to, the licenses granted to You under this License:</p>
+
+<p>(a) You grant to Licensor and all third parties a non-exclusive, perpetual, irrevocable, royalty free license under Your Applicable Patent Rights and other intellectual property rights owned or controlled by You, to make, sell, offer for sale, use, import, reproduce, display, perform, modify, distribute and Deploy Your Modifications of the same scope and extent as Licensor's licenses under Sections 2.1 and 2.2; and</p>
+
+<p>(b) You grant to Licensor and its subsidiaries a non-exclusive, worldwide, royalty-free, perpetual and irrevocable license, under Your Applicable Patent Rights and other intellectual property rights owned or controlled by You, to make, use, sell, offer for sale, import, reproduce, display, perform, distribute, modify or have modified (for Licensor and/or its subsidiaries), sublicense and distribute Your Modifications, in any form and for any purpose, through multiple tiers of distribution.</p>
+
+<p>(c) You agree not use any information derived from Your use and review of the Covered Code, including but not limited to any algorithms or inventions that may be contained in the Covered Code, for the purpose of asserting any of Your patent rights, or assisting a third party to assert any of its patent rights, against Licensor or any Contributor.</p>
+
+<p>4. <strong>Derivative Works.</strong> You may create a Derivative Work by combining Covered Code with other code not otherwise governed by the terms of this License and distribute the Derivative Work as an integrated product. In each such instance, You must make sure the requirements of this License are fulfilled for the Covered Code or any portion thereof, including all Modifications.</p>
+
+<p>4.1 You must cause any Derivative Work that you distribute, publish or Externally Deploy, that in whole or in part contains or is derived from the Covered Code or any part thereof, to be licensed as a whole at no charge to all third parties under the terms of this License and no other license except as provided in Section 4.2. You also must make Source Code available for the Derivative Work under the same terms as Modifications, described in Sections 2 and 3, above.</p>
+
+<p>4.2 Compatible Source Licenses. Software modules that have been independently developed without any use of Covered Code and which contain no portion of the Covered Code, Modifications or other Derivative Works, but are used or combined in any way wtih the Covered Code or any Derivative Work to form a larger Derivative Work, are exempt from the conditions described in Section 4.1 but only to the extent that: the software module, including any software that is linked to, integrated with, or part of the same applications as, the software module by any method must be wholly subject to one of the Compatible Source Licenses. <b>Notwithstanding the foregoing, all Covered Code must be subject to the terms of this License.</b> Thus, the entire Derivative Work must be licensed under a combination of the RPSL (for Covered Code) and a Compatible Source License for any independently developed software modules within the Derivative Work. The foregoing requirement applies even if the Compatible Source License would ordinarily allow the software module to link with, or form larger works with, other software that is not subject to the Compatible Source License. For example, although the Mozilla Public License v1.1 allows Mozilla code to be combined with proprietary software that is not subject to the MPL, if MPL-licensed code is used with Covered Code the MPL-licensed code could not be combined or linked with any code not governed by the MPL. The general intent of this section 4.2 is to enable use of Covered Code with applications that are wholly subject to an acceptable open source license. You are responsible for determining whether your use of software with Covered Code is allowed under Your license to such software.</p>
+
+<p>4.3 Mere aggregation of another work not based on the Covered Code with the Covered Code (or with a work based on the Covered Code) on a volume of a storage or distribution medium does not bring the other work under the scope of this License. If You deliver the Covered Code for combination and/or integration with an application previously provided by You (for example, via automatic updating technology), such combination and/or integration constitutes a Derivative Work subject to the terms of this License.</p>
+
+<p>5. <b>Exclusions From License Grant</b>. Nothing in this License shall be deemed to grant any rights to trademarks, copyrights, patents, trade secrets or any other intellectual property of Licensor or any Contributor except as expressly stated herein. No right is granted to the trademarks of Licensor or any Contributor even if such marks are included in the Covered Code. Nothing in this License shall be interpreted to prohibit Licensor from licensing under different terms from this License any code that Licensor otherwise would have a right to license. Modifications, Derivative Works and/or any use or combination of Covered Code with other technology provided by Licensor or third parties may require additional patent licenses from Licensor which Licensor may grant in its sole discretion. No patent license is granted separate from the Original Code or combinations of the Original Code with other software or hardware.</p>
+
+<p>5.1. <strong>Trademarks.</strong> This License does not grant any rights to use the trademarks or trade names owned by Licensor ("Licensor Marks" defined in Exhibit C) or to any trademark or trade name belonging to any Contributor. No Licensor Marks may be used to endorse or promote products derived from the Original Code other than as permitted by the Licensor Trademark Policy defined in Exhibit C.</p>
+
+<p>6. <strong>Additional Terms.</strong> You may choose to offer, and to charge a fee for, warranty, support, indemnity or liability obligations and/or other rights consistent with the scope of the license granted herein ("Additional Terms") to one or more recipients of Covered Code. However, You may do so only on Your own behalf and as Your sole responsibility, and not on behalf of Licensor or any Contributor. You must obtain the recipient's agreement that any such Additional Terms are offered by You alone, and You hereby agree to indemnify, defend and hold Licensor and every Contributor harmless for any liability incurred by or claims asserted against Licensor or such Contributor by reason of any such Additional Terms.</p>
+
+<p>7. <strong>Versions of the License.</strong> Licensor may publish revised and/or new versions of this License from time to time. Each version will be given a distinguishing version number. Once Original Code has been published under a particular version of this License, You may continue to use it under the terms of that version. You may also choose to use such Original Code under the terms of any subsequent version of this License published by Licensor. No one other than Licensor has the right to modify the terms applicable to Covered Code created under this License.</p>
+
+<p>8. <strong>NO WARRANTY OR SUPPORT.</strong> The Covered Code may contain in whole or in part pre-release, untested, or not fully tested works. The Covered Code may contain errors that could cause failures or loss of data, and may be incomplete or contain inaccuracies. You expressly acknowledge and agree that use of the Covered Code, or any portion thereof, is at Your sole and entire risk. THE COVERED CODE IS PROVIDED "AS IS" AND WITHOUT WARRANTY, UPGRADES OR SUPPORT OF ANY KIND AND LICENSOR AND LICENSOR'S LICENSOR(S) (COLLECTIVELY REFERRED TO AS "LICENSOR" FOR THE PURPOSES OF SECTIONS 8 AND 9) AND ALL CONTRIBUTORS EXPRESSLY DISCLAIM ALL WARRANTIES AND/OR CONDITIONS, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES AND/OR CONDITIONS OF MERCHANTABILITY, OF SATISFACTORY QUALITY, OF FITNESS FOR A PARTICULAR PURPOSE, OF ACCURACY, OF QUIET ENJOYMENT, AND NONINFRINGEMENT OF THIRD PARTY RIGHTS. LICENSOR AND EACH CONTRIBUTOR DOES NOT WARRANT AGAINST INTERFERENCE WITH YOUR ENJOYMENT OF THE COVERED CODE, THAT THE FUNCTIONS CONTAINED IN THE COVERED CODE WILL MEET YOUR REQUIREMENTS, THAT THE OPERATION OF THE COVERED CODE WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT DEFECTS IN THE COVERED CODE WILL BE CORRECTED. NO ORAL OR WRITTEN DOCUMENTATION, INFORMATION OR ADVICE GIVEN BY LICENSOR, A LICENSOR AUTHORIZED REPRESENTATIVE OR ANY CONTRIBUTOR SHALL CREATE A WARRANTY. You acknowledge that the Covered Code is not intended for use in high risk activities, including, but not limited to, the design, construction, operation or maintenance of nuclear facilities, aircraft navigation, aircraft communication systems, or air traffic control machines in which case the failure of the Covered Code could lead to death, personal injury, or severe physical or environmental damage. Licensor disclaims any express or implied warranty of fitness for such uses.</p>
+
+<p>9. <strong>LIMITATION OF LIABILITY.</strong> TO THE EXTENT NOT PROHIBITED BY LAW, IN NO EVENT SHALL LICENSOR OR ANY CONTRIBUTOR BE LIABLE FOR ANY INCIDENTAL, SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR RELATING TO THIS LICENSE OR YOUR USE OR INABILITY TO USE THE COVERED CODE, OR ANY PORTION THEREOF, WHETHER UNDER A THEORY OF CONTRACT, WARRANTY, TORT (INCLUDING NEGLIGENCE OR STRICT LIABILITY), PRODUCTS LIABILITY OR OTHERWISE, EVEN IF LICENSOR OR SUCH CONTRIBUTOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND NOTWITHSTANDING THE FAILURE OF ESSENTIAL PURPOSE OF ANY REMEDY. SOME JURISDICTIONS DO NOT ALLOW THE LIMITATION OF LIABILITY OF INCIDENTAL OR CONSEQUENTIAL DAMAGES, SO THIS LIMITATION MAY NOT APPLY TO YOU. In no event shall Licensor's total liability to You for all damages (other than as may be required by applicable law) under this License exceed the amount of ten dollars ($10.00).</p>
+
+<p>10. <strong>Ownership.</strong> Subject to the licenses granted under this License, each Contributor retains all rights, title and interest in and to any Modifications made by such Contributor. Licensor retains all rights, title and interest in and to the Original Code and any Modifications made by or on behalf of Licensor ("Licensor Modifications"), and such Licensor Modifications will not be automatically subject to this License. Licensor may, at its sole discretion, choose to license such Licensor Modifications under this License, or on different terms from those contained in this License or may choose not to license them at all.</p>
+
+<p>11. <strong>Termination</strong>.</p>
+
+<p>11.1 Term and Termination. The term of this License is perpetual unless terminated as provided below. This License and the rights granted hereunder will terminate:</p>
+
+<p>(a) automatically without notice from Licensor if You fail to comply with any term(s) of this License and fail to cure such breach within 30 days of becoming aware of such breach;</p>
+
+<p>(b) immediately in the event of the circumstances described in Section 12.5(b); or</p>
+
+<p>(c) automatically without notice from Licensor if You, at any time during the term of this License, commence an action for patent infringement against Licensor (including by cross-claim or counter claim in a lawsuit);</p>
+
+<p>(d) upon written notice from Licensor if You, at any time during the term of this License, commence an action for patent infringement against any third party alleging that the Covered Code itself (excluding combinations with other software or hardware) infringes any patent (including by cross-claim or counter claim in a lawsuit).</p>
+
+<p>11.2 Effect of Termination. Upon termination, You agree to immediately stop any further use, reproduction, modification, sublicensing and distribution of the Covered Code and to destroy all copies of the Covered Code that are in your possession or control. All sublicenses to the Covered Code which have been properly granted prior to termination shall survive any termination of this License. Provisions which, by their nature, should remain in effect beyond the termination of this License shall survive, including but not limited to Sections 3, 5, 8, 9, 10, 11, 12.2 and 13. No party will be liable to any other for compensation, indemnity or damages of any sort solely as a result of terminating this License in accordance with its terms, and termination of this License will be without prejudice to any other right or remedy of any party.</p>
+
+<p>12. <strong>Miscellaneous.</strong></p>
+
+<p>12.1 Government End Users. The Covered Code is a "commercial item" as defined in FAR 2.101. Government software and technical data rights in the Covered Code include only those rights customarily provided to the public as defined in this License. This customary commercial license in technical data and software is provided in accordance with FAR 12.211 (Technical Data) and 12.212 (Computer Software) and, for Department of Defense purchases, DFAR 252.227-7015 (Technical Data -- Commercial Items) and 227.7202-3 (Rights in Commercial Computer Software or Computer Software Documentation). Accordingly, all U.S. Government End Users acquire Covered Code with only those rights set forth herein.</p>
+
+<p>12.2 Relationship of Parties. This License will not be construed as creating an agency, partnership, joint venture or any other form of legal association between or among You, Licensor or any Contributor, and You will not represent to the contrary, whether expressly, by implication, appearance or otherwise.</p>
+
+<p>12.3 Independent Development. Nothing in this License will impair Licensor's right to acquire, license, develop, have others develop for it, market and/or distribute technology or products that perform the same or similar functions as, or otherwise compete with, Modifications, Derivative Works, technology or products that You may develop, produce, market or distribute.</p>
+
+<p>12.4 Waiver; Construction. Failure by Licensor or any Contributor to enforce any provision of this License will not be deemed a waiver of future enforcement of that or any other provision. Any law or regulation which provides that the language of a contract shall be construed against the drafter will not apply to this License.</p>
+
+<p>12.5 Severability. (a) If for any reason a court of competent jurisdiction finds any provision of this License, or portion thereof, to be unenforceable, that provision of the License will be enforced to the maximum extent permissible so as to effect the economic benefits and intent of the parties, and the remainder of this License will continue in full force and effect. (b) Notwithstanding the foregoing, if applicable law prohibits or restricts You from fully and/or specifically complying with Sections 2 and/or 3 or prevents the enforceability of either of those Sections, this License will immediately terminate and You must immediately discontinue any use of the Covered Code and destroy all copies of it that are in your possession or control.</p>
+
+<p>12.6 Dispute Resolution. Any litigation or other dispute resolution between You and Licensor relating to this License shall take place in the Seattle, Washington, and You and Licensor hereby consent to the personal jurisdiction of, and venue in, the state and federal courts within that District with respect to this License. The application of the United Nations Convention on Contracts for the International Sale of Goods is expressly excluded.</p>
+
+<p>12.7 Export/Import Laws. This software is subject to all export and import laws and restrictions and regulations of the country in which you receive the Covered Code and You are solely responsible for ensuring that You do not export, re-export or import the Covered Code or any direct product thereof in violation of any such restrictions, laws or regulations, or without all necessary authorizations.</p>
+
+<p>12.8 Entire Agreement; Governing Law. This License constitutes the entire agreement between the parties with respect to the subject matter hereof. This License shall be governed by the laws of the United States and the State of Washington.</p>
+
+<p>Where You are located in the province of Quebec, Canada, the following clause applies: The parties hereby confirm that they have requested that this License and all related documents be drafted in English. Les parties ont exigé que le présent contrat et tous les documents connexes soient rédigés en anglais.</p>
+
+<p class="c1"><strong>EXHIBIT A.</strong></p>
+
+<p>"Copyright © 1995-2002 RealNetworks, Inc. and/or its licensors. All Rights Reserved.</p>
+
+<p>The contents of this file, and the files included with this file, are subject to the current version of the RealNetworks Public Source License Version 1.0 (the "RPSL") available at https://www.helixcommunity.org/content/rpsl unless you have licensed the file under the RealNetworks Community Source License Version 1.0 (the "RCSL") available at https://www.helixcommunity.org/content/rcsl, in which case the RCSL will apply. You may also obtain the license terms directly from RealNetworks. You may not use this file except in compliance with the RPSL or, if you have a valid RCSL with RealNetworks applicable to this file, the RCSL. Please see the applicable RPSL or RCSL for the rights, obligations and limitations governing use of the contents of the file.</p>
+
+<p>This file is part of the Helix DNA Technology. RealNetworks is the developer of the Original code and owns the copyrights in the portions it created.</p>
+
+<p>This file, and the files included with this file, is distributed and made available on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND REALNETWORKS HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.</p>
+
+<p>Contributor(s): ____________________________________</p>
+
+<p>Technology Compatibility Kit Test Suite(s) Location (if licensed under the RCSL):</p>
+
+<p>________________________________"</p>
+
+<p><b>Object Code Notice:</b> <span class="c2">Helix DNA Client technology included. Copyright © RealNetworks, Inc., 1995-2002. All rights reserved.</span></p>
+
+<p class="c3">EXHIBIT B</p>
+
+<p>Compatible Source Licenses for the RealNetworks Public Source License. The following list applies to the most recent version of the license as of October 25, 2002, unless otherwise indicated.</p>
+
+<ul><li>Academic Free License</li>
+	<li>Apache Software License</li>
+	<li>Apple Public Source License</li>
+	<li>Artistic license</li>
+	<li>Attribution Assurance Licenses</li>
+	<li>BSD license</li>
+	<li>Common Public License<sup>1</sup></li>
+	<li>Eiffel Forum License</li>
+	<li>GNU General Public License (GPL)<sup>1</sup></li>
+	<li>GNU Library or "Lesser" General Public License (LGPL)<sup>1</sup></li>
+	<li>IBM Public License</li>
+	<li>Intel Open Source License</li>
+	<li>Jabber Open Source License</li>
+	<li>MIT license</li>
+	<li>MITRE Collaborative Virtual Workspace License (CVW License)</li>
+	<li>Motosoto License</li>
+	<li>Mozilla Public License 1.0 (MPL)</li>
+	<li>Mozilla Public License 1.1 (MPL)</li>
+	<li>Nokia Open Source License</li>
+	<li>Open Group Test Suite License</li>
+	<li>Python Software Foundation License</li>
+	<li>Ricoh Source Code Public License</li>
+	<li>Sun Industry Standards Source License (SISSL)</li>
+	<li>Sun Public License</li>
+	<li>University of Illinois/NCSA Open Source License</li>
+	<li>Vovida Software License v. 1.0</li>
+	<li>W3C License</li>
+	<li>X.Net License</li>
+	<li>Zope Public License</li>
+	<li>zlib/libpng license</li>
+</ul><p><sup>1</sup>Note: because this license contains certain reciprocal licensing terms that purport to extend to independently developed code, You may be prohibited under the terms of this otherwise compatible license from using code licensed under its terms with Covered Code because Covered Code may only be licensed under the RealNetworks Public Source License. Any attempt to apply non RPSL license terms, including without limitation the GPL, to Covered Code is expressly forbidden. You are responsible for ensuring that Your use of Compatible Source Licensed code does not violate either the RPSL or the Compatible Source License.</p>
+
+<p>The latest version of this list can be found at: <a href=" https://www.helixcommunity.org/content/complicense">https://www.helixcommunity.org/content/complicense</a></p>
+
+<p class="c3">EXHIBIT C</p>
+
+<p><strong>RealNetworks' Trademark policy.</strong></p>
+
+<p>RealNetworks defines the following trademarks collectively as "Licensor Trademarks": "RealNetworks", "RealPlayer", "RealJukebox", "RealSystem", "RealAudio", "RealVideo", "RealOne Player", "RealMedia", "Helix" or any other trademarks or trade names belonging to RealNetworks.</p>
+
+<p>RealNetworks "Licensor Trademark Policy" forbids any use of Licensor Trademarks except as permitted by and in strict compliance at all times with RealNetworks' third party trademark usage guidelines which are posted at <a href=" http://www.realnetworks.com/info/helixlogo.html">www.realnetworks.com/info/helixlogo.html</a>.</p>
+</div>
+</div></div></div>  </div>
+    
+     
+
+  
+</article>  </div>
+</div>
+  </div>
+                            
+                        </div>
+                        <!-- EOF:#content-wrapper -->
+
+                    </div>
+                    <!-- EOF:#main -->
+
+                </section>
+
+                                <aside class="col-md-2">
+                    <!--#sidebar-second-->
+                    <section id="sidebar-second" class="sidebar clearfix">
+                      <div class="region region-sidebar-second">
+    <div id="block-webform-client-block-1125" class="block block-webform clearfix">
+
+    <h2>Keep up with Open Source</h2>
+  
+  <div class="content">
+    <noscript>
+  <style>form.antibot { display: none !important; }</style>
+  <div class="antibot-no-js antibot-message antibot-message-warning messages warning">
+    You must have JavaScript enabled to use this form.  </div>
+</noscript>
+<div class="webform-civicrm-prefix contact-unknown">Sign up with your email to receive our newsletter — your resource for industry news, upcoming events, insights from Open Source thought leaders and more.</div><form class="webform-client-form webform-client-form-1125 antibot" action="/antibot" method="post" id="webform-client-form-1125" accept-charset="UTF-8"><div><div class="webform-progressbar">
+  
+
+  
+  </div>
+<div  class="form-item webform-component webform-component-markup webform-component--disclaimer">
+ Sign up with your email to receive OSI's newsletter — your resource for industry news, upcoming events, insights from open source thought leaders and more.
+</div>
+<div  class="form-item webform-component webform-component-email webform-component--civicrm-1-contact-1-email-email webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-email-email">Email <span class="form-required" title="This field is required.">*</span></label>
+ <input required="required" class="email civicrm-enabled form-text form-email required" data-civicrm-field-key="civicrm_1_contact_1_email_email" type="email" id="edit-submitted-civicrm-1-contact-1-email-email" name="submitted[civicrm_1_contact_1_email_email]" size="20" />
+</div>
+<div class="form-item webform-component webform-component-civicrm_contact static webform-component--civicrm-1-contact-1-contact-existing">
+<input data-hide-method="hide" data-no-hide-blank="0" class="civicrm-enabled" data-civicrm-field-key="civicrm_1_contact_1_contact_existing" type="hidden" name="submitted[civicrm_1_contact_1_contact_existing]" value="" />
+
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-first-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-first-name">First Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_first_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-first-name" name="submitted[civicrm_1_contact_1_contact_first_name]" value="" size="20" maxlength="128" />
+</div>
+<div  class="form-item webform-component webform-component-textfield webform-component--civicrm-1-contact-1-contact-last-name webform-container-inline">
+  <label for="edit-submitted-civicrm-1-contact-1-contact-last-name">Last Name </label>
+ <input class="civicrm-enabled form-text" data-civicrm-field-key="civicrm_1_contact_1_contact_last_name" type="text" id="edit-submitted-civicrm-1-contact-1-contact-last-name" name="submitted[civicrm_1_contact_1_contact_last_name]" value="" size="20" maxlength="128" />
+</div>
+<input type="hidden" name="details[sid]" />
+<input type="hidden" name="details[page_num]" value="1" />
+<input type="hidden" name="details[page_count]" value="1" />
+<input type="hidden" name="details[finished]" value="0" />
+<input type="hidden" name="form_build_id" value="form-nbzvo95fptxyF_P6N0E-0T_aztlz_0msZBYXdvQBNNM" />
+<input type="hidden" name="form_id" value="webform_client_form_1125" />
+<input type="hidden" name="antibot_key" value="" />
+<input type="hidden" name="honeypot_time" value="1639562979|wMxm9kICq3MHJNQ3SYVfKV9Bb2P616xYzVTJiXCtdjo" />
+<div class="url-textfield"><div class="form-item form-type-textfield form-item-url">
+  <label for="edit-url">Leave this field blank </label>
+ <input autocomplete="off" type="text" id="edit-url" name="url" value="" size="20" maxlength="128" class="form-text" />
+</div>
+</div><div class="form-actions"><input class="webform-submit button-primary form-submit" type="submit" name="op" value="Send me the newsletter!" /></div></div></form>  </div>
+</div>
+  </div>
+                    </section>
+                    <!--EOF:#sidebar-second-->
+                </aside>
+                        
+            </div>
+
+        </div>
+    </div>
+    <!-- EOF:#main-content -->
+
+        <!-- #bottom-content -->
+    <div id="bottom-content" class="clearfix">
+        <div class="container">
+
+            <!-- #bottom-content-inside -->
+            <div id="bottom-content-inside" class="clearfix">
+                <div class="row">
+                    <div class="col-md-12">
+                      <div class="region region-bottom-content">
+    <div id="block-block-15" class="block block-block clearfix">
+
+    <h2>To promote and protect open source software and communities...</h2>
+  
+  <div class="content">
+    <p>For <a href="https://opensource.org/history">over 20 years</a> the Open Source Initiative (OSI) has worked to raise awareness and adoption of open source software, and build bridges between <a href="https://opensource.org/affiliates">open source communities</a> of practice. As a <a href="https://opensource.org/sponsors#sponOps">global non-profit</a>, the OSI champions software freedom in society through education, collaboration, and infrastructure, stewarding the <a href="https://opensource.org/osd">Open Source Definition</a> (OSD), and preventing abuse of the ideals and ethos inherent to the open source movement.</p>
+
+<p>Open source software is made by <a href="https://opensource.org/members">many people</a> and distributed under an <a href="https://opensource.org/licenses">OSD-compliant license</a> which grants all the rights to use, study, change, and share the software in modified and unmodified form. Software freedom is essential to enabling community development of open source software.</p>
+  </div>
+</div>
+  </div>
+                    </div>
+                </div>
+            </div>
+            <!-- EOF:#bottom-content-inside -->
+
+        </div>
+    </div>
+    <!-- EOF: #bottom-content -->
+    
+</div>
+<!-- EOF:#page -->
+
+
+<footer id="subfooter" class="clearfix">
+    <div class="container">
+        
+        <!-- #subfooter-inside -->
+        <div id="subfooter-inside" class="clearfix">
+            <div class="row">
+                <div class="col-md-12">
+                    <!-- #subfooter-left -->
+                    <div class="subfooter-area">
+                                            
+
+                                          <div class="region region-footer">
+    <div id="block-block-11" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <div class="filler" style="vertical-align: middle; display: inline-block;">
+<p style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><a href="https://twitter.com/OpenSourceOrg" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/twitterlogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="https://www.linkedin.com/company/open-source-initiative-osi-" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/linkedin.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://wiki.opensource.org" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/xwikilogo.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a> <a href="http://creativecommons.org/licenses/by/4.0/" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;"><img alt="" src="/files/ccby.png" style="margin: 0pt auto; display: table-cell; text-align: center; vertical-align: middle;" width="50" /></a></p>
+</div>
+
+<p> </p>
+
+<div class="license" style="vertical-align: middle; display: inline-block;">
+<p>Sign-up for our <a href="newsletter/signup">newsletter</a>!</p>
+
+<p>The content on this website, of which Opensource.org is the author, is licensed under a <a href="http://creativecommons.org/licenses/by/4.0/" rel="license">Creative Commons Attribution 4.0 International License</a>.<br />
+Opensource.org is not the author of any of the licenses reproduced on this site. Questions about the copyright in a license should be directed to the license steward.</p>
+
+<p>Hosting for Opensource.org is generously provided by <a href="https://www.digitalocean.com/">DigitalOcean</a>. Please see <a href="../ToS">Terms of Service</a>.<br /><span style="font-size:10px;">For questions regarding the OSI website and contents pleasee <a href="mailto:webmaster@lists.opensource.org?subject=OSI%20website%20comment">email our webmaster</a>.</span></p>
+</div>
+
+<p> </p>
+  </div>
+</div>
+<div id="block-block-7" class="block block-block clearfix">
+
+    
+  <div class="content">
+    <script src="https://www.google-analytics.com/urchin.js" type="text/javascript"></script><script type="text/javascript">
+<!--//--><![CDATA[// ><!--
+
+_uacct = "UA-3916956-1";
+urchinTracker();
+
+//--><!]]>
+</script><script defer="defer" data-domain="opensource.org" src="https://plausible.io/js/plausible.js"></script>  </div>
+</div>
+  </div>
+                    
+                    </div>
+                    <!-- EOF: #subfooter-left -->
+                </div>
+            </div>
+        </div>
+        <!-- EOF: #subfooter-inside -->
+    
+    </div>
+</footer>
+<!-- EOF:#subfooter -->
+  <script type="text/javascript" src="https://opensource.org/files/js/js_y3dyBEa8T4s6UYWE26s2_6WUn3S7BX2OqjjPrLL6g1E.js"></script>
+</body>
+</html>

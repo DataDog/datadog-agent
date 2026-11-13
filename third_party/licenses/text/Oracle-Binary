@@ -1,0 +1,565 @@
+
+<!DOCTYPE html>
+<html lang="en-US" class="no-js">
+   <head>
+		
+	<title> BCL For Java SE</title>
+	 
+	<meta name="Title" content=" BCL For Java SE">
+	
+		<meta name="Description" content="Oracle Binary Code License Agreement for the JAVA SE Platform Products">
+	
+	<meta name="Keywords" content="Oracle Binary Code License Agreement for the Java SE">
+	
+<!-- Container/Display Start -->
+
+<!-- _Raw-Text -->
+	<!-- css / js files start -->
+	<script>
+	!function(){
+		var d=document.documentElement;d.className=d.className.replace(/no-js/,'js');
+		if(document.location.href.indexOf('betamode=') > -1) document.write('<script src="https://www.oracle.com/asset/web/js/ocom-betamode.js"><\/script>');
+	}();
+	</script>
+	<link data-wscss href="https://www.oracle.com/asset/web/css/ocom-v1-base.css" rel="stylesheet">
+	<link data-wscss href="https://www.oracle.com/asset/web/css/ocom-v1-styles.css" rel="preload" as="style" onload="this.rel='stylesheet'" onerror="this.rel='stylesheet'">
+	<noscript>
+	   <link href="https://www.oracle.com/asset/web/css/ocom-v1-styles.css" rel="stylesheet">
+	</noscript>
+	<link data-wsjs data-reqjq href="https://www.oracle.com/asset/web/js/ocom-v1-base.js" rel="preload" as="script">
+    <link data-wsjs data-reqjq href="https://www.oracle.com/asset/web/js/ocom-v1-lib.js" rel="preload" as="script">
+    <script data-wsjs src="https://www.oracle.com/asset/web/js/jquery-min.js" async onload="$('head link[data-reqjq][rel=preload]').each(function(){var a = document.createElement('script');a.async=false;a.src=$(this).attr('href');this.parentNode.insertBefore(a, this);});$(function(){$('script[data-reqjq][data-src]').each(function(){this.async=true;this.src=$(this).data('src');});});"></script>
+	<!-- end css / js files start -->
+<!-- / _Raw-Text -->
+
+<!-- Container/Display end -->
+
+
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	
+	<meta name="siteid" content="us">
+	<meta name="countryid" content="US">
+	
+	<meta name="robots" content="index, follow">
+	
+	<meta name="country" content="United States">
+	<meta name="Language" content="en">
+	<meta name="Updated Date" content="2019-05-02T23:11:49Z">
+	
+	<script type="text/javascript">
+		var pageData = pageData || {};
+		//page info
+		pageData.pageInfo = pageData.pageInfo || {};
+		pageData.pageInfo.language = "en";
+		pageData.pageInfo.country = "United States";
+		pageData.pageInfo.pageTitle = " BCL For Java SE";
+		pageData.pageInfo.description = "Oracle Binary Code License Agreement for the JAVA SE Platform Products";
+		pageData.pageInfo.keywords = "Oracle Binary Code License Agreement for the Java SE";
+		pageData.pageInfo.siteId = "us";
+		pageData.pageInfo.countryId = "US";
+		pageData.pageInfo.updatedDate = "2019-05-02T23:11:49Z";
+	</script>
+	<!-- start : ocom/common/global/components/seo-taxonomy-meta-data-->
+	
+	<script type="text/javascript">
+		var pageData = pageData || {};
+		//taxonmy
+		pageData.taxonomy = pageData.taxonomy || {};
+		pageData.taxonomy.productServices = [];
+		pageData.taxonomy.industry = [];
+		pageData.taxonomy.region = [];
+		pageData.taxonomy.contentType = ["WM179506"];
+		pageData.taxonomy.buyersJourney = [];
+		pageData.taxonomy.revenue = [];
+		pageData.taxonomy.title = [];
+		pageData.taxonomy.audience = [];
+		pageData.taxonomy.persona = [];
+	</script>
+<!-- end : ocom/common/global/components/seo-taxonomy-meta-data-->
+<!-- start : ocom/common/global/components/social-media-meta-tags -->
+<!-- end : ocom/common/global/components/social-media-meta-tags -->
+<!-- start : ocom/common/global/components/seo-hreflang-meta-tags --><link rel="canonical" href="https://www.oracle.com/downloads/licenses/binary-code-license.html" />
+					<link rel="alternate" hreflang="en-AE" href="https://www.oracle.com/ae/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="es-AR" href="https://www.oracle.com/ar/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-AU" href="https://www.oracle.com/au/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-BE" href="https://www.oracle.com/be/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="pt-BR" href="https://www.oracle.com/br/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-CA" href="https://www.oracle.com/ca-en/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="fr-CA" href="https://www.oracle.com/ca-fr/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="de-CH" href="https://www.oracle.com/ch-de/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="fr-CH" href="https://www.oracle.com/ch-fr/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="es-CL" href="https://www.oracle.com/cl/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="zh-CN" href="https://www.oracle.com/cn/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="es-CO" href="https://www.oracle.com/co/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="cs-CZ" href="https://www.oracle.com/cz/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="de-DE" href="https://www.oracle.com/de/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-US" href="https://www.oracle.com/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="es-ES" href="https://www.oracle.com/es/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="fr-FR" href="https://www.oracle.com/fr/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-HK" href="https://www.oracle.com/hk/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-ID" href="https://www.oracle.com/id/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-IE" href="https://www.oracle.com/ie/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-IL" href="https://www.oracle.com/il-en/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-IN" href="https://www.oracle.com/in/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="it-IT" href="https://www.oracle.com/it/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="ja-JP" href="https://www.oracle.com/jp/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="ko-KR" href="https://www.oracle.com/kr/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="es-MX" href="https://www.oracle.com/mx/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="nl-NL" href="https://www.oracle.com/nl/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-PH" href="https://www.oracle.com/ph/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="pl-PL" href="https://www.oracle.com/pl/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="pt-PT" href="https://www.oracle.com/pt/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="ro-RO" href="https://www.oracle.com/ro/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="ru-RU" href="https://www.oracle.com/ru/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-SA" href="https://www.oracle.com/sa/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="sv-SE" href="https://www.oracle.com/se/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-SG" href="https://www.oracle.com/sg/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="sk-SK" href="https://www.oracle.com/sk/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="tr-TR" href="https://www.oracle.com/tr/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="zh-TW" href="https://www.oracle.com/tw/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-GB" href="https://www.oracle.com/uk/downloads/licenses/binary-code-license.html" />
+					
+					<link rel="alternate" hreflang="en-ZA" href="https://www.oracle.com/za/downloads/licenses/binary-code-license.html" />
+					
+					<meta name="altpages" content="ae,ar,au,be,br,ca-en,ca-fr,ch-de,ch-fr,cl,cn,co,cz,de,es,fr,hk,id,ie,il-en,in,it,jp,kr,mx,nl,ph,pl,pt,ro,ru,sa,se,sg,sk,tr,tw,uk,za">
+					<script type="text/javascript">
+						var pageData = pageData || {};
+						//page info
+						pageData.pageInfo = pageData.pageInfo || {};
+						pageData.pageInfo.altPages = "ae,ar,au,be,br,ca-en,ca-fr,ch-de,ch-fr,cl,cn,co,cz,de,es,fr,hk,id,ie,il-en,in,it,jp,kr,mx,nl,ph,pl,pt,ro,ru,sa,se,sg,sk,tr,tw,uk,za";
+					</script>
+				<!-- end : ocom/common/global/components/seo-hreflang-meta-tags -->
+
+<!-- Container/Display Start -->
+
+<!-- _Raw-Text -->
+<!-- www-us HeadAdminContainer -->
+<link rel="icon" href="https://www.oracle.com/asset/web/favicons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="https://www.oracle.com/asset/web/favicons/favicon-128.png" sizes="128x128">
+<link rel="icon" href="https://www.oracle.com/asset/web/favicons/favicon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="https://www.oracle.com/asset/web/favicons/favicon-120.png" sizes="120x120">
+<link rel="apple-touch-icon" href="https://www.oracle.com/asset/web/favicons/favicon-152.png" sizes="152x152">
+<link rel="apple-touch-icon" href="https://www.oracle.com/asset/web/favicons/favicon-180.png" sizes="180x180">
+<meta name="msapplication-TileColor" content="#fcfbfa"/>
+<meta name="msapplication-square70x70logo" content="favicon-128.png"/>
+<meta name="msapplication-square150x150logo" content="favicon-270.png"/>
+<meta name="msapplication-TileImage" content="favicon-270.png"/>
+<meta name="msapplication-config" content="none"/>
+<meta name="referrer" content="no-referrer-when-downgrade"/>
+<script async="async" type="text/javascript" src='//consent.truste.com/notice?domain=oracle.com&c=teconsent&js=bb&noticeType=bb&text=true&gtm=1&cdn=1&pcookie' crossorigin></script>
+
+<style>
+#oReactiveChatContainer1 { display:none;}
+</style>
+<!-- Truste for RU -->
+<script type="text/javascript">
+ if (location.pathname.indexOf("/ru/") == 0){
+ document.write('\x3Cscript async="async" src=//consent.truste.com/notice?domain=oracleru.com&c=teconsent&js=bb&noticeType=bb&text=true&gtm=1&cdn=1&pcookie crossorigin="">\x3C/script>');
+ }
+ </script>
+<!--Tealium embed code -->
+<script src="https://tms.oracle.com/main/prod/utag.sync.js"></script>
+<!-- Loading script asynchronously -->
+<script type="text/javascript">
+    (function(a,b,c,d){
+    if(location.href.indexOf("tealium=dev") == -1) {
+    a='https://tms.oracle.com/main/prod/utag.js';
+    } else {
+    a='https://tms.oracle.com/main/dev/utag.js';
+    }
+    b=document;c='script';d=b.createElement(c);d.src=a;d.type='text/java'+c;d.async=true;
+    a=b.getElementsByTagName(c)[0];a.parentNode.insertBefore(d,a);
+    })();
+</script>
+<!--End-->
+
+<!-- / _Raw-Text -->
+
+<!-- Container/Display end -->
+
+   
+<script>(window.BOOMR_mq=window.BOOMR_mq||[]).push(["addVar",{"rua.upush":"false","rua.cpush":"false","rua.upre":"false","rua.cpre":"false","rua.uprl":"false","rua.cprl":"false","rua.cprf":"false","rua.trans":"","rua.cook":"false","rua.ims":"false","rua.ufprl":"false","rua.cfprl":"false","rua.isuxp":"false","rua.texp":"norulematch"}]);</script>
+                              <script>!function(e){var n="https://s.go-mpulse.net/boomerang/";if("False"=="True")e.BOOMR_config=e.BOOMR_config||{},e.BOOMR_config.PageParams=e.BOOMR_config.PageParams||{},e.BOOMR_config.PageParams.pci=!0,n="https://s2.go-mpulse.net/boomerang/";if(window.BOOMR_API_key="DXNLE-YBWWY-AR74T-WMD99-77VRA",function(){function e(){if(!o){var e=document.createElement("script");e.id="boomr-scr-as",e.src=window.BOOMR.url,e.async=!0,i.parentNode.appendChild(e),o=!0}}function t(e){o=!0;var n,t,a,r,d=document,O=window;if(window.BOOMR.snippetMethod=e?"if":"i",t=function(e,n){var t=d.createElement("script");t.id=n||"boomr-if-as",t.src=window.BOOMR.url,BOOMR_lstart=(new Date).getTime(),e=e||d.body,e.appendChild(t)},!window.addEventListener&&window.attachEvent&&navigator.userAgent.match(/MSIE [67]\./))return window.BOOMR.snippetMethod="s",void t(i.parentNode,"boomr-async");a=document.createElement("IFRAME"),a.src="about:blank",a.title="",a.role="presentation",a.loading="eager",r=(a.frameElement||a).style,r.width=0,r.height=0,r.border=0,r.display="none",i.parentNode.appendChild(a);try{O=a.contentWindow,d=O.document.open()}catch(_){n=document.domain,a.src="javascript:var d=document.open();d.domain='"+n+"';void(0);",O=a.contentWindow,d=O.document.open()}if(n)d._boomrl=function(){this.domain=n,t()},d.write("<bo"+"dy onload='document._boomrl();'>");else if(O._boomrl=function(){t()},O.addEventListener)O.addEventListener("load",O._boomrl,!1);else if(O.attachEvent)O.attachEvent("onload",O._boomrl);d.close()}function a(e){window.BOOMR_onload=e&&e.timeStamp||(new Date).getTime()}if(!window.BOOMR||!window.BOOMR.version&&!window.BOOMR.snippetExecuted){window.BOOMR=window.BOOMR||{},window.BOOMR.snippetStart=(new Date).getTime(),window.BOOMR.snippetExecuted=!0,window.BOOMR.snippetVersion=12,window.BOOMR.url=n+"DXNLE-YBWWY-AR74T-WMD99-77VRA";var i=document.currentScript||document.getElementsByTagName("script")[0],o=!1,r=document.createElement("link");if(r.relList&&"function"==typeof r.relList.supports&&r.relList.supports("preload")&&"as"in r)window.BOOMR.snippetMethod="p",r.href=window.BOOMR.url,r.rel="preload",r.as="script",r.addEventListener("load",e),r.addEventListener("error",function(){t(!0)}),setTimeout(function(){if(!o)t(!0)},3e3),BOOMR_lstart=(new Date).getTime(),i.parentNode.appendChild(r);else t(!1);if(window.addEventListener)window.addEventListener("load",a,!1);else if(window.attachEvent)window.attachEvent("onload",a)}}(),"".length>0)if(e&&"performance"in e&&e.performance&&"function"==typeof e.performance.setResourceTimingBufferSize)e.performance.setResourceTimingBufferSize();!function(){if(BOOMR=e.BOOMR||{},BOOMR.plugins=BOOMR.plugins||{},!BOOMR.plugins.AK){var n=""=="true"?1:0,t="",a="fia4wbagn6qqakqce3ycwaadrrq3tp5p-f-4379989c8-clienttons-s.akamaihd.net",i="false"=="true"?2:1,o={"ak.v":"32","ak.cp":"82485","ak.ai":parseInt("604074",10),"ak.ol":"0","ak.cr":9,"ak.ipv":6,"ak.proto":"h2","ak.rid":"2b0ffc86","ak.r":37874,"ak.a2":n,"ak.m":"dscx","ak.n":"essl","ak.bpcip":"2a01:cb04:66f:a100::","ak.cport":52945,"ak.gh":"2.17.114.12","ak.quicv":"","ak.tlsv":"tls1.2","ak.0rtt":"","ak.csrc":"-","ak.acc":"","ak.t":"1639563183","ak.ak":"hOBiQwZUYzCg5VSAfCLimQ==gH+kfRE7lM+KIPAUtiRSCzT14Ze/7VN6o26KqMilFoFUouPA+ccVKx8eBMih5vzlXIpfSdp2DMs1KkugVy56Qgl4IeF/25GoApH87t6Ygr3yCJPIoF2ITJMOeX+d22tsHGlSVKZWdzm4lbnzaib4jsDZhkrLE1jeP0wCRuFW0reT+wZDBQ9t7rES3pjxeNST47tTWnNze7g+B/cV7WPZQn/NK6P2xs61HWkat2C9MuaStTVQpTd8yW5JrNES6WHEv5cTMYKwKbuB6YpuhIRPlslMFEOPzkeDKOnnMg/DB3NeRpwAcQ8mx8rkRlwKDekzFqGsIApvCpEPaU5NxhPT/vSU3th1wO2FqCcSBhHYNXFhvYm7vyq9gStXCq04bA9vb0pzeS8jphzUBrNZ/kl+hGfKwd9SlPUwONMhoX6cVyA=","ak.pv":"253","ak.dpoabenc":"","ak.tf":i};if(""!==t)o["ak.ruds"]=t;var r={i:!1,av:function(n){var t="http.initiator";if(n&&(!n[t]||"spa_hard"===n[t]))o["ak.feo"]=void 0!==e.aFeoApplied?1:0,BOOMR.addVar(o)},rv:function(){var e=["ak.bpcip","ak.cport","ak.cr","ak.csrc","ak.gh","ak.ipv","ak.m","ak.n","ak.ol","ak.proto","ak.quicv","ak.tlsv","ak.0rtt","ak.r","ak.acc","ak.t","ak.tf"];BOOMR.removeVar(e)}};BOOMR.plugins.AK={akVars:o,akDNSPreFetchDomain:a,init:function(){if(!r.i){var e=BOOMR.subscribe;e("before_beacon",r.av,null,null),e("onbeacon",r.rv,null,null),r.i=!0}return this},is_complete:function(){return!0}}}}()}(window);</script></head>
+   
+   <body class="f11 f11v6">
+   		
+		<div class="f11w1">
+			
+<!-- start Common/Header -->
+ 
+	<!-- Dispatcher:null -->
+	
+<!-- BEGIN: oWidget_C/_Raw-Text/Display -->
+<!-- U28v1 -->
+<section class="u28 u28v1 u28adj" id="u28" data-trackas="header">
+	<div id="u28skip2content" aria-expanded="false" tabindex="-1">
+		<ul>
+			<li><a id="u28acc" href="https://www.oracle.com/corporate/accessibility/">Click to view our Accessibility Policy</a></li>
+			<li><a id="u28skip2c" href="#maincontent">Skip to content</a></li>
+		</ul>
+	</div>
+	<div class="u28w1">
+		<div class="cwidth">
+			<div class="u28s1" id="u28s1">
+				<a class="u28home rw-logo" href="/" data-lbl="logo">home</a>
+				<a class="u28ham" href="/universal-menu/" data-lbl="menu">nav</a>
+			</div>
+			<div class="u28s2">
+				<div class="u28w2">
+					<form name="askoracle" id="askoracle" class="askoracle" data-contentpaths="/content/Web/Shared/Auto-Suggest Panel Event" method="get" action="/search/results" data-resultsclose="Close" data-resultscloselabel="Exit Search Results">
+						<input type="hidden" name="Nty" value="1">
+						<input type="hidden" name="Dy" value="1">
+						<input type="hidden" name="Ntk" value="SI-ALL5">
+						<input type="hidden" name="cty" value="us">
+						<input type="hidden" name="lang" value="en">
+						<div class="u28w3">
+							<div class="u28logo rw-logo">
+								<span>Oracle</span>
+							</div>
+							<a class="u28-back rw-cv-left" href="#back" title="Close Search Field">
+								<span>Close</span>
+							</a>
+							<a class="u28-searchicon" href="#search">
+								<span>Search</span>
+							</a>
+							<span class="u28input">
+								<input id="askoracleinput" name="Ntt" value="" data-prefix="Ask" placeholder="Ask" autocomplete="off" role="combobox" aria-label="Search Oracle.com">
+								<span class="u28submit">
+									<input class="u28searchbttn" type="submit" value="Submit Search">
+								</span>
+							</span>
+						</div>
+					</form>
+				</div>
+
+			</div>
+
+			<nav class="u28s4">
+				<a class="u28search u28navitm" id="u28search" aria-label="Open Search Field" href="#search"><span>Search</span></a>
+				<a href="#products" data-target="products" class="u28navitm">Products</a>
+				<a href="#industries" data-target="industries" class="u28navitm">Industries</a>
+				<a href="#resources" data-target="resources" class="u28navitm">Resources</a>
+				<a href="#support" data-target="support" class="u28navitm">Support</a>
+				<a href="#events" data-target="events" class="u28navitm">Events</a>
+				<a href="#developer" data-target="developer" class="u28navitm">Developer</a>
+				<a href="#partners" data-target="partners" class="u28navitm">Partners</a>
+			</nav>
+
+			<div class="u28s3" id="u28s3">
+
+				<div class="u28-profile">
+					<a href="#" class="u28prof" data-lbl="sign-in-account" title="View Accounts"><div class="acttxt">View Accounts</div><span>Sign In</span></a>
+					<div class="u28-profilew1">
+					<span class="u28actbck u28back">Back</span>
+						<span class="u28acttitle">Oracle Account</span>
+						<div class="u28-profilew2">
+							<span class="u28acttitle">Cloud Account</span>
+							<a href="/cloud/sign-in.html" class="u28cloudbg" data-lbl="go-to-cloud-website" aria-label="Sign in to Cloud">Sign in to Cloud</a>
+							<a href="/cloud/free/?source=:ow:o:h:nav:OHP0625ViewAccountsButton&intcmp=:ow:o:h:nav:OHP0625ViewAccountsButton" class="u28btn2" data-lbl="cta-0625-nav-header-accounts-free-tier-oci" aria-label="Sign Up for Free Cloud Tier">Sign Up for Free Cloud Tier</a>
+						</div>
+						<ul class="u28l-out">
+							<li><a href="https://www.oracle.com/webapps/redirect/signon?nexturl=" data-lbl="profile:sign-in-account" class="u28btn1">Sign-In</a></li>
+							<li><a href="https://profile.oracle.com/myprofile/account/create-account.jspx" data-lbl="profile:create-account" class="u28btn2">Create an Account</a></li>
+						</ul>
+						<ul class="u28l-in">
+							<li><a href="/corporate/contact/help.html" data-lbl="help">Help</a></li>
+							<li><a href="javascript:sso_sign_out();" id="u28pfile-sout" data-lbl="signout">Sign Out</a></li>
+						</ul>
+					</div>
+				</div>
+
+				<div class="u28-contact">
+					<a href="/corporate/contact/" class="u28contact" data-lbl="contact-sales" title="Contact Sales"><span>Contact Sales</span></a>
+				</div>
+
+			</div>
+		</div>
+	</div>
+	<div class="u28w4" id="u28w4">
+		<div class="u28w1a u28w5 clstrgt">
+			<div class="u28w6">
+
+				<!-- Search Results -->
+				<div class="u28w8 u28trgt"></div>
+				<div class="u28w9">
+					<div class="u28result u28noresults">
+						<div class="u28rw1">
+							<div class="u28rw2">
+								<div>No results found</div>
+								<p>Your search did not match any results.</p>
+								<p>We suggest you try the following to help find what you&rsquo;re looking for:</p>
+								<ul class="u28w7a">
+									<li>Check the spelling of your keyword search.</li>
+									<li>Use synonyms for the keyword you typed, for example, try &ldquo;application&rdquo; instead of &ldquo;software.&rdquo;</li>
+									<li>Try one of the popular searches shown below.</li>
+									<li>Start a new search.</li>
+								</ul>
+								<div>Trending Questions</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+			</div>
+		</div>
+
+	</div>
+
+	<nav id="u28nav" class="u28nav" data-trackas="menu">
+		<a href="#close" class="mnavback u28back icn-close">Close</a>
+	</nav>
+	<a id="maincontent">&nbsp;</a>
+</section>
+<!-- /U28v1 -->
+
+
+
+<!-- END: oWidget_C/_Raw-Text/Display -->
+
+<!-- end Common/Header -->
+
+<!-- U03v5 -->
+
+	<nav class="u03 u03v5 u03bttns" data-trackas="breadcrumb" data-ocomid="u03">
+		<div class="cwidth">
+			<div class="u03w1">
+				<ul>
+					
+						<li><a href="https://www.oracle.com/downloads/">Downloads</a></li>
+						
+						<li><a href="https://www.oracle.com/downloads/licenses/standard-license.html">Licenses</a></li>
+						
+				</ul>
+				<h1>Licenses</h1>
+			</div>
+			
+		</div>
+		<script type="text/javascript">
+			var pageData = pageData || {};
+			//page info
+			pageData.pageInfo = pageData.pageInfo || {};
+			pageData.pageInfo.breadCrumbs = "Downloads / Licenses";
+		</script>
+	</nav>	
+	
+<!-- _Raw-Text -->
+<section class="cc01 cc01v0 cpad" id="licenseContent"> 
+<div class="cc01w1 cwidth">
+
+<h3>Oracle Binary Code License Agreement for the Java SE Platform Products and JavaFX</h3>
+<p>
+ORACLE AMERICA, INC. ("ORACLE"), FOR AND ON BEHALF OF ITSELF AND ITS SUBSIDIARIES AND AFFILIATES UNDER COMMON CONTROL, IS WILLING TO LICENSE THE SOFTWARE TO YOU ONLY UPON THE CONDITION THAT YOU ACCEPT ALL OF THE TERMS CONTAINED IN THIS BINARY CODE LICENSE AGREEMENT AND SUPPLEMENTAL LICENSE TERMS (COLLECTIVELY "AGREEMENT"). PLEASE READ THE AGREEMENT CAREFULLY. BY SELECTING THE "ACCEPT LICENSE AGREEMENT" (OR THE EQUIVALENT) BUTTON AND/OR BY USING THE SOFTWARE YOU ACKNOWLEDGE THAT YOU HAVE READ THE TERMS AND AGREE TO THEM. IF YOU ARE AGREEING TO THESE TERMS ON BEHALF OF A COMPANY OR OTHER LEGAL ENTITY, YOU REPRESENT THAT YOU HAVE THE LEGAL AUTHORITY TO BIND THE LEGAL ENTITY TO THESE TERMS. IF YOU DO NOT HAVE SUCH AUTHORITY, OR IF YOU DO NOT WISH TO BE BOUND BY THE TERMS, THEN SELECT THE "DECLINE LICENSE AGREEMENT" (OR THE EQUIVALENT) BUTTON AND YOU MUST NOT USE THE SOFTWARE ON THIS SITE OR ANY OTHER MEDIA ON WHICH THE SOFTWARE IS CONTAINED.</p>
+<ol class="decimal">
+<li> DEFINITIONS. "Software" means the software identified above in binary form that you selected for download, install or use (in the version You selected for download, install or use) from Oracle or its authorized licensees and/or those portions of such software produced by jlink as output using a Program’s code, when such output is in unmodified form in combination, and for sole use with, that Program, as well as any other machine readable materials (including, but not limited to, libraries, source files, header files, and data files), any updates or error corrections provided by Oracle, and any user manuals, programming guides and other documentation provided to you by Oracle under this Agreement. The Java Linker (jlink) is available with Java 9 and later versions.&nbsp; "General Purpose Desktop Computers and Servers" means computers, including desktop and laptop computers, or servers, used for general computing functions under end user control (such as but not specifically limited to email, general purpose Internet browsing, and office suite productivity tools). The use of Software in systems and solutions that provide dedicated functionality (other than as mentioned above) or designed for use in embedded or function-specific software applications, for example but not limited to: Software embedded in or bundled with industrial control systems, wireless mobile telephones, wireless handheld devices, kiosks, TV/STB, Blu-ray Disc devices, telematics and network control switching equipment, printers and storage management systems, and other related systems are excluded from this definition and not licensed under this Agreement. "Programs" means (a) Java technology applets and applications intended to run on the Java Platform, Standard Edition platform on Java-enabled General Purpose Desktop Computers and Servers; and (b) JavaFX technology applications intended to run on the JavaFX Runtime on JavaFX-enabled General Purpose Desktop Computers and Servers. “Java SE LIUM” means the Licensing Information User Manual – Oracle Java SE and Oracle Java Embedded Products Document accessible at <a href="/java/technologies/java-se-doc.html" target="">http://www.oracle.com/java/technologies/java-se-doc.html</a>. “Commercial Features” means those features that are identified as such in the Java SE LIUM under the “Description of Product Editions and Permitted Features” section.<br>
+</li><li> LICENSE TO USE. Subject to the terms and conditions of this Agreement including, but not limited to, the Java Technology Restrictions of the Supplemental License Terms, Oracle grants you a non-exclusive, non-transferable, limited license without license fees to reproduce and use internally the Software complete and unmodified for the sole purpose of running Programs. THE LICENSE SET FORTH IN THIS SECTION 2 DOES NOT EXTEND TO THE COMMERCIAL FEATURES. YOUR RIGHTS AND OBLIGATIONS RELATED TO THE COMMERCIAL FEATURES ARE AS SET FORTH IN THE SUPPLEMENTAL TERMS ALONG WITH ADDITIONAL LICENSES FOR DEVELOPERS AND PUBLISHERS.<br>
+</li><li> RESTRICTIONS. Software is copyrighted. Title to Software and all associated intellectual property rights is retained by Oracle and/or its licensors. Unless enforcement is prohibited by applicable law, you may not modify, decompile, or reverse engineer Software. You acknowledge that the Software is developed for general use in a variety of information management applications; it is not developed or intended for use in any inherently dangerous applications, including applications that may create a risk of personal injury. If you use the Software in dangerous applications, then you shall be responsible to take all appropriate fail-safe, backup, redundancy, and other measures to ensure its safe use. Oracle disclaims any express or implied warranty of fitness for such uses. No right, title or interest in or to any trademark, service mark, logo or trade name of Oracle or its licensors is granted under this Agreement. Additional restrictions for developers and/or publishers licenses are set forth in the Supplemental License Terms.<br>
+</li><li> DISCLAIMER OF WARRANTY. THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. ORACLE FURTHER DISCLAIMS ALL WARRANTIES, EXPRESS AND IMPLIED, INCLUDING WITHOUT LIMITATION, ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.<br>
+</li><li> LIMITATION OF LIABILITY. IN NO EVENT SHALL ORACLE BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, PUNITIVE OR CONSEQUENTIAL DAMAGES, OR DAMAGES FOR LOSS OF PROFITS, REVENUE, DATA OR DATA USE, INCURRED BY YOU OR ANY THIRD PARTY, WHETHER IN AN ACTION IN CONTRACT OR TORT, EVEN IF ORACLE HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. ORACLE'S ENTIRE LIABILITY FOR DAMAGES HEREUNDER SHALL IN NO EVENT EXCEED ONE THOUSAND DOLLARS (U.S. $1,000).<br>
+</li><li> TERMINATION. This Agreement is effective until terminated. You may terminate this Agreement at any time by destroying all copies of Software. This Agreement will terminate immediately without notice from Oracle if you fail to comply with any provision of this Agreement. Either party may terminate this Agreement immediately should any Software become, or in either party's opinion be likely to become, the subject of a claim of infringement of any intellectual property right. Upon termination, you must destroy all copies of Software.</li><li> EXPORT REGULATIONS. You agree that U.S. export control laws and other applicable export and import laws govern your use of the Software, including technical data; additional information can be found on Oracle's Global Trade Compliance web site (<a href="/corporate/security-practices/corporate/governance/global-trade-compliance.html" target="">http://www.oracle.com/corporate/security-practices/corporate/governance/global-trade-compliance.html</a>). You agree that neither the Software nor any direct product thereof will be exported, directly, or indirectly, in violation of these laws, or will be used for any purpose prohibited by these laws including, without limitation, nuclear, chemical, or biological weapons proliferation.</li><li>TRADEMARKS AND LOGOS. You acknowledge and agree as between you and Oracle that Oracle owns the ORACLE and JAVA trademarks and all ORACLE- and JAVA-related trademarks, service marks, logos and other brand designations ("Oracle Marks"), and you agree to comply with the Third Party Usage Guidelines for Oracle Trademarks currently located at <a href="/legal/trademarks.html" target="">http://www.oracle.com/legal/trademarks.html</a>. Any use you make of the Oracle Marks inures to Oracle's benefit.<br>
+</li><li> U.S. GOVERNMENT LICENSE RIGHTS. If Software is being acquired by or on behalf of the U.S. Government or by a U.S. Government prime contractor or subcontractor (at any tier), then the Government's rights in Software and accompanying documentation shall be only those set forth in this Agreement.<br>
+</li><li> GOVERNING LAW. This agreement is governed by the substantive and procedural laws of California. You and Oracle agree to submit to the exclusive jurisdiction of, and venue in, the courts of San Francisco, or Santa Clara counties in California in any dispute arising out of or relating to this agreement.<br>
+</li><li> SEVERABILITY. If any provision of this Agreement is held to be unenforceable, this Agreement will remain in effect with the provision omitted, unless omission would frustrate the intent of the parties, in which case this Agreement will immediately terminate.<br>
+</li><li> INTEGRATION. This Agreement is the entire agreement between you and Oracle relating to its subject matter. It supersedes all prior or contemporaneous oral or written communications, proposals, representations and warranties and prevails over any conflicting or additional terms of any quote, order, acknowledgment, or other communication between the parties relating to its subject matter during the term of this Agreement. No modification of this Agreement will be binding, unless in writing and signed by an authorized representative of each party.</li></ol>
+<p>SUPPLEMENTAL LICENSE TERMS</p><p>
+These Supplemental License Terms add to or modify the terms of the Binary Code License Agreement. Capitalized terms not defined in these Supplemental Terms shall have the same meanings ascribed to them in the Binary Code License Agreement. These Supplemental Terms shall supersede any inconsistent or conflicting terms in the Binary Code License Agreement, or in any license contained within the Software.</p><p>
+A. COMMERCIAL FEATURES. You may not use the Commercial Features for running Programs, Java applets or applications in your internal business operations or for any commercial or production purpose, or for any purpose other than as set forth in Sections B, C, D and E of these Supplemental Terms. If You want to use the Commercial Features for any purpose other than as permitted in this Agreement, You must obtain a separate license from Oracle.</p><p>
+B. SOFTWARE INTERNAL USE FOR DEVELOPMENT LICENSE GRANT. Subject to the terms and conditions of this Agreement and restrictions and exceptions set forth in the Java SE LIUM incorporated herein by reference, including, but not limited to the Java Technology Restrictions of these Supplemental Terms, Oracle grants you a non-exclusive, non-transferable, limited license without fees to reproduce internally and use internally the Software complete and unmodified for the purpose of designing, developing, and testing your Programs.</p><p>
+C. LICENSE TO DISTRIBUTE SOFTWARE. Subject to the terms and conditions of this Agreement and restrictions and exceptions set forth in the Java SE LIUM, including, but not limited to the Java Technology Restrictions and Limitations on Redistribution of these Supplemental Terms, Oracle grants you a non-exclusive, non-transferable, limited license without fees to reproduce and distribute the Software, provided that (i) you distribute the Software complete and unmodified and only bundled as part of, and for the sole purpose of running, your Programs, (ii) the Programs add significant and primary functionality to the Software, (iii) you do not distribute additional software intended to replace any component(s) of the Software, (iv) you do not remove or alter any proprietary legends or notices contained in the Software, (v) you only distribute the Software subject to a license agreement that: (a) is a complete, unmodified reproduction of this Agreement; or (b) protects Oracle's interests consistent with the terms contained in this Agreement and that includes the notice set forth in Section H, and (vi) you agree to defend and indemnify Oracle and its licensors from and against any damages, costs, liabilities, settlement amounts and/or expenses (including attorneys' fees) incurred in connection with any claim, lawsuit or action by any third party that arises or results from the use or distribution of any and all Programs and/or Software. The license set forth in this Section C does not extend to the Software identified in Section G.</p><p>
+D. LICENSE TO DISTRIBUTE REDISTRIBUTABLES. Subject to the terms and conditions of this Agreement and restrictions and exceptions set forth in the Java SE LIUM, including but not limited to the Java Technology Restrictions and Limitations on Redistribution of these Supplemental Terms, Oracle grants you a non-exclusive, non-transferable, limited license without fees to reproduce and distribute those files specifically identified as redistributable in the Java SE LIUM ("Redistributables") provided that: (i) you distribute the Redistributables complete and unmodified, and only bundled as part of Programs, (ii) the Programs add significant and primary functionality to the Redistributables, (iii) you do not distribute additional software intended to supersede any component(s) of the Redistributables (unless otherwise specified in the applicable Java SE LIUM), (iv) you do not remove or alter any proprietary legends or notices contained in or on the Redistributables, (v) you only distribute the Redistributables pursuant to a license agreement that: (a) is a complete, unmodified reproduction of this Agreement; or (b) protects Oracle's interests consistent with the terms contained in the Agreement and includes the notice set forth in Section H, (vi) you agree to defend and indemnify Oracle and its licensors from and against any damages, costs, liabilities, settlement amounts and/or expenses (including attorneys' fees) incurred in connection with any claim, lawsuit or action by any third party that arises or results from the use or distribution of any and all Programs and/or Software. The license set forth in this Section D does not extend to the Software identified in Section G.</p><p>
+E. DISTRIBUTION BY PUBLISHERS. This section pertains to your distribution of the JavaTM SE Development Kit Software (“JDK”) with your printed book or magazine (as those terms are commonly used in the industry) relating to Java technology ("Publication"). Subject to and conditioned upon your compliance with the restrictions and obligations contained in the Agreement, Oracle hereby grants to you a non-exclusive, nontransferable limited right to reproduce complete and unmodified copies of the JDK on electronic media (the "Media") for the sole purpose of inclusion and distribution with your Publication(s), subject to the following terms: (i) You may not distribute the JDK on a stand-alone basis; it must be distributed with your Publication(s); (ii) You are responsible for downloading the JDK from the applicable Oracle web site; (iii) You must refer to the JDK as JavaTM SE Development Kit; (iv) The JDK must be reproduced in its entirety and without any modification whatsoever (including with respect to all proprietary notices) and distributed with your Publication subject to a license agreement that is a complete, unmodified reproduction of this Agreement; (v) The Media label shall include the following information: “Copyright [YEAR], Oracle America, Inc. All rights reserved. Use is subject to license terms. ORACLE and JAVA trademarks and all ORACLE- and JAVA-related trademarks, service marks, logos and other brand designations are trademarks or registered trademarks of Oracle in the U.S. and other countries.” [YEAR] is the year of Oracle's release of the Software; the year information can typically be found in the Software’s “About” box or screen. This information must be placed on the Media label in such a manner as to only apply to the JDK; (vi) You must clearly identify the JDK as Oracle's product on the Media holder or Media label, and you may not state or imply that Oracle is responsible for any third-party software contained on the Media; (vii) You may not include any third party software on the Media which is intended to be a replacement or substitute for the JDK; (viii) You agree to defend and indemnify Oracle and its licensors from and against any damages, costs, liabilities, settlement amounts and/or expenses (including attorneys' fees) incurred in connection with any claim, lawsuit or action by any third party that arises or results from the use or distribution of the JDK and/or the Publication; ; and (ix) You shall provide Oracle with a written notice for each Publication; such notice shall include the following information: (1) title of Publication, (2) author(s), (3) date of Publication, and (4) ISBN or ISSN numbers. Such notice shall be sent to Oracle America, Inc., 500 Oracle Parkway, Redwood Shores, California 94065 U.S.A , Attention: General Counsel.</p><p>
+F. JAVA TECHNOLOGY RESTRICTIONS. You may not create, modify, or change the behavior of, or authorize your licensees to create, modify, or change the behavior of, classes, interfaces, or subpackages that are in any way identified as "java", "javax", "sun", “oracle” or similar convention as specified by Oracle in any naming convention designation.</p><p>
+G. LIMITATIONS ON REDISTRIBUTION. You may not redistribute or otherwise transfer patches, bug fixes or updates made available by Oracle through Oracle Premier Support, including those made available under Oracle's Java SE Support program.</p><p>
+H. COMMERCIAL FEATURES NOTICE. For purpose of complying with Supplemental Term Section C.(v)(b) and D.(v)(b), your license agreement shall include the following notice, where the notice is displayed in a manner that anyone using the Software will see the notice:</p><p>
+<em>Use of the Commercial Features for any commercial or production purpose requires a separate license from Oracle. “Commercial Features” means those features that are identified as such in the Licensing Information User Manual – Oracle Java SE and Oracle Java Embedded Products Document, accessible at&nbsp;http://www.oracle.com/java/technologies/java-se-doc.html, under the “Description of Product Editions and Permitted Features” section.</em><br>
+&nbsp;<br>
+I. SOURCE CODE. Software may contain source code that, unless expressly licensed for other purposes, is provided solely for reference purposes pursuant to the terms of this Agreement. Source code may not be redistributed unless expressly provided for in this Agreement.</p><p>
+J. THIRD PARTY CODE. Additional copyright notices and license terms applicable to portions of the Software are set forth in the Java SE LIUM accessible at <a href="/java/technologies/java-se-doc.html" target="">http://www.oracle.com/java/technologies/java-se-doc.html</a>. In addition to any terms and conditions of any third party opensource/freeware license identified in the Java SE LIUM, the disclaimer of warranty and limitation of liability provisions in paragraphs 4 and 5 of the Binary Code License Agreement shall apply to all Software in this distribution.</p><p>
+K. TERMINATION FOR INFRINGEMENT. Either party may terminate this Agreement immediately should any Software become, or in either party's opinion be likely to become, the subject of a claim of infringement of any intellectual property right.</p><p>
+L. INSTALLATION AND AUTO-UPDATE. The Software's installation and auto-update processes transmit a limited amount of data to Oracle (or its service provider) about those specific processes to help Oracle understand and optimize them. Oracle does not associate the data with personally identifiable information. You can find more information about the data Oracle collects as a result of your Software download at <a href="/java/technologies/java-se-doc.html" target="">http://www.oracle.com/java/technologies/java-se-doc.html</a>.</p><p>
+For inquiries please contact: Oracle America, Inc., 500 Oracle Parkway,</p><p>
+Redwood Shores, California 94065, USA.</p><p>
+Last updated 21 September 2017</p>
+          
+      
+  
+</div>
+</section>
+<!-- / _Raw-Text -->
+
+<!-- U10v0 -->
+
+	<!-- Dispatcher:null -->
+	
+<!-- BEGIN: oWidget_C/_Raw-Text/Display -->
+<!-- U10v0 -->
+<div id="u10" class="u10 u10v6" data-trackas="ffooter" data-ocomid="u10">
+	<div class="u10w1">
+		
+<div class="u10w2">
+<div class="u10w3">
+<div class="u10ttl">Resources for</div>
+<ul>
+<li><a data-lbl="resources-for:career" href="/corporate/careers/">Careers</a></li>
+<li><a data-lbl="resources-for:developers" href="https://developer.oracle.com/">Developers</a></li>
+<li><a data-lbl="resources-for:investors" href="https://investor.oracle.com/home/default.aspx">Investors</a></li>
+<li><a data-lbl="resources-for:partners" href="/partnernetwork/">Partners</a></li>
+<li><a data-lbl="resources-for:startups" href="/startup/">Startups</a></li>
+<li><a data-lbl="resources-for:students-educators" href="https://academy.oracle.com/en/oa-web-overview.html">Students and Educators</a></li>
+</ul>
+</div>
+</div>
+
+<div class="u10w2">
+<div class="u10w3">
+<div class="u10ttl">Why Oracle</div>
+<ul>
+<li><a data-lbl="why-oracle:analyst-reports" href="/corporate/analyst-reports.html">Analyst Reports</a></li>
+<li><a data-lbl="why-oracle:gartner-mq-erp-cloud" href="/erp/what-is-erp/best-erp/">Gartner MQ for ERP Cloud</a></li>
+<li><a data-lbl="why-oracle:cloud-economics" href="/cloud/economics/">Cloud Economics</a></li>
+<li><a data-lbl="why-oracle:corporate-responsibility" href="/corporate/citizenship/">Corporate Responsibility</a></li>
+<li><a data-lbl="why-oracle:diversity-inclusion" href="/corporate/careers/diversity-inclusion/">Diversity and Inclusion</a></li>
+<li><a data-lbl="why-oracle:security-pracitices" href="/corporate/security-practices/">Security Practices</a></li>
+</ul>
+</div>
+</div>	
+
+<div class="u10w2">
+<div class="u10w3">
+<div class="u10ttl">Learn</div>
+<ul>
+<li><a data-lbl="learn:cloud-computing" href="/cloud/what-is-cloud-computing/">What is cloud computing?</a></li>
+<li><a data-lbl="learn:crm" href="/cx/what-is-crm/">What is CRM?</a></li>
+<li><a data-lbl="learn:docker" href="/cloud-native/container-registry/what-is-docker/">What is Docker?</a></li>
+<li><a data-lbl="learn:kubernetes" href="/cloud-native/container-engine-kubernetes/what-is-kubernetes/">What is Kubernetes?</a></li>
+<li><a data-lbl="learn:python" href="https://developer.oracle.com/python/what-is-python/">What is Python?</a></li>
+<li><a data-lbl="learn:saas" href="/applications/what-is-saas/">What is SaaS?</a></li>
+</ul>
+</div>
+</div>
+
+<div class="u10w2">
+<div class="u10w3">
+<div class="u10ttl">What&rsquo;s New</div>
+<ul>
+<li><a data-lbl="whatsnew:cloud-trial" href="/cloud/free/?source=:ow:o:h:nav:050120SiteFooter&intcmp=:ow:o:h:nav:050120SiteFooter">Try Oracle Cloud Free Tier</a></li>
+<li><a data-lbl="whatsnew:arm-processors" href="/cloud/compute/arm/">Oracle Arm Processors</a></li>
+<li><a data-lbl="whatsnew:premier-league" href="/premier-league/">Oracle and Premier League</a></li>
+<li><a data-lbl="whatsnew:red-bull-racing" href="/redbullracing/">Oracle and Red Bull Racing Honda</a></li>
+<li><a data-lbl="whatsnew:employee-exp-platform" href="/human-capital-management/journeys/">Employee Experience Platform</a></li>
+<li><a data-lbl="whatsnew:cloud-rewards" href="/cloud/rewards/">Oracle Support Rewards</a></li>
+
+
+</ul>
+</div>
+</div>
+
+
+<div class="u10w2">
+<div class="u10w3">
+<div class="u10ttl">Contact Us</div>
+<ul>
+<li><a href="tel:18006330738">US Sales: +1.800.633.0738</a></li>
+<li><a data-lbl="contact-us:how-can-we-help" href="/corporate/contact/">How can we help?</a></li>
+<li><a data-lbl="contact-us:subscribe-to-emails" href="https://go.oracle.com/subscriptions">Subscribe to emails</a></li>
+<li><a data-lbl="contact-us:events" href="/events/">Events</a></li>
+<li><a data-lbl="contact-us:news" href="/news/">News</a></li>
+<li><a data-lbl="contact-us:blogs" href="https://blogs.oracle.com/">Blogs</a></li>
+</ul>
+</div>
+</div>
+
+<div class="u10w4">
+<hr />
+</div>
+<div class="u10w5 u10w10" data-trackas="footer">
+	<ul class="u10-cr">
+  <li class="u10mtool" id="u10cmenu">
+     <a data-lbl="country-region" class="u10ticon u10regn" href="/universal-menu/#u10countrymenu">Country/Region</a>
+  </li>
+</ul>
+
+
+<ul class="u10-links">
+<li><a data-lbl="copyright" href="/legal/copyright.html">&copy; 2021 Oracle</a></li>
+<li><a data-lbl="site-map" href="/sitemap.html">Site Map</a></li>
+<li><a data-lbl="privacy" href="/legal/privacy/">Privacy</a><span>/</span><a data-lbl="do-not-sell-my-info" href="/legal/privacy/privacy-choices.html">Do Not Sell My Info</a></li>
+<li><div id="teconsent"></div></li>
+<li><a data-lbl="ad-choices" href="/legal/privacy/marketing-cloud-data-cloud-privacy-policy.html#adchoices">Ad Choices</a></li>
+<li><a data-lbl="careers" href="/corporate/careers/">Careers</a></li>
+</ul>
+
+<ul class="scl-icons">
+<li class="scl-facebook"><a data-lbl="scl-icon:facebook" href="https://www.facebook.com/Oracle/" target="_blank" title="Oracle on Facebook">Facebook</a></li>
+<li class="scl-twitter"><a data-lbl="scl-icon:twitter" href="https://twitter.com/oracle" target="_blank" title="Follow Oracle on Twitter">Twitter</a></li>
+<li class="scl-linkedin"><a data-lbl="scl-icon:linkedin" href="https://www.linkedin.com/company/oracle/" target="_blank" title="Oracle on LinkedIn">LinkedIn</a></li>
+<li class="scl-youtube"><a data-lbl="scl-icon:you-tube" href="https://www.youtube.com/oracle/" target="_blank" title="Watch Oracle on YouTube">YouTube</a></li>
+</ul>
+	
+</div>
+</div>
+</div>
+<!-- /U10v0 -->
+
+
+
+<!-- END: oWidget_C/_Raw-Text/Display -->
+
+<!-- /U10v0 -->
+
+		</div>
+		
+<!-- Container/Display Start -->
+
+<!-- _Raw-Text -->
+<!-- www-us EndBodyAdminContainer -->
+<!-- Start SiteCatalyst code -->
+<script language="JavaScript" src="https://www.oracleimg.com/us/assets/metrics/ora_ocom.js"></script>
+<!-- End SiteCatalyst code -->
+
+<!-- www-us EndBodyAdminContainer -->
+
+<!-- / _Raw-Text -->
+
+<!-- Container/Display end -->
+
+	</body>
+</html>
