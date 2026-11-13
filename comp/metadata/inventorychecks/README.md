@@ -53,7 +53,7 @@ The payload is a JSON dict with the following fields
 
 Here an example of an inventory payload:
 
-```
+```json
 {
     "check_metadata": {
         "cpu": [
@@ -61,7 +61,7 @@ Here an example of an inventory payload:
                 "config.hash": "cpu",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "disk": [
@@ -69,7 +69,7 @@ Here an example of an inventory payload:
                 "config.hash": "disk:e5dffb8bef24336f",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "file_handle": [
@@ -77,7 +77,7 @@ Here an example of an inventory payload:
                 "config.hash": "file_handle",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "io": [
@@ -85,7 +85,7 @@ Here an example of an inventory payload:
                 "config.hash": "io",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "load": [
@@ -93,7 +93,7 @@ Here an example of an inventory payload:
                 "config.hash": "load",
                 "config.provider": "file",
                 "init_config": "",
-                "instance_config: {}
+                "instance_config": "{}"
             }
         ],
         "redisdb": [
@@ -151,9 +151,13 @@ Here an example of an inventory payload:
     },
     "files_metadata": {
         "/opt/datadog-agent/etc/conf.d/hello.yaml": {
-            "hash": "1f212c68ca3118a626bbd6b2263e4a2148b9d25671cbcac73f601c02e2af24bd",
-            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n"
-        },
+            "hash": "28ba0e7e89db5773edfb8881bbe44af4bfc1217d14956030ae09671480930fa1",
+            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n  password: ENC[db_password]\n  headers:\n    Authorization: '********'\n",
+            "secrets": [
+                {"path": "instances.0.password", "kind": "enc", "handle": "db_password"},
+                {"path": "instances.0.headers.Authorization", "kind": "raw"}
+            ]
+        }
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895

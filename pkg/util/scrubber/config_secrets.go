@@ -13,6 +13,11 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+const (
+	secretKindRaw = "raw"
+	secretKindEnc = "enc"
+)
+
 // ConfigSecret describes a secret declaration in a configuration file, never its value.
 // Path is relative to the file, using dotted notation.
 // Sequence indexes are path segments, for example instances.0.password.
@@ -31,7 +36,7 @@ func recordRawSecret(secrets *[]ConfigSecret, path string, before, after any) bo
 	if value, ok := before.(string); ok && (IsEnc(value) || value == defaultReplacement) {
 		return false
 	}
-	*secrets = append(*secrets, ConfigSecret{Path: path, Kind: "raw"})
+	*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindRaw})
 	return true
 }
 
@@ -66,7 +71,7 @@ func (c *Scrubber) collectYamlEncSecrets(node *yaml.Node, path string, secrets *
 		}
 		if value, ok := value.(string); ok && IsEnc(value) {
 			value = strings.TrimSpace(value)
-			*secrets = append(*secrets, ConfigSecret{Path: path, Kind: "enc", Handle: value[4 : len(value)-1]})
+			*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindEnc, Handle: value[4 : len(value)-1]})
 		}
 	}
 }

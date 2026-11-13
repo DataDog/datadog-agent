@@ -158,7 +158,7 @@ The payload is a JSON dict with the following fields
 
 Here an example of an inventory payload:
 
-```
+```json
 {
     "agent_metadata": {
         "agent_version": "7.37.0-devel+git.198.68a5b69",
@@ -208,8 +208,12 @@ Here an example of an inventory payload:
     },
     "files_metadata": {
         "/etc/datadog-agent/datadog.yaml": {
-            "hash": "8e9f...",
-            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+            "hash": "8645920b282cc63c2c101090298c4d4aee99fbaa735bab94604def151448463f",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\nlogs_config:\n  api_key: ENC[logs_api_key]\n",
+            "secrets": [
+                {"path": "api_key", "kind": "raw"},
+                {"path": "logs_config.api_key", "kind": "enc", "handle": "logs_api_key"}
+            ]
         }
     },
     "hostname": "my-host",
