@@ -166,20 +166,26 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	}
 	defer rootDir.Close()
 
+	// The process may exit between opening its root and the lookup, and tearing down
+	// its mount namespace detaches the bind-mounted resolv.conf: the lookup then sees
+	// the container image's own etc/resolv.conf, or none. do_exit() releases the
+	// fs_struct before the namespaces, so if the root can still be opened after the
+	// lookup, the namespace was intact during it.
+	rootGoneSinceLookup := func() bool {
+		if entry.ContainerID == nil {
+			return false
+		}
+		recheck, recheckErr := openRoot(rootPath)
+		if recheckErr == nil {
+			recheck.Close()
+		}
+		return isNotExistErr(recheckErr)
+	}
+
 	file, err := openResolvConf(rootDir)
 	if isNotExistErr(err) {
-		// The process may have exited between opening its root and the lookup, and
-		// tearing down its mount namespace detaches the bind-mounted resolv.conf.
-		// do_exit() releases the fs_struct before the namespaces, so if the root can
-		// still be opened now, the namespace was intact during the lookup.
-		if entry.ContainerID != nil {
-			recheck, recheckErr := openRoot(rootPath)
-			if isNotExistErr(recheckErr) {
-				return "", errProcessRootGone
-			}
-			if recheckErr == nil {
-				recheck.Close()
-			}
+		if rootGoneSinceLookup() {
+			return "", errProcessRootGone
 		}
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
@@ -195,7 +201,11 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 		return "", err
 	}
 
-	return r.stripResolvConf(int(stat.Size()), file)
+	contents, err := r.stripResolvConf(int(stat.Size()), file)
+	if err == nil && rootGoneSinceLookup() {
+		return "", errProcessRootGone
+	}
+	return contents, err
 }
 
 // openRoot opens a root directory as an O_PATH handle, for use with openResolvConf.
