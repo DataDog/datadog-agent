@@ -33,7 +33,6 @@ type Options struct {
 type Submitter interface{ EventPlatformEvent([]byte, string) }
 
 type published struct {
-	fields      map[string]json.RawMessage
 	digest      [32]byte
 	nextRefresh time.Time
 }
@@ -65,8 +64,9 @@ func NewPublisher(options Options) (*Publisher, error) {
 	return &Publisher{options: options, last: make(map[string]published)}, nil
 }
 
-// Publish submits changed or refresh-due devices, retaining unavailable optional
-// facts while a device remains enumerated. Submission does not acknowledge delivery.
+// Publish submits changed or refresh-due devices. Each event carries the full
+// device as currently reported, so fields no longer reported are dropped.
+// Submission does not acknowledge delivery.
 func (p *Publisher) Publish(now time.Time, hostname string, devices []Device, sender Submitter) error {
 	if strings.TrimSpace(hostname) == "" {
 		return errors.New("canonical Agent hostname is empty")
@@ -113,24 +113,13 @@ func (p *Publisher) Publish(now time.Time, hostname string, devices []Device, se
 
 func (p *Publisher) publishDevice(now time.Time, device Device, sender Submitter) (bool, error) {
 	key := device.UUID
+	// Each event replaces the whole resource, so the payload is exactly the
+	// device as reported now; fields that are no longer reported are dropped.
 	encodedFields, err := json.Marshal(device)
 	if err != nil {
 		return false, fmt.Errorf("encode fields: %w", err)
 	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(encodedFields, &fields); err != nil {
-		return false, fmt.Errorf("decode fields: %w", err)
-	}
 	previous, exists := p.last[key]
-	for name, value := range previous.fields {
-		if _, known := fields[name]; !known {
-			fields[name] = value
-		}
-	}
-	encodedFields, err = json.Marshal(fields)
-	if err != nil {
-		return false, fmt.Errorf("encode complete fields: %w", err)
-	}
 	if len(encodedFields) > maxFieldsBytes {
 		return false, fmt.Errorf("payload is %d bytes, exceeding limit %d", len(encodedFields), maxFieldsBytes)
 	}
@@ -152,6 +141,6 @@ func (p *Publisher) publishDevice(now time.Time, device Device, sender Submitter
 		return false, fmt.Errorf("encode event: %w", err)
 	}
 	sender.EventPlatformEvent(encoded, eventplatform.EventTypeGenResources)
-	p.last[key] = published{fields: fields, digest: digest, nextRefresh: now.Add(p.options.RefreshInterval)}
+	p.last[key] = published{digest: digest, nextRefresh: now.Add(p.options.RefreshInterval)}
 	return true, nil
 }

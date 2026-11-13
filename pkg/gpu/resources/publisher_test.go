@@ -74,7 +74,7 @@ func TestPublisherEnvelopeAndRefresh(t *testing.T) {
 	require.Equal(t, now.Add(4*time.Minute), refreshed.Resource.SeenAt.AsTime())
 }
 
-func TestPublisherChangesAndMissingOptionalFacts(t *testing.T) {
+func TestPublisherChangesAndDroppedFields(t *testing.T) {
 	p := newTestPublisher(t)
 	sender := &recordingSender{}
 	now := time.Unix(1700000000, 0)
@@ -82,18 +82,43 @@ func TestPublisherChangesAndMissingOptionalFacts(t *testing.T) {
 	require.NoError(t, p.Publish(now, "host", []Device{d}, sender))
 	d.DriverVersion = ""
 	require.NoError(t, p.Publish(now.Add(time.Second), "host", []Device{d}, sender))
-	require.Len(t, sender.payloads, 1, "missing enrichment is not an observed removal")
+	require.Len(t, sender.payloads, 2, "a dropped field is a change")
+	_, fields := decodeEvent(t, sender.payloads[1])
+	require.NotContains(t, fields, "gpu_driver_version")
+	require.Equal(t, "tesla_t4", fields["gpu_device"])
 	d.Model = "new_model"
 	require.NoError(t, p.Publish(now.Add(2*time.Second), "host", []Device{d}, sender))
-	_, fields := decodeEvent(t, sender.payloads[1])
-	require.Equal(t, "580.1", fields["gpu_driver_version"])
+	_, fields = decodeEvent(t, sender.payloads[2])
 	require.Equal(t, "new_model", fields["gpu_device"])
 	require.NoError(t, p.Publish(now.Add(3*time.Second), "new-host", []Device{d}, sender))
-	_, fields = decodeEvent(t, sender.payloads[2])
+	_, fields = decodeEvent(t, sender.payloads[3])
 	require.Equal(t, "new-host", fields["hostname"])
 	require.NoError(t, p.Publish(now.Add(4*time.Second), "new-host", nil, sender))
 	require.Empty(t, p.last)
-	require.Len(t, sender.payloads, 3, "disappearance must not emit a tombstone")
+	require.Len(t, sender.payloads, 4, "disappearance must not emit a tombstone")
+}
+
+func TestPublisherClearsFabricFieldsWhenDeviceLeavesDomain(t *testing.T) {
+	p := newTestPublisher(t)
+	sender := &recordingSender{}
+	now := time.Unix(1700000000, 0)
+	clique := uint32(3)
+	d := Device{
+		UUID: testUUID, Model: "h100",
+		FabricClusterUUID: "cluster-1", FabricCliqueID: &clique, NVLinkDomain: "cluster-1:3",
+	}
+	require.NoError(t, p.Publish(now, "host", []Device{d}, sender))
+	_, fields := decodeEvent(t, sender.payloads[0])
+	require.Equal(t, "cluster-1:3", fields["nvlink_domain"])
+
+	d.FabricClusterUUID, d.FabricCliqueID, d.NVLinkDomain = "", nil, ""
+	require.NoError(t, p.Publish(now.Add(time.Second), "host", []Device{d}, sender))
+	require.Len(t, sender.payloads, 2)
+	_, fields = decodeEvent(t, sender.payloads[1])
+	require.NotContains(t, fields, "gpu_fabric_cluster_uuid")
+	require.NotContains(t, fields, "gpu_fabric_clique_id")
+	require.NotContains(t, fields, "nvlink_domain")
+	require.Equal(t, "h100", fields["gpu_device"])
 }
 
 func TestPublisherReportsPayloadFailures(t *testing.T) {
