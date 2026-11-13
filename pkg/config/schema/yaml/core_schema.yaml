@@ -6786,8 +6786,9 @@ properties:
                     type: string
                     default: 127.0.0.1:4319
                     description: |-
-                      Relocated Agent OTLP/gRPC listener endpoint in proxy mode. The relocated listener is plaintext: any local process
-                      that can reach this endpoint can send OTLP data.
+                      Relocated Agent OTLP/gRPC listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
                       When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
                       is a configuration error and the Agent's OTLP ingest does not start.
                       Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
@@ -6796,8 +6797,9 @@ properties:
                     type: string
                     default: 127.0.0.1:4320
                     description: |-
-                      Relocated Agent OTLP/HTTP listener endpoint in proxy mode. The relocated listener is plaintext: any local process
-                      that can reach this endpoint can send OTLP data.
+                      Relocated Agent OTLP/HTTP listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
                       Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
                   logs:
                     node_type: setting
