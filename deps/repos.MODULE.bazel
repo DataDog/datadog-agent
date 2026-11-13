@@ -404,10 +404,10 @@ http_archive(
     files = {
         "BUILD.bazel": "//deps/jemalloc:overlay.BUILD.bazel",
     },
-    sha256 = "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa",
-    strip_prefix = "jemalloc-5.3.0",
+    sha256 = "3826bc80232f22ed5c4662f3034f799ca316e819103bdc7bb99018a421706f92",
+    strip_prefix = "jemalloc-5.3.1",
     urls = [
-        "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
+        "https://github.com/jemalloc/jemalloc/releases/download/5.3.1/jemalloc-5.3.1.tar.bz2",
     ],
 )
 
@@ -418,6 +418,7 @@ http_archive(
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/openssl:0002-Strip-the-build-root-from-the-embedded-compiler-flags.patch",
+        "//deps/openssl:0003-Resolve-the-default-directories-relative-to-the-install-prefix.patch",
     ],
     sha256 = "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
     strip_prefix = "openssl-3.5.9",
@@ -456,4 +457,47 @@ http_archive(
     urls = [
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
+)
+
+# Static glibc (and libgcc_eh) for -static Linux links: hermetic-llvm ships shared-object glibc stubs only.
+# Same tarballs as the crosstool-NG GCC toolchains: glibc 2.17 on x86_64, 2.23 on aarch64.
+http_archive(
+    name = "glibc_static_x86_64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "3e842665eecc8ebe8ebf8e6f391809a2124c362e97f3d7dfb2df78225c719342",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/98b584a9d5921dfe1262878d9d7fc322288f919c6e24763401f7cf29194de9c7/x86_64/x86_64-linux-gnu-gcc.tar.xz"],
+)
+
+http_archive(
+    name = "glibc_static_aarch64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "26b924f31f21c2d84a3f78954d295ff6eaeaa758dca39cb3c25178c2cfd00692",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/3857f6dd078bb69ceb53e37536fa0e90eb7f3c2eefa1454f5f43376f02d8c9cc/aarch64/aarch64-linux-gnu-gcc.tar.xz"],
+)
+
+temurin_jre_version = "11.0.33+10"
+
+http_archive(
+    name = "temurin_jre_windows_x64",
+    build_file_content = """
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+
+pkg_files(
+    name = "files",
+    srcs = glob(["**"], exclude = ["BUILD.bazel", "REPO.bazel"]),
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":files"],
+)
+""",
+    sha256 = "d07c70035f7462924cd385912d76d50622baa17b15e5260df8facabcf2fff998",
+    strip_prefix = "jdk-{}-jre".format(temurin_jre_version),
+    urls = ["https://github.com/adoptium/temurin11-binaries/releases/download/jdk-{}/OpenJDK11U-jre_x64_windows_hotspot_{}.zip".format(
+        temurin_jre_version.replace("+", "%2B"),
+        temurin_jre_version.replace("+", "_"),
+    )],
 )

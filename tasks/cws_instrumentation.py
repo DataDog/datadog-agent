@@ -1,4 +1,3 @@
-import datetime
 import glob
 import os
 import platform
@@ -11,14 +10,11 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
-from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_go_version,
-    get_version,
 )
 
 BIN_DIR = os.path.join(".", "bin")
@@ -64,17 +60,6 @@ def build(
         build_tags = []
     ldflags, gcflags, env = get_build_flags(ctx, static=static)
 
-    # TODO use pkg/version for this
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_commit_sha(ctx, short=True),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="cws-instrumentation", flavor=fips_backend.agent_flavor())
 
     if injector_only:

@@ -11,7 +11,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -29,9 +28,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-var timeout = 10 * time.Second
-var interval = 50 * time.Millisecond
 
 func Test_AddDelete_Deployment(t *testing.T) {
 	t.Parallel()
@@ -54,53 +50,44 @@ func Test_AddDelete_Deployment(t *testing.T) {
 
 	err := deploymentStore.Add(&deployment)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
-		return err == nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
+	require.NoError(t, err)
 
 	err = deploymentStore.Delete(&deployment)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
-		return err != nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
+	require.Error(t, err)
 }
 
 func Test_AddDelete_Pod(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		workloadmetaComponent := mockedWorkloadmeta(t)
+	t.Parallel()
+	workloadmetaComponent := mockedWorkloadmeta(t)
 
-		podStore := newPodReflectorStoreWithFullPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
+	podStore := newPodReflectorStoreWithFullPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
-		pod := corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod",
-				Namespace: "test-namespace",
-				UID:       "pod-uid",
-				Labels: map[string]string{
-					"test-label": "test-value",
-				},
-				Annotations: map[string]string{
-					"test-annotation": "test-value",
-				},
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			UID:       "pod-uid",
+			Labels: map[string]string{
+				"test-label": "test-value",
 			},
-		}
+			Annotations: map[string]string{
+				"test-annotation": "test-value",
+			},
+		},
+	}
 
-		err := podStore.Add(&pod)
-		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
-			return err == nil
-		}, timeout, interval)
+	err := podStore.Add(&pod)
+	require.NoError(t, err)
+	_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
+	require.NoError(t, err)
 
-		err = podStore.Delete(&pod)
-		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
-			return err != nil
-		}, timeout, interval)
-	})
+	err = podStore.Delete(&pod)
+	require.NoError(t, err)
+	_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
+	require.Error(t, err)
 }
 
 func Test_AddDelete_MinimalPod(t *testing.T) {
@@ -125,17 +112,13 @@ func Test_AddDelete_MinimalPod(t *testing.T) {
 
 	err := podStore.Add(&pod)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
-		return err == nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
+	require.NoError(t, err)
 
 	err = podStore.Delete(&pod)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
-		return err != nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
+	require.Error(t, err)
 }
 
 func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
@@ -172,17 +155,13 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 
 	err = metadataStore.Add(&partialObjMetadata)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(kubeMetadataEntityID)
-		return err == nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesMetadata(kubeMetadataEntityID)
+	require.NoError(t, err)
 
 	err = metadataStore.Delete(&partialObjMetadata)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesMetadata(kubeMetadataEntityID)
-		return err != nil
-	}, timeout, interval)
+	_, err = workloadmetaComponent.GetKubernetesMetadata(kubeMetadataEntityID)
+	require.Error(t, err)
 }
 
 // This is a regression test. Unset events notified from Replace() had the

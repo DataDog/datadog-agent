@@ -73,6 +73,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestUnloadModule",
 			"~TestOsOrigin",
 			"~TestOTelSpanEBPFLess",
+			"~TestNodeSpanEBPFLess",
+			"~TestDDTraceGoSpanEBPFLess",
 			"~TestChdir",
 			"~TestBindEvent",
 			"~TestSocketEvent",

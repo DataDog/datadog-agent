@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import errno
 import json
 import os
@@ -17,14 +16,12 @@ from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_go_version,
-    get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
@@ -81,15 +78,6 @@ def build(
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_commit_sha(ctx, short=True),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
@@ -102,7 +90,6 @@ def build(
             out="cmd/security-agent/rsrc.syso",
         )
 
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())
 
     if os.path.exists(BIN_PATH):

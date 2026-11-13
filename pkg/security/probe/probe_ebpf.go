@@ -2501,8 +2501,8 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handler, ok := allDiscarderHandlers[field]; ok {
-		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if d, ok := allDiscarders[field]; ok {
+		discarderPushed, _ := d.handler(rs, ev, p, Discarder{Field: field})
 
 		if discarderPushed {
 			p.discarderPushedCallbacksLock.RLock()

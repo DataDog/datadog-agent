@@ -24,10 +24,8 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         archives = (REPO_ROOT / "deps/agent_data_plane/BUILD.bazel").read_text()
         packages_agent = (REPO_ROOT / "packages/agent/BUILD.bazel").read_text()
 
-        # Agent Data Plane has no FIPS build for macOS: base_flavor (not fips_flavor)
-        # gates the macOS archive selection, so a FIPS+macOS build resolves no
-        # select() branch at all and fails loudly instead of silently falling
-        # back to the non-FIPS darwin archive.
+        # Agent Data Plane has no FIPS build for macOS: no macOS platform carries //bazel/platforms:fips,
+        # so a FIPS+macOS build fails loudly instead of silently falling back to the non-FIPS darwin archive.
         self.assertIn('"//packages/agent:macos_x86_64_base": "agent_data_plane_darwin_amd64"', archives)
         self.assertIn('"//packages/agent:macos_arm64_base": "agent_data_plane_darwin_arm64"', archives)
         self.assertNotIn("macos_x86_64_fips", archives)
@@ -41,7 +39,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_adp_all_files_is_wired_into_dependencies_for_linux_macos_and_windows(self):
         dependencies = (REPO_ROOT / "packages/agent/dependencies/BUILD.bazel").read_text()
 
-        self.assertIn('"//packages/agent:linux_default": [', dependencies)
+        self.assertIn('"@platforms//os:linux": [', dependencies)
         self.assertIn('"//packages/agent:linux_fips": [', dependencies)
         macos_srcs = dependencies.partition('"@platforms//os:macos": [')[2].partition("],")[0]
         self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)
@@ -92,17 +90,20 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(handoff, fallback)
 
     def test_uninstall_hands_the_teardown_to_the_installed_installer(self):
-        # The uninstall script runs the installed installer's pre-remove, without --upgrade, before
-        # booting out the jobs it knows itself, as preinst does on upgrade.
+        # The uninstall script hands the uninstall to the installed installer's pre-remove, without
+        # --upgrade, and only removes the Agent itself when there is no installer or it fails.
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
 
         supported = uninstall.find('"$installer_bin" is-prerm-supported')
         handoff = uninstall.find('"$installer_bin" prerm datadog-agent dmg')
-        fallback = uninstall.find("Stopping system services")
+        definition = uninstall.find("uninstall_without_installer() {")
+        fallback = uninstall.find("        uninstall_without_installer\n", handoff)
         self.assertNotEqual(supported, -1)
         self.assertNotEqual(handoff, -1)
+        self.assertNotEqual(definition, -1)
         self.assertNotEqual(fallback, -1)
         self.assertNotIn("prerm --upgrade", uninstall)
+        self.assertLess(definition, supported)
         self.assertLess(supported, handoff)
         self.assertLess(handoff, fallback)
 
@@ -132,31 +133,34 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn("ADPWindowsProcmgrConfig", embed_go)
         self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
 
-    def test_postinst_falls_back_to_the_shipped_launchdaemons(self):
-        # When `installer postinst datadog-agent dmg` fails or the installer is missing, postinst
-        # installs the Agent's stable LaunchDaemons itself, from plain copies of the installer's own
-        # embedded definitions shipped under the root-owned embedded/ tree, never under etc/.
-        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
-        embedded_build = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/BUILD.bazel").read_text()
+    def test_postinst_fails_the_install_when_the_installer_fails(self):
+        # postinst hands the whole install to `installer postinst datadog-agent dmg`, as deb and rpm
+        # do, and exits non-zero when the installer is missing or fails, so Installer.app, MDM or
+        # `installer -pkg` report the failure. It has no shell copy of the installer's work.
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
+        build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
 
-        self.assertIn('"//pkg/fleet/installer/packages/embedded:launchd_fallback_jobs"', build_file)
-        self.assertIn('prefix = "embedded/share/launchd"', build_file)
-        self.assertIn('":launchd_fallback_jobs"', build_file)
-        self.assertIn('FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"', postinst)
-        self.assertEqual(postinst.count("install_fallback_launchdaemons\n"), 2)
+        self.assertIn('"$INSTALLER_BIN" postinst datadog-agent dmg', postinst)
+        self.assertTrue(postinst.rstrip().endswith("exit $status"))
+        self.assertEqual(postinst.count("status=1"), 2)
+        for absent in ["launchctl", "dscl", "fallback", "embedded/share/launchd"]:
+            with self.subTest(absent=absent):
+                self.assertNotIn(absent, postinst)
+        self.assertNotIn("launchd_fallback_jobs", build_file)
 
+    def test_launchdaemons_start_when_bootstrapped(self):
+        # The installer starts the jobs by bootstrapping them, never with `launchctl kickstart`: a
+        # job launchd cannot spawn, such as one whose account is missing, blocks that call, and
+        # Installer.app aborts the install after waiting on it.
         for label in [
             "com.datadoghq.procmgr",
             "com.datadoghq.agent",
             "com.datadoghq.sysprobe",
             "com.datadoghq.data-plane",
+            "com.datadoghq.installer",
         ]:
-            with self.subTest(service=label):
-                self.assertIn(f'"tmpl/gen/darwin/{label}.plist"', embedded_build)
-                self.assertTrue(
-                    (REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist").is_file()
-                )
-                self.assertIn(label, postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
-        # The installer daemon is Fleet's, not the Agent's: the fallback does not install it.
-        self.assertNotIn("com.datadoghq.installer", postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
+            with self.subTest(job=label):
+                definition = (
+                    REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist"
+                ).read_text()
+                self.assertRegex(definition, r"<key>RunAtLoad</key>\s*<true/>")

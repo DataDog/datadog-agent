@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    APM: The trace-agent adds an ``/ai_guard/proxy/`` endpoint that forwards AI Guard
+    SDK evaluations to ``api.<site>`` with the Agent's API key and application key.
+    It is only registered, and listed in ``/info``, when both the Agent's API key and
+    ``app_key`` are set, and only
+    accepts ``GET`` and ``POST`` requests to the AI Guard API (``/api/v2/ai-guard/``).
+    This lets services instrumented with Single Step Instrumentation use AI Guard
+    without any Datadog credential. A rotated ``app_key`` is picked up without restarting
+    the Agent; adding one to an Agent that started without it still requires a restart.
