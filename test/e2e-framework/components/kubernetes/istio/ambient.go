@@ -21,7 +21,6 @@ import (
 const (
 	// AmbientDefaultVersion is the Istio chart version installed by NewAmbientHelmInstallation
 	AmbientDefaultVersion = "1.30.8"
-	istioHub              = "docker.io/istio"
 	gatewayAPIVersion     = "v1.7.0"
 	istioChartsRepo       = "https://istio-release.storage.googleapis.com/charts"
 )
@@ -64,9 +63,19 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 	// the cni and ztunnel charts tolerate every taint by default, which schedules them on
 	// EKS Fargate nodes, where DaemonSet pods stay Pending
 	noTolerations := pulumi.Array{}
-	// Istio's own registry, not the Docker Hub pull-through cache: EKS node roles can't import a first
-	// pull into the cache. istiod's hub also sets the waypoint's proxyv2 image
-	hub := pulumi.String(istioHub)
+	// This resolves to the Docker Hub cache on AWS and the public registry elsewhere.
+	// istiod's global values also configure the controller-generated waypoint pods.
+	hub := pulumi.String(e.InternalDockerhubMirror() + "/istio")
+	var imagePullSecrets pulumi.StringArray
+	if e.ImagePullRegistry() != "" {
+		secret, err := utils.NewImagePullSecret(e, "istio-system", append(opts, utils.PulumiDependsOn(ns))...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, secret.Metadata.Name().Elem())
+		opts = append(opts, utils.PulumiDependsOn(secret))
+	}
+	global := pulumi.Map{"hub": hub, "imagePullSecrets": imagePullSecrets}
 	releases := []struct {
 		chart, name string
 		values      pulumi.Map
@@ -75,14 +84,14 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 		// istiod requests 2Gi by default, more than the framework's default node can spare
 		{"istiod", "istiod", pulumi.Map{
 			"profile": pulumi.String("ambient"),
-			"global":  pulumi.Map{"hub": hub},
+			"global":  global,
 			"resources": pulumi.Map{"requests": pulumi.Map{
 				"cpu":    pulumi.String("100m"),
 				"memory": pulumi.String("256Mi"),
 			}},
 		}},
-		{"cni", "istio-cni", pulumi.Map{"profile": pulumi.String("ambient"), "global": pulumi.Map{"hub": hub}, "tolerations": noTolerations}},
-		{"ztunnel", "ztunnel", pulumi.Map{"hub": hub, "tolerations": noTolerations}},
+		{"cni", "istio-cni", pulumi.Map{"profile": pulumi.String("ambient"), "global": global, "tolerations": noTolerations}},
+		{"ztunnel", "ztunnel", pulumi.Map{"hub": hub, "imagePullSecrets": imagePullSecrets, "tolerations": noTolerations}},
 	}
 	var previous pulumi.Resource = ns
 	for _, r := range releases {
@@ -109,7 +118,9 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 
 // NewWaypoint creates a waypoint for services in namespace, the equivalent of
 // `istioctl waypoint apply -n <namespace> --enroll-namespace`. The namespace must
-// carry the label istio.io/use-waypoint=waypoint.
+// carry the label istio.io/use-waypoint=waypoint and, when image pull credentials
+// are configured, a namespace-local copy of utils.NewImagePullSecret for the
+// imagePullSecrets inherited from istiod's waypoint template.
 func NewWaypoint(e config.Env, namespace string, opts ...pulumi.ResourceOption) (*apiext.CustomResource, error) {
 	return apiext.NewCustomResource(e.Ctx(), "waypoint-"+namespace, &apiext.CustomResourceArgs{
 		ApiVersion: pulumi.String("gateway.networking.k8s.io/v1"),

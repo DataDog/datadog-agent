@@ -79,7 +79,7 @@ entries:
 - file: test/new-e2e/tests/npm/istio_ambient_test.go
   function: TestEKSIstioAmbientSuite
   status: debt
-  reason: Restricted EKS workers fail to join, and Istio images pull from docker.io/istio because EKS node roles can't import a first pull into the Docker Hub cache; retain access pending restricted-bootstrap support.
+  reason: Restricted EKS workers fail to join; retain access pending restricted-bootstrap support.
 - file: test/new-e2e/tests/orchestrator/k8s_api_key_test.go
   function: k8sSuite.TestZzzClusterAgentAPIKeyRefresh
   status: debt
