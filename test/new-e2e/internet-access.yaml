@@ -336,10 +336,6 @@ entries:
   function: TestMacosInstallScriptUpgradeFromStable
   status: debt
   reason: Fetches the macOS install script from install.datadoghq.com and the released Agent .dmg it installs before upgrading; should use a QA-account mirror.
-- file: test/new-e2e/tests/agent-platform/tests/package_signing_test.go
-  function: TestPackageSigningComponent
-  status: debt
-  reason: Downloads the Datadog signing keys from keys.datadoghq.com; should bundle them or use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/persisting_integrations_test.go
   function: TestPersistingIntegrations
   status: debt
@@ -392,10 +388,6 @@ entries:
   function: windowsSecretSuite.TestAgentConfigRefresh
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/status_win_test.go
-  function: TestWindowsStatusSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/apm/vm_test.go
   function: vmProvisionerOpts
   status: debt
@@ -412,10 +404,6 @@ entries:
   function: TestAgentWindowsSuite
   status: justified
   reason: 'No fakeintake: tests check Remote Config policy delivery and signals sent to the real Datadog backend.'
-- file: test/new-e2e/tests/data-security/postgres_provisioner.go
-  function: postgresScanProvisioner
-  status: untriaged
-  reason: 'TODO(@DataDog/sensitive-data-scanner): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/discovery/linux_test.go
   function: TestLinuxTestSuite
   status: debt
@@ -428,10 +416,6 @@ entries:
   function: linuxTestSuite.testProcessCheckWithServiceDiscoveryPrivilegedLogs
   status: debt
   reason: Re-applies the suite opt-in on UpdateEnv; the suite needs it only for provision.sh apt/pip/npm/gem installs.
-- file: test/new-e2e/tests/discovery/process_autodiscovery_test.go
-  function: TestProcessAutodiscoverySuite
-  status: debt
-  reason: Installs redis-server and nginx with apt-get in SetupSuite; must move to a prebaked AMI.
 - file: test/new-e2e/tests/fleet/suite/suite.go
   function: Run
   status: debt
