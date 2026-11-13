@@ -94,7 +94,7 @@ def _ebpf_prog_impl(ctx):
     # Architecture defines
     flags.extend(_get_arch_flags(target_arch))
 
-    if ctx.attr.debug:
+    if ctx.attr.debug or ctx.attr._debug_flag[BuildSettingInfo].value:
         flags.append("-DDEBUG=1")
 
     flags.extend(ctx.attr.extra_flags)
@@ -272,6 +272,10 @@ _ebpf_prog = rule(
             default = "//bazel/rules/ebpf:target_arch",
             doc = "The string_flag providing the cross-compilation target arch.",
         ),
+        "_debug_flag": attr.label(
+            default = "//bazel/rules/ebpf:debug",
+            doc = "The bool_flag that adds DEBUG=1, set by _ebpf_debug_variant.",
+        ),
         "_linux_headers": attr.label(
             default = "@linux_headers//:all",
             allow_files = True,
@@ -291,6 +295,36 @@ _ebpf_prog = rule(
         ),
     },
     toolchains = [_TOOLCHAIN_TYPE],
+)
+
+_DEBUG_FLAG = "//bazel/rules/ebpf:debug"
+
+def _debug_transition_impl(_settings, _attr):
+    return {_DEBUG_FLAG: True}
+
+_debug_transition = transition(
+    implementation = _debug_transition_impl,
+    inputs = [],
+    outputs = [_DEBUG_FLAG],
+)
+
+def _ebpf_debug_variant_impl(ctx):
+    # Staging copies bazel-bin/<pkg>/<name>.o, so expose the transitioned
+    # object under this target's name in the current configuration.
+    out = ctx.actions.declare_file(ctx.label.name + ".o")
+    ctx.actions.symlink(output = out, target_file = ctx.file.src)
+    return [DefaultInfo(files = depset([out]))]
+
+_ebpf_debug_variant = rule(
+    implementation = _ebpf_debug_variant_impl,
+    attrs = {
+        "src": attr.label(
+            mandatory = True,
+            allow_single_file = [".o"],
+            cfg = _debug_transition,
+            doc = "The ebpf_prog target to rebuild with DEBUG=1.",
+        ),
+    },
 )
 
 def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
@@ -343,15 +377,10 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         src = ":" + name,
         target_compatible_with = ["@platforms//os:linux"],
     )
-    _ebpf_prog(
+    _ebpf_debug_variant(
         name = name + "-debug",
         visibility = visibility,
-        src = src,
-        deps = deps,
-        core = core,
-        debug = True,
-        extra_flags = extra_flags,
-        target_arch = target_arch,
+        src = ":" + name,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(

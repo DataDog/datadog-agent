@@ -91,17 +91,11 @@ filegroup(
     name = "prebuilt_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:conntrack.stripped",
-        "//pkg/network/ebpf/c/prebuilt:conntrack-debug.stripped",
         "//pkg/network/ebpf/c/prebuilt:dns.stripped",
-        "//pkg/network/ebpf/c/prebuilt:dns-debug.stripped",
         "//pkg/network/ebpf/c/prebuilt:offset-guess.stripped",
-        "//pkg/network/ebpf/c/prebuilt:offset-guess-debug.stripped",
         "//pkg/network/ebpf/c/prebuilt:shared-libraries.stripped",
-        "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug.stripped",
         "//pkg/network/ebpf/c/prebuilt:tracer.stripped",
-        "//pkg/network/ebpf/c/prebuilt:tracer-debug.stripped",
         "//pkg/network/ebpf/c/prebuilt:usm.stripped",
-        "//pkg/network/ebpf/c/prebuilt:usm-debug.stripped",
         "//pkg/security/ebpf/c/prebuilt:runtime-security.stripped",
         "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry.stripped",
         "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser.stripped",
@@ -114,7 +108,6 @@ filegroup(
     name = "prebuilt_test_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:usm_events_test.stripped",
-        "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug.stripped",
     ],
     visibility = ["//visibility:public"],
 )
@@ -124,13 +117,9 @@ filegroup(
     srcs = [
         "//cmd/system-probe/subcommands/ebpf/testdata:btf_test.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf.stripped",
-        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor.stripped",
-        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill.stripped",
-        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length.stripped",
-        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug.stripped",
         "//pkg/dyninst/ebpf:dyninst_event.stripped",
         "//pkg/dyninst/ebpf:dyninst_event-debug.stripped",
         "//pkg/ebpf/c:ksyms_iter.stripped",
@@ -141,21 +130,46 @@ filegroup(
         "//pkg/ebpf/testdata/c:sleepable.stripped",
         "//pkg/ebpf/testdata/c:uprobe_attacher-test.stripped",
         "//pkg/gpu/ebpf/c/runtime:gpu.stripped",
-        "//pkg/gpu/ebpf/c/runtime:gpu-debug.stripped",
         "//pkg/network/ebpf/c:tracer.stripped",
-        "//pkg/network/ebpf/c:tracer-debug.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry.stripped",
-        "//pkg/network/ebpf/c/co-re:tracer-fentry-debug.stripped",
         "//pkg/network/ebpf/c/runtime:conntrack.stripped",
-        "//pkg/network/ebpf/c/runtime:conntrack-debug.stripped",
         "//pkg/network/ebpf/c/runtime:shared-libraries.stripped",
-        "//pkg/network/ebpf/c/runtime:shared-libraries-debug.stripped",
         "//pkg/network/ebpf/c/runtime:usm.stripped",
-        "//pkg/network/ebpf/c/runtime:usm-debug.stripped",
         "//pkg/network/ebpf/c/sk:sk_tracer.stripped",
-        "//pkg/network/ebpf/c/sk:sk_tracer-debug.stripped",
     ],
     visibility = ["//visibility:public"],
+)
+
+# DEBUG=1 variants of the ebpf_program_suite programs, staged only by
+# `dda inv system-probe.object-files --debug`.
+filegroup(
+    name = "prebuilt_debug_objects",
+    srcs = [
+        "//pkg/network/ebpf/c/prebuilt:conntrack-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:dns-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:offset-guess-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:usm-debug.stripped",
+        "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug.stripped",
+    ],
+)
+
+filegroup(
+    name = "co_re_debug_objects",
+    srcs = [
+        "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug.stripped",
+        "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug.stripped",
+        "//pkg/gpu/ebpf/c/runtime:gpu-debug.stripped",
+        "//pkg/network/ebpf/c:tracer-debug.stripped",
+        "//pkg/network/ebpf/c/co-re:tracer-fentry-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:conntrack-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:shared-libraries-debug.stripped",
+        "//pkg/network/ebpf/c/runtime:usm-debug.stripped",
+        "//pkg/network/ebpf/c/sk:sk_tracer-debug.stripped",
+    ],
 )
 
 filegroup(
@@ -189,6 +203,19 @@ filegroup(
         "//conditions:default": [],
     }) + select({
         "@platforms//cpu:x86_64": ["//pkg/ebpf/kernelbugs:detect-seccomp-bug"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# Linux-only, so ebpf_test stays analyzable on other platforms.
+filegroup(
+    name = "debug_ebpf_programs",
+    srcs = select({
+        "@platforms//os:linux": [
+            ":co_re_debug_objects",
+            ":prebuilt_debug_objects",
+        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
@@ -340,6 +367,35 @@ pkg_install(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+pkg_files(
+    name = "install_prebuilt_debug_objects",
+    srcs = [":prebuilt_debug_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
+    }),
+)
+
+pkg_files(
+    name = "install_co_re_debug_objects",
+    srcs = [":co_re_debug_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64/co-re",
+    }),
+)
+
+pkg_install(
+    name = "install_debug_object_files",
+    srcs = [
+        ":install_co_re_debug_objects",
+        ":install_prebuilt_debug_objects",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 go_library(
     name = "ebpf",
     srcs = [
@@ -364,6 +420,7 @@ go_library(
         "perf_ring_buffer.go",
         "preprocess.go",
         "printk_patcher.go",
+        "printk_patcher_linux.go",
         "probes.go",
         "rc_btf.go",
         "status_codes.go",
@@ -446,13 +503,18 @@ dd_agent_go_test(
         "manager_test.go",
         "map_cleaner_test.go",
         "preprocess_test.go",
+        "printk_patcher_assets_test.go",
         "printk_patcher_test.go",
         "probes_test.go",
         "rc_btf_test.go",
         "time_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/**"]) + [":debug_ebpf_programs"],
     embed = [":ebpf"],
+    env = select({
+        "@platforms//os:linux": {"PRINTK_PATCHER_TEST_ASSETS": "$(rlocationpaths :debug_ebpf_programs)"},
+        "//conditions:default": {},
+    }),
     gotags_sets = [["bpf"]],
     deps = [
         "//pkg/config/mock",
@@ -478,6 +540,7 @@ dd_agent_go_test(
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@rules_go//go/runfiles",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/impl/noops",
@@ -497,6 +560,7 @@ dd_agent_go_test(
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
+            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),

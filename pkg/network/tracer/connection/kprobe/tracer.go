@@ -260,7 +260,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 	var m *ddebpf.Manager
 	var closeFn func()
 	var err error
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err = ddebpf.LoadCOREAsset("tracer.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
@@ -285,7 +285,7 @@ func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, c
 }
 
 func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
+	buf, err := netebpf.ReadBPFModule(config.BPFDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)
 	}

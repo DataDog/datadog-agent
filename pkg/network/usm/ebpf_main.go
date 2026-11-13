@@ -266,8 +266,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	return ddebpf.LoadCOREAsset("usm.o", e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
@@ -280,7 +279,7 @@ func (e *ebpfProgram) initRuntimeCompiler() error {
 }
 
 func (e *ebpfProgram) initPrebuilt() error {
-	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir, e.cfg.BPFDebug)
+	bc, err := netebpf.ReadHTTPModule(e.cfg.BPFDir)
 	if err != nil {
 		return err
 	}
@@ -532,14 +531,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {

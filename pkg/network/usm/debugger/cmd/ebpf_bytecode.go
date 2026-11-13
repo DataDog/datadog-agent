@@ -43,8 +43,8 @@ func setupBytecode() func() {
 	checkError(err)
 
 	programs := []program{
-		{path.Join(coreDir, "usm-debug.o"), usmProgram},
-		{path.Join(coreDir, "shared-libraries-debug.o"), sharedLibrariesProgram},
+		{path.Join(coreDir, "usm.o"), usmProgram},
+		{path.Join(coreDir, "shared-libraries.o"), sharedLibrariesProgram},
 	}
 
 	for _, p := range programs {

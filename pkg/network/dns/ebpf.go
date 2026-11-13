@@ -29,7 +29,7 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
-	bc, err := netebpf.ReadDNSModule(c.BPFDir, c.BPFDebug)
+	bc, err := netebpf.ReadDNSModule(c.BPFDir)
 	if err != nil {
 		return nil, err
 	}

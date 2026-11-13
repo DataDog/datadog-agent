@@ -23,7 +23,7 @@ import (
 
 // NewEBPFProgram creates a new test eBPF program.
 func NewEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
-	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test-debug.o")
+	bc, err := bytecode.GetReader(c.BPFDir, "usm_events_test.o")
 	if err != nil {
 		return nil, err
 	}
