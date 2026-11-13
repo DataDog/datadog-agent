@@ -9,6 +9,12 @@ dd_agent_go_test(
         "helpers_test.go",
         "scorer_helper_nix_test.go",
         "smart_adaptive_log_sampling_nix_test.go",
+        "stable_pipeline_nix_test.go",
+        "stable_pipeline_wave_test.go",
+    ],
+    embedsrcs = [
+        "fixtures/stable_pipeline_agent.yaml",
+        "fixtures/stable_pipeline_sender.sh",
     ],
     tags = ["manual"],
     deps = [
