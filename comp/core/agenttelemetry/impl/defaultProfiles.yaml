@@ -785,6 +785,27 @@ profiles:
     start_after: 120 # 2 minutes
     iterations: 0
     period: 900
+- name: config-schema
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Settings of datadog.yaml and system-probe.yaml violating their schema, see comp/core/schema/impl/telemetry.go.
+      # `setting` is a schema-declared key (`unknown` otherwise) and `error` is derived from the schema only, so
+      # neither carries the configured value.
+      - name: config.schema_violations
+        preserve_tags:
+          - config
+          - setting
+          - source
+          - install_method
+          - error
+  schedule:
+    # The configuration is validated once at startup: the gauge doesn't change afterwards, so it's only reported
+    # periodically for long-running Agents to keep showing up in queries.
+    start_after: 30
+    iterations: 0
+    period: 14400 # 4 hours
 # Support troubleshooting bundle, gated behind a remote flag.
 - name: troubleshooting
   remote_flag: troubleshooting_coat_bundle

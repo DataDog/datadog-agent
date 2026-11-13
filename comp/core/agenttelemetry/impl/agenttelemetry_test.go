@@ -694,9 +694,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 7 jobs with different schedules:
+	// Default configuration has 8 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 8, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -704,10 +704,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 23 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 23, totalProfiles)
+	assert.Equal(t, 24, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
