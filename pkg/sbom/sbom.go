@@ -75,7 +75,8 @@ func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 
 // UsageEnrichmentEnabled reports whether the runtime usage of packages reaches
 // the SBOMs. system-probe reports it on sbom.enrichment.usage.enabled, and on
-// Linux alone.
+// Linux alone. The system-probe configuration resolves an unset value as it
+// loads, so read it once the components are built.
 func UsageEnrichmentEnabled(agentConfig model.Reader) bool {
 	return runtime.GOOS == "linux" && agentConfig.GetBool("sbom.enrichment.usage.enabled")
 }

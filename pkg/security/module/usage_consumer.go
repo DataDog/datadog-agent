@@ -14,11 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-// UsageConsumer is a minimal event consumer that brings up the security probe
-// (including the SBOM resolver) without the CWS rule engine or billing metrics.
-// It is active when runtime_security_config.sbom.enabled is true but
-// runtime_security_config.enabled is false, so that customers using only SBOM
-// enrichment are not billed for CWS.
+// UsageConsumer serves the core agent the runtime usage of packages that the
+// SBOM resolver records. It runs whenever sbom.enrichment.usage.enabled is on,
+// next to the CWS consumer where CWS runs. Alone, it brings up the security
+// probe and its SBOM resolver, and leaves the rule engine and the billing
+// metrics to the CWS consumer, so that CWS billing covers the hosts that run
+// CWS.
 type UsageConsumer struct {
 	*CommandServer
 	config *config.RuntimeSecurityConfig

@@ -163,12 +163,11 @@ agents:
 `
 }
 
-// cwsHelmValues turns on, with CWS:
-//   - the system-probe security module + SBOM resolver
-//     (DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED) that tracks which packages a
-//     running process accesses, and
-//   - the core-agent enrichment collector (DD_SBOM_ENRICHMENT_USAGE_ENABLED) that
-//     merges those runtime properties onto the Trivy container-image SBOM.
+// cwsHelmValues turns on CWS, and with it the runtime usage enrichment, left
+// to its default: the core agent resolves sbom.enrichment.usage.enabled to
+// true for the SBOMs it scans, and config streaming hands the value to
+// system-probe, which runs the SBOM resolver and the usage consumer next to
+// CWS.
 //
 // The enrichment and forward intervals are shortened so a package's in-use
 // timestamp surfaces within the test window instead of the 30m and 1m
@@ -182,22 +181,11 @@ agents:
   containers:
     agent:
       env:
-        - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
-          value: "true"
         # Must live on the agent container: streaming wipes the security-agent's own env.
         - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
           value: "true"
     systemProbe:
       env:
-        # The UsageConsumer that registers the SBOMCollector gRPC stream the core
-        # agent consumes is created by system-probe only when it sees
-        # sbom.enrichment.usage.enabled, so this must be set on the system-probe
-        # container too (not just the core agent), else the agent's collector gets
-        # "unknown service datadog.sbom.SBOMCollector".
-        - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
-          value: "true"
-        - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED
-          value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
           value: "10s"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_FORWARD_INTERVAL
@@ -267,9 +255,9 @@ func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[en
 }
 
 // TestSBOMPackageInUseKubeadmSuite provisions the same RHEL 10 single-node
-// kubeadm cluster as TestSBOMKubeadmSuite, but additionally enables the CWS SBOM
-// resolver and the core-agent usage enrichment, then verifies the "package in
-// use" feature end to end across package formats, ubi9 (rpm), ubuntu (dpkg) and
+// kubeadm cluster as TestSBOMKubeadmSuite, but additionally enables CWS, which
+// turns the usage enrichment on by default, then verifies the "package in use"
+// feature end to end across package formats, ubi9 (rpm), ubuntu (dpkg) and
 // alpine (apk). A package goes from not in use, to in use once a service runs
 // its binary, and back to stale once the service stops.
 func TestSBOMPackageInUseKubeadmSuite(t *testing.T) {
@@ -291,7 +279,7 @@ func (s *packageInUseSuite) SetupSuite() {
 
 // Test00UpAndRunning waits (the 00 prefix runs it first) for the Agent DaemonSet
 // pods to be ready before the package-in-use assertions run, and checks the
-// premise of the usage-only suite.
+// premise of the suite.
 func (s *packageInUseSuite) Test00UpAndRunning() {
 	err := s.Env().WaitForAgentReady(
 		s.T().Context(),
@@ -302,7 +290,27 @@ func (s *packageInUseSuite) Test00UpAndRunning() {
 
 	if s.usageOnly {
 		s.assertUsageOnlyDeployment()
+	} else {
+		s.assertCWSDeployment()
 	}
+}
+
+// assertCWSDeployment checks the premise of the CWS suite: the usage enrichment
+// runs on its default, which no container of the Agent pod sets, and
+// system-probe brings up the usage consumer next to the CWS one.
+func (s *packageInUseSuite) assertCWSDeployment() {
+	agent := s.nodeAgent(s.T())
+	for _, c := range agent.Spec.Containers {
+		for _, env := range c.Env {
+			s.NotEqualf("DD_SBOM_ENRICHMENT_USAGE_ENABLED", env.Name, "container %s sets %s=%s", c.Name, env.Name, env.Value)
+		}
+	}
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		log := s.systemProbeLog(c, 0)
+		assert.Truef(c, strings.Contains(log, "event monitoring cws consumer initialized"), "system-probe logged no CWS consumer")
+		assert.Truef(c, strings.Contains(log, "event monitoring usage consumer initialized"), "system-probe logged no usage consumer")
+	}, 5*time.Minute, 10*time.Second, "system-probe never ran the usage enrichment next to CWS")
 }
 
 // assertUsageOnlyDeployment checks the premise of the usage-only suite: the

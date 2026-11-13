@@ -1,0 +1,21 @@
+---
+upgrade:
+  - |
+    On Linux, the runtime usage enrichment of SBOMs
+    (``sbom.enrichment.usage.enabled``) now turns on by default where the
+    Agent scans the SBOMs of container images or of the host and CWS or FIM
+    runs in system-probe with eBPF. system-probe then indexes the packages of
+    each container and of the host and samples file opens, and the first SBOM
+    of an image or of the host waits up to two minutes for its usage. Hosts
+    that run CWS or FIM with ``sbom.enabled`` and
+    ``sbom.container_image.enabled`` or ``sbom.host.enabled`` are affected.
+    Set ``sbom.enrichment.usage.enabled`` to ``false`` to keep the enrichment
+    off.
+enhancements:
+  - |
+    On Linux, SBOMs carry the runtime usage of their packages by default where
+    CWS or FIM already runs in system-probe with eBPF. While
+    ``sbom.enrichment.usage.enabled`` is unset, it turns on for the SBOMs of
+    container images and of the host that the Agent scans. On other hosts,
+    ``sbom.enrichment.usage.enabled: true`` still turns the enrichment on and
+    starts system-probe for it.
