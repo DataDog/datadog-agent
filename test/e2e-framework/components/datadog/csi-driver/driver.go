@@ -32,7 +32,7 @@ func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDri
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
 	csiRepo := "registry.datadoghq.com/csi-driver"
-	registrarRepo := "registry.k8s.io/sig-storage/csi-node-driver-registrar"
+	registrarRepo := utils.KubernetesImageRegistry(e.ImagePullRegistry()) + "/sig-storage/csi-node-driver-registrar"
 
 	var imgPullSecret *corev1.Secret
 	if e.ImagePullRegistry() != "" {
@@ -43,7 +43,6 @@ func NewDatadogCSIDriver(e config.Env, kubeProvider *kubernetes.Provider, csiDri
 		opts = append(opts, utils.PulumiDependsOn(imgPullSecret))
 		reg := strings.SplitN(e.ImagePullRegistry(), ",", 2)[0]
 		csiRepo = reg + "/dockerhub/datadog/csi-driver"
-		registrarRepo = reg + "/sig-storage/csi-node-driver-registrar"
 	}
 
 	imageMap := pulumi.Map{

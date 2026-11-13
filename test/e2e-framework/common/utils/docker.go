@@ -33,3 +33,13 @@ func ParseImageReference(imageRef string) (imagePath string, tag string) {
 	}
 	return
 }
+
+// KubernetesImageRegistry returns the registry prefix for upstream Kubernetes images.
+// The first imagePullRegistry entry is the ECR cache host; additional entries name
+// other registries. Without a cache, use the public upstream.
+func KubernetesImageRegistry(imagePullRegistry string) string {
+	if imagePullRegistry == "" {
+		return "registry.k8s.io"
+	}
+	return strings.SplitN(imagePullRegistry, ",", 2)[0] + "/k8s"
+}

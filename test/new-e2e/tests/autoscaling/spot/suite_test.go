@@ -28,6 +28,7 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	kindvmscen "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -35,6 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	localkubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 // Spot scheduling label/annotation constants — mirror pkg/clusteragent/autoscaling/cluster/spot/const.go
@@ -133,11 +136,13 @@ func rebalancingTimeout(spotPods int) time.Duration {
 
 type spotSchedulingSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
-	kubeClient    k8sclient.Interface
-	spotNode      string
-	onDemandNode  string
-	testNamespace string // namespace for the current test, set by SetupTest
-	waitForLogs   bool   // wait for node-agent readiness before running tests to get cluster-agent logs.
+	kubeClient       k8sclient.Interface
+	spotNode         string
+	onDemandNode     string
+	testNamespace    string // namespace for the current test, set by SetupTest
+	pauseImage       string
+	imagePullSecrets []corev1.LocalObjectReference
+	waitForLogs      bool // wait for node-agent readiness before running tests to get cluster-agent logs.
 }
 
 // TestSpotSchedulingKind runs spot scheduling integration tests on a local kind cluster.
@@ -188,6 +193,9 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.kubeClient = s.Env().KubernetesCluster.Client()
+	registry, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	s.Require().NoError(err)
+	s.pauseImage = utils.KubernetesImageRegistry(registry) + "/pause:3.10.1"
 	s.identifyNodes()
 	s.waitForWebhook()
 	if s.waitForLogs {
@@ -332,6 +340,25 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 		ObjectMeta: metav1.ObjectMeta{Name: s.testNamespace},
 	}, metav1.CreateOptions{})
 	s.Require().NoError(err)
+	store := runner.GetProfile().ParamStore()
+	registry, err := store.GetWithDefault(parameters.ImagePullRegistry, "")
+	s.Require().NoError(err)
+	s.imagePullSecrets = nil
+	if registry != "" {
+		username, err := store.Get(parameters.ImagePullUsername)
+		s.Require().NoError(err)
+		password, err := store.Get(parameters.ImagePullPassword)
+		s.Require().NoError(err)
+		auth, err := utils.DockerConfigJSON(registry, username, password)
+		s.Require().NoError(err)
+		_, err = s.kubeClient.CoreV1().Secrets(s.testNamespace).Create(s.T().Context(), &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: utils.DefaultImagePullSecretName},
+			Type:       corev1.SecretTypeDockerConfigJson,
+			StringData: map[string]string{corev1.DockerConfigJsonKey: auth},
+		}, metav1.CreateOptions{})
+		s.Require().NoError(err)
+		s.imagePullSecrets = []corev1.LocalObjectReference{{Name: utils.DefaultImagePullSecretName}}
+	}
 }
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {

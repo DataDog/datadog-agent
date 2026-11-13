@@ -10,6 +10,7 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
+        "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/components/kubernetes",
         "//test/e2e-framework/scenarios/aws/kindvm",
@@ -17,6 +18,8 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/e2e-framework/testing/provisioners/local/kubernetes",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//apps/v1:apps",

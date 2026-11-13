@@ -314,6 +314,11 @@ Two deliberate exceptions, commented where they occur:
 - **`injector-dev`** (used by `tests/ssi`) is not published to public ECR, so those images
   stay on `registry.datadoghq.com` and remain internet-dependent on AWS.
 
+For upstream Kubernetes images, use `utils.KubernetesImageRegistry(e.ImagePullRegistry())`.
+It resolves to `<first image-pull registry>/k8s` when configured and `registry.k8s.io`
+otherwise. The cache account must have a `registry.k8s.io` pull-through rule at `k8s/`;
+workloads using it must attach `utils.NewImagePullSecret` in their namespace.
+
 ## Fakeintake image version
 
 Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
