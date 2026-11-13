@@ -71,8 +71,9 @@ impl BoundSocket {
 }
 
 /// The unlink of the socket `serve` bound, running on a blocking thread from the moment
-/// the server stops. Await `wait` once the child processes have stopped, so a contended
-/// lock never delays their signals.
+/// the server stops, so the path is not left for clients to find while the children drain.
+/// Await `wait` once the child processes have stopped, so a contended lock never delays
+/// their signals.
 pub struct SocketCleanup(tokio::task::JoinHandle<()>);
 
 impl SocketCleanup {
@@ -191,7 +192,6 @@ fn prepare_with_timeout(path: &Path, timeout: Duration) -> Result<SocketLock> {
     Ok(lock)
 }
 
-/// Binds the socket while holding the lock taken by `prepare`.
 pub fn bind(path: &Path) -> Result<(UnixListener, BoundSocket)> {
     let _lock = prepare(path)?;
     let listener = UnixListener::bind(path)
@@ -233,8 +233,6 @@ where
         .context("gRPC server error")?;
 
     info!("gRPC server stopped");
-    // Start the unlink now: it takes the lock on a blocking thread, so it neither delays
-    // the caller nor leaves the socket path behind while the children drain.
     Ok(SocketCleanup(tokio::task::spawn_blocking(move || {
         cleanup(&path, bound)
     })))
@@ -409,7 +407,7 @@ mod tests {
         let err = acquire_lock(&lock_path(&sock), timeout).unwrap_err();
         assert!(
             err.to_string().contains("timed out"),
-            "the warning names the timeout: {err:#}"
+            "acquire_lock reports the timeout: {err:#}"
         );
 
         let started = Instant::now();

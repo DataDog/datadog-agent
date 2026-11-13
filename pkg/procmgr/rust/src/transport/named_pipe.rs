@@ -39,7 +39,7 @@ pub struct BoundSocket;
 
 pub fn cleanup(_path: &Path, _bound: BoundSocket) {}
 
-/// Matches the Unix `serve` return. There is nothing to unlink.
+/// Matches the Unix `serve` return.
 pub struct SocketCleanup;
 
 impl SocketCleanup {

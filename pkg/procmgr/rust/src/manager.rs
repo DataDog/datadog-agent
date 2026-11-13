@@ -203,8 +203,6 @@ impl ProcessManager {
         };
 
         self.shutdown().await;
-        // The unlink started when the server stopped. Waiting for it only now keeps a
-        // contended socket lock from delaying the stop signals.
         if let Some(cleanup) = socket_cleanup {
             cleanup.wait().await;
         }

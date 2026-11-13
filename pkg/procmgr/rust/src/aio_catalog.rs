@@ -670,7 +670,7 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     let staging_cleanup =
         r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi"#;
     // Unique lines only: pos() returns the first match, so a repeated `fi` would not
-    // prove order. The probe runs the file directly, so a noexec mount rejects the dir.
+    // prove order.
     let steps = [
         "stage_executes() {",
         r#"local probe="$1/.procmgr-exec-probe" status=1"#,
