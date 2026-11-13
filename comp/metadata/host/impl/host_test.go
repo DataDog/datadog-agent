@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -154,7 +155,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 			assert.Equal(t, tt.expectedMaxInterval, hostProvider.backoffPolicy.MaxInterval, tt.name)
 			assert.Equal(t, tt.expectedInitInterval, hostProvider.backoffPolicy.InitialInterval, tt.name)
 			assert.Equal(t, 3.0, hostProvider.backoffPolicy.Multiplier, tt.name)
-			assert.Equal(t, 0.0, hostProvider.backoffPolicy.RandomizationFactor, tt.name)
+			assert.Equal(t, intervalJitter, hostProvider.backoffPolicy.RandomizationFactor, tt.name)
 		})
 	}
 }
@@ -179,8 +180,38 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 
 	h.backoffPolicy.Reset()
 	for i := 0; i < 5; i++ {
-		assert.InDelta(t, 300*time.Second, h.backoffPolicy.NextBackOff(), 1)
+		next := h.nextInterval()
+		assert.LessOrEqual(t, next, 300*time.Second)
+		assert.GreaterOrEqual(t, next, time.Duration(float64(300*time.Second)*(1-intervalJitter)))
 	}
+}
+
+// TestNextIntervalIsJittered checks that collection intervals vary, so agents that start together drift apart, and
+// never exceed the configured interval.
+func TestNextIntervalIsJittered(t *testing.T) {
+	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		resourcesmock.MockModule(),
+		fx.Replace(resourcesmock.MockParams{Data: nil}),
+		fx.Provide(func() serializer.MetricSerializer { return nil }),
+		hostnameimpl.MockModule(),
+	)))
+	h := ret.Comp.(*host)
+
+	// The early intervals (300s, then 900s) stay within the jitter.
+	first, second := h.nextInterval(), h.nextInterval()
+	assert.InDelta(t, float64(defaultEarlyInterval), float64(first), float64(defaultEarlyInterval)*intervalJitter)
+	assert.InDelta(t, float64(3*defaultEarlyInterval), float64(second), float64(3*defaultEarlyInterval)*intervalJitter)
+
+	seen := make(map[time.Duration]bool)
+	for range 200 {
+		next := h.nextInterval()
+		require.LessOrEqual(t, next, defaultCollectInterval, "never above the configured interval")
+		require.GreaterOrEqual(t, next, time.Duration(float64(defaultCollectInterval)*(1-intervalJitter)))
+		seen[next] = true
+	}
+	assert.Greater(t, len(seen), 1, "intervals at the configured maximum are jittered too")
 }
 
 func TestFlareProvider(t *testing.T) {
