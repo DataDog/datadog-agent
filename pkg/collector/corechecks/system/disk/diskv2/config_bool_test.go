@@ -17,12 +17,12 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// TestConfigureYAML11BooleanSpellings pins the compatibility the check keeps
-// after moving from go.yaml.in/yaml/v3 to go.yaml.in/yaml/v4: yaml v4, like
-// v3, still resolves the YAML 1.1 boolean spellings (yes/no/on/off/y/n) when
-// unmarshaling into typed bool fields, so the disk check's boolean options
-// keep accepting them. Fleet data shows customers relying on e.g.
-// `use_mount: yes`.
+// TestConfigureYAML11BooleanSpellings pins the typed-bool compatibility of
+// go.yaml.in/yaml/v3, which the check relies on: yaml v3 still resolves the
+// YAML 1.1 boolean spellings (yes/no/on/off/y/n) when unmarshaling into
+// typed bool fields, so the disk check's boolean options keep accepting
+// them, and keep doing so across any future yaml version bump. Fleet data
+// shows customers relying on e.g. `use_mount: yes`.
 func TestConfigureYAML11BooleanSpellings(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)

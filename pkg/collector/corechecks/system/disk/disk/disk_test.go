@@ -291,7 +291,7 @@ func TestDiskCheckTags(t *testing.T) {
 }
 
 func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
-	// The disk check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v4 but
+	// The disk check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v3 but
 	// keeps accepting unquoted YAML 1.1 boolean spellings on its boolean
 	// options (fleet data shows customers relying on e.g. `use_mount: yes`
 	// in verbatim autodiscovery configs). Values that are not boolean
@@ -308,18 +308,17 @@ func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: true\n")))
 	assert.True(t, diskCheck.cfg.useMount)
 
-	// A quoted spelling now also applies (it was ignored by the yaml v2
-	// generic map reads), but string "true"/"false" values are still
-	// ignored, like before the migration: fleet data shows many customers
-	// with such string values on disk options, honoring them would
-	// silently change their metrics.
+	// String booleans and quoted spellings now also apply (both were left
+	// as strings and ignored by the yaml v2 generic map reads): fleet data
+	// shows customers writing them on disk options, e.g. as JSON strings
+	// in container and Kubernetes annotations, with clear boolean intent.
 	diskCheck = new(Check)
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: 'yes'\n")))
 	assert.True(t, diskCheck.cfg.useMount)
 
 	diskCheck = new(Check)
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: \"true\"\n")))
-	assert.False(t, diskCheck.cfg.useMount)
+	assert.True(t, diskCheck.cfg.useMount)
 
 	// Values that are not boolean spellings keep their default.
 	diskCheck = new(Check)
@@ -328,7 +327,7 @@ func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
 }
 
 func TestDiskInstanceConfigureDeviceTagRe(t *testing.T) {
-	// yaml v4 decodes string-keyed nested maps as map[string]interface{},
+	// yaml v3 decodes string-keyed nested maps as map[string]interface{},
 	// which the device_tag_re parsing accepts on top of
 	// map[interface{}]interface{}.
 	diskCheck := new(Check)

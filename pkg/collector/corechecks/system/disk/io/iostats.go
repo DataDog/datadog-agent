@@ -9,7 +9,7 @@ package io
 import (
 	"regexp"
 
-	yaml "go.yaml.in/yaml/v4" // lowercase_device_tag keeps accepting unquoted YAML 1.1 spellings through check.ToLenientBool
+	yaml "go.yaml.in/yaml/v3" // lowercase_device_tag keeps accepting unquoted YAML 1.1 spellings through check.ToLenientBool
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

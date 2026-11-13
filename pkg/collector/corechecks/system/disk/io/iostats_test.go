@@ -237,7 +237,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 }
 
 func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
-	// The io check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v4 but
+	// The io check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v3 but
 	// keeps accepting unquoted YAML 1.1 boolean spellings for
 	// lowercase_device_tag. The false direction is asserted with the field
 	// preset to true, since commonConfigure only assigns it when the value
@@ -253,11 +253,18 @@ func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
 	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: off\n"), "test", "provider"))
 	assert.False(t, ioCheck.lowercaseDeviceTag)
 
-	// String "true"/"false" values are not boolean spellings: they are
-	// still ignored with a warning, like before the migration.
+	// String booleans also apply (they were left as strings and ignored
+	// by the yaml v2 generic map reads), and values that are not boolean
+	// spellings keep the previous value with a warning.
 	ioCheck = new(IOCheck)
 	ioCheck.lowercaseDeviceTag = true
 	mock = mocksender.NewMockSender(t, ioCheck.ID())
 	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: \"false\"\n"), "test", "provider"))
+	assert.False(t, ioCheck.lowercaseDeviceTag)
+
+	ioCheck = new(IOCheck)
+	ioCheck.lowercaseDeviceTag = true
+	mock = mocksender.NewMockSender(t, ioCheck.ID())
+	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: maybe\n"), "test", "provider"))
 	assert.True(t, ioCheck.lowercaseDeviceTag)
 }

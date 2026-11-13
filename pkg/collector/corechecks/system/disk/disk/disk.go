@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v4" // boolean options keep accepting unquoted YAML 1.1 spellings through check.ToLenientBool (conf.d files are normalized upstream, this matters for verbatim autodiscovery configs)
+	yaml "go.yaml.in/yaml/v3" // boolean options keep accepting unquoted YAML 1.1 spellings through check.ToLenientBool (conf.d files are normalized upstream, this matters for verbatim autodiscovery configs)
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
