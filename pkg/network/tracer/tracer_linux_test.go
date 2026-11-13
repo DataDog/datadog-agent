@@ -3661,31 +3661,39 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 
 	tr := setupTracer(t, cfg)
 
-	c := setupNetemCongestionTest(t, []string{"delay", "100ms", "loss", "30%", "50%"}, nil)
+	// Drop every packet so that the data, the tail loss probe and every
+	// retransmit are lost, and the retransmission timer has to fire. Random
+	// loss isn't enough: with one segment in flight per write, the kernel
+	// repairs most losses with a tail loss probe, which counts neither as an
+	// RTO nor as a recovery, and a run can go 30s without either.
+	var env *netemTestEnv
+	c := setupNetemCongestionTest(t, []string{"loss", "100%"}, func(_ *testing.T, e *netemTestEnv) { env = e })
 	defer c.Close()
+	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	c.Write(make([]byte, 64*1024)) //nolint:errcheck
 
-	// Wait for either rto_count or recovery_count to appear. Both live
-	// in the same tcp_event_stats struct that gets copied at close, so
-	// either one is sufficient to validate the sync. This test checks
-	// the close-event plumbing, not which signal fires — TestTCPRTOCount
-	// and TestTCPRecoveryCount cover each signal independently.
+	// rto_count and recovery_count live in the same tcp_event_stats struct
+	// that gets copied at close, so either one is enough to validate the
+	// sync. This test checks the close-event plumbing, not which signal
+	// fires: TestTCPRTOCount and TestTCPRecoveryCount cover each signal.
+	//
+	// A fetch only reports an active connection whose stats changed since
+	// the previous fetch, so keep the highest counters seen across fetches
+	// instead of requiring the connection in the latest one.
 	var rtoCount, recoveryCount uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		data := make([]byte, 64*1024)
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(data) //nolint:errcheck
-
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "active connection not found") {
-			return
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			rtoCount = max(rtoCount, conn.Monotonic.TCPRTOCount)
+			recoveryCount = max(recoveryCount, conn.Monotonic.TCPRecoveryCount)
 		}
-		rtoCount = conn.Monotonic.TCPRTOCount
-		recoveryCount = conn.Monotonic.TCPRecoveryCount
 		assert.Greater(ct, rtoCount+recoveryCount, uint32(0),
 			"rto_count or recovery_count should be > 0 while active")
 	}, 30*time.Second, 200*time.Millisecond)
+
+	// Stop dropping packets so the connection delivers its data and closes.
+	env.changeNetem(t, "loss", "0%")
 
 	// Close and verify rto_count and recovery_count after the close event
 	localAddr := c.LocalAddr()
