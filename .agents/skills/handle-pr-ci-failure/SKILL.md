@@ -78,7 +78,7 @@ For each `safe` root cause, in this order:
 
 1. Check branch, `HEAD`, the PR's remote SHA, `git status`, staged diff, unstaged diff, and untracked files against the snapshot from Step 0. A SHA change caused by a push you already made earlier in this same invocation is expected, not a race — only an *external* change should block this root cause.
 2. Reproduce the failure locally with whatever check actually failed — for example `dda inv linter.go --targets=<package>` for a lint job, `dda inv test --targets=<package>` for a unit test, or the job's own e2e/KMT/installer command for those. Don't guess at the command; read it from the failing job's log.
-3. Apply one coherent fix for this root cause. Use the repository's own tools (`dda inv ...`, `bazel ...`) — never raw `go build`/`go test` (see the root `AGENTS.md`).
+3. Apply one coherent fix for this root cause. Use the repository's own tools (`dda inv ...`, `bazel ...`) to build or test Agent code instead of raw `go build`/`go test` (see the root `AGENTS.md`).
 4. Run the nearest build/lint/unit checks, then attempt the exact same check that originally failed.
 5. If that exact check runs and still fails, this root cause was misclassified: move it to `complex` (Step 5) and undo any speculative edit for it. If the check can't even start locally, record that limitation — you may still push once for CI validation, but only under `autofix`, and only if every other `pr-code` root cause in this batch is also `safe`.
 6. Review the complete diff for this fix. Every changed hunk must map to this root cause; unexplained churn disqualifies it — move it to `complex`.

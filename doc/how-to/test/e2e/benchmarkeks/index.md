@@ -15,7 +15,7 @@ For each version, the test measures three components, each loaded by a different
 
 | Component | What loads it |
 |---|---|
-| Node Agent | The containers of its node, through the `kubelet`, `container` and `containerd` checks and Autodiscovery |
+| Node Agent | The containers of its node, through the `kubelet`, `container`, `containerd` and `cri` checks and Autodiscovery |
 | Cluster Agent | The objects of the Kubernetes API server it watches |
 | Cluster checks runner | The `kubernetes_state_core` (KSM) check its Cluster Agent dispatches to it, which watches the API server too |
 
@@ -63,7 +63,7 @@ The job `new-e2e-containers-benchmarkeks` prints the report at the end of its lo
 - `report.json`, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;
 - `report.md`, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.
 
-The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes:
+The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes and [the sleeper pods](how-it-works.md#real-pods-for-the-node-agents) had only 70 containers per node:
 
 | Component | Metric | Baseline | Comparison | Change | p-value | Verdict |
 |---|---|--:|--:|--:|--:|---|
