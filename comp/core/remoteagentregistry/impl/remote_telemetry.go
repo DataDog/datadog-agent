@@ -25,28 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Remote agents report counters and histograms as running totals since the remote process started. Consumers of the
-// Core Agent's telemetry (most notably Agent Telemetry, which turns counters into per-period deltas) assume instead
-// that every counter starts from zero when the Core Agent starts. Passing the totals through unchanged therefore makes
-// them over-report whenever the Core Agent restarts while the remote agent keeps running.
+// Remote agents report counters and histograms as totals since their own process started, but consumers such as Agent
+// Telemetry assume counters start at zero when the Core Agent starts. Forwarding the totals as they are makes every
+// counter spike after a Core Agent restart that the remote agent survives.
 //
-// The accumulator fixes this by accumulating the increases the Core Agent itself observes. What it exposes is
-// "everything counted since the Core Agent first saw this series", which behaves like the Core Agent's own counters.
-// The only decision to make is what the first observation of a series is worth:
-//
-//   - In the first successful scrape of a process, everything already counted is history from before this Core Agent
-//     knew the process, so it becomes the baseline and contributes nothing. The registry performs this scrape right
-//     after the process registers, before it can have counted much.
-//   - A series that first appears in a later scrape came into existence while the Core Agent was watching, so all of
-//     its value is new.
-//
-// There is one state per series, following the process that reports it. When the remote agent restarts, the new
-// process takes the series over where the old one left it: its first scrape is only a baseline, so the exposed value
-// keeps increasing. A decrease within one process means a counter was reset (for example when the remote agent drops
-// and later recreates an idle counter), and what it holds now is new.
-//
-// Histograms follow the same rules. A report with different buckets cannot be added to what was accumulated before,
-// so the series starts over with the new buckets and its exposed value goes down once.
+// The accumulator exposes what the Core Agent has seen counted since it first saw each series instead: the first
+// scrape of a process only sets a baseline, a series that shows up later counts in full, a decrease is a reset, and a
+// restarted process takes its series over from the old one.
 
 const (
 	// remoteTelemetrySeriesIdleTTL is how long a series can go unreported, by a process that keeps answering or that is
@@ -146,7 +131,8 @@ func advanceValue(kind dto.MetricType, total *seriesValue, last, cur seriesValue
 	}
 
 	if !sameBucketLayout(last.buckets, cur.buckets) {
-		// Different buckets can't be accumulated into one histogram: start a new one with the new layout.
+		// Different buckets can't be accumulated into one histogram: start a new one with the new layout. The exposed
+		// value goes down once.
 		*total = cur.clone()
 		return
 	}
