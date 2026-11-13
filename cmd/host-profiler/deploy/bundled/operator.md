@@ -54,27 +54,24 @@ After you apply the updated Custom Resource, the Operator rolls out a new Agent 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## Seccomp (optional)
+## Seccomp
 
-Seccomp provides extra hardening by restricting the syscalls available to the Host Profiler container. The Host Profiler does not require seccomp to run in this preview.
+The Operator installs a localhost seccomp profile for the Host Profiler, along with an init container that copies the profile to each node, and enables it by default. The profile restricts the syscalls available to the Host Profiler container beyond what its capabilities allow.
 
-Current Operator versions do not install or configure the Host Profiler seccomp profile automatically. A future Operator version is expected to configure seccomp by default.
-
-Use this section only if you already manage node-local seccomp profiles or want to add the extra hardening manually. The profile is available at `/etc/dd-host-profiler/seccomp.json` inside the Host Profiler image and must be copied to `/var/lib/kubelet/seccomp/host-profiler.json` on every node.
-
-Then add `seccompProfile` to the same host-profiler container override in your `DatadogAgent` Custom Resource:
+To run the Host Profiler without the seccomp profile, or to use the variant that also permits logging syscalls:
 
 ```yaml
 spec:
-  override:
-    nodeAgent:
-      containers:
-        host-profiler:
-          securityContext:
-            seccompProfile:
-              type: Localhost
-              localhostProfile: host-profiler.json
+  features:
+    hostProfiler:
+      seccomp:
+        # false runs the host-profiler container Unconfined (no profile, no init container).
+        enabled: false
+        # true uses the seccomp profile that also permits logging syscalls.
+        loggingEnabled: true
 ```
+
+`loggingEnabled` has no effect when the seccomp profile is disabled.
 
 ## AppArmor (optional)
 
