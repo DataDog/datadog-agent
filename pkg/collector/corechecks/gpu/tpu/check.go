@@ -211,9 +211,13 @@ func (c *Check) scrape() ([]*chip, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxScrapeBytes))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxScrapeBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(body) > maxScrapeBytes {
+		// A truncated response can still parse, with chips missing.
+		return nil, fmt.Errorf("device plugin response exceeds %d bytes", maxScrapeBytes)
 	}
 	return parseDevicePluginMetrics(body)
 }
