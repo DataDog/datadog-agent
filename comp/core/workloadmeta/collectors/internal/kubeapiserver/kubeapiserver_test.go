@@ -218,19 +218,17 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "Kueue with cluster checks",
+			name: "Kueue with Workloads per node",
 			cfg: map[string]interface{}{
-				"cluster_agent.kueue.enabled": true,
-				"cluster_checks.enabled":      true,
+				"cluster_agent.kueue.enabled":            true,
+				"cluster_agent.kueue.workloads_per_node": true,
 			},
 			expected: true,
 		},
 		{
-			name: "Kueue with cluster checks and Workloads per node disabled",
+			name: "Workloads per node without Kueue",
 			cfg: map[string]interface{}{
-				"cluster_agent.kueue.enabled":            true,
-				"cluster_agent.kueue.workloads_per_node": false,
-				"cluster_checks.enabled":                 true,
+				"cluster_agent.kueue.workloads_per_node": true,
 			},
 			expected: false,
 		},

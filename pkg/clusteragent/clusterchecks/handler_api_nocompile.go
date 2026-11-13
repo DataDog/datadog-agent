@@ -31,11 +31,6 @@ func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	return types.StateResponse{}, ErrNotCompiled
 }
 
-// NodesRunningCheck not implemented
-func (h *Handler) NodesRunningCheck(_ string) (map[string]struct{}, bool) {
-	return nil, false
-}
-
 // NewHandler not implemented
 func NewHandler(_ autodiscovery.Component, _ tagger.Component) (*Handler, error) {
 	return nil, ErrNotCompiled

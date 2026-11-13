@@ -1049,16 +1049,9 @@ func TestKueueWorkloadsPerNode(t *testing.T) {
 		testKueuePodEvent(workloadmeta.EventTypeSet, "b-0", "team-a", "node2", "pods-b", true),
 	})
 
-	// While the nodes running the Kueue check are unknown, every node gets
-	// every Workload through the shared history.
-	assert.Nil(t, srv.buildNodeMetadataState("node1").kueueWorkloads)
-
-	srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) {
-		return map[string]struct{}{"node3": {}}, true
-	})
 	assert.ElementsMatch(t, []string{"team-a/job-a"}, kueueWorkloadKeys(srv.buildNodeMetadataState("node1").kueueWorkloads))
 	assert.ElementsMatch(t, []string{"team-a/job-a", "team-a/pods-b"}, kueueWorkloadKeys(srv.buildNodeMetadataState("node2").kueueWorkloads))
-	assert.Nil(t, srv.buildNodeMetadataState("node3").kueueWorkloads, "the node running the Kueue check gets every Workload")
+	// A node without Kueue pods receives no Workloads, rather than every one.
 	assert.NotNil(t, srv.buildNodeMetadataState("node4").kueueWorkloads)
 	assert.Empty(t, srv.buildNodeMetadataState("node4").kueueWorkloads)
 
@@ -1098,48 +1091,21 @@ func TestKueueWorkloadsPerNode(t *testing.T) {
 	assert.Empty(t, srv.kueueWorkloadIndex.keyNodes)
 }
 
-func TestRefreshKueueCheckNodes(t *testing.T) {
+func TestKueueWorkloadsPerNodeDisabled(t *testing.T) {
 	srv := NewKubeMetadataStreamServer(nil, nil)
-	srv.kueueWorkloadsPerNode = true
-	node1 := srv.subscribeToNamespaceEvents("node1")
-	node2 := srv.subscribeToNamespaceEvents("node2")
-
-	checkNodes := map[string]struct{}{}
-	known := false
-	srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) {
-		return checkNodes, known
+	require.False(t, srv.kueueWorkloadsPerNode, "disabled by default")
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testNamedKueueWorkloadEvent(workloadmeta.EventTypeSet, "team-a", "job-a", "queue"),
+		testKueuePodEvent(workloadmeta.EventTypeSet, "a-0", "team-a", "node1", "job-a", false),
 	})
-	assert.Nil(t, srv.kueueCheckNodes)
-	assertNotNotified(t, "node1", node1)
 
-	// Learning that no node runs the check is a change from unknown.
-	known = true
-	srv.refreshKueueCheckNodes()
-	assert.NotNil(t, srv.kueueCheckNodes)
-	assertNotified(t, "node1", node1)
-	assertNotified(t, "node2", node2)
-
-	checkNodes = map[string]struct{}{"node1": {}}
-	srv.refreshKueueCheckNodes()
-	assertNotified(t, "node1", node1)
-	assertNotified(t, "node2", node2)
-
-	// An unchanged set wakes no one.
-	srv.refreshKueueCheckNodes()
-	assertNotNotified(t, "node1", node1)
-
-	// Losing them, for example on a leadership change, wakes every node.
-	known = false
-	srv.refreshKueueCheckNodes()
-	assert.Nil(t, srv.kueueCheckNodes)
-	assertNotified(t, "node1", node1)
-	assertNotified(t, "node2", node2)
-
-	// Without the setting, nodes always receive every Workload.
-	srv.kueueWorkloadsPerNode = false
-	known = true
-	srv.refreshKueueCheckNodes()
-	assert.Nil(t, srv.kueueCheckNodes)
+	// Every node receives every Workload through the shared history.
+	assert.Nil(t, srv.buildNodeMetadataState("node1").kueueWorkloads)
+	assert.Empty(t, srv.pods, "pods are not indexed for Kueue Workloads")
+	updates, _, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, updates, 1)
+	assert.Len(t, updates[0].KueueWorkloads, 1)
 }
 
 func TestWithoutKueueWorkloads(t *testing.T) {
@@ -1217,9 +1183,6 @@ func TestStreamKubeMetadata_KAIPodGroupsOnHistoryResync(t *testing.T) {
 	srv := newKAIStreamTestServer()
 	// The node also receives only the Kueue Workloads of its pods.
 	srv.kueueWorkloadsPerNode = true
-	srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) {
-		return map[string]struct{}{}, true
-	})
 	srv.processWmetaEvents([]workloadmeta.Event{
 		testNamedKueueWorkloadEvent(workloadmeta.EventTypeSet, "team-a", "local-job", "queue-a"),
 		testKueuePodEvent(workloadmeta.EventTypeSet, "j1", "team-a", "node1", "local-job", false),
@@ -1277,10 +1240,6 @@ func TestStreamKubeMetadata_KueueWorkloadsPerNode(t *testing.T) {
 		testKueuePodEvent(workloadmeta.EventTypeSet, "p1", "team-a", "node1", "local", false),
 		testKueuePodEvent(workloadmeta.EventTypeSet, "p2", "team-a", "node2", "remote", false),
 	})
-	checkNodes := map[string]struct{}{"kueue-node": {}}
-	srv.SetKueueCheckNodesProvider(func() (map[string]struct{}, bool) {
-		return checkNodes, true
-	})
 	next := startTestStream(t, srv, "node1", nil)
 
 	initial := next()
@@ -1297,26 +1256,21 @@ func TestStreamKubeMetadata_KueueWorkloadsPerNode(t *testing.T) {
 	assert.Equal(t, "local", update.KueueWorkloads[0].Name)
 	assert.Equal(t, "queue-b", update.KueueWorkloads[0].Queue)
 
-	// The Kueue check moving to the node sends it every Workload.
-	checkNodes = map[string]struct{}{"node1": {}}
-	srv.refreshKueueCheckNodes()
-	resync := next()
-	require.True(t, resync.IsFullState)
-	assert.Len(t, resync.KueueWorkloads, 2)
-
-	// It then receives every Workload change through the shared history.
-	srv.processWmetaEvents([]workloadmeta.Event{testNamedKueueWorkloadEvent(workloadmeta.EventTypeSet, "team-a", "remote", "queue-c")})
+	// A pod of another Workload scheduled on the node sends that Workload.
+	srv.processWmetaEvents([]workloadmeta.Event{testKueuePodEvent(workloadmeta.EventTypeSet, "p3", "team-a", "node1", "remote", false)})
 	update = next()
+	assert.False(t, update.IsFullState)
 	require.Len(t, update.KueueWorkloads, 1)
 	assert.Equal(t, "remote", update.KueueWorkloads[0].Name)
+	assert.Equal(t, "queue-b", update.KueueWorkloads[0].Queue)
 
-	// The check moving away sends it only its pods' Workloads again.
-	checkNodes = map[string]struct{}{"kueue-node": {}}
-	srv.refreshKueueCheckNodes()
-	resync = next()
-	require.True(t, resync.IsFullState)
-	require.Len(t, resync.KueueWorkloads, 1)
-	assert.Equal(t, "local", resync.KueueWorkloads[0].Name)
+	// Its last pod leaving the node deletes it from the node.
+	srv.processWmetaEvents([]workloadmeta.Event{testKueuePodEvent(workloadmeta.EventTypeUnset, "p3", "team-a", "", "", false)})
+	update = next()
+	assert.False(t, update.IsFullState)
+	require.Len(t, update.KueueWorkloads, 1)
+	assert.Equal(t, "remote", update.KueueWorkloads[0].Name)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, update.KueueWorkloads[0].Type)
 }
 
 func testNamespaceLabelEvent(value string) workloadmeta.Event {
