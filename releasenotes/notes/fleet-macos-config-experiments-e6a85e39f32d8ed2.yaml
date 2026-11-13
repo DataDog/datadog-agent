@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Fleet Automation can now deploy configuration changes to macOS hosts as configuration
+    experiments. An experiment can be started, promoted and stopped from Fleet Automation: while
+    it runs, the Agent, system-probe and Agent Data Plane run with the experiment configuration,
+    and stopping the experiment restores the configuration they ran before. An experiment is
+    automatically reverted when one of these processes exits with an error, or when it has not
+    been promoted after 60 minutes. Agent version upgrades through Fleet Automation are not yet
+    supported on macOS.

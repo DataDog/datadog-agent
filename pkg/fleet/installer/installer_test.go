@@ -172,6 +172,14 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
+func (h *testHooks) ResumeConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
 func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
 	if h.noop {
 		return nil

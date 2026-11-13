@@ -47,6 +47,35 @@ const runningPrintOutput = `system/com.datadoghq.agent = {
 }
 `
 
+// exitedPrintOutput is a job launchd has run and recorded an exit code for.
+const exitedPrintOutput = `system/com.datadoghq.agent-exp = {
+	active count = 0
+	path = /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+	type = LaunchDaemon
+	state = not running
+
+	program = /opt/datadog-agent/bin/agent/agent
+	domain = system
+	runs = 1
+	last exit code = 2
+}
+`
+
+// killedPrintOutput is real `launchctl print` output for a job that was killed by a signal: launchd
+// prints the signal and no exit code.
+const killedPrintOutput = `system/com.datadoghq.agent-exp = {
+	active count = 0
+	path = /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+	type = LaunchDaemon
+	state = not running
+
+	program = /opt/datadog-agent/bin/agent/agent
+	domain = system
+	runs = 1
+	last terminating signal = Killed: 9
+}
+`
+
 // notLoadedOutput is real launchctl output for a label that is not in the domain. launchctl exits
 // 113 for it, which the client must read as "not loaded" rather than as a failure.
 const notLoadedOutput = `Bad request.
@@ -90,6 +119,66 @@ func newClient(rec *recorder) *Client {
 	c := NewClient(System)
 	c.Runner = rec.run
 	return c
+}
+
+func TestParsePrint(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+		want JobStatus
+	}{
+		{
+			name: "running job",
+			out:  runningPrintOutput,
+			want: JobStatus{Label: "com.datadoghq.agent", PID: 395, LastExitStatus: 0, Loaded: true},
+		},
+		{
+			name: "job that exited non-zero",
+			out:  exitedPrintOutput,
+			want: JobStatus{Label: "com.datadoghq.agent", PID: 0, LastExitStatus: 2, HasExited: true, Loaded: true},
+		},
+		{
+			// launchd prints the signal instead of an exit code, so a job killed by one would
+			// otherwise look as if it had never run.
+			name: "job killed by a signal",
+			out:  killedPrintOutput,
+			want: JobStatus{Label: "com.datadoghq.agent", LastExitStatus: 137, HasExited: true, Loaded: true},
+		},
+		{
+			name: "job that crashed",
+			out:  "system/com.datadoghq.agent = {\n\tstate = not running\n\tlast terminating signal = Segmentation fault: 11\n}\n",
+			want: JobStatus{Label: "com.datadoghq.agent", LastExitStatus: 139, HasExited: true, Loaded: true},
+		},
+		{
+			name: "loaded job launchd reports nothing else about",
+			out:  "system/com.datadoghq.agent = {\n\tstate = not running\n}\n",
+			want: JobStatus{Label: "com.datadoghq.agent", Loaded: true},
+		},
+		{
+			// Only a whole "pid = N" line is the job's pid, not a key that merely contains it.
+			name: "pid-like keys are not mistaken for the pid",
+			out:  "system/com.datadoghq.agent = {\n\tinherited pid = 1\n\tpid = 42\n}\n",
+			want: JobStatus{Label: "com.datadoghq.agent", PID: 42, Loaded: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parsePrint("com.datadoghq.agent", tt.out))
+		})
+	}
+}
+
+func TestPrintNotLoadedIsNotAnError(t *testing.T) {
+	rec := &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{exitError(113)}}
+	status, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
+	require.NoError(t, err)
+	assert.Equal(t, JobStatus{Label: "com.datadoghq.agent"}, status)
+}
+
+func TestPrintRealFailureIsAnError(t *testing.T) {
+	rec := &recorder{outputs: [][]byte{[]byte("Bad request.\nCould not talk to launchd\n")}, errs: []error{exitError(1)}}
+	_, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
+	assert.Error(t, err)
 }
 
 func TestLoadedRealFailureIsAnError(t *testing.T) {
@@ -140,6 +229,11 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 		}
 	})
 
+	t.Run("removing a definition that is not there", func(t *testing.T) {
+		job := Job{Label: "com.datadoghq.agent", Dir: t.TempDir()}
+		assert.NoError(t, job.Remove())
+		assert.NoError(t, job.Remove())
+	})
 }
 
 // TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded guards the idempotency above from
@@ -333,4 +427,50 @@ func TestJobPathDefaultsToTheDomainDirectory(t *testing.T) {
 		Job{Label: "com.datadoghq.installer"}.Path())
 	assert.Equal(t, "/tmp/x/com.datadoghq.installer.plist",
 		Job{Label: "com.datadoghq.installer", Dir: "/tmp/x"}.Path())
+}
+
+// TestWriteIfChangedLeavesAnUpToDateDefinitionAlone pins that a definition already on disk with
+// the expected content is not rewritten: restoring a stable job must not need free disk space.
+func TestWriteIfChangedLeavesAnUpToDateDefinitionAlone(t *testing.T) {
+	dir := t.TempDir()
+	job := Job{Label: "com.datadoghq.agent", Dir: dir}
+	require.NoError(t, job.Write([]byte("v1")))
+	before, err := os.Stat(job.Path())
+	require.NoError(t, err)
+
+	// A read-only directory makes any rewrite fail: the temporary file cannot be created.
+	require.NoError(t, os.Chmod(dir, 0555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+	wrote, err := job.WriteIfChanged([]byte("v1"))
+	require.NoError(t, err)
+	assert.False(t, wrote)
+	after, err := os.Stat(job.Path())
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(before, after))
+
+	_, err = job.WriteIfChanged([]byte("v2"))
+	assert.Error(t, err, "a definition with different content must be rewritten")
+	require.NoError(t, os.Chmod(dir, 0755))
+
+	wrote, err = job.WriteIfChanged([]byte("v2"))
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	content, err := os.ReadFile(job.Path())
+	require.NoError(t, err)
+	assert.Equal(t, "v2", string(content))
+}
+
+// TestWriteIfChangedRewritesADefinitionWithTheWrongMode pins that content alone is not enough: a
+// definition whose mode drifted is written again.
+func TestWriteIfChangedRewritesADefinitionWithTheWrongMode(t *testing.T) {
+	job := Job{Label: "com.datadoghq.agent", Dir: t.TempDir()}
+	require.NoError(t, job.Write([]byte("v1")))
+	require.NoError(t, os.Chmod(job.Path(), 0666))
+
+	wrote, err := job.WriteIfChanged([]byte("v1"))
+	require.NoError(t, err)
+	assert.True(t, wrote)
+	info, err := os.Stat(job.Path())
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 }
