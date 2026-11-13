@@ -132,61 +132,67 @@ func makeResolvStripper(size int) *resolvStripper {
 	}
 }
 
-// errProcessRootGone is returned by readResolvConf when the root directory of the
-// process can't be opened because the process is exiting or has exited.
+// errProcessRootGone is returned by readResolvConf when the root directory of a
+// container process can't be opened because the process is exiting or has exited.
 var errProcessRootGone = errors.New("process root directory is gone")
 
+// os.ErrNotExist already matches syscall.ENOENT
 func isNotExistErr(err error) bool {
-	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH)
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
+}
+
+// processRootGone reports whether a process's /proc/<pid>/root no longer resolves.
+// The kernel returns ENOENT for it once the task has released its fs_struct in
+// do_exit(), while /proc/<pid> stays visible until the task is reaped, so
+// isProcessStillRunning still reports such a process as running.
+// It is a variable so that tests can simulate a process exiting mid-read.
+var processRootGone = func(rootPath string) bool {
+	_, err := os.Stat(rootPath)
+	return isNotExistErr(err)
 }
 
 // readResolvConf reads and strips a process's resolv.conf.
 // If the resolv.conf is missing, it returns "<missing>" instead of an error.
-// If the process root itself is gone (the process is exiting, or is a zombie), it
-// returns errProcessRootGone.
+// If the process is in a container and its root is gone (the process is exiting,
+// or is a zombie), it returns errProcessRootGone.
 // It can return various OS errors when the PID stopped running, so it needs to be
 // followed up by a call to isProcessStillRunning
 func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
-	rootPath := hostRoot()
-	if entry.ContainerID != nil {
-		rootPath = kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
+	if entry.ContainerID == nil {
+		return r.readResolvConfInRoot(hostRoot())
 	}
 
-	// Open the root separately, so that "the process has no root any more" can be told
-	// apart from "the root has no etc/resolv.conf". The kernel returns ENOENT for
-	// /proc/<pid>/root once the task has released its fs_struct in do_exit(), while
-	// /proc/<pid> stays visible until the task is reaped, so isProcessStillRunning
-	// still reports such a process as running.
-	rootDir, err := openRoot(rootPath)
-	if isNotExistErr(err) {
+	rootPath := kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
+	contents, err := r.readResolvConfInRoot(rootPath)
+	// The process may exit at any point during the read. Tearing down its mount
+	// namespace detaches the bind-mounted resolv.conf, so the lookup can then see
+	// the container image's own etc/resolv.conf, none at all, or fail with another
+	// error (pathrs can return EAGAIN or EXDEV while mounts change). do_exit()
+	// releases the fs_struct before the namespaces, so if the root still resolves
+	// after the read, the namespace was intact during it, and the result, whether
+	// contents or error, is genuine.
+	if processRootGone(rootPath) {
 		return "", errProcessRootGone
 	}
+	return contents, err
+}
+
+func (r *resolvStripper) readResolvConfInRoot(rootPath string) (string, error) {
+	// Open the root separately from the lookup, so that "the process has no root
+	// any more" can be told apart from "the root has no etc/resolv.conf".
+	rootDir, err := openRoot(rootPath)
 	if err != nil {
+		if isNotExistErr(err) {
+			// for a container process, readResolvConf turns this into
+			// errProcessRootGone; for the host, a missing root is a missing file
+			return "<missing>", nil
+		}
 		return "", resolvConfReadError(rootPath, err)
 	}
 	defer rootDir.Close()
 
-	// The process may exit between opening its root and the lookup, and tearing down
-	// its mount namespace detaches the bind-mounted resolv.conf: the lookup then sees
-	// the container image's own etc/resolv.conf, or none. do_exit() releases the
-	// fs_struct before the namespaces, so if the root can still be opened after the
-	// lookup, the namespace was intact during it.
-	rootGoneSinceLookup := func() bool {
-		if entry.ContainerID == nil {
-			return false
-		}
-		recheck, recheckErr := openRoot(rootPath)
-		if recheckErr == nil {
-			recheck.Close()
-		}
-		return isNotExistErr(recheckErr)
-	}
-
 	file, err := openResolvConf(rootDir)
 	if isNotExistErr(err) {
-		if rootGoneSinceLookup() {
-			return "", errProcessRootGone
-		}
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
@@ -201,11 +207,7 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 		return "", err
 	}
 
-	contents, err := r.stripResolvConf(int(stat.Size()), file)
-	if err == nil && rootGoneSinceLookup() {
-		return "", errProcessRootGone
-	}
-	return contents, err
+	return r.stripResolvConf(int(stat.Size()), file)
 }
 
 // openRoot opens a root directory as an O_PATH handle, for use with openResolvConf.
