@@ -8,12 +8,16 @@
 package procutil
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -53,6 +57,119 @@ func TestGetActivePIDs(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.ElementsMatch(t, expect, actual)
+}
+
+// TestGetActivePIDsConcurrent reproduces a crash seen in the field where the
+// workloadmeta process collector calls ProcessesByPID on the same probe from
+// two goroutines (collectProcesses and collectServices*) concurrently.
+//
+// getActivePIDs reuses a single cached *os.File for the procfs root and does
+// Readdirnames followed by Seek(0, 0). os.File.Seek frees the file's cached
+// directory buffer without taking the lock Readdirnames holds, so a Seek from
+// one goroutine can nil out the buffer under another goroutine's in-progress
+// Readdirnames, causing a nil pointer dereference in os.(*File).readdir. Worse,
+// the reader can then return the nil buffer to the os package's global
+// directory buffer pool, so an unrelated os.ReadDir elsewhere in the process
+// crashes later.
+func TestGetActivePIDsConcurrent(t *testing.T) {
+	// Enough entries that a single Readdirnames needs several refills of the
+	// os package's 8KiB dirent buffer, widening the race window.
+	const numPIDs = 5000
+	procRoot := t.TempDir()
+	for pid := 1; pid <= numPIDs; pid++ {
+		f, err := os.Create(filepath.Join(procRoot, strconv.Itoa(pid)))
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	}
+
+	// An unrelated directory, read via a fresh *os.File each time, to detect
+	// poisoning of the os package's shared directory buffer pool.
+	otherDir := t.TempDir()
+	for i := 0; i < 10; i++ {
+		require.NoError(t, os.WriteFile(filepath.Join(otherDir, strconv.Itoa(i)), nil, 0o644))
+	}
+
+	probe := getProbe(WithProcFSRoot(procRoot))
+	defer probe.Close()
+	// Open the cached procfs root file up front so all goroutines share it,
+	// as they do in steady state.
+	_, err := probe.getActivePIDs()
+	require.NoError(t, err)
+
+	const (
+		numReaders = 4
+		deadline   = 5 * time.Second
+	)
+	stop := make(chan struct{})
+	var once sync.Once
+	var failure error
+	fail := func(err error) {
+		once.Do(func() {
+			failure = err
+			close(stop)
+		})
+	}
+	// run calls fn in a loop until stopped, converting panics into failures so
+	// the test reports cleanly rather than crashing the test binary.
+	run := func(wg *sync.WaitGroup, name string, fn func() error) {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			err := func() (err error) {
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("%s panicked: %v\n%s", name, r, debug.Stack())
+					}
+				}()
+				return fn()
+			}()
+			if err != nil {
+				fail(err)
+				return
+			}
+		}
+	}
+
+	// The concurrent Seek also resets the shared read offset under an
+	// in-progress read, so results can silently be missing PIDs. Count those
+	// rather than stopping on them, so the test keeps running long enough to
+	// also surface the panic.
+	var shortReads, totalReads atomic.Int64
+
+	var wg sync.WaitGroup
+	for i := 0; i < numReaders; i++ {
+		wg.Add(1)
+		go run(&wg, fmt.Sprintf("getActivePIDs[%d]", i), func() error {
+			pids, err := probe.getActivePIDs()
+			if err != nil {
+				return fmt.Errorf("getActivePIDs: %w", err)
+			}
+			totalReads.Add(1)
+			if len(pids) != numPIDs {
+				shortReads.Add(1)
+			}
+			return nil
+		})
+	}
+	wg.Add(1)
+	go run(&wg, "os.ReadDir", func() error {
+		_, err := os.ReadDir(otherDir)
+		return err
+	})
+
+	select {
+	case <-stop:
+	case <-time.After(deadline):
+		fail(nil)
+	}
+	wg.Wait()
+
+	assert.NoError(t, failure)
+	assert.Zero(t, shortReads.Load(), "getActivePIDs returned fewer than %d pids in %d of %d calls", numPIDs, shortReads.Load(), totalReads.Load())
 }
 
 func TestTrimAndSplitBytes(t *testing.T) {
