@@ -1839,6 +1839,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadog
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/payload,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension/internal/healthcheck,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1866,6 +1867,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsu
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil/endpoints,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/docker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/maps,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/precision,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/sanitize,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/ttlmap,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1913,6 +1915,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthch
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/grpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/httpserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig/k8sconfigtypes,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory/checkpoint,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sinventory/informer,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2025,6 +2028,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operat
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/jsonarray,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/jsonparser,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/keyvalue,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/otelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/regex,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/scope,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/parser/severity,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2185,7 +2189,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentfo
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/precision,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/cpuscraper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/cpuscraper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/cpuscraper/ucal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2757,6 +2760,7 @@ core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Copyright The Op
 core,go.opentelemetry.io/collector/config/confighttp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confighttp/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configmiddleware,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/config/configmiddleware/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configopaque,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configoptional,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2829,6 +2833,7 @@ core,go.opentelemetry.io/collector/internal/memorylimiter/iruntime,Apache-2.0,Co
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/statusutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/telemetry/queuebatch,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2880,6 +2885,7 @@ core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2
 core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/receiverhelper/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/receiverhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/receivertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/xreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/scraper,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2908,6 +2914,7 @@ core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The Op
 core,go.opentelemetry.io/collector/service/telemetry/otelconftelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry/otelconftelemetry/internal/migration,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/bridges/otelzap,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/detectors/aws/ec2/v2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/aws/ecs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/aws/eks,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/aws/elasticbeanstalk,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2916,9 +2923,11 @@ core,go.opentelemetry.io/contrib/detectors/azure/azurecontainerapps,Apache-2.0,C
 core,go.opentelemetry.io/contrib/detectors/azure/azurefunctions,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/azure/azurevm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/gcp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/detectors/gcp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/hetzner,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/ibmcloud/vpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/detectors/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/detectors/vultr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3088,7 +3097,6 @@ core,go.opentelemetry.io/otel/internal/errorhandler,Apache-2.0,Copyright The Ope
 core,go.opentelemetry.io/otel/internal/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/log/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/log/global,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/log/noop,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/metric/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3139,6 +3147,8 @@ core,go.opentelemetry.io/otel/semconv/v1.43.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.43.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.43.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.43.0/rpcconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.44.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.44.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
