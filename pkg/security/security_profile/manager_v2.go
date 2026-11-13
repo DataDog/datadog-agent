@@ -100,11 +100,25 @@ const (
 	metricSourceCount
 )
 
-// insertionErrorKey identifies an unexpected activity-tree insertion failure by
-// event type and a bounded error-type label.
-type insertionErrorKey struct {
+// errorTypeKey identifies an error counter by event type and a bounded error-type label.
+type errorTypeKey struct {
 	eventType model.EventType
 	errorType string
+}
+
+// Outcomes of an event that carries an error
+const (
+	eventWithErrorKept         = "kept"
+	eventWithErrorUnattributed = "unattributed"
+	eventWithErrorDropped      = "dropped"
+)
+
+var eventWithErrorOutcomes = []string{eventWithErrorKept, eventWithErrorUnattributed, eventWithErrorDropped}
+
+// eventWithErrorKey identifies an events-with-error counter.
+type eventWithErrorKey struct {
+	errorTypeKey
+	outcome string
 }
 
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
@@ -150,7 +164,8 @@ type ManagerV2 struct {
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
 
-	insertionErrors map[insertionErrorKey]*atomic.Uint64
+	insertionErrors map[errorTypeKey]*atomic.Uint64
+	eventsWithError map[eventWithErrorKey]*atomic.Uint64
 
 	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
 
@@ -280,7 +295,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		startTimeMono:               resolvers.TimeResolver.ComputeMonotonicTimestamp(startTime),
 		sendAnomalyDetection:        sendAnomalyDetection,
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
+		insertionErrors:             make(map[errorTypeKey]*atomic.Uint64),
+		eventsWithError:             make(map[eventWithErrorKey]*atomic.Uint64),
 		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:             cookieMap,
@@ -309,7 +325,13 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, errorType := range activity_tree.InsertionErrorTypes {
-			m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+			m.insertionErrors[errorTypeKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+		}
+		for _, errorType := range activity_tree.EventErrorTypes {
+			for _, outcome := range eventWithErrorOutcomes {
+				key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: i, errorType: errorType}, outcome: outcome}
+				m.eventsWithError[key] = atomic.NewUint64(0)
+			}
 		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -680,7 +702,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		if event.Error == nil && m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -701,6 +723,11 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	workloadID := getWorkloadIDFromEvent(event)
 	if workloadID == nil {
+		return
+	}
+
+	if activity_tree.EventInsertionError(event) != nil {
+		m.incrementEventWithError(event, eventWithErrorDropped)
 		return
 	}
 
@@ -1017,6 +1044,15 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	for key, count := range m.eventsWithError {
+		if value := count.Swap(0); value > 0 {
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType, "outcome:" + key.outcome}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsWithError, int64(value), tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Per-(source, event_type) event counters.
 	for src := range m.eventMetrics {
 		for _, em := range m.eventMetrics[src] {
@@ -1084,7 +1120,7 @@ func (m *ManagerV2) SendStats() error {
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
-// Returns the profile and whether the event was actually inserted (new data added).
+// Returns the profile and whether the event added new data to the process tree.
 func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return nil, false
@@ -1144,20 +1180,32 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
 	secprof.Lock()
 	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	unattributed := processNode != nil && processNode == secprof.ActivityTree.UnattributedActivity
 	if err == nil {
 		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
 		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
 	}
 	secprof.Unlock()
 	if err != nil {
-		if !activity_tree.IsExpectedFilterError(err) {
+		if event.Error != nil {
+			m.incrementEventWithError(event, eventWithErrorDropped)
+		} else if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
 	}
+	if event.Error != nil {
+		outcome := eventWithErrorKept
+		if unattributed {
+			outcome = eventWithErrorUnattributed
+		}
+		m.incrementEventWithError(event, outcome)
+	}
 
-	return secprof, inserted
+	// the unattributed activity isn't compared with the activity of the processes, what is new there may not be new
+	// for the workload
+	return secprof, inserted && !unattributed
 }
 
 // registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
@@ -1442,6 +1490,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithUnattributedActivity(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
@@ -1495,6 +1544,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithUnattributedActivity(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
@@ -1621,8 +1671,21 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 // incrementInsertionError records an unexpected activity-tree insertion failure for the given
 // event type, categorizing err into a bounded error-type label.
 func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
-	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
+	key := errorTypeKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
 	if entry, ok := m.insertionErrors[key]; ok {
+		entry.Inc()
+	}
+}
+
+// incrementEventWithError records an event carrying an error, labeled with the error that kept it out of the tree if
+// there is one
+func (m *ManagerV2) incrementEventWithError(event *model.Event, outcome string) {
+	err := activity_tree.EventInsertionError(event)
+	if err == nil {
+		err = event.Error
+	}
+	key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: event.GetEventType(), errorType: activity_tree.EventErrorType(err)}, outcome: outcome}
+	if entry, ok := m.eventsWithError[key]; ok {
 		entry.Inc()
 	}
 }

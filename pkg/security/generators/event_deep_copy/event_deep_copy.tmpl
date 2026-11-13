@@ -80,7 +80,8 @@ func deepCopyIPBytes(fieldToCopy []byte, c deepCopyContext) []byte {
 	return copied
 }
 {{end}}
-// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
+// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original but its errors,
+// which are immutable, and its FieldHandlers
 func (e *Event) DeepCopy() *Event {
 	if e == nil {
 		return nil

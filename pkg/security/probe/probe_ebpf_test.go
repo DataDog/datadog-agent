@@ -718,6 +718,42 @@ func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
 	_ = serializers.NewEventSerializer(ev, nil, nil)
 }
 
+func TestNewContainerPlaceholder(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      "/system.slice/foo.service",
+		CGroupPathKey: model.PathKey{Inode: 4343, MountID: 1},
+	}))
+
+	p := &EBPFProbe{Resolvers: &resolvers.EBPFResolvers{CGroupResolver: cgr}, kernelTracksCGroupID: true}
+	pidContext := model.PIDContext{Pid: 42, Tid: 43, MntNS: 7}
+	cgroupOf := func(inode uint64) model.CGroupContext {
+		return model.CGroupContext{CGroupPathKey: model.PathKey{Inode: inode, MountID: 1}}
+	}
+
+	entry := p.newContainerPlaceholder(pidContext, cgroupOf(4242))
+	require.NotNil(t, entry)
+	assert.Equal(t, containerID, entry.ContainerContext.ContainerID)
+	assert.EqualValues(t, 4242, entry.CGroup.CGroupPathKey.Inode)
+	assert.Equal(t, pidContext, entry.PIDContext)
+	assert.Equal(t, model.ProcessCacheEntryFromPlaceholder, entry.Source)
+	assert.Nil(t, entry.Ancestor)
+
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4343)), "a host cgroup has no container")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4444)), "the cgroup is unknown")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, model.CGroupContext{}), "the kernel doesn't know the process")
+
+	p.kernelTracksCGroupID = false
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4242)), "the cgroup reported by the kernel can be stale")
+}
+
 func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 

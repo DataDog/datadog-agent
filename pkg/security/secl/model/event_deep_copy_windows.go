@@ -46,7 +46,8 @@ func mapFromPointer[V any](p unsafe.Pointer) map[string]V {
 	return *(*map[string]V)(unsafe.Pointer(&p))
 }
 
-// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
+// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original but its errors,
+// which are immutable, and its FieldHandlers
 func (e *Event) DeepCopy() *Event {
 	if e == nil {
 		return nil
@@ -72,6 +73,7 @@ func (e *Event) DeepCopy() *Event {
 }
 func deepCopyBaseEvent(fieldToCopy BaseEvent, c deepCopyContext) BaseEvent {
 	copied := BaseEvent{}
+	copied.Error = fieldToCopy.Error
 	copied.Flags = fieldToCopy.Flags
 	copied.Hostname = fieldToCopy.Hostname
 	copied.ID = fieldToCopy.ID

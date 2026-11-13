@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -792,4 +795,194 @@ func TestProcessInfoMatches(t *testing.T) {
 		Argv:      []string{"-s", "https://example.com"},
 	}
 	assert.True(t, node.Matches(entry, true, false))
+}
+
+func TestEventErrorType(t *testing.T) {
+	cause := errors.New("cause")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding},
+		{"other", cause, EventErrorOther},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EventErrorType(tt.err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, EventErrorTypes, got)
+		})
+	}
+}
+
+func TestEventInsertionError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
+	notCritical := &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")}
+	unknown := errors.New("unknown")
+
+	tests := []struct {
+		name      string
+		eventType model.EventType
+		setError  func(event *model.Event)
+		want      error
+	}{
+		{"no error", model.FileOpenEventType, func(*model.Event) {}, nil},
+		{"broken lineage", model.FileOpenEventType, func(event *model.Event) { event.Error = brokenLineage }, nil},
+		{"path of the opened file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+		}, critical},
+		{"path of the opened file hidden by a later error", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, critical},
+		{"path of the binary of an exec hidden by a broken lineage", model.ExecEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+			event.Error = brokenLineage
+		}, critical},
+		{"path of another file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+		}, nil},
+		{"path of the opened file on a kernel-internal mount", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, notCritical)
+		}, nil},
+		{"path error of a dns event", model.DNSEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, notCritical},
+		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, nil},
+		{"unknown error", model.FileOpenEventType, func(event *model.Event) { event.Error = unknown }, unknown},
+		{"dns decoding", model.DNSEventType, func(event *model.Event) { event.Error = model.ErrFailedDNSPacketDecoding }, model.ErrFailedDNSPacketDecoding},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.Type = uint32(tt.eventType)
+			event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
+			event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+			tt.setError(event)
+
+			assert.Equal(t, tt.want, EventInsertionError(event))
+		})
+	}
+}
+
+func TestActivityTree_BrokenLineageCookies(t *testing.T) {
+	shim := model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	shim.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	shim.FileEvent.Inode = 1
+
+	newEntry := func(pid uint32, pathname string, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+		entry := model.NewPlaceholderProcessCacheEntry(pid, pid, false)
+		entry.ContainerContext.ContainerID = "123"
+		entry.FileEvent.PathnameStr = pathname
+		entry.FileEvent.Inode = uint64(pid)
+		entry.FileEvent.MountID = 1
+		entry.Cookie = uint64(pid)
+		entry.ExecTime = time.Unix(int64(pid), 0)
+		if ancestor != nil {
+			entry.Ancestor = ancestor
+			entry.Parent = &ancestor.Process
+		}
+		return entry
+	}
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+	// the lineage of these entries breaks at /bin/foo, inside of the container
+	brokenParent := newEntry(10, "/bin/foo", nil)
+	brokenChild := newEntry(11, "/bin/bar", brokenParent)
+	brokenSibling := newEntry(12, "/bin/baz", brokenParent)
+
+	_, _, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.ErrorIs(t, err, ErrBrokenLineage)
+
+	node, newNode, err := tree.CreateProcessNode(newEntry(11, "/bin/bar", newEntry(10, "/bin/foo", shim)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.True(t, newNode)
+
+	found, newNode, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	sibling, newNode, err := tree.CreateProcessNode(brokenSibling, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	require.Len(t, tree.ProcessNodes, 1)
+	assert.Same(t, tree.ProcessNodes[0], sibling.Parent)
+
+	require.Positive(t, tree.EvictUnusedNodes(time.Now(), nil, ""))
+	_, _, err = tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage)
+}
+
+func TestActivityTree_UnattributedActivity(t *testing.T) {
+	// the lineage of this entry breaks at its parent, inside of the container
+	parent := model.NewPlaceholderProcessCacheEntry(10, 10, false)
+	parent.ContainerContext.ContainerID = "123"
+	entry := model.NewPlaceholderProcessCacheEntry(11, 11, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = "/bin/bar"
+	entry.FileEvent.Inode = 11
+	entry.FileEvent.MountID = 1
+	entry.Ancestor = parent
+	entry.Parent = &parent.Process
+
+	newEvent := func(eventType model.EventType, timestamp time.Time) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type:              uint32(eventType),
+				Timestamp:         timestamp,
+				FieldHandlers:     &model.FakeFieldHandlers{},
+				ProcessContext:    &entry.ProcessContext,
+				ProcessCacheEntry: entry,
+			},
+		}
+		evt.Syscalls.Syscalls = []model.Syscall{1, 2}
+		return evt
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	tree.KeepUnattributedActivity = true
+
+	_, _, _, err := tree.Insert(newEvent(model.ExecEventType, time.Now()), true, "v1", Runtime, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage, "an exec can't be kept without its process")
+	assert.Nil(t, tree.UnattributedActivity)
+
+	inserted, node, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.NotNil(t, tree.UnattributedActivity)
+	assert.Same(t, tree.UnattributedActivity, node)
+	assert.Empty(t, tree.ProcessNodes)
+	assert.False(t, tree.IsEmpty())
+	assert.Equal(t, []uint32{1, 2}, tree.SyscallsByImageTagID()[tree.GetImageTagID("v1")])
+
+	inserted, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted, "the syscalls are already known")
+
+	tree.EvictImageTag("v1")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.True(t, tree.IsEmpty())
+
+	_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	require.NotNil(t, tree.UnattributedActivity)
+	tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, "")
+	assert.Nil(t, tree.UnattributedActivity)
 }

@@ -191,6 +191,11 @@ type ActivityTree struct {
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
 	ProcessNodes        []*ProcessNode `json:"-"`
 
+	// KeepUnattributedActivity enables UnattributedActivity
+	KeepUnattributedActivity bool
+	// UnattributedActivity holds the activity of the processes that can't be placed in the tree. Its process is unset.
+	UnattributedActivity *ProcessNode `json:"-"`
+
 	// top level lists used to summarize the content of the tree
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
@@ -344,12 +349,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 	pnodes := at.ProcessNodes
 	var fnodes []*FileNode
 
-	for len(pnodes) > 0 {
-		node := pnodes[0]
-
-		at.Stats.ProcessNodes++
-		pnodes = append(pnodes, node.Children...)
-
+	countActivity := func(node *ProcessNode) {
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
 		at.Stats.SocketNodes += int64(len(node.Sockets))
 
@@ -360,8 +360,19 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
 		}
+	}
+
+	for len(pnodes) > 0 {
+		node := pnodes[0]
+
+		at.Stats.ProcessNodes++
+		pnodes = append(pnodes, node.Children...)
+		countActivity(node)
 
 		pnodes = pnodes[1:]
+	}
+	if at.UnattributedActivity != nil {
+		countActivity(at.UnattributedActivity)
 	}
 
 	for len(fnodes) > 0 {
@@ -383,7 +394,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 
 // IsEmpty returns true if the tree is empty
 func (at *ActivityTree) IsEmpty() bool {
-	return len(at.ProcessNodes) == 0
+	return len(at.ProcessNodes) == 0 && at.UnattributedActivity == nil
 }
 
 // Debug dumps the content of an activity tree
@@ -458,6 +469,87 @@ func InsertionErrorType(err error) string {
 	default:
 		return InsertionErrorOther
 	}
+}
+
+// Event error type labels used to tag the events-with-error metric.
+// Keep this list bounded to avoid metric tag cardinality explosion.
+const (
+	EventErrorBrokenLineage             = "broken_lineage"
+	EventErrorNoProcessContext          = "no_process_context"
+	EventErrorPathResolution            = "path_resolution"
+	EventErrorPathResolutionNotCritical = "path_resolution_not_critical"
+	EventErrorDNSDecoding               = "dns_decoding"
+	EventErrorOther                     = "other"
+)
+
+// EventErrorTypes is the exhaustive list of labels EventErrorType can return.
+var EventErrorTypes = []string{
+	EventErrorBrokenLineage,
+	EventErrorNoProcessContext,
+	EventErrorPathResolution,
+	EventErrorPathResolutionNotCritical,
+	EventErrorDNSDecoding,
+	EventErrorOther,
+}
+
+// EventErrorType categorizes the error carried by an event (model.Event.Error) into one of the
+// bounded EventErrorTypes labels.
+func EventErrorType(err error) string {
+	var brokenLineageErr *model.ErrProcessBrokenLineage
+	var pathResolutionErr *path.ErrPathResolution
+	var pathResolutionNotCriticalErr *path.ErrPathResolutionNotCritical
+	switch {
+	case errors.As(err, &brokenLineageErr):
+		return EventErrorBrokenLineage
+	case errors.Is(err, model.ErrNoProcessContext):
+		return EventErrorNoProcessContext
+	case errors.As(err, &pathResolutionErr):
+		return EventErrorPathResolution
+	case errors.As(err, &pathResolutionNotCriticalErr):
+		return EventErrorPathResolutionNotCritical
+	case errors.Is(err, model.ErrFailedDNSPacketDecoding):
+		return EventErrorDNSDecoding
+	default:
+		return EventErrorOther
+	}
+}
+
+// EventInsertionError returns the error that keeps an event carrying an error (model.Event.Error) out of the tree, nil
+// if the event can still be inserted. The tree decides on its own whether the process of such an event can be placed.
+func EventInsertionError(event *model.Event) error {
+	if event.Error == nil {
+		return nil
+	}
+	// the event only keeps the last error raised, which can hide the one of the file stored by the tree
+	var pathResolutionErr *path.ErrPathResolution
+	if file := insertedFile(event); file != nil && errors.As(file.PathResolutionError, &pathResolutionErr) {
+		return file.PathResolutionError
+	}
+	switch EventErrorType(event.Error) {
+	case EventErrorBrokenLineage, EventErrorNoProcessContext:
+		// a process without context has no lineage at all, its activity can only be unattributed
+		return nil
+	case EventErrorPathResolution, EventErrorPathResolutionNotCritical:
+		// either another file failed, or the path is on a kernel-internal mount, where the dentry path is all there
+		// is. A DNS packet that couldn't be decoded is hidden by such an error.
+		if event.GetEventType() != model.DNSEventType {
+			return nil
+		}
+	}
+	return event.Error
+}
+
+// insertedFile returns the file of the event that the tree stores, if any
+func insertedFile(event *model.Event) *model.FileEvent {
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		return &event.Open.File
+	case model.ExecEventType:
+		if event.ProcessCacheEntry != nil {
+			return &event.ProcessCacheEntry.FileEvent
+		}
+	}
+	return nil
 }
 
 // isEventValid evaluates if the provided event is valid
@@ -542,21 +634,30 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, err
 	}
 
+	// the binary of an exec, which makes its process node, is resolved before the event gets here
+	if err := at.eventInsertionError(event); err != nil {
+		return false, nil, nil, err
+	}
+
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
-	if err != nil {
+	unattributed := errors.Is(err, ErrBrokenLineage) && at.canBeUnattributed(event, dryRun, insertMissingProcesses)
+	if err != nil && !unattributed {
 		return false, nil, nil, err
 	}
 	if newProcessNode && !insertMissingProcesses {
 		return true, nil, nil, nil
-	} else if node == nil {
+	} else if node == nil && !unattributed {
 		return false, nil, nil, ErrProcessNodeNotCreated
 	}
 
 	event.ResolveFieldsForAD()
 
-	if event.Error != nil {
-		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
-		return false, nil, nil, event.Error
+	if err := at.eventInsertionError(event); err != nil {
+		return false, nil, nil, err
+	}
+
+	if unattributed {
+		node = at.getOrCreateUnattributedActivity(generationType)
 	}
 
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
@@ -592,6 +693,39 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	return false, node, nil, nil
+}
+
+func (at *ActivityTree) eventInsertionError(event *model.Event) error {
+	err := EventInsertionError(event)
+	if err != nil {
+		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
+	}
+	return err
+}
+
+// canBeUnattributed reports whether the activity of an event whose process can't be placed in the tree can be kept in
+// UnattributedActivity
+func (at *ActivityTree) canBeUnattributed(event *model.Event, dryRun bool, insertMissingProcesses bool) bool {
+	if !at.KeepUnattributedActivity || dryRun || !insertMissingProcesses {
+		return false
+	}
+	switch event.GetEventType() {
+	case model.FileOpenEventType, model.DNSEventType, model.IMDSEventType, model.BindEventType, model.ConnectEventType,
+		model.SyscallsEventType, model.NetworkFlowMonitorEventType, model.CapabilitiesEventType:
+		return true
+	}
+	return false
+}
+
+func (at *ActivityTree) getOrCreateUnattributedActivity(generationType NodeGenerationType) *ProcessNode {
+	if at.UnattributedActivity == nil {
+		at.UnattributedActivity = &ProcessNode{
+			NodeBase:       NewNodeBase(),
+			GenerationType: generationType,
+		}
+		at.Stats.SizeBytes += at.UnattributedActivity.size()
+	}
+	return at.UnattributedActivity
 }
 
 func isContainerRuntimePrefix(basename string) bool {
@@ -688,10 +822,11 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 }
 
 // buildBranchAndLookupCookies iterates over the ancestors of entry with 2 intentions in mind:
-//   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
+//   - if lookupCookies is set, check if one of the ancestors of entry is already in the tree and has a shortcut thanks
+//     to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
 //     "GetNextAncestorBinaryOrArgv0" and that match the tree selector.
-func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTagID uint64) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
+func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTagID uint64, lookupCookies bool) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
 	var cs cookieSelector
 	var fastMatch *ProcessNode
 	var found bool
@@ -700,12 +835,14 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 
 	for nextAncestor != nil {
 		// look for the current ancestor
-		cs.fillFromEntry(nextAncestor)
-		if cs.isSet() {
-			fastMatch, found = at.CookieToProcessNode.Get(cs)
-			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTagID)
-				return branch, fastMatch, nil
+		if lookupCookies {
+			cs.fillFromEntry(nextAncestor)
+			if cs.isSet() {
+				fastMatch, found = at.CookieToProcessNode.Get(cs)
+				if found {
+					fastMatch.applyImageTagOnLineageIfNeeded(imageTagID)
+					return branch, fastMatch, nil
+				}
 			}
 		}
 
@@ -734,6 +871,17 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 	return branch, nil, ErrNotValidRootNode
 }
 
+// lineageLeavesSelector reports whether the lineage of entry reaches an ancestor outside of the tree selector. When
+// it does, a break further up the lineage doesn't affect the branch inserted in the tree.
+func (at *ActivityTree) lineageLeavesSelector(entry *model.ProcessCacheEntry) bool {
+	for ancestor := entry; ancestor != nil; ancestor = ancestor.Ancestor {
+		if !at.validator.MatchesSelector(ancestor) {
+			return true
+		}
+	}
+	return false
+}
+
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	var imageTagID uint64
 	if dryRun {
@@ -751,17 +899,15 @@ func (at *ActivityTree) createProcessNode(entry *model.ProcessCacheEntry, imageT
 		return nil, false, nil
 	}
 
-	if _, err := entry.HasValidLineage(); err != nil {
-		// check if the node belongs to the container
-		var mn *model.ErrProcessMissingParentNode
-		if !errors.As(err, &mn) {
-			return nil, false, ErrBrokenLineage
-		}
-	}
+	// when the lineage breaks inside the selector, the top of the branch is unknown: the entry can only be placed below
+	// one of its ancestors that is already in the tree
+	_, lineageErr := entry.HasValidLineage()
+	brokenInSelector := lineageErr != nil && !at.lineageLeavesSelector(entry)
 
-	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
-	// insert.
-	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTagID)
+	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTagID, brokenInSelector)
+	if brokenInSelector && quickMatch == nil {
+		return nil, false, ErrBrokenLineage
+	}
 	if err != nil {
 		return nil, false, err
 	}
@@ -800,6 +946,9 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			}
 		}
 		if matchingNode != nil {
+			if !dryRun {
+				at.cacheProcessNode(branchToInsert[i-branchIncrement+1], matchingNode)
+			}
 			parent = matchingNode
 			i -= branchIncrement
 			continue
@@ -816,6 +965,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			// create the node
 			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
 			parent.AppendChild(matchingNode)
+			at.cacheProcessNode(branchToInsert[j], matchingNode)
 
 			// insert the new node in the list of children
 			at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
@@ -835,6 +985,15 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		matchingNode.applyImageTagOnLineageIfNeeded(imageTagID)
 	}
 	return matchingNode, newNode, nil
+}
+
+// cacheProcessNode records node as the shortcut to the process of entry
+func (at *ActivityTree) cacheProcessNode(entry *model.ProcessCacheEntry, node *ProcessNode) {
+	var cs cookieSelector
+	cs.fillFromEntry(entry)
+	if cs.isSet() {
+		at.CookieToProcessNode.Add(cs, node)
+	}
 }
 
 // findBranch looks for the provided branch in the list of children. Returns the node that matches the
@@ -1072,6 +1231,9 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	if at.UnattributedActivity != nil {
+		at.UnattributedActivity.TagAllNodes(imageTagID, timestamp)
+	}
 	// every node may have grown a seen slot; the walk costs the same as tagging
 	at.recomputeSizeBytes()
 }
@@ -1080,8 +1242,11 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 // Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
+	openList := make([]*ProcessNode, len(at.ProcessNodes), len(at.ProcessNodes)+1)
 	copy(openList, at.ProcessNodes)
+	if at.UnattributedActivity != nil {
+		openList = append(openList, at.UnattributedActivity)
+	}
 	for len(openList) > 0 {
 		pn := openList[len(openList)-1]
 		openList = openList[:len(openList)-1]
@@ -1160,6 +1325,7 @@ func (at *ActivityTree) FinalizePatterns() {
 	for _, pn := range at.ProcessNodes {
 		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
 	}
+	at.finalizePatternsOnProcess(at.UnattributedActivity, cfg.MinGroupSize)
 }
 
 func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
@@ -1191,7 +1357,7 @@ func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
 
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
-	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
+	// the cookies may point to nodes that are about to be removed
 	at.CookieToProcessNode.Purge()
 
 	imageTagID := at.GetImageTagID(imageTag)
@@ -1212,6 +1378,14 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		removedBytes += nodeRemoved
 	}
 	at.ProcessNodes = newProcessNodes
+
+	if at.UnattributedActivity != nil {
+		shouldRemove, removed := at.UnattributedActivity.EvictImageTag(imageTagID, DNSNames, SyscallsMask)
+		if shouldRemove {
+			at.UnattributedActivity = nil
+		}
+		removedBytes += removed
+	}
 
 	newMounts := at.Mounts[:0]
 	for _, mn := range at.Mounts {
@@ -1252,6 +1426,14 @@ func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb f
 func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 	for _, pn := range at.ProcessNodes {
 		at.visitProcessNode(pn, cb)
+	}
+}
+
+// visitActivity is visit followed by UnattributedActivity
+func (at *ActivityTree) visitActivity(cb func(processNode *ProcessNode)) {
+	at.visit(cb)
+	if at.UnattributedActivity != nil {
+		cb(at.UnattributedActivity)
 	}
 }
 
@@ -1308,7 +1490,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	var syscalls []string
 
-	at.visit(func(processNode *ProcessNode) {
+	at.visitActivity(func(processNode *ProcessNode) {
 		for _, s := range processNode.Syscalls {
 			sycallKey := utils.SyscallKey{Arch: arch, ID: s.Syscall}
 			syscall, ok := utils.Syscalls[sycallKey]
@@ -1325,7 +1507,7 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 	sets := make(map[uint64]map[uint32]struct{})
 
-	at.visit(func(processNode *ProcessNode) {
+	at.visitActivity(func(processNode *ProcessNode) {
 		for _, syscallNode := range processNode.Syscalls {
 			if syscallNode.Syscall < 0 || uint64(syscallNode.Syscall) > math.MaxUint32 {
 				continue
@@ -1392,6 +1574,21 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
 		}
+	}
+
+	if ua := at.UnattributedActivity; ua != nil {
+		// without a process, there is no entry of the process cache that could keep it alive
+		_, removedBytes := ua.EvictUnusedNodes(before, nil, profileImageName, imageTags)
+		at.Stats.SizeBytes -= removedBytes
+		if ua.SeenIsEmpty() {
+			at.Stats.SizeBytes -= processSubtreeSizeBytes(ua)
+			at.UnattributedActivity = nil
+		}
+	}
+
+	if totalEvicted > 0 {
+		// the cookies may point to evicted nodes
+		at.CookieToProcessNode.Purge()
 	}
 
 	return totalEvicted

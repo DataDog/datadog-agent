@@ -64,7 +64,8 @@ func deepCopyIPBytes(fieldToCopy []byte, c deepCopyContext) []byte {
 	return copied
 }
 
-// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
+// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original but its errors,
+// which are immutable, and its FieldHandlers
 func (e *Event) DeepCopy() *Event {
 	if e == nil {
 		return nil
@@ -228,6 +229,7 @@ func deepCopyuint32Arr(fieldToCopy []uint32, c deepCopyContext) []uint32 {
 }
 func deepCopyBaseEvent(fieldToCopy BaseEvent, c deepCopyContext) BaseEvent {
 	copied := BaseEvent{}
+	copied.Error = fieldToCopy.Error
 	copied.Flags = fieldToCopy.Flags
 	copied.Hostname = fieldToCopy.Hostname
 	copied.ID = fieldToCopy.ID
@@ -477,6 +479,7 @@ func deepCopyFileEvent(fieldToCopy FileEvent, c deepCopyContext) FileEvent {
 	copied.MountSource = fieldToCopy.MountSource
 	copied.MountVisibilityResolved = fieldToCopy.MountVisibilityResolved
 	copied.MountVisible = fieldToCopy.MountVisible
+	copied.PathResolutionError = fieldToCopy.PathResolutionError
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	copied.PkgEpoch = fieldToCopy.PkgEpoch
 	copied.PkgName = fieldToCopy.PkgName
@@ -1051,8 +1054,11 @@ func deepCopyMountEvent(fieldToCopy MountEvent, c deepCopyContext) MountEvent {
 	copied := MountEvent{}
 	copied.Mount = deepCopyMount(fieldToCopy.Mount, c)
 	copied.MountPointPath = fieldToCopy.MountPointPath
+	copied.MountPointPathResolutionError = fieldToCopy.MountPointPathResolutionError
 	copied.MountRootPath = fieldToCopy.MountRootPath
+	copied.MountRootPathResolutionError = fieldToCopy.MountRootPathResolutionError
 	copied.MountSourcePath = fieldToCopy.MountSourcePath
+	copied.MountSourcePathResolutionError = fieldToCopy.MountSourcePathResolutionError
 	copied.SyscallContext = deepCopySyscallContext(fieldToCopy.SyscallContext, c)
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent, c)
 	copied.SyscallFSType = fieldToCopy.SyscallFSType
