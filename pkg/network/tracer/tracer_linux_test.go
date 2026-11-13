@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -1275,12 +1276,24 @@ func (s *TracerSuite) TestSelfConnect() {
 	t.Logf("port is %d", port)
 
 	buildmode := ebpftest.GetBuildMode()
+	// The two sides of the self-connection share the 4-tuple and differ only by PID. Once they have
+	// exchanged their 3 bytes they are idle, so the client sees each of them in one fetch only: the
+	// state skips an active connection whose stats haven't changed since the client's last fetch. The
+	// two sides update their stats at slightly different times (the sender's tcp_sendmsg returns after
+	// the data has already reached the receiver), so a fetch can land between them and report only
+	// one side, after which neither comes back. So keep the latest copy of each tuple (PID included)
+	// seen across fetches.
+	seen := make(map[network.ConnectionTuple]network.ConnectionStats)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		conns := network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
+		for _, c := range network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
-		})
+		}) {
+			c.Tags = slices.Clone(c.Tags) // the payload's buffers are reused after cleanup
+			seen[c.ConnectionTuple] = c
+		}
+		cleanup()
+		conns := slices.Collect(maps.Values(seen))
 
 		t.Logf("connections: %v", conns)
 		if buildmode == ebpftest.SK {

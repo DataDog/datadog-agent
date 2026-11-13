@@ -15,11 +15,12 @@ if pid == 0:
     s.send(b'foo')
     s.close()
 else:
-    # parent: recv first, then print the port so the Go test only reads it
-    # after both tcp_sendmsg (child) and tcp_recvmsg (parent) BPF probes
-    # have fired. This avoids a race where the first GetActiveConnections
-    # poll happens before the parent's recv updates the BPF map entry.
+    # parent: recv, then wait for the child to exit, and only then print the
+    # port, so the Go test polls after both sides have updated their stats.
+    # recv alone is not enough: on loopback the data reaches the parent while
+    # the child is still inside tcp_sendmsg, so the child's sent bytes can be
+    # recorded after the parent's recv returns.
     s.recv(256)
-    print(addr[1], flush=True)
     os.wait()
+    print(addr[1], flush=True)
     signal.pause()
