@@ -18,6 +18,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	containerd "github.com/containerd/containerd/v2/client"
 	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/errdefs"
 	"go.uber.org/fx"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -323,7 +324,16 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 
 func (c *collector) handleEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
 	if isImageTopic(containerdEvent.Topic) {
-		return c.handleImageEvent(ctx, containerdEvent)
+		err := c.handleImageEvent(ctx, containerdEvent)
+		if errdefs.IsNotFound(err) {
+			// The image was removed from containerd before this event was
+			// handled, for example when several references of an image are
+			// deleted in a row. The deletion events still remove it from
+			// workloadmeta, so this is expected.
+			log.Debugf("%s", err)
+			return nil
+		}
+		return err
 	}
 
 	return c.handleContainerEvent(ctx, containerdEvent)
