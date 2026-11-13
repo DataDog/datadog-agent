@@ -38,7 +38,9 @@ type linuxPrivateActionRunnerExecutorSuite struct {
 func TestLinuxPrivateActionRunnerExecutorSuite(t *testing.T) {
 	t.Parallel()
 
-	config := GenerateTestPrivateActionRunnerConfig(t)
+	// Keep the host in monolithic mode so the packaged split control plane cannot
+	// start an executor that competes with the one this suite launches directly.
+	config := GenerateTestMonolithicPrivateActionRunnerConfig(t)
 
 	e2e.Run(t, &linuxPrivateActionRunnerExecutorSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
