@@ -3926,9 +3926,23 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 		{"delay", "50ms", "loss", "20%", "50%"},
 	}
 
+	// A fresh netns loopback has a 64KiB MTU, so each 64KiB write is only
+	// one or two segments. Fast recovery needs duplicate ACKs (or SACKs)
+	// from segments sent after the reordered or lost one. Recent kernels
+	// get there anyway through RACK/TLP, but older ones (3.10, 4.4 and
+	// 4.9 in CI) mostly don't, and fall through most of the configs
+	// below before one triggers. An Ethernet-sized MTU splits each write
+	// into ~45 segments, so dupack-based fast recovery fires on the first
+	// configs on every kernel.
+	lowerLoopbackMTU := func(t *testing.T, env *netemTestEnv) {
+		testutil.RunCommands(t, []string{
+			fmt.Sprintf("ip -n %s link set lo mtu 1500", env.Netns),
+		}, false)
+	}
+
 	for i, netemArgs := range netemConfigs {
 		t.Logf("TestTCPRecoveryCount attempt %d/%d: netem %v", i+1, len(netemConfigs), netemArgs)
-		c := setupNetemCongestionTest(t, netemArgs, nil)
+		c := setupNetemCongestionTest(t, netemArgs, lowerLoopbackMTU)
 		triggered := false
 		deadline := time.Now().Add(20 * time.Second)
 		for time.Now().Before(deadline) {
