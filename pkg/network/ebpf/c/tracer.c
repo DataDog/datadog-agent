@@ -637,12 +637,17 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__ip_make_skb, void *rc) {
 #define handle_udp_recvmsg(sk, msg, flags, udp_sock_map)                                                 \
     do {                                                                                                 \
         log_debug("kprobe/udp_recvmsg: flags: %x", flags);                                               \
+        u64 pid_tgid = bpf_get_current_pid_tgid();                                                       \
         if (flags & MSG_PEEK) {                                                                          \
+            /* The receive probes treat a missing entry as a peek. Before 4.14 the kernel */             \
+            /* passes a non-negative length to the skb free function even for a peek, so the */          \
+            /* entry is the only way to tell. Delete any entry a missed kretprobe left behind */         \
+            /* for this thread, or the peek would be counted as a receive. */                            \
+            bpf_map_delete_elem(&udp_sock_map, &pid_tgid);                                               \
             return 0;                                                                                    \
         }                                                                                                \
                                                                                                          \
         /* keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument */ \
-        u64 pid_tgid = bpf_get_current_pid_tgid();                                                       \
         udp_recv_sock_t t = { .sk = sk, .msg = msg };                                                    \
         bpf_map_update_with_telemetry(udp_sock_map, &pid_tgid, &t, BPF_ANY);                             \
         return 0;                                                                                        \
