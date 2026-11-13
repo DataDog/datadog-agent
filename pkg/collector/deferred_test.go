@@ -109,7 +109,7 @@ func mysqlConfig() integration.Config {
 func TestDeferAndUnDeferCheck(t *testing.T) {
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
-	loader := &pendingLoader{deps: []string{"pymysql"}}
+	loader := &pendingLoader{deps: []string{"datadog-agent-integration-deps"}}
 	s := newDeferredTestScheduler(installer, loader)
 
 	config := mysqlConfig()
@@ -117,7 +117,7 @@ func TestDeferAndUnDeferCheck(t *testing.T) {
 	assert.Empty(t, checks)
 	require.Len(t, s.deferredConfigs, 1)
 	for _, d := range s.deferredConfigs {
-		assert.Equal(t, []string{"pymysql"}, d.deps)
+		assert.Equal(t, []string{"datadog-agent-integration-deps"}, d.deps)
 	}
 	configDigest := config.Digest()
 
@@ -126,13 +126,14 @@ func TestDeferAndUnDeferCheck(t *testing.T) {
 	assert.Empty(t, s.deferredConfigs)
 	assert.Contains(t, s.configDeps, configDigest)
 	require.NotEmpty(t, s.configToChecks)
-	require.GreaterOrEqual(t, installer.installCalls(), 1)
+	require.Eventually(t, func() bool { return installer.installCalls() >= 1 },
+		5*time.Second, 10*time.Millisecond, "an install request should have been triggered")
 }
 
 func TestDeferredCheckGivesUpAfterMaxAttempts(t *testing.T) {
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
-	loader := &pendingLoader{deps: []string{"pymysql"}}
+	loader := &pendingLoader{deps: []string{"datadog-agent-integration-deps"}}
 	s := newDeferredTestScheduler(installer, loader)
 
 	s.GetChecksFromConfigs([]integration.Config{mysqlConfig()}, true)
@@ -149,7 +150,7 @@ func TestUnscheduleRemovesDeferredAndTriggersOrphanRemoval(t *testing.T) {
 	defer func() { depRemovalGrace = prevGrace }()
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
-	loader := &pendingLoader{deps: []string{"pymysql"}}
+	loader := &pendingLoader{deps: []string{"datadog-agent-integration-deps"}}
 	s := newDeferredTestScheduler(installer, loader)
 
 	config := mysqlConfig()
@@ -171,7 +172,7 @@ func TestUnscheduleKeepsDepsWhileAnotherCheckUsesThem(t *testing.T) {
 	defer func() { depRemovalGrace = prevGrace }()
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
-	loader := &pendingLoader{deps: []string{"pymysql"}}
+	loader := &pendingLoader{deps: []string{"datadog-agent-integration-deps"}}
 	s := newDeferredTestScheduler(installer, loader)
 
 	mysql := mysqlConfig()

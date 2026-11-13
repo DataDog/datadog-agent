@@ -22,8 +22,8 @@ type DepInstaller interface {
 	RemoveDepPackage(pkg string) error
 }
 
-// depsDeclarer is implemented by loaders that know which third-party
-// dependencies a check requires (the python loader, backed by the dep
+// depsDeclarer is implemented by loaders that know which dependency
+// packages a check requires (the python loader, backed by the dep
 // manifest).
 type depsDeclarer interface {
 	DeclaredDeps(config integration.Config) []string
@@ -98,8 +98,8 @@ func (s *CheckScheduler) retryDeferred() {
 		d.attempts++
 		if d.attempts > maxAttempts {
 			delete(s.deferredConfigs, digest)
-			log.Errorf("Check %s still cannot load, dependencies %v missing after %d attempts, giving up", d.config.Name, d.deps, d.attempts)
-			errorStats.setLoaderError(d.config.Name, "python", "deferred dependencies never became importable")
+			log.Errorf("Check %s still cannot load, dependency packages %v missing after %d attempts, giving up", d.config.Name, d.deps, d.attempts)
+			errorStats.setLoaderError(d.config.Name, "python", "deferred dependency packages never became installed")
 			continue
 		}
 		s.deferredConfigs[digest] = d

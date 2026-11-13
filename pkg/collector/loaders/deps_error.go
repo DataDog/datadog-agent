@@ -14,7 +14,7 @@ import (
 // Schedulers can use it to defer the check and trigger a background
 // installation of the missing packages instead of reporting a load failure.
 type DepsPendingError struct {
-	// Deps holds the python import names of the missing dependencies.
+	// Deps holds the names of the missing dependency packages.
 	Deps []string
 }
 
@@ -25,5 +25,5 @@ func NewDepsPendingError(deps []string) *DepsPendingError {
 
 // Error implements the error interface.
 func (e *DepsPendingError) Error() string {
-	return "missing third-party dependencies: " + strings.Join(e.Deps, ", ")
+	return "missing dependency packages: " + strings.Join(e.Deps, ", ")
 }

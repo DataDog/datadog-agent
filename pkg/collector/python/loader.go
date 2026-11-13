@@ -234,8 +234,8 @@ func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
 }
 
-// DeclaredDeps returns the third-party python dependencies declared for a
-// check in the dependency manifest, or nil when the manifest is not loaded.
+// DeclaredDeps returns the dependency packages declared for a check in
+// the dependency manifest, or nil when the manifest is not loaded.
 func (*PythonCheckLoader) DeclaredDeps(config integration.Config) []string {
 	return declaredDeps(config.Name)
 }

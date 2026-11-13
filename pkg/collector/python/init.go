@@ -442,6 +442,17 @@ func Initialize(paths ...string) error {
 		C.call_free(unsafe.Pointer(path))
 	}
 
+	// Put the on-demand dependency package's stable site-packages on the
+	// import path. The path may dangle until the package is installed;
+	// CPython's FileFinder picks it up once the installer points the stable
+	// link at an installed version. Appended paths come after the agent's
+	// own site-packages, so the agent's entries always win.
+	if p := depsPackageImportPath(); p != "" {
+		path := TrackedCString(p)
+		C.add_python_path(rtloader, path)
+		C.call_free(unsafe.Pointer(path))
+	}
+
 	// Setup custom builtin before RtLoader initialization
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)

@@ -10,6 +10,7 @@ package python
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,66 +20,69 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+const testDepPackage = "datadog-agent-integration-deps"
+
 func writeDepsManifest(t *testing.T, path string) {
 	t.Helper()
-	err := os.WriteFile(path, []byte(`{"checks": {"mysql": ["pymysql"], "gunicorn": ["psutil"]}}`), 0o644)
+	err := os.WriteFile(path, []byte(`{"checks": {"mysql": ["`+testDepPackage+`"], "gunicorn": ["`+testDepPackage+`"]}}`), 0o644)
 	require.NoError(t, err)
 }
 
-func TestDepsPendingFor(t *testing.T) {
+// setDepsManifest points the loader at a fresh manifest and resets the
+// manifest cache, so tests are independent of each other.
+func setDepsManifest(t *testing.T) {
+	t.Helper()
+	depsManifestOnce = sync.Once{}
+	depsManifestData = nil
+	t.Cleanup(func() {
+		depsManifestOnce = sync.Once{}
+		depsManifestData = nil
+	})
 	cfg := configmock.New(t)
-
 	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
 	writeDepsManifest(t, manifestPath)
 	cfg.Set("on_demand_python_deps.manifest_path", manifestPath, pkgconfigmodel.SourceFile)
-
-	sitePackages := filepath.Join(t.TempDir(), "python3.12", "site-packages")
-	require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, "pymysql"), 0o755))
-
-	prevPythonPath := PythonPath
-	defer func() { PythonPath = prevPythonPath }()
-	PythonPath = "['/usr/lib/python3.12/site-packages', '" + sitePackages + "']"
-
-	missing := depsPendingFor("mysql")
-	assert.Empty(t, missing, "pymysql is installed, mysql should not be deferred")
-
-	missing = depsPendingFor("gunicorn")
-	assert.Equal(t, []string{"psutil"}, missing, "psutil is missing, gunicorn should be deferred")
-
-	missing = depsPendingFor("disk")
-	assert.Empty(t, missing, "disk declares no dependency, nothing should be deferred")
 }
 
-func TestDistInfoAloneIsNotImportable(t *testing.T) {
-	cfg := configmock.New(t)
-
-	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
-	writeDepsManifest(t, manifestPath)
-	cfg.Set("on_demand_python_deps.manifest_path", manifestPath, pkgconfigmodel.SourceFile)
-
+// setDepsPackagesRoot points the package probe at a temp packages root and
+// restores the default afterwards.
+func setDepsPackagesRoot(t *testing.T) string {
+	t.Helper()
 	root := t.TempDir()
-	sitePackages := filepath.Join(root, "python3.12", "site-packages")
-	// the installer wires the dist-info symlink before the module directory:
-	// a probe landing in that window must keep the check deferred
-	require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, "PyMySQL-1.1.0.dist-info"), 0o755))
-
-	prevPythonPath := PythonPath
-	defer func() { PythonPath = prevPythonPath }()
-	PythonPath = "['" + sitePackages + "']"
-
-	assert.Equal(t, []string{"pymysql"}, depsPendingFor("mysql"))
+	prev := depsPackagesRoot
+	depsPackagesRoot = root
+	t.Cleanup(func() { depsPackagesRoot = prev })
+	return root
 }
 
-func TestSitePackagesDirs(t *testing.T) {
-	assert.Empty(t, sitePackagesDirs(), "empty PythonPath must yield no directories")
+func installTestDepPackage(t *testing.T, root string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, testDepPackage, "stable", "site-packages"), 0o755))
+}
 
-	prevPythonPath := PythonPath
-	defer func() { PythonPath = prevPythonPath }()
+func TestDepsPendingFor(t *testing.T) {
+	setDepsManifest(t)
+	root := setDepsPackagesRoot(t)
 
-	PythonPath = "/no/repr/here"
-	assert.Empty(t, sitePackagesDirs())
+	assert.Equal(t, []string{testDepPackage}, depsPendingFor("mysql"),
+		"the dependency package is not installed, mysql should be deferred")
+	assert.Equal(t, []string{testDepPackage}, depsPendingFor("gunicorn"))
 
-	PythonPath = "['/opt/datadog-agent/embedded/lib/python3.12/site-packages', '/usr/lib/python3.12']"
-	dirs := sitePackagesDirs()
-	assert.Equal(t, []string{"/opt/datadog-agent/embedded/lib/python3.12/site-packages"}, dirs)
+	installTestDepPackage(t, root)
+	assert.Empty(t, depsPendingFor("mysql"), "the package is installed, nothing should be missing")
+
+	assert.Empty(t, depsPendingFor("disk"), "a check without declared packages is never deferred")
+}
+
+func TestDepsPackageImportPath(t *testing.T) {
+	setDepsPackagesRoot(t)
+	configmock.New(t)
+	assert.Equal(t, filepath.Join(depsPackagesRoot, testDepPackage, "stable", "site-packages"), depsPackageImportPath())
+}
+
+func TestDepsPackageImportPathConfigured(t *testing.T) {
+	setDepsPackagesRoot(t)
+	cfg := configmock.New(t)
+	cfg.Set("on_demand_python_deps.dep_package_name", "custom-deps", pkgconfigmodel.SourceFile)
+	assert.Equal(t, filepath.Join(depsPackagesRoot, "custom-deps", "stable", "site-packages"), depsPackageImportPath())
 }

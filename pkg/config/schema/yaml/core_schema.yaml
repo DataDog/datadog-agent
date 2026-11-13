@@ -9280,7 +9280,8 @@ properties:
         type: string
         default: ''
         comment: Path to the per-check dependency manifest mapping check names to
-          the python import names they require. Empty disables dependency probing.
+          the OCI dependency packages they require. Empty disables dependency
+          probing.
       max_attempts:
         node_type: setting
         type: integer

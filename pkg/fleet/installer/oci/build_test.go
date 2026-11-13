@@ -93,10 +93,10 @@ func TestParseSitePackages(t *testing.T) {
 
 func TestDepsManifest(t *testing.T) {
 	site := testSitePackages(t)
-	manifest := site.DepsManifest()
+	manifest := site.DepsManifest("datadog-agent-integration-deps")
 	assert.Equal(t, map[string][]string{
-		"mysql":    {"pymysql"},
-		"gunicorn": {"psutil"},
+		"mysql":    {"datadog-agent-integration-deps"},
+		"gunicorn": {"datadog-agent-integration-deps"},
 	}, manifest)
 }
 
@@ -160,10 +160,10 @@ func TestBuildDepsPackageLayer(t *testing.T) {
 		require.NoError(t, err)
 		entries[header.Name] = true
 	}
-	assert.True(t, entries["embedded/lib/python3.12/site-packages/pymysql/__init__.py"])
-	assert.True(t, entries["embedded/lib/python3.12/site-packages/psutil/__init__.py"])
-	assert.True(t, entries["embedded/lib/python3.12/site-packages/PyMySQL-1.1.0.dist-info/METADATA"])
-	assert.False(t, entries["embedded/lib/python3.12/site-packages/requests/__init__.py"])
+	assert.True(t, entries["site-packages/pymysql/__init__.py"])
+	assert.True(t, entries["site-packages/psutil/__init__.py"])
+	assert.True(t, entries["site-packages/PyMySQL-1.1.0.dist-info/METADATA"])
+	assert.False(t, entries["site-packages/requests/__init__.py"])
 }
 
 func TestBuildDepsPackageLayerIncludesTopLevelFiles(t *testing.T) {
@@ -190,7 +190,7 @@ func TestBuildDepsPackageLayerIncludesTopLevelFiles(t *testing.T) {
 			break
 		}
 		require.NoError(t, err)
-		if header.Name == "embedded/lib/python3.12/site-packages/six.py" {
+		if header.Name == "site-packages/six.py" {
 			found = true
 		}
 	}

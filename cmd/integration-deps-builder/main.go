@@ -9,7 +9,7 @@
 //
 // It is a local development tool for the on-demand dependencies POC: point it
 // at the site-packages directory of a fully built agent, and it produces:
-//   - the dependency manifest (check name -> required python import names)
+//   - the dependency manifest (check name -> required dependency packages)
 //     for on_demand_python_deps.manifest_path
 //   - an OCI layout directory that the fleet installer daemon can install
 //     through a catalog entry with a file:// URL
@@ -70,7 +70,7 @@ func main() {
 		fatal(err)
 	}
 
-	manifest := site.DepsManifest()
+	manifest := site.DepsManifest(*packageName)
 	if *manifestOut != "" {
 		data, err := json.MarshalIndent(map[string]any{"checks": manifest}, "", "  ")
 		if err != nil {

@@ -276,21 +276,19 @@ func (s *SitePackages) walkClosure(set map[string]struct{}, name string, followA
 	}
 }
 
-// DepsManifest returns the check-name to python-import-names mapping for the
-// on-demand dependency manifest: each installed check with a deps-group
-// requirement maps to the direct dependencies it needs at runtime.
-func (s *SitePackages) DepsManifest() map[string][]string {
+// DepsManifest returns the check-name to dependency-packages mapping for
+// the on-demand dependency manifest: every installed check with a
+// deps-group requirement depends on the given dependency package (the fat
+// package today; per-check packages later only change this mapping).
+func (s *SitePackages) DepsManifest(packageName string) map[string][]string {
 	manifest := map[string][]string{}
 	for _, check := range s.checkDists() {
-		deps := []string{}
 		for _, req := range check.Requires {
 			if req.Kind == requireDepsGroup {
-				deps = append(deps, req.Name)
+				checkName := strings.TrimPrefix(check.Name, "datadog_")
+				manifest[checkName] = []string{packageName}
+				break
 			}
-		}
-		if len(deps) > 0 {
-			checkName := strings.TrimPrefix(check.Name, "datadog_")
-			manifest[checkName] = deps
 		}
 	}
 	return manifest
@@ -330,8 +328,9 @@ func (s *SitePackages) DepsPackageDists() []*DistInfo {
 }
 
 // BuildDepsPackageLayer returns a single layer containing the given
-// distributions laid out under embedded/lib/<python>/site-packages, matching
-// what the installer hooks and the agent's sys.path expect.
+// distributions laid out under a top-level site-packages directory: the
+// agent puts <package>/stable/site-packages on the interpreter import
+// path, so the installed content is importable without any wiring.
 func (s *SitePackages) BuildDepsPackageLayer(dists []*DistInfo) (tarBytes []byte, err error) {
 	topLevel := map[string]struct{}{}
 	for _, dist := range dists {
@@ -345,7 +344,7 @@ func (s *SitePackages) BuildDepsPackageLayer(dists []*DistInfo) (tarBytes []byte
 	}
 	sort.Strings(paths)
 
-	prefix := "embedded/lib/" + s.PythonDir + "/site-packages"
+	prefix := "site-packages"
 	buf := &bytes.Buffer{}
 	tw := tar.NewWriter(buf)
 	defer func() {
