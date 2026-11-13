@@ -204,10 +204,8 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			if opts.isMIGChild() || !opts.migEnabled {
 				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 			}
-			if opts.migDeviceCount(deviceIdx) > 0 {
-				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
-			}
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+			// MIG mode is enabled even if no MIG devices have been created yet.
+			return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
 		},
 		GetMaxMigDeviceCountFunc: func() (int, nvml.Return) {
 			if opts.isMIGChild() || !opts.migEnabled {

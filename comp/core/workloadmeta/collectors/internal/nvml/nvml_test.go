@@ -148,6 +148,42 @@ func TestPullNVLinkVersion(t *testing.T) {
 	}
 }
 
+func TestPullMIGModeEnabled(t *testing.T) {
+	parentIdx := testutil.DefaultMIGParentDeviceIdx
+	tests := []struct {
+		name         string
+		opts         []testutil.NvmlMockOption
+		wantMIGMode  bool
+		wantChildren bool
+		wantSlicing  string
+	}{
+		{"physical", nil, false, false, "none"},
+		{"MIG enabled without children", []testutil.NvmlMockOption{testutil.WithDeviceOptions(parentIdx, testutil.WithDeviceFeatureMode(testutil.DeviceFeatureMIG))}, true, false, "mig-parent"},
+		{"MIG enabled with children", []testutil.NvmlMockOption{testutil.WithDefaultMIGDevices()}, true, true, "mig-parent"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmetaMock := testutil.GetWorkloadMetaMock(t)
+			nvmltestutil.SetupMockNVML(t, tt.opts...)
+			c := newTestCollector(t, wmetaMock)
+
+			c.Pull(context.Background())
+
+			found := false
+			for _, gpu := range wmetaMock.ListGPUs() {
+				if gpu.DeviceType != workloadmeta.GPUDeviceTypePhysical || gpu.Index != parentIdx {
+					continue
+				}
+				found = true
+				require.Equal(t, tt.wantMIGMode, gpu.MIGModeEnabled)
+				require.Equal(t, tt.wantChildren, len(gpu.ChildrenGPUUUIDs) > 0)
+				require.Equal(t, tt.wantSlicing, gpu.SlicingMode())
+			}
+			require.True(t, found)
+		})
+	}
+}
+
 func TestPullWithoutNVLink(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmltestutil.SetupMockNVML(t,
