@@ -18,7 +18,6 @@ const (
 	peerK8sClusterUIDTagPrefix = string(semantics.ConceptPeerK8sClusterUID) + ":"
 	peerK8sNamespaceTagPrefix  = string(semantics.ConceptPeerK8sNamespace) + ":"
 	peerK8sTagPrefix           = "peer.k8s."
-	kubeNamespaceTagPrefix     = "kube_namespace:"
 
 	// defaultClusterDomain is the Kubernetes DNS domain. The Agent does not know
 	// the cluster's domain, so fully qualified names under another domain get no tags.
@@ -31,26 +30,22 @@ const (
 )
 
 // peerK8sScope adds peer.k8s.cluster.uid and peer.k8s.namespace to the peer tags
-// of stats whose peer hostname has the shape of a cluster-local name: the candidate
-// scope for a best-effort lookup of the Kubernetes service by the backend. It is
-// built once per payload.
+// of stats whose peer hostname is a fully qualified in-cluster name: the candidate
+// scope for a best-effort lookup of the Kubernetes service. It is built once per payload.
 // The zero value is inactive.
 type peerK8sScope struct {
 	// clusterUIDTag is the peer.k8s.cluster.uid tag, empty when inactive.
 	clusterUIDTag string
-	// callerNamespace is the kube_namespace of the container that sent the payload,
-	// used to resolve bare service names. May be empty.
-	callerNamespace string
 	// hostnamePrefixes are the "key:" prefixes of the peer.hostname sources, by precedence.
 	hostnamePrefixes []string
 }
 
 // newPeerK8sScope returns an active scope, or an inactive one when clusterUIDTag is empty.
-func newPeerK8sScope(clusterUIDTag, callerNamespace string) peerK8sScope {
+func newPeerK8sScope(clusterUIDTag string) peerK8sScope {
 	if clusterUIDTag == "" {
 		return peerK8sScope{}
 	}
-	return peerK8sScope{clusterUIDTag: clusterUIDTag, callerNamespace: callerNamespace, hostnamePrefixes: peerHostnamePrefixes()}
+	return peerK8sScope{clusterUIDTag: clusterUIDTag, hostnamePrefixes: peerHostnamePrefixes()}
 }
 
 // peerHostnameSources caches the peer.hostname source prefixes of a registry.
@@ -109,11 +104,11 @@ func (s peerK8sScope) namespace(peerTags []string) (string, bool) {
 		return "", false
 	}
 	// A lower precedence source is never used: the peer is the one the backend sees.
-	return peerK8sNamespace(host, s.callerNamespace)
+	return peerK8sNamespace(host)
 }
 
 // appendTags returns peerTags with the peer.k8s.* tags added when the peer
-// hostname is a cluster-local name, sorted. It may modify peerTags and reuse
+// hostname is a fully qualified in-cluster name, sorted. It may modify peerTags and reuse
 // its backing array. It returns peerTags unchanged, without allocating, otherwise.
 func (s peerK8sScope) appendTags(peerTags []string) []string {
 	namespace, ok := s.namespace(peerTags)
@@ -138,33 +133,17 @@ func (s peerK8sScope) appendTagsCopy(peerTags []string) []string {
 	return scoped
 }
 
-// needsCallerNamespace reports whether the peer hostname of peerTags is a bare
-// name, which resolves in the caller's namespace.
-func (s peerK8sScope) needsCallerNamespace(peerTags []string) bool {
-	host, ok := peerHostname(peerTags, s.hostnamePrefixes)
-	return ok && isBareServiceName(strings.ToLower(stripPort(host)))
-}
-
-// isBareServiceName reports whether the lowercase, port-less host is a service
-// name without namespace, which resolves in the caller's namespace.
-func isBareServiceName(host string) bool {
-	return host != "localhost" && !strings.Contains(host, blockedIPAddress) && isDNS1123Label(host)
-}
-
-// peerK8sNamespace returns the candidate Kubernetes namespace of host: the one it
-// resolves to under standard cluster DNS, following the search path of a pod in
-// callerNamespace. Custom DNS policies or searches, absolute names and host
-// networking can resolve it elsewhere, so it is only a hint for an inventory lookup:
-//   - "a.b.svc.cluster.local" and "a.b.svc" resolve to service a in namespace b,
-//   - "p.a.b.svc.cluster.local" and "p.a.b.svc" resolve to pod p of headless service a in namespace b,
-//   - "a.b" resolves to service a in namespace b,
-//   - a bare "a" resolves to service a in callerNamespace.
+// peerK8sNamespace returns the Kubernetes namespace of host when host is a fully
+// qualified in-cluster name, whose meaning Kubernetes DNS defines:
+//   - "a.b.svc.cluster.local" and "a.b.svc" name service a in namespace b,
+//   - "p.a.b.svc.cluster.local" and "p.a.b.svc" name pod p of headless service a in namespace b.
 //
 // A trailing ":<port>" is ignored. A trailing dot makes host absolute: only the
-// ".svc.cluster.local." forms apply. It returns false for any other name, IP
-// addresses, localhost, and names with labels that are not DNS-1123 labels, which
-// includes names with a scheme. It does not check that the service exists.
-func peerK8sNamespace(host, callerNamespace string) (string, bool) {
+// ".svc.cluster.local." forms apply. It returns false for any other name, including
+// short names such as "a" and "a.b" whose namespace depends on the caller's DNS
+// search path, IP addresses, and names with labels that are not DNS-1123 labels,
+// which includes names with a scheme. It does not check that the service exists.
+func peerK8sNamespace(host string) (string, bool) {
 	host = strings.ToLower(stripPort(host))
 	if strings.Contains(host, blockedIPAddress) {
 		return "", false
@@ -179,20 +158,7 @@ func peerK8sNamespace(host, callerNamespace string) (string, bool) {
 		return "", false
 	}
 	if rest, ok := strings.CutSuffix(host, svcSuffix); ok {
-		if ns, ok := svcNamespace(rest); ok {
-			return ns, true
-		}
-	}
-	// IPv4 addresses have three dots and IPv6 addresses contain colons, so the
-	// shapes below never match them.
-	switch strings.Count(host, ".") {
-	case 0:
-		if !isBareServiceName(host) || !isDNS1123Label(callerNamespace) {
-			return "", false
-		}
-		return callerNamespace, true
-	case 1:
-		return serviceNamespace(host)
+		return svcNamespace(rest)
 	}
 	return "", false
 }
@@ -248,16 +214,6 @@ func isDNS1123Label(s string) bool {
 		}
 	}
 	return true
-}
-
-// KubeNamespaceFromTags returns the kube_namespace tag value from container tags.
-func KubeNamespaceFromTags(tags []string) string {
-	for _, t := range tags {
-		if v, ok := strings.CutPrefix(t, kubeNamespaceTagPrefix); ok {
-			return v
-		}
-	}
-	return ""
 }
 
 // peerK8sClusterUIDTag caches the peer.k8s.cluster.uid tag built from the last
