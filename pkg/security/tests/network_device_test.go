@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -148,6 +149,112 @@ func TestNetDevice(t *testing.T) {
 			assert.Equal(t, "ns-eth1", event.VethPair.PeerDevice.Name, "wrong peer interface name") &&
 			assert.Equal(t, testNetns, event.VethPair.PeerDevice.NetNS, "wrong peer network namespace ID")
 	}, 10*time.Second, model.VethPairNsEventType)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+var _ = declare(TestNetNSMountRegistration, testOpts{networkIngressEnabled: true})
+
+func TestNetNSMountRegistration(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	// dummy rule to force the activation of netdev-related probes
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `dns.question.type == A`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Fatal("not supported")
+	}
+
+	executable := which(t, "ip")
+	run := func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command(executable, args...).CombinedOutput(); err != nil {
+			t.Fatalf("ip %s: %s, %v", strings.Join(args, " "), string(out), err)
+		}
+	}
+	defer func() {
+		_ = exec.Command(executable, "link", "delete", "wpnsfs0").Run()
+		_ = exec.Command(executable, "netns", "delete", "wpnsfs_netns").Run()
+	}()
+
+	// nothing runs in the namespace once ip exits, so only its nsfs mount can get it registered
+	run("netns", "add", "wpnsfs_netns")
+	nsPath := utils.NewNSPathFromPath("/var/run/netns/wpnsfs_netns", utils.NetNsType)
+	nsID := nsInode(t, nsPath.GetPath())
+
+	err = retry(t, func() error {
+		ns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID)
+		if ns == nil {
+			return fmt.Errorf("namespace %d isn't tracked", nsID)
+		}
+		handle, err := ns.GetNamespaceHandleDup()
+		if err != nil {
+			return fmt.Errorf("namespace %d has no handle: %w", nsID, err)
+		}
+		return handle.Close()
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(5*time.Second))
+	if err != nil {
+		// tells a mount event that never made it to the mount resolver from a mount path that couldn't be opened
+		var mountID uint32
+		p.Resolvers.MountResolver.Iterate(func(m *model.Mount) {
+			if m.GetFSType() == "nsfs" && uint32(m.RootPathKey.Inode) == nsID {
+				mountID = m.MountID
+			}
+		})
+		if mountID == 0 {
+			t.Fatalf("%v, and the mount resolver has no nsfs mount of it", err)
+		}
+		mountPath, _, _, pathErr := p.Resolvers.MountResolver.ResolveMountPath(mountID, 0)
+		t.Fatalf("%v, and the mount resolver has its nsfs mount %d at %q (%v)", err, mountID, mountPath, pathErr)
+	}
+
+	run("link", "add", "wpnsfs0", "type", "veth", "peer", "name", "wpnsfs1")
+	run("link", "set", "wpnsfs1", "netns", "wpnsfs_netns")
+
+	err = retry(t, func() error {
+		ingress, egress, err := tcFiltersExist(nsPath, "wpnsfs1", "classifier_ingress", "classifier_egress")
+		if err != nil {
+			return err
+		}
+		if !ingress || !egress {
+			return fmt.Errorf("classifiers on the moved device: ingress %t, egress %t", ingress, egress)
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(10*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the veth pair only goes away with the namespace, so it shows that the handle was released on umount
+	run("netns", "delete", "wpnsfs_netns")
+	err = retry(t, func() error {
+		if err := exec.Command(executable, "link", "show", "wpnsfs0").Run(); err == nil {
+			return fmt.Errorf("namespace %d is still alive", nsID)
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(20*time.Second))
 	if err != nil {
 		t.Error(err)
 	}

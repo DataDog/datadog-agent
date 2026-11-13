@@ -70,6 +70,7 @@ type Resolver struct {
 	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests          chan TcClassifierRequest
 	netnsHandleRequests chan networkNamespaceHandleRequest
+	netnsMountRequests  chan networkNamespaceMountRequest
 	errorCounters       map[string]*atomic.Int64
 	ctx                 context.Context
 	cancel              context.CancelFunc
@@ -87,6 +88,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		ctx:        context.Background(),
 
 		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
+		netnsMountRequests:  make(chan networkNamespaceMountRequest, 64),
 
 		errorCounters: newErrorCounters(),
 	}
