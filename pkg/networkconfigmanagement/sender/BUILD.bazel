@@ -9,7 +9,6 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform/def",
         "//pkg/aggregator/sender",
-        "//pkg/networkconfigmanagement/profile",
         "//pkg/networkconfigmanagement/report",
         "//pkg/networkconfigmanagement/types",
         "//pkg/networkdevice/integrations",
@@ -26,7 +25,6 @@ dd_agent_go_test(
     deps = [
         "//comp/forwarder/eventplatform/def",
         "//pkg/aggregator/mocksender",
-        "//pkg/networkconfigmanagement/profile",
         "//pkg/networkconfigmanagement/report",
         "//pkg/networkconfigmanagement/types",
         "//pkg/networkdevice/integrations",
