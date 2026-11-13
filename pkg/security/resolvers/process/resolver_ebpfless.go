@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -41,7 +40,6 @@ type EBPFLessResolver struct {
 	opts              ResolverOpts
 	scrubber          *utils.Scrubber
 	statsdClient      statsd.ClientInterface
-	ecsTaskID         atomic.String
 }
 
 // NewEBPFLessResolver returns a new process resolver
@@ -57,23 +55,11 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 	return p, nil
 }
 
-// SetECSTaskID sets the ECS task ID of the traced processes running in a container, including the cached ones.
-// It must be called from the goroutine handling the events, as it updates cached entries.
-func (p *EBPFLessResolver) SetECSTaskID(taskID string) {
-	p.ecsTaskID.Store(taskID)
-
-	p.Walk(func(entry *model.ProcessCacheEntry) {
-		for pce := entry; pce != nil; pce = pce.Ancestor {
-			if pce.ContainerContext.ContainerID != "" && pce.ContainerContext.ECSTaskID == "" {
-				pce.ContainerContext.ECSTaskID = taskID
-			}
-		}
-	})
-}
-
-// GetECSTaskID returns the ECS task ID of the traced processes running in a container
-func (p *EBPFLessResolver) GetECSTaskID() string {
-	return p.ecsTaskID.Load()
+// ResolveECSTaskID sets the ECS task ID of a process running in a container from its cgroup
+func (p *EBPFLessResolver) ResolveECSTaskID(entry *model.ProcessCacheEntry) {
+	if p.opts.ecsTaskIDResolutionEnabled && entry.ContainerContext.ContainerID != "" {
+		entry.ContainerContext.ECSTaskID = containerutils.FindECSTaskID(entry.CGroup.CGroupID)
+	}
 }
 
 func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time) {
@@ -180,10 +166,8 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
 	entry.Process.ContainerContext.ContainerID = containerutils.ContainerID(ctrID)
-	if ctrID != "" {
-		entry.Process.ContainerContext.ECSTaskID = p.GetECSTaskID()
-	}
 	entry.Process.CGroup.CGroupID = cgroupID
+	p.ResolveECSTaskID(entry)
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 
