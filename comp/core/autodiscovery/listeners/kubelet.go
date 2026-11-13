@@ -240,6 +240,12 @@ func (l *KubeletListener) areTagsComplete(entity workloadmeta.Entity) bool {
 	}
 
 	for _, podContainer := range pod.GetAllContainers() {
+		// Containers that have not started yet have no ID. They are checked
+		// once they start, as that triggers a new event for the pod.
+		if podContainer.ID == "" {
+			continue
+		}
+
 		containerTaggerID := types.NewEntityID(types.ContainerID, podContainer.ID)
 		_, containerComplete, err := l.tagger.TagWithCompleteness(containerTaggerID, types.ChecksConfigCardinality)
 		if err != nil {
