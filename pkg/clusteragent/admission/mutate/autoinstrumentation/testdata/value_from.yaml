@@ -1,0 +1,35 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "value-from"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: true
+          - name: "DD_SERVICE"
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+          - name: "DD_API_KEY"
+            valueFrom:
+              secretKeyRef:
+                name: datadog-secret
+                key: api-key
+          - name: "DD_ENV"
+            valueFrom:
+              configMapKeyRef:
+                name: datadog-config
+                key: env
+                optional: true
+          - name: "MEMORY_LIMIT"
+            valueFrom:
+              resourceFieldRef:
+                containerName: app
+                resource: limits.memory
+                divisor: 1Mi
+          - name: "CPU_LIMIT"
+            valueFrom:
+              resourceFieldRef:
+                resource: limits.cpu
+                divisor: 1

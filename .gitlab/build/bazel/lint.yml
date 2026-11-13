@@ -54,8 +54,10 @@ bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //:gazelle -- -mode=diff
+    - dda inv -- -e go.write-tag-manifest
+    - git diff --exit-code
   variables:
-    REMEDIATION: "bazel run //:gazelle"
+    REMEDIATION: "bazel run //:gazelle && dda inv go.write-tag-manifest"
 
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]

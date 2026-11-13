@@ -56,7 +56,7 @@ func testReport(verdict Verdict) *Report {
 
 	return &Report{
 		ClusterName: "bench-cluster",
-		Phases:      [2]Window{testWindow, testSwappedWindow},
+		Phases:      []Window{testWindow, testSwappedWindow},
 		Baseline: Version{
 			Name:        "baseline",
 			Commit:      "0123456789abcdef0123456789abcdef01234567",
@@ -76,10 +76,13 @@ func TestReportMarkdown(t *testing.T) {
 	markdown := testReport(VerdictRegression).Markdown()
 
 	for _, expected := range []string{
-		"on the EKS cluster `bench-cluster`, in two phases: from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s) with the baseline images on installation a and the comparison images on installation b, each with node pools of its own, then from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s) with the images swapped.",
+		"on the EKS cluster `bench-cluster`, in 2 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n" +
+			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s): baseline images on installation a, comparison images on installation b\n" +
+			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s): baseline images on installation b, comparison images on installation a\n\n",
 		"| Node Agent | [`container.cpu.usage`](https://dddev.datadoghq.com/metric/explorer?exp_metric=container.cpu.usage) | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | **regression** |",
 		`| Cluster Agent | ` + "`container.memory.rss`" + ` | | | | | **error**: baseline: no data \| at all |`,
 		"Graphs and profiles of the run: [dashboard](https://dddev.datadoghq.com/dashboard/abc-def-ghi)\n",
+		"each image runs half of the phases on the node pools of each installation",
 		"Each phase is split into blocks of 5m0s, in which",
 		"significant (t-test of e = 0, p < 0.05)",
 		"| Node Agent | `kubelet` check run time | 40.0 ms | 38.0 ms | -5.0% (-2.0 ms) | 0.200 | unchanged |",
@@ -91,6 +94,18 @@ func TestReportMarkdown(t *testing.T) {
 	} {
 		assert.Contains(t, markdown, expected)
 	}
+}
+
+func TestReportMarkdownFourPhases(t *testing.T) {
+	report := testReport(VerdictRegression)
+	report.Phases = testWindows(4, 15*time.Minute)
+
+	assert.Contains(t, report.Markdown(),
+		"in 4 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n"+
+			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
+			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:15 UTC (15m0s): baseline images on installation b, comparison images on installation a\n"+
+			"- phase 3, from 2026-10-13 12:00 UTC to 2026-10-13 12:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
+			"- phase 4, from 2026-10-13 13:00 UTC to 2026-10-13 13:15 UTC (15m0s): baseline images on installation b, comparison images on installation a\n\n")
 }
 
 func TestReportWrite(t *testing.T) {
