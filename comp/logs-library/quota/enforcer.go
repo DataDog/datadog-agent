@@ -9,6 +9,7 @@ package quota
 import (
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -43,9 +44,18 @@ type configEntry struct {
 type ruleSet struct {
 	quotas     []*quota
 	nextExpiry time.Time
+	local      *hostView // nil when no host tags are known
 }
 
-func newRuleSet(quotas []*quota, now time.Time) *ruleSet {
+// hostView is what local logs must still carry for each quota once the host's tags are removed.
+type hostView struct {
+	hostname string
+	// full is the index of the first quota the host tags satisfy alone, or len(quotas).
+	full     int
+	residual [][]string
+}
+
+func newRuleSet(quotas []*quota, now time.Time, hostname string, hostTags []string) *ruleSet {
 	rs := &ruleSet{}
 	for _, q := range quotas {
 		if q.expired(now) {
@@ -56,7 +66,41 @@ func newRuleSet(quotas []*quota, now time.Time) *ruleSet {
 			rs.nextExpiry = q.deadline
 		}
 	}
+	if len(hostTags) > 0 {
+		rs.local = newHostView(rs.quotas, hostname, hostTags)
+	}
 	return rs
+}
+
+// newHostView expects hostTags sorted and lowercase.
+func newHostView(quotas []*quota, hostname string, hostTags []string) *hostView {
+	n := 0
+	for _, q := range quotas {
+		n += len(q.tags)
+	}
+	flat := make([]string, 0, n)
+	hv := &hostView{hostname: hostname, full: len(quotas), residual: make([][]string, len(quotas))}
+	for i, q := range quotas {
+		start := len(flat)
+		for _, t := range q.tags {
+			if _, found := slices.BinarySearch(hostTags, t); !found {
+				flat = append(flat, t)
+			}
+		}
+		hv.residual[i] = flat[start:len(flat):len(flat)]
+		if len(hv.residual[i]) == 0 && hv.full == len(quotas) {
+			hv.full = i
+		}
+	}
+	return hv
+}
+
+// localView returns the host view if a log with this hostname comes from the agent's host, or nil.
+func (rs *ruleSet) localView(hostname string) *hostView {
+	if hv := rs.local; hv != nil && (hostname == "" || equalFold(hostname, hv.hostname)) {
+		return hv
+	}
+	return nil
 }
 
 // Enforcer holds the active quotas. Check is safe to call concurrently with Update.
@@ -65,6 +109,8 @@ type Enforcer struct {
 	configs  map[string]*configEntry
 	stats    map[string]*quotaStats
 	lastSync time.Time
+	hostname string
+	hostTags []string
 
 	now func() time.Time
 	// tickEvery is how often the clock advances while quotas are active, or 0 to advance it only in tick.
@@ -123,12 +169,47 @@ func (e *Enforcer) Update(configs map[string][]byte) map[string]error {
 		}
 	}
 	e.stats = stats
-	e.active.Store(newRuleSet(quotas, e.lastSync))
+	e.active.Store(newRuleSet(quotas, e.lastSync, e.hostname, e.hostTags))
 	if e.advance(e.lastSync) && e.tickEvery > 0 && !e.ticking {
 		e.ticking = true
 		go e.runClock()
 	}
 	return result
+}
+
+// SetHostTags sets the tags that logs from hostname, or with no hostname, match quotas on without carrying them.
+func (e *Enforcer) SetHostTags(tags []string, hostname string) {
+	norm := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t != "" {
+			norm = append(norm, asciiLower(t))
+		}
+	}
+	slices.Sort(norm)
+	norm = slices.Compact(norm)
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if hostname == e.hostname && slices.Equal(norm, e.hostTags) {
+		return
+	}
+	e.hostname, e.hostTags = hostname, norm
+	if rs := e.active.Load(); rs != nil {
+		e.active.Store(newRuleSet(rs.quotas, e.now(), hostname, norm))
+	}
+}
+
+// HostTags returns the hostname and normalized tags last passed to SetHostTags.
+func (e *Enforcer) HostTags() (hostname string, tags []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.hostname, slices.Clone(e.hostTags)
+}
+
+// Active reports whether any quota is enforcing.
+func (e *Enforcer) Active() bool {
+	rs := e.active.Load()
+	return rs != nil && len(rs.quotas) > 0
 }
 
 func (e *Enforcer) runClock() {
@@ -157,7 +238,7 @@ func (e *Enforcer) advance(now time.Time) bool {
 	e.clock.Store(now.Unix())
 	rs := e.active.Load()
 	if len(rs.quotas) > 0 && !now.Before(rs.nextExpiry) {
-		rs = newRuleSet(rs.quotas, now)
+		rs = newRuleSet(rs.quotas, now, e.hostname, e.hostTags)
 		e.active.Store(rs)
 	}
 	return len(rs.quotas) > 0
@@ -169,7 +250,7 @@ func (e *Enforcer) Check(msg *message.Message) bool {
 	if rs == nil || len(rs.quotas) == 0 {
 		return false
 	}
-	q := rs.match(msg.Origin)
+	q := rs.match(msg.Origin, msg.Hostname)
 	if q == nil {
 		return false
 	}
@@ -191,7 +272,9 @@ type ConfigStatus struct {
 
 // QuotaStatus describes one quota for agent status.
 type QuotaStatus struct {
-	Tags          string
+	Tags string
+	// HostTags lists the quota's tags that the agent's host tags supply for local logs.
+	HostTags      string
 	State         string
 	ExpiresAt     string
 	DroppedEvents int64
@@ -214,6 +297,7 @@ func (e *Enforcer) Status() (lastSync string, configs []ConfigStatus) {
 		for _, q := range entry.quotas {
 			qs := QuotaStatus{
 				Tags:          q.key,
+				HostTags:      strings.Join(hostCovered(q.tags, e.hostTags), ","),
 				State:         "enforcing",
 				ExpiresAt:     formatTime(q.deadline),
 				DroppedEvents: q.stats.droppedEvents.Load(),
@@ -233,6 +317,16 @@ func (e *Enforcer) Status() (lastSync string, configs []ConfigStatus) {
 		lastSync = formatTime(e.lastSync)
 	}
 	return lastSync, configs
+}
+
+func hostCovered(tags, hostTags []string) []string {
+	var out []string
+	for _, t := range tags {
+		if _, found := slices.BinarySearch(hostTags, t); found {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func formatTime(t time.Time) string {

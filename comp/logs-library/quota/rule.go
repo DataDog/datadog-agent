@@ -73,8 +73,8 @@ func (q *quota) expired(now time.Time) bool {
 	return !now.Before(q.deadline)
 }
 
-func (q *quota) matches(o *message.Origin) bool {
-	for _, t := range q.tags {
+func hasTags(o *message.Origin, tags []string) bool {
+	for _, t := range tags {
 		if !o.HasTag(t) {
 			return false
 		}
@@ -82,12 +82,12 @@ func (q *quota) matches(o *message.Origin) bool {
 	return true
 }
 
-// retainedBy reports whether f keeps every tag of q, or its payload attribute, so a log carrying them all still matches.
-func (q *quota) retainedBy(f sources.TagFilter) bool {
+// retainedBy reports whether f keeps every tag, or its payload attribute, so a log carrying them all still matches.
+func retainedBy(f sources.TagFilter, tags []string) bool {
 	if f == nil {
 		return true
 	}
-	for _, t := range q.tags {
+	for _, t := range tags {
 		if key, value, ok := strings.Cut(t, ":"); ok && !f.RetainsTag(key, value) && !tagfilter.IsPayloadAttributeKey(key) {
 			return false
 		}

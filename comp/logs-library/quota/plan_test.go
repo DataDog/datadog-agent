@@ -87,7 +87,7 @@ func transportMatch(rs *ruleSet, o *message.Origin) *quota {
 func ruleSetOf(t *testing.T, tagLists ...[]string) *ruleSet {
 	quotas, err := parseSnapshot(snap(t0.Add(time.Hour), tagLists...))
 	require.NoError(t, err)
-	return newRuleSet(quotas, t0)
+	return newRuleSet(quotas, t0, "", nil)
 }
 
 func TestPlanMatchesLinear(t *testing.T) {
@@ -129,9 +129,9 @@ func TestPlanMatchesLinear(t *testing.T) {
 			_, _, _, ok := msg.Origin.TagSnapshot()
 			require.True(t, ok)
 			want := transportMatch(rs, msg.Origin)
-			require.Same(t, want, rs.match(msg.Origin),
+			require.Same(t, want, rs.match(msg.Origin, ""),
 				"round %d quotas %v filter %v tags %v", round, tagLists, filter, msg.Origin.Tags())
-			require.Same(t, want, rs.match(src.fallbackMsg(dynamic, msgTags).Origin),
+			require.Same(t, want, rs.match(src.fallbackMsg(dynamic, msgTags).Origin, ""),
 				"fallback round %d quotas %v filter %v tags %v", round, tagLists, filter, msg.Origin.Tags())
 		}
 	}
@@ -140,50 +140,50 @@ func TestPlanMatchesLinear(t *testing.T) {
 func TestPlanEarlierPartialBeatsLaterFull(t *testing.T) {
 	rs := ruleSetOf(t, []string{"env:prod", "stream:stderr"}, []string{"env:prod"})
 	src := newSnapshotSource(nil, []string{"env:prod"}, "")
-	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, []string{"stream:stderr"}).Origin))
-	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"stream:stdout"}).Origin))
+	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, []string{"stream:stderr"}).Origin, ""))
+	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"stream:stdout"}).Origin, ""))
 }
 
 func TestFilteredSnapshotTagSkipsQuota(t *testing.T) {
 	rs := ruleSetOf(t, []string{"env:prod", "team:a"}, []string{"env:prod"})
 	src := newSnapshotSource(nil, []string{"env:prod", "team:a"}, "")
 	setFilter(t, src.source, nil, []string{"team:*"})
-	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, nil).Origin))
-	assert.Same(t, rs.quotas[1], rs.match(src.fallbackMsg(nil, nil).Origin))
+	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, nil).Origin, ""))
+	assert.Same(t, rs.quotas[1], rs.match(src.fallbackMsg(nil, nil).Origin, ""))
 
 	dropped := newSnapshotSource(nil, []string{"env:prod", "team:a"}, "")
 	setFilter(t, dropped.source, nil, []string{"Env:*"})
-	assert.Nil(t, rs.match(dropped.msg(nil, nil).Origin))
-	assert.Nil(t, rs.match(dropped.fallbackMsg(nil, nil).Origin))
+	assert.Nil(t, rs.match(dropped.msg(nil, nil).Origin, ""))
+	assert.Nil(t, rs.match(dropped.fallbackMsg(nil, nil).Origin, ""))
 }
 
 func TestPayloadAttributeTagsStillMatch(t *testing.T) {
 	rs := ruleSetOf(t, []string{"service:web", "team:a"}, []string{"Host:a"})
 	src := newSnapshotSource(nil, []string{"service:web", "team:a", "Host:a"}, "")
 	setFilter(t, src.source, nil, []string{"Service:*", "host:*"})
-	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, nil).Origin))
-	assert.Same(t, rs.quotas[0], rs.match(src.fallbackMsg(nil, nil).Origin))
+	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, nil).Origin, ""))
+	assert.Same(t, rs.quotas[0], rs.match(src.fallbackMsg(nil, nil).Origin, ""))
 
 	partial := newSnapshotSource(nil, []string{"service:web", "team:a", "Host:a"}, "")
 	setFilter(t, partial.source, nil, []string{"service:*", "team:*"})
-	assert.Same(t, rs.quotas[1], rs.match(partial.msg(nil, nil).Origin))
-	assert.Same(t, rs.quotas[1], rs.match(partial.fallbackMsg(nil, nil).Origin))
+	assert.Same(t, rs.quotas[1], rs.match(partial.msg(nil, nil).Origin, ""))
+	assert.Same(t, rs.quotas[1], rs.match(partial.fallbackMsg(nil, nil).Origin, ""))
 }
 
 func TestTopLevelServiceMatches(t *testing.T) {
 	rs := ruleSetOf(t, []string{"service:web", "env:prod"}, []string{"service:api"})
 	src := newServiceSource(nil, []string{"env:prod"}, "", "web")
 	setFilter(t, src.source, nil, []string{"service:*"})
-	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, nil).Origin))
-	assert.Same(t, rs.quotas[0], rs.match(src.fallbackMsg(nil, nil).Origin))
+	assert.Same(t, rs.quotas[0], rs.match(src.msg(nil, nil).Origin, ""))
+	assert.Same(t, rs.quotas[0], rs.match(src.fallbackMsg(nil, nil).Origin, ""))
 
 	other := newServiceSource(nil, []string{"env:prod"}, "", "db")
-	assert.Nil(t, rs.match(other.msg(nil, nil).Origin))
-	assert.Nil(t, rs.match(other.fallbackMsg(nil, nil).Origin))
+	assert.Nil(t, rs.match(other.msg(nil, nil).Origin, ""))
+	assert.Nil(t, rs.match(other.fallbackMsg(nil, nil).Origin, ""))
 
 	journal := message.NewOrigin(sources.NewLogSource("", &config.LogsConfig{}))
 	journal.SetService("api")
-	assert.Same(t, rs.quotas[1], rs.match(journal))
+	assert.Same(t, rs.quotas[1], rs.match(journal, ""))
 }
 
 func TestMessageServiceMatchesThroughSnapshot(t *testing.T) {
@@ -198,18 +198,18 @@ func TestMessageServiceMatchesThroughSnapshot(t *testing.T) {
 		got, _, _, ok := msg.Origin.TagSnapshot()
 		require.True(t, ok)
 		require.Same(t, shared, got, "a per-message service must not replace the snapshot")
-		assert.Same(t, want, rs.match(msg.Origin), service)
+		assert.Same(t, want, rs.match(msg.Origin, ""), service)
 	}
 	src.msgService = "api"
-	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"team:a"}).Origin))
+	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"team:a"}).Origin, ""))
 }
 
 func TestFilteredMessageTagSkipsQuota(t *testing.T) {
 	rs := ruleSetOf(t, []string{"env:prod", "stream:stderr"}, []string{"env:prod"})
 	src := newSnapshotSource(nil, []string{"env:prod"}, "")
 	setFilter(t, src.source, nil, []string{"stream:*"})
-	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"stream:stderr"}).Origin))
-	assert.Same(t, rs.quotas[1], rs.match(src.fallbackMsg(nil, []string{"stream:stderr"}).Origin))
+	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"stream:stderr"}).Origin, ""))
+	assert.Same(t, rs.quotas[1], rs.match(src.fallbackMsg(nil, []string{"stream:stderr"}).Origin, ""))
 }
 
 func TestPlanCachedPerFilter(t *testing.T) {
@@ -219,12 +219,12 @@ func TestPlanCachedPerFilter(t *testing.T) {
 	f, _ := tagfilter.Compile(nil, []string{"team:*"})
 	scoped := tagfilter.NewScoped(f, nil)
 
-	unfiltered := rs.planFor(snap, nil)
-	filtered := rs.planFor(snap, scoped)
+	unfiltered := rs.planFor(snap, nil, false)
+	filtered := rs.planFor(snap, scoped, false)
 	assert.NotSame(t, unfiltered, filtered)
 	assert.Equal(t, 0, unfiltered.match(nil, ""))
 	assert.Equal(t, 1, filtered.match(nil, ""))
-	assert.Same(t, filtered, rs.planFor(snap, scoped))
+	assert.Same(t, filtered, rs.planFor(snap, scoped, false))
 }
 
 func TestPlanReusedUntilSnapshotOrRuleSetChanges(t *testing.T) {
@@ -235,27 +235,27 @@ func TestPlanReusedUntilSnapshotOrRuleSetChanges(t *testing.T) {
 	s1, _, _, _ := m1.Origin.TagSnapshot()
 	s2, _, _, _ := m2.Origin.TagSnapshot()
 	require.Same(t, s1, s2)
-	assert.Same(t, rs.planFor(s1, nil), rs.planFor(s2, nil))
+	assert.Same(t, rs.planFor(s1, nil, false), rs.planFor(s2, nil, false))
 
 	m3 := src.msg([]string{"team:b"}, nil)
-	assert.Nil(t, rs.match(m3.Origin))
-	assert.Same(t, rs.quotas[0], rs.match(m1.Origin), "queued message keeps its own snapshot")
+	assert.Nil(t, rs.match(m3.Origin, ""))
+	assert.Same(t, rs.quotas[0], rs.match(m1.Origin, ""), "queued message keeps its own snapshot")
 
 	rs2 := ruleSetOf(t, []string{"team:b"})
-	assert.Same(t, rs2.quotas[0], rs2.match(m3.Origin))
-	assert.Nil(t, rs2.match(m1.Origin))
+	assert.Same(t, rs2.quotas[0], rs2.match(m3.Origin, ""))
+	assert.Nil(t, rs2.match(m1.Origin, ""))
 }
 
 func TestSnapshotIgnoredAfterConfigTagsChange(t *testing.T) {
 	rs := ruleSetOf(t, []string{"env:prod"})
 	src := newSnapshotSource([]string{"env:prod"}, nil, "")
 	msg := src.msg(nil, nil)
-	require.Same(t, rs.quotas[0], rs.match(msg.Origin))
+	require.Same(t, rs.quotas[0], rs.match(msg.Origin, ""))
 
 	src.source.Config.Tags = []string{"env:dev"}
 	_, _, _, ok := msg.Origin.TagSnapshot()
 	assert.False(t, ok)
-	assert.Nil(t, rs.match(msg.Origin))
+	assert.Nil(t, rs.match(msg.Origin, ""))
 }
 
 func TestCheckWithSnapshotExpiry(t *testing.T) {

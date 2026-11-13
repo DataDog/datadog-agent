@@ -23,6 +23,7 @@ dd_agent_go_test(
     name = "quota_test",
     srcs = [
         "enforcer_test.go",
+        "host_test.go",
         "plan_test.go",
     ],
     embed = [":quota"],

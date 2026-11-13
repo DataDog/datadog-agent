@@ -8,6 +8,7 @@ package agentimpl
 import (
 	"embed"
 	"io"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
@@ -44,9 +45,12 @@ func (p StatusProvider) getStatusInfo(verbose bool) map[string]interface{} {
 func (p StatusProvider) populateStatus(verbose bool, stats map[string]interface{}) {
 	stats["logsStats"] = logsProvider(verbose)
 	lastSync, configs := quota.Default().Status()
+	hostname, hostTags := quota.Default().HostTags()
 	stats["quotaEnforcement"] = map[string]interface{}{
 		"LastSync": lastSync,
 		"Configs":  configs,
+		"Hostname": hostname,
+		"HostTags": strings.Join(hostTags, ","),
 	}
 }
 

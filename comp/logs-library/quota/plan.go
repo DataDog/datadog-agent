@@ -7,6 +7,7 @@ package quota
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -16,6 +17,9 @@ import (
 type plan struct {
 	rs     *ruleSet
 	filter sources.TagFilter
+	// local plans match the host view's residual tags. other caches the opposite plan for mixed local and remote streams.
+	local bool
+	other atomic.Pointer[plan]
 	// full is the index of the first quota the snapshot satisfies alone, or len(rs.quotas).
 	full int
 	// rest[i] lists the tags quota i still needs from the message, for i < full, or nil if the filter drops one.
@@ -25,20 +29,24 @@ type plan struct {
 	serviceAnchors map[string][]int
 }
 
-func newPlan(rs *ruleSet, snap *message.TagSnapshot, f sources.TagFilter) *plan {
+func newPlan(rs *ruleSet, snap *message.TagSnapshot, f sources.TagFilter, local bool) *plan {
 	have := map[string]struct{}{}
 	for t := range snap.All() {
 		have[asciiLower(t)] = struct{}{}
 	}
-	p := &plan{rs: rs, filter: f, full: len(rs.quotas), anchors: map[string][]int{}}
+	p := &plan{rs: rs, filter: f, local: local, full: len(rs.quotas), anchors: map[string][]int{}}
 	var flat []string
 	for i, q := range rs.quotas {
-		if f != nil && !q.retainedBy(f) {
+		tags := q.tags
+		if local {
+			tags = rs.local.residual[i]
+		}
+		if !retainedBy(f, tags) {
 			p.rest = append(p.rest, nil)
 			continue
 		}
 		start := len(flat)
-		for _, t := range q.tags {
+		for _, t := range tags {
 			if _, ok := have[t]; !ok {
 				flat = append(flat, t)
 			}
@@ -161,29 +169,52 @@ func lowerASCII(c byte) byte {
 	return c
 }
 
-func (rs *ruleSet) planFor(snap *message.TagSnapshot, f sources.TagFilter) *plan {
-	if p, _ := snap.Cached().(*plan); p != nil && p.rs == rs && p.filter == f {
+func (rs *ruleSet) planFor(snap *message.TagSnapshot, f sources.TagFilter, local bool) *plan {
+	p, _ := snap.Cached().(*plan)
+	if p == nil || p.rs != rs || p.filter != f {
+		p = newPlan(rs, snap, f, local)
+		snap.SetCached(p)
 		return p
 	}
-	p := newPlan(rs, snap, f)
-	snap.SetCached(p)
-	return p
+	if p.local == local {
+		return p
+	}
+	if o := p.other.Load(); o != nil {
+		return o
+	}
+	o := newPlan(rs, snap, f, local)
+	p.other.Store(o)
+	return o
 }
 
-// match returns the first quota whose tags all survive into o's transport tags, or nil.
-func (rs *ruleSet) match(o *message.Origin) *quota {
+// match returns the first quota whose tags all survive into o's transport tags or, for local logs, come from the host, or nil.
+func (rs *ruleSet) match(o *message.Origin, hostname string) *quota {
+	var hv *hostView
+	if rs.local != nil {
+		if hv = rs.localView(hostname); hv != nil && hv.full == 0 {
+			return rs.quotas[0]
+		}
+	}
 	var f sources.TagFilter
 	if o != nil && o.LogSource != nil {
 		f, _ = o.LogSource.TagFilter()
 	}
 	if snap, msgTags, service, ok := o.TagSnapshot(); ok {
-		if i := rs.planFor(snap, f).match(msgTags, service); i < len(rs.quotas) {
+		if i := rs.planFor(snap, f, hv != nil).match(msgTags, service); i < len(rs.quotas) {
 			return rs.quotas[i]
 		}
 		return nil
 	}
+	if hv != nil {
+		for i, tags := range hv.residual {
+			if hasTags(o, tags) && retainedBy(f, tags) {
+				return rs.quotas[i]
+			}
+		}
+		return nil
+	}
 	for _, q := range rs.quotas {
-		if q.matches(o) && q.retainedBy(f) {
+		if hasTags(o, q.tags) && retainedBy(f, q.tags) {
 			return q
 		}
 	}
