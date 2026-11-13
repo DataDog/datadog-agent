@@ -271,9 +271,13 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 			return nil, err
 		}
 	}
-	sampleMaps, err := enabledSampleMaps(cfg, ebpfManager)
-	if err != nil {
-		return nil, err
+	var sampleMaps map[model.EventType]*ebpf.Map
+	if cfg.RuntimeSecurity.AnomalyDetectionEventCooldown > 0 {
+		var err error
+		sampleMaps, err = enabledSampleMaps(cfg, ebpfManager)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart {
