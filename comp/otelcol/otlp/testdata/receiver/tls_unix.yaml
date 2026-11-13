@@ -1,0 +1,9 @@
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        transport: unix
+        endpoint: /tmp/configured-otlp.sock
+        tls:
+          cert_file: /etc/datadog-agent/otlp/cert.pem
+          key_file: /etc/datadog-agent/otlp/key.pem

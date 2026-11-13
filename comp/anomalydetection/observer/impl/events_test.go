@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"unicode/utf8"
@@ -373,7 +374,7 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
-	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
+	assert.Equal(t, extractor.signatureGenerator.Generate("GET /users/123 returned 500"), anomaly.Context.Pattern)
 }
 
 func TestNewEngineRejectsDuplicateExtractorNames(t *testing.T) {
@@ -443,6 +444,63 @@ func TestNoEventOnSkippedAdvance(t *testing.T) {
 	e.Advance(50)
 
 	assert.Len(t, sink.getEvents(), 0, "no events should be emitted for skipped advances")
+}
+
+func TestAdvanceSamplesFreshSeries(t *testing.T) {
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e.storage.Add("check", "updated", 1, 10, nil)
+	e.storage.Add("check", "other", 1, 10, nil)
+	e.storage.Add(observerdef.TelemetryNamespace, "internal", 1, 10, nil)
+
+	e.advanceWithReason(10, advanceReasonInputDriven)
+
+	require.Equal(t, uint64(2), e.pendingFreshSeries.Load())
+	require.Equal(t, int64(10), e.lastFreshnessSampleCutoff)
+
+	// A skipped advance contributes no additional sample.
+	e.advanceWithReason(10, advanceReasonInputDriven)
+	require.Equal(t, uint64(2), e.pendingFreshSeries.Load())
+
+	e.Reset()
+	require.Equal(t, uint64(0), e.pendingFreshSeries.Load())
+	require.Equal(t, int64(math.MinInt64), e.lastFreshnessSampleCutoff)
+}
+
+func TestAdvanceFreshnessIgnoresBucketsBeyondCutoff(t *testing.T) {
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e.storage.Add("check", "ahead", 1, 100, nil)
+
+	// The bucket is stored but not yet visible at the analysis cutoff.
+	e.advanceWithReason(50, advanceReasonInputDriven)
+	require.Zero(t, e.pendingFreshSeries.Load())
+
+	// It counts exactly once, on the advance that reaches it.
+	e.advanceWithReason(100, advanceReasonInputDriven)
+	require.Equal(t, uint64(1), e.pendingFreshSeries.Load())
+
+	e.advanceWithReason(150, advanceReasonInputDriven)
+	require.Equal(t, uint64(1), e.pendingFreshSeries.Load())
+}
+
+func TestFreshnessTracksSchedulerDrivenAdvances(t *testing.T) {
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	ingest := func(name string, ts int64) {
+		reqs := e.IngestMetric("workload", &metricObs{
+			name: name, value: 1, timestamp: ts,
+			storageKey: storageKeyForCompositeIdentity("workload", name, "", testCompositeTags(nil)),
+		})
+		for _, req := range reqs {
+			e.advanceWithReason(req.upToSec, req.reason)
+		}
+	}
+
+	// The point at second 10 advances analysis to 9 and is not yet visible.
+	ingest("a", 10)
+	require.Zero(t, e.pendingFreshSeries.Load())
+
+	// A second series at second 11 advances to 10, making a's point fresh once.
+	ingest("b", 11)
+	require.Equal(t, uint64(1), e.pendingFreshSeries.Load())
 }
 
 func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {

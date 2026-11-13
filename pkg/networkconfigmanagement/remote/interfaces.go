@@ -29,6 +29,25 @@ type Connection interface {
 	// commands fail, PushConfig returns an error but ALSO returns a PushResult
 	// with more details - calling code should not assume that the PushResult is
 	// nil just because there was an error.
-	PushConfig(ctx context.Context, config string) (*types.PushResult, types.RollbackError)
+	PushConfig(ctx context.Context, config string) (*types.PushResult, types.TypedError)
+	// StartShell opens an interactive shell on the device.
+	StartShell(ctx context.Context) (Shell, types.TypedError)
+	Close() error
+}
+
+// Shell is an interactive session on a device. It moves raw bytes only; the
+// caller handles prompts, echo and line framing for its OS.
+type Shell interface {
+	// Send writes data to the shell verbatim (the caller adds any newline).
+	Send(ctx context.Context, data string) error
+	// ReadUntil waits for output until match reports a match, then returns the
+	// output up to the end of the match. match returns the end index of the
+	// match in buf, or -1 for none. Output after the match stays buffered for
+	// the next call. If the shell closes or ctx ends first, it returns the
+	// output buffered so far along with the error.
+	ReadUntil(ctx context.Context, match func(buf []byte) int) ([]byte, error)
+	// CloseWrite closes the shell's input, signaling that nothing more will be
+	// sent. Output can still be read until the device ends the session.
+	CloseWrite() error
 	Close() error
 }

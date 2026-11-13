@@ -24,6 +24,7 @@ const (
 	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
 	telemetrySeriesCount                     = "observer.series.count"                        // Number of active non-telemetry observer series.
+	telemetrySeriesFresh                     = "observer.series.fresh"                        // Number of non-telemetry observer series with a bucket newly visible since the previous sampled advance.
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
@@ -36,15 +37,29 @@ const (
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
 
+const (
+	telemetryMetricKindTransitions = "observer.metric_kind.transitions"
+	telemetryMetricKindSeriesCount = "observer.metric_kind.series_count"
+	telemetryKindEmissions         = "observer.detections.kind_emissions"
+	telemetryKindProcessingTimeNs  = "observer.detector.kind_processing_time_ns"
+	telemetryKindProcessingCalls   = "observer.detector.kind_processing_calls"
+)
+
 type observerTelemetry struct {
-	observationsAccepted telemetry.Counter
-	observationsDropped  telemetry.Counter
-	logPatternCount      telemetry.Gauge
+	metricKindTransitions telemetry.Counter
+	metricKindSeriesCount telemetry.Gauge
+	kindEmissions         telemetry.Counter
+	kindProcessingTime    telemetry.Gauge
+	kindProcessingCalls   telemetry.Counter
+	observationsAccepted  telemetry.Counter
+	observationsDropped   telemetry.Counter
+	logPatternCount       telemetry.Gauge
 
 	logsAcceptedBytes    telemetry.Counter
 	filteredLogs         telemetry.Counter
 	filteredMetrics      telemetry.Counter
 	seriesCount          telemetry.Gauge
+	seriesFresh          telemetry.Counter
 	logsInFlight         telemetry.Gauge
 	storageEvicted       telemetry.Counter
 	storageCapHit        telemetry.Counter
@@ -63,6 +78,11 @@ type observerTelemetry struct {
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
 	return &observerTelemetry{
+		metricKindTransitions: telemetryComp.NewCounter("observer", telemetryMetricKindTransitions, []string{"from", "to"}, "Confirmed metric kind transitions"),
+		metricKindSeriesCount: telemetryComp.NewGauge("observer", telemetryMetricKindSeriesCount, []string{"kind"}, "Non-telemetry gauge series by committed kind"),
+		kindEmissions:         telemetryComp.NewCounter("observer", telemetryKindEmissions, []string{"detector", "kind", "severity"}, "Accepted detector emissions by registration kind and severity"),
+		kindProcessingTime:    telemetryComp.NewGauge("observer", telemetryKindProcessingTimeNs, []string{"detector", "kind"}, "Mean detector call duration in nanoseconds over the publication interval"),
+		kindProcessingCalls:   telemetryComp.NewCounter("observer", telemetryKindProcessingCalls, []string{"detector", "kind"}, "Detector calls by registration kind"),
 		observationsAccepted: telemetryComp.NewCounter(
 			"observer",
 			telemetryObservationsAccepted,
@@ -104,6 +124,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetrySeriesCount,
 			nil,
 			"Number of non-telemetry series currently stored in observer storage",
+		),
+		seriesFresh: telemetryComp.NewCounter(
+			"observer",
+			telemetrySeriesFresh,
+			nil,
+			"Number of non-telemetry series whose latest bucket visible at the sampled cutoff is newer than the previous cutoff",
 		),
 		logsInFlight: telemetryComp.NewGauge(
 			"observer",
@@ -229,6 +255,13 @@ func (t *observerTelemetry) setSeriesCount(count int) {
 	t.seriesCount.Set(float64(count))
 }
 
+func (t *observerTelemetry) recordFreshSeries(count int) {
+	if count <= 0 {
+		return
+	}
+	t.seriesFresh.Add(float64(count))
+}
+
 func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int) {
 	if count <= 0 {
 		return
@@ -255,8 +288,9 @@ func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority strin
 	t.inputRateLimiterDrop.Add(1, source, priority)
 }
 
-func (t *observerTelemetry) recordDetectorEmission(detector, severity string) {
-	t.detectorEmissions.Add(1, detector, severity)
+func (t *observerTelemetry) recordDetectorEmission(detector, kind, severity string, count uint64) {
+	t.detectorEmissions.Add(float64(count), detector, severity)
+	t.kindEmissions.Add(float64(count), detector, kind, severity)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {
@@ -297,6 +331,12 @@ func classifyLogSourceByOrigin(handleSource, rawSource string) string {
 	return ""
 }
 
-func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
-	t.processingTime.Set(durationNs, detectorTag)
+func (t *observerTelemetry) recordDetectorTiming(detector, kind string, meanNs float64, calls uint64) {
+	t.processingTime.Set(meanNs, detector)
+	t.kindProcessingTime.Set(meanNs, detector, kind)
+	t.kindProcessingCalls.Add(float64(calls), detector, kind)
+}
+
+func (t *observerTelemetry) recordMetricKindTransitions(from, to string, count uint64) {
+	t.metricKindTransitions.Add(float64(count), from, to)
 }

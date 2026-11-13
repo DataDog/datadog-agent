@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -99,14 +101,15 @@ func TestOnlyDirectivesRegisterInstances(t *testing.T) {
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
 
-func TestAPMAdditionalEndpointsAreOutsideTheInitialScope(t *testing.T) {
+func TestTraceProxyAdditionalEndpointsRemainOutsideScope(t *testing.T) {
+	// apm_config.additional_endpoints is enrolled (trace writers hold pending endpoints);
+	// the proxy settings (profiling, debugger, symdb, evp, ol) are not, until their
+	// senders gain pending handling. Keep a canary so their enrollment is a conscious act.
 	rec := newRecordingComponent()
-	config := confFromYAML(t, `
-apm_config:
-  additional_endpoints:
-    "https://trace.agent.second-org.datadoghq.com":
-      - "DELA[org-uuid-1, aws]"
-`)
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
 
 	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
 	assert.Empty(t, rec.recorded)
@@ -442,4 +445,194 @@ func TestConfigureDelegatedAuthReturnsContextError(t *testing.T) {
 
 	err := configureDelegatedAuth(ctx, confFromYAML(t, ""), newRecordingComponent())
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestSecurityEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+runtime_security_config:
+  endpoints:
+    additional_endpoints:
+      - host: org2.datadoghq.com
+        api_key: DELA[org-uuid-1, aws]
+compliance_config:
+  endpoints:
+    additional_endpoints:
+      - host: org3.datadoghq.com
+        api_key: DELA[org-uuid-2, aws]
+runtime_security_config_activity_dump_remote_storage: placeholder
+`)
+
+	// The activity-dump key is nested too deep for the YAML helper's flat style below,
+	// so set it directly.
+	config.SetInTest("runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
+		[]any{map[string]any{"host": "org4.datadoghq.com", "api_key": "DELA[org-uuid-3, aws]"}})
+
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 3)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "org-uuid-2", rec.recorded[1].OrgUUID)
+	assert.Equal(t, "org-uuid-3", rec.recorded[2].OrgUUID)
+}
+
+func TestSecurityKeysRegisterWithoutLogsHTTPTransport(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+logs_config:
+  additional_endpoints:
+    - host: org2.datadoghq.com
+      api_key: DELA[org-uuid-1, aws]
+runtime_security_config:
+  endpoints:
+    additional_endpoints:
+      - host: org2.datadoghq.com
+        api_key: DELA[org-uuid-2, aws]
+`)
+
+	// No logs_config.use_http/force_use_http: the logs pipeline would use TCP and
+	// ignore its delegated-auth entries, but the security pipelines are always HTTP.
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-2", rec.recorded[0].OrgUUID)
+}
+
+func TestConfigureDelegatedAuthEndpointsCoversLateMergedValues(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+site: datadogh.com
+`)
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	assert.Empty(t, rec.recorded, "nothing to register yet")
+
+	// Values merged after LoadDatadog (e.g. security-agent.yaml) must still register.
+	config.SetInTest("runtime_security_config.endpoints.additional_endpoints",
+		[]any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+}
+
+func TestWarnDirectSendDelegatedAuthDirectives(t *testing.T) {
+	var output bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&output, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, log.WarnStr)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), log.DebugStr)
+		logger.Close()
+	})
+
+	for _, tc := range []struct {
+		key  string
+		flag string
+	}{
+		{"runtime_security_config.endpoints.additional_endpoints", "runtime_security_config.direct_send_from_system_probe"},
+		{"runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints", "runtime_security_config.direct_send_from_system_probe"},
+		{"compliance_config.endpoints.additional_endpoints", "compliance_config.run_in_system_probe"},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			config.SetInTest(tc.flag, true)
+			output.Reset()
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Empty(t, output.String(), "no directives present")
+
+			config.SetInTest(tc.key, []any{
+				nil,
+				"invalid-entry",
+				map[string]any{"host": "static.example.com", "api_key": "static-key"},
+				map[string]any{"host": "org2.datadoghq.com", "API_KEY": " DELA[org-uuid-1, aws] "},
+			})
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Equal(t, fmt.Sprintf("%s[3] uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship\n", tc.key, tc.flag), output.String())
+
+			config.SetInTest(tc.flag, false)
+			output.Reset()
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Empty(t, output.String(), "security-agent ships and can resolve")
+		})
+	}
+}
+
+func TestConfigureDelegatedAuthEndpointsSkipsResolvedEntries(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+site: datadogh.com
+`)
+	cwsKey := "runtime_security_config.endpoints.additional_endpoints"
+	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	require.Len(t, rec.recorded, 1)
+
+	// The writeback replaces the directive with the resolved key; a re-scan of the
+	// effective config must not register the entry again.
+	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "resolved-api-key"}})
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	assert.Len(t, rec.recorded, 1, "resolved entry must not re-register")
+}
+
+func TestOrchestratorEndpointsAreWithinScope(t *testing.T) {
+	for _, key := range []string{
+		"orchestrator_explorer.orchestrator_additional_endpoints",
+		"process_config.orchestrator_additional_endpoints",
+	} {
+		rec := newRecordingComponent()
+		config := confFromYAML(t, "site: datadogh.com\n")
+		config.SetInTest(key, map[string][]string{
+			"https://orchestrator.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+		})
+
+		configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+		require.Len(t, rec.recorded, 1, "key %s", key)
+		assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+		assert.Equal(t, key, rec.recorded[0].AdditionalEndpointsConfigKey)
+	}
+}
+
+func TestEventPlatformEndpointsAreWithinScope(t *testing.T) {
+	// The full list is composed from the model's pipeline registry and pinned against
+	// the eventplatform descriptors in that package; one representative key here.
+	rec := newRecordingComponent()
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("container_image.additional_endpoints", []any{
+		map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"},
+	})
+
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "container_image.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
+}
+
+func TestTelemetryAndPcapEndpointsRegisterWithoutLogsHTTP(t *testing.T) {
+	for _, configKey := range []string{"agent_telemetry.additional_endpoints", "network_pcap.forwarder.additional_endpoints"} {
+		t.Run(configKey, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			config.SetInTest(configKey, []map[string]any{
+				{"host": "intake.datadoghq.eu", "api_key": "DELA[org-uuid-1, aws]"},
+			})
+			rec := newRecordingComponent()
+			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+			require.Len(t, rec.recorded, 1)
+			assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+			assert.Equal(t, configKey, rec.recorded[0].AdditionalEndpointsListConfigKey)
+			assert.Equal(t, 0, rec.recorded[0].ListEntryIndex)
+		})
+	}
+}
+
+func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
 }

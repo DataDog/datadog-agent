@@ -1,0 +1,18 @@
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "maven2",
+    artifacts = [
+        "org.bouncycastle:bc-fips:2.0.2",
+        "org.bouncycastle:bcpkix-fips:2.0.8",
+        "org.bouncycastle:bctls-fips:2.0.20",
+        "org.bouncycastle:bcutil-fips:2.0.5",
+    ],
+    lock_file = "//deps/maven:maven2_install.json",
+    repositories = [
+        "https://repo1.maven.org/maven2",
+        "https://storage.googleapis.com/maven-central/maven2",
+    ],
+    strict_visibility = True,
+    version_conflict_policy = "pinned",
+)
+use_repo(maven, "maven2")

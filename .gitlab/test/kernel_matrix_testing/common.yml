@@ -121,11 +121,6 @@
 .tag_kmt_ci_job:
   - dda inv -- -e kmt.tag-ci-job
 
-.kmt_setup_needs:
-  - go_deps
-  - go_tools_deps
-  - go_e2e_deps
-
 # -- Test dependencies
 
 .package_dependencies:

@@ -27,7 +27,7 @@ The next pages explain [how the test works](how-it-works.md) and [how it decides
 
 ## Run it in CI
 
-The benchmark keeps an EKS cluster for about two hours, so it only runs on demand. When a pull request changes the benchmark or the code it measures, the job `new-e2e-containers-benchmarkeks-instructions` posts a comment on the pull request explaining how to run it.
+The benchmark keeps an EKS cluster for about two and a half hours, so it only runs on demand. When a pull request changes the benchmark or the code it measures, the job `new-e2e-containers-benchmarkeks-instructions` posts a comment on the pull request explaining how to run it.
 
 To run it, play the manual job `new-e2e-containers-benchmarkeks-baseline` of the pipeline. The other jobs of the benchmark wait for it, then start on their own:
 
@@ -63,7 +63,7 @@ The job `new-e2e-containers-benchmarkeks` prints the report at the end of its lo
 - `report.json`, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;
 - `report.md`, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.
 
-The report gives the times of both phases, then a table like this one, from a CI run made when [the sleeper pods](how-it-works.md#real-pods-for-the-node-agents) had only 70 containers per node, comparing two builds of the same Agent code:
+The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes and [the sleeper pods](how-it-works.md#real-pods-for-the-node-agents) had only 70 containers per node:
 
 | Component | Metric | Baseline | Comparison | Change | p-value | Verdict |
 |---|---|--:|--:|--:|--:|---|
@@ -79,7 +79,7 @@ The report gives the times of both phases, then a table like this one, from a CI
 | Node Agent | `kubelet` check run time | 352.1 ms | 304.8 ms | -13.4% (-47.4 ms) | 0.001 | unchanged |
 | Cluster checks runner | `kubernetes_state_core` check run time | 1555.5 ms | 1542.1 ms | -0.9% (-13.4 ms) | 0.151 | unchanged |
 
-**Baseline** and **Comparison** are the averages of each version over both phases, and the value in parentheses in **Change** is their difference. The percentage comes from the ratios of both versions block by block, averaged over both phases, which [cancels out the machines](statistics.md#cancelling-out-the-machines): it can differ slightly from the ratio of the two columns. [How the test decides](statistics.md) explains the p-value and the verdict.
+**Baseline** and **Comparison** are the averages of each version over the phases, and the value in parentheses in **Change** is their difference. The percentage comes from the ratios of both versions block by block, averaged over the phases, which [cancels out the machines](statistics.md#cancelling-out-the-machines): it can differ slightly from the ratio of the two columns. [How the test decides](statistics.md) explains the p-value and the verdict.
 
 In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the `kubelet` check (−13.4%, under 20%). Both builds run the same code: these are differences that [escape the p-value](statistics.md#limits), and that the thresholds absorb.
 
@@ -111,17 +111,18 @@ The parameters start with `ddagent:baseline` or `ddagent:comparison`, followed b
 Set the Cluster Agent image too: without it, both versions run the same default Cluster Agent image. Without an explicit image, the E2E framework picks one in its usual <<<repo("test/e2e-framework/components/datadog/agent/docker_image.go", "resolution order", match="^func DockerClusterAgentFullImagePath")>>>, which uses the images of the pipeline when `E2E_PIPELINE_ID` and `E2E_COMMIT_SHA` are set.
 ///
 
-The test reads these environment variables:
+The test reads these environment variables, whose defaults are set in <<<repo("test/new-e2e/tests/containers/benchmarkeks_test.go", "the suite", match="defaultBenchmarkPhases +=")>>>:
 
 | Variable | Default | Effect |
 |---|---|---|
+| `E2E_BENCHMARKEKS_PHASES` | `4` | The number of measurement phases, even and at least 2: the installations swap their versions between consecutive phases |
 | `E2E_BENCHMARKEKS_WARMUP` | `10m` | How long the Agents run before each measurement phase starts |
-| `E2E_BENCHMARKEKS_DURATION` | `20m` | How long each of the two measurement phases lasts, a whole number of minutes, at least `3m` |
+| `E2E_BENCHMARKEKS_DURATION` | `15m` | How long each measurement phase lasts, a whole number of minutes, at least `3m` |
 | `E2E_BENCHMARKEKS_REPORT_DIR` | The output directory of the suite | Where the reports are written |
 | `E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE`, `E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE` | None | The node Agent and Cluster Agent images of the baseline, set by the CI jobs. They take precedence over the `ddagent:baseline*` parameters, so unset them to use those |
 | `E2E_BENCHMARKEKS_BASELINE_SHA` | None | The commit of the baseline images, shown in the report |
 
-Shorter durations make a quick try possible, at the cost of a less sensitive comparison: the [blocks](statistics.md#blocks) then shrink, down to 1 minute, so that each phase still holds at least 3 of them.
+Shorter durations, or 2 phases, make a quick try possible, at the cost of a less sensitive comparison: the [blocks](statistics.md#blocks) then shrink, down to 1 minute, so that each phase still holds at least 3 of them, and fewer phases average fewer Agent processes (see [why four phases](how-it-works.md#why-four-phases)).
 
 To look around the cluster without running the test, `dda inv aws.create-benchmarkeks` deploys the same scenario, and `dda inv aws.destroy-benchmarkeks` deletes it: see <<<repo("tasks/e2e_framework/aws/benchmarkeks.py")>>> for their options, and the [stack lifecycle](../../manual-qa/index.md#stack-lifecycle) of manual QA.
 

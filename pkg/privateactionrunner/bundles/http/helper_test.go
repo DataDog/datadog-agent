@@ -7,12 +7,21 @@ package com_datadoghq_http
 
 import (
 	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 func TestBuildFormDataDataURIMimeType(t *testing.T) {
@@ -100,5 +109,88 @@ func TestBuildFormDataDataURIMimeType(t *testing.T) {
 				assert.Contains(t, body.String(), "aGVsbG8=")
 			})
 		}
+	}
+}
+
+func TestHasSameDomain(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		requestURL string
+		baseURL    string
+		want       bool
+	}{
+		{name: "https base, https request", requestURL: "https://example.com/path", baseURL: "https://example.com", want: true},
+		{name: "http base, http request", requestURL: "http://example.com/path", baseURL: "http://example.com", want: true},
+		{name: "http base, https request", requestURL: "https://example.com/path", baseURL: "http://example.com", want: true},
+		{name: "uppercase https request", requestURL: "HTTPS://example.com/path", baseURL: "https://example.com", want: true},
+		{name: "https base, http request", requestURL: "http://example.com/path", baseURL: "https://example.com", want: false},
+		{name: "uppercase https base, uppercase http request", requestURL: "HTTP://example.com/path", baseURL: "HTTPS://example.com", want: false},
+		{name: "https base with port, http request on same port", requestURL: "http://example.com:8443/path", baseURL: "https://example.com:8443", want: false},
+		{name: "https base, scheme-relative request", requestURL: "//example.com/path", baseURL: "https://example.com", want: false},
+		{name: "https base, other scheme request", requestURL: "ftp://example.com/path", baseURL: "https://example.com", want: false},
+		{name: "different host", requestURL: "https://other.com/path", baseURL: "https://example.com", want: false},
+		{name: "different port", requestURL: "https://example.com:8443/path", baseURL: "https://example.com", want: false},
+		{name: "unparsable request", requestURL: "https://exa mple.com:bad/", baseURL: "https://example.com", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, hasSameDomain(test.requestURL, test.baseURL))
+		})
+	}
+}
+
+func TestRequestBaseURLScheme(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		tlsServer     bool
+		baseURLScheme string
+		wantError     string
+	}{
+		{name: "https base rejects http request", baseURLScheme: "https", wantError: "specified URL does not match base URL configured in the Connection"},
+		{name: "http base allows http request", baseURLScheme: "http"},
+		{name: "http base allows https request", tlsServer: true, baseURLScheme: "http"},
+		{name: "https base allows https request", tlsServer: true, baseURLScheme: "https"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				w.WriteHeader(http.StatusOK)
+			})
+			var server *httptest.Server
+			if test.tlsServer {
+				server = httptest.NewTLSServer(handler)
+			} else {
+				server = httptest.NewServer(handler)
+			}
+			defer server.Close()
+			target, err := url.Parse(server.URL)
+			require.NoError(t, err)
+
+			task := &types.Task{}
+			task.Data.Attributes = &types.Attributes{
+				BundleID: "com.datadoghq.http", Name: "request",
+				Inputs: map[string]interface{}{
+					"verb":                    "GET",
+					"url":                     server.URL + "/path",
+					"allowExpiredCertificate": test.tlsServer,
+				},
+			}
+			credentials := &privateconnection.PrivateCredentials{
+				Type: privateconnection.TokenAuthType,
+				HttpDetails: privateconnection.HttpDetails{
+					BaseURL: test.baseURLScheme + "://" + strings.SplitN(server.URL, "://", 2)[1],
+				},
+			}
+
+			action := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{target.Hostname()}})
+			_, err = action.Run(context.Background(), task, credentials)
+			if test.wantError != "" {
+				require.ErrorContains(t, err, test.wantError)
+				require.Zero(t, requests.Load())
+				return
+			}
+			require.NoError(t, err)
+			require.EqualValues(t, 1, requests.Load())
+		})
 	}
 }

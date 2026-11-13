@@ -78,6 +78,15 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 	// Agent installation toggle
 	if !e.AgentDeploy() {
 		p.agentOptions = nil
+	} else if e.AgentConfigPath() != "" {
+		// Read lazily so a bad path fails the deployment instead of panicking here.
+		p.agentOptions = append(p.agentOptions, func(ap *agentparams.Params) error {
+			config, err := e.CustomAgentConfig()
+			if err != nil {
+				return fmt.Errorf("reading agent config %q: %w", e.AgentConfigPath(), err)
+			}
+			return agentparams.WithAgentConfig(config)(ap)
+		})
 	}
 
 	// Updater toggle

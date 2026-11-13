@@ -1356,6 +1356,27 @@ func (s *timeSeriesStorage) TotalSeriesCount() int {
 	return s.liveSeriesCount
 }
 
+// FreshSeriesCount returns the number of non-telemetry series whose latest
+// bucket visible at cutoff is newer than previousCutoff. Buckets beyond cutoff
+// are not yet visible to analysis and are ignored.
+func (s *timeSeriesStorage) FreshSeriesCount(excludeNamespace string, cutoff, previousCutoff int64) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	fresh := 0
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || (excludeNamespace != "" && stats.Namespace == excludeNamespace) {
+			continue
+		}
+		lastVisible := searchAfter(stats.buckets, cutoff) - 1
+		if lastVisible < 0 || stats.buckets[lastVisible].timestamp <= previousCutoff {
+			continue
+		}
+		fresh++
+	}
+	return fresh
+}
+
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 // Uses binary search since timestamps are sorted.
 func (s *timeSeriesStorage) PointCountUpTo(ref observer.SeriesRef, endTime int64) int {
@@ -1667,4 +1688,17 @@ func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observe
 		}
 	}
 	return buf
+}
+
+// SeriesCountByKind counts non-telemetry gauges by committed kind.
+func (s *timeSeriesStorage) SeriesCountByKind() [metricKindCount]uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var counts [metricKindCount]uint64
+	for _, stats := range s.series {
+		if stats.Namespace != observer.TelemetryNamespace && stats.MetricType == metrics.GaugeType && stats.MetricKind < metricKindCount {
+			counts[stats.MetricKind]++
+		}
+	}
+	return counts
 }
