@@ -1672,6 +1672,29 @@ func (s *timeSeriesStorage) snapshotRange(
 	}, buf, true
 }
 
+// snapshotFirstPointsFrom copies the first n points in [start, end] into buf.
+// An empty result means not ready; expired means the start is no longer retained.
+func (s *timeSeriesStorage) snapshotFirstPointsFrom(
+	ref observer.SeriesRef, start, end int64, n int, agg Aggregate,
+	buf []observer.Point,
+) (points []observer.Point, expired bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(ref)
+	if stats == nil || len(stats.buckets) == 0 || stats.buckets[0].timestamp > start {
+		return buf[:0], true
+	}
+	lo := sort.Search(len(stats.buckets), func(i int) bool {
+		return stats.buckets[i].timestamp >= start
+	})
+	hi := searchAfter(stats.buckets, end)
+	if n <= 0 || hi-lo < n {
+		return buf[:0], false
+	}
+	return snapshotPoints(stats, lo, lo+n, agg, buf), false
+}
+
 // snapshotPoints copies [lo, hi) from stats into buf. The caller must hold
 // stats' storage read lock.
 func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observer.Point) []observer.Point {

@@ -202,9 +202,12 @@ Baseline and scorer settings apply in both workflows.
 post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.
-Matching uses the matcher window; detector history
-requirements stay independent. Transitions clean the previous detector state,
-commit the successor kind, and reuse retained history.
+`UNSET` and kinds without a detector use ordinary matching. Assigned kinds
+match once per accepted, post-gate anomaly, using the first `MinPoints` visible
+points from the change point, inclusive, without confirmations. A newer anomaly
+replaces the pending boundary; retention eviction cancels it. Same-kind results
+clear the request without resetting the detector. Transitions clean the previous
+detector state, commit the successor kind, and reuse retained history.
 
 After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
@@ -218,8 +221,8 @@ these mutes; kind emission counters stay downstream of dedup.
 Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
 bands) and gain one level when detector confidence is High or XHigh.
 The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
-mean detector call durations every second. Timings identify inner detectors and
-registration kinds, excluding pipeline overhead; legacy calls use `unset`.
+mean detector call durations every second. Timings cover registered detectors or
+composed pipelines, excluding outer `MetricPipeline` overhead; legacy calls use `unset`.
 `detections.kind_emissions` adds kind attribution after baseline/muting/dedup;
 existing `detections.detector_emissions` tags stay unchanged. Pending transition
 and timing counts clear on analysis reset.
