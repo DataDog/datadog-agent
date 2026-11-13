@@ -63,6 +63,7 @@ func TestExitDetection(t *testing.T) {
 				1:   "dd-procmgrd",
 				42:  "agent",
 				43:  "trace-loader",
+				44:  "par-control",
 				101: "pause",
 			},
 			regexps:    defaultRegexps,
