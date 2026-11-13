@@ -356,7 +356,7 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	bytesReadAtRotationTime := t.bytesRead.Get()
 	// Resolved before the goroutine, which first waits out the rotation drain, to
 	// keep the source lock off that path.
-	missedSource, missedService := missedBytesIdentity(t.file.Source.Config())
+	missedSource, missedService := ReportingIdentity(t.file.Source.Config())
 	go func() {
 		// Name whichever limit ended the drain and, for the timeout, the setting that raises it.
 		limit, advice := fmt.Sprintf("rotation close timeout (%s)", t.closeTimeout), " Consider increasing "+t.closeTimeoutSetting

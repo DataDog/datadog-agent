@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -134,7 +135,52 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkResolver *ContainerLogSymlinkResolver, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
+// untailedFileCounter tracks, per source, the files the open files limit left
+// without a tailer during one scan. It allocates nothing until the limit is hit, so
+// scans under the limit cost one nil check per file.
+type untailedFileCounter struct {
+	untailed map[*sources.LogSource]int
+	order    []*sources.LogSource
+}
+
+func (u *untailedFileCounter) add(src *sources.LogSource) {
+	if u.untailed == nil {
+		u.untailed = map[*sources.LogSource]int{}
+	}
+	if _, ok := u.untailed[src]; !ok {
+		u.order = append(u.order, src)
+	}
+	u.untailed[src]++
+}
+
+// record hands the scan to the Agent Health tracker, only when the limit left files
+// out. A source's matched count is its untailed files plus its tailed ones.
+func (u *untailedFileCounter) record(limit int, filesToTail []*tailer.File) {
+	if len(u.untailed) == 0 {
+		return
+	}
+	tailedBySource := make(map[*sources.LogSource]int, len(u.untailed))
+	for _, file := range filesToTail {
+		src := file.Source.UnderlyingSource()
+		if _, affected := u.untailed[src]; affected {
+			tailedBySource[src]++
+		}
+	}
+	untailed := make([]metrics.UntailedFilesSource, 0, len(u.order))
+	for _, src := range u.order {
+		source, service := tailer.ReportingIdentity(src.Config)
+		untailed = append(untailed, metrics.UntailedFilesSource{
+			Source:   source,
+			Service:  service,
+			Path:     src.Config.Path,
+			Matched:  u.untailed[src] + tailedBySource[src],
+			Untailed: u.untailed[src],
+		})
+	}
+	metrics.RecordUntailedFiles(limit, len(filesToTail), untailed)
+}
+
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkResolver *ContainerLogSymlinkResolver, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, u *untailedFileCounter, registry auditor.Registry) []*tailer.File {
 	// Add each file one by one up to the limit
 	for _, file := range inputFiles {
 		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
@@ -142,15 +188,19 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, symlinkRe
 		// manually keep each valid file alive here.
 		registry.KeepAlive(file.Identifier())
 
+		src := file.Source.UnderlyingSource()
 		if len(filesToTail) < p.filesLimit {
 			if ShouldIgnore(validatePodContainerID, file, symlinkResolver) {
 				continue
 			}
 			filesToTail = append(filesToTail, file)
-			src := file.Source.UnderlyingSource()
 			if config.ContainsWildcard(src.Config.Path) {
 				w.incrementTracked(src)
 			}
+		} else if !ShouldIgnore(validatePodContainerID, file, symlinkResolver) {
+			// Same filter as a tailed file, so another container's log file never
+			// counts as left out.
+			u.add(src)
 		}
 	}
 
@@ -177,6 +227,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
 	wildcardFileCounter := newWildcardFileCounter()
+	var untailedCounter untailedFileCounter
 	// Build the /var/log/containers symlink map at most once for the whole scan
 	// rather than once per file. The map is resolved lazily, so no directory
 	// scan happens unless a container source file is actually evaluated.
@@ -206,7 +257,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, &untailedCounter, registry)
 			}
 		}
 
@@ -235,7 +286,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, wildcardFiles, filesToTail, &wildcardFileCounter, &untailedCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -256,7 +307,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, symlinkResolver, files, filesToTail, &wildcardFileCounter, &untailedCounter, registry)
 			}
 		}
 	} else {
@@ -267,6 +318,8 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 	for source, matchCnt := range wildcardFileCounter.counts {
 		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.tracked, matchCnt.total))
 	}
+
+	untailedCounter.record(p.filesLimit, filesToTail)
 
 	if !p.reachedNumFileLimit && len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
