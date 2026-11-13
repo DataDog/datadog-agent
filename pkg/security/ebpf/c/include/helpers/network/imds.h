@@ -44,14 +44,6 @@ static __always_inline struct imds_event_t *reset_imds_event(struct __sk_buff *s
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     fill_cgroup_context(entry, &evt->cgroup);
 
-    // should we sample this event for activity dumps ?
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
-    if (config) {
-        if (mask_has_event(config->event_mask, EVENT_IMDS)) {
-            evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-        }
-    }
-
     return evt;
 }
 

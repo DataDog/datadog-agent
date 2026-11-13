@@ -322,6 +322,7 @@ func newTestManagerV2(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookie
 	timeResolver, err := ktime.NewResolver()
 	require.NoError(t, err)
 	m := &ManagerV2{
+		config:                &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{SecurityProfileV2Enabled: true}},
 		resolvers:             &resolvers.EBPFResolvers{TimeResolver: timeResolver},
 		sampleCookieMap:       cookieMap,
 		sampleRefreshReceived: atomic.NewUint64(0),
@@ -593,7 +594,6 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
 				SecurityProfileV2Enabled:                        true,
 				SecurityProfileMaxImageTags:                     20,
 				AnomalyDetectionEnabled:                         true,
@@ -1080,7 +1080,6 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 	m := &ManagerV2{
 		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
-			SecurityProfileEnabled:      true,
 			SecurityProfileV2Enabled:    true,
 			SecurityProfileV2EventTypes: []model.EventType{model.ExecEventType},
 		}},
@@ -1095,6 +1094,30 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+// TestManagerV2_DisabledIsNoOp verifies that with profiles disabled, NewManagerV2 leaves the local profile
+// directory alone and every ProfileManager method of the returned manager is a no-op.
+func TestManagerV2_DisabledIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+	profilePath := filepath.Join(dir, "workload.profile")
+	require.NoError(t, os.WriteFile(profilePath, nil, 0o600))
+
+	cfg := &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+		SecurityProfileV2ClearLocalProfilesOnStart: true,
+		ActivityDumpLocalStorageDirectory:          dir,
+		ActivityDumpLocalStorageMaxDumpsCount:      10,
+	}}
+	m, err := NewManagerV2(cfg, &statsd.NoOpClient{}, nil, nil, &kernel.Version{}, nil, nil, "test-host", time.Now(), nil)
+	require.NoError(t, err)
+	assert.FileExists(t, profilePath)
+
+	m.Start(t.Context())
+	m.ProcessEvent(newTestEventV2(model.ExecEventType, "v1", "known"))
+	m.HandleSampleRefresh(1)
+	assert.NoError(t, m.SendStats())
+	_, err = m.ListSecurityProfiles(nil)
+	assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
 }
 
 // newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the

@@ -178,7 +178,7 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 }
 
 // WithObservedRollups makes the encoder derive per-version syscall/capability
-// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
+// lists from the activity tree instead of keeping the backend-supplied list.
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
@@ -336,19 +336,6 @@ func (p *Profile) IsEmpty() bool {
 	return p.ActivityTree.IsEmpty()
 }
 
-// InsertAndGetSize inserts an event in the profile and returns the new size of the profile if the event was inserted
-func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, int64, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	ok, _, _, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
-	if !ok || err != nil {
-		return ok, 0, err
-	}
-
-	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
-}
-
 // Insert inserts an event in the profile and returns the matched/created process node and event node
 func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
 	p.Lock()
@@ -433,15 +420,6 @@ func (p *Profile) InsertMount(mnt *model.Mount, cgroupInode uint64, imageTag str
 
 	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
 	return p.ActivityTree.InsertMount(cgroupInode, mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
-}
-
-// ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
-// (node counts × struct header sizes). Kept for V1 (legacy Manager / ActivityDump) which
-// has tuned its thresholds against this number — do not change its semantics.
-func (p *Profile) ComputeInMemorySize() int64 {
-	p.Lock()
-	defer p.Unlock()
-	return p.ActivityTree.Stats.ApproximateSize()
 }
 
 // ComputeHeapSize returns the profile's incrementally-tracked real heap footprint in

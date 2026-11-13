@@ -17,7 +17,7 @@ import (
 // These helpers exist so each node's size() can approximate its real heap footprint
 // (backing arrays, map buckets, string content) instead of only the shallow struct size.
 // The result is still an estimate — Go does not expose map bucket sizes — but it tracks
-// real RAM usage closely enough to drive the `ActivityDumpMaxDumpSize` budget and the
+// real RAM usage closely enough to drive the `SecurityProfileV2MaxDumpSize` budget and the
 // per-profile `storage:ram` metric without lying to operators.
 //
 // Constants here are intentionally conservative: when in doubt we round up so the

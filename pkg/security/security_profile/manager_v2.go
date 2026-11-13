@@ -93,12 +93,23 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	return size
 }
 
+// ActivityDumpSource defines the source of activity dumps
+const ActivityDumpSource = "runtime-security-agent"
+
 const (
 	metricSourceRuntime = iota
 	metricSourceReplay
 	metricSourceRelated
 	metricSourceCount
 )
+
+func perFormatStorageRequests(requests []config.StorageRequest) map[config.StorageFormat][]config.StorageRequest {
+	perFormatRequests := make(map[config.StorageFormat][]config.StorageRequest)
+	for _, request := range requests {
+		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
+	}
+	return perFormatRequests
+}
 
 // insertionErrorKey identifies an unexpected activity-tree insertion failure by
 // event type and a bounded error-type label.
@@ -203,6 +214,11 @@ type ManagerV2 struct {
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+	// A disabled manager only holds its config, so every ProfileManager method must return early when V2 is disabled
+	if !cfg.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &ManagerV2{config: cfg}, nil
+	}
+
 	var excludedCgroupsMap *ebpf.Map
 	if ebpfManager != nil {
 		var err error
@@ -389,6 +405,10 @@ func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	sendTickerChan := m.setupPersistenceTicker()
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
 	profileCleanupTickerChan := m.setupProfileCleanupTicker()
@@ -673,6 +693,10 @@ func (m *ManagerV2) withinProfilingStartupDelay(nowMono uint64) bool {
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	if m.withinProfilingStartupDelay(event.TimestampRaw) {
 		return
 	}
@@ -877,13 +901,17 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
-		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
+		// Flag as an anomaly so the serializer emits the sampled syscall.
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
 	}
 }
 
 func (m *ManagerV2) SendStats() error {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return nil
+	}
+
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
 		return err
@@ -1131,9 +1159,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	m.linkWorkloadToProfile(secprof, workload)
 	m.seedMountsForWorkload(secprof, workload, event)
 
-	// Check if profile has reached max size. V2 uses its own knob evaluated against the
-	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
-	// semantics for ActivityDump/legacy Manager paths.
+	// Check if profile has reached max size, measured against its estimated heap footprint
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
@@ -1827,20 +1853,13 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 	return result
 }
 
-// ============================================================================
-// NO-OP METHODS - ProfileManager Interface Compatibility
-// ============================================================================
-//
-// The following methods are no-ops in ManagerV2. They exist solely to satisfy
-// the ProfileManager interface, allowing V1 and V2 managers to be used
-// interchangeably through the same interface.
-//
-// These methods will be removed once V2 is fully validated and V1 is deprecated.
-// ============================================================================
-
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	m.sampleRefreshReceived.Inc()
 
 	entry, ok := m.sampleCookieMap.Get(cookie)
@@ -1940,26 +1959,6 @@ func (m *ManagerV2) purgeOrphanedCookies() int {
 	return removed
 }
 
-// LookupEventInProfiles lookups event in profiles.
-// NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
-// profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
-// applicable to the V2 lifecycle.
-func (m *ManagerV2) LookupEventInProfiles(_ *model.Event) {}
-
-// HasActiveActivityDump returns true if the given event has an active dump.
-// NO-OP in V2: Always returns false. V2 doesn't use the traditional activity dump mechanism
-// with kernel-space traced cgroups. Instead, it builds profiles directly from activity dump samples.
-func (m *ManagerV2) HasActiveActivityDump(_ *model.Event) bool { return false }
-
-// HandleCGroupTracingEvent handles a cgroup tracing event.
-// NO-OP in V2: V2 doesn't use cgroup tracing events from kernel space. Profiles are built
-// from activity dump samples instead.
-func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
-
-// SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups.
-// NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
-func (m *ManagerV2) SyncTracedCgroups() {}
-
 // ListActivityDumps lists the activity dumps.
 // NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
 func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
@@ -1969,12 +1968,6 @@ func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.Activ
 // StopActivityDump stops an active activity dump.
 // NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
 func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
-}
-
-// DumpActivity dumps the activity.
-// NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
-func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	return nil, nil
 }
 

@@ -120,7 +120,7 @@ The payload is a JSON dict with the following fields
   - `feature_csm_vm_hosts_enabled` - **bool**: True if VM Hosts is enabled for Cloud Security Management (see: `sbom.enable` and `sbom.host.enabled` config option).
   - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option).
   - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option).
-  - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
+  - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.security_profile.v2.enabled` config option).
   - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
   - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
   - `feature_auto_instrumentation_enabled` - **bool**: True if APM Auto-Instrumentation is installed and enabled.

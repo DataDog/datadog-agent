@@ -45,7 +45,6 @@ type RuntimeSecurityEventClient struct {
 type SecurityModuleCmdClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool, format string) (string, error)
-	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
 	StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
@@ -84,11 +83,6 @@ func (c *RuntimeSecurityCmdClient) DumpProcessCache(withArgs bool, format string
 // ListActivityDumps lists the active activity dumps
 func (c *RuntimeSecurityCmdClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
 	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
-}
-
-// GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityCmdClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // StopActivityDump stops an active dump if it exists

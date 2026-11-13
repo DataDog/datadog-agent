@@ -79,7 +79,6 @@ func (e *Event) DeepCopy() *Event {
 	copied.Bind = deepCopyBindEvent(e.Bind, c)
 	copied.CapabilitiesUsage = deepCopyCapabilitiesEvent(e.CapabilitiesUsage, c)
 	copied.Capset = deepCopyCapsetEvent(e.Capset, c)
-	copied.CgroupTracing = deepCopyCgroupTracingEvent(e.CgroupTracing, c)
 	copied.CgroupWrite = deepCopyCgroupWriteEvent(e.CgroupWrite, c)
 	copied.Chdir = deepCopyChdirEvent(e.Chdir, c)
 	copied.Chmod = deepCopyChmodEvent(e.Chmod, c)
@@ -783,26 +782,6 @@ func deepCopyCapsetEvent(fieldToCopy CapsetEvent, c deepCopyContext) CapsetEvent
 	copied := CapsetEvent{}
 	copied.CapEffective = fieldToCopy.CapEffective
 	copied.CapPermitted = fieldToCopy.CapPermitted
-	return copied
-}
-func deepCopyCgroupTracingEvent(fieldToCopy CgroupTracingEvent, c deepCopyContext) CgroupTracingEvent {
-	copied := CgroupTracingEvent{}
-	copied.CGroupContext = deepCopyCGroupContext(fieldToCopy.CGroupContext, c)
-	copied.Config = deepCopyActivityDumpLoadConfig(fieldToCopy.Config, c)
-	copied.ConfigCookie = fieldToCopy.ConfigCookie
-	copied.ContainerContext = deepCopyContainerContext(fieldToCopy.ContainerContext, c)
-	copied.Pid = fieldToCopy.Pid
-	return copied
-}
-func deepCopyActivityDumpLoadConfig(fieldToCopy ActivityDumpLoadConfig, c deepCopyContext) ActivityDumpLoadConfig {
-	copied := ActivityDumpLoadConfig{}
-	copied.EndTimestampRaw = fieldToCopy.EndTimestampRaw
-	copied.Paused = fieldToCopy.Paused
-	copied.Rate = fieldToCopy.Rate
-	copied.StartTimestampRaw = fieldToCopy.StartTimestampRaw
-	copied.Timeout = fieldToCopy.Timeout
-	copied.TracedEventTypes = deepCopyEventTypeArr(fieldToCopy.TracedEventTypes, c)
-	copied.WaitListTimestampRaw = fieldToCopy.WaitListTimestampRaw
 	return copied
 }
 func deepCopyCgroupWriteEvent(fieldToCopy CgroupWriteEvent, c deepCopyContext) CgroupWriteEvent {

@@ -259,68 +259,6 @@ func (_c *SecurityModuleCmdClientWrapper_DumpProcessCache_Call) RunAndReturn(run
 	return _c
 }
 
-// GenerateActivityDump provides a mock function for the type SecurityModuleCmdClientWrapper
-func (_mock *SecurityModuleCmdClientWrapper) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	ret := _mock.Called(request)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenerateActivityDump")
-	}
-
-	var r0 *api.ActivityDumpMessage
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(*api.ActivityDumpParams) (*api.ActivityDumpMessage, error)); ok {
-		return returnFunc(request)
-	}
-	if returnFunc, ok := ret.Get(0).(func(*api.ActivityDumpParams) *api.ActivityDumpMessage); ok {
-		r0 = returnFunc(request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.ActivityDumpMessage)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(*api.ActivityDumpParams) error); ok {
-		r1 = returnFunc(request)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// SecurityModuleCmdClientWrapper_GenerateActivityDump_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GenerateActivityDump'
-type SecurityModuleCmdClientWrapper_GenerateActivityDump_Call struct {
-	*mock.Call
-}
-
-// GenerateActivityDump is a helper method to define mock.On call
-//   - request *api.ActivityDumpParams
-func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateActivityDump(request any) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
-	return &SecurityModuleCmdClientWrapper_GenerateActivityDump_Call{Call: _e.mock.On("GenerateActivityDump", request)}
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call) Run(run func(request *api.ActivityDumpParams)) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *api.ActivityDumpParams
-		if args[0] != nil {
-			arg0 = args[0].(*api.ActivityDumpParams)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call) Return(activityDumpMessage *api.ActivityDumpMessage, err error) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
-	_c.Call.Return(activityDumpMessage, err)
-	return _c
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call) RunAndReturn(run func(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)) *SecurityModuleCmdClientWrapper_GenerateActivityDump_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GenerateEncoding provides a mock function for the type SecurityModuleCmdClientWrapper
 func (_mock *SecurityModuleCmdClientWrapper) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	ret := _mock.Called(request)

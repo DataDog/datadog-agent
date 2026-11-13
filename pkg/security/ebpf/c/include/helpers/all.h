@@ -1,7 +1,6 @@
 #ifndef _HELPERS_H_
 #define _HELPERS_H_
 
-#include "activity_dump.h"
 #include "approvers.h"
 #include "bpf.h"
 #include "buffer_selector.h"
@@ -14,7 +13,6 @@
 #include "filesystem.h"
 #include "iouring.h"
 #include "process.h"
-#include "raw_syscalls.h"
 #include "selinux.h"
 #include "span.h"
 #include "syscall_macro.h"
