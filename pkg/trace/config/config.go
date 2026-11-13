@@ -432,7 +432,7 @@ type AgentConfig struct {
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation
 	// PeerTagsK8sScope enables the peer.k8s.cluster.uid and peer.k8s.namespace peer tags on stats of
-	// peers addressed by a cluster-local hostname. It has no effect when PeerTagsAggregation is disabled.
+	// peers addressed by a fully qualified in-cluster hostname. It has no effect when PeerTagsAggregation is disabled.
 	PeerTagsK8sScope bool
 	// KubeClusterUID returns the UID of the Kubernetes cluster the Agent runs in, or "" while it is
 	// not known. It must not block. It is nil outside of Kubernetes, which disables PeerTagsK8sScope.

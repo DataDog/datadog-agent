@@ -526,9 +526,6 @@ func (a *Agent) Process(p *api.Payload) {
 			p.ContainerTags = cTags
 		}
 	}
-	if a.conf.PeerTagsK8sScope && a.conf.KubeClusterUID != nil {
-		statsInput.KubeNamespace = stats.KubeNamespaceFromTags(p.ContainerTags)
-	}
 
 	if a.TracerPayloadModifier != nil {
 		a.TracerPayloadModifier.Modify(p.TracerPayload)
@@ -714,9 +711,6 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		} else {
 			p.ContainerTags = cTags
 		}
-	}
-	if a.conf.PeerTagsK8sScope && a.conf.KubeClusterUID != nil {
-		statsInput.KubeNamespace = stats.KubeNamespaceFromTags(p.ContainerTags)
 	}
 
 	if a.TracerPayloadModifierV1 != nil {

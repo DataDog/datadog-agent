@@ -1385,45 +1385,6 @@ func TestConcentratorInput(t *testing.T) {
 	}
 }
 
-func TestConcentratorInputKubeNamespace(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		kubeClusterUID func() string
-		expected       string
-	}{
-		{name: "in Kubernetes", kubeClusterUID: func() string { return "" }, expected: "shop"},
-		{name: "not in Kubernetes", kubeClusterUID: nil, expected: ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.New()
-			cfg.Endpoints[0].APIKey = "test"
-			cfg.KubeClusterUID = tc.kubeClusterUID
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-			containerTags := []string{"kube_namespace:shop", "pod_name:orders-0"}
-
-			agnt.Process(&api.Payload{
-				TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(testutil.RandomSpan())),
-				Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
-				ContainerTags: containerTags,
-			})
-			strs := idx.NewStringTable()
-			agnt.ProcessV1(&api.PayloadV1{
-				TracerPayload: testutil.TracerPayloadV1WithChunk(spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a")}))),
-				Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
-				ContainerTags: containerTags,
-			})
-
-			mco := agnt.Concentrator.(*mockConcentrator)
-			require.Len(t, mco.stats, 1)
-			assert.Equal(t, tc.expected, mco.stats[0].KubeNamespace)
-			require.Len(t, mco.statsV1, 1)
-			assert.Equal(t, tc.expected, mco.statsV1[0].KubeNamespace)
-		})
-	}
-}
-
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
 		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"), Attributes: map[uint32]*idx.AnyValue{

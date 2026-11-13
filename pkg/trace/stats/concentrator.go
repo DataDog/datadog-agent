@@ -153,9 +153,6 @@ type Input struct {
 	ContainerID   string
 	ContainerTags []string
 	ProcessTags   string
-	// KubeNamespace is the Kubernetes namespace of the container that sent the payload.
-	// When empty, it is taken from the kube_namespace tag in ContainerTags.
-	KubeNamespace string
 }
 
 // InputV1 specifies a set of traces originating from a certain payload.
@@ -164,9 +161,6 @@ type InputV1 struct {
 	ContainerID   string
 	ContainerTags []string
 	ProcessTags   string
-	// KubeNamespace is the Kubernetes namespace of the container that sent the payload.
-	// When empty, it is taken from the kube_namespace tag in ContainerTags.
-	KubeNamespace string
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
@@ -192,7 +186,6 @@ func (c *Concentrator) Add(t Input) {
 		containerTags:   t.ContainerTags,
 		processTagsHash: processTagsHash(t.ProcessTags),
 		processTags:     t.ProcessTags,
-		kubeNamespace:   c.callerKubeNamespace(t.KubeNamespace, t.ContainerTags),
 	}
 	for _, trace := range t.Traces {
 		c.addNow(&trace, tags)
@@ -206,7 +199,6 @@ func (c *Concentrator) AddV1(t InputV1) {
 		containerTags:   t.ContainerTags,
 		processTagsHash: processTagsHash(t.ProcessTags),
 		processTags:     t.ProcessTags,
-		kubeNamespace:   c.callerKubeNamespace(t.KubeNamespace, t.ContainerTags),
 	}
 	for _, trace := range t.Traces {
 		c.addNowV1(&trace, tags)
@@ -218,26 +210,11 @@ type infraTags struct {
 	containerTags   []string
 	processTagsHash uint64
 	processTags     string
-	kubeNamespace   string
-}
-
-// callerKubeNamespace returns the Kubernetes namespace of the container that sent a payload,
-// or "" when the peer.k8s.* tags are disabled.
-func (c *Concentrator) callerKubeNamespace(kubeNamespace string, containerTags []string) string {
-	if !c.conf.PeerTagsK8sScope || c.conf.KubeClusterUID == nil || kubeNamespace != "" {
-		return kubeNamespace
-	}
-	return KubeNamespaceFromTags(containerTags)
-}
-
-// peerK8sScope returns the peer.k8s.* scope for spans of a payload with the given infra tags.
-func (c *Concentrator) peerK8sScope(tags infraTags) peerK8sScope {
-	return newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf), tags.kubeNamespace)
 }
 
 // addNow adds the given input into the concentrator.
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
-	k8sScope := c.peerK8sScope(tags)
+	k8sScope := newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf))
 	if !c.cidStats {
 		tags.containerID = ""
 	}
@@ -277,7 +254,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 }
 
 func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) {
-	k8sScope := c.peerK8sScope(tags)
+	k8sScope := newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf))
 	if !c.cidStats {
 		tags.containerID = ""
 	}
