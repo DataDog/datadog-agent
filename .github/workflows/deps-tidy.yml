@@ -3,6 +3,7 @@ name: "Tidy Dependencies"
 on:
   pull_request:
     types:
+      - labeled
       - opened
       - synchronize
 
@@ -10,7 +11,7 @@ permissions: {}
 
 jobs:
   go_mod_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-go') }}
     concurrency:
       group: deps-tidy-go-${{ github.event.pull_request.number }}
       cancel-in-progress: true
