@@ -289,7 +289,7 @@ profiles:
     start_after: 600
     iterations: 0
     period: 14400
-- name: network_stats
+- name: forwarder_stats
   metric:
     exclude:
       zero_metric: true
