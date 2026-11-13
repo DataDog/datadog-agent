@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -36,7 +37,7 @@ func concatenateTypeError(input error, prefix string, expectedType string, colum
 }
 
 func concatenateError(input error, new string) error {
-	return fmt.Errorf("%w %s", input, new)
+	return errors.Join(input, errors.New(new))
 }
 
 func shouldExecuteCustomQuery(lastExecutionTime *time.Time, collectionInterval *int64, now time.Time) bool {
@@ -74,7 +75,6 @@ func (c *Check) CustomQueries() error {
 		c.customQueryLastRuns = make([]time.Time, len(customQueries))
 	}
 
-	var metricRows []metricRow
 	var allErrors error
 	for i, q := range customQueries {
 		// Evaluate each query immediately before starting it. Using one timestamp for the
@@ -84,137 +84,9 @@ func (c *Check) CustomQueries() error {
 			continue
 		}
 
-		/*
-		 * We are creating a dedicated DB connection for custom queries. Custom queries is
-		 * the only feature that switches to PDBs (all other queries are running against the
-		 * root container). Switching to PDB and subsequent query execution isn't atomic, so
-		 * there's no guarantee the both operations would get the same connection from the pool.
-		 * The connection is created lazily so skipped queries do not open one unnecessarily.
-		 */
-		if c.dbCustomQueries == nil {
-			db, err := c.Connect()
-			if err != nil {
-				closeDatabase(c, db)
-				return err
-			}
-			if db == nil {
-				return errors.New("empty connection")
-			}
-			c.dbCustomQueries = db
-		}
-
-		metricRows = metricRows[:0]
-		var errInQuery bool
-		metricPrefix := q.MetricPrefix
-
-		if metricPrefix == "" {
-			metricPrefix = "oracle"
-		}
-		log.Debugf("%s custom query configuration %v", c.logPrompt, q)
-		var pdb string
-		if !c.connectedToPdb {
-			pdb = q.Pdb
-			if pdb == "" {
-				pdb = "CDB$ROOT"
-			}
-			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
-			if err != nil {
-				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
-				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
-				continue
-			}
-		}
-		rows, err := c.dbCustomQueries.Queryx(q.Query)
-		if rows != nil {
-			defer rows.Close()
-		}
+		metricRows, err := c.runCustomQuery(q)
 		if err != nil {
-			allErrors = concatenateError(allErrors, fmt.Sprintf("failed to fetch rows for the custom query %s %s", metricPrefix, err))
-			reconnectOnConnectionError(c, &c.dbCustomQueries, err)
-			continue
-		}
-		for rows.Next() {
-			var metricsFromSingleRow []metricRow
-			var tags []string
-			if pdb != "" {
-				tags = []string{"pdb:" + pdb}
-			}
-			cols, err := rows.SliceScan()
-			if err != nil {
-				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to get values for the custom query %s %s", metricPrefix, err))
-				errInQuery = true
-				break
-			}
-			if len(cols) != len(q.Columns) {
-				allErrors = concatenateError(allErrors, fmt.Sprintf(
-					"column count mismatch for custom query %s: query returned %d columns but %d mappings configured",
-					metricPrefix, len(cols), len(q.Columns)))
-				errInQuery = true
-				break
-			}
-			var metricRow metricRow
-			for i, v := range cols {
-				if q.Columns[i].Type == "tag" {
-					if v != nil {
-						tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
-					}
-				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
-					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
-					if v == nil {
-						allErrors = concatenateError(allErrors, fmt.Sprintf(
-							"NULL value for metric column %s in custom query %s, skipping row",
-							q.Columns[i].Name, metricPrefix))
-						errInQuery = true
-						break
-					}
-					if v_str, ok := v.(string); ok {
-						metricRow.value, err = strconv.ParseFloat(v_str, 64)
-						if err != nil {
-							allErrors = concatenateTypeError(allErrors, metricPrefix, "number", metricRow.name, v, q.Query, err)
-							errInQuery = true
-							break
-						}
-					} else if v_gn, ok := v.(godror.Number); ok { //nolint:revive // TODO(DBM) Fix revive linter
-						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
-						if err != nil {
-							allErrors = concatenateTypeError(allErrors, metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
-							errInQuery = true
-							break
-						}
-					} else if vInt64, ok := v.(int64); ok {
-						metricRow.value = float64(vInt64)
-					} else if vFloat64, ok := v.(float64); ok {
-						metricRow.value = vFloat64
-					} else {
-						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
-						errInQuery = true
-						break
-					}
-
-					metricRow.method = method
-					metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
-				} else {
-					allErrors = concatenateError(allErrors, fmt.Sprintf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name))
-					errInQuery = true
-					break
-				}
-			}
-			if errInQuery {
-				break
-			}
-			tags = append(c.tags, tags...)
-			if len(q.Tags) > 0 {
-				tags = append(tags, q.Tags...)
-			}
-			log.Debugf("%s Appended queried tags to check tags %v", c.logPrompt, tags)
-			for i := range metricsFromSingleRow {
-				metricsFromSingleRow[i].tags = make([]string, len(tags))
-				copy(metricsFromSingleRow[i].tags, tags)
-			}
-			metricRows = append(metricRows, metricsFromSingleRow...)
-		}
-		rows.Close()
-		if errInQuery {
+			allErrors = errors.Join(allErrors, err)
 			continue
 		}
 		for _, m := range metricRows {
@@ -224,4 +96,137 @@ func (c *Check) CustomQueries() error {
 		commit(c)
 	}
 	return allErrors
+}
+
+// runCustomQuery releases rows before recovering its pool, and keeps the query
+// context alive until fetching and cleanup both finish. Each subsequent query
+// (and recovery connection) receives an independent deadline.
+func (c *Check) runCustomQuery(q config.CustomQuery) (_ []metricRow, retErr error) {
+	/*
+	 * We are creating a dedicated DB connection for custom queries. Custom queries is
+	 * the only feature that switches to PDBs (all other queries are running against the
+	 * root container). Switching to PDB and subsequent query execution isn't atomic, so
+	 * there's no guarantee the both operations would get the same connection from the pool.
+	 * The connection is created lazily so skipped queries do not open one unnecessarily.
+	 */
+	if c.dbCustomQueries == nil {
+		db, err := c.Connect()
+		if err != nil {
+			closeDatabase(c, db)
+			return nil, err
+		}
+		if db == nil {
+			return nil, errors.New("empty connection")
+		}
+		c.dbCustomQueries = db
+	}
+
+	var metricRows []metricRow
+	var allErrors error
+	var errInQuery bool
+	metricPrefix := q.MetricPrefix
+
+	if metricPrefix == "" {
+		metricPrefix = "oracle"
+	}
+	log.Debugf("%s custom query configuration %v", c.logPrompt, q)
+	var pdb string
+	if !c.connectedToPdb {
+		pdb = q.Pdb
+		if pdb == "" {
+			pdb = "CDB$ROOT"
+		}
+		err := execWithDeadline(c, c.dbCustomQueries, fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to set container %s: %w", pdb, handleError(c, &c.dbCustomQueries, err))
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.QueryTimeoutDuration())
+	defer cancel()
+	// Cleanup and deadline classification must precede recovery and cancellation.
+	defer func() { retErr = handleError(c, &c.dbCustomQueries, operationError(ctx, retErr)) }()
+	rows, err := c.dbCustomQueries.QueryxContext(ctx, q.Query)
+	if rows != nil {
+		defer func() { retErr = errors.Join(retErr, rows.Err(), rows.Close()) }()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch rows for the custom query %s: %w", metricPrefix, err)
+	}
+	for rows.Next() {
+		var metricsFromSingleRow []metricRow
+		var tags []string
+		if pdb != "" {
+			tags = []string{"pdb:" + pdb}
+		}
+		cols, err := rows.SliceScan()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get values for the custom query %s: %w", metricPrefix, err)
+		}
+		if len(cols) != len(q.Columns) {
+			return nil, fmt.Errorf(
+				"column count mismatch for custom query %s: query returned %d columns but %d mappings configured",
+				metricPrefix, len(cols), len(q.Columns))
+		}
+		var metricRow metricRow
+		for i, v := range cols {
+			if q.Columns[i].Type == "tag" {
+				if v != nil {
+					tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
+				}
+			} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
+				metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
+				if v == nil {
+					allErrors = concatenateError(allErrors, fmt.Sprintf(
+						"NULL value for metric column %s in custom query %s, skipping row",
+						q.Columns[i].Name, metricPrefix))
+					errInQuery = true
+					break
+				}
+				if vStr, ok := v.(string); ok {
+					metricRow.value, err = strconv.ParseFloat(vStr, 64)
+					if err != nil {
+						allErrors = concatenateTypeError(allErrors, metricPrefix, "number", metricRow.name, v, q.Query, err)
+						errInQuery = true
+						break
+					}
+				} else if v_gn, ok := v.(godror.Number); ok { //nolint:revive // TODO(DBM) Fix revive linter
+					metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
+					if err != nil {
+						allErrors = concatenateTypeError(allErrors, metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
+						errInQuery = true
+						break
+					}
+				} else if vInt64, ok := v.(int64); ok {
+					metricRow.value = float64(vInt64)
+				} else if vFloat64, ok := v.(float64); ok {
+					metricRow.value = vFloat64
+				} else {
+					allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
+					errInQuery = true
+					break
+				}
+
+				metricRow.method = method
+				metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
+			} else {
+				allErrors = concatenateError(allErrors, fmt.Sprintf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name))
+				errInQuery = true
+				break
+			}
+		}
+		if errInQuery {
+			break
+		}
+		tags = append(c.tags, tags...)
+		if len(q.Tags) > 0 {
+			tags = append(tags, q.Tags...)
+		}
+		log.Debugf("%s Appended queried tags to check tags %v", c.logPrompt, tags)
+		for i := range metricsFromSingleRow {
+			metricsFromSingleRow[i].tags = make([]string, len(tags))
+			copy(metricsFromSingleRow[i].tags, tags)
+		}
+		metricRows = append(metricRows, metricsFromSingleRow...)
+	}
+	return metricRows, allErrors
 }

@@ -154,11 +154,32 @@ type ConnectionConfig struct {
 	QueryTimeout int    `yaml:"query_timeout"`
 }
 
-func (c ConnectionConfig) QueryTimeoutString() string {
-	if c.QueryTimeout <= 0 {
-		return strconv.Itoa(defaultQueryTimeout)
+// timeoutSeconds keeps both Q and the derived 2Q socket timeout representable.
+// Configuration values are seconds; nonpositive values retain the 20s default.
+func (c ConnectionConfig) timeoutSeconds() int64 {
+	seconds := int64(c.QueryTimeout)
+	if seconds <= 0 {
+		return defaultQueryTimeout
 	}
-	return strconv.Itoa(c.QueryTimeout)
+	maxSeconds := int64((1<<63 - 1) / (2 * time.Second))
+	// godror converts a context deadline to OCI's uint32 millisecond timeout.
+	// Keep extreme values from wrapping in the native driver as well.
+	if c.OracleClient || c.TnsAlias != "" {
+		maxSeconds = min(maxSeconds, int64((1<<32-1)/1000))
+	}
+	if seconds > maxSeconds {
+		return maxSeconds
+	}
+	return seconds
+}
+
+func (c ConnectionConfig) QueryTimeoutString() string {
+	return strconv.FormatInt(c.timeoutSeconds(), 10)
+}
+
+// SocketTimeoutString returns the internal socket fallback, exactly twice Q.
+func (c ConnectionConfig) SocketTimeoutString() string {
+	return strconv.FormatInt(2*c.timeoutSeconds(), 10)
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -199,13 +220,10 @@ type InstanceConfig struct {
 // QueryTimeoutDuration returns query_timeout as time.Duration.
 // If it is less than or equal to 0, it returns the default query timeout.
 func (c *InstanceConfig) QueryTimeoutDuration() time.Duration {
-	if c.QueryTimeout <= 0 {
-		return defaultQueryTimeout * time.Second
-	}
-	return time.Duration(c.QueryTimeout) * time.Second
+	return time.Duration(c.timeoutSeconds()) * time.Second
 }
 
-// QueryTimeoutDuration returns query_timeout as string.
+// QueryTimeoutString returns query_timeout as string.
 // If it is less than or equal to 0, it returns the default query timeout.
 func (c *InstanceConfig) QueryTimeoutString() string {
 	return c.ConnectionConfig.QueryTimeoutString()
