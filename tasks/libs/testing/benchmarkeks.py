@@ -9,17 +9,20 @@ commit with images.
 The images of the agent-qa ECR repositories e2e tests pull from only live for a day, so the baseline images are looked
 up in the registry the container build jobs push to, which keeps them for months, to be published to agent-qa again.
 
-The benchmark only runs manually: this module also writes the pull request comment explaining how to start it.
+This module also writes the pull request comment of the benchmark, which its CI jobs update as it progresses: how to
+start it, that it runs, then its results.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import join_command
@@ -46,10 +49,21 @@ _MISSING_IMAGE_ERRORS = ("MANIFEST_UNKNOWN", "NAME_UNKNOWN", "404 Not Found")
 # The cluster-agent amd64 build tags, from which the pipelines that built a commit are found
 _CLUSTER_AGENT_BUILD_TAG_RE = re.compile(rf"^v(\d+)-([0-9a-f]{{{SHORT_SHA_LENGTH}}})-amd64$")
 
-# The manual CI job starting the benchmark: the other jobs of the benchmark need it
+# The CI job starting the benchmark, manual unless the push changes the benchmark itself: the other jobs of the
+# benchmark need it
 BASELINE_JOB_NAME = "new-e2e-containers-benchmarkeks-baseline"
-# The button of the pull request comment linking to BASELINE_JOB_NAME
-RUN_BADGE_URL = "https://img.shields.io/badge/%E2%96%B6%20Run%20the%20benchmark-632CA6?style=for-the-badge"
+# The CI job running the benchmark, whose log ends with its report
+BENCHMARK_JOB_NAME = "new-e2e-containers-benchmarkeks"
+# The title of the pull request comment, which identifies it: the CI jobs of the benchmark update the same comment
+COMMENT_TITLE = "Agent performance benchmark (benchmarkeks)"
+# The title of the comment of the results of the benchmark before the comment above followed it, deleted when it is
+# updated. TODO: remove once the pull requests whose benchmark ran before are closed.
+LEGACY_COMMENT_TITLE = "Agent performance comparison (benchmarkeks)"
+# The states of the benchmark the comment shows: to start, running, done
+COMMENT_STATES = ("pending", "running", "done")
+# The reports the benchmark writes, JSONReportFile and MarkdownReportFile of test/new-e2e/tests/containers/benchmark
+JSON_REPORT_FILE = "report.json"
+MARKDOWN_REPORT_FILE = "report.md"
 
 
 @dataclass(frozen=True)
@@ -282,7 +296,42 @@ def resolve_baseline(ctx, base_branch: str, branch: str, fetch: bool = True) -> 
     return baseline
 
 
-def instructions_comment(baseline_job_url: str | None, pipeline_url: str) -> str:
+@dataclass(frozen=True)
+class Button:
+    """
+    A link of the pull request comment shown as a large badge of shields.io, to stand out like a button. Its text starts
+    with an emoji telling the state of the benchmark at a glance.
+    """
+
+    text: str
+    # The background color, as hex RGB
+    color: str
+
+    def badge_url(self) -> str:
+        # In the path of a static badge, a dash separates the text from the color: the text doubles its own dashes and
+        # underscores
+        text = self.text.replace("-", "--").replace("_", "__")
+        return f"https://img.shields.io/badge/{quote(text, safe='')}-{self.color}?style=for-the-badge"
+
+    def markdown(self, url: str) -> str:
+        return f"[![{self.text}]({self.badge_url()})]({url})"
+
+
+# The benchmark is to be started, in the purple of Datadog
+RUN_BUTTON = Button("\N{BLACK RIGHT-POINTING TRIANGLE} Run the benchmark", "632CA6")
+# The benchmark runs: an hourglass whose sand is still flowing, in yellow
+RUNNING_BUTTON = Button("\N{HOURGLASS WITH FLOWING SAND} Benchmark running", "DFB317")
+# The benchmark completed: no metric regressed, whether some improved or not
+PASSED_BUTTON = Button("\N{WHITE HEAVY CHECK MARK} No regression", "2EA44F")
+# The benchmark completed, and a metric regressed
+REGRESSION_BUTTON = Button("\N{CROSS MARK} Regression", "E05D44")
+# The benchmark completed, but some metrics couldn't be compared
+INCOMPLETE_BUTTON = Button("\N{WARNING SIGN}\N{VARIATION SELECTOR-16} Incomplete comparison", "FE7D37")
+# The benchmark failed before comparing the versions
+FAILED_BUTTON = Button("\N{WARNING SIGN}\N{VARIATION SELECTOR-16} Benchmark failed", "FE7D37")
+
+
+def pending_comment(baseline_job_url: str | None, pipeline_url: str) -> str:
     """
     Returns the pull request comment explaining how to start the benchmark: a button linking to the manual job
     BASELINE_JOB_NAME, whose page has a button running it, or a link to the pipeline if the job's URL is unknown.
@@ -291,9 +340,74 @@ def instructions_comment(baseline_job_url: str | None, pipeline_url: str) -> str
         action, button = f"play the manual job `{BASELINE_JOB_NAME}` of [the pipeline]({pipeline_url})", ""
     else:
         action = f"open the manual job `{BASELINE_JOB_NAME}` with the button below, then click **Run job**"
-        button = f"\n[![Run the benchmark]({RUN_BADGE_URL})]({baseline_job_url})\n"
+        button = f"\n{RUN_BUTTON.markdown(baseline_job_url)}\n"
     return (
-        "This pull request changes the `benchmarkeks` performance benchmark or the code it measures, and the "
-        "benchmark only runs manually. To compare the resource usage of its Agent with the one of its base branch, "
-        f"{action}: the other jobs of the benchmark run after it, on an EKS cluster.\n{button}"
+        "This pull request changes code that the `benchmarkeks` performance benchmark measures. To compare the "
+        f"resource usage of its Agent with the one of its base branch, {action}: the other jobs of the benchmark run "
+        "after it, on an EKS cluster, for about 2 hours, and this comment then shows their progress and results.\n"
+        f"{button}"
     )
+
+
+def running_comment(benchmark_job_url: str, pipeline_url: str, commit: str, started_at: datetime) -> str:
+    """
+    Returns the pull request comment telling that the benchmark of commit started at started_at, in the pipeline at
+    pipeline_url, with a button linking to benchmark_job_url.
+    """
+    return (
+        f"{RUNNING_BUTTON.markdown(benchmark_job_url)}\n\n"
+        f"The benchmark of commit `{commit}` started at {started_at.astimezone(UTC):%Y-%m-%d %H:%M} UTC in "
+        f"[its pipeline]({pipeline_url}). It lasts about 2 hours, after which this comment shows its results.\n"
+    )
+
+
+def outcome_button(report: Mapping) -> Button:
+    """
+    Returns the button telling the outcome of the benchmark from its JSON report.
+    """
+    # The Go report marshals no results as null
+    verdicts = {result.get("verdict") for result in report.get("results") or []}
+    if "regression" in verdicts:
+        return REGRESSION_BUTTON
+    if "error" in verdicts:
+        return INCOMPLETE_BUTTON
+    return PASSED_BUTTON
+
+
+def done_comment(
+    benchmark_job_url: str, pipeline_url: str, commit: str, report: Mapping | None, report_markdown: str | None
+) -> str:
+    """
+    Returns the pull request comment of the results of the benchmark of commit: a button telling its outcome, linking
+    to benchmark_job_url, then its Markdown report. report and report_markdown are the JSON and Markdown reports (see
+    read_reports), None if the benchmark failed before writing them.
+    """
+    if report is None or not report_markdown:
+        return (
+            f"{FAILED_BUTTON.markdown(benchmark_job_url)}\n\nThe benchmark of commit `{commit}` failed before comparing "
+            f"the versions: see the log of [its job]({benchmark_job_url}).\n"
+        )
+    return (
+        f"{outcome_button(report).markdown(benchmark_job_url)}\n\nResults of the benchmark of commit `{commit}`, in "
+        f"[its pipeline]({pipeline_url}).\n\n{report_markdown}"
+    )
+
+
+def read_reports(report_dir: str) -> tuple[dict | None, str | None]:
+    """
+    Returns the JSON and Markdown reports of the benchmark in report_dir, each None if the benchmark didn't write it,
+    or left it unreadable, e.g. truncated in the middle of the JSON or of a character.
+    """
+    if not report_dir:
+        return None, None
+
+    def read(name: str, load: Callable):
+        # The reports are UTF-8, with emojis, whatever the locale of the job. OSError covers a missing or unreadable
+        # file, ValueError the errors of JSON and of UTF-8 decoding.
+        try:
+            with open(os.path.join(report_dir, name), encoding="utf-8") as f:
+                return load(f)
+        except (OSError, ValueError):
+            return None
+
+    return read(JSON_REPORT_FILE, json.load), read(MARKDOWN_REPORT_FILE, lambda f: f.read())
