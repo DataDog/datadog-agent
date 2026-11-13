@@ -772,7 +772,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	)
 }
 
-// startTagFilterDemux starts a demultiplexer with a rule stripping the pod tag from dist.metric and count.metric,
+// startTagFilterDemux starts a demultiplexer with a rule filtering the pod tag from dist.metric and count.metric,
 // and registers check samplers.
 func startTagFilterDemux(t *testing.T, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
 	return startTagFilterDemuxWithSettings(t, map[string]any{"metric_tag_filterlist_adp_only": false}, checks...)
@@ -826,7 +826,7 @@ func waitForCheckItems(t *testing.T, demux *AgentDemultiplexer) {
 	}
 }
 
-// submitPodMetrics submits, from a check instance for a pod, a distribution and a counter that the rule strips
+// submitPodMetrics submits, from a check instance for a pod, a distribution and a counter that the rule filters
 // to one series across pods, and a gauge it doesn't filter, then commits.
 func submitPodMetrics(demux *AgentDemultiplexer, id checkid.ID, pod string, count float64) {
 	tags := []string{"env:prod", "pod:" + pod}
@@ -866,7 +866,7 @@ func sketchesNamed(sketches []metrics.Distribution, name string) []*metrics.Sket
 	return out
 }
 
-// mergedSeriesTotal checks that the series sent for a metric have the stripped tags, its type and each second once,
+// mergedSeriesTotal checks that the series sent for a metric have the filtered tags, its type and each second once,
 // and sums their points.
 func mergedSeriesTotal(t *testing.T, series []*metrics.Serie, name string, mtype metrics.APIMetricType) float64 {
 	t.Helper()
@@ -884,7 +884,7 @@ func mergedSeriesTotal(t *testing.T, series []*metrics.Serie, name string, mtype
 	return sum
 }
 
-// mergedSketchCount checks that sketches have the stripped tags and each second once, and counts their samples.
+// mergedSketchCount checks that sketches have the filtered tags and each second once, and counts their samples.
 func mergedSketchCount(t *testing.T, sketches []*metrics.SketchSeries) int64 {
 	t.Helper()
 	var count int64
@@ -968,7 +968,7 @@ func TestTagFilterListAgentCheckSendsHeldPoints(t *testing.T) {
 }
 
 // TestTagFilterListMergesThroughCheckSenders submits as checks do, through their senders, from two check instances
-// whose metrics strip to the same series.
+// whose metrics filter to the same series.
 func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
 	demux, s := startTagFilterDemux(t)
 	defer demux.Stop()

@@ -23,16 +23,16 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
-	Name       string
-	Host       string
-	mtype      metrics.MetricType
-	taggerTags *tags.Entry
-	metricTags *tags.Entry
-	noIndex    bool
-	stripFlags stripFlags
-	source     metrics.MetricSource
+	Name           string
+	Host           string
+	mtype          metrics.MetricType
+	taggerTags     *tags.Entry
+	metricTags     *tags.Entry
+	noIndex        bool
+	tagFilterFlags tagFilterFlags
+	source         metrics.MetricSource
 
-	strippedIdentityRef uint32
+	filteredIdentityRef uint32
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
@@ -106,9 +106,9 @@ type contextResolver struct {
 	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
 	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
 	tagFilterEnabled bool
-	// stripped is set for check samplers, which keep the full tags of contexts and strip only their output.
-	stripped *strippedIdentityTable
-	// sketchesPerTimestamp is set when check_sampler_sketches_at_commit is off: the check sampler's sketches aren't stripped.
+	// filteredIdentities is set for check samplers, which keep the full tags of contexts and filter only their output.
+	filteredIdentities *filteredIdentityTable
+	// sketchesPerTimestamp is set when check_sampler_sketches_at_commit is off: the check sampler's sketches aren't filtered.
 	sketchesPerTimestamp bool
 }
 
@@ -123,9 +123,10 @@ func tagFilterEnabled(cfg model.Reader) bool {
 	return cfg.GetBool("data_plane.enabled") || !cfg.GetBool("metric_tag_filterlist_adp_only")
 }
 
-// newContextResolver returns a resolver. stripped is set for check samplers, which keep the full tags of contexts and
-// strip only their output, and sketchesPerTimestamp when their sketches are stamped per second of submission.
-func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, stripped *strippedIdentityTable, sketchesPerTimestamp bool) *contextResolver {
+// newContextResolver returns a resolver. filteredIdentities is set for check samplers, which keep the full tags of
+// contexts and filter only their output, and sketchesPerTimestamp when their sketches are stamped per second of
+// submission.
+func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, filteredIdentities *filteredIdentityTable, sketchesPerTimestamp bool) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
 	return &contextResolver{
 		id:                   id,
@@ -141,7 +142,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, s
 		metricBuffer:         tagset.NewHashingTagsAccumulator(),
 		tagFilterCache:       newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
 		tagFilterEnabled:     tagFilterEnabled(cfg),
-		stripped:             stripped,
+		filteredIdentities:   filteredIdentities,
 		sketchesPerTimestamp: sketchesPerTimestamp,
 	}
 }
@@ -155,12 +156,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
-	if cr.stripped == nil && filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
+	if cr.filteredIdentities == nil && filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
-	tracksOutput := cr.stripped != nil && cr.tagFilterEnabled
+	tracksOutput := cr.filteredIdentities != nil && cr.tagFilterEnabled
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
@@ -174,8 +175,8 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			source:     metricSampleContext.GetSource(),
 		}
 		if tracksOutput {
-			if cr.stripped.wasStripped(context.Name) {
-				context.stripFlags.set(routedToMerger)
+			if cr.filteredIdentities.wasFiltered(context.Name) {
+				context.tagFilterFlags.set(routedToMerger)
 			}
 			cr.trackOutput(context, metricSampleContext, filterList)
 		}
@@ -265,7 +266,7 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 		cr.countsByMtype[context.mtype]--
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
-		cr.releaseStripped(context)
+		cr.releaseFiltered(context)
 		context.release()
 	}
 }
@@ -289,7 +290,7 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
-		cr.releaseStripped(c.context)
+		cr.releaseFiltered(c.context)
 		c.context.release()
 	}
 	cr.clearTagFilterCache()
@@ -397,11 +398,11 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-// newCountBasedContextResolver returns a resolver that records in stripped, if it's set, the identities contexts strip
-// to at output, instead of tracking stripped contexts.
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, stripped *strippedIdentityTable, sketchesPerTimestamp bool) *countBasedContextResolver {
+// newCountBasedContextResolver returns a resolver that records in filteredIdentities, if it's set, the identities
+// contexts filter to at output, instead of tracking filtered contexts.
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, filteredIdentities *filteredIdentityTable, sketchesPerTimestamp bool) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(tagger, cache, id, stripped, sketchesPerTimestamp),
+		resolver:            newContextResolver(tagger, cache, id, filteredIdentities, sketchesPerTimestamp),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}

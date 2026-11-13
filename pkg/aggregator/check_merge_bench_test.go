@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// The check output benchmarks compare the aggregator's check path without filtering, with a rule that strips the
+// The check output benchmarks compare the aggregator's check path without filtering, with a rule that filters the
 // pod tag (sources collapse into a few series), and with a rule that matches no metric.
 
 const benchMetric = "bench.metric"
@@ -29,14 +29,14 @@ type benchMode int
 
 const (
 	benchNoRule benchMode = iota
-	benchStripsPod
+	benchFiltersPod
 	benchRuleForAnotherMetric
 )
 
 func (m benchMode) String() string { return [...]string{"off", "on", "no-match"}[m] }
 
 // benchScenario is check instances submitting one metric type. Each source context has a pod tag, which the rule
-// strips, and a ctx tag, which it keeps: sources collapse into `contexts` series.
+// filters, and a ctx tag, which it keeps: sources collapse into `contexts` series.
 type benchScenario struct {
 	name            string
 	mtype           metrics.MetricType
@@ -73,7 +73,7 @@ func newBenchHarness(tb testing.TB, sc benchScenario, mode benchMode) *benchHarn
 	h := &benchHarness{sc: sc, agg: newModelAggregator()}
 	rules := map[string]filterlistimpl.MetricTagList{}
 	switch mode {
-	case benchStripsPod:
+	case benchFiltersPod:
 		rules[benchMetric] = filterlistimpl.MetricTagList{Tags: []string{"pod"}, Action: "exclude"}
 	case benchRuleForAnotherMetric:
 		rules["other.metric"] = filterlistimpl.MetricTagList{Tags: []string{"pod"}, Action: "exclude"}
@@ -131,7 +131,7 @@ func (h *benchHarness) run(run int) {
 	h.flush(run)
 }
 
-var benchModes = []benchMode{benchNoRule, benchStripsPod, benchRuleForAnotherMetric}
+var benchModes = []benchMode{benchNoRule, benchFiltersPod, benchRuleForAnotherMetric}
 
 func BenchmarkCheckOutputRun(b *testing.B) {
 	configmock.New(b).SetInTest("metric_tag_filterlist_adp_only", false)
@@ -152,14 +152,14 @@ func BenchmarkCheckOutputRun(b *testing.B) {
 	}
 }
 
-// BenchmarkCheckOutputRuleChange measures applying new rules with many contexts, which restrips every context of
+// BenchmarkCheckOutputRuleChange measures applying new rules with many contexts, which refilters every context of
 // every check sampler under the aggregator's lock.
 func BenchmarkCheckOutputRuleChange(b *testing.B) {
 	configmock.New(b).SetInTest("metric_tag_filterlist_adp_only", false)
 	for _, instances := range []int{200, 2000} {
 		sc := benchScenario{mtype: metrics.CounterType, instances: instances, podsPerInstance: 1, contexts: 50, samplesPerRun: 1}
 		b.Run(fmt.Sprintf("contexts=%d", instances*sc.contexts), func(b *testing.B) {
-			h := newBenchHarness(b, sc, benchStripsPod)
+			h := newBenchHarness(b, sc, benchFiltersPod)
 			h.run(0)
 			rules := []map[string]filterlistimpl.MetricTagList{
 				{benchMetric: {Tags: []string{"pod"}, Action: "exclude"}},

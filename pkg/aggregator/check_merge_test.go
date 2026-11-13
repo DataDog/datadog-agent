@@ -257,12 +257,12 @@ func TestCheckOutputMergerMergesMetadata(t *testing.T) {
 	assert.True(t, sketches[0].NoIndex)
 }
 
-func TestCheckOutputMergerAfterARuleStartsStripping(t *testing.T) {
+func TestCheckOutputMergerAfterARuleStartsFiltering(t *testing.T) {
 	m := newTestCheckOutputMerger()
 	var series metrics.Series
 
-	// Before the rule, a source whose identity is unchanged by stripping may have sent second 100 unfiltered.
-	m.startedStripping(map[string]int64{"my.counter": 101})
+	// Before the rule, a source whose identity is unchanged by filtering may have sent second 100 unfiltered.
+	m.startedFiltering(map[string]int64{"my.counter": 101})
 
 	other := filteredCounter(2, metrics.Point{Ts: 100.5, Value: 1})
 	other.Name = "other.counter"
@@ -280,19 +280,19 @@ func TestCheckOutputMergerKeepsPendingPointsAcrossRuleUpdates(t *testing.T) {
 
 	// Points committed since the last flush, then the same rules are sent again, or rules for other metrics.
 	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 101.2, Value: 1}, metrics.Point{Ts: 108.2, Value: 1})})
-	m.startedStripping(nil)
-	m.startedStripping(map[string]int64{"other.counter": 115})
+	m.startedFiltering(nil)
+	m.startedFiltering(map[string]int64{"other.counter": 115})
 	m.flush(116, &series, nil)
 
 	assert.Equal(t, []metrics.Point{{Ts: 101, Value: 1}, {Ts: 108, Value: 1}}, sentPoints(series)[1])
 }
 
-func TestCheckOutputMergerRuleStartsStrippingInTheSecondOfAFlush(t *testing.T) {
+func TestCheckOutputMergerRuleStartsFilteringInTheSecondOfAFlush(t *testing.T) {
 	m := newTestCheckOutputMerger()
 	var series metrics.Series
 
 	// The change and a flush fall in second 115: the point moves to 116 and is held.
-	m.startedStripping(map[string]int64{"my.counter": 116})
+	m.startedFiltering(map[string]int64{"my.counter": 116})
 	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 115, Value: 1})})
 	m.flush(115, &series, nil)
 	require.Empty(t, series)

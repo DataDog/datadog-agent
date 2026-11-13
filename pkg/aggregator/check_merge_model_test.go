@@ -36,16 +36,16 @@ import (
 // that predates it (when contexts expire, sketches held in their commit second), it reproduces the existing code.
 // The test checks:
 //
-//   - Every committed contribution is sent once, in the series it strips to under the rules when it's released, and
+//   - Every committed contribution is sent once, in the series it filters to under the rules when it's released, and
 //     no earlier than the model's second (the merge stage only moves points later). Without clock steps, every point
-//     is sent in exactly the model's second: its own, or for a metric a rule change started stripping, the second
+//     is sent in exactly the model's second: its own, or for a metric a rule change started filtering, the second
 //     after the change if it was committed in the change's.
 //   - A merged series never has a second sent twice, nor, outside seconds a backward clock step reached again,
 //     sent both merged and not.
 //   - Without clock steps, a flush has sent everything committed before its cutoff, and a merged point isn't
 //     indexed if any of its second's sources asks not to be, and has the lowest of their origins.
 //   - Metrics no rule ever matches are sent exactly as by an aggregator without rules.
-//   - Stripped identities are referenced by exactly the contexts that strip to them, and released with them.
+//   - Filtered identities are referenced by exactly the contexts that filter to them, and released with them.
 
 const (
 	modelCounter                  = "m.counter"
@@ -59,7 +59,7 @@ const (
 // modelFiltered are the metrics rules match.
 var modelFiltered = []string{modelCounter, modelDist}
 
-// modelRules are the rule sets a run switches between: which tag names are stripped from the filtered metrics.
+// modelRules are the rule sets a run switches between: which tag names are filtered from the filtered metrics.
 var modelRules = [][]string{nil, {"pod"}, {"zone"}, {"pod", "zone"}}
 
 var modelMetrics = []struct {
@@ -73,7 +73,7 @@ var modelMetrics = []struct {
 }
 
 // modelSources returns the tags of a sampler's sources. The last sampler also has a source without a pod tag,
-// whose full tags are what the others strip to when the pod tag is stripped.
+// whose full tags are what the others filter to when the pod tag is filtered.
 func modelSources(sampler int) [][]string {
 	return modelSourceTags[sampler]
 }
@@ -182,10 +182,10 @@ type modelRun struct {
 	registered []bool
 	removing   []bool
 	samplers   []*modelSampler
-	// stamped are the metrics stripped since the start, with the second they first were: their output is merged,
+	// stamped are the metrics filtered since the start, with the second they first were: their output is merged,
 	// and their sketches are stamped at commit.
 	stamped map[string]int64
-	// notBefore is, for metrics stripped since the start, the second after the latest commit when they first were.
+	// notBefore is, for metrics filtered since the start, the second after the latest commit when they first were.
 	notBefore map[string]int64
 	// lastCommitSecond is the second of the latest commit.
 	lastCommitSecond int64
@@ -195,7 +195,7 @@ type modelRun struct {
 	sent            modelPoints
 	mergedSeconds   map[string]bool
 	unmergedSeconds map[string]bool
-	stampedSeconds  map[string]bool // of metrics stripped since the start, merged or not
+	stampedSeconds  map[string]bool // of metrics filtered since the start, merged or not
 	events          []string        // to report how a failing run got there
 }
 
@@ -250,7 +250,7 @@ func (r *modelRun) register(i int) {
 	r.registered[i], r.removing[i] = true, false
 }
 
-// stamp records that a metric is stripped. The first time, its merged points move past the latest commit's second.
+// stamp records that a metric is filtered. The first time, its merged points move past the latest commit's second.
 func (r *modelRun) stamp(name string) {
 	if _, ok := r.stamped[name]; ok {
 		return
@@ -260,7 +260,7 @@ func (r *modelRun) stamp(name string) {
 }
 
 // secondOf returns the second a series point of a metric committed in a second is sent in: merged once the metric
-// has been stripped.
+// has been filtered.
 func (r *modelRun) secondOf(name string, second int64) int64 {
 	if _, ok := r.stamped[name]; ok {
 		return r.mergedSecond(name, second)
@@ -286,13 +286,13 @@ func (r *modelRun) applyRule(rule int) {
 	r.event("rule %v", modelRules[rule])
 	r.rule = rule
 	rules := map[string]filterlistimpl.MetricTagList{}
-	if stripped := modelRules[rule]; len(stripped) > 0 {
+	if filtered := modelRules[rule]; len(filtered) > 0 {
 		for _, name := range modelFiltered {
-			rules[name] = filterlistimpl.MetricTagList{Tags: stripped, Action: "exclude"}
+			rules[name] = filterlistimpl.MetricTagList{Tags: filtered, Action: "exclude"}
 		}
 	}
 	r.agg.setFilterList(filterlistimpl.NewTagMatcher(rules, logmock.New(r.t)))
-	// Every context the aggregator still has is restripped, including those of samplers being removed.
+	// Every context the aggregator still has is refiltered, including those of samplers being removed.
 	for i, s := range r.samplers {
 		if s == nil || !r.registered[i] {
 			continue
@@ -330,7 +330,7 @@ func (r *modelRun) sample(i int) {
 	sources := modelSources(i)
 	tags := sources[r.rng.Intn(len(sources))]
 	if i == modelSamplers-1 && r.rng.Intn(2) == 0 {
-		tags = sources[len(sources)-1] // the source whose full tags are what the others strip to, often
+		tags = sources[len(sources)-1] // the source whose full tags are what the others filter to, often
 	}
 	noIndex, origin := modelSourceMeta(tags)
 	value := float64(1 + r.rng.Intn(5))
@@ -534,12 +534,12 @@ func sortedTags(tags []string) []string {
 
 func (r *modelRun) recordSecond(series string, second int64, merged bool) {
 	key := fmt.Sprintf("%s@%d", series, second)
-	// Once a metric has been stripped, all of its output is merged: no second after that is sent twice for any of
+	// Once a metric has been filtered, all of its output is merged: no second after that is sent twice for any of
 	// its series, filtered or not (two commits in one second included), outside seconds a backward clock step
 	// reached again.
 	_, name, _ := strings.Cut(series, "|")
-	if strippedAt, ok := r.stamped[strings.SplitN(name, "|", 2)[0]]; ok && second > strippedAt && (!r.cfg.clockSteps || float64(second) > r.highWater) {
-		require.False(r.t, r.stampedSeconds[key] && !r.cfg.longClockSteps, "%s sent twice after its metric was stripped, after:\n%s", key, r.history())
+	if filteredAt, ok := r.stamped[strings.SplitN(name, "|", 2)[0]]; ok && second > filteredAt && (!r.cfg.clockSteps || float64(second) > r.highWater) {
+		require.False(r.t, r.stampedSeconds[key] && !r.cfg.longClockSteps, "%s sent twice after its metric was filtered, after:\n%s", key, r.history())
 		r.stampedSeconds[key] = true
 	}
 	if merged {
@@ -642,19 +642,19 @@ func (r *modelRun) finish() {
 		require.Contains(r.t, r.expected, series, "%s: sent, but nothing was committed for it, after:\n%s", series, r.history())
 	}
 
-	// Every stripped identity is referenced by the contexts that strip to it, and released with the last of them.
+	// Every filtered identity is referenced by the contexts that filter to it, and released with the last of them.
 	refs := map[uint32]uint32{}
 	for _, cs := range r.agg.checkSamplers {
 		for _, entry := range cs.contextResolver.resolver.contextsByKey {
-			if entry.context.strippedIdentityRef != 0 {
-				refs[entry.context.strippedIdentityRef]++
+			if entry.context.filteredIdentityRef != 0 {
+				refs[entry.context.filteredIdentityRef]++
 			}
 		}
 	}
-	table := r.agg.strippedIdentities
+	table := r.agg.filteredIdentities
 	require.Len(r.t, table.byKey, len(refs))
 	for _, ref := range table.byKey {
-		require.Equal(r.t, refs[ref], table.get(ref).refs, "references to a stripped identity")
+		require.Equal(r.t, refs[ref], table.get(ref).refs, "references to a filtered identity")
 	}
 	for i := range r.registered {
 		if r.registered[i] {
@@ -662,7 +662,7 @@ func (r *modelRun) finish() {
 		}
 	}
 	r.flushAggregator(r.agg, trigger{time: time.Unix(0, int64(r.clock*float64(time.Second))), final: true})
-	require.Empty(r.t, table.byKey, "stripped identities are released with their samplers")
+	require.Empty(r.t, table.byKey, "filtered identities are released with their samplers")
 }
 
 // TestCheckOutputMatchesModel runs 200 random sequences of 300 steps per configuration, or 20 with -short. Set

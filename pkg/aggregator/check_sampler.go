@@ -66,13 +66,13 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
-	strippedIdentities *strippedIdentityTable,
+	filteredIdentities *filteredIdentityTable,
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), strippedIdentities, !sketchesAtCommit),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities, !sketchesAtCommit),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		pendingSketches:        make(contextSketches),
 		sketchesPerTimestamp:   newSketchesPerTimestamp(sketchesAtCommit),
@@ -124,11 +124,11 @@ func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoi
 	return ss
 }
 
-// mergedIdentity returns the key and tags of the series a context's output is merged into: stripped while a rule
+// mergedIdentity returns the key and tags of the series a context's output is merged into: filtered while a rule
 // applies, and its own otherwise.
 func (cs *CheckSampler) mergedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.ContextKey, tagset.CompositeTags) {
-	if stripped, ok := cs.contextResolver.resolver.strippedOf(ctx); ok {
-		return stripped.key, stripped.Tags()
+	if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
+		return filtered.key, filtered.Tags()
 	}
 	return ck, ctx.Tags()
 }
@@ -362,8 +362,8 @@ func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
 	cs.lastCommitSecond = max(cs.lastCommitSecond, int64(timestamp))
-	if cs.contextResolver.resolver.stripped != nil {
-		cs.contextResolver.resolver.stripped.noteCommit(timestamp)
+	if cs.contextResolver.resolver.filteredIdentities != nil {
+		cs.contextResolver.resolver.filteredIdentities.noteCommit(timestamp)
 	}
 	cs.commitSeries(timestamp, filterList)
 	cs.commitSketches(timestamp, filterList)
@@ -395,8 +395,8 @@ func (cs *CheckSampler) commitDecomposable(timestamp float64, filterList *metric
 		return
 	}
 	cs.lastCommitSecond = int64(seriesTimestamp)
-	if cs.contextResolver.resolver.stripped != nil {
-		cs.contextResolver.resolver.stripped.notePeriodicFlush(seriesTimestamp)
+	if cs.contextResolver.resolver.filteredIdentities != nil {
+		cs.contextResolver.resolver.filteredIdentities.notePeriodicFlush(seriesTimestamp)
 	}
 	series, errors, keys := cs.metrics.FlushDecomposable(seriesTimestamp)
 	cs.appendSeries(series, errors, filterList)
@@ -480,15 +480,15 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 	}
 }
 
-// restrip updates the identity every context strips to at output, after the rules changed. Once every sampler
-// restripped, markStrippedMetrics must be called on each.
-func (cs *CheckSampler) restrip(filterList filterlist.TagMatcher) {
-	cs.contextResolver.resolver.restrip(filterList)
+// refilter updates the identity every context filters to at output, after the rules changed. Once every sampler
+// refiltered, markFilteredMetrics must be called on each.
+func (cs *CheckSampler) refilter(filterList filterlist.TagMatcher) {
+	cs.contextResolver.resolver.refilter(filterList)
 }
 
-// markStrippedMetrics marks the contexts of metrics stripped since the Agent started, after the rules changed.
-func (cs *CheckSampler) markStrippedMetrics() {
-	cs.contextResolver.resolver.markStrippedMetrics()
+// markFilteredMetrics marks the contexts of metrics filtered since the Agent started, after the rules changed.
+func (cs *CheckSampler) markFilteredMetrics() {
+	cs.contextResolver.resolver.markFilteredMetrics()
 }
 
 // addsUp returns whether a series' points add up across sources: the single series of a counter. Other series of a context that merges at output come from metric state that outlived an earlier

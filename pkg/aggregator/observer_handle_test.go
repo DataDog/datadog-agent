@@ -183,7 +183,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			name: "check sampler",
 			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore(false, "test"), "test-check", tagger, newStrippedIdentityTable())
+				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore(false, "test"), "test-check", tagger, newFilteredIdentityTable())
 				handle := &recordingHandle{}
 				sampler.SetObserverHandle(handle)
 				sampler.addSample(sample, matcher)
@@ -357,7 +357,7 @@ func TestSetObserverReportingEventsGateOn(t *testing.T) {
 // sample fed to CheckSampler.addSample when an observerHandle is wired.
 func TestCheckSamplerObserverHandle(t *testing.T) {
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newStrippedIdentityTable())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
 
@@ -387,7 +387,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 func TestCheckSamplerObserverHandleUsesFullTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newStrippedIdentityTable())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
 
@@ -412,7 +412,7 @@ func TestCheckSamplerObserverHandleUsesFullTags(t *testing.T) {
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestCheckSamplerObserverHandleNil(t *testing.T) {
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newStrippedIdentityTable())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent(), newFilteredIdentityTable())
 	// observerHandle is nil by default
 
 	matcher := filterlist.NewNoopTagMatcher()

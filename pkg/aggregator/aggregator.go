@@ -287,7 +287,7 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
-	strippedIdentities     *strippedIdentityTable
+	filteredIdentities     *filteredIdentityTable
 	checkOutputMerger      *checkOutputMerger
 	tagFilterEnabled       bool
 	serviceChecks          servicecheck.ServiceChecks
@@ -379,7 +379,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
-		strippedIdentities:          newStrippedIdentityTable(),
+		filteredIdentities:          newFilteredIdentityTable(),
 		checkOutputMerger:           newCheckOutputMerger(flushInterval),
 		tagFilterEnabled:            tagFilterEnabled(pkgconfigsetup.Datadog()),
 		flushInterval:               flushInterval,
@@ -592,7 +592,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	agg.checkOutputMerger.startedStripping(agg.strippedIdentities.takeNotBefore())
+	agg.checkOutputMerger.startedFiltering(agg.filteredIdentities.takeNotBefore())
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
@@ -975,7 +975,7 @@ func (agg *BufferedAggregator) run() {
 	}
 }
 
-// setFilterList applies new metric_tag_filterlist rules: check samplers restrip their contexts.
+// setFilterList applies new metric_tag_filterlist rules: check samplers refilter their contexts.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
@@ -985,10 +985,10 @@ func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
 	}
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
-		cs.restrip(matcher)
+		cs.refilter(matcher)
 	}
 	for _, cs := range agg.checkSamplers {
-		cs.markStrippedMetrics()
+		cs.markFilteredMetrics()
 	}
 }
 
@@ -1129,7 +1129,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
-		agg.strippedIdentities,
+		agg.filteredIdentities,
 	)
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)
