@@ -371,8 +371,8 @@ func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *tran
 
 	if err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
 		// As in Worker.process, a canceled context means the caller stopped waiting
-		// for a response, not that the endpoint is unhealthy: do not trip the
-		// circuit breaker, but still surface the cancellation to the caller.
+		// for a response, not that the endpoint is unhealthy: do set the domain blockedList,
+		// but still surface the cancellation to the caller.
 		if !errors.Is(err, context.Canceled) {
 			f.blockedList.close(target, time.Now())
 		}
