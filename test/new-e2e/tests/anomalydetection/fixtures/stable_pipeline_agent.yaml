@@ -1,0 +1,23 @@
+log_level: debug
+anomaly_detection:
+  use_metric_pipeline: true
+  metric_pipeline:
+    stable:
+      min_relative_change: 0.05
+  anomaly_scorer:
+    dry_run:
+      enabled: true
+  metrics:
+    enabled: true
+    processing_rules:
+      - type: include_at_match
+        name: keep_stable_pipeline_metrics
+        name_pattern: e2e.anomalydetection.stable.*
+      - type: exclude_at_match
+        name: drop_everything_else
+  logs:
+    enabled: false
+    internal:
+      enabled: false
+  baseline_analysis:
+    enabled: false

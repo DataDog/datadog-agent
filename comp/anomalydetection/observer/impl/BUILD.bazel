@@ -114,6 +114,7 @@ dd_agent_go_test(
         "profile_test.go",
         "scheduler_test.go",
         "stable_pipeline_test.go",
+        "stable_pipeline_wave_test.go",
         "stateview_test.go",
         "storage_test.go",
         "streaming_replay_test.go",
