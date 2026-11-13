@@ -24,6 +24,7 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameNetDeviceStructRtnlLinkOps,
 	constantfetch.OffsetNameSockStructSKProtocol,
 	// Thread pointer offsets: BTF/BTFHub-only by design. task_struct.thread has
 	// 34 distinct values on amd64 (46 on arm64) across BTFHub

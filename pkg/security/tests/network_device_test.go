@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
@@ -265,6 +266,107 @@ func TestTCFilters(t *testing.T) {
 	if err := test.CheckZombieProcesses(); err != nil {
 		t.Errorf("failed checking for zombie processes: %v", err)
 	}
+}
+
+var _ = declare(TestTCFiltersSkipDummy, testOpts{networkIngressEnabled: true})
+
+func TestTCFiltersSkipDummy(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping tc filters test in docker")
+	}
+
+	if !env.IsContainerized() {
+		// some kernels (e.g. openSUSE KMT images) don't ship the dummy driver, so no dummy interface can exist there
+		if out, err := exec.Command("modprobe", "dummy").CombinedOutput(); err != nil {
+			t.Skipf("'dummy' module unavailable (out=%s): %v", string(out), err)
+		}
+	}
+
+	// dummy rule to force the activation of netdev-related probes
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `dns.question.type == A`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	const netnsName, dummyName = "cws_dummy_netns", "cws-dummy0"
+	ipExecutable := which(t, "ip")
+	if out, err := exec.Command(ipExecutable, "netns", "add", netnsName).CombinedOutput(); err != nil {
+		t.Fatalf("couldn't create netns (out=%s): %v", string(out), err)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command(ipExecutable, "netns", "delete", netnsName).Run()
+	})
+
+	sleepCmd := exec.Command(ipExecutable, "netns", "exec", netnsName, which(t, "sleep"), "600")
+	if err := sleepCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = sleepCmd.Process.Kill()
+		_ = sleepCmd.Wait()
+	})
+	netNs := utils.NewNSPathFromPid(uint32(sleepCmd.Process.Pid), utils.NetNsType)
+
+	hooked := func(linkName string) (bool, error) {
+		ingress, egress, err := tcFiltersExist(netNs, linkName, "classifier_ingress", "classifier_egress")
+		return ingress || egress, err
+	}
+
+	require.Eventually(t, func() bool {
+		ok, err := hooked("lo")
+		return err == nil && ok
+	}, 5*time.Second, 100*time.Millisecond, "lo should be hooked")
+
+	t.Run("register_netdevice", func(t *testing.T) {
+		if out, err := exec.Command(ipExecutable, "netns", "exec", netnsName, ipExecutable, "link", "add", dummyName, "type", "dummy").CombinedOutput(); err != nil {
+			t.Fatalf("couldn't create dummy interface (out=%s): %v", string(out), err)
+		}
+
+		assert.Never(t, func() bool {
+			ok, err := hooked(dummyName)
+			return err != nil || ok
+		}, 2*time.Second, 100*time.Millisecond, "dummy interface shouldn't be hooked (or its filters couldn't be listed)")
+	})
+
+	t.Run("snapshot", func(t *testing.T) {
+		nsID, err := netNs.GetNSID()
+		require.NoError(t, err)
+
+		ns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID)
+		require.NotNil(t, ns)
+		p.FlushNetworkNamespace(ns)
+
+		// the async netns handle requests of earlier events may re-resolve the namespace first, which snapshots it as well
+		p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, netNs)
+
+		// the flush detached lo, only a snapshot can hook it again
+		require.Eventually(t, func() bool {
+			ok, err := hooked("lo")
+			return err == nil && ok
+		}, 5*time.Second, 100*time.Millisecond, "lo should be hooked again by the snapshot")
+
+		dummyHooked, err := hooked(dummyName)
+		require.NoError(t, err)
+		assert.False(t, dummyHooked, "dummy interface shouldn't be hooked")
+	})
 }
 
 func tcFiltersExist(netNs *utils.NSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {
