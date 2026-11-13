@@ -1,0 +1,50 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package flare
+
+import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+
+	"github.com/stretchr/testify/assert"
+)
+
+type windowsFlareSuite struct {
+	baseFlareSuite
+}
+
+func TestWindowsFlareSuite(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
+}
+
+// Add zz to name to run this test last in order to don't break other tests
+// Will need to rename it to TestFlareWithAllConfiguration after the fix of Paola's PR
+// To keep in mind that we will need to create the directory then create file in it and specify to delete file as the same time as the directory
+func (v *windowsFlareSuite) TestzzzFlareWindows() {
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+
+	AssertFilesExist(v.T(), flare, WindowsFiles)
+	AssertEventlogFolderOnlyContainsWindowsEventLog(v.T(), flare)
+
+	expectedCounterStrings := []string{"Write Packets/sec", "Events Logged per sec"}
+	AssertFileContains(v.T(), flare, "counter_strings.txt", expectedCounterStrings...)
+
+	// dd-procmgr-service supervises agent processes that used to be SCM services of their own,
+	// so their legacy services show up Stopped. Without the supervisor in the dump there is
+	// nothing in the flare explaining who runs them. Its name does not start with "datadog",
+	// which is why the service filter needs more than a prefix match.
+	AssertFileContains(v.T(), flare, "servicestatus.json", "dd-procmgr-service")
+
+	_, err := flare.GetFile("datadog-raw.reg")
+	assert.Error(v.T(), err, "File 'datadog-raw.reg' was found in flare, but was expected not to be part of the archive")
+}

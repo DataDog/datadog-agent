@@ -432,83 +432,83 @@ entries:
   function: sharedLibrarySuite.newProvisionerWithAgentOptions
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/check_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/check/check_win_test.go
   function: TestWindowsCheckSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/config_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/config/config_win_test.go
   function: TestWindowsConfigSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/configcheck_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/configcheck/configcheck_nix_test.go
   function: TestLinuxConfigCheckSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/configcheck_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/configcheck/configcheck_win_test.go
   function: TestWindowsConfigCheckSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/diagnose_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/diagnose/diagnose_nix_test.go
   function: TestLinuxDiagnoseSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/diagnose_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/diagnose/diagnose_nix_test.go
   function: linuxDiagnoseSuite.TestDiagnoseOtherCmdPort
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/diagnose_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/diagnose/diagnose_win_test.go
   function: TestWindowsDiagnoseSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/diagnose_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/diagnose/diagnose_win_test.go
   function: windowsDiagnoseSuite.TestDiagnoseOtherCmdPort
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/flare_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/flare/flare_nix_test.go
   function: TestLinuxFlareSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/flare_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/flare/flare_win_test.go
   function: TestWindowsFlareSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/health_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/health/health_win_test.go
   function: TestWindowsHealthSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/hostname_ec2_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/hostname/hostname_ec2_nix_test.go
   function: TestLinuxHostnameSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/hostname_ec2_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/hostname/hostname_ec2_win_test.go
   function: TestWindowsHostnameSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/run_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/run/run_nix_test.go
   function: TestLinuxRunSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/run_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/run/run_win_test.go
   function: TestWindowsRunSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/secret_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/secret/secret_nix_test.go
   function: TestLinuxSecretSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/secret_nix_test.go
+- file: test/new-e2e/tests/agent-subcommands/secret/secret_nix_test.go
   function: linuxSecretSuite.TestAgentConfigRefresh
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/secret_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/secret/secret_win_test.go
   function: TestWindowsSecretSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/secret_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/secret/secret_win_test.go
   function: windowsSecretSuite.TestAgentConfigRefresh
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/status_win_test.go
+- file: test/new-e2e/tests/agent-subcommands/status/status_win_test.go
   function: TestWindowsStatusSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'

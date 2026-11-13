@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files(["fixtures/datadog-agent.yaml"])
 
@@ -10,5 +11,28 @@ go_library(
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "config_test",
+    srcs = [
+        "config_common_test.go",
+        "config_nix_test.go",
+        "config_win_test.go",
+    ],
+    embed = [":config"],
+    embedsrcs = ["fixtures/datadog-agent.yaml"],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
