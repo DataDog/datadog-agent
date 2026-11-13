@@ -1,5 +1,6 @@
 ---
 build_fakeintake:
+  extends: .bazel:defs
   stage: binary_build
   timeout: 15m
   rules:

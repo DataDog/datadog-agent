@@ -1048,7 +1048,7 @@
         "name": "azure-native",
         "url": "https://github.com/pulumi/pulumi-azure-native"
       },
-      "https://registry.npmjs.org/@pulumi/cloud/1.20261027.1310": {},
+      "https://registry.npmjs.org/@pulumi/cloud/1.20261104.0": {},
       "https://registry.npmjs.org/@pulumi/command/1.3.0": {
         "dependencies": {},
         "name": "command",
