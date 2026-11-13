@@ -7,7 +7,6 @@ package npm
 
 import (
 	"testing"
-	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -135,11 +134,10 @@ func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
-	// generate connections
-	workloadStart := time.Now()
-	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 1500 -c 600 " + testURL)
-
-	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, workloadStart)
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
+		// generate connections
+		v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 1500 -c 600 " + testURL)
+	})
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
