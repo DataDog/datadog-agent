@@ -1751,14 +1751,33 @@ func TestPeerK8sScopeTags(t *testing.T) {
 			expected: []string{"peer.hostname:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop"},
 		},
 		{
-			name:     "bare service",
+			name:     "bare service with namespace from container tags",
 			in:       input(clientSpanMeta("orders"), "kube_namespace:caller-ns", "pod_name:caller-0"),
+			expected: []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"},
+		},
+		{
+			name: "bare service with namespace from the payload",
+			in: func() Input {
+				in := input(clientSpanMeta("orders"), "kube_namespace:ignored")
+				in.KubeNamespace = "caller-ns"
+				return in
+			}(),
+			expected: []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"},
+		},
+		{
+			name:     "bare service without caller namespace",
+			in:       input(clientSpanMeta("orders")),
 			expected: []string{"peer.hostname:orders"},
 		},
 		{
 			name:     "service and namespace",
 			in:       input(clientSpanMeta("orders.shop"), "kube_namespace:caller-ns"),
-			expected: []string{"peer.hostname:orders.shop"},
+			expected: []string{"peer.hostname:orders.shop", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "bare grpc.host with port",
+			in:       input(map[string]string{"span.kind": "client", "grpc.host": "orders:50051"}, "kube_namespace:caller-ns"),
+			expected: []string{"grpc.host:orders:50051", uidTag, "peer.k8s.namespace:caller-ns"},
 		},
 		{
 			name:     "quantized IP address",
@@ -1857,7 +1876,11 @@ func TestPeerK8sScopeTags(t *testing.T) {
 			},
 			{
 				attrs:    map[string]string{"peer.hostname": "orders"},
-				expected: []string{"peer.hostname:orders"},
+				expected: []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"},
+			},
+			{
+				attrs:    map[string]string{"out.host": "orders.shop"},
+				expected: []string{"out.host:orders.shop", uidTag, "peer.k8s.namespace:shop"},
 			},
 			{
 				attrs:    map[string]string{"out.host": "orders.shop.svc"},
