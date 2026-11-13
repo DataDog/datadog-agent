@@ -7,6 +7,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -17,10 +18,13 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 //
@@ -492,4 +496,110 @@ func TestTelemetryOnlyTheNewestRegistrationOfANameIsScraped(t *testing.T) {
 	restarted.promText = counterText("adp_counter", 9)
 
 	assert.Equal(t, 2.0, gatheredCounter(t, telemetryComp, "adp_counter"))
+}
+
+// A fake avoids sockets and lets the test supersede a registration at an exact point in its baseline RPC.
+type baselineTelemetryClient struct {
+	session string
+	get     func(context.Context) (string, error)
+}
+
+func (c *baselineTelemetryClient) GetTelemetry(ctx context.Context, _ *pb.GetTelemetryRequest, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
+	text, err := c.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, opt := range opts {
+		if header, ok := opt.(grpc.HeaderCallOption); ok {
+			*header.HeaderAddr = metadata.Pairs("session_id", c.session)
+		}
+	}
+	return &pb.GetTelemetryResponse{Payload: &pb.GetTelemetryResponse_PromText{PromText: text}}, nil
+}
+
+func TestTelemetryBaselineSkipsSupersededRegistration(t *testing.T) {
+	for _, inFlight := range []bool{false, true} {
+		name := "retry after replacement baselines"
+		if inFlight {
+			name = "replacement registers during baseline RPC"
+		}
+		t.Run(name, func(t *testing.T) {
+			provides, _, _, _, _ := buildComponent(t)
+			registry := provides.Comp.(*remoteAgentRegistry)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+
+			started, release := make(chan struct{}), make(chan struct{})
+			calls := 0
+			old := &remoteAgentClient{
+				RegisteredAgent: remoteagent.RegisteredAgent{
+					Flavor: adpAgentFlavor, SanitizedDisplayName: "agent-data-plane", SessionID: "old", ProcessInstanceID: "process-a",
+				},
+				registrationOrder: 1,
+				services:          []string{TelemetryServiceName},
+				TelemetryProviderClient: &baselineTelemetryClient{session: "old", get: func(context.Context) (string, error) {
+					calls++
+					if inFlight {
+						close(started)
+						select {
+						case <-release:
+						case <-ctx.Done():
+							return "", ctx.Err()
+						}
+					} else if calls == 1 {
+						return "", errors.New("telemetry not ready")
+					}
+					return counterText("adp_counter", 500), nil
+				}},
+			}
+			registry.agentMap[old.SessionID] = old
+
+			var done chan bool
+			if inFlight {
+				done = make(chan bool, 1)
+				go func() { done <- registry.primeTelemetryBaselineOnce(old.SessionID) }()
+				select {
+				case <-started:
+				case <-ctx.Done():
+					t.Fatal("baseline RPC did not start")
+				}
+			} else {
+				require.False(t, registry.primeTelemetryBaselineOnce(old.SessionID))
+			}
+
+			raw := 100.0
+			newer := &remoteAgentClient{
+				RegisteredAgent: remoteagent.RegisteredAgent{
+					Flavor: adpAgentFlavor, SanitizedDisplayName: "agent-data-plane", SessionID: "new", ProcessInstanceID: "process-b",
+				},
+				registrationOrder: 2,
+				services:          []string{TelemetryServiceName},
+				TelemetryProviderClient: &baselineTelemetryClient{session: "new", get: func(context.Context) (string, error) {
+					return counterText("adp_counter", raw), nil
+				}},
+			}
+			registry.agentMapMu.Lock()
+			registry.agentMap[newer.SessionID] = newer
+			registry.agentMapMu.Unlock()
+
+			if inFlight {
+				close(release)
+				select {
+				case stopped := <-done:
+					require.True(t, stopped)
+				case <-ctx.Done():
+					t.Fatal("superseded baseline did not finish")
+				}
+				require.False(t, registry.telemetryAccumulator.isBaselined(remoteAgentIdentity(old.RegisteredAgent)))
+			}
+
+			require.True(t, registry.primeTelemetryBaselineOnce(newer.SessionID))
+			require.True(t, registry.primeTelemetryBaselineOnce(old.SessionID), "a superseded registration must stop retrying")
+			require.Equal(t, 1, calls, "a superseded registration must not be queried again")
+
+			raw = 110
+			registry.collectTelemetry(registry.newestRegistrationFilter(), func(prometheus.Metric) {})
+			require.Equal(t, 10.0, exposedCounter(t, registry.telemetryAccumulator, "adp_counter{}"), "only the increase since the replacement's baseline is new")
+		})
+	}
 }

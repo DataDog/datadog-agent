@@ -511,6 +511,21 @@ func (ra *remoteAgentRegistry) newestRegistrationFilter() func(remoteagentregist
 	}
 }
 
+// isNewestTelemetryRegistrationLocked checks that client is still the current telemetry provider for its name.
+// ra.agentMapMu must be held.
+func (ra *remoteAgentRegistry) isNewestTelemetryRegistrationLocked(client *remoteAgentClient) bool {
+	if ra.agentMap[client.SessionID] != client {
+		return false
+	}
+	for _, other := range ra.agentMap {
+		if other.SanitizedDisplayName == client.SanitizedDisplayName &&
+			other.registrationOrder > client.registrationOrder && slices.Contains(other.services, TelemetryServiceName) {
+			return false
+		}
+	}
+	return true
+}
+
 // primeTelemetryBaseline scrapes the process behind a new session once, so that the totals it already holds become
 // its baseline. It retries for a short while, because the remote agent can only answer once it knows its session ID.
 func (ra *remoteAgentRegistry) primeTelemetryBaseline(sessionID string) {
@@ -541,14 +556,15 @@ func (ra *remoteAgentRegistry) primeTelemetryBaselineOnce(sessionID string) bool
 
 	ra.agentMapMu.Lock()
 	client, found := ra.agentMap[sessionID]
+	current := found && ra.isNewestTelemetryRegistrationLocked(client)
 	var agent remoteagentregistry.RegisteredAgent
-	if found {
+	if current {
 		agent = client.RegisteredAgent
 	}
 	ra.agentMapMu.Unlock()
 	identity := remoteAgentIdentity(agent)
-	// The session is gone, or the process already has a baseline from an earlier session.
-	if !found || r.isBaselined(identity) {
+	// Gone or superseded sessions must stop retrying, even if they become responsive later.
+	if !current || r.isBaselined(identity) {
 		return true
 	}
 
@@ -572,6 +588,11 @@ func (ra *remoteAgentRegistry) primeTelemetryBaselineOnce(sessionID string) bool
 		}
 		series = parsed.series
 	}
-	r.observe(identity, series, time.Now())
+	// A newer registration may have arrived during the RPC. Keep registration and baseline application atomic.
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+	if ra.isNewestTelemetryRegistrationLocked(client) {
+		r.observe(identity, series, time.Now())
+	}
 	return true
 }
