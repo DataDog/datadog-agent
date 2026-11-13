@@ -299,6 +299,11 @@ profiles:
           - code
           - endpoint
           - forwarder
+      - name: forwarder.errors
+        preserve_tags:
+          - error_type
+          - endpoint
+          - forwarder
   schedule:
     start_after: 30
     iterations: 0

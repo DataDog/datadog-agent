@@ -10,6 +10,7 @@ package forwarderimpl
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,7 +43,56 @@ func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telem
 		httpClient:   buildHTTPClient(cfg),
 		log:          logmock.New(t),
 		httpErrors:   utiltelemetry.NewForwarderHTTPErrors(tel),
+		errors:       utiltelemetry.NewForwarderErrors(tel),
 	}
+}
+
+func TestSendCountsTransportErrors(t *testing.T) {
+	// A listener that is closed right away gives a local port that refuses connections.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	refusedURL := "http://" + ln.Addr().String()
+	require.NoError(t, ln.Close())
+
+	// A server that never answers within the client timeout.
+	hang := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-hang:
+		case <-r.Context().Done():
+		}
+	}))
+	defer slow.Close()
+	defer close(hang)
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "test-api-key")
+	tel := telemetrymock.New(t)
+	// One forwarder per telemetry registry: registering its counters twice would panic.
+	fwd := newTestForwarderWithTelemetry(t, cfg, tel)
+	fwd.httpClient.Timeout = 200 * time.Millisecond
+	for _, target := range []string{refusedURL, slow.URL} {
+		fwd.intakeDomain, fwd.intakeURL = target, target+intakeEndpointPath
+		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		require.Error(t, err)
+	}
+
+	metrics, err := tel.GetCountMetric("forwarder", "errors")
+	require.NoError(t, err)
+	got := map[string]float64{}
+	for _, m := range metrics {
+		assert.Equal(t, "agenthealth", m.Tags()["endpoint"])
+		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
+		got[m.Tags()["domain"]+" "+m.Tags()["error_type"]] = m.Value()
+	}
+	assert.Equal(t, map[string]float64{
+		refusedURL + " " + utiltelemetry.ForwarderErrorTypeConnection: 1,
+		slow.URL + " " + utiltelemetry.ForwarderErrorTypeTimeout:      1,
+	}, got)
+
+	// Transport errors are not HTTP errors: forwarder.http_errors has no series at all.
+	_, err = tel.GetCountMetric("forwarder", "http_errors")
+	assert.ErrorContains(t, err, "not found")
 }
 
 func TestSendCountsHTTPErrors(t *testing.T) {
