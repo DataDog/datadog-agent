@@ -99,6 +99,7 @@ func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
 		"init_config": {"oid_batch_size": 20, "collect_topology": false},
 		"instances": [{
 			"ip_address": "10.0.0.1",
+			"inventory_id": "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60",
 			"cred_id": "id-abc",
 			"port": 1161,
 			"timeout_sec": 5,
@@ -112,6 +113,7 @@ func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
 	require.Len(t, configs, 1)
 	assert.YAMLEq(t, "oid_batch_size: 20\ncollect_topology: false\n", string(configs[0].InitConfig))
 	instance := string(configs[0].Instances[0])
+	assert.Contains(t, instance, "inventory_id: 3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60")
 	assert.Contains(t, instance, "port: 1161")
 	assert.Contains(t, instance, "timeout: 5")
 	assert.Contains(t, instance, "profile: cisco-nexus")

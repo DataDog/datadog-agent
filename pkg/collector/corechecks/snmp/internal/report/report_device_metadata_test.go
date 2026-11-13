@@ -1096,6 +1096,67 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
+func Test_metricSender_reportNetworkDeviceMetadata_inventoryID(t *testing.T) {
+	setupHostname(t)
+	var emptyMetadataStore = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
+	}
+
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		InventoryID:        "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.ReportNetworkDeviceMetadata(config, profiledefinition.ProfileDefinition{}, emptyMetadataStore, []string{"tag1"}, nil, collectTime, metadata.DeviceStatusReachable, 0, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+	"integration": "snmp",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+            "subnet": "127.0.0.0/29",
+			"integration": "snmp",
+			"device_type": "other",
+			"agent_hostname": "my-hostname",
+			"inventory_id": "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60"
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
 		ifAdminStatus metadata.IfAdminStatus
