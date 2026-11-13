@@ -640,7 +640,7 @@ func (c *FakeCore) HandleTimer(sender SenderID, stream StreamID, kind TimerKind)
 			continue
 		}
 		for _, id := range c.order {
-			if p := c.pending[id]; p != nil && !p.resolved && p.batchOn[sender] == effect.BatchID {
+			if p := c.pending[id]; p != nil && c.owedLocked(sender, p) && p.batchOn[sender] == effect.BatchID {
 				c.queued[sender] = append(c.queued[sender], queuedSend{id: id, payload: p.body})
 				break
 			}
