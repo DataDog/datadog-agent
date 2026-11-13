@@ -167,13 +167,17 @@
 
 # build agent7 image
 .docker_build_agent7:
-  extends: [.docker_build_job_definition, .docker_build_artifact]
+  extends: [.docker_build_job_definition, .docker_build_artifact, .bazel:defs:cache:progressive]
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success
   before_script:
     - !reference [.docker_build_artifact, before_script]
     - mv -vf Dockerfiles/nosys-seccomp/nosys.so ${ARTIFACTS_BUILD_CONTEXT}/
+    - |
+      if [[ "$BUILD_ARG" == *WITH_JMX_FIPS=true* ]]; then
+        bazel run //deps/maven:install_bouncycastle_fips_jars -- --destdir=${BUILD_CONTEXT}/bouncycastle-fips
+      fi
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -219,7 +223,7 @@ single_machine_performance-full-amd64-a7:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
     # All SMP client teams can read images in the global `agent` repository of SMP.
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64,agent:${CI_COMMIT_SHA}-7-full-amd64
+    IMG_DESTINATIONS: agent:${CI_COMMIT_SHA}-7-full-amd64
   script:
     # The global `agent` repository has immutable tags. A new pipeline on the
     # same commit builds a new image with the same tag, and ECR refuses that

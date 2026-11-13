@@ -1689,3 +1689,16 @@ func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observe
 	}
 	return buf
 }
+
+// SeriesCountByKind counts non-telemetry gauges by committed kind.
+func (s *timeSeriesStorage) SeriesCountByKind() [metricKindCount]uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var counts [metricKindCount]uint64
+	for _, stats := range s.series {
+		if stats.Namespace != observer.TelemetryNamespace && stats.MetricType == metrics.GaugeType && stats.MetricKind < metricKindCount {
+			counts[stats.MetricKind]++
+		}
+	}
+	return counts
+}

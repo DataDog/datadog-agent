@@ -276,7 +276,7 @@ func evaluatorFromFieldReference(fieldname string, pos ast.Position, state *Stat
 	return evaluator, pos, nil
 }
 
-func evaluatorFromVariable(varname string, pos ast.Position, opts *Opts) (interface{}, ast.Position, error) {
+func evaluatorFromVariable(varname string, pos ast.Position, opts *Opts, state *State) (interface{}, ast.Position, error) {
 	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
 	if variable != nil {
@@ -324,7 +324,11 @@ func evaluatorFromVariable(varname string, pos ast.Position, opts *Opts) (interf
 	}
 
 	// No fallback to field - variables and fields are explicitly separated
-	// Use %{field} syntax for fields
+	if state != nil && state.model != nil {
+		if _, err := state.model.GetEvaluator(varname, "", 0); err == nil {
+			return nil, pos, NewError(pos, "variable '%s' doesn't exist, use %%{%s} to reference the field", varname, varname)
+		}
+	}
 	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
@@ -333,7 +337,7 @@ func stringEvaluatorFromVariable(str string, pos ast.Position, opts *Opts, state
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts, state)
 			if err != nil {
 				return err
 			}

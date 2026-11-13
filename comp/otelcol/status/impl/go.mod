@@ -61,14 +61,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.5 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.1 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.12.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.39.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect

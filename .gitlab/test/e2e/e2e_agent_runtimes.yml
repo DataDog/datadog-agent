@@ -31,6 +31,7 @@ new-e2e-agent-runtimes:
         - Dockerfiles/agent/entrypoint.sh
         - Dockerfiles/agent/cont-init.d/**/*
         - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/probe.sh
         - Dockerfiles/agent/processes.d/aio/**/*
         - pkg/procmgr/**/*
         - test/new-e2e/tests/agent-runtimes/procmgr/**/*

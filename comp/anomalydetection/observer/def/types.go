@@ -258,6 +258,7 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
+	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext

@@ -410,6 +410,20 @@ path length (see the Windows section). When `dd_agent_go_test` fails with a path
 short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
 `//bazel/rules/go:dd_agent_go_test.bzl`.
 
+A `go_library` does not always inherit the tags of the test or binary above it. A patched-in
+incoming transition (`//bazel/go_tags:transition.bzl`) drops all of them when its transitive closure
+reads none in `//go:build` lines and none affects the standard library, so tag-insensitive
+libraries are configured once. A library that reads any of them keeps them all: a subset would
+create a configuration no root has, and every configuration repeats toolchain resolution and costs
+analysis memory. The per-import-path tag lists live in the generated
+`bazel/go_tags/closure_tags.bzl`, which lists only the packages whose closure reads a root tag (or
+contains a generated source it can't scan, `None`: keep all tags). A package missing from it is
+treated as reading no root tag, so a stale manifest silently drops tags: a new package gated on
+`//go:build docker` compiles without those files, and its tests may pass vacuously. Run
+`dda inv go.write-tag-manifest` (or `dda inv tidy`) after adding a package or changing a build
+constraint or a dependency; the `go-mod-tidy` pre-push hook does it too, and `bazel:run-gazelle`
+fails on a stale manifest. Resolve merge conflicts in the file by rerunning the command.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:

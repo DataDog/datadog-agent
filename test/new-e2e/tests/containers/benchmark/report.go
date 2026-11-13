@@ -88,8 +88,8 @@ type Result struct {
 	Unit       Unit       `json:"unit"`
 	Thresholds Thresholds `json:"thresholds"`
 	// QueryA and QueryB are the queries of the installations of variants a and b, which
-	// run the baseline and comparison images in the first phase, and the other way around in
-	// the swapped one.
+	// run the baseline and comparison images in the first phase, and swap them between
+	// consecutive phases (see SwapInPhase).
 	QueryA      string `json:"query_a"`
 	QueryB      string `json:"query_b"`
 	ExplorerURL string `json:"explorer_url,omitempty"`
@@ -97,10 +97,10 @@ type Result struct {
 	Error string `json:"error,omitempty"`
 }
 
-// Compare fills the comparison of the result from the points of the images over the first
-// and the swapped phases, or records why they can't be compared.
-func (r *Result) Compare(first, swapped Phase) {
-	c, err := Compare(first, swapped, r.Thresholds)
+// Compare fills the comparison of the result from the points of the images over the phases
+// of the measurement, or records why they can't be compared.
+func (r *Result) Compare(phases []Phase) {
+	c, err := Compare(phases, r.Thresholds)
 	if err != nil {
 		r.Fail(err)
 		return
@@ -135,12 +135,13 @@ func (r *Result) Fail(err error) {
 // Report is the result of the benchmark.
 type Report struct {
 	ClusterName string `json:"cluster_name"`
-	// Phases are the windows of the first phase and of the swapped one.
-	Phases       [2]Window `json:"phases"`
-	Baseline     Version   `json:"baseline"`
-	Comparison   Version   `json:"comparison"`
-	Results      []Result  `json:"results"`
-	DashboardURL string    `json:"dashboard_url,omitempty"`
+	// Phases are the windows of the phases of the measurement, in order (see SwapInPhase for
+	// the images each installation runs in each of them).
+	Phases       []Window `json:"phases"`
+	Baseline     Version  `json:"baseline"`
+	Comparison   Version  `json:"comparison"`
+	Results      []Result `json:"results"`
+	DashboardURL string   `json:"dashboard_url,omitempty"`
 }
 
 // notable reports whether a metric improved, regressed or couldn't be compared: the outcomes
@@ -191,12 +192,15 @@ func (r *Report) Write(dir string) error {
 func (r *Report) Markdown() string {
 	var b strings.Builder
 	// No heading: whoever publishes the report, e.g. as a pull request comment, adds its own.
-	first, swapped := r.Phases[0], r.Phases[1]
 	versions := []Version{r.Baseline, r.Comparison}
-	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in two phases: from %s to %s (%s) with the baseline images on installation a and the comparison images on installation b, each with node pools of its own, then from %s to %s (%s) with the images swapped.\n\n",
-		r.ClusterName,
-		first.From.UTC().Format(timeFormat), first.To.UTC().Format(timeFormat), first.To.Sub(first.From),
-		swapped.From.UTC().Format(timeFormat), swapped.To.UTC().Format(timeFormat), swapped.To.Sub(swapped.From))
+	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in %d phases, between which installations a and b, each with node pools of its own, swap their images:\n\n",
+		r.ClusterName, len(r.Phases))
+	for i, phase := range r.Phases {
+		baselineOn, comparisonOn := SwapInPhase(i, "a", "b")
+		fmt.Fprintf(&b, "- phase %d, from %s to %s (%s): baseline images on installation %s, comparison images on installation %s\n", i+1,
+			phase.From.UTC().Format(timeFormat), phase.To.UTC().Format(timeFormat), phase.To.Sub(phase.From), baselineOn, comparisonOn)
+	}
+	b.WriteString("\n")
 	if r.DashboardURL != "" {
 		fmt.Fprintf(&b, "Graphs and profiles of the run: [dashboard](%s)\n\n", r.DashboardURL)
 	}
@@ -241,12 +245,13 @@ func (r *Report) Markdown() string {
 	if uniform {
 		significanceText = formatSignificance(significance)
 	}
-	fmt.Fprintf(&b, "\nThe machines of the node pools of the installations may differ, hence the swap: each image runs on the node pools of both installations. "+
+	fmt.Fprintf(&b, "\nThe machines of the node pools of the installations may differ, hence the swaps: each image runs half of the phases on the node pools of each installation. "+
 		"Each phase is split into blocks of %s, in which the means of the images are compared through their log ratio. "+
-		"The change is exp(e) - 1, e being the average over both phases of the mean log ratio of each phase, in which the difference between the node pools cancels out. "+
-		"Baseline and Comparison are the averages of the means of each image over both phases. "+
+		"The change is exp(e) - 1, e being the average over the phases of the mean log ratio of each phase, in which the difference between the node pools cancels out. "+
+		"Baseline and Comparison are the averages of the means of each image over the phases. "+
 		"A change is an improvement or a regression when it is significant (t-test of e = 0, %s) and at least as large as both thresholds of its metric: %s.\n\n",
-		first.Block, significanceText, strings.Join(thresholds, "; "))
+		// All the phases have blocks of the same duration.
+		lo.FirstOrEmpty(r.Phases).Block, significanceText, strings.Join(thresholds, "; "))
 
 	for _, version := range versions {
 		if version.Commit != "" {

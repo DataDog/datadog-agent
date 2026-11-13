@@ -12,7 +12,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
-	cloud.google.com/go/compute v1.74.1 // indirect
+	cloud.google.com/go/compute v1.75.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
