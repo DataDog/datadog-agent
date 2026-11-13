@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +33,9 @@ import (
 const (
 	txBytesMetricName = "network.tx_bytes"
 	rxBytesMetricName = "network.rx_bytes"
+
+	// runtimeStatsCacheValidity matches the cache validity used by the generic container check
+	runtimeStatsCacheValidity = 2 * time.Second
 )
 
 // Provider provides the data collected from the `/stats/summary` Kubelet endpoint
@@ -40,15 +44,17 @@ type Provider struct {
 	podFilter             workloadfilter.FilterBundle
 	containerFilter       workloadfilter.FilterBundle
 	store                 workloadmeta.Component
+	metricsProvider       provider.Provider
 	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
 }
 
-// NewProvider is created by filter, config and workloadmeta
+// NewProvider is created by filter, config, workloadmeta and the container metrics provider
 func NewProvider(
 	filterStore workloadfilter.Component,
 	config *common.KubeletConfig,
 	store workloadmeta.Component,
+	metricsProvider provider.Provider,
 	tagger tagger.Component,
 ) *Provider {
 	defaultRateFilterList := []*regexp.Regexp{
@@ -62,6 +68,7 @@ func NewProvider(
 		podFilter:             filterStore.GetPodSharedMetricFilters(),
 		containerFilter:       filterStore.GetContainerSharedMetricFilters(),
 		store:                 store,
+		metricsProvider:       metricsProvider,
 		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
 	}
@@ -242,7 +249,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			continue
 		}
 		ctr, found := containerData[containerName]
-		if !found || ctr == nil && ctr.ID == "" {
+		if !found || ctr == nil || ctr.ID == "" {
 			log.Debugf(
 				"Container id not found from /pods for container: %s/%s/%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName)
@@ -267,10 +274,43 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 		}
 		if containerStats.Memory != nil {
 			reportMetric(sender.Gauge, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
-			reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
+			if containerStats.Memory.UsageBytes != nil {
+				reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
+			} else {
+				reportMetric(sender.Gauge, "memory.usage", p.runtimeCommitBytes(ctr.ID), tags)
+			}
 		}
 		reportFsMetric(sender, containerStats.Rootfs, "", tags)
 	}
+}
+
+// runtimeCommitBytes returns the container commit bytes reported by the container runtime, or nil if unavailable.
+// On Windows, kubelet reports container usageBytes only when the runtime provides them (commit bytes, containerd >= 2.2).
+// Reading commit bytes from the runtime otherwise keeps memory.usage consistent across runtime versions and
+// with container.memory.usage. Only the Windows runtime collectors set CommitBytes, so this never reports working set.
+func (p *Provider) runtimeCommitBytes(containerID string) *float64 {
+	container, err := p.store.GetContainer(containerID)
+	if err != nil {
+		log.Debugf("Container %s not found in workloadmeta, memory usage will be missing: %v", containerID, err)
+		return nil
+	}
+
+	collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+		string(container.Runtime),
+		string(container.RuntimeFlavor),
+	))
+	if collector == nil {
+		log.Debugf("Collector not found for container %s, memory usage will be missing", containerID)
+		return nil
+	}
+
+	containerStats, err := collector.GetContainerStats(container.Namespace, containerID, runtimeStatsCacheValidity)
+	if err != nil || containerStats == nil || containerStats.Memory == nil {
+		log.Debugf("Memory stats not available for container %s, memory usage will be missing: %v", containerID, err)
+		return nil
+	}
+
+	return containerStats.Memory.CommitBytes
 }
 
 func reportMetric[T float64 | uint64](senderFunc func(string, float64, string, []string),

@@ -28,6 +28,7 @@ go_library(
         "//pkg/collector/corechecks/containers/kubelet/provider/slis",
         "//pkg/collector/corechecks/containers/kubelet/provider/summary",
         "//pkg/config/setup",
+        "//pkg/util/containers/metrics",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
