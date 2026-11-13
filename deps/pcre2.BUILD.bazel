@@ -101,6 +101,7 @@ cc_library(
     hdrs = [
         ":pcre2_h_generic",
     ],
+    copts = ["-O2"],
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
@@ -133,6 +134,7 @@ cc_library(
     hdrs = [
         "src/pcre2posix.h",
     ],
+    copts = ["-O2"],
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",

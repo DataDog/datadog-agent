@@ -495,19 +495,19 @@ entries:
 - file: test/new-e2e/tests/agent-subcommands/secret/secret_nix_test.go
   function: TestLinuxSecretSuite
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret/secret_nix_test.go
   function: linuxSecretSuite.TestAgentConfigRefresh
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret/secret_win_test.go
   function: TestWindowsSecretSuite
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret/secret_win_test.go
   function: windowsSecretSuite.TestAgentConfigRefresh
   status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
+  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/status/status_win_test.go
   function: TestWindowsStatusSuite
   status: untriaged

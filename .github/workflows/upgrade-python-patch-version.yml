@@ -13,6 +13,7 @@ jobs:
     name: Upgrade Python patch version
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
     environment:
       name: main
@@ -20,7 +21,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.upgrade-python-version.create-pr
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
