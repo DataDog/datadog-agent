@@ -1779,7 +1779,6 @@ func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("c_core_dump", false)
-	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_runner_utilization_monitor_interval", 1*time.Minute)

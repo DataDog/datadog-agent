@@ -6157,11 +6157,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  c_stacktrace_collection:
-    node_type: setting
-    type: boolean
-    default: false
-    comment: Debugging + C-land crash feature flags
   cel_workload_exclude:
     node_type: setting
     type: array

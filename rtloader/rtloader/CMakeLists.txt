@@ -27,21 +27,6 @@ add_library(datadog-agent-rtloader SHARED
     rtloader.cpp
     ../common/rtloader_mem.c
 )
-
-# https://cmake.org/cmake/help/latest/module/FindBacktrace.html
-find_package(Backtrace)
-if(Backtrace_FOUND)
-    if(NOT TARGET Backtrace::Backtrace)
-        # for pre-3.30 CMake versions
-        add_library(Backtrace::Backtrace INTERFACE IMPORTED)
-        set_target_properties(Backtrace::Backtrace PROPERTIES
-            INTERFACE_LINK_LIBRARIES "${Backtrace_LIBRARIES}"
-            INTERFACE_INCLUDE_DIRECTORIES "${Backtrace_INCLUDE_DIRS}"
-        )
-    endif()
-    target_link_libraries(datadog-agent-rtloader PRIVATE Backtrace::Backtrace)
-    target_compile_definitions(datadog-agent-rtloader PRIVATE HAS_BACKTRACE_LIB)
-endif()
 endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES
