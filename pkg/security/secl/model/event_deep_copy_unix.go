@@ -319,6 +319,7 @@ func deepCopyProcessPtr(fieldToCopy *Process, c deepCopyContext) *Process {
 	copied.EnvsTruncated = fieldToCopy.EnvsTruncated
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
+	copied.FileCapabilities = deepCopyFileCapabilities(fieldToCopy.FileCapabilities, c)
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent, c)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime
@@ -450,6 +451,14 @@ func deepCopyEnvsEntryPtr(fieldToCopy *EnvsEntry, c deepCopyContext) *EnvsEntry 
 	c[key] = unsafe.Pointer(copied)
 	copied.Truncated = fieldToCopy.Truncated
 	copied.Values = deepCopystringArr(fieldToCopy.Values, c)
+	return copied
+}
+func deepCopyFileCapabilities(fieldToCopy FileCapabilities, c deepCopyContext) FileCapabilities {
+	copied := FileCapabilities{}
+	copied.Available = fieldToCopy.Available
+	copied.Effective = fieldToCopy.Effective
+	copied.Inheritable = fieldToCopy.Inheritable
+	copied.Permitted = fieldToCopy.Permitted
 	return copied
 }
 func deepCopyFileEvent(fieldToCopy FileEvent, c deepCopyContext) FileEvent {
@@ -624,6 +633,7 @@ func deepCopyProcess(fieldToCopy Process, c deepCopyContext) Process {
 	copied.EnvsTruncated = fieldToCopy.EnvsTruncated
 	copied.ExecTime = fieldToCopy.ExecTime
 	copied.ExitTime = fieldToCopy.ExitTime
+	copied.FileCapabilities = deepCopyFileCapabilities(fieldToCopy.FileCapabilities, c)
 	copied.FileEvent = deepCopyFileEvent(fieldToCopy.FileEvent, c)
 	copied.ForkFlags = fieldToCopy.ForkFlags
 	copied.ForkTime = fieldToCopy.ForkTime

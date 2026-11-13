@@ -57,6 +57,33 @@ ANCHOR_COMBOS = [
 ]
 
 
+def scenario_mode(episode):
+    """Only explicit healthy labels select no-fault evaluation."""
+    if not isinstance(episode, dict):
+        raise ValueError("Episode metadata must be an object")
+    healthy = episode.get("mode") == "healthy-control" or episode.get("expectation") == "healthy"
+    if healthy:
+        if episode.get("mode") != "healthy-control" or episode.get("expectation") != "healthy":
+            raise ValueError("Healthy scenarios require mode=healthy-control and expectation=healthy")
+        if episode.get("disruption") or episode.get("disruptions"):
+            raise ValueError("Healthy scenarios must not contain disruptions")
+        window = episode.get("evaluation_window") or {}
+        if not isinstance(window, dict) or not window.get("start") or not window.get("end"):
+            raise ValueError("Healthy scenarios require evaluation_window.start and end")
+        return "no_faults"
+    if not (episode.get("disruption") or {}).get("start"):
+        raise ValueError("Scenario has neither explicit healthy labels nor disruption.start")
+    return "faults"
+
+
+def require_f1_report(report):
+    """Keep F1 maximization workflows from accepting incomplete results or FP counts."""
+    if report is None or report.get("score") is None or report.get("complete") is False:
+        raise ValueError("F1 optimization requires a complete evaluation")
+    if any(row.get("mode") == "no_faults" for row in report.get("metadata", {}).values()):
+        raise ValueError("F1 optimization requires fault scenarios; no-fault counts must be minimized separately")
+
+
 # --- StepLogger ---
 
 
@@ -121,6 +148,27 @@ class StepLogger:
 def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     """Print the Observer Eval Summary table to stdout."""
     if not results:
+        return
+
+    if any(r.get("mode") == "no_faults" or r.get("status", "completed") != "completed" for r in results):
+        print("\nObserver Eval Summary")
+        show_f1 = any(r.get("mode") == "faults" for r in results)
+        f1_header = f" {'F1':>8}" if show_f1 else ""
+        print(f"{'Scenario':<48} {'Status':<12}{f1_header} {'False positives':>16} {'Eval minutes':>14}")
+        for result in results:
+            f1 = f"{result['f1']:.4f}" if "f1" in result else "—"
+            fp = (
+                str(result["false_positives"])
+                if result.get("status") == "completed" and "false_positives" in result
+                else "—"
+            )
+            f1_column = f" {f1:>8}" if show_f1 else ""
+            duration = (
+                f"{result['evaluation_duration_seconds'] / 60:.1f}" if "evaluation_duration_seconds" in result else "—"
+            )
+            print(f"{result['name']:<48} {result.get('status', 'completed'):<12}{f1_column} {fp:>16} {duration:>14}")
+            if result.get("error"):
+                print(f"  {result['error']}")
         return
 
     print(color_message(f"\n{'=' * 60}", Color.GREEN))
@@ -356,6 +404,7 @@ def _combo_to_config(
     detectors: list,
     correlators: list,
     force_disable: list | None = None,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a testbench JSON params config enabling exactly the listed detectors and correlators.
 
@@ -371,7 +420,10 @@ def _combo_to_config(
             components[name] = _component_base_config(name, True)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
-    return {"components": components}
+    config: dict[str, object] = {"components": components}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Optuna helpers ---
@@ -459,6 +511,7 @@ def _build_optuna_config(
     trial,
     components: list,
     locked: set,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a TestbenchParamsFile config dict for one Optuna trial."""
     active_set = set(components)
@@ -476,7 +529,10 @@ def _build_optuna_config(
             params.update(_sample_component_params(trial, name))
         result[name] = params
 
-    return {"components": result}
+    config: dict[str, object] = {"components": result}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Aggregation helpers ---

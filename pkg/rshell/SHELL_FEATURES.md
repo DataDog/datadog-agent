@@ -182,7 +182,7 @@ or privileged-helper protocol change is needed.
 ### Always supported (both modes)
 
 - ✅ `|` — pipe stdout
-- ✅ `<` — input redirection (read-only, within AllowedPaths)
+- ✅ `<` — input redirection (read-only, within AllowedPaths; reading a file is gated on `cat` being in the command allowlist, like the `$(<file)` shortcut; the platform's null device, `/dev/null` on Unix or `NUL` on Windows, is exempt from the `cat` requirement)
 - ✅ `<<DELIM` — heredoc
 - ✅ `<<-DELIM` — heredoc with tab stripping
 - ✅ `2>&1`, `>&2` — file descriptor duplication between stdout (1) and stderr (2)

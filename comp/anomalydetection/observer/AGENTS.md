@@ -45,11 +45,12 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: a count per log signature (`log.pattern.<hash>.count`), plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
+| `impl/logsignature/` | Log signatures (via `pkg/logs/tokenizer`) used by log metrics extractor |
 
 ### Component catalog (defaults)
 
@@ -193,10 +194,12 @@ half-window medians so isolated spikes do not dominate it.
 ### Metric pipeline
 
 Legacy detectors remain the default.
-Set `anomaly_detection.use_metric_pipeline: true` to run only `MetricPipeline`,
+Set `anomaly_detection.metric_pipeline.enabled: true` to run only `MetricPipeline`,
 with its own detector instances and defaults; legacy detector settings do not
 configure the pipeline.
 Baseline and scorer settings apply in both workflows.
+`anomaly_detection.metric_pipeline.anomaly_cutoff` (default true) gates
+post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.
 Matching uses the matcher window; detector history
@@ -214,7 +217,6 @@ than the threshold without touching ScanMW state. `detections.gated` counts
 these mutes; kind emission counters stay downstream of dedup.
 Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
 bands) and gain one level when detector confidence is High or XHigh.
-
 The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
 mean detector call durations every second. Timings identify inner detectors and
 registration kinds, excluding pipeline overhead; legacy calls use `unset`.

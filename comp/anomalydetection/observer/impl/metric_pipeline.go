@@ -49,6 +49,7 @@ type MetricPipeline struct {
 	cachedRefs    []observer.SeriesRef
 	cachedGen     uint64
 	scratch       []observer.Point
+	anomalyCutoff bool
 
 	kindTransitions metricKindTransitionCounts
 }
@@ -67,6 +68,7 @@ func newMetricPipeline(
 		matcher:       matcher,
 		window:        matcher.Window(),
 		series:        make(map[observer.SeriesRef]*metricPipelineSeriesState),
+		anomalyCutoff: true,
 	}
 	for _, registration := range registrations {
 		if registration.detector == nil {
@@ -91,7 +93,7 @@ func newMetricPipeline(
 
 // newScanMWMetricPipeline builds the initial kind-routed composition.
 // stableCfg may be nil to select the default stable pipeline configuration.
-func newScanMWMetricPipeline(cfg ScanMWConfig, stableCfg *StablePipelineConfig) (*MetricPipeline, error) {
+func newScanMWMetricPipeline(cfg ScanMWConfig, anomalyCutoff bool, stableCfg *StablePipelineConfig) (*MetricPipeline, error) {
 	stableConfig := DefaultStablePipelineConfig()
 	if stableCfg != nil {
 		stableConfig = *stableCfg
@@ -110,13 +112,14 @@ func newScanMWMetricPipeline(cfg ScanMWConfig, stableCfg *StablePipelineConfig) 
 	if err != nil {
 		return nil, err
 	}
+	p.anomalyCutoff = anomalyCutoff
 	return p, nil
 }
 
 // newDefaultMetricPipeline builds the default metric workflow. stableCfg may
 // be nil to select the default stable pipeline configuration.
-func newDefaultMetricPipeline(stableCfg *StablePipelineConfig) (*MetricPipeline, error) {
-	return newScanMWMetricPipeline(DefaultScanMWConfig(), stableCfg)
+func newDefaultMetricPipeline(stableCfg *StablePipelineConfig, anomalyCutoff bool) (*MetricPipeline, error) {
+	return newScanMWMetricPipeline(DefaultScanMWConfig(), anomalyCutoff, stableCfg)
 }
 
 func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observer.Detector) {
@@ -176,7 +179,7 @@ func (p *MetricPipeline) Detect(
 				continue
 			}
 			state := p.series[anomaly.SourceRef.Ref]
-			if state != nil && state.reactivated && anomaly.Timestamp <= state.outputAfter {
+			if p.anomalyCutoff && state != nil && state.reactivated && anomaly.Timestamp <= state.outputAfter {
 				continue
 			}
 			result.Anomalies = append(result.Anomalies, anomaly)
@@ -229,9 +232,11 @@ func (p *MetricPipeline) advanceKinds(storage *timeSeriesStorage, dataTime int64
 		if previous, exists := p.byKind[transition.From]; exists {
 			p.registrations[previous].detector.RemoveSeries([]observer.SeriesRef{ref})
 		}
-		if _, supported := p.byKind[transition.To]; supported && transition.From != observer.UNSET {
-			state.reactivated = true
-			state.outputAfter = dataTime
+		if p.anomalyCutoff {
+			if _, supported := p.byKind[transition.To]; supported && transition.From != observer.UNSET {
+				state.reactivated = true
+				state.outputAfter = dataTime
+			}
 		}
 		storage.SetSeriesKind(ref, transition.To)
 		p.recordKindTransition(transition.From, transition.To)

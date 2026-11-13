@@ -128,12 +128,6 @@ dd_agent_go_binary(
         "@platforms//os:windows": ["//cmd/dogstatsd/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
-    cgo = select({
-        "//packages/agent:fips_flavor": True,
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    }),
     embed = [":dogstatsd_lib"],
     gotags = DOGSTATSD_TAGS,
     visibility = ["//visibility:public"],

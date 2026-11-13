@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -264,8 +265,8 @@ class TestLocalF1Pipeline(unittest.TestCase):
             os.makedirs(parquet)
             with open(os.path.join(parquet, "fixture.parquet"), "w") as f:
                 f.write("unused by mocked replay")
-            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
-                json.dump({}, f)
+            with open(os.path.join(root, "example", "episode.json"), "w") as f:
+                json.dump({"disruption": {"start": "2026-01-01T00:05:00Z"}}, f)
             score = {
                 "scoring_version": F1_SCORING_VERSION,
                 "f1": 0.5,
@@ -279,10 +280,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 "num_filtered_recovery": 0,
             }
             ctx = Mock()
-            ctx.run.side_effect = [
-                SimpleNamespace(failed=False),
-                SimpleNamespace(failed=False, stdout=json.dumps(score)),
-            ]
+
+            def run(command, **_kwargs):
+                if "--headless" in command:
+                    with open(os.path.join(root, "observer-eval-example.json"), "w") as output:
+                        json.dump({}, output)
+                    return SimpleNamespace(failed=False)
+                return SimpleNamespace(failed=False, stdout=json.dumps(score))
+
+            ctx.run.side_effect = run
             with patch("builtins.print"):
                 report = eval_scenarios.body(
                     ctx,
@@ -300,6 +306,19 @@ class TestLocalF1Pipeline(unittest.TestCase):
 
 
 class TestMetricWorkflow(unittest.TestCase):
+    @staticmethod
+    def _fault_replay_run(root, score):
+        output_path = os.path.join(root, "observer-eval-example.json")
+
+        def run(command, **_kwargs):
+            if "--headless" in command:
+                with open(output_path, "w") as output:
+                    json.dump({}, output)
+                return SimpleNamespace(failed=False)
+            return SimpleNamespace(failed=False, stdout=json.dumps(score))
+
+        return run
+
     def test_launch_forwards_workflow_independently_of_config(self):
         for pipeline in (False, True):
             for config in ("", "/tmp/params.json"):
@@ -314,7 +333,7 @@ class TestMetricWorkflow(unittest.TestCase):
                         local=True,
                     )
                     command = ctx.run.call_args.args[0]
-                    self.assertEqual("--use-metric-pipeline" in command, pipeline)
+                    self.assertEqual("--use-metric-pipeline" in shlex.split(command), pipeline)
                     self.assertNotIn("--only", command)
                     self.assertEqual("--config" in command, bool(config))
 
@@ -369,6 +388,7 @@ class TestMetricWorkflow(unittest.TestCase):
             self.assertTrue(replay.call_args.kwargs["use_metric_pipeline"])
             with open(replay.call_args.kwargs["config"]) as f:
                 config = json.load(f)
+            self.assertTrue(config["use_metric_pipeline"])
             self.assertTrue(all(not config["components"][name]["enabled"] for name in DETECTORS))
 
     def test_tp_evaluation_forwards_workflow(self):
@@ -440,28 +460,21 @@ class TestMetricWorkflow(unittest.TestCase):
     def test_headless_evaluation_forwards_workflow(self):
         with tempfile.TemporaryDirectory() as root, patch("builtins.print"):
             os.makedirs(os.path.join(root, "example", "parquet"))
+            with open(os.path.join(root, "example", "episode.json"), "w") as f:
+                json.dump({"disruption": {"start": "2026-01-01T00:05:00Z"}}, f)
             with open(os.path.join(root, "example", "parquet", "fixture.parquet"), "w") as f:
                 f.write("fixture")
-            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
-                json.dump({}, f)
             ctx = Mock()
-            ctx.run.side_effect = [
-                SimpleNamespace(failed=False),
-                SimpleNamespace(
-                    failed=False,
-                    stdout=json.dumps(
-                        {
-                            "f1": 1.0,
-                            "precision": 1.0,
-                            "recall": 1.0,
-                            "num_predictions": 1,
-                            "num_baseline_fps": 0,
-                            "num_filtered_warmup": 0,
-                            "num_filtered_cascading": 0,
-                        }
-                    ),
-                ),
-            ]
+            score = {
+                "f1": 1.0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "num_predictions": 1,
+                "num_baseline_fps": 0,
+                "num_filtered_warmup": 0,
+                "num_filtered_cascading": 0,
+            }
+            ctx.run.side_effect = self._fault_replay_run(root, score)
             report = eval_scenarios.body(
                 ctx,
                 scenario="example",
@@ -472,8 +485,48 @@ class TestMetricWorkflow(unittest.TestCase):
                 main_report_path=os.path.join(root, "report.json"),
                 use_metric_pipeline=True,
             )
-            self.assertIn("--use-metric-pipeline", ctx.run.call_args_list[0].args[0])
+            self.assertIn("--use-metric-pipeline", shlex.split(ctx.run.call_args_list[0].args[0]))
             self.assertTrue(report["use_metric_pipeline"])
+            self.assertIn(
+                "--use-metric-pipeline",
+                shlex.split(report["metadata"]["example"]["inspect_command"]),
+            )
+
+    def test_headless_evaluation_preserves_workflow_from_config_and_inspection(self):
+        with tempfile.TemporaryDirectory() as root, patch("builtins.print"):
+            os.makedirs(os.path.join(root, "example", "parquet"))
+            with open(os.path.join(root, "example", "episode.json"), "w") as f:
+                json.dump({"disruption": {"start": "2026-01-01T00:05:00Z"}}, f)
+            with open(os.path.join(root, "example", "parquet", "fixture.parquet"), "w") as f:
+                f.write("fixture")
+            config_path = os.path.join(root, "config.json")
+            with open(config_path, "w") as f:
+                json.dump({"use_metric_pipeline": True, "components": {}}, f)
+            ctx = Mock()
+            score = {
+                "f1": 1.0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "num_predictions": 1,
+                "num_baseline_fps": 0,
+                "num_filtered_warmup": 0,
+                "num_filtered_cascading": 0,
+            }
+            ctx.run.side_effect = self._fault_replay_run(root, score)
+            report = eval_scenarios.body(
+                ctx,
+                scenario="example",
+                scenarios_dir=root,
+                config=config_path,
+                build=False,
+                local=True,
+                scenario_output_dir=root,
+                main_report_path=os.path.join(root, "report.json"),
+            )
+            self.assertIn("--use-metric-pipeline", shlex.split(ctx.run.call_args_list[0].args[0]))
+            self.assertTrue(report["use_metric_pipeline"])
+            inspect_command = report["metadata"]["example"]["inspect_command"]
+            self.assertIn("--use-metric-pipeline", shlex.split(inspect_command))
 
 
 if __name__ == "__main__":

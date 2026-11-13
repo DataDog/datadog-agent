@@ -74,13 +74,18 @@ pub fn exit_status(code: i32) -> std::process::ExitStatus {
 
 /// Build an `ExitStatus` for a process killed by `signal`.
 ///
-/// The raw wait status of a signal death is the signal number in the low bits,
+/// The raw wait status of a signal death is the signal number in the low bits on Linux and macOS,
 /// which is what makes `ExitStatus::signal()` report it and `code()` report
 /// nothing.
 #[cfg(unix)]
 pub fn signal_exit_status(signal: i32) -> std::process::ExitStatus {
     use std::os::unix::process::ExitStatusExt;
-    std::process::ExitStatus::from_raw(signal)
+    // AIX kernel writes the signal in bits 16-23 and in the low byte.
+    #[cfg(target_os = "aix")]
+    let raw = (signal << 16) | signal;
+    #[cfg(not(target_os = "aix"))]
+    let raw = signal;
+    std::process::ExitStatus::from_raw(raw)
 }
 
 /// Build an `ExitStatus` for a process that died without returning a value:

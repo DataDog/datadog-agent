@@ -112,7 +112,7 @@ func FuzzDiscover(f *testing.F) {
 
 		devices, _ := Discover(fs.Root)
 		for _, dev := range devices {
-			assert.True(t, strings.HasPrefix(dev.UUID, Vendor+"-"), "UUID %q", dev.UUID)
+			assert.Regexp(t, `^([0-9a-f]{8}-0000-1000-80[0-9a-f]{2}-[0-9a-f]{12}|amd-[0-9a-f-]+)$`, dev.UUID)
 		}
 		_ = KFDAccessDeniedWarning(devices)
 		_, _, _ = ReadProcessMemory(fs.Root, devices)

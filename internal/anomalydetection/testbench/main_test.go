@@ -61,7 +61,7 @@ func testbenchFXOptions(params CLIParams) []fx.Option {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			c.Set("anomaly_detection.use_metric_pipeline", params.ComponentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.metric_pipeline.enabled", params.ComponentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
 			if len(params.AllowedTypes) > 0 {
 				c.Set("anomaly_detection.metrics.allowed_types", params.AllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}

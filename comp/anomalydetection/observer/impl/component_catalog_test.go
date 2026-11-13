@@ -113,24 +113,27 @@ anomaly_detection:
     scanmw:
       min_points: 42
       max_points: 84
-  use_metric_pipeline: true
+  metric_pipeline:
+    enabled: true
 `)
 	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
 	require.True(t, settings.UseMetricPipeline)
 	require.Nil(t, settings.StablePipeline, "absent setting must select defaults")
+	require.Nil(t, settings.MetricPipelineAnomalyCutoff)
 	detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
 	require.Equal(t, []string{"stable_pipeline:scanmw"}, detectorNames(detectors))
 	pipeline := detectors[0].detector.(*MetricPipeline)
 	stable := pipeline.registrations[0].detector.(*StablePipeline)
 	require.Equal(t, observerdef.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}, pipeline.DetectorPointWindow())
 	require.NotNil(t, stable.gate, "absent stable config selects the default gate")
+	require.True(t, pipeline.anomalyCutoff)
 }
 
 func TestSettingsFromAgentConfigStablePipeline(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 anomaly_detection:
-  use_metric_pipeline: true
   metric_pipeline:
+    enabled: true
     stable:
       min_relative_change: 0
 `)
@@ -141,11 +144,12 @@ anomaly_detection:
 	pipeline := detectors[0].detector.(*MetricPipeline)
 	stable := pipeline.registrations[0].detector.(*StablePipeline)
 	require.Nil(t, stable.gate, "explicit zero must construct no gate")
+	require.True(t, pipeline.anomalyCutoff)
 
 	cfg = configmock.NewFromYAML(t, `
 anomaly_detection:
-  use_metric_pipeline: true
   metric_pipeline:
+    enabled: true
     stable:
       min_relative_change: 0.2
 `)

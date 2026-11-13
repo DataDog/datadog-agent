@@ -33,8 +33,12 @@ import (
 //
 // use_metric_pipeline is optional and selects the kind-routed metric workflow
 // instead of the legacy detectors.
+//
+// anomaly_cutoff is optional and controls post-reactivation anomaly suppression;
+// omitted fields inherit the enabled default.
 type TestbenchParamsFile struct {
 	UseMetricPipeline bool                       `json:"use_metric_pipeline"`
+	AnomalyCutoff     *bool                      `json:"anomaly_cutoff"`
 	Components        map[string]json.RawMessage `json:"components"`
 }
 
@@ -64,5 +68,6 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 		return observerimpl.ComponentSettings{}, err
 	}
 	settings.UseMetricPipeline = file.UseMetricPipeline
+	settings.MetricPipelineAnomalyCutoff = file.AnomalyCutoff
 	return settings, nil
 }

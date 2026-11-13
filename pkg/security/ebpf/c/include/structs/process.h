@@ -5,12 +5,20 @@
 #include "events_context.h"
 #include "dentry_resolver.h"
 
+struct file_capabilities_t {
+    u64 permitted;
+    u64 inheritable;
+    u32 effective;
+    u32 available;
+};
+
 struct process_entry_t {
     struct file_t executable;
 
     u64 exec_timestamp;
     char tty_name[TTY_NAME_LEN];
     char comm[TASK_COMM_LEN];
+    struct file_capabilities_t file_capabilities;
 };
 
 struct proc_cache_t {

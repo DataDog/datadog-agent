@@ -161,12 +161,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		},
 		// OnStoppedLeading shouldn't be called unless the election is lost. This could happen if
 		// we lose connection to the apiserver for the duration of the lease.
-		OnStoppedLeading: func() {
-			le.updateLeaderIdentity("")
-			le.reportLeaderMetric(false)
-			le.notify() // current process lost leadership
-			log.Infof("Stopped leading %q", le.HolderIdentity)
-		},
+		OnStoppedLeading: le.onStoppedLeading,
 	}
 
 	eventSource := v1.EventSource{
@@ -210,6 +205,20 @@ func (le *LeaderEngine) updateLeaderIdentity(identity string) {
 	le.leaderIdentityMutex.Lock()
 	defer le.leaderIdentityMutex.Unlock()
 	le.leaderIdentity = identity
+}
+
+func (le *LeaderEngine) onStoppedLeading() {
+	// client-go runs OnNewLeader in a goroutine but OnStoppedLeading synchronously, so the new
+	// leader may already be recorded. It won't be reported again, so don't overwrite it.
+	le.leaderIdentityMutex.Lock()
+	if le.leaderIdentity == le.HolderIdentity {
+		le.leaderIdentity = ""
+	}
+	le.leaderIdentityMutex.Unlock()
+
+	le.reportLeaderMetric(false)
+	le.notify() // current process lost leadership
+	log.Infof("Stopped leading %q", le.HolderIdentity)
 }
 
 // reportLeaderMetric updates the label of the leader metric on every leadership change

@@ -56,6 +56,11 @@ type Payload struct {
 	UUID      string                  `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHostSystemInfo
+}
+
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
@@ -159,7 +164,7 @@ func (hh *hostSystemInfo) writePayloadAsJSON(w http.ResponseWriter, _ *http.Requ
 	w.Write(scrubbed)
 }
 
-func (hh *hostSystemInfo) getPayload() marshaler.JSONMarshaler {
+func (hh *hostSystemInfo) getPayload() marshaler.TypedJSONMarshaler {
 	// Try to collect system info data
 	if err := hh.fillData(); err != nil {
 		hh.log.Debugf("Skipping system info metadata payload due to collection failure: %v", err)

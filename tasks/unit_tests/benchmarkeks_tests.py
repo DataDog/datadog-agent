@@ -2,22 +2,25 @@ import os
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.testing.benchmarkeks import (
+    RUN_BADGE_URL,
     Baseline,
     BaselineNotFoundError,
     Commit,
     find_baseline,
     format_dotenv,
     index_pipeline_ids,
+    instructions_comment,
     is_missing_image_error,
     parse_rev_list,
 )
-from tasks.new_e2e_tests import benchmarkeks_baseline
+from tasks.new_e2e_tests import benchmarkeks_baseline, benchmarkeks_instructions
 
 SHA_A = "a6c0b31b" + "1" * 32
 SHA_B = "73f0a2f0" + "2" * 32
@@ -237,3 +240,57 @@ class TestBenchmarkeksBaselineTask(unittest.TestCase):
         with self.assertRaisesRegex(Exit, "(?s)Could not list the tags of .*Forbidden"):
             benchmarkeks_baseline(ctx, output_file=self.output_file)
         self.assertFalse(os.path.exists(self.output_file))
+
+
+JOB_URL = "https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/2222762855"
+PIPELINE_URL = "https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/150947315"
+
+
+def job(name, web_url=None):
+    return SimpleNamespace(name=name, web_url=web_url)
+
+
+class TestInstructionsComment(unittest.TestCase):
+    def test_button(self):
+        comment = instructions_comment(JOB_URL, PIPELINE_URL)
+        self.assertIn(f"\n\n[![Run the benchmark]({RUN_BADGE_URL})]({JOB_URL})\n", comment)
+        self.assertIn("then click **Run job**", comment)
+        self.assertNotIn(PIPELINE_URL, comment)
+
+    def test_pipeline_link(self):
+        comment = instructions_comment(None, PIPELINE_URL)
+        self.assertIn(f"`new-e2e-containers-benchmarkeks-baseline` of [the pipeline]({PIPELINE_URL})", comment)
+        self.assertNotIn(RUN_BADGE_URL, comment)
+
+
+@patch.dict(os.environ, {"CI_PIPELINE_ID": "150947315", "CI_PIPELINE_URL": PIPELINE_URL})
+class TestBenchmarkeksInstructionsTask(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self.output_file = os.path.join(self.tmpdir.name, "instructions.md")
+
+    def run_task(self, repo):
+        with patch("tasks.new_e2e_tests.get_gitlab_repo", return_value=repo):
+            benchmarkeks_instructions(MockContext(), output_file=self.output_file)
+        with open(self.output_file) as f:
+            return f.read()
+
+    def test_button(self):
+        repo = MagicMock()
+        repo.pipelines.get.return_value.jobs.list.return_value = [
+            job("new-e2e-containers-benchmarkeks-baseline", JOB_URL)
+        ]
+        self.assertEqual(self.run_task(repo), instructions_comment(JOB_URL, PIPELINE_URL))
+        self.assertEqual(repo.pipelines.get.call_args.args, ("150947315",))
+        self.assertEqual(repo.pipelines.get.return_value.jobs.list.call_args.kwargs["scope"], "manual")
+
+    def test_job_not_found(self):
+        repo = MagicMock()
+        repo.pipelines.get.return_value.jobs.list.return_value = [job("deploy_staging")]
+        self.assertEqual(self.run_task(repo), instructions_comment(None, PIPELINE_URL))
+
+    def test_api_error(self):
+        repo = MagicMock()
+        repo.pipelines.get.return_value.jobs.list.side_effect = RuntimeError("401 Unauthorized")
+        self.assertEqual(self.run_task(repo), instructions_comment(None, PIPELINE_URL))

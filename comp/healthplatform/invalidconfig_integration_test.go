@@ -79,7 +79,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMockFromYAML(t, "dogstatsd_port: ENC[PRIVATE_UNRESOLVED_HANDLE]\n")
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.forwarder.dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.invalidconfig_check.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)

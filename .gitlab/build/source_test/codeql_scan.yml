@@ -17,6 +17,8 @@ run_codeql_scan:
   variables:
     ARCH: arm64
     BASE_REF: main
+    # Fixed resources: GOMAXPROCS is tied to the CPU settings below
+    DD_DISABLE_VPA: true
     GOMAXPROCS: 10
     KUBERNETES_CPU_REQUEST: 10
     KUBERNETES_CPU_LIMIT: 10

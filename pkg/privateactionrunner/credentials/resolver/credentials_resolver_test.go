@@ -7,6 +7,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
@@ -221,7 +223,20 @@ func TestRunnerCredentialAllowedActions(t *testing.T) {
 		{name: "exact", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.mongodb", action: "find", allowed: true},
 		{name: "multiple", policy: "[com.datadoghq.mongodb.find, com.datadoghq.mongodb.countDocuments]", bundle: "com.datadoghq.mongodb", action: "countDocuments", allowed: true},
 		{name: "exact denies write", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.mongodb", action: "insertOne"},
-		{name: "no implicit connection test", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.mongodb", action: "testConnection"},
+		{name: "implicit connection test", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.mongodb", action: "testConnection", allowed: true},
+		{name: "similar integration denies connection test", policy: "[com.datadoghq.mongodbother.find]", bundle: "com.datadoghq.mongodb", action: "testConnection"},
+		{name: "similar integration wildcard denies connection test", policy: "[com.datadoghq.mongodbother.*]", bundle: "com.datadoghq.mongodb", action: "testConnection"},
+		{name: "similar integration sub bundle denies connection test", policy: "[com.datadoghq.gitlabother.issues.getIssue]", bundle: "com.datadoghq.gitlab.users", action: "testConnection"},
+		{name: "implicit sibling connection test", policy: "[com.datadoghq.gitlab.issues.getIssue]", bundle: "com.datadoghq.gitlab.users", action: "testConnection", allowed: true},
+		{name: "implicit wildcard sibling connection test", policy: "[com.datadoghq.gitlab.issues.*]", bundle: "com.datadoghq.gitlab.users", action: "testConnection", allowed: true},
+		{name: "implicit kubernetes connection test", policy: "[com.datadoghq.kubernetes.apps.listDeployment]", bundle: "com.datadoghq.kubernetes.core", action: "testConnection", allowed: true},
+		{name: "implicit HTTP connection test", policy: "[com.datadoghq.http.sendRequest]", bundle: "com.datadoghq.http", action: "testConnection", allowed: true},
+		{name: "implicit script connection test", policy: "[com.datadoghq.script.run]", bundle: "com.datadoghq.script", action: "testConnection", allowed: true},
+		{name: "implicit script enrichment", policy: "[com.datadoghq.script.run]", bundle: "com.datadoghq.script", action: "enrichScript", allowed: true},
+		{name: "implicit remote action connection test", policy: "[com.datadoghq.remoteaction.datadogagent.getStatus]", bundle: "com.datadoghq.remoteaction", action: "testConnection", allowed: true},
+		{name: "implicit encryption preparation", policy: "[com.datadoghq.remoteaction.datadogagent.getStatus]", bundle: "com.datadoghq.remoteaction.internal", action: "prepareEncryption", allowed: true},
+		{name: "empty denies connection test", policy: "[]", bundle: "com.datadoghq.mongodb", action: "testConnection"},
+		{name: "unrelated connection test", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.gitlab.users", action: "testConnection"},
 		{name: "case sensitive", policy: "[com.datadoghq.mongodb.find]", bundle: "com.datadoghq.mongodb", action: "Find"},
 		{name: "missing context", policy: "[com.datadoghq.mongodb.*]"},
 		{name: "missing action", policy: "[com.datadoghq.mongodb.*]", bundle: "com.datadoghq.mongodb"},
@@ -377,6 +392,81 @@ func TestRunnerCredentialHTTPDomainsRequireEveryCredential(t *testing.T) {
 	require.ErrorContains(t, err, "request domain is not allowed")
 	assert.Nil(t, credentials)
 	assert.NotContains(t, err.Error(), "secret-value")
+}
+
+func TestResolveCredentialsRejectsTokensWithoutName(t *testing.T) {
+	named := &privateactionspb.ConnectionToken{
+		NameSegments: []string{"root_tokens", "token"},
+		TokenValue: &privateactionspb.ConnectionToken_PlainText_{
+			PlainText: &privateactionspb.ConnectionToken_PlainText{Value: "plain-value"},
+		},
+	}
+	unnamed := &privateactionspb.ConnectionToken{
+		TokenValue: &privateactionspb.ConnectionToken_PlainText_{
+			PlainText: &privateactionspb.ConnectionToken_PlainText{Value: "plain-value"},
+		},
+	}
+	tokensV2 := []*privateactionspb.ConnectionTokenV2{{
+		NameSegments: []string{"root_tokens", "token"},
+		Source: &privateactionspb.ConnectionTokenV2_PlainText_{
+			PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: "plain-value"},
+		},
+	}}
+	credentialTypes := []privateactionspb.CredentialsType{
+		privateactionspb.CredentialsType_TOKEN_AUTH,
+		privateactionspb.CredentialsType_BASIC_AUTH,
+		privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+	}
+	invalidTokens := map[string]*privateactionspb.ConnectionToken{
+		"no name segments": unnamed,
+		"nil token":        nil,
+	}
+
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	for _, credentialsType := range credentialTypes {
+		for _, withV2 := range []bool{false, true} {
+			for name, invalid := range invalidTokens {
+				t.Run(fmt.Sprintf("%s/v2=%t/%s", credentialsType, withV2, name), func(t *testing.T) {
+					conn := &privateactionspb.ConnectionInfo{
+						CredentialsType: credentialsType,
+						Tokens:          []*privateactionspb.ConnectionToken{named, invalid},
+					}
+					if withV2 {
+						conn.TokensV2 = tokensV2
+					}
+					var credentials *privateconnection.PrivateCredentials
+					var resolveErr error
+					require.NotPanics(t, func() {
+						credentials, resolveErr = resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+					})
+					require.ErrorContains(t, resolveErr, "connection token and its name must not be empty")
+					assert.Nil(t, credentials)
+				})
+			}
+		}
+	}
+}
+
+func TestResolveCredentialsTokenAuthPlainText(t *testing.T) {
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewPlainTextToken([]string{"root_tokens", "token"}, "plain-value"),
+			privateconnection.NewPlainTextToken([]string{"headers", "X-Key"}, "header-value"),
+		},
+	}
+
+	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "token", credentials.Tokens[0].Name)
+	assert.Equal(t, "plain-value", credentials.Tokens[0].Value)
+	require.Len(t, credentials.HttpDetails.Headers, 1)
+	assert.Equal(t, "X-Key", credentials.HttpDetails.Headers[0].Name)
+	assert.Equal(t, "header-value", credentials.HttpDetails.Headers[0].Value)
 }
 
 func credentialTask(conn *privateactionspb.ConnectionInfo, attributes types.Attributes) *types.Task {

@@ -297,7 +297,7 @@ Use a fakeintake-backed integration test when the issue can be triggered and ver
 
 The pattern (see `TestIssueStateLifecycleForwarded`):
 1. Start an in-process fakeintake server: `fi := fakeintakeserver.NewServer(...); fi.Start()`
-2. Boot the full bundle with `fxutil.Test`, pointing `dd_url` at `fi.URL()`
+2. Boot the full bundle with `fxutil.Test`, pointing `health_platform.forwarder.dd_url` at `fi.URL()`
 3. Trigger the condition by calling `store.ReportIssue(...)` or `scheduler.Schedule(...)`
 4. Poll `fiClient.GetAgentHealth()` and assert on issue state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`)
 

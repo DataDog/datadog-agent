@@ -145,7 +145,7 @@ func newScanMWPipelineWithMatcher(
 }
 
 func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
-	p, err := newScanMWMetricPipeline(cfg, nil)
+	p, err := newScanMWMetricPipeline(cfg, true, nil)
 	require.NoError(tb, err)
 	return p
 }
@@ -439,6 +439,28 @@ func TestMetricPipelineReactivationCutoff(t *testing.T) {
 	p.Reset()
 }
 
+func TestMetricPipelineReactivationCutoffDisabled(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelineValues(s, 1, 1, 40, 10)
+	p, _ := newScanMWPipelineWithMatcher(t,
+		testScanMWPipelineConfig(), 30, 30, 3,
+		observer.STABLE, observer.UNKNOWN, observer.UNKNOWN, observer.UNKNOWN, observer.STABLE,
+	)
+	p.anomalyCutoff = false
+
+	p.advanceKinds(s, 40)
+	for ts := int64(41); ts <= 46; ts++ {
+		addPipelineValues(s, 1, ts, ts, 100)
+		p.Detect(s, ts, observer.DetectionFilter{})
+		p.advanceKinds(s, ts)
+	}
+
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	require.False(t, p.series[ref].reactivated)
+	require.NotEmpty(t, p.Detect(s, 46, observer.DetectionFilter{}).Anomalies)
+}
+
 func TestMetricPipelineReplayParity(t *testing.T) {
 	streaming, preloaded := newDetectorTestStorage(), newDetectorTestStorage()
 	for ts := int64(1); ts <= 100; ts++ {
@@ -695,7 +717,6 @@ func BenchmarkMetricPipeline(b *testing.B) {
 		}
 	}
 }
-
 func stablePipelineInnerScanMW(p *MetricPipeline) *ScanMWDetector {
 	return p.registrations[0].detector.(*StablePipeline).detector.(*ScanMWDetector)
 }
