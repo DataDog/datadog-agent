@@ -40,16 +40,21 @@ type fakePacket struct {
 }
 
 // fakePacketSource is a filter.PacketSource that delivers the packets written to it.
-// Like the real sources, VisitPackets returns nil when no packet arrives within a poll timeout.
+// It reports on visited once the callback has returned nil for a packet, and on
+// stopped if the callback returned an error, which makes the tracer's reader exit.
 type fakePacketSource struct {
 	packets   chan fakePacket
+	visited   chan struct{}
+	stopped   chan error
 	closed    chan struct{}
 	closeOnce sync.Once
 }
 
-func newFakePacketSource() *fakePacketSource {
+func newFakePacketSource(capacity int) *fakePacketSource {
 	return &fakePacketSource{
-		packets: make(chan fakePacket, 16),
+		packets: make(chan fakePacket, capacity),
+		visited: make(chan struct{}, capacity),
+		stopped: make(chan error, 1),
 		closed:  make(chan struct{}),
 	}
 }
@@ -60,12 +65,25 @@ func (f *fakePacketSource) VisitPackets(visit func(data []byte, info filter.Pack
 		case pkt := <-f.packets:
 			info := &fakePacketInfo{pktType: pkt.pktType, length: len(pkt.data)}
 			if err := visit(pkt.data, info, time.Now()); err != nil {
+				f.stopped <- err
 				return err
 			}
-		case <-time.After(10 * time.Millisecond):
-			return nil
+			f.visited <- struct{}{}
 		case <-f.closed:
 			return nil
+		}
+	}
+}
+
+// waitVisited blocks until the callback has returned for n packets.
+// It fails the test if the callback returned an error first.
+func (f *fakePacketSource) waitVisited(t *testing.T, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		select {
+		case <-f.visited:
+		case err := <-f.stopped:
+			t.Fatalf("packet reader stopped after %d of %d packets: %s", i, n, err)
 		}
 	}
 }
@@ -122,7 +140,7 @@ const (
 // skipped and counted, and that the tracer keeps processing the frames that follow it.
 func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	cfg := config.New()
-	src := newFakePacketSource()
+	src := newFakePacketSource(16)
 	tr := newEbpfLessTracerWithPacketSource(cfg, src)
 
 	var closedMu sync.Mutex
@@ -143,8 +161,10 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	const clientISN, serverISN = 1000, 5000
 	payload := []byte("hello")
 
+	sent := 0
 	send := func(data []byte, pktType uint8) {
 		src.packets <- fakePacket{data: data, pktType: pktType}
+		sent++
 	}
 
 	// A frame whose IPv4 header length is invalid. The Ethernet layer decodes,
@@ -172,9 +192,10 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	// another undecodable RST, after the connection is established
 	send(badRST(), filter.PacketOutgoing)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, float64(3), skipped.Get()-skippedBefore)
-	}, 5*time.Second, 10*time.Millisecond, "undecodable frames were not counted")
+	// the callback processes each packet synchronously, so once it has returned
+	// for every packet, the counter and the connection state are final
+	src.waitVisited(t, sent)
+	assert.Equal(t, float64(3), skipped.Get()-skippedBefore, "undecodable frames were not counted")
 
 	expectedTuple := network.ConnectionTuple{
 		Source: util.AddressFromNetIP(clientIP),
@@ -184,8 +205,6 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 		Type:   network.TCP,
 		Family: network.AFINET,
 	}
-	// the packets are visited in order, so by the time the last frame has been
-	// counted the valid frames before it have been processed
 	buf := network.NewConnectionBuffer(4, 4)
 	require.NoError(t, tr.GetConnections(buf, nil))
 	conns := buf.Connections()
