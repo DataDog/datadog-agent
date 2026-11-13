@@ -25,20 +25,20 @@ func setupConfigWithoutFileForTest(t *testing.T, options ...func(*Params)) (pkgc
 	return config, err
 }
 
-func TestSetupConfigFullLoadOnMissingFile(t *testing.T) {
+func TestSetupConfigIgnoreMissingConfigFileError(t *testing.T) {
 	t.Setenv("DD_API_KEY", "abcdef0123456789\n")
 
-	config, err := setupConfigWithoutFileForTest(t, WithFullLoadOnMissingFile(true))
+	config, err := setupConfigWithoutFileForTest(t, WithIgnoreMissingConfigFileError(true))
 
 	require.NoError(t, err)
 	assert.Equal(t, "abcdef0123456789", config.GetString("api_key"), "post-load steps must run")
 }
 
-func TestSetupConfigFullLoadOnMissingFileReturnsPostLoadError(t *testing.T) {
+func TestSetupConfigIgnoreMissingConfigFileErrorReturnsPostLoadError(t *testing.T) {
 	t.Setenv("DD_LOGS_CONFIG_USE_PODMAN_LOGS", "true")
 	t.Setenv("DD_LOGS_CONFIG_DOCKER_PATH_OVERRIDE", "/custom/docker")
 
-	_, err := setupConfigWithoutFileForTest(t, WithFullLoadOnMissingFile(true))
+	_, err := setupConfigWithoutFileForTest(t, WithIgnoreMissingConfigFileError(true))
 
 	assert.ErrorContains(t, err, "use_podman_logs")
 }

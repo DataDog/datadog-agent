@@ -22,12 +22,12 @@ import (
 // untrimmedAPIKey shows whether LoadDatadog ran the post-load steps: sanitizeAPIKeyConfig trims it.
 const untrimmedAPIKey = "abcdef0123456789\n"
 
-func loadDatadogForTest(t *testing.T, config pkgconfigmodel.Config, resolver *secretsmock.Mock, options ...LoadOption) error {
+func loadDatadogForTest(t *testing.T, config pkgconfigmodel.Config, resolver *secretsmock.Mock, ignoreMissingConfigFile bool) error {
 	t.Helper()
 	if resolver == nil {
 		resolver = secretsmock.New(t)
 	}
-	return LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, options...)
+	return LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, ignoreMissingConfigFile)
 }
 
 func TestLoadDatadogMissingMainFile(t *testing.T) {
@@ -40,32 +40,32 @@ func TestLoadDatadogMissingMainFile(t *testing.T) {
 		{name: "no file in the search paths", configFile: ""},
 		{name: "SetConfigFile on a missing path", configFile: missingPath},
 	} {
-		for _, fullLoad := range []bool{false, true} {
-			name := tc.name + "/default"
-			if fullLoad {
-				name = tc.name + "/full load"
-			}
-			t.Run(name, func(t *testing.T) {
-				t.Setenv("DD_API_KEY", untrimmedAPIKey)
-				config := newTestConf(t)
-				config.SetConfigFile(tc.configFile)
+		t.Run(tc.name+"/default", func(t *testing.T) {
+			t.Setenv("DD_API_KEY", untrimmedAPIKey)
+			config := newTestConf(t)
+			config.SetConfigFile(tc.configFile)
 
-				err := loadDatadogForTest(t, config, nil, WithFullLoadOnMissingFile(fullLoad))
+			err := loadDatadogForTest(t, config, nil, false)
 
-				require.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
-				assert.ErrorIs(t, err, os.ErrNotExist)
-				assert.Equal(t, tc.configFile, config.ConfigFileUsed())
-				if fullLoad {
-					assert.Equal(t, "abcdef0123456789", config.GetString("api_key"))
-				} else {
-					assert.Equal(t, untrimmedAPIKey, config.GetString("api_key"))
-				}
-			})
-		}
+			require.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
+			assert.ErrorIs(t, err, pkgconfigmodel.ErrMissingConfigFile)
+			assert.Equal(t, untrimmedAPIKey, config.GetString("api_key"), "post-load steps must not run")
+		})
+
+		t.Run(tc.name+"/ignore missing file", func(t *testing.T) {
+			t.Setenv("DD_API_KEY", untrimmedAPIKey)
+			config := newTestConf(t)
+			config.SetConfigFile(tc.configFile)
+
+			err := loadDatadogForTest(t, config, nil, true)
+
+			require.NoError(t, err)
+			assert.Equal(t, "abcdef0123456789", config.GetString("api_key"), "post-load steps must run")
+		})
 	}
 }
 
-func TestLoadDatadogFullLoadKeepsEarlyReturn(t *testing.T) {
+func TestLoadDatadogIgnoreMissingFileKeepsOtherErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		setup    func(t *testing.T, config pkgconfigmodel.BuildableConfig)
@@ -80,7 +80,6 @@ func TestLoadDatadogFullLoadKeepsEarlyReturn(t *testing.T) {
 			},
 			checkErr: func(t *testing.T, err error) {
 				assert.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
-				assert.NotErrorIs(t, err, os.ErrNotExist)
 			},
 		},
 		{
@@ -119,58 +118,57 @@ func TestLoadDatadogFullLoadKeepsEarlyReturn(t *testing.T) {
 			config := newTestConf(t)
 			tc.setup(t, config)
 
-			err := loadDatadogForTest(t, config, nil, WithFullLoadOnMissingFile(true))
+			err := loadDatadogForTest(t, config, nil, true)
 
 			require.Error(t, err)
+			assert.NotErrorIs(t, err, pkgconfigmodel.ErrMissingConfigFile)
 			tc.checkErr(t, err)
 			assert.Equal(t, untrimmedAPIKey, config.GetString("api_key"), "post-load steps must not run")
 		})
 	}
 }
 
-func TestLoadDatadogFullLoadReturnsPostLoadErrorAlone(t *testing.T) {
+func TestLoadDatadogIgnoreMissingFileReturnsPostLoadError(t *testing.T) {
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", "some_command")
 	t.Setenv("DD_API_KEY", "ENC[unknown_handle]")
 	config := newTestConf(t)
 
-	err := loadDatadogForTest(t, config, nil, WithFullLoadOnMissingFile(true))
+	err := loadDatadogForTest(t, config, nil, true)
 
 	require.ErrorContains(t, err, "unknown_handle")
 	assert.NotErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
 }
 
-// The tests below check values that LoadDatadog processes only with the option when no datadog.yaml exists.
+// The tests below check values that LoadDatadog processes only with ignoreMissingConfigFile when no datadog.yaml
+// exists.
 
-func TestLoadDatadogFullLoadTrimsAPIKey(t *testing.T) {
+func TestLoadDatadogIgnoreMissingFileTrimsAPIKey(t *testing.T) {
 	t.Setenv("DD_API_KEY", untrimmedAPIKey)
 	config := newTestConf(t)
 
-	err := loadDatadogForTest(t, config, nil, WithFullLoadOnMissingFile(true))
+	require.NoError(t, loadDatadogForTest(t, config, nil, true))
 
-	require.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
 	assert.Equal(t, "abcdef0123456789", config.GetString("api_key"))
 }
 
-func TestLoadDatadogFullLoadResolvesSecretsFromEnv(t *testing.T) {
+func TestLoadDatadogIgnoreMissingFileResolvesSecretsFromEnv(t *testing.T) {
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", "some_command")
 	t.Setenv("DD_API_KEY", "ENC[api_key_handle]")
 	config := newTestConf(t)
 	resolver := secretsmock.New(t)
 	resolver.SetSecrets(map[string]string{"api_key_handle": "resolved_api_key"})
 
-	err := loadDatadogForTest(t, config, resolver, WithFullLoadOnMissingFile(true))
+	require.NoError(t, loadDatadogForTest(t, config, resolver, true))
 
-	require.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
 	assert.Equal(t, "resolved_api_key", config.GetString("api_key"))
 }
 
-func TestLoadDatadogFullLoadReadsProxyFromEnv(t *testing.T) {
+func TestLoadDatadogIgnoreMissingFileReadsProxyFromEnv(t *testing.T) {
 	unsetProxyEnvForTest(t)
 	t.Setenv("HTTPS_PROXY", "https://proxy.example.com:3128")
 	config := newTestConf(t)
 
-	err := loadDatadogForTest(t, config, nil, WithFullLoadOnMissingFile(true))
+	require.NoError(t, loadDatadogForTest(t, config, nil, true))
 
-	require.ErrorIs(t, err, pkgconfigmodel.ErrConfigFileNotFound)
 	assert.Equal(t, "https://proxy.example.com:3128", config.GetString("proxy.https"))
 }
