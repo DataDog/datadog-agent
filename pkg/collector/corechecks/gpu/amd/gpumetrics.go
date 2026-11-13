@@ -173,7 +173,7 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 	previous := state.previous
 	state.previous = gm
 	samples, act, implausible := intervalSamples(previous, gm, m.XGMIHiveSize >= 2)
-	if implausible || len(gm.Implausible) > 0 {
+	if implausible {
 		c.telemetry.failures.Inc(dev.UUID, string(failureImplausibleValue))
 	}
 	return samples, act
@@ -242,8 +242,9 @@ type activity struct {
 // increase of each activity accumulator divided by the increase of the
 // accumulation counter. The graphics activity is the socket mean over its
 // XCDs, the same statistic as gpu_busy_percent. A decreased accumulator (a
-// reset or a 32-bit wrap) or an average over 100% beyond the tolerated
-// overshoot leaves the value invalid; implausible reports the latter.
+// reset or a 32-bit wrap) leaves the value invalid; so does an average over
+// 100% beyond the tolerated overshoot or a graphics activity that increased
+// unlike GFX_BUSY_ACC, which implausible reports.
 func activityAverages(previous, current *amdgpu.GPUMetrics) (act activity, implausible bool) {
 	periods, ok := increase(previous.AccumulationCounter, current.AccumulationCounter)
 	// Over a longer interval a 32-bit accumulator can wrap and still end higher.
@@ -263,6 +264,9 @@ func activityAverages(previous, current *amdgpu.GPUMetrics) (act activity, impla
 		return amdgpu.Reading{Value: 100 * f, Valid: true}
 	}
 	act.graphics = average(previous.GFXActivityAcc, current.GFXActivityAcc)
+	if act.graphics.Valid && !amdgpu.GFXActivityMatchesBusy(previous, current, periods) {
+		act.graphics, implausible = amdgpu.Reading{}, true
+	}
 	act.memory = average(previous.MemActivityAcc, current.MemActivityAcc)
 	return act, implausible
 }
@@ -362,14 +366,15 @@ func xgmiSamples(previous, current *amdgpu.GPUMetrics) (samples []nvidia.Sample,
 
 // xgmiLinkBound returns the highest plausible rate, in KB/s, on one XGMI link
 // and in one direction: xgmiLinkMargin times the bandwidth of its speed (Gb/s
-// per lane) and width, or maxXGMILinkKBPerSecond without a sane speed and width.
+// per lane) and width, at most maxXGMILinkKBPerSecond, which is also the bound
+// without a sane speed and width.
 func xgmiLinkBound(gm *amdgpu.GPUMetrics) float64 {
 	speed, width := gm.XGMILinkSpeedGTs, gm.XGMILinkWidth
 	if !speed.Valid || !width.Valid || speed.Value == 0 || speed.Value > 1000 || width.Value == 0 || width.Value > 64 {
 		return maxXGMILinkKBPerSecond
 	}
 	const kbPerGbit = 1e9 / 8 / 1000
-	return xgmiLinkMargin * float64(speed.Value*width.Value) * kbPerGbit
+	return min(xgmiLinkMargin*float64(speed.Value*width.Value)*kbPerGbit, maxXGMILinkKBPerSecond)
 }
 
 // forget drops the state of devices that are no longer present, so that a
