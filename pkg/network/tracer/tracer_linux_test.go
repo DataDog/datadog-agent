@@ -1387,37 +1387,7 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	})
 	require.NoError(t, err)
 
-	var incoming *network.ConnectionStats
-	var outgoing *network.ConnectionStats
-	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if newOutgoing != nil {
-			outgoing = newOutgoing
-		}
-		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if newIncoming != nil {
-			incoming = newIncoming
-		}
-		require.NotNil(collect, outgoing)
-		require.NotNil(collect, incoming)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
-
-	m := outgoing.Monotonic
-	require.Equal(t, len(msg), int(m.SentBytes))
-	require.Equal(t, 0, int(m.RecvBytes))
-	require.Equal(t, 1, int(m.SentPackets))
-	require.Equal(t, 0, int(m.RecvPackets))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	m = incoming.Monotonic
-	require.Equal(t, 0, int(m.SentBytes))
-	require.Equal(t, len(msg), int(m.RecvBytes))
-	require.Equal(t, 0, int(m.SentPackets))
-	require.Equal(t, 1, int(m.RecvPackets))
-	require.True(t, incoming.IntraHost)
+	requireUDPCounters(t, tr, c, len(msg), 1)
 }
 
 func (s *TracerSuite) TestUDPPacketSumming() {
@@ -1454,48 +1424,51 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 		recvBytes += n
 	}
 	// sanity check: did userspace get all four expected packets?
-	require.Equal(t, recvBytes, expectedBytes)
+	require.Equal(t, expectedBytes, recvBytes)
 
-	// The counters are checked inside the retry loop: eBPFless mode counts
-	// packets asynchronously from an AF_PACKET ring, so a poll can return the
-	// connections before all the packets have been processed. The last stats
-	// seen for each direction are kept across polls, because a poll doesn't
-	// necessarily return a connection again once it has stopped changing.
+	requireUDPCounters(t, tr, c, expectedBytes, len(msg))
+}
+
+// requireUDPCounters waits until the tracer reports the expected counters for
+// both directions of the UDP flow on c: the outgoing side sent bytes/packets,
+// and the incoming side received the same amounts.
+//
+// The counters are checked inside the retry loop: eBPFless mode counts
+// packets asynchronously from an AF_PACKET ring, so a poll can return the
+// connections before all the packets have been processed. The last stats
+// seen for each direction are kept across polls, because a poll doesn't
+// necessarily return a connection again once it has stopped changing.
+func requireUDPCounters(t *testing.T, tr *Tracer, c net.Conn, expectedBytes, expectedPackets int) {
 	var outgoing, incoming *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
 
-		// copy the stats: the connection buffer is released by cleanup()
 		if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil {
-			connCopy := *conn
-			outgoing = &connCopy
+			outgoing = conn
 		}
 		if conn, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns); conn != nil {
-			connCopy := *conn
-			incoming = &connCopy
+			incoming = conn
 		}
 
-		if !assert.NotNil(collect, outgoing, "outgoing connection not found") {
-			return
+		if assert.NotNil(collect, outgoing, "outgoing connection not found") {
+			m := outgoing.Monotonic
+			assert.Equal(collect, expectedBytes, int(m.SentBytes), "outgoing sent bytes")
+			assert.Equal(collect, 0, int(m.RecvBytes), "outgoing recv bytes")
+			assert.Equal(collect, expectedPackets, int(m.SentPackets), "outgoing sent packets")
+			assert.Equal(collect, 0, int(m.RecvPackets), "outgoing recv packets")
+			assert.True(collect, outgoing.IntraHost, "outgoing intrahost")
 		}
-		m := outgoing.Monotonic
-		assert.Equal(collect, expectedBytes, int(m.SentBytes), "outgoing sent bytes")
-		assert.Equal(collect, 0, int(m.RecvBytes), "outgoing recv bytes")
-		assert.Equal(collect, len(msg), int(m.SentPackets), "outgoing sent packets")
-		assert.Equal(collect, 0, int(m.RecvPackets), "outgoing recv packets")
-		assert.True(collect, outgoing.IntraHost, "outgoing intrahost")
 
-		// make sure the inverse values are seen for the other message
-		if !assert.NotNil(collect, incoming, "incoming connection not found") {
-			return
+		// make sure the inverse values are seen for the other direction
+		if assert.NotNil(collect, incoming, "incoming connection not found") {
+			m := incoming.Monotonic
+			assert.Equal(collect, 0, int(m.SentBytes), "incoming sent bytes")
+			assert.Equal(collect, expectedBytes, int(m.RecvBytes), "incoming recv bytes")
+			assert.Equal(collect, 0, int(m.SentPackets), "incoming sent packets")
+			assert.Equal(collect, expectedPackets, int(m.RecvPackets), "incoming recv packets")
+			assert.True(collect, incoming.IntraHost, "incoming intrahost")
 		}
-		m = incoming.Monotonic
-		assert.Equal(collect, 0, int(m.SentBytes), "incoming sent bytes")
-		assert.Equal(collect, expectedBytes, int(m.RecvBytes), "incoming recv bytes")
-		assert.Equal(collect, 0, int(m.SentPackets), "incoming sent packets")
-		assert.Equal(collect, len(msg), int(m.RecvPackets), "incoming recv packets")
-		assert.True(collect, incoming.IntraHost, "incoming intrahost")
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections with the expected counters")
 }
 
