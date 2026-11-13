@@ -4258,7 +4258,7 @@
 <tbody>
 <tr>
 <td>Node Agent</td>
-<td>The containers of its node, through the <code>kubelet</code>, <code>container</code> and <code>containerd</code> checks and Autodiscovery</td>
+<td>The containers of its node, through the <code>kubelet</code>, <code>container</code>, <code>containerd</code> and <code>cri</code> checks and Autodiscovery</td>
 </tr>
 <tr>
 <td>Cluster Agent</td>
@@ -4304,7 +4304,7 @@
 <li><code>report.json</code>, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;</li>
 <li><code>report.md</code>, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.</li>
 </ul>
-<p>The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes:</p>
+<p>The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes and <a href="how-it-works/#real-pods-for-the-node-agents">the sleeper pods</a> had only 70 containers per node:</p>
 <table>
 <thead>
 <tr>

@@ -4666,13 +4666,13 @@
 <p>The <abbr title="kube-state-metrics">KSM</abbr> checks rebuild all their stores at their first run after any event of a custom resource definition. Without the churned definition, they would only rebuild them while the Agents start, a number of times that varies from one run to the next. Recreated every 5 minutes, the length of a <a href="../statistics/#blocks">block</a> of a full-length phase, the definition makes them rebuild their stores once or twice per recreation, depending on whether a check run falls between its deletion and its creation. A cost paid at each rebuild, such as old stores that are never released, then grows at a steady pace in every phase and every run.</p>
 <h3 id="real-pods-for-the-node-agents">Real pods, for the node Agents<a class="headerlink" href="#real-pods-for-the-node-agents" title="Permanent link">&para;</a></h3>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>┌─ node-agent node of a ───────────┐  ┌─ node-agent node of b ───────────┐
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>│ 15 sleeper pods · 70 containers  │  │ 15 sleeper pods · 70 containers  │
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>│ 15 sleeper pods · 190 containers │  │ 15 sleeper pods · 190 containers │
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│        ▲                         │  │        ▲                         │
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│        │ containerd, kubelet     │  │        │ containerd, kubelet     │
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>│ node Agent a                     │  │ node Agent b                     │
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>└──────────────────────────────────┘  └──────────────────────────────────┘
 </span></code></pre></div>
-<p>The sleeper pods run <code>sleep infinity</code> in <code>busybox</code> containers, so they cost nothing themselves: what they make work is the node Agent monitoring them, through containerd events, workloadmeta, the tagger, and the <code>kubelet</code>, <code>container</code> and <code>containerd</code> checks.</p>
+<p>The sleeper pods run <code>sleep infinity</code> in <code>busybox</code> containers, so they cost nothing themselves: what they make work is the node Agent monitoring them, through containerd events, workloadmeta, the tagger, and the <code>kubelet</code>, <code>container</code>, <code>containerd</code> and <code>cri</code> checks.</p>
 <table>
 <thead>
 <tr>
@@ -4690,13 +4690,14 @@
 <td>10 pods, 30 containers</td>
 </tr>
 <tr>
-<td><code>steady-sleeper-*</code>, 8 containers per pod</td>
+<td><code>steady-sleeper-*</code>, 32 containers per pod</td>
 <td>5</td>
 <td>Steady</td>
-<td>5 pods, 40 containers</td>
+<td>5 pods, 160 containers</td>
 </tr>
 </tbody>
 </table>
+<p>The steady pods have many containers so that these four checks take a larger share of the CPU usage of the node Agent: in the CPU profiles of the Agent 7.85.2, they take 21% with these 190 containers per node, against 16% with 70, and a run of the <code>kubelet</code> check takes about a second, three times as long as with 70. With 270 containers, the node Agent uses 45 MiB more memory than with 190, but the share of the checks only reaches 23%: process collection, log tailing and the cgroup scans of the tagger grow with the containers too. More pods would add sandboxes to the nodes, and more containers in the churning pods would load containerd and the kubelet without raising the share of the checks.</p>
 <p>The pods of <code>sleeper-*</code> carry an Autodiscovery annotation scheduling the <code>simple_check</code> Python check, so that Autodiscovery schedules and unschedules check instances all the time too.</p>
 <p>The sleeper DaemonSets tolerate the taints of the node-agent pools of both installations, so every measured node Agent, on either installation, monitors the same pods.</p>
 <h2 id="a-run-step-by-step">A run, step by step<a class="headerlink" href="#a-run-step-by-step" title="Permanent link">&para;</a></h2>
