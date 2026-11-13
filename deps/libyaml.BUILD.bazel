@@ -32,7 +32,10 @@ cc_library(
         "src/yaml_private.h",
     ],
     hdrs = ["include/yaml.h"],
-    copts = ["-w"],
+    copts = [
+        "-O2",
+        "-w",
+    ],
     includes = ["include"],
     local_defines = [
         "YAML_VERSION_MAJOR=0",

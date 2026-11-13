@@ -1,37 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
-# Removes temporary files for FIPS setup
-function Remove-TempFiles {
-    Remove-Item -Force -Recurse \fips-build
+# The BouncyCastle FIPS provider only serves JMX FIPS images
+if ("$env:WITH_JMX" -ne "false" -and "$env:WITH_FIPS" -eq "true") {
+    \java\bin\java org.bouncycastle.util.DumpInfo
+    if (!$?) {
+        Write-Error ("BouncyCastle self check failed with exit code: {0}" -f $LASTEXITCODE)
+    }
+} else {
+    Remove-Item -Force -Recurse 'C:/Program Files/Datadog/BouncyCastle FIPS'
 }
 
 if ("$env:WITH_FIPS" -ne "true") {
     # If FIPS is not enabled, skip the FIPS setup
-    Remove-TempFiles
     exit 0
-}
-
-$maven_sha512 = '03e2d65d4483a3396980629f260e25cac0d8b6f7f2791e4dc20bc83f9514db8d0f05b0479e699a5f34679250c49c8e52e961262ded468a20de0be254d8207076'
-$maven_version = '3.9.11'
-
-if ("$env:WITH_JMX" -ne "false") {
-    . ./install-utils.ps1
-    cd \fips-build
-    Invoke-WebRequestWithRetry -Outfile maven.zip https://repo1.maven.org/maven2/org/apache/maven/apache-maven/${maven_version}/apache-maven-${maven_version}-bin.zip
-    if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
-        Write-Host "Maven checksum match"
-    } else {
-        Write-Error "Checksum mismatch"
-    }
-    Expand-Archive -Force -Path maven.zip -DestinationPath .
-    & ".\apache-maven-${maven_version}\bin\mvn" -D maven.repo.local=maven-repo dependency:copy-dependencies
-    New-Item -Force -ItemType directory -Path 'C:/Program Files/Datadog/BouncyCastle FIPS/'
-    Move-Item -Force -Path @("target/dependency/*.jar", "java.security", "bc-fips.policy") 'C:/Program Files/Datadog/BouncyCastle FIPS/'
-    \java\bin\java --module-path 'C:\Program Files\Datadog\BouncyCastle FIPS' org.bouncycastle.util.DumpInfo
-    if (!$?) {
-        Write-Error ("BouncyCastle self check failed with exit code: {0}" -f $LASTEXITCODE)
-    }
-    cd \
 }
 
 # Configure Python's OpenSSL FIPS module
@@ -72,5 +53,3 @@ Copy-Item "$opensslConfTemplate" "$opensslConfPath"
 # This system-wide setting is used by Windows as well as the Microsoft Go fork used by the Agent
 # https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#windows-fips-mode-cng
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Value 1 -Type DWORD
-
-Remove-TempFiles

@@ -194,11 +194,6 @@
         "enabled": false
       },
       {
-        "matchManagers": ["maven"],
-        "matchUpdateTypes": ["major", "minor"],
-        "enabled": false
-      },
-      {
         "matchManagers": ["bazelisk"],
         "matchDepNames": ["*"],
         "enabled": false
@@ -230,6 +225,11 @@
           "supply_chain_tools"
         ],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["org.bouncycastle:*-fips"],
+        "groupName": "bouncycastle-fips"
       },
       {
         "matchManagers": ["bundler"],

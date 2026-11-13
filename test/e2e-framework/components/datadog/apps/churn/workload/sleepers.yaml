@@ -60,7 +60,11 @@ spec:
 ---
 # Steady DaemonSets with many containers: the kubelet check parses cadvisor and
 # kubelet metrics whose volume grows with the number of containers on the node,
-# and the container check collects each of them.
+# and the container, containerd and cri checks go through each container. The
+# containers go in these pods rather than in more pods, each of which would add
+# a sandbox, a pod IP and a containerd shim. "Real pods, for the node Agents" in
+# doc/how-to/test/e2e/benchmarkeks/how-it-works.md explains how many it takes
+# for these checks to take a large share of the CPU usage of the node Agent.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -84,25 +88,73 @@ spec:
         - name: registry-credentials
       containers:
         - &sleeper
-          name: sleeper-a
+          name: sleeper-01
           image: DOCKERHUB_MIRROR/library/busybox:1.37.0
           command:
             - sleep
             - infinity
         - <<: *sleeper
-          name: sleeper-b
+          name: sleeper-02
         - <<: *sleeper
-          name: sleeper-c
+          name: sleeper-03
         - <<: *sleeper
-          name: sleeper-d
+          name: sleeper-04
         - <<: *sleeper
-          name: sleeper-e
+          name: sleeper-05
         - <<: *sleeper
-          name: sleeper-f
+          name: sleeper-06
         - <<: *sleeper
-          name: sleeper-g
+          name: sleeper-07
         - <<: *sleeper
-          name: sleeper-h
+          name: sleeper-08
+        - <<: *sleeper
+          name: sleeper-09
+        - <<: *sleeper
+          name: sleeper-10
+        - <<: *sleeper
+          name: sleeper-11
+        - <<: *sleeper
+          name: sleeper-12
+        - <<: *sleeper
+          name: sleeper-13
+        - <<: *sleeper
+          name: sleeper-14
+        - <<: *sleeper
+          name: sleeper-15
+        - <<: *sleeper
+          name: sleeper-16
+        - <<: *sleeper
+          name: sleeper-17
+        - <<: *sleeper
+          name: sleeper-18
+        - <<: *sleeper
+          name: sleeper-19
+        - <<: *sleeper
+          name: sleeper-20
+        - <<: *sleeper
+          name: sleeper-21
+        - <<: *sleeper
+          name: sleeper-22
+        - <<: *sleeper
+          name: sleeper-23
+        - <<: *sleeper
+          name: sleeper-24
+        - <<: *sleeper
+          name: sleeper-25
+        - <<: *sleeper
+          name: sleeper-26
+        - <<: *sleeper
+          name: sleeper-27
+        - <<: *sleeper
+          name: sleeper-28
+        - <<: *sleeper
+          name: sleeper-29
+        - <<: *sleeper
+          name: sleeper-30
+        - <<: *sleeper
+          name: sleeper-31
+        - <<: *sleeper
+          name: sleeper-32
       nodeSelector:
         benchmark.datadoghq.com/role: node-agent
       tolerations:

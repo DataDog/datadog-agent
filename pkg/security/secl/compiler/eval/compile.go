@@ -142,7 +142,7 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		return literalToEvaluator(node, opts, state)
 
 	case *ast.VariableRef:
-		return evaluatorFromVariable(node.Name, node.Pos, opts)
+		return evaluatorFromVariable(node.Name, node.Pos, opts, state)
 
 	case *ast.FieldRef:
 		return fieldToEvaluator(node.Name, node.Pos, opts, state)
@@ -659,6 +659,9 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 		default:
 			return nil, pos, NewCIDRTypeError(pos, reflect.Array, right)
 		}
+	case *BoolArrayEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, reflect.Bool)
 	default:
 		return nil, pos, NewTypeError(pos, reflect.Array)
 	}
@@ -1095,6 +1098,12 @@ func compileScalarCompare(node *ast.ScalarCompareExpr, opts *Opts, state *State)
 			}
 			return nil, pos, NewOpUnknownError(node.Pos, node.Op.String())
 		}
+	case *StringValuesEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, reflect.String)
+	case *CIDRValuesEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, familyKinds[ast.IPFamily])
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
