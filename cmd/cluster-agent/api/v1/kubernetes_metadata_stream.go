@@ -41,6 +41,12 @@ const (
 	// Keep a bounded history of shared diffs. Streams that fall behind receive
 	// a full state instead, so coalesced notifications cannot lose deletions.
 	metadataHistorySize = 128
+	// KueueCheckName is the check that needs every Kueue Workload on the Agent
+	// running it, to tag Workload events.
+	KueueCheckName = "kueue"
+	// kueueCheckNodesRefreshInterval is how often the nodes running a Kueue
+	// check are read from the cluster check dispatcher.
+	kueueCheckNodesRefreshInterval = 10 * time.Second
 )
 
 var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
@@ -165,7 +171,8 @@ type KubeMetadataStreamServer struct {
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
 	// metadata for the same node concurrently. Subscribers are also notified
-	// when the KAI PodGroups or Kueue Workloads of their node's pods change.
+	// when the KAI PodGroups or Kueue Workloads of their node's pods change,
+	// and when the nodes running the Kueue check change.
 	namespaceSubscribers map[string][]chan struct{}
 
 	// KAI PodGroups are kept out of the shared history: each stream sends only
@@ -179,10 +186,18 @@ type KubeMetadataStreamServer struct {
 	kaiPodGroupIndex   nodeIndex
 	kueueWorkloadIndex nodeIndex
 
-	// Kueue Workloads stay in the shared history. With kueueWorkloadsPerNode,
-	// every node receives only the Workloads of its pods, through the scoped
-	// history and its node metadata state.
-	kueueWorkloadsPerNode bool
+	// Kueue Workloads stay in the shared history, but with
+	// kueueWorkloadsPerNode a node that does not run the Kueue check only
+	// needs the Workloads of its pods. The nodes running it come from the
+	// cluster check dispatcher, which only knows them on the leader.
+	// kueueCheckNodes is nil while they are unknown, and then every node
+	// receives every Workload.
+	kueueWorkloadsPerNode   bool
+	kueueCheckNodesProvider func() (map[string]struct{}, bool)
+	kueueCheckNodes         map[string]struct{}
+	// kueueRefreshMutex orders refreshes, which call the provider without
+	// metadataMutex.
+	kueueRefreshMutex sync.Mutex
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
@@ -201,11 +216,13 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	}
 }
 
-// kueueWorkloadsPerNodeEnabled returns whether nodes receive only the Kueue
-// Workloads of their pods.
+// kueueWorkloadsPerNodeEnabled returns whether nodes receive only the Kueue Workloads
+// of their pods. It needs the cluster check dispatcher to find the nodes
+// running the Kueue check.
 func kueueWorkloadsPerNodeEnabled(cfg model.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled") &&
-		cfg.GetBool("cluster_agent.kueue.workloads_per_node")
+		cfg.GetBool("cluster_agent.kueue.workloads_per_node") &&
+		cfg.GetBool("cluster_checks.enabled")
 }
 
 func newNodeIndex() nodeIndex {
@@ -213,6 +230,15 @@ func newNodeIndex() nodeIndex {
 		nodeKeys: make(map[string]map[string]int),
 		keyNodes: make(map[string]map[string]int),
 	}
+}
+
+// SetKueueCheckNodesProvider sets the function that returns the nodes running
+// a Kueue check, and false when they are unknown.
+func (srv *KubeMetadataStreamServer) SetKueueCheckNodesProvider(provider func() (map[string]struct{}, bool)) {
+	srv.metadataMutex.Lock()
+	srv.kueueCheckNodesProvider = provider
+	srv.metadataMutex.Unlock()
+	srv.refreshKueueCheckNodes()
 }
 
 func newMetadataSnapshot() metadataSnapshot {
@@ -233,6 +259,21 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 		workloadmeta.NormalPriority,
 		kubeMetadataStreamFilter(srv.kaiEnabled, srv.kueueWorkloadsPerNode),
 	)
+
+	if srv.kueueWorkloadsPerNode {
+		go func() {
+			ticker := time.NewTicker(kueueCheckNodesRefreshInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					srv.refreshKueueCheckNodes()
+				}
+			}
+		}()
+	}
 
 	go func() {
 		defer srv.wmeta.Unsubscribe(ch)
@@ -309,15 +350,17 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 		case <-namespacesNotifyCh:
 			updatesSince := srv.metadataUpdatesSince
-			if srv.kueueWorkloadsPerNode {
+			if lastSentNodeState.scopesKueueWorkloads() {
 				updatesSince = srv.scopedMetadataUpdatesSince
 			}
 			updates, version, ok := updatesSince(lastSentMetadataVersion)
 			currentNodeState := srv.buildNodeMetadataState(nodeName)
-			if !ok {
+			if !ok || currentNodeState.scopesKueueWorkloads() != lastSentNodeState.scopesKueueWorkloads() {
 				// A full state replaces all client caches, including pod-service
 				// mappings and the metadata scoped to the node. Refresh their
-				// baselines along with the metadata cursor.
+				// baselines along with the metadata cursor. It is also sent when
+				// the node switches between receiving every Kueue Workload and
+				// only the Workloads of its pods.
 				lastSentPodServicesState = srv.buildPodServiceMappingsSnapshot(nodeName)
 				var fullState *pb.KubeMetadataStreamResponse
 				fullState, version, currentNodeState = srv.nodeFullStateResponse(nodeName, lastSentPodServicesState)
@@ -811,7 +854,8 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadat
 }
 
 // buildNodeMetadataState returns the KAI PodGroups of the pods scheduled on a
-// node and, with kueueWorkloadsPerNode, the Kueue Workloads of those pods.
+// node and, if the node does not run the Kueue check, the Kueue Workloads of
+// those pods.
 func (srv *KubeMetadataStreamServer) buildNodeMetadataState(nodeName string) nodeMetadataState {
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
@@ -819,7 +863,7 @@ func (srv *KubeMetadataStreamServer) buildNodeMetadataState(nodeName string) nod
 	state := nodeMetadataState{
 		kaiPodGroups: entriesForKeys(srv.kaiPodGroups, srv.kaiPodGroupIndex.nodeKeys[nodeName]),
 	}
-	if srv.kueueWorkloadsPerNode {
+	if _, runsKueueCheck := srv.kueueCheckNodes[nodeName]; srv.kueueCheckNodes != nil && !runsKueueCheck {
 		state.kueueWorkloads = entriesForKeys(srv.metadata.kueueWorkloads, srv.kueueWorkloadIndex.nodeKeys[nodeName])
 	}
 	return state
@@ -890,6 +934,39 @@ func withoutKueueWorkloads(resp *pb.KubeMetadataStreamResponse) *pb.KubeMetadata
 		return nil
 	}
 	return scoped
+}
+
+// refreshKueueCheckNodes reads the nodes running a Kueue check and notifies
+// every node when they change, so that nodes switching between every Workload
+// and only their pods' Workloads get a full state.
+func (srv *KubeMetadataStreamServer) refreshKueueCheckNodes() {
+	if !srv.kueueWorkloadsPerNode {
+		return
+	}
+	srv.kueueRefreshMutex.Lock()
+	defer srv.kueueRefreshMutex.Unlock()
+
+	srv.metadataMutex.RLock()
+	provider := srv.kueueCheckNodesProvider
+	srv.metadataMutex.RUnlock()
+
+	// Called without metadataMutex: the provider takes the dispatcher locks.
+	var nodes map[string]struct{}
+	if provider != nil {
+		if checkNodes, ok := provider(); ok {
+			nodes = checkNodes
+		}
+	}
+
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
+
+	// maps.Equal does not tell nil, which means unknown, from empty.
+	if (srv.kueueCheckNodes == nil) == (nodes == nil) && maps.Equal(srv.kueueCheckNodes, nodes) {
+		return
+	}
+	srv.kueueCheckNodes = nodes
+	srv.notifyNamespaceSubscribers()
 }
 
 func (s metadataSnapshot) clone() metadataSnapshot {
