@@ -786,6 +786,14 @@ func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 // UDP expires
 func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uint64, ctr *cachedConntrack) bool {
+	// The SK tracer lists a TCP connection for as long as the kernel has its socket (including once
+	// the application closed it, until it is torn down), and its counters are the socket's, which
+	// Remove can't reset. Expiring it would only drop its userspace state, and the next report
+	// (another check, or the close event) would then count the whole connection again.
+	if conn.Type == network.TCP && t.ebpfTracer.Type() == connection.TracerTypeSK {
+		return false
+	}
+
 	timeout := t.timeoutForConn(conn)
 	if !conn.IsExpired(latestTime, timeout) {
 		return false
