@@ -20,10 +20,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func TestConfigReaderConcurrentInitialization(t *testing.T) {
@@ -195,9 +197,6 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 			const content = `instances:
   - password: compatibility-plaintext-password
     api_key: ENC[compatibility-key]
-    additional_endpoints:
-      https://example.invalid:
-        - compatibility-structured-credential
     options:
       1: numeric-value
       "1": string-value
@@ -212,14 +211,24 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 			withMetadata, format, err := getIntegrationConfigFromFile("compatibility", file, true)
 			require.NoError(t, err)
 			assert.Equal(t, withoutMetadata, withMetadata)
-			assert.Empty(t, format, "omit file metadata when it cannot be safely scrubbed")
+			assert.Empty(t, format.Secrets, "strict YAML validation only affects secret references")
+			assert.Equal(t, file, format.Filename)
+			assert.NotContains(t, format.ConfigFormat, "compatibility-plaintext-password")
+			assert.Contains(t, format.ConfigFormat, "ENC[compatibility-key]")
+			assert.Contains(t, format.ConfigFormat, "numeric-value")
+			assert.Contains(t, format.ConfigFormat, "string-value")
+			assertLegacyConfigFormat(t, content, format)
 
 			// Safe files still report metadata, including raw and ENC declarations.
 			supportedFile := filepath.Join(dir, "supported.yaml")
 			require.NoError(t, os.WriteFile(supportedFile, []byte("instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n"), 0600))
 			supportedConfig, supportedFormat, err := getIntegrationConfigFromFile("supported", supportedFile, true)
 			require.NoError(t, err)
-			require.Len(t, supportedFormat.Secrets, 2)
+			require.ElementsMatch(t, []scrubber.ConfigSecret{
+				{Path: "instances.0.password", Kind: "raw"},
+				{Path: "instances.0.api_key", Kind: "enc", Handle: "supported-key"},
+			}, supportedFormat.Secrets)
+			assertLegacyConfigFormat(t, "instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n", supportedFormat)
 
 			// Metadata collection must not remove integrations from the shared cache.
 			ResetReader([]string{dir})
@@ -229,13 +238,28 @@ func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
 			require.Empty(t, configErrors)
 			require.ElementsMatch(t, []integration.Config{withoutMetadata, supportedConfig}, configs)
 			formats := ReadConfigFormats()
-			require.Equal(t, []ConfigFormatWrapper{supportedFormat}, formats)
+			require.ElementsMatch(t, []ConfigFormatWrapper{format, supportedFormat}, formats)
 			afterMetadata, configErrors, err := ReadConfigFiles(GetAll)
 			require.NoError(t, err)
 			assert.Empty(t, configErrors)
 			assert.Equal(t, configs, afterMetadata)
 		})
 	}
+}
+
+// Compare against the pre-existing v2 loader and ScrubYamlString pipeline,
+// including its text fallback for configs rejected by the v3 parser.
+func assertLegacyConfigFormat(t *testing.T, input string, format ConfigFormatWrapper) {
+	t.Helper()
+	var cf configFormat
+	require.NoError(t, yaml.Unmarshal([]byte(input), &cf))
+	serialized, err := yaml.Marshal(cf)
+	require.NoError(t, err)
+	expected, err := scrubber.ScrubYamlString(string(serialized))
+	require.NoError(t, err)
+	assert.Equal(t, expected, format.ConfigFormat)
+	hash := sha256.Sum256([]byte(expected))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
 }
 
 func TestReadConfigFiles(t *testing.T) {

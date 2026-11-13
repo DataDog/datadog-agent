@@ -373,7 +373,7 @@ func (r *configFilesReader) read(keep FilterFunc, withFormats bool) ([]integrati
 				configNames[entry.name] = struct{}{}
 			}
 
-			if withFormats && entry.cfgFormat.Filename != "" {
+			if withFormats {
 				configFormats = append(configFormats, entry.cfgFormat)
 			}
 		}
@@ -516,7 +516,7 @@ func collectDir(parentPath string, folder os.DirEntry, withFormats bool) (config
 				configs = append(configs, entry.conf)
 			}
 
-			if withFormats && entry.cfgFormat.Filename != "" {
+			if withFormats {
 				cfgFormats = append(cfgFormats, entry.cfgFormat)
 			}
 		}
@@ -533,8 +533,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 }
 
 // getIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file.
-// Its scrubbed ConfigFormatWrapper is only built when withFormat is true and strict scrubbing succeeds.
-// A metadata scrubbing failure leaves the integration config usable and returns an empty wrapper.
+// Its scrubbed ConfigFormatWrapper is only built when withFormat is true, an empty one is returned otherwise.
 func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integration.Config, ConfigFormatWrapper, error) {
 	cf := configFormat{}
 	conf := integration.Config{Name: name}
@@ -567,15 +566,17 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		var scrubbed []byte
-		scrubbed, secretLocations, err = scrubber.ScrubYamlPreserveStructure(serializedConfigFormat)
+		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
 		if err != nil {
-			// YAML v3 rejects some configs accepted by the YAML v2 loader, such as
-			// mappings with both 1 and "1" keys. Keep loading the integration, but
-			// omit its file metadata: text scrubbing cannot apply YAML-only rules.
-			log.Debugf("omitting file metadata for %q: strict scrubbing failed", fpath)
+			return conf, ConfigFormatWrapper{}, err
+		}
+		// Secret references are optional metadata. Collect them independently so
+		// stricter YAML validation cannot change the existing config or format.
+		// In particular, YAML v2 accepts mappings with both 1 and "1" keys.
+		if _, secrets, scrubErr := scrubber.ScrubYamlPreserveStructure(serializedConfigFormat); scrubErr != nil {
+			log.Debugf("omitting secret references for %q: strict scrubbing failed", fpath)
 		} else {
-			scrubbedConfigFormat = string(scrubbed)
+			secretLocations = secrets
 		}
 	}
 
@@ -656,7 +657,7 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 
 	conf.Source = "file:" + fpath
 
-	if !withFormat || scrubbedConfigFormat == "" {
+	if !withFormat {
 		return conf, ConfigFormatWrapper{}, err
 	}
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))

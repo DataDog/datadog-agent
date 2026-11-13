@@ -175,3 +175,7 @@ ENC references always retain their original indexed paths and handles, even insi
 a replaced container. Repeated handles retain one entry per location. These entries describe file
 contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
 `metadata_skip_secrets` suppresses these entries as well as `enc_info`.
+
+Secret references are collected independently of the existing integration configuration
+loader and scrubbed file output. If a configuration accepted by the YAML v2 loader
+fails strict YAML validation, its file metadata is still reported without secret references.
