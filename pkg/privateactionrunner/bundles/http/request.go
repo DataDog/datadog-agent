@@ -169,7 +169,7 @@ func (h *Handler) Run(
 		AllowIMDSEndpoints: h.allowIMDSEndpoints,
 		HTTPTimeout:        h.httpTimeout,
 		Transport: &httpclient.RunnerHttpTransportConfig{
-			InsecureSkipVerify: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
+			AllowExpiredCertificate: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
 		},
 	})
 	if err != nil {

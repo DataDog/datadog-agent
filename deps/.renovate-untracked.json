@@ -69,6 +69,8 @@
     "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped.",
     "glibc_static_x86_64": "Intentionally untracked. The x86_64 crosstool-NG GCC toolchain tarball (same URL and sha256 as bazel/patches/gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch). No upstream release; bump it only when that archive is republished.",
-    "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64."
+    "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64.",
+    "jmxfetch_license": "Intentionally untracked. License text only, pinned to JMXFETCH_VERSION, which deps/maven/maven.MODULE.bazel keeps out of Renovate's reach so that bumps come with a release note.",
+    "jmxfetch_snapshot": "Intentionally untracked. Only declared when USE_JMXFETCH_SNAPSHOT is set for a manual test, and Maven Central deletes snapshots after 90 days, so there is no version to follow."
   }
 }
