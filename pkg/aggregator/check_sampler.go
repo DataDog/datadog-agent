@@ -468,7 +468,8 @@ func (cs *CheckSampler) refilter(filterList filterlist.TagMatcher) {
 	cs.contextResolver.resolver.refilter(filterList)
 }
 
-// addsUp returns whether a series' points add up across sources: the single series of a counter or count. Other series of a context that merges at output come from metric state that outlived an earlier
+// addsUp returns whether a series' points add up across sources: the single series of a counter, count or
+// monotonic count. Other series of a context that merges at output come from metric state that outlived an earlier
 // context with the same key, such as a histogram's.
 func addsUp(serie *metrics.Serie) bool {
 	return serie.NameSuffix == "" && (serie.MType == metrics.APICountType || serie.MType == metrics.APIRateType)

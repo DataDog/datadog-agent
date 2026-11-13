@@ -9,6 +9,7 @@ package aggregator
 
 import (
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -218,6 +219,68 @@ func TestCountAndCounterWithTheSameNameStayApart(t *testing.T) {
 
 	require.Len(t, series, 2, "values of different types are never added up: both are sent, and the intake keeps one")
 	assert.ElementsMatch(t, []metrics.APIMetricType{metrics.APICountType, metrics.APIRateType}, []metrics.APIMetricType{series[0].MType, series[1].MType})
+}
+
+func TestCheckSamplerKeepsMonotonicCountsPerSource(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.mono")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newCheckOutputMerger()
+
+	// Three sources filter to one series: two with a pod tag, and one whose full tags already are the filtered
+	// series'. Their raw counters are far apart: sharing state between them would produce differences between
+	// sources instead of each source's increase.
+	sourceTags := map[string][]string{"a": {"env:prod", "pod:a"}, "b": {"env:prod", "pod:b"}, "c": {"env:prod"}}
+	type raw struct {
+		value      float64
+		flushFirst bool
+	}
+	run := func(second int, samples map[string]raw) (series metrics.Series) {
+		for source, r := range samples {
+			cs.addSample(&metrics.MetricSample{Name: "my.mono", Mtype: metrics.MonotonicCountType, Value: r.value, Tags: sourceTags[source],
+				SampleRate: 1, Timestamp: float64(second), FlushFirstValue: r.flushFirst}, matcher)
+		}
+		cs.commit(float64(second)+0.5, &flushMatcher)
+		out := flushSampler(cs)
+		series = append(series, out.series...)
+		merger.mergeSeries(out.mergedSeries)
+		merger.drain(&series, nil)
+		return series
+	}
+	values := func(series metrics.Series) map[string]float64 {
+		out := map[string]float64{}
+		for _, s := range series {
+			for _, p := range s.Points {
+				out[strings.Join(sortedTagsOf(s.Tags), ",")] += p.Value
+			}
+		}
+		return out
+	}
+
+	assert.Empty(t, run(100, map[string]raw{"a": {10, false}, "b": {1000, false}, "c": {100000, false}}), "no previous values yet")
+	assert.Equal(t, map[string]float64{"env:prod": 5 + 2 + 4}, values(run(101, map[string]raw{"a": {15, false}, "b": {1002, false}, "c": {100004, false}})))
+	// b resets without flushFirstValue: its sample is ignored.
+	assert.Equal(t, map[string]float64{"env:prod": 1 + 1}, values(run(102, map[string]raw{"a": {16, false}, "b": {1, false}, "c": {100005, false}})))
+	// a stops: its context expires after two commits without samples, but its state is kept.
+	assert.Equal(t, map[string]float64{"env:prod": 2 + 1}, values(run(103, map[string]raw{"b": {3, false}, "c": {100006, false}})))
+	assert.Equal(t, map[string]float64{"env:prod": 1 + 1}, values(run(104, map[string]raw{"b": {4, false}, "c": {100007, false}})))
+	assert.Equal(t, map[string]float64{"env:prod": 1}, values(run(105, map[string]raw{"c": {100008, false}})))
+	// a comes back with flushFirstValue: only its increase since its previous value counts. b resets with
+	// flushFirstValue: its new value counts.
+	assert.Equal(t, map[string]float64{"env:prod": 5 + 2 + 1}, values(run(106, map[string]raw{"a": {21, true}, "b": {2, true}, "c": {100009, false}})))
+
+	// The rule is removed: every source goes on from its own state, in its own series.
+	cs.refilter(filterlistimpl.NewNoopTagMatcher())
+	matcher = filterlistimpl.NewNoopTagMatcher()
+	assert.Equal(t, map[string]float64{"env:prod,pod:a": 1, "env:prod,pod:b": 1, "env:prod": 1},
+		values(run(107, map[string]raw{"a": {22, false}, "b": {3, false}, "c": {100010, false}})))
+}
+
+func sortedTagsOf(tags tagsJoiner) []string {
+	out := tagsOf(tags)
+	sort.Strings(out)
+	return out
 }
 
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
