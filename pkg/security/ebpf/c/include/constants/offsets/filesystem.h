@@ -170,9 +170,13 @@ static struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry
 }
 
 static __always_inline u64 get_mount_mount_id_unique(void *mnt) {
-    u64 mount_id;
+    u32 offset = get_mount_offset_of_mount_id_unique();
+    if (!offset) {
+        return 0;
+    }
 
-    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
+    u64 mount_id = 0;
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offset);
     return mount_id;
 }
 
