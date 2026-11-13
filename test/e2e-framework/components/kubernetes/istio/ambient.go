@@ -118,9 +118,7 @@ func NewAmbientHelmInstallation(e config.Env, version string, opts ...pulumi.Res
 
 // NewWaypoint creates a waypoint for services in namespace, the equivalent of
 // `istioctl waypoint apply -n <namespace> --enroll-namespace`. The namespace must
-// carry the label istio.io/use-waypoint=waypoint and, when image pull credentials
-// are configured, a namespace-local copy of utils.NewImagePullSecret for the
-// imagePullSecrets inherited from istiod's waypoint template.
+// carry the label istio.io/use-waypoint=waypoint.
 func NewWaypoint(e config.Env, namespace string, opts ...pulumi.ResourceOption) (*apiext.CustomResource, error) {
 	return apiext.NewCustomResource(e.Ctx(), "waypoint-"+namespace, &apiext.CustomResourceArgs{
 		ApiVersion: pulumi.String("gateway.networking.k8s.io/v1"),
