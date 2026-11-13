@@ -364,3 +364,20 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractEnvFromSpec_BoundsSelfReferencingExpansion(t *testing.T) {
+	envSpec := []kubelet.EnvVar{
+		{Name: "DD_SERVICE", Value: "svc"},
+		{Name: "DD_ENV", Value: "AAAAAAAA"},
+	}
+	// Each duplicate doubles DD_ENV; 30 doublings would reach 8 GiB unbounded.
+	for range 30 {
+		envSpec = append(envSpec, kubelet.EnvVar{Name: "DD_ENV", Value: "$(DD_ENV)$(DD_ENV)"})
+	}
+	envSpec = append(envSpec, kubelet.EnvVar{Name: "DD_VERSION", Value: "$(DD_SERVICE)-1"})
+
+	env := extractEnvFromSpec(envSpec)
+
+	assert.NotContains(t, env, "DD_ENV")
+	assert.Equal(t, map[string]string{"DD_SERVICE": "svc", "DD_VERSION": "svc-1"}, env)
+}
