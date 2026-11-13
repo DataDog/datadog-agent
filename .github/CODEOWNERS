@@ -71,6 +71,7 @@
 /CHANGELOG-INSTALLSCRIPT.rst                    @DataDog/agent-delivery
 /*.md                                           @DataDog/agent-devx
 /CHANGELOG-AIX.md                               @DataDog/agent-runtimes
+/CHANGELOG-SERVERLESS-INIT.md                   @DataDog/serverless-azure-and-gcp
 /AGENTS.md                                      @DataDog/agent-devx
 /CLAUDE.md                                      @DataDog/agent-devx
 /NOTICE                                         @DataDog/agent-delivery
@@ -1021,6 +1022,9 @@
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
 /tasks/dogstatsd.py                                             @DataDog/agent-metric-pipelines
+/tasks/serverless_init.py                                       @DataDog/serverless-azure-and-gcp
+/tasks/libs/serverless_init/                                    @DataDog/serverless-azure-and-gcp
+/tasks/unit_tests/serverless_init_tests.py                      @DataDog/serverless-azure-and-gcp
 /tasks/update_go.py                                             @DataDog/agent-runtimes
 /tasks/python_version.py                                        @DataDog/agent-integrations
 /tasks/unit_tests/update_go_tests.py                            @DataDog/agent-runtimes
