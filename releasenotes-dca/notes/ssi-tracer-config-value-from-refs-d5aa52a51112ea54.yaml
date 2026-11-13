@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Single Step Instrumentation: ``ddTraceConfigs`` entries in workload targets
+    now accept ``valueFrom.secretKeyRef``, ``valueFrom.configMapKeyRef`` and
+    ``valueFrom.resourceFieldRef``. Before, any of these made the Cluster Agent
+    fail to parse ``apm_config.instrumentation``, so the APM Instrumentation
+    webhook was not registered and no pod was instrumented.

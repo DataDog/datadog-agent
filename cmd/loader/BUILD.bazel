@@ -22,16 +22,8 @@ exports_files(
 pkg_files(
     name = "trace_loader_all_files",
     srcs = select({
-        "@platforms//os:linux": [
-            ":loader",
-        ],
-        "//packages/agent:linux_fips": [
-            ":loader",
-        ],
-        "@platforms//os:macos": [
-            ":loader",
-        ],
-        "//conditions:default": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":loader"],
     }),
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",

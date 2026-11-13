@@ -1,0 +1,19 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+pkg_files(
+    name = "bouncycastle_fips_jars",
+    srcs = [
+        "@maven2//:org_bouncycastle_bc_fips",
+        "@maven2//:org_bouncycastle_bcpkix_fips",
+        "@maven2//:org_bouncycastle_bctls_fips",
+        "@maven2//:org_bouncycastle_bcutil_fips",
+    ],
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_bouncycastle_fips_jars",
+    srcs = [":bouncycastle_fips_jars"],
+    tags = ["manual"],
+)

@@ -59,12 +59,16 @@ def fips_mode?()
   return ENV['AGENT_FLAVOR'] == "fips" && (linux_target? || windows_target?)
 end
 
-# Expose --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding omnibus
-# build environment variables.
+# Expose either --platforms for FIPS or --//packages/agent:flavor, then --//:install_dir and --//:output_config_dir,
+# pinned from the corresponding omnibus build environment variables.
 # 💡 Mirrors `_insert_omnibazel_flags` in tasks/libs/build/bazel.py.
 def omnibazel_flags()
   flags = []
-  flags << "--//packages/agent:flavor=#{ENV['AGENT_FLAVOR']}" if ENV['AGENT_FLAVOR']
+  if fips_mode?
+    flags << "--platforms=//bazel/platforms:#{os}_#{arm_target? ? 'arm64' : 'x86_64'}_fips"
+  elsif ENV['AGENT_FLAVOR']
+    flags << "--//packages/agent:flavor=#{ENV['AGENT_FLAVOR']}"
+  end
   # In macos, omnibus install_dir is the build location, which is different from the expected install location
   flags << (osx_target? ? "--//:install_dir=/opt/datadog-agent" : "--//:install_dir=#{install_dir}")
   flags << "--//:output_config_dir=#{ENV['OUTPUT_CONFIG_DIR']}"

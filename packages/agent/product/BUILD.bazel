@@ -328,7 +328,7 @@ pkg_filegroup(
         ":system_probe_llvm_bpf",
         ":system_probe_runtime_sources",
     ] + select({
-        "//packages/agent:fips_flavor": [],
+        "//bazel/platforms:fips": [],
         "//conditions:default": [":system_probe_binary"],
     }),
 )

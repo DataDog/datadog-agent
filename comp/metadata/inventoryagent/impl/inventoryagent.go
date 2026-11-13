@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -413,12 +412,12 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
 	for _, path := range paths {
-		// Scrubbed keys are bare YAML key names (ex: "community_strings")
-		// Secret paths are full dotted settings, optionally prefixed by their origin
-		//   (ex: "snmp_traps.community_strings.0" or "a3f9c01b2d4e5f67:auth.password")
-		// get last non-numerical element of the path, to match what the scrubbed keys uses
-		last := getPathLastName(path)
-		seen[last] = struct{}{}
+		// Scrubbed keys are full dotted settings (ex: "snmp_traps.community_strings.0")
+		// Secret paths are too, but integrations are prefixed by their name (ex: "http_check:auth.password")
+		if idx := strings.Index(path, ":"); idx != -1 {
+			path = path[idx+1:]
+		}
+		seen[path] = struct{}{}
 	}
 	res := []string{}
 	for _, key := range scrubbedKeys {
@@ -429,20 +428,6 @@ func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 		res = append(res, key)
 	}
 	return res
-}
-
-// getPathLastName returns last element of a setting path, skipping the last if it's a number
-// origin prefix is removed if present
-func getPathLastName(path string) string {
-	if idx := strings.Index(path, ":"); idx != -1 {
-		path = path[idx+1:]
-	}
-	elems := strings.Split(path, ".")
-	leaf := elems[len(elems)-1]
-	if _, err := strconv.Atoi(leaf); err == nil && len(elems) >= 2 {
-		leaf = elems[len(elems)-2]
-	}
-	return leaf
 }
 
 func (ia *inventoryagent) refreshMetadata() {

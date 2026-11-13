@@ -35,11 +35,17 @@ func New(workloadmeta.Component) *SelfIdent {
 // DeploymentID always returns "" without Kubernetes support.
 func (*SelfIdent) DeploymentID() string { return "" }
 
+// DeploymentIDNonBlocking always returns "" without Kubernetes support.
+func (*SelfIdent) DeploymentIDNonBlocking() string { return "" }
+
 // DeploymentIDWithContext always returns "" without Kubernetes support.
 func (*SelfIdent) DeploymentIDWithContext(context.Context) string { return "" }
 
 // ClusterID always returns "" without Kubernetes support.
 func (*SelfIdent) ClusterID() string { return "" }
+
+// ClusterIDNonBlocking always returns "" without Kubernetes support.
+func (*SelfIdent) ClusterIDNonBlocking() string { return "" }
 
 // ClusterIDWithContext always returns "" without Kubernetes support.
 func (*SelfIdent) ClusterIDWithContext(context.Context) string { return "" }
