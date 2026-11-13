@@ -36,6 +36,9 @@ typedef struct {
     tcp_event_stats_t tcp_event_stats;
     __u64 start_ns;
     __u8 direction;
+    // set once the close event for the current connection on this socket has been sent (or
+    // dropped, if the ring buffer was full), see send_tcp_close_event. Cleared when the socket is connected again.
+    __u8 close_sent;
 } sk_tcp_stats_t;
 
 typedef struct {
