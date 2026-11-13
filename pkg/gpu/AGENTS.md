@@ -229,8 +229,14 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - The check sender acknowledges submission, not delivery. Periodic full refresh
   repairs missed events; it is not safe to advance destructive scope watermarks
   based on sender submission.
-- A failed virtualization query does not establish mode `none`, even if the
-  device cache's enum has its default zero value.
+- `Snapshot` assumes cached `DeviceInfo` is complete: a GPU is either fully
+  populated or not enumerated. Most static queries are best-effort in
+  `safenvml` (logged, not fatal), so a rare single-query failure can publish a
+  partial record until the next refresh replaces it; this is accepted rather
+  than handled. In particular, a failed `GetVirtualizationMode` leaves
+  `VirtualizationMode` at its zero value (`NONE`) with an empty
+  `VirtualizationModeName`, so the zero value does not establish mode `none`
+  and a vGPU can be published as a physical GPU in that case.
 
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside
