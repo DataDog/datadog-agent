@@ -46,10 +46,9 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
         ):
             kept_job[job] = job_details
 
-    # Preserve resolved retries so jobs do not fall back to the parent pipeline's default retry policy.
-    # Remove rules and extends from the jobs, update needs to point to parent pipeline.
+    # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
     for job in kept_job.values():
-        remove_fields(job, fields=('rules', 'extends'))
+        remove_fields(job)
         if "needs" in job:
             job["needs"] = update_needs_parent(
                 job["needs"],
