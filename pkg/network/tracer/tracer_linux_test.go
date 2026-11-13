@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -2716,16 +2717,16 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	testcases := []struct {
 		name      string
 		makeConn  func(t *testing.T) net.Conn
-		checkConn func(collect *assert.CollectT, stats *network.ConnectionStats)
+		checkConn func(t assert.TestingT, stats *network.ConnectionStats)
 	}{
 		{
 			name: "blocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
 				return makeConn(t, false)
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(t, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
 			},
 		},
 		{
@@ -2734,9 +2735,9 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				// connection will time out in 500ms while checkConn is running
 				return makeConn(t, true)
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(t, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
 			},
 		},
 		{
@@ -2747,9 +2748,9 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				require.NoError(t, c.Close())
 				return c
 			},
-			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
-				assert.Equal(collect, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
-				assert.Equal(collect, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
+			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
+				assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+				assert.Equal(t, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
 			},
 		},
 	}
@@ -2767,33 +2768,57 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
+	// findClosedConn polls for the closed connection from localAddr and returns a copy of it, or nil if
+	// it isn't reported within waitFor. A closed connection is reported in a single fetch only.
+	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
+		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+			conns, cleanup := getConnections(t, tr)
+			conn, _ := findConnection(localAddr, remoteAddr, conns)
+			if conn != nil && conn.IsClosed {
+				found := *conn
+				// cleanup returns the connection buffer to a pool, so don't keep references into it
+				found.TCPFailures = maps.Clone(conn.TCPFailures)
+				cleanup()
+				return &found
+			}
+			cleanup()
+		}
+		return nil
+	}
+
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			// use the testcase's connection
-			c := tc.makeConn(t)
+			// A kprobe-based tracer can miss a connection failure: the kernel skips a kprobe program
+			// (and counts it in the program's recursion_misses) when it fires while this CPU is
+			// already running a BPF program or a bpf() map syscall. A connect timeout is detected in
+			// the TCP retransmit timer softirq, which can interrupt such a window, so tcp_done never
+			// reports the failed connection. Retry with a new connection when the connection isn't
+			// reported at all. A connection that is reported must carry the right failure.
+			const attempts = 3
+			var conn *network.ConnectionStats
+			for attempt := 1; attempt <= attempts && conn == nil; attempt++ {
+				// use the testcase's connection
+				c := tc.makeConn(t)
 
-			// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
-			port := c.LocalAddr().(*net.TCPAddr).Port
-			localAddr := &net.TCPAddr{
-				IP:   net.ParseIP("127.0.0.1"),
-				Port: port,
+				// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+				localAddr := &net.TCPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: c.LocalAddr().(*net.TCPAddr).Port,
+				}
+
+				conn = findClosedConn(t, localAddr, 3*time.Second)
+				if conn == nil {
+					t.Logf("attempt %d/%d: failed connection %s -> %s was not reported", attempt, attempts, localAddr, remoteAddr)
+				}
 			}
+			require.NotNil(t, conn, "Failed connection not recorded properly")
 
 			// Check if the connection was recorded as failed due to timeout or cancel
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				conns, cleanup := getConnections(collect, tr)
-				defer cleanup()
-
-				conn, _ := findConnection(localAddr, remoteAddr, conns)
-				require.NotNil(collect, conn)
-				assert.Equal(collect, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
-				assert.Equal(collect, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
-				assert.Equal(collect, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
-				assert.Equal(collect, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
-
-				tc.checkConn(collect, conn)
-			}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
-
+			assert.Equal(t, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
+			assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+			assert.Equal(t, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
+			assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
+			tc.checkConn(t, conn)
 		})
 	}
 }
