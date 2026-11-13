@@ -4425,7 +4425,6 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		payload, cleanup := getConnections(collect, tr)
 		for _, c := range payload.Conns {
-			c.Tags = slices.Clone(c.Tags) // the payload's buffer is reused after cleanup
 			seen[c.ConnectionTuple] = c
 		}
 		cleanup()
