@@ -24,6 +24,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg) {
     int flags = (int)PT_REGS_PARM4(ctx);
 #endif
     if (flags & MSG_PEEK) {
+        // kretprobe__tcp_recvmsg counts any entry it finds for this thread as a receive, and
+        // it can't tell a peek apart from the return value. Delete any entry a missed
+        // kretprobe left behind, or the peek's bytes would be counted as received.
+        bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
         return 0;
     }
 
@@ -38,6 +42,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg__pre_5_19_0) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int flags = (int)PT_REGS_PARM5(ctx);
     if (flags & MSG_PEEK) {
+        // see kprobe__tcp_recvmsg
+        bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
         return 0;
     }
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
@@ -51,6 +57,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg__pre_4_1_0) {
     log_debug("kprobe/tcp_recvmsg: pid_tgid: %llu", pid_tgid);
     int flags = (int)PT_REGS_PARM6(ctx);
     if (flags & MSG_PEEK) {
+        // see kprobe__tcp_recvmsg
+        bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
         return 0;
     }
 
