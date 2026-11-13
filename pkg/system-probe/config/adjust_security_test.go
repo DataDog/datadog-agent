@@ -43,3 +43,24 @@ func TestAdjustSecurityCgroupDumpTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestAdjustSecurityDisablesSecurityProfileWithoutCWS(t *testing.T) {
+	tests := []struct {
+		name       string
+		cwsEnabled bool
+	}{
+		{name: "CWS enabled", cwsEnabled: true},
+		{name: "CWS disabled", cwsEnabled: false},
+	}
+
+	for _, te := range tests {
+		t.Run(te.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			cfg.Set(secNS("enabled"), te.cwsEnabled, model.SourceFile)
+			cfg.Set(secNS("security_profile.v2.enabled"), true, model.SourceFile)
+			adjustSecurity(cfg)
+
+			assert.Equal(t, te.cwsEnabled, cfg.GetBool(secNS("security_profile.v2.enabled")))
+		})
+	}
+}

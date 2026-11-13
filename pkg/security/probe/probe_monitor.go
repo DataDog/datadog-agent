@@ -55,7 +55,7 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager.Get(), p.statsdClient, p.onEventLost, p.useRingBuffers)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager.Get(), p.statsdClient, nil, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}

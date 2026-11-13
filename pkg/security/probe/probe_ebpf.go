@@ -1413,9 +1413,6 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	return n, nil
 }
 
-func (p *EBPFProbe) onEventLost(_ string, _ map[string]uint64) {
-}
-
 func (p *EBPFProbe) triggerNopEvent() error {
 	req := erpc.NewERPCRequest(erpc.NopEventOp)
 	return p.Erpc.Request(req)

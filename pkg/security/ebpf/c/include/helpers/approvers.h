@@ -841,7 +841,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) unshare_approvers(struc
     return DISCARDED;
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode != DENY) {
         monitor_event_approved(syscall->type, POLICY_APPROVER_TYPE);
         return syscall->state = APPROVED;
@@ -860,11 +860,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tg
     }
 
     return syscall->state;
-}
-
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    return approve_syscall_with_tgid(tgid, syscall, check_approvers);
 }
 
 #endif

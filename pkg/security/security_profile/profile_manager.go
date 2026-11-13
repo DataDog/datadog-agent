@@ -20,7 +20,7 @@ type ProfileManager interface {
 	// Start starts the profile manager
 	Start(ctx context.Context)
 
-	// ProcessEvent processes an event for activity dump / security profile
+	// ProcessEvent processes an event for security profiles
 	ProcessEvent(event *model.Event)
 
 	// SendStats sends metrics about the profile manager

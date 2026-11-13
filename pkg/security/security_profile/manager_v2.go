@@ -214,6 +214,11 @@ type ManagerV2 struct {
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+	// A disabled manager only holds its config, so every ProfileManager method must return early when V2 is disabled
+	if !cfg.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &ManagerV2{config: cfg}, nil
+	}
+
 	var excludedCgroupsMap *ebpf.Map
 	if ebpfManager != nil {
 		var err error
@@ -400,6 +405,10 @@ func (m *ManagerV2) eventMetricsFor(source model.EventSource, et model.EventType
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	sendTickerChan := m.setupPersistenceTicker()
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
 	profileCleanupTickerChan := m.setupProfileCleanupTicker()
@@ -684,7 +693,6 @@ func (m *ManagerV2) withinProfilingStartupDelay(nowMono uint64) bool {
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
-	// resolvedCgroups and profilePendingEvents are only cleaned up by Start, which only runs when V2 is enabled
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return
 	}
@@ -900,6 +908,10 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 }
 
 func (m *ManagerV2) SendStats() error {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return nil
+	}
+
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
 		return err

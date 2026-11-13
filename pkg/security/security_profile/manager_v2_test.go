@@ -1096,18 +1096,28 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 	assert.Empty(t, m.resolvedCgroups)
 }
 
-// TestManagerV2_ProcessEventWithV2Disabled verifies that with CWS enabled but profiles disabled, ProcessEvent
-// returns before it records the cgroup or queues the event: Start doesn't run, so nothing would clean them up.
-func TestManagerV2_ProcessEventWithV2Disabled(t *testing.T) {
-	m := newTagResolutionTestManagerV2(t, 4, 100)
-	m.config.RuntimeSecurity.SecurityProfileV2Enabled = false
+// TestManagerV2_DisabledIsNoOp verifies that with profiles disabled, NewManagerV2 leaves the local profile
+// directory alone and every ProfileManager method of the returned manager is a no-op.
+func TestManagerV2_DisabledIsNoOp(t *testing.T) {
+	dir := t.TempDir()
+	profilePath := filepath.Join(dir, "workload.profile")
+	require.NoError(t, os.WriteFile(profilePath, nil, 0o600))
 
+	cfg := &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+		SecurityProfileV2ClearLocalProfilesOnStart: true,
+		ActivityDumpLocalStorageDirectory:          dir,
+		ActivityDumpLocalStorageMaxDumpsCount:      10,
+	}}
+	m, err := NewManagerV2(cfg, &statsd.NoOpClient{}, nil, nil, &kernel.Version{}, nil, nil, "test-host", time.Now(), nil)
+	require.NoError(t, err)
+	assert.FileExists(t, profilePath)
+
+	m.Start(t.Context())
 	m.ProcessEvent(newTestEventV2(model.ExecEventType, "v1", "known"))
-	m.ProcessEvent(newUntaggedTestEventV2(0))
-
-	assert.Empty(t, m.resolvedCgroups)
-	assert.Empty(t, m.profilePendingEvents)
-	assert.Zero(t, m.queueSize.Load())
+	m.HandleSampleRefresh(1)
+	assert.NoError(t, m.SendStats())
+	_, err = m.ListSecurityProfiles(nil)
+	assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
 }
 
 // newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the

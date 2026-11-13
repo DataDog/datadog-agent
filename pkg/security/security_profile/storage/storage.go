@@ -9,8 +9,6 @@ package storage
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
@@ -21,6 +19,4 @@ type ActivityDumpStorage interface {
 	GetStorageType() config.StorageType
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request config.StorageRequest, p *profile.Profile, raw *bytes.Buffer) error
-	// SendTelemetry sends metrics using the provided metrics sender
-	SendTelemetry(sender statsd.ClientInterface)
 }
