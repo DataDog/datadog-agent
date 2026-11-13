@@ -707,6 +707,7 @@
 /comp/healthplatform/issues/internal/logsissue                       @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/logsdropped                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
+/comp/healthplatform/issues/untailedfiles                             @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/rofspermissions                           @DataDog/container-platform @DataDog/fleet-remediation
 /pkg/cloudfoundry                                                     @DataDog/agent-integrations
 /pkg/clusteragent/                                                    @DataDog/container-platform

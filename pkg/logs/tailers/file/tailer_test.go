@@ -737,7 +737,7 @@ func TestMissedBytesIdentity(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			source, service := missedBytesIdentity(tc.cfg)
+			source, service := ReportingIdentity(tc.cfg)
 			require.Equal(t, tc.source, source)
 			require.Equal(t, tc.service, service)
 		})

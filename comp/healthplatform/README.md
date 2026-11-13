@@ -130,6 +130,7 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
 | `docker` | `docker-socket-permissions:<digest>` | `Docker Socket Permission` | `docker_socket_permission` | `"Docker socket permission denied at '<socketPaths>'"` | per host + affected-socket set |
 | `docker` | `docker-socket-unavailable:<digest>` | `Docker Socket Unavailable` | `docker_socket_unavailable` | `"Docker socket unavailable at '<socketPaths>'"` | per host + affected-socket set |
 | `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"`, or `"from source <name>"` when one source and service account for all of it | per-host (host-local failure) |
+| `untailedfiles` | `log-files-not-tailed:<digest>` | `Log Files Not Tailed` | `log_files_not_tailed` | `"Not tailing <N> of <M> matching log files: logs_config.open_files_limit (<limit>) reached"` | per-host (host-local failure) |
 | `logsdropped` | `logs-dropped-before-delivery:<digest>` | `Logs Dropped Before Delivery` | `logs_dropped_before_delivery` | `"Dropped <N> logs (<bytes>) from <N> sources in the last 24 hours"`, or `"from source <name> (service <name>)"` when one source and service account for all of it | per-host (host-local failure) |
 
 ## Adding a new issue module
