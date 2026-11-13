@@ -64,6 +64,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
@@ -79,6 +80,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
