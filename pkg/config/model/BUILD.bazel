@@ -23,5 +23,4 @@ dd_agent_go_test(
         "validator_test.go",
     ],
     embed = [":model"],
-    deps = ["@com_github_stretchr_testify//assert"],
 )

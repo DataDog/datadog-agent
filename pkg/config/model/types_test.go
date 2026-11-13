@@ -6,16 +6,17 @@
 package model
 
 import (
+	"errors"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewMissingConfigFileError(t *testing.T) {
 	err := NewMissingConfigFileError(os.ErrNotExist)
 
-	assert.ErrorIs(t, err, ErrMissingConfigFile)
-	assert.ErrorIs(t, err, ErrConfigFileNotFound)
-	assert.ErrorIs(t, err, os.ErrNotExist)
+	for _, target := range []error{ErrMissingConfigFile, ErrConfigFileNotFound, os.ErrNotExist} {
+		if !errors.Is(err, target) {
+			t.Errorf("error %q does not wrap %q", err, target)
+		}
+	}
 }
