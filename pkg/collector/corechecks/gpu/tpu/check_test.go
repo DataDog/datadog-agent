@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -126,7 +127,7 @@ func TestDeviceTagsMatchTagSpec(t *testing.T) {
 	tagsSpec, err := gpuspec.LoadTagsSpec()
 	require.NoError(t, err)
 	tags := deviceTags(testChipID, "tpu-v6e")
-	assert.Subset(t, tags, []string{"gpu_vendor:google", "gpu_uuid:" + testChipID, "gpu_type:tpu-v6e", "gpu_slicing_mode:none"})
+	assert.Subset(t, tags, []string{"gpu_vendor:google", "gpu_uuid:" + testChipID, "gpu_type:tpu-v6e", "gpu_architecture:tpu-v6e", "gpu_slicing_mode:none"})
 	for _, tag := range tags {
 		name, value, found := strings.Cut(tag, ":")
 		require.True(t, found, tag)
@@ -405,6 +406,43 @@ func setupHostModeCheck(t *testing.T, workload bool, vbarHex string) (*Check, *m
 	snd := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
 	snd.SetupAcceptAll()
 	return c, snd, vbarCalls
+}
+
+func TestStalledRuntimeIsBoundedByOneDeadline(t *testing.T) {
+	vbarAddr, _ := serveTPUHost(t, false, vbarBusyHex)
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	srv := grpc.NewServer(grpc.ForceServerCodec(rawCodec{}), grpc.UnknownServiceHandler(func(_ any, stream grpc.ServerStream) error {
+		<-stream.Context().Done()
+		return stream.Context().Err()
+	}))
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+	metadata := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("1")) }))
+	t.Cleanup(metadata.Close)
+	host, err := newHostSource(metadata.URL, vbarAddr, lis.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(host.close)
+
+	start := time.Now()
+	chips, err := host.read()
+	require.NoError(t, err)
+	assert.Less(t, time.Since(start), scrapeTimeout+time.Second, "the runtime calls share one deadline")
+	require.Len(t, chips, 1)
+	assert.Contains(t, chips[0].node, "tensorcore_utilization", "VBAR series are kept")
+	assert.NotContains(t, chips[0].node, "duty_cycle")
+}
+
+func TestConfigureFinalizesServiceTag(t *testing.T) {
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	c, ok := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t)).(*Check)
+	require.True(t, ok)
+	enableTPU(t, true)
+	c.sysRoot, c.endpoint = fakeTPUHost(t), "http://127.0.0.1:1/metrics"
+	snd := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
+	snd.SetupAcceptAll()
+	require.NoError(t, c.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	snd.AssertCalled(t, "FinalizeCheckServiceTag")
 }
 
 func TestFailedVBARPollIsNotRetriedEveryRun(t *testing.T) {

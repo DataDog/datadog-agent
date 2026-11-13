@@ -44,8 +44,10 @@ const (
 	collectorName nvidia.CollectorName = "tpu"
 	// devicePluginPort is the port of the Prometheus endpoint of the GKE TPU device plugin.
 	devicePluginPort = "2112"
-	// scrapeTimeout bounds one scrape of the device plugin.
+	// scrapeTimeout bounds one scrape of the device plugin, or the TPU VM service calls of one run.
 	scrapeTimeout = 5 * time.Second
+	// maxScrapeBytes caps a device plugin response, which is about 17 KB on a 4-chip node.
+	maxScrapeBytes = 16 << 20
 	// vendor is the gpu_vendor tag value of TPUs.
 	vendor = "google"
 )
@@ -113,6 +115,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
+	// CheckBase.Configure is not called, so the configured service tag is finalized here.
+	snd, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	snd.FinalizeCheckServiceTag()
 	c.excludedChips = make(map[string]struct{})
 	for _, id := range cfg.GetStringSlice("gpu.excluded_devices") {
 		c.excludedChips[strings.ToLower(id)] = struct{}{}
@@ -203,7 +211,7 @@ func (c *Check) scrape() ([]*chip, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxScrapeBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -341,6 +349,7 @@ func deviceTags(id, generation string) []string {
 		"gpu_parent_uuid:" + id,
 		"gpu_device:" + generation,
 		"gpu_type:" + generation,
+		"gpu_architecture:" + generation,
 		"gpu_slicing_mode:none",
 		"gpu_sharing_mode:none",
 		"gpu_mig_profile:none",

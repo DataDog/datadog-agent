@@ -21,8 +21,12 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protowire"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -83,10 +87,13 @@ func (h *hostSource) read() ([]*chip, error) {
 		}
 		h.instanceID = id
 	}
+	// One deadline bounds the calls of a run, so a stalled service cannot outlast the interval.
+	ctx, cancel := context.WithTimeout(context.Background(), scrapeTimeout)
+	defer cancel()
 	if time.Since(h.lastVBARPoll) >= vbarPollInterval {
 		// A failed poll counts too: retrying on every run could crash the VBAR agent.
 		h.lastVBARPoll = time.Now()
-		resp, err := invoke(h.vbar, "/libtpu.tpunetd.VBARControl/GetHostMetrics", nil)
+		resp, err := invoke(ctx, h.vbar, "/libtpu.tpunetd.VBARControl/GetHostMetrics", nil)
 		h.lastVBAR, h.lastVBARErr = parseHostMetrics(resp), err
 	}
 	if h.lastVBARErr != nil {
@@ -99,9 +106,18 @@ func (h *hostSource) read() ([]*chip, error) {
 	// libtpu device ordinals are only known to match the VBAR chip on single-chip hosts.
 	if len(chips) == 1 {
 		for _, m := range runtimeMetrics {
-			resp, err := invoke(h.runtime, "/tpu.monitoring.runtime.RuntimeMetricService/GetRuntimeMetric", protowire.AppendString(protowire.AppendTag(nil, 1, protowire.BytesType), m[0]))
+			resp, err := invoke(ctx, h.runtime, "/tpu.monitoring.runtime.RuntimeMetricService/GetRuntimeMetric", protowire.AppendString(protowire.AppendTag(nil, 1, protowire.BytesType), m[0]))
+			if ctx.Err() != nil {
+				if logLimitCheck.ShouldLog() {
+					log.Warnf("libtpu runtime metrics at %s did not answer in time: %s", runtimeAddress, err)
+				}
+				break
+			}
+			if status.Code(err) == codes.Unavailable {
+				break // no workload holds the chip
+			}
 			if err != nil {
-				continue // no workload holds the chip, or libtpu does not export this metric
+				continue // libtpu does not export this metric
 			}
 			if values := parseRuntimeMetric(resp); len(values) == 1 {
 				if v, ok := values[0]; ok {
@@ -231,9 +247,7 @@ func (rawCodec) Marshal(v any) ([]byte, error)      { return v.([]byte), nil }
 func (rawCodec) Unmarshal(data []byte, v any) error { *(v.(*[]byte)) = data; return nil }
 func (rawCodec) Name() string                       { return "proto" }
 
-func invoke(conn *grpc.ClientConn, method string, req []byte) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), scrapeTimeout)
-	defer cancel()
+func invoke(ctx context.Context, conn *grpc.ClientConn, method string, req []byte) ([]byte, error) {
 	var resp []byte
 	err := conn.Invoke(ctx, method, req, &resp, grpc.ForceCodec(rawCodec{}))
 	return resp, err
