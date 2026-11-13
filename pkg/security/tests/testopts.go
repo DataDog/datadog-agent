@@ -24,6 +24,7 @@ type testOpts struct {
 	enableSecurityProfile                   bool
 	securityProfileNodeEvictionTimeout      time.Duration
 	securityProfileSampleRefreshPeriod      time.Duration
+	securityProfileMaxImageTags             int
 	enableAnomalyDetection                  bool
 	workloadProfileStorageDir               string
 	workloadProfilePersistencePeriod        time.Duration
