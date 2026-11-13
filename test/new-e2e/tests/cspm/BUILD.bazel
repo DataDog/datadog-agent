@@ -3,12 +3,14 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "cspm_test",
     srcs = [
+        "aks_test.go",
         "cspm_test.go",
         "docker_host_test.go",
         "host_benchmarks_container_nix_test.go",
         "host_benchmarks_diag_nix_test.go",
         "host_benchmarks_nix_test.go",
         "host_benchmarks_probes_nix_test.go",
+        "node_config_test.go",
         "oval_probes_nix_test.go",
     ],
     data = [
@@ -42,11 +44,13 @@ dd_agent_go_test(
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/scenarios/aws/ec2docker",
         "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/docker",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/provisioners/azure/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
