@@ -344,10 +344,6 @@ entries:
   function: TestMacosInstallScriptUpgradeFromStable
   status: debt
   reason: Fetches the macOS install script from install.datadoghq.com and the released Agent .dmg it installs before upgrading; should use a QA-account mirror.
-- file: test/new-e2e/tests/agent-platform/tests/package_signing_test.go
-  function: TestPackageSigningComponent
-  status: debt
-  reason: Downloads the Datadog signing keys from keys.datadoghq.com; should bundle them or use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/persisting_integrations_test.go
   function: TestPersistingIntegrations
   status: debt
@@ -362,58 +358,6 @@ entries:
   reason: Installs a released Agent from the public install script and repos before upgrading; should use a QA-account mirror.
 - file: test/new-e2e/tests/agent-runtimes/auth_artifact_win_test.go
   function: TestAuthArtifactIPCSecurityWindowsSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_basic_common_test.go
-  function: basicSuite.TestAdditionalCheckWorks
-  status: debt
-  reason: Configures http_check against public http://example.com; should target a local endpoint instead.
-- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_basic_common_test.go
-  function: basicSuite.getSuiteOptions
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_eudm_common_test.go
-  function: eudmSuite.getSuiteOptions
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_none_common_test.go
-  function: noneSuite.getSuiteOptions
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/ipc_security_win_test.go
-  function: TestIPCSecurityWindowsSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/procmgr/par_procmgr_win_test.go
-  function: TestPARManagedByProcmgrWindows
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): document why Internet access is needed'
-- file: test/new-e2e/tests/agent-runtimes/procmgr/procmgr_win_test.go
-  function: TestProcmgrSmokeWindowsSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/rtloader_multiprocessing_lib_common_test.go
-  function: baseMultiProcessingLibSuite.getSuiteOptions
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-runtimes/shared_library_common_test.go
-  function: sharedLibrarySuite.newProvisionerWithAgentOptions
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/check/check_win_test.go
-  function: TestWindowsCheckSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/config/config_win_test.go
-  function: TestWindowsConfigSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/configcheck/configcheck_nix_test.go
-  function: TestLinuxConfigCheckSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/configcheck/configcheck_win_test.go
-  function: TestWindowsConfigCheckSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/diagnose/diagnose_nix_test.go
@@ -436,30 +380,6 @@ entries:
   function: TestLinuxFlareSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/flare/flare_win_test.go
-  function: TestWindowsFlareSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/health/health_win_test.go
-  function: TestWindowsHealthSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/hostname/hostname_ec2_nix_test.go
-  function: TestLinuxHostnameSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/hostname/hostname_ec2_win_test.go
-  function: TestWindowsHostnameSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/run/run_nix_test.go
-  function: TestLinuxRunSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/run/run_win_test.go
-  function: TestWindowsRunSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-subcommands/secret/secret_nix_test.go
   function: TestLinuxSecretSuite
   status: untriaged
@@ -476,10 +396,6 @@ entries:
   function: windowsSecretSuite.TestAgentConfigRefresh
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-subcommands/status/status_win_test.go
-  function: TestWindowsStatusSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-remediation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/apm/vm_test.go
   function: vmProvisionerOpts
   status: debt
@@ -496,10 +412,6 @@ entries:
   function: TestAgentWindowsSuite
   status: justified
   reason: 'No fakeintake: tests check Remote Config policy delivery and signals sent to the real Datadog backend.'
-- file: test/new-e2e/tests/data-security/postgres_provisioner.go
-  function: postgresScanProvisioner
-  status: untriaged
-  reason: 'TODO(@DataDog/sensitive-data-scanner): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/discovery/linux_test.go
   function: TestLinuxTestSuite
   status: debt
@@ -512,10 +424,6 @@ entries:
   function: linuxTestSuite.testProcessCheckWithServiceDiscoveryPrivilegedLogs
   status: debt
   reason: Re-applies the suite opt-in on UpdateEnv; the suite needs it only for provision.sh apt/pip/npm/gem installs.
-- file: test/new-e2e/tests/discovery/process_autodiscovery_test.go
-  function: TestProcessAutodiscoverySuite
-  status: debt
-  reason: Installs redis-server and nginx with apt-get in SetupSuite; must move to a prebaked AMI.
 - file: test/new-e2e/tests/fleet/suite/suite.go
   function: Run
   status: debt
