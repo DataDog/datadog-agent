@@ -17,8 +17,9 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-GRAPH_KINDS = "go_library|go_tool_library|go_test|go_binary|go_proto_library|go_proto_compiler|go_source|alias"
-QUERY = f'kind("{GRAPH_KINDS}", deps(//...))'
+GO_RULE_KINDS = "go_library|go_tool_library|go_test|go_binary|go_proto_library|go_proto_compiler|go_source"
+GRAPH_KINDS = f"{GO_RULE_KINDS}|alias"  # keep `alias` out of deps() roots: some lead to GitHub-blocked ddbuild.io
+QUERY = f'kind("{GRAPH_KINDS}", deps(kind("{GO_RULE_KINDS}", //...)))'
 MANIFEST_PATH = "bazel/go_tags/closure_tags.bzl"
 _SCAN_CACHE = "go_tag_scan_cache.json"
 

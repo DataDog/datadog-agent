@@ -21,6 +21,8 @@ permissions: {}
 jobs:
   assess_repo_permission:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: (github.event.schedule == '0 6 2 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'repo'))
     strategy:
       matrix:
@@ -51,6 +53,8 @@ jobs:
 
   assess_agent_all_permission:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event.schedule == '0 4 2 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'agent-community-eng')
     environment:
       name: main

@@ -1,10 +1,6 @@
 # Default to LF for all files that git identifies as text files, regardless of platform
 * text=auto eol=lf
 
-# TODO(alopezz): These exceptions, matching files that are stored with CRLF endings in
-# git, are transitional while migrating to LF as the default eol for all text files.
-tasks/unit_tests/testdata/secret.tar.gz/*.xml -text
-
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf

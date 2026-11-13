@@ -49,6 +49,7 @@ cc_library(
         "src/luaconf.h",
         "src/lualib.h",
     ],
+    copts = ["-O2"],
     strip_include_prefix = "src",
     visibility = ["//visibility:public"],
 )

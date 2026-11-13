@@ -167,13 +167,17 @@
 
 # build agent7 image
 .docker_build_agent7:
-  extends: [.docker_build_job_definition, .docker_build_artifact]
+  extends: [.docker_build_job_definition, .docker_build_artifact, .bazel:defs:cache:progressive]
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success
   before_script:
     - !reference [.docker_build_artifact, before_script]
     - mv -vf Dockerfiles/nosys-seccomp/nosys.so ${ARTIFACTS_BUILD_CONTEXT}/
+    - |
+      if [[ "$BUILD_ARG" == *WITH_JMX_FIPS=true* ]]; then
+        bazel run //deps/maven:install_bouncycastle_fips_jars -- --destdir=${BUILD_CONTEXT}/bouncycastle-fips
+      fi
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
