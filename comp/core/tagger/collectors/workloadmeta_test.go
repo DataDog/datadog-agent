@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"sort"
 	"strconv"
@@ -5737,7 +5738,7 @@ func TestHandleContainerPromotesProcessTags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			store := newProcessTagPromotionStore(t)
+			store := newMockStore(t)
 			for i, processTags := range test.processTags {
 				store.Set(newProcessWithTags(int32(i+1), containerID, processTags))
 			}
@@ -5763,7 +5764,7 @@ func TestHandleContainerPromotesProcessTags(t *testing.T) {
 func TestProcessEventsRetagsProcessContainer(t *testing.T) {
 	const containerID = "container-id"
 
-	store := newProcessTagPromotionStore(t)
+	store := newMockStore(t)
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
 	})
@@ -5828,7 +5829,7 @@ func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
 	for _, test := range tests {
 		for eventName, eventType := range map[string]workloadmeta.EventType{"set": workloadmeta.EventTypeSet, "unset": workloadmeta.EventTypeUnset} {
 			t.Run(test.name+"/"+eventName, func(t *testing.T) {
-				store := newProcessTagPromotionStore(t)
+				store := newMockStore(t)
 				for _, id := range []string{containerID, otherContainerID} {
 					store.Set(&workloadmeta.Container{
 						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
@@ -5861,7 +5862,7 @@ func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
 	}
 }
 
-func newProcessTagPromotionStore(t *testing.T) workloadmetamock.Mock {
+func newMockStore(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -7384,4 +7385,210 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			check(process(workloadmeta.EventTypeUnset, workload), false)
 		})
 	}
+}
+
+func newKueueIndexTestCollector(t *testing.T) (*WorkloadMetaCollector, workloadmetamock.Mock) {
+	store := newMockStore(t)
+	return NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil), store
+}
+
+func TestKueueWorkloadRefForPod(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		namespace   string
+		podUID      string
+		managed     string
+		annotations map[string]string
+		labels      map[string]string
+		duplicate   bool
+		want        string
+	}{
+		{name: "pod UID", managed: "true", namespace: "team-a", podUID: "pod-uid", want: "by-uid"},
+		{name: "unmanaged pod", namespace: "team-a", podUID: "pod-uid"},
+		{name: "managed label false", namespace: "team-a", podUID: "pod-uid", managed: "false"},
+		{name: "explicit reference", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "explicit reference overrides ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true, annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "explicit reference overrides UID", managed: "true", namespace: "team-a", podUID: "pod-uid", labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, want: "by-name"},
+		{name: "other namespace", managed: "true", namespace: "team-b", podUID: "pod-uid"},
+		{name: "recreated pod", managed: "true", namespace: "team-a", podUID: "replacement-uid"},
+		{name: "no UID", managed: "true", namespace: "team-a"},
+		{name: "ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			c, store := newKueueIndexTestCollector(t)
+			for _, name := range []string{"by-name", "by-uid", "duplicate"} {
+				if name == "duplicate" && !tt.duplicate {
+					continue
+				}
+				wl := &workloadmeta.KubernetesKueueWorkload{
+					EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: workloadmeta.GenerateKueueWorkloadEntityID("team-a", name)},
+					EntityMeta: workloadmeta.EntityMeta{Name: name, Namespace: "team-a"},
+				}
+				if name != "by-name" {
+					wl.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-uid"}
+				}
+				store.Set(wl)
+				c.updateKueueJobIndex(wl.EntityID.ID)
+			}
+			labels := maps.Clone(tt.labels)
+			if tt.managed != "" {
+				if labels == nil {
+					labels = make(map[string]string)
+				}
+				labels[kubernetes.KueueManagedLabelKey] = tt.managed
+			}
+			pod := &workloadmeta.KubernetesPod{
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: tt.podUID},
+				EntityMeta: workloadmeta.EntityMeta{Namespace: tt.namespace, Labels: labels, Annotations: tt.annotations},
+			}
+			assert.Equal(t, tt.want, c.kueueWorkloadRefForPod(pod).name)
+		})
+	}
+}
+
+func TestKueueJobIndexLifecycle(t *testing.T) {
+	c, store := newKueueIndexTestCollector(t)
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+		EntityMeta: workloadmeta.EntityMeta{Namespace: "team-a", Labels: map[string]string{kubernetes.KueueManagedLabelKey: "true"}},
+	}
+	wl := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/workload"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "workload", Namespace: "team-a", Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-uid"}},
+	}
+	relabeled := wl.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+	relabeled.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "other-uid"}
+	podJob := kueueJob{namespace: "team-a", uid: "pod-uid"}
+	otherJob := kueueJob{namespace: "team-a", uid: "other-uid"}
+
+	store.Set(wl)
+	require.Equal(t, []kueueJob{podJob}, c.updateKueueJobIndex(wl.EntityID.ID))
+	require.Equal(t, "workload", c.kueueWorkloadRefForPod(pod).name)
+
+	// Updates that keep the job-uid don't change any association.
+	require.Empty(t, c.updateKueueJobIndex(wl.EntityID.ID))
+
+	// A second claim makes the association ambiguous, which is logged once
+	// until the claim is removed.
+	duplicate := wl.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+	duplicate.ID, duplicate.Name = "team-a/duplicate", "duplicate"
+	store.Set(duplicate)
+	require.Equal(t, []kueueJob{podJob}, c.updateKueueJobIndex(duplicate.EntityID.ID))
+	require.Nil(t, c.getKueueWorkloadForPod(pod))
+	require.Contains(t, c.kueueAmbiguousJobsLogged, podJob)
+	store.Unset(duplicate)
+	require.Equal(t, []kueueJob{podJob}, c.updateKueueJobIndex(duplicate.EntityID.ID))
+	require.Equal(t, "workload", c.kueueWorkloadRefForPod(pod).name)
+	require.Empty(t, c.kueueAmbiguousJobsLogged)
+
+	// A job-uid change moves the association to the other pod. The index
+	// follows the store, which can be ahead of the events.
+	store.Set(relabeled)
+	require.Equal(t, []kueueJob{podJob, otherJob}, c.updateKueueJobIndex(wl.EntityID.ID))
+	require.Empty(t, c.kueueWorkloadRefForPod(pod).name)
+	require.Empty(t, c.updateKueueJobIndex(relabeled.EntityID.ID), "the later event for the relabel changes nothing")
+
+	store.Set(wl)
+	c.updateKueueJobIndex(wl.EntityID.ID)
+	// An unset event processed after the Workload was recreated keeps it.
+	require.Empty(t, c.updateKueueJobIndex(wl.EntityID.ID))
+	store.Unset(wl)
+	require.Equal(t, []kueueJob{podJob}, c.updateKueueJobIndex(wl.EntityID.ID))
+	require.Empty(t, c.kueueWorkloadRefForPod(pod).name)
+	require.Empty(t, c.kueueJobWorkloads)
+	require.Empty(t, c.kueueWorkloadJobs)
+}
+
+// Relabeling a Workload's job-uid moves its tags from one managed pod to the
+// other, through the events the tagger gets from workloadmeta.
+func TestKueueJobUIDRelabelRetagsPods(t *testing.T) {
+	store := newMockStore(t)
+	ch := make(chan []*types.TagInfo, 10)
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, &fakeProcessor{ch})
+	process := func(entity workloadmeta.Entity) map[string][]string {
+		t.Helper()
+		store.Set(entity)
+		collector.processEvents(workloadmeta.EventBundle{Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: entity, IsComplete: true}}, Ch: make(chan struct{})})
+		out := make(map[string][]string)
+		for len(ch) > 0 {
+			for _, info := range <-ch {
+				if info.EntityID.GetPrefix() == types.KubernetesPodUID {
+					out[info.EntityID.GetID()] = info.OrchestratorCardTags
+				}
+			}
+		}
+		return out
+	}
+	for _, uid := range []string{"pod-a", "pod-b"} {
+		process(&workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+			EntityMeta: workloadmeta.EntityMeta{Name: uid, Namespace: "team-a", Labels: map[string]string{
+				kubernetes.KueueManagedLabelKey: "true",
+			}},
+		})
+	}
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/workload"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "workload", Namespace: "team-a", UID: "workload-uid",
+			Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-a"}},
+	}
+
+	tags := process(workload)
+	require.Contains(t, tags, "pod-a")
+	assert.Contains(t, tags["pod-a"], "kueue_workload:workload")
+	assert.NotContains(t, tags, "pod-b")
+
+	relabeled := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+	relabeled.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-b"}
+	tags = process(relabeled)
+	require.Contains(t, tags, "pod-a")
+	require.Contains(t, tags, "pod-b")
+	assert.NotContains(t, tags["pod-a"], "kueue_workload:workload")
+	assert.Contains(t, tags["pod-b"], "kueue_workload:workload")
+}
+
+func TestGetKueueWorkloadForPod(t *testing.T) {
+	c, store := newKueueIndexTestCollector(t)
+
+	byName := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/by-name"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "by-name", Namespace: "team-a"},
+	}
+	byUID := &workloadmeta.KubernetesKueueWorkload{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/by-uid"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "by-uid", Namespace: "team-a", Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-uid"}},
+	}
+	for _, wl := range []*workloadmeta.KubernetesKueueWorkload{byName, byUID} {
+		store.Set(wl)
+		c.updateKueueJobIndex(wl.EntityID.ID)
+	}
+
+	pod := func(namespace string, annotations map[string]string) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+			EntityMeta: workloadmeta.EntityMeta{Namespace: namespace, Annotations: annotations, Labels: map[string]string{
+				kubernetes.KueueManagedLabelKey: "true",
+			}},
+		}
+	}
+
+	got := c.getKueueWorkloadForPod(pod("team-a", map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}))
+	require.NotNil(t, got)
+	assert.Equal(t, "by-name", got.Name)
+
+	got = c.getKueueWorkloadForPod(pod("team-a", nil))
+	require.NotNil(t, got)
+	assert.Equal(t, "by-uid", got.Name)
+
+	// Explicit references are namespaced, and take precedence over the job-uid
+	// association even when they reference a missing Workload.
+	assert.Nil(t, c.getKueueWorkloadForPod(pod("team-b", map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"})))
+	assert.Nil(t, c.getKueueWorkloadForPod(pod("team-a", map[string]string{kubernetes.KueueWorkloadAnnotationKey: "missing"})))
+
+	// The store can be ahead of the index: a Workload that no longer claims
+	// the pod is not used before its event is processed.
+	relabeled := byUID.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+	relabeled.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "other-uid"}
+	store.Set(relabeled)
+	assert.Nil(t, c.getKueueWorkloadForPod(pod("team-a", nil)))
 }

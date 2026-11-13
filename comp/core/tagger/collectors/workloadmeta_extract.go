@@ -22,7 +22,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
-	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -189,6 +188,14 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			continue
 		}
 
+		// Kueue Workloads are tagger entities, but pods can also be joined to
+		// them by job-uid, so the index must be updated before those pods are
+		// retagged below.
+		var changedKueueJobs []kueueJob
+		if entityID.Kind == workloadmeta.KindKubernetesKueueWorkload {
+			changedKueueJobs = c.updateKueueJobIndex(entityID.ID)
+		}
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
@@ -224,13 +231,13 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindKubernetesKueueQueue:
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity, changedKueueJobs)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity, changedKueueJobs)...)
 			case workloadmeta.KindKubernetesKueueWorkload:
 				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity, changedKueueJobs)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -256,7 +263,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
 			// A removed Kueue entity is no longer in the store, so the pods
 			// that used it get re-tagged without it.
-			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity, changedKueueJobs)...)
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
@@ -1542,16 +1549,11 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
 	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
-	workload, err := c.store.GetKubernetesKueueWorkloadForPod(pod)
-	if err == nil {
+	workload := c.getKueueWorkloadForPod(pod)
+	if workload != nil {
 		clusterQueueName := c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
 		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
-	}
-	// Missing Workloads are expected, including for pods not managed by Kueue.
-	// Ambiguous associations need investigation; keep queue-only tags below.
-	if !pkgerrors.IsNotFound(err) {
-		log.Warnf("Unable to resolve Kueue Workload for pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
@@ -1585,26 +1587,125 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 	tagList.AddOrchestrator(tags.SchedulerWorkload, workloadName)
 }
 
-func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	// The managed label covers plain Pods with only a UID association. Keep
-	// explicit references and queue labels for controller-created pods and
-	// queue-only tagging, which do not require that label.
-	return kueue.IsManagedPod(pod) || kueue.WorkloadName(pod) != "" ||
+// podHasKueueInfo reports whether the pod, whose resolved Workload has the
+// given name, can have Kueue tags. Managed pods whose job-uid association is
+// missing or ambiguous have no Workload, so only their queue labels count.
+func podHasKueueInfo(pod *workloadmeta.KubernetesPod, workloadName string) bool {
+	return workloadName != "" ||
 		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
 }
 
 // retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
-// depend on the given Kueue entity.
-func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
+// depend on the given Kueue entity, or whose job-uid association can have
+// changed with the given jobs.
+func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity, changedJobs []kueueJob) []*types.TagInfo {
 	if !isKueueKind(entity.GetID().Kind) {
 		return nil
 	}
 
 	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
-		return kueueEntityAffectsPod(entity, pod)
+		ref := c.kueueWorkloadRefForPod(pod)
+		return kueueEntityAffectsPod(entity, pod, ref.name) ||
+			(ref.byJob() && slices.Contains(changedJobs, ref.job))
 	})
+}
+
+// kueueJob identifies the job owning a Kueue Workload, from its job-uid label.
+type kueueJob struct {
+	namespace string
+	uid       string
+}
+
+// kueueJobClaim is the job claimed by a Kueue Workload.
+type kueueJobClaim struct {
+	job          kueueJob
+	workloadName string
+}
+
+// updateKueueJobIndex updates the job-uid index for the given Workload, and
+// returns the jobs whose claiming Workloads changed. It must run before the
+// pods that depend on the Workload are retagged.
+//
+// The index follows the Workload in the store rather than the event, for both
+// set and unset events, as the store can be ahead of the events. Changes are
+// computed against the previous state of the index, so no association change
+// is missed. Each agent has a single source of Workloads (the kubeapiserver
+// collector in the Cluster Agent, the kubemetadata collector elsewhere), so
+// there are no partial unsets to account for.
+func (c *WorkloadMetaCollector) updateKueueJobIndex(workloadID string) []kueueJob {
+	var current kueueJobClaim
+	if stored, err := c.store.GetKubernetesKueueWorkload(workloadID); err == nil {
+		if jobUID := kueue.JobUID(stored); jobUID != "" {
+			current = kueueJobClaim{job: kueueJob{namespace: stored.Namespace, uid: jobUID}, workloadName: stored.Name}
+		}
+	}
+	previous, hadPrevious := c.kueueWorkloadJobs[workloadID]
+	if previous == current {
+		return nil
+	}
+
+	var changed []kueueJob
+	if hadPrevious {
+		delete(c.kueueWorkloadJobs, workloadID)
+		delete(c.kueueJobWorkloads[previous.job], previous.workloadName)
+		if len(c.kueueJobWorkloads[previous.job]) == 0 {
+			delete(c.kueueJobWorkloads, previous.job)
+		}
+		if len(c.kueueJobWorkloads[previous.job]) <= 1 {
+			delete(c.kueueAmbiguousJobsLogged, previous.job)
+		}
+		changed = append(changed, previous.job)
+	}
+	if current.job.uid != "" {
+		c.kueueWorkloadJobs[workloadID] = current
+		if c.kueueJobWorkloads[current.job] == nil {
+			c.kueueJobWorkloads[current.job] = make(map[string]struct{})
+		}
+		c.kueueJobWorkloads[current.job][current.workloadName] = struct{}{}
+		changed = append(changed, current.job)
+	}
+	return changed
+}
+
+// kueueWorkloadRef is how a pod references its Kueue Workload.
+type kueueWorkloadRef struct {
+	// name is the name of the Workload, or "" if the pod has none or if its
+	// job-uid association is ambiguous.
+	name string
+	// job is set if the pod can only be joined to its Workload through the
+	// Workload's job-uid label.
+	job kueueJob
+	// ambiguous is true if several Workloads claim the pod by job-uid.
+	ambiguous bool
+}
+
+func (r kueueWorkloadRef) byJob() bool {
+	return r.job.uid != ""
+}
+
+// kueueWorkloadRefForPod resolves the Kueue Workload of the pod: its explicit
+// reference, or else, for pods managed by the plain Pod integration, the only
+// Workload whose job-uid label is the pod UID. Only the plain Pod integration
+// creates Workloads owned by a pod.
+func (c *WorkloadMetaCollector) kueueWorkloadRefForPod(pod *workloadmeta.KubernetesPod) kueueWorkloadRef {
+	if name := kueue.WorkloadName(pod); name != "" {
+		return kueueWorkloadRef{name: name}
+	}
+	if pod.ID == "" || !kueue.IsManagedPod(pod) {
+		return kueueWorkloadRef{}
+	}
+
+	ref := kueueWorkloadRef{job: kueueJob{namespace: pod.Namespace, uid: pod.ID}}
+	workloads := c.kueueJobWorkloads[ref.job]
+	if len(workloads) == 1 {
+		for name := range workloads {
+			ref.name = name
+		}
+	}
+	ref.ambiguous = len(workloads) > 1
+	return ref
 }
 
 // retagKAIDependentPods recomputes the tags of the pods that reference one of
@@ -1649,22 +1750,56 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 		kind == workloadmeta.KindKubernetesKueueResourceFlavor
 }
 
-// kueueEntityAffectsPod reports whether the tags of the pod can depend on the
-// given Kueue entity.
-func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
+// kueueEntityAffectsPod reports whether the tags of the pod, whose Workload
+// has the given name, can depend on the given Kueue entity.
+func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod, workloadName string) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
-		return kueue.WorkloadMatchesPod(e, pod)
+		return workloadName != "" && pod.Namespace == e.Namespace && workloadName == e.Name
 	case *workloadmeta.KubernetesKueueQueue:
 		// Pods can reach a queue through their Workload, so matching them
 		// exactly would need a Workload lookup per pod. Queue events are rare,
 		// so match every Kueue pod that can use the queue instead.
-		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
+		return podHasKueueInfo(pod, workloadName) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
 	case *workloadmeta.KubernetesKueueResourceFlavor:
-		return podHasKueueInfo(pod)
+		// Flavor tags come only from the pod's Workload.
+		return workloadName != ""
 	default:
 		return false
 	}
+}
+
+// getKueueWorkloadForPod returns the Kueue Workload of the pod, or nil if it
+// has none or it is not in the store, which is expected for pods not managed
+// by Kueue and before the Workload is collected.
+func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+	ref := c.kueueWorkloadRefForPod(pod)
+	if ref.ambiguous {
+		// Logged once until the job stops being ambiguous, not on every
+		// retag of the pod.
+		if _, logged := c.kueueAmbiguousJobsLogged[ref.job]; !logged {
+			c.kueueAmbiguousJobsLogged[ref.job] = struct{}{}
+			log.Warnf("Multiple Kueue Workloads claim pod %s/%s with their job-uid label, so the pod gets no Workload tags", pod.Namespace, pod.Name)
+		}
+	}
+	if ref.name == "" {
+		return nil
+	}
+
+	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, ref.name)
+	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
+	if err != nil {
+		return nil
+	}
+
+	// The index is refreshed from the store when each Workload event is
+	// processed, so the store can have changed since. Don't use a Workload
+	// that no longer claims the pod; its pending event retags the pod.
+	if ref.byJob() && kueue.JobUID(workload) != ref.job.uid {
+		return nil
+	}
+
+	return workload
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKAIInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

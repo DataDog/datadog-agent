@@ -31,7 +31,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -380,13 +380,11 @@ func (p *streamingProvider) podAffectedByKueueUpdate(pod *workloadmeta.Kubernete
 }
 
 // podKueueWorkloadID returns the workloadmeta entity ID of the Kueue Workload a
-// pod joins to, or "" if the pod is not managed by Kueue. This mirrors the join
-// logic used by the tagger to attach Kueue Workload tags to pods.
+// pod references explicitly, or "" if it doesn't reference any. Pods joined to
+// their Workload only by its job-uid label are left to the tagger, which keeps
+// that association and retags those pods on Workload events itself.
 func podKueueWorkloadID(pod *workloadmeta.KubernetesPod) string {
-	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
-	if workloadName == "" {
-		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
-	}
+	workloadName := kueue.WorkloadName(pod)
 	if workloadName == "" {
 		return ""
 	}
