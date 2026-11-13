@@ -379,6 +379,15 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	// kernel reuses the ephemeral client port. Give each its own domain and check for that domain.
 	domainKept, domainDropped := "kept.example.com", "dropped.example.com"
 
+	// The snooper processes captured packets in order on one goroutine. Send the dropped query
+	// first, so that once the kept query shows up, a wrongly captured dropped query would
+	// already be in the stats when the Never check starts.
+
+	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
+	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{domainDropped}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, repsDropped[0])
+
 	// Traffic to `portKept` (the last kept slot, index 7) MUST be captured.
 	queryIPKept, queryPortKept, repsKept, err := testdns.SendDNSQueriesOnPort([]string{domainKept}, net.ParseIP(localhost), strconv.Itoa(portKept), "udp")
 	require.NoError(t, err)
@@ -388,10 +397,6 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 		return hasDomains(statKeeper.Snapshot()[keyKept], domainKept)
 	}, 3*time.Second, 10*time.Millisecond, "kept port %d (slot 7) should have been captured", portKept)
 
-	// Traffic to `portDropped` (the dropped port) MUST NOT be captured.
-	queryIPDropped, queryPortDropped, repsDropped, err := testdns.SendDNSQueriesOnPort([]string{domainDropped}, net.ParseIP(localhost), strconv.Itoa(portDropped), "udp")
-	require.NoError(t, err)
-	require.NotNil(t, repsDropped[0])
 	keyDropped := getKey(queryIPDropped, queryPortDropped, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		return hasDomains(statKeeper.Snapshot()[keyDropped], domainDropped)
@@ -657,13 +662,18 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	port5300 := newTestServerOnPort(t, localhost, "udp", 5300)
 	port5301 := newTestServerOnPort(t, localhost, "udp", 5301)
 
-	// Send queries to port 5300 (should be captured)
-	queryIP5300, queryPort5300, reps, err := testdns.SendDNSQueriesOnPort(domains5300, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
-	require.NoError(t, err)
-	require.NotNil(t, reps[0])
+	// The snooper processes captured packets in order on one goroutine. In each half, send the
+	// unmonitored query first and wait for the monitored one before checking the unmonitored
+	// one. That way, a wrongly captured unmonitored query is already in the stats when the
+	// Never check starts.
 
 	// Send queries to port 5301 (should NOT be captured)
 	queryIP5301, queryPort5301, reps, err := testdns.SendDNSQueriesOnPort(domains5301, net.ParseIP(localhost), strconv.Itoa(int(port5301)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, reps[0])
+
+	// Send queries to port 5300 (should be captured)
+	queryIP5300, queryPort5300, reps, err := testdns.SendDNSQueriesOnPort(domains5300, net.ParseIP(localhost), strconv.Itoa(int(port5300)), "udp")
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
@@ -711,19 +721,19 @@ func TestDNSPortReconfiguration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
+	// Verify port 5301 is captured (also the sync point for the check below)
+	key5301_2 := getKey(queryIP5301_2, queryPort5301_2, localhost, syscall.IPPROTO_UDP)
+	require.Eventually(t, func() bool {
+		allStats := statKeeper2.Snapshot()
+		return hasDomains(allStats[key5301_2], domains5301...)
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 5301")
+
 	// Verify port 5300 is NOT captured
 	key5300_2 := getKey(queryIP5300_2, queryPort5300_2, localhost, syscall.IPPROTO_UDP)
 	require.Never(t, func() bool {
 		allStats := statKeeper2.Snapshot()
 		return hasDomains(allStats[key5300_2], domains5300...)
 	}, 500*time.Millisecond, 10*time.Millisecond, "found DNS data for port 5300 when it should be missing")
-
-	// Verify port 5301 is captured
-	key5301_2 := getKey(queryIP5301_2, queryPort5301_2, localhost, syscall.IPPROTO_UDP)
-	require.Eventually(t, func() bool {
-		allStats := statKeeper2.Snapshot()
-		return hasDomains(allStats[key5301_2], domains5301...)
-	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for port 5301")
 }
 
 func testConfig() *config.Config {
