@@ -218,8 +218,9 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args)
 }
 
-// assertMacosProcmgrCatalogFiles checks the install root, processes.d and the entry are root-only
-// and that no untrusted processes.d was moved aside.
+// assertMacosProcmgrCatalogFiles checks the installer wrote the install root, processes.d, and the
+// entry as root. WriteDarwinProcmgrCatalog sets the directory to 0755. service.WriteProcess sets
+// the entry to 0644.
 func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient) {
 	for path, expected := range map[string]string{
 		macosInstallDir:        "root 755",
@@ -229,20 +230,7 @@ func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient
 		attributes, err := client.Execute("sudo /usr/bin/stat -f '%Su %Lp' " + path)
 		require.NoError(t, err)
 		assert.Equal(t, expected, strings.TrimSpace(attributes), "%s has the wrong owner or mode", path)
-
-		acl, err := client.Execute("sudo /bin/ls -lde " + path)
-		require.NoError(t, err)
-		assert.Len(t, strings.Split(strings.TrimSpace(acl), "\n"), 1, "%s carries an ACL:\n%s", path, acl)
-
-		// Prints the result instead of relying on the exit status, so a failing sudo cannot pass.
-		writable, err := client.Execute("sudo -u _dd-agent sh -c 'if test -w \"$1\"; then echo writable; else echo readonly; fi' sh " + path)
-		require.NoError(t, err)
-		assert.Equal(t, "readonly", strings.TrimSpace(writable), "%s is writable by _dd-agent", path)
 	}
-
-	quarantines, err := client.Execute("sudo find " + macosInstallDir + " -maxdepth 1 -name 'processes.d.untrusted-*'")
-	require.NoError(t, err)
-	assert.Empty(t, strings.TrimSpace(quarantines), "an untrusted processes.d was moved aside")
 }
 
 // assertMacosInstallerLaunchDaemon checks the installer loaded its own daemon's job, root:wheel 644,

@@ -26,11 +26,11 @@ go_library(
     deps = select({
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/util/log",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
-            "//pkg/util/log",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/packages/embedded",
@@ -52,11 +52,13 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/service",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],

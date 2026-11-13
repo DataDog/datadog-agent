@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -91,11 +90,10 @@ var (
 )
 
 // installStableJobs writes and loads the stable launchd job set from the embedded definitions.
-// A label in skip is not touched: it is neither unloaded, written nor loaded.
 //
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
 // and one that fails must not also leave the others stopped.
-func installStableJobs(ctx HookContext, skip map[string]bool) (err error) {
+func installStableJobs(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
 		span.Finish(err)
@@ -104,9 +102,6 @@ func installStableJobs(ctx HookContext, skip map[string]bool) (err error) {
 	client := launchdClient()
 	var errs []error
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
-		if skip[label] {
-			continue
-		}
 		if err := loadStableJob(ctx, client, label); err != nil {
 			errs = append(errs, err)
 		}
@@ -143,19 +138,6 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	return nil
 }
 
-// omitStableJob unloads a job and removes its definition even when the unload fails, so launchd
-// cannot load it at the next boot. The next install writes the definition again before loading it.
-func omitStableJob(ctx context.Context, client *launchd.Client, label string) error {
-	var errs []error
-	if err := client.Bootout(ctx, label); err != nil {
-		errs = append(errs, fmt.Errorf("failed to unload %s: %w", label, err))
-	}
-	if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		errs = append(errs, fmt.Errorf("failed to remove job definition %s: %w", label, err))
-	}
-	return errors.Join(errs...)
-}
-
 // postInstallDatadogAgent loads the stable job set.
 //
 // The Agent reaches macOS as a .dmg, so that is the only package type it handles.
@@ -173,8 +155,7 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // application and links (setUpDMGInstall), writing the processes.d catalog, registering the Agent
 // as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
 // it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
-// when its job loads. An untrusted catalog leaves that job unloaded. Any other catalog error is
-// only logged.
+// when its job loads. A catalog write error is only logged.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -185,17 +166,8 @@ func postInstallDMG(ctx HookContext) error {
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
 	}
-	skip := map[string]bool{}
 	if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
-		if !errors.Is(err, processmanager.ErrUntrustedCatalog) {
-			log.Warnf("failed to write the processes.d catalog: %v", err)
-		} else {
-			log.Errorf("not loading %s, the processes.d catalog is not trusted: %v", procmgrLabel, err)
-			skip[procmgrLabel] = true
-			if err := omitStableJob(ctx, launchdClient(), procmgrLabel); err != nil {
-				errs = append(errs, fmt.Errorf("failed to unload %s from an untrusted processes.d: %w", procmgrLabel, err))
-			}
-		}
+		log.Warnf("failed to write the processes.d catalog: %v", err)
 	}
 	// The packages root holds the package entry the installer daemon reports the Agent from, and
 	// only root may write to it. Create it, or repair it, before the entry is registered below.
@@ -209,7 +181,7 @@ func postInstallDMG(ctx HookContext) error {
 	// could not be created, they are left unloaded and the hook fails, so the postinstall script
 	// fails the install instead of waiting on jobs that will never run.
 	if agentUserExists() {
-		if err := installStableJobs(ctx, skip); err != nil {
+		if err := installStableJobs(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	} else {

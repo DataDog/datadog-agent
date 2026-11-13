@@ -10,7 +10,6 @@ package packages
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -121,41 +119,8 @@ func launchctlCalls(calls [][]string) [][]string {
 	})
 }
 
-func failProcmgrBootout(t *testing.T) {
-	t.Helper()
-
-	stub := launchdClient
-	launchdClient = func() *launchd.Client {
-		client := stub()
-		record := client.Runner
-		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-			if len(args) == 2 && args[1] == "system/"+procmgrLabel {
-				switch args[0] {
-				case "bootout":
-					_, _ = record(ctx, name, args...)
-					return nil, errors.New("operation now in progress")
-				case "print":
-					return []byte("state = running"), nil
-				}
-			}
-			return record(ctx, name, args...)
-		}
-		return client
-	}
-}
-
 func callIndex(calls [][]string, call ...string) int {
 	return slices.IndexFunc(calls, func(c []string) bool { return slices.Equal(c, call) })
-}
-
-func procmgrCalls(calls [][]string, dir string) []string {
-	var verbs []string
-	for _, args := range calls {
-		if slices.Contains(args, "system/"+procmgrLabel) || slices.Contains(args, filepath.Join(dir, procmgrLabel+".plist")) {
-			verbs = append(verbs, args[0])
-		}
-	}
-	return verbs
 }
 
 // stubJobDir points the hooks at a temporary directory instead of /Library/LaunchDaemons.
@@ -285,7 +250,7 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 
-	require.NoError(t, installStableJobs(testHookContext(t), nil))
+	require.NoError(t, installStableJobs(testHookContext(t)))
 
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
@@ -336,7 +301,7 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	}
 
 	dir := launchdJobDir
-	err := installStableJobs(testHookContext(t), nil)
+	err := installStableJobs(testHookContext(t))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
@@ -894,13 +859,10 @@ func dmgHookContext(t *testing.T) HookContext {
 	return ctx
 }
 
-// assertLoaded checks every job but the skipped ones was written and bootstrapped.
-func assertLoaded(t *testing.T, calls [][]string, dir string, skip ...string) {
+// assertLoaded checks every stable job was written and bootstrapped.
+func assertLoaded(t *testing.T, calls [][]string, dir string) {
 	t.Helper()
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
-		if slices.Contains(skip, label) {
-			continue
-		}
 		assert.FileExists(t, filepath.Join(dir, label+".plist"))
 		assert.Contains(t, calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
 	}
@@ -929,72 +891,6 @@ func TestPostInstallDMGLoadsEveryJobWhenTheCatalogWriteFails(t *testing.T) {
 	assertLoaded(t, *calls, dir)
 }
 
-func TestPostInstallDMGOmitsProcmgrOnAnUntrustedCatalog(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := stubJobDir(t)
-	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
-
-	require.NoError(t, postInstallDMG(dmgHookContext(t)))
-
-	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
-	verbs := procmgrCalls(*calls, dir)
-	assert.Contains(t, verbs, "bootout")
-	for _, verb := range []string{"enable", "bootstrap", "kickstart"} {
-		assert.NotContains(t, verbs, verb)
-	}
-	assertLoaded(t, *calls, dir, procmgrLabel)
-}
-
-func TestPostInstallDMGFailsWhenProcmgrCannotBeOmitted(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := stubJobDir(t)
-	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
-	failProcmgrBootout(t)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
-
-	err := postInstallDMG(dmgHookContext(t))
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), procmgrLabel)
-	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"), "the definition is removed even if the job stays loaded")
-	verbs := procmgrCalls(*calls, dir)
-	for _, verb := range []string{"enable", "bootstrap", "kickstart"} {
-		assert.NotContains(t, verbs, verb)
-	}
-	assertLoaded(t, *calls, dir, procmgrLabel)
-}
-
-func TestPostInstallDMGRestoresProcmgrOnceTheCatalogIsTrusted(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := stubJobDir(t)
-	catalog := stubProcmgrCatalog(t, calls)
-	catalog.writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
-	require.NoError(t, postInstallDMG(dmgHookContext(t)))
-	require.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
-
-	catalog.writeErr = nil
-	*calls = nil
-	require.NoError(t, postInstallDMG(dmgHookContext(t)))
-
-	assertLoaded(t, *calls, dir)
-}
-
-func TestInstallStableJobsLeavesASkippedJobAlone(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := stubJobDir(t)
-	path := filepath.Join(dir, procmgrLabel+".plist")
-	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
-
-	require.NoError(t, installStableJobs(testHookContext(t), map[string]bool{procmgrLabel: true}))
-
-	assert.Empty(t, procmgrCalls(*calls, dir))
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, "old definition", string(content))
-	assertLoaded(t, *calls, dir, procmgrLabel)
-}
-
 func TestPreRemoveRemovesTheCatalogAfterTheJobs(t *testing.T) {
 	calls := stubLaunchd(t)
 	stubJobDir(t)
@@ -1016,29 +912,4 @@ func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
 	stubProcmgrCatalog(t, calls).removeErr = errors.New("permission denied")
 
 	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
-}
-
-func TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := stubJobDir(t)
-	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
-	ctx := dmgHookContext(t)
-	agentUserExists = func() bool { return false }
-
-	err := postInstallDMG(ctx)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "_dd-agent does not exist")
-	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
-	assert.Contains(t, procmgrCalls(*calls, dir), "bootout")
-	for _, args := range launchctlCalls(*calls) {
-		if args[0] == "print" {
-			continue
-		}
-		assert.Equal(t, []string{"bootout", "system/" + procmgrLabel}, args, "only the process manager may be touched")
-	}
-	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
-		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
-	}
 }
