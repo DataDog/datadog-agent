@@ -63,6 +63,32 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
     return true;
 }
 
+// send_tcp_close_event sends the close event for a socket, at most once.
+// A socket usually passes through both tcp_close (the application closes it) and
+// tcp_done (the connection reaches TCP_CLOSE), in either order, and the second one can
+// happen long after the first: an active closer only calls tcp_done when the peer's FIN
+// moves it to TIME_WAIT, and a passive closer when the last ACK arrives. Sending an event
+// for both makes userspace report the connection as closed a second time, in a later
+// check if the two events straddle a flush, which double counts all of its stats.
+// The first event wins, which matches the kprobe/fentry tracers reporting closes at tcp_close.
+// The flag is not updated atomically, so a tcp_close and a tcp_done that race on two
+// CPUs can still both send an event; userspace merges those when they land in the
+// same check.
+static __always_inline void send_tcp_close_event(struct sock *sk, sk_tcp_stats_t *sk_stats) {
+    if (sk_stats->close_sent) {
+        log_debug("tcp close event already sent: sk=%p", sk);
+        return;
+    }
+
+    conn_t conn = {};
+    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
+        return;
+    }
+
+    sk_stats->close_sent = 1;
+    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+}
+
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
     log_debug("sockops: sk=%p state=TCP_CLOSE", sk);
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
@@ -243,13 +269,7 @@ int BPF_PROG(tcp_done_entry, struct sock *sk) {
     log_debug("tcp_done: sk=%p", sk);
     handle_sk_tcp_failure(sk, sk_stats);
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
-
-    conn_t conn = {};
-    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
-        return 0;
-    }
-
-    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+    send_tcp_close_event(sk, sk_stats);
     return 0;
 }
 
@@ -265,13 +285,7 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
     log_debug("tcp_close: sk=%p", sk);
     handle_sk_tcp_failure(sk, sk_stats);
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
-
-    conn_t conn = {};
-    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
-        return 0;
-    }
-
-    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+    send_tcp_close_event(sk, sk_stats);
     return 0;
 }
 
