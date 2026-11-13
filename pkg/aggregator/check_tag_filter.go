@@ -25,11 +25,8 @@ const (
 	hasFilterableType tagFilterFlags = 1 << iota
 	// hasUnfilterableType is set once the context gets samples of another type. Context keys don't include the
 	// metric type, so samples of several types can share a context: then none of its output is filtered, from then
-	// on, and a point the merger holds for it can be sent again for the same second.
+	// on.
 	hasUnfilterableType
-	// routedToMerger is set on the contexts of metrics filtered since the Agent started: their output goes to the
-	// check output merger, filtered while a rule applies and with its full tags otherwise.
-	routedToMerger
 )
 
 func (f *tagFilterFlags) set(flag tagFilterFlags) {
@@ -39,12 +36,6 @@ func (f *tagFilterFlags) set(flag tagFilterFlags) {
 // filtersAtOutput returns whether check samplers filter the context's output when a rule matches it.
 func (c *Context) filtersAtOutput() bool {
 	return c.tagFilterFlags&(hasFilterableType|hasUnfilterableType) == hasFilterableType
-}
-
-// mergesAtOutput returns whether the context's output goes to the check output merger: its metric has been
-// filtered since the Agent started.
-func (c *Context) mergesAtOutput() bool {
-	return c.tagFilterFlags&routedToMerger != 0 && c.filtersAtOutput()
 }
 
 // typeFiltersAtOutput returns whether check samplers can filter the tags of a metric type from their output: the types
@@ -71,62 +62,16 @@ func (s *filteredIdentity) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(s.taggerTags.Tags(), s.metricTags.Tags())
 }
 
-// filteredIdentityTable holds one filteredIdentity per filtered series, referenced by 1 + its index, and the names
-// of the metrics filtered since the Agent started. The check samplers share one, as they are all used from the
-// aggregator's run loop.
+// filteredIdentityTable holds one filteredIdentity per filtered series, referenced by 1 + its index. The check
+// samplers share one, as they are all used from the aggregator's run loop.
 type filteredIdentityTable struct {
-	identities       []filteredIdentity
-	free             []uint32
-	byKey            map[ckey.ContextKey]uint32
-	filteredNames    map[string]struct{}
-	pendingNotBefore map[string]int64
-	lastCommitSecond int64
+	identities []filteredIdentity
+	free       []uint32
+	byKey      map[ckey.ContextKey]uint32
 }
 
 func newFilteredIdentityTable() *filteredIdentityTable {
-	return &filteredIdentityTable{
-		byKey:            make(map[ckey.ContextKey]uint32),
-		filteredNames:    make(map[string]struct{}),
-		pendingNotBefore: make(map[string]int64),
-	}
-}
-
-// noteCommit records the time a check sampler committed at.
-func (t *filteredIdentityTable) noteCommit(timestamp float64) {
-	t.lastCommitSecond = int64(timestamp)
-}
-
-// notePeriodicFlush records the time a periodic flush stamped series at. It's a second in the past, so it only moves
-// the record forward: a commit of another check may have used a later second.
-func (t *filteredIdentityTable) notePeriodicFlush(timestamp float64) {
-	t.lastCommitSecond = max(t.lastCommitSecond, int64(timestamp))
-}
-
-// markFiltered records that a metric is filtered. The first time, its merged points can't use the seconds up to the
-// latest commit, which its output sent before may have used.
-func (t *filteredIdentityTable) markFiltered(name string) {
-	if _, ok := t.filteredNames[name]; ok {
-		return
-	}
-	t.filteredNames[name] = struct{}{}
-	t.pendingNotBefore[name] = t.lastCommitSecond + 1
-}
-
-// takeNotBefore returns, for the metrics first filtered since the last call, the first second their merged points
-// can use.
-func (t *filteredIdentityTable) takeNotBefore() map[string]int64 {
-	if len(t.pendingNotBefore) == 0 {
-		return nil
-	}
-	notBefore := t.pendingNotBefore
-	t.pendingNotBefore = make(map[string]int64)
-	return notBefore
-}
-
-// wasFiltered returns whether a metric has been filtered since the Agent started.
-func (t *filteredIdentityTable) wasFiltered(name string) bool {
-	_, ok := t.filteredNames[name]
-	return ok
+	return &filteredIdentityTable{byKey: make(map[ckey.ContextKey]uint32)}
 }
 
 // acquire returns a reference to the identity with the key, creating it with newTags if there is none.
@@ -193,7 +138,6 @@ func (cr *contextResolver) filterAtOutput(context *Context, filterList filterlis
 	if tagMatcher, filter := filterList.ShouldStripTags(context.Name); filter {
 		ref, removed := cr.acquireFiltered(context.Name, context.Host, tagMatcher)
 		context.filteredIdentityRef = ref
-		context.tagFilterFlags.set(routedToMerger)
 		tlmFilteredTags.Add(float64(removed))
 	}
 }
@@ -203,7 +147,6 @@ func (cr *contextResolver) filterAtOutput(context *Context, filterList filterlis
 func (cr *contextResolver) acquireFiltered(name, host string, tagMatcher func(tag string) bool) (uint32, int) {
 	removed := cr.taggerBuffer.RetainFunc(tagMatcher) + cr.metricBuffer.RetainFunc(tagMatcher)
 	key, taggerKey, metricKey := cr.keyGenerator.GenerateWithTags2(name, host, cr.taggerBuffer, cr.metricBuffer)
-	cr.filteredIdentities.markFiltered(name)
 	return cr.filteredIdentities.acquire(key, func() (*tags.Entry, *tags.Entry) {
 		return cr.tagsCache.Insert(taggerKey, cr.taggerBuffer), cr.tagsCache.Insert(metricKey, cr.metricBuffer)
 	}), removed
@@ -224,11 +167,6 @@ func (cr *contextResolver) filteredIdentityOf(context *Context) (*filteredIdenti
 		return nil, false
 	}
 	return cr.filteredIdentities.get(context.filteredIdentityRef), true
-}
-
-// anyFilteredMetric returns whether any metric has been filtered at output since the Agent started.
-func (cr *contextResolver) anyFilteredMetric() bool {
-	return cr.filteredIdentities != nil && len(cr.filteredIdentities.filteredNames) > 0
 }
 
 // refilter updates the identity every context filters to at output, after the rules changed.
@@ -270,18 +208,4 @@ func (cr *contextResolver) refilter(filterList filterlist.TagMatcher) {
 func becomesSketch(metricSampleContext metrics.MetricSampleContext) bool {
 	_, bucket := metricSampleContext.(*metrics.HistogramBucket)
 	return bucket || metricSampleContext.GetMetricType() == metrics.DistributionType
-}
-
-// markFilteredMetrics routes the output of every context of the metrics filtered since the Agent started to the
-// check output merger. It's called once every check sampler refiltered, so that the metrics any of them filtered
-// are known.
-func (cr *contextResolver) markFilteredMetrics() {
-	if !cr.anyFilteredMetric() {
-		return
-	}
-	for _, entry := range cr.contextsByKey {
-		if cr.filteredIdentities.wasFiltered(entry.context.Name) {
-			entry.context.tagFilterFlags.set(routedToMerger)
-		}
-	}
 }

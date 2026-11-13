@@ -20,7 +20,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -122,15 +121,6 @@ func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoi
 	}
 
 	return ss
-}
-
-// mergedIdentity returns the key and tags of the series a context's output is merged into: filtered while a rule
-// applies, and its own otherwise.
-func (cs *CheckSampler) mergedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.ContextKey, tagset.CompositeTags) {
-	if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
-		return filtered.key, filtered.Tags()
-	}
-	return ck, ctx.Tags()
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
@@ -265,8 +255,8 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
-		if context.mergesAtOutput() && addsUp(serie) {
-			serie.ContextKey, serie.Tags = cs.mergedIdentity(serie.ContextKey, context)
+		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok && addsUp(serie) {
+			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
 			cs.mergedSeries = append(cs.mergedSeries, serie)
 			continue
 		}
@@ -299,10 +289,9 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
-		if ctx.mergesAtOutput() {
-			var key ckey.ContextKey
-			key, series.Tags = cs.mergedIdentity(ck, ctx)
-			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: key, sketch: series})
+		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
+			series.Tags = filtered.Tags()
+			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: filtered.key, sketch: series})
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
@@ -362,9 +351,6 @@ func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
 	cs.lastCommitSecond = max(cs.lastCommitSecond, int64(timestamp))
-	if cs.contextResolver.resolver.filteredIdentities != nil {
-		cs.contextResolver.resolver.filteredIdentities.noteCommit(timestamp)
-	}
 	cs.commitSeries(timestamp, filterList)
 	cs.commitSketches(timestamp, filterList)
 
@@ -395,9 +381,6 @@ func (cs *CheckSampler) commitDecomposable(timestamp float64, filterList *metric
 		return
 	}
 	cs.lastCommitSecond = int64(seriesTimestamp)
-	if cs.contextResolver.resolver.filteredIdentities != nil {
-		cs.contextResolver.resolver.filteredIdentities.notePeriodicFlush(seriesTimestamp)
-	}
 	series, errors, keys := cs.metrics.FlushDecomposable(seriesTimestamp)
 	cs.appendSeries(series, errors, filterList)
 	// A new sample recreates the context under the same key, and stateful metrics keep their
@@ -480,15 +463,9 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 	}
 }
 
-// refilter updates the identity every context filters to at output, after the rules changed. Once every sampler
-// refiltered, markFilteredMetrics must be called on each.
+// refilter updates the identity every context filters to at output, after the rules changed.
 func (cs *CheckSampler) refilter(filterList filterlist.TagMatcher) {
 	cs.contextResolver.resolver.refilter(filterList)
-}
-
-// markFilteredMetrics marks the contexts of metrics filtered since the Agent started, after the rules changed.
-func (cs *CheckSampler) markFilteredMetrics() {
-	cs.contextResolver.resolver.markFilteredMetrics()
 }
 
 // addsUp returns whether a series' points add up across sources: the single series of a counter. Other series of a context that merges at output come from metric state that outlived an earlier

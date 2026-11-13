@@ -175,9 +175,6 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			source:     metricSampleContext.GetSource(),
 		}
 		if tracksOutput {
-			if cr.filteredIdentities.wasFiltered(context.Name) {
-				context.tagFilterFlags.set(routedToMerger)
-			}
 			cr.trackOutput(context, metricSampleContext, filterList)
 		}
 		cr.contextsByKey[contextKey] = resolverEntry{

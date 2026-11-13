@@ -380,7 +380,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
 		filteredIdentities:          newFilteredIdentityTable(),
-		checkOutputMerger:           newCheckOutputMerger(flushInterval),
+		checkOutputMerger:           newCheckOutputMerger(),
 		tagFilterEnabled:            tagFilterEnabled(pkgconfigsetup.Datadog()),
 		flushInterval:               flushInterval,
 		serializer:                  s,
@@ -592,7 +592,6 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	agg.checkOutputMerger.startedFiltering(agg.filteredIdentities.takeNotBefore())
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
@@ -986,9 +985,6 @@ func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
 		cs.refilter(matcher)
-	}
-	for _, cs := range agg.checkSamplers {
-		cs.markFilteredMetrics()
 	}
 }
 

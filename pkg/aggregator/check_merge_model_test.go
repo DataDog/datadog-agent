@@ -37,13 +37,13 @@ import (
 // The test checks:
 //
 //   - Every committed contribution is sent once, in the series it filters to under the rules when it's released, and
-//     no earlier than the model's second (the merge stage only moves points later). Without clock steps, every point
-//     is sent in exactly the model's second: its own, or for a metric a rule change started filtering, the second
-//     after the change if it was committed in the change's.
-//   - A merged series never has a second sent twice, nor, outside seconds a backward clock step reached again,
-//     sent both merged and not.
-//   - Without clock steps, a flush has sent everything committed before its cutoff, and a merged point isn't
-//     indexed if any of its second's sources asks not to be, and has the lowest of their origins.
+//     in its own second.
+//   - Outside seconds a backward clock step reached again, a merged series never has a second sent twice, nor,
+//     outside the second of a rule change, sent both merged and not. Like the rest of the Agent's output, the merge
+//     stage doesn't guard against those.
+//   - Without clock steps, a flush has sent everything committed before its cutoff, and, outside the second of a
+//     rule change, a merged point isn't indexed if any of its second's sources asks not to be, and has the lowest
+//     of their origins.
 //   - Metrics no rule ever matches are sent exactly as by an aggregator without rules.
 //   - Filtered identities are referenced by exactly the contexts that filter to them, and released with them.
 
@@ -113,8 +113,7 @@ func makeModelSources(sampler int) [][]string {
 type modelConfig struct {
 	ruleChanges bool
 	clockSteps  bool
-	// longClockSteps makes some backward steps longer than the flush interval, or than how far ahead the merger
-	// holds points: it may send a second again then, so only the totals are checked.
+	// longClockSteps makes some backward steps longer than how far ahead the merger holds points.
 	longClockSteps bool
 	removals       bool
 }
@@ -182,21 +181,15 @@ type modelRun struct {
 	registered []bool
 	removing   []bool
 	samplers   []*modelSampler
-	// stamped are the metrics filtered since the start, with the second they first were: their output is merged,
-	// and their sketches are stamped at commit.
-	stamped map[string]int64
-	// notBefore is, for metrics filtered since the start, the second after the latest commit when they first were.
-	notBefore map[string]int64
-	// lastCommitSecond is the second of the latest commit.
-	lastCommitSecond int64
+	// ruleChangeSeconds are the seconds rules changed in.
+	ruleChangeSeconds map[int64]bool
 
 	expected        modelPoints
 	expectedMeta    map[string]modelMeta // by series and second
 	sent            modelPoints
 	mergedSeconds   map[string]bool
 	unmergedSeconds map[string]bool
-	stampedSeconds  map[string]bool // of metrics filtered since the start, merged or not
-	events          []string        // to report how a failing run got there
+	events          []string // to report how a failing run got there
 }
 
 func newModelAggregator() *BufferedAggregator {
@@ -206,20 +199,18 @@ func newModelAggregator() *BufferedAggregator {
 func newModelRun(t *testing.T, seed int64, cfg modelConfig) *modelRun {
 	r := &modelRun{
 		t: t, rng: rand.New(rand.NewSource(seed)), cfg: cfg,
-		agg:             newModelAggregator(),
-		baseline:        newModelAggregator(),
-		clock:           1_000_000,
-		registered:      make([]bool, modelSamplers),
-		removing:        make([]bool, modelSamplers),
-		samplers:        make([]*modelSampler, modelSamplers),
-		stamped:         map[string]int64{},
-		notBefore:       map[string]int64{},
-		expected:        modelPoints{},
-		expectedMeta:    map[string]modelMeta{},
-		sent:            modelPoints{},
-		mergedSeconds:   map[string]bool{},
-		stampedSeconds:  map[string]bool{},
-		unmergedSeconds: map[string]bool{},
+		agg:               newModelAggregator(),
+		baseline:          newModelAggregator(),
+		clock:             1_000_000,
+		registered:        make([]bool, modelSamplers),
+		removing:          make([]bool, modelSamplers),
+		samplers:          make([]*modelSampler, modelSamplers),
+		ruleChangeSeconds: map[int64]bool{},
+		expected:          modelPoints{},
+		expectedMeta:      map[string]modelMeta{},
+		sent:              modelPoints{},
+		mergedSeconds:     map[string]bool{},
+		unmergedSeconds:   map[string]bool{},
 	}
 	r.highWater = r.clock
 	for i := range r.registered {
@@ -250,33 +241,6 @@ func (r *modelRun) register(i int) {
 	r.registered[i], r.removing[i] = true, false
 }
 
-// stamp records that a metric is filtered. The first time, its merged points move past the latest commit's second.
-func (r *modelRun) stamp(name string) {
-	if _, ok := r.stamped[name]; ok {
-		return
-	}
-	r.stamped[name] = int64(r.clock)
-	r.notBefore[name] = r.lastCommitSecond + 1
-}
-
-// secondOf returns the second a series point of a metric committed in a second is sent in: merged once the metric
-// has been filtered.
-func (r *modelRun) secondOf(name string, second int64) int64 {
-	if _, ok := r.stamped[name]; ok {
-		return r.mergedSecond(name, second)
-	}
-	return second
-}
-
-// mergedSecond returns the second a merged point of a metric committed in a second is sent in.
-func (r *modelRun) mergedSecond(name string, second int64) int64 {
-	// The merger doesn't move points further than a flush interval.
-	if r.notBefore[name]-second > int64(DefaultFlushInterval/time.Second) {
-		return second
-	}
-	return max(second, r.notBefore[name])
-}
-
 // ruleMatches returns whether the current rules match a metric.
 func (r *modelRun) ruleMatches(name string) bool {
 	return len(modelRules[r.rule]) > 0 && slices.Contains(modelFiltered, name)
@@ -285,6 +249,7 @@ func (r *modelRun) ruleMatches(name string) bool {
 func (r *modelRun) applyRule(rule int) {
 	r.event("rule %v", modelRules[rule])
 	r.rule = rule
+	r.ruleChangeSeconds[int64(r.clock)] = true
 	rules := map[string]filterlistimpl.MetricTagList{}
 	if filtered := modelRules[rule]; len(filtered) > 0 {
 		for _, name := range modelFiltered {
@@ -292,17 +257,6 @@ func (r *modelRun) applyRule(rule int) {
 		}
 	}
 	r.agg.setFilterList(filterlistimpl.NewTagMatcher(rules, logmock.New(r.t)))
-	// Every context the aggregator still has is refiltered, including those of samplers being removed.
-	for i, s := range r.samplers {
-		if s == nil || !r.registered[i] {
-			continue
-		}
-		for _, ctx := range s.contexts {
-			if r.ruleMatches(ctx.name) {
-				r.stamp(ctx.name)
-			}
-		}
-	}
 }
 
 // identity returns the series a source's metric is sent as under the current rules.
@@ -357,9 +311,6 @@ func (r *modelRun) sample(i int) {
 		if !ok {
 			ctx = &modelContext{name: m.name, tags: tags}
 			s.contexts[key] = ctx
-			if r.ruleMatches(m.name) {
-				r.stamp(m.name)
-			}
 		}
 		ctx.lastSeen = s.commits
 		if m.mtype != metrics.DistributionType {
@@ -373,7 +324,6 @@ func (r *modelRun) sample(i int) {
 
 func (r *modelRun) commit(i int) {
 	r.event("commit %d", i)
-	r.lastCommitSecond = int64(r.clock)
 	for _, agg := range []*BufferedAggregator{r.agg, r.baseline} {
 		agg.mu.Lock()
 		agg.checkSamplers[modelSamplerID(i)].commit(r.clock, &agg.flushFilterList)
@@ -383,14 +333,14 @@ func (r *modelRun) commit(i int) {
 	s, second := r.samplers[i], int64(r.clock)
 	for _, ctx := range s.contexts {
 		if ctx.sampled {
-			r.expect(r.identity("serie", ctx.name, ctx.tags), r.secondOf(ctx.name, second), modelValue{Sum: ctx.counter}, ctx.tags)
+			r.expect(r.identity("serie", ctx.name, ctx.tags), second, modelValue{Sum: ctx.counter}, ctx.tags)
 			ctx.counter, ctx.sampled = 0, false
 		}
 	}
 	// Every sketch is released at commit, stamped at the commit.
 	for key, v := range s.sketches {
 		ctx := s.contexts[key]
-		r.expect(r.identity("sketch", ctx.name, ctx.tags), r.secondOf(ctx.name, second), v, ctx.tags)
+		r.expect(r.identity("sketch", ctx.name, ctx.tags), second, v, ctx.tags)
 		delete(s.sketches, key)
 	}
 	// Contexts expire after expiry commits without samples.
@@ -409,14 +359,6 @@ func (r *modelRun) flush(final bool) {
 	trigger := trigger{time: time.Unix(0, int64(cutoff*float64(time.Second))), final: final}
 	got := r.flushAggregator(r.agg, trigger)
 	want := r.flushAggregator(r.baseline, trigger)
-	if !final {
-		// Commits from now on are stamped at or after the cutoff, unless the clock steps back.
-		for name, second := range r.notBefore {
-			if second <= trigger.time.Unix() {
-				delete(r.notBefore, name)
-			}
-		}
-	}
 	for i := range r.removing {
 		if r.removing[i] {
 			// The sampler is gone, with what its sources submitted since its last commit.
@@ -428,7 +370,8 @@ func (r *modelRun) flush(final bool) {
 	var gotOther, wantOther []string
 	for _, p := range got {
 		r.sent.add(p.series, p.second, p.value)
-		if meta, ok := r.expectedMeta[fmt.Sprintf("%s@%d", p.series, p.second)]; exact && ok {
+		// In the second a rule changes, a series can be sent both merged and not, each point with its own sources'.
+		if meta, ok := r.expectedMeta[fmt.Sprintf("%s@%d", p.series, p.second)]; exact && ok && !r.ruleChangeSeconds[p.second] {
 			// Check samplers don't carry NoIndex onto sketches, filtered or not (unlike DogStatsD's time samplers).
 			if strings.HasPrefix(p.series, "serie|") {
 				require.True(r.t, p.noIndex || !meta.noIndex, "%s@%d: a source asked not to index it, after:\n%s", p.series, p.second, r.history())
@@ -534,22 +477,17 @@ func sortedTags(tags []string) []string {
 
 func (r *modelRun) recordSecond(series string, second int64, merged bool) {
 	key := fmt.Sprintf("%s@%d", series, second)
-	// Once a metric has been filtered, all of its output is merged: no second after that is sent twice for any of
-	// its series, filtered or not (two commits in one second included), outside seconds a backward clock step
-	// reached again.
-	_, name, _ := strings.Cut(series, "|")
-	if filteredAt, ok := r.stamped[strings.SplitN(name, "|", 2)[0]]; ok && second > filteredAt && (!r.cfg.clockSteps || float64(second) > r.highWater) {
-		require.False(r.t, r.stampedSeconds[key] && !r.cfg.longClockSteps, "%s sent twice after its metric was filtered, after:\n%s", key, r.history())
-		r.stampedSeconds[key] = true
-	}
+	// A backward clock step makes data reuse seconds, merged or not: only seconds it didn't reach again count.
+	fresh := !r.cfg.clockSteps || float64(second) > r.highWater
 	if merged {
-		require.False(r.t, r.mergedSeconds[key] && !r.cfg.longClockSteps, "merged %s sent twice after:\n%s", key, r.history())
+		require.False(r.t, fresh && r.mergedSeconds[key], "merged %s sent twice after:\n%s", key, r.history())
 		r.mergedSeconds[key] = true
 	} else {
 		r.unmergedSeconds[key] = true
 	}
-	// A backward clock step makes even unmerged data reuse seconds: only seconds it didn't reach again count.
-	if float64(second) > r.highWater || !r.cfg.clockSteps {
+	// In the second a rule changes, a source whose full tags are what the others filter to can send its series both
+	// merged and not.
+	if fresh && !r.ruleChangeSeconds[second] {
 		require.False(r.t, r.mergedSeconds[key] && r.unmergedSeconds[key], "%s sent both merged and not after:\n%s", key, r.history())
 	}
 }
@@ -570,8 +508,7 @@ func (r *modelRun) step() {
 		r.applyRule(r.rng.Intn(len(modelRules)))
 	case n < 82 && r.cfg.clockSteps:
 		r.highWater = max(r.highWater, r.clock)
-		// Within the flush interval of the highest clock reached: a longer step resets the latest second the merger
-		// sent, which only the long-clock-steps configuration does.
+		// Within the flush interval of the highest clock reached, unless the steps are long.
 		r.clock = max(r.clock-(0.5+2.5*r.rng.Float64()), r.highWater-10)
 		if r.cfg.longClockSteps && r.rng.Intn(3) == 0 {
 			r.clock -= []float64{20, 60, float64(maxHold) + 100}[r.rng.Intn(3)]
@@ -615,28 +552,7 @@ func (r *modelRun) finish() {
 			gotTotal = gotTotal.add(v)
 		}
 		require.Equal(r.t, wantTotal, gotTotal, "%s: every contribution is sent once, after:\n%s", series, r.history())
-		if !r.cfg.clockSteps {
-			require.Equal(r.t, want, got, "%s: every point is sent in its own second, after:\n%s", series, r.history())
-			continue
-		}
-		// Points only move later: up to any second, no more is sent than was committed.
-		seconds := []int64{}
-		for second := range got {
-			seconds = append(seconds, second)
-		}
-		slices.Sort(seconds)
-		var gotUpTo modelValue
-		for _, second := range seconds {
-			gotUpTo = gotUpTo.add(got[second])
-			var wantUpTo modelValue
-			for s, v := range want {
-				if s <= second {
-					wantUpTo = wantUpTo.add(v)
-				}
-			}
-			require.LessOrEqual(r.t, gotUpTo.Count, wantUpTo.Count, "%s: sent before it was committed, at %d, after:\n%s", series, second, r.history())
-			require.LessOrEqual(r.t, gotUpTo.Sum, wantUpTo.Sum, "%s: sent before it was committed, at %d, after:\n%s", series, second, r.history())
-		}
+		require.Equal(r.t, want, got, "%s: every point is sent in its own second, after:\n%s", series, r.history())
 	}
 	for series := range r.sent {
 		require.Contains(r.t, r.expected, series, "%s: sent, but nothing was committed for it, after:\n%s", series, r.history())
