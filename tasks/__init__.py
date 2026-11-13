@@ -84,6 +84,7 @@ from tasks import (
     secret_generic_connector,
     security_agent,
     selinux,
+    serverless_init,
     setup,
     skaffold,
     system_probe,
@@ -258,6 +259,7 @@ ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(host_profiler)
 ns.add_collection(selinux)
+ns.add_collection(serverless_init)
 ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
