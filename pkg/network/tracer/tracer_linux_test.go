@@ -1276,34 +1276,48 @@ func (s *TracerSuite) TestSelfConnect() {
 	t.Logf("port is %d", port)
 
 	buildmode := ebpftest.GetBuildMode()
+	parentPID := uint32(cmd.Process.Pid)
 	// The two sides of the self-connection share the 4-tuple and differ only by PID. Once they have
 	// exchanged their 3 bytes they are idle, so the client sees each of them in one fetch only: the
 	// state skips an active connection whose stats haven't changed since the client's last fetch. The
 	// two sides update their stats at slightly different times (the sender's tcp_sendmsg returns after
 	// the data has already reached the receiver), so a fetch can land between them and report only
-	// one side, after which neither comes back. So keep the latest copy of each tuple (PID included)
-	// seen across fetches.
-	seen := make(map[network.ConnectionTuple]network.ConnectionStats)
+	// one side, after which neither comes back. So keep the latest copy of each side seen across
+	// fetches, keyed by PID only: other tuple fields such as Direction can differ between fetches, and
+	// keying on them would let one side show up twice.
+	seen := make(map[uint32]network.ConnectionStats)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
-		for _, c := range network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
+		polled := network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
-		}) {
-			c.Tags = slices.Clone(c.Tags) // the payload's buffers are reused after cleanup
-			seen[c.ConnectionTuple] = c
+		})
+		t.Logf("connections in this fetch: %v", polled)
+		for _, c := range polled {
+			seen[c.Pid] = c
 		}
 		cleanup()
-		conns := slices.Collect(maps.Values(seen))
 
-		t.Logf("connections: %v", conns)
 		if buildmode == ebpftest.SK {
 			// SK tracer will have one connection but capture all the sent/recv
+			conns := slices.Collect(maps.Values(seen))
 			require.Len(collect, conns, 1)
 			assert.Equal(collect, 3, int(conns[0].Monotonic.SentBytes))
 			assert.Equal(collect, 3, int(conns[0].Monotonic.RecvBytes))
-		} else {
-			require.Len(collect, conns, 2, "expected number of tcp connections")
+			return
 		}
+
+		// The parent (fork.py's own PID) received the 3 bytes and the child sent them.
+		parent, ok := seen[parentPID]
+		if assert.True(collect, ok, "no connection for the parent (PID %d)", parentPID) {
+			assert.Equal(collect, 3, int(parent.Monotonic.RecvBytes), "parent recv bytes")
+		}
+		var childFound bool
+		for pid, c := range seen {
+			if pid != parentPID && c.Monotonic.SentBytes == 3 {
+				childFound = true
+			}
+		}
+		assert.True(collect, childFound, "no connection for the child that sent 3 bytes; seen: %v", seen)
 	}, 5*time.Second, 100*time.Millisecond, "could not find connection(s)")
 }
 
