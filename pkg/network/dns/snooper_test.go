@@ -364,6 +364,8 @@ func TestDNSExceedsMaxPortsTruncates(t *testing.T) {
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = true
 	cfg.DNSTimeout = 1 * time.Second
+	// The checks below look for domain names, so don't rely on the default.
+	cfg.CollectDNSDomains = true
 
 	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err, "exceeding DNSPortsMax should truncate, not error")
