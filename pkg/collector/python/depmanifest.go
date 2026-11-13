@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,9 +35,19 @@ var (
 
 const defaultDepPackageName = "datadog-agent-integration-deps"
 
-// depsPackagesRoot is the fleet installer packages root under which
+// depsPackagesRoot is the fleet installer packages root, under which
 // installed packages expose their stable tree. Var for tests.
-var depsPackagesRoot = "/opt/datadog-packages"
+var depsPackagesRoot = paths.PackagesPath
+
+// depsPackagePath returns the site-packages path of a dependency package's
+// stable tree. The layout is the installer's: packages root and stable
+// tree come from it, and the content dir is paths.DepsPackageContentDir,
+// shared with the package builder. This is the only place the path is
+// assembled: both the interpreter import path (see depsPackageImportPath)
+// and the presence probe (see depPackageInstalled) go through it.
+func depsPackagePath(pkg string) string {
+	return filepath.Join(depsPackagesRoot, pkg, "stable", paths.DepsPackageContentDir)
+}
 
 // loadDepsManifest reads the on-demand dependency manifest from the path
 // configured in on_demand_python_deps.manifest_path. It returns nil when the
@@ -104,7 +115,7 @@ func declaredDeps(checkName string) []string {
 // interpreter has the package's stable site-packages on its import path
 // (see depsPackageImportPath), so present also means importable.
 func depPackageInstalled(pkg string) bool {
-	_, err := os.Stat(filepath.Join(depsPackagesRoot, pkg, "stable", "site-packages"))
+	_, err := os.Stat(depsPackagePath(pkg))
 	return err == nil
 }
 
@@ -122,5 +133,5 @@ func depsPackageImportPath() string {
 	if pkg == "" {
 		pkg = defaultDepPackageName
 	}
-	return filepath.Join(depsPackagesRoot, pkg, "stable", "site-packages")
+	return depsPackagePath(pkg)
 }

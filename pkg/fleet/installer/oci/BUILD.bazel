@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/tar",
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",

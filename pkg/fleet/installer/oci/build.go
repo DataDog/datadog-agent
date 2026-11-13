@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
+	installerpaths "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
@@ -344,7 +345,7 @@ func (s *SitePackages) BuildDepsPackageLayer(dists []*DistInfo) (tarBytes []byte
 	}
 	sort.Strings(paths)
 
-	prefix := "site-packages"
+	prefix := installerpaths.DepsPackageContentDir
 	buf := &bytes.Buffer{}
 	tw := tar.NewWriter(buf)
 	defer func() {

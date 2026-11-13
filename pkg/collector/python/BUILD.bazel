@@ -152,6 +152,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/fips",
+        "//pkg/fleet/installer/paths",
         "//pkg/metrics",
         "//pkg/obfuscate",
         "//pkg/persistentcache",

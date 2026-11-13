@@ -12,6 +12,12 @@ import (
 	"os"
 )
 
+// DepsPackageContentDir is the directory, inside a dependency package's
+// stable tree, that holds the python site-packages content. The OCI package
+// builder lays the content out under this directory and the agent puts the
+// resulting path on the interpreter import path.
+const DepsPackageContentDir = "site-packages"
+
 // CopyFile copies a file from src to dst
 func CopyFile(src, dst string) error {
 	// Open the source file
