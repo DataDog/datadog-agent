@@ -536,6 +536,10 @@ var (
 	// MetricTCProgram is the name of the metric used to report the count of active TC programs
 	// Tags: -
 	MetricTCProgram = newRuntimeMetric(".tc_program")
+	// MetricTCStaleLinks is the name of the metric used to count the TCX links detached because their device left
+	// the network namespace in which they were attached
+	// Tags: -
+	MetricTCStaleLinks = newRuntimeMetric(".tc.stale_links")
 
 	// Security Agent metrics
 
@@ -741,6 +745,9 @@ var (
 	// MetricTCBlindHooksTelemetry is the agent telemetry counterpart of MetricTCBlindHooks
 	// Tags: attach_mode, reason, direction, platform, platform_version, kernel, arch
 	MetricTCBlindHooksTelemetry = newITRuntimeMetric("network", "tc.blind_hooks")
+	// MetricTCStaleLinksTelemetry is the agent telemetry counterpart of MetricTCStaleLinks
+	// Tags: platform, platform_version, kernel, arch
+	MetricTCStaleLinksTelemetry = newITRuntimeMetric("network", "tc.stale_links")
 )
 
 var (

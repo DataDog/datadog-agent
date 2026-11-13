@@ -20,6 +20,9 @@ var (
 	blindHooksTelemetry = metrics.NewITGauge(metrics.MetricTCBlindHooksTelemetry,
 		append([]string{"attach_mode", "reason", "direction"}, platformTags...),
 		"Number of hooks of host interfaces where a foreign program runs before the TC classifiers")
+	staleLinksTelemetry = metrics.NewITCounter(metrics.MetricTCStaleLinksTelemetry,
+		platformTags,
+		"Number of TCX links detached because their device left the network namespace in which they were attached")
 )
 
 // withPlatformTags appends the values of the platform tags to the provided tag values
@@ -29,4 +32,10 @@ func withPlatformTags(values ...string) []string {
 	release, _ := kernel.Release()
 	arch, _ := kernel.Machine()
 	return append(values, platform, platformVersion, release, arch)
+}
+
+func countStaleLinks(count int) {
+	if count > 0 {
+		staleLinksTelemetry.Add(float64(count), withPlatformTags()...)
+	}
 }

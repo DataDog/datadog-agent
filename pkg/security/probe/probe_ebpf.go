@@ -2035,7 +2035,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		request := netns.TcClassifierRequest{
-			RequestType: netns.TcNewDeviceRequestType,
+			RequestType: netns.TcRegisteredDeviceRequestType,
 			Device:      event.NetDevice.Device,
 		}
 

@@ -144,6 +144,13 @@ func TestTCX(t *testing.T) {
 
 	t.Run("net_device", testNetDevice)
 
+	t.Run("device_moves", func(t *testing.T) {
+		if !tcxSupported {
+			t.Skip("device moves only matter to TCX links")
+		}
+		testTCXDeviceMoves(t)
+	})
+
 	// last: it stops the module
 	t.Run("tc_filters", func(t *testing.T) {
 		testTCXFilters(t, tcxSupported, rawPacketSupported)

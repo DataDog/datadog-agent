@@ -76,6 +76,10 @@ type Resolver struct {
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
+
+	// settler and hostSnapshotRequests are only set with TCX links, which follow moved devices
+	settler              *deviceSettler
+	hostSnapshotRequests chan struct{}
 }
 
 // NewResolver returns a new instance of Resolver
@@ -96,6 +100,10 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 			tcx:          tcxQuerier{query: tc.QueryTCXPrograms},
 			scanRequests: make(chan struct{}, 1),
 		},
+	}
+	if nr.usesTCX() {
+		nr.settler = newDeviceSettler(config.NetworkTCXSettleDelay)
+		nr.hostSnapshotRequests = make(chan struct{}, 1)
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -394,7 +402,8 @@ func (nr *Resolver) Stop() {
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
-	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+	probesCount, staleLinks := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+	countStaleLinks(staleLinks)
 
 	// There is a possible race condition if we lose all network device creations but do notice the new network
 	// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
@@ -402,6 +411,8 @@ func (nr *Resolver) manualFlushNamespaces() {
 	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
 	// no new device.
 	nr.preventNetworkNamespaceDrift(probesCount)
+
+	nr.requestHostSnapshot()
 }
 
 func (nr *Resolver) flushNamespaces(ctx context.Context) {

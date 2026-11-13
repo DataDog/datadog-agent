@@ -135,6 +135,10 @@ type Config struct {
 	// NetworkTCXEnabled defines if CWS should attach its TC classifiers with TCX, on kernels that support it.
 	NetworkTCXEnabled bool
 
+	// NetworkTCXSettleDelay is how long a new device that may be moved to another network namespace is left alone
+	// before its TCX links are attached
+	NetworkTCXSettleDelay time.Duration
+
 	// NetworkTCXConfigured is true when network.tcx.enabled is set by the user rather than by its default.
 	NetworkTCXConfigured bool
 
@@ -237,6 +241,7 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierHandle:               uint16(getInt("network.classifier_handle")),
 		RawNetworkClassifierHandle:            uint16(getInt("network.raw_classifier_handle")),
 		NetworkTCXEnabled:                     getBool("network.tcx.enabled"),
+		NetworkTCXSettleDelay:                 getDuration("network.tcx.settle_delay"),
 		NetworkTCXConfigured:                  isConfigured("network.tcx.enabled"),
 		NetworkTCFilterSettings:               configuredSettings("network.classifier_priority", "network.classifier_handle", "network.raw_classifier_handle"),
 		NetworkFlowMonitorPeriod:              getDuration("network.flow_monitor.period"),

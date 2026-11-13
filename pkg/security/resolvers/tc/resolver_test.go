@@ -101,6 +101,30 @@ func TestSendTCProgramsStats(t *testing.T) {
 	}, client.GetByPrefix(metrics.MetricTCProgram+":attach_mode:"))
 }
 
+func TestDetachInactiveTCXProbesWithoutLink(t *testing.T) {
+	tcr := NewResolver(testConfig(true))
+	moved := ProgramKey{FuncName: "classifier_egress", IfIndex: 1, NetNS: 10}
+	movedTo := ProgramKey{FuncName: "classifier_egress", IfIndex: 1, NetNS: 20}
+	other := ProgramKey{FuncName: "classifier_egress", IfIndex: 2, NetNS: 10}
+	// probes that were never attached are inactive and have no link; the zero manager can't detach them
+	for _, key := range []ProgramKey{moved, movedTo, other} {
+		tcr.programs[key] = programEntry{probe: &manager.Probe{TCAttachMode: manager.TCAttachModeTCX}, attachMode: manager.TCAttachModeTCX}
+	}
+	m := &manager.Manager{}
+
+	assert.Zero(t, tcr.DetachMovedDevice(1, 20, m), "stale links")
+	assert.NotContains(t, tcr.programs, moved)
+	assert.Len(t, tcr.programs, 2)
+
+	_, staleLinks := tcr.FlushInactiveProbes(m, func(string) bool { return false })
+	assert.Zero(t, staleLinks)
+	assert.Empty(t, tcr.programs)
+
+	client := statsdclient.NewStatsdClient()
+	tcr.SendTCProgramsStats(client)
+	assert.Zero(t, client.Get(metrics.MetricTCStaleLinks))
+}
+
 func TestDumpNetworkNamespacePrograms(t *testing.T) {
 	tcr := NewResolver(testConfig(true))
 	add := func(funcName string, direction manager.TrafficType, ifIndex, netns, programID uint32) {

@@ -3626,6 +3626,7 @@ func TestShippedRuntimeSecurityProfile(t *testing.T) {
 	blindHooks := tel.NewGauge("runtime_security__network", "tc__blind_hooks", append([]string{"attach_mode", "reason", "direction"}, platformTags...), "")
 	blindHooks.Set(2, withPlatform("legacy", "cilium_tcx", "ingress")...)
 	blindHooks.Set(0, withPlatform("legacy", "cilium_tcx", "egress")...)
+	tel.NewCounter("runtime_security__network", "tc__stale_links", platformTags, "").Add(2, withPlatform()...)
 
 	sndr := &senderMock{}
 	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
@@ -3653,6 +3654,10 @@ func TestShippedRuntimeSecurityProfile(t *testing.T) {
 		"runtime_security.network__tc__blind_hooks": {
 			value:  2,
 			labels: platformLabels(map[string]string{"attach_mode": "legacy", "reason": "cilium_tcx", "direction": "ingress"}),
+		},
+		"runtime_security.network__tc__stale_links": {
+			value:  2,
+			labels: platformLabels(map[string]string{}),
 		},
 	}, collected)
 }

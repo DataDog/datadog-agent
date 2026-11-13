@@ -761,6 +761,12 @@ profiles:
           - platform_version
           - kernel
           - arch
+      - name: runtime_security.network__tc__stale_links
+        preserve_tags:
+          - platform
+          - platform_version
+          - kernel
+          - arch
   schedule:
     start_after: 30
     iterations: 0
