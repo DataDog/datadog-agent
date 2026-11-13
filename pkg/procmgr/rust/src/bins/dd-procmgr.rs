@@ -14,8 +14,9 @@ use tonic::transport::Channel;
 #[derive(Parser)]
 #[command(name = "dd-procmgr", about = "CLI for dd-procmgrd process manager")]
 struct Cli {
-    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH, else the first existing of
-    /// /var/run/datadog-procmgrd/dd-procmgrd.sock and /opt/datadog-agent/run/dd-procmgrd.sock)
+    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH, else the platform
+    /// default. On Unix, if that path is absent and the all-in-one socket exists, that
+    /// socket is used instead)
     #[arg(long, global = true)]
     socket: Option<String>,
 
