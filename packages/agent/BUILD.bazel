@@ -8,10 +8,9 @@ package(default_visibility = ["//visibility:public"])
 string_flag(
     name = "flavor",
     build_setting_default = "base",
-    # These values match omnibus.
+    # These values match omnibus, minus fips.
     values = [
         "base",
-        "fips",
         "heroku",
         "iot",
         "recorder",
@@ -29,19 +28,16 @@ config_setting(
 )
 
 config_setting(
-    name = "fips_flavor",
-    flag_values = {"//packages/agent:flavor": "fips"},
-)
-
-config_setting(
     name = "iot_flavor",
     flag_values = {"//packages/agent:flavor": "iot"},
 )
 
 config_setting(
     name = "linux_fips",
-    constraint_values = ["@platforms//os:linux"],
-    flag_values = {"//packages/agent:flavor": "fips"},
+    constraint_values = [
+        "@platforms//os:linux",
+        "//bazel/platforms:fips",
+    ],
 )
 
 selects.config_setting_group(
@@ -65,8 +61,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"//packages/agent:flavor": "fips"},
 )
 
 config_setting(
@@ -74,8 +70,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"//packages/agent:flavor": "fips"},
 )
 
 config_setting(
@@ -83,8 +79,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"//packages/agent:flavor": "fips"},
 )
 
 string_flag(

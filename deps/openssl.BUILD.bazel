@@ -30,8 +30,8 @@ config_setting(
     name = "fips_windows",
     constraint_values = [
         "@platforms//os:windows",
+        "@@//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},
 )
 
 DEFAULT_CONFIG = [
@@ -162,7 +162,7 @@ configure_make(
             "lib/ossl-modules",
             "lib/engines-3",
         ],  #TODO(agent-build): remove special case
-        "@@//packages/agent:fips_flavor": [
+        "@@//bazel/platforms:fips": [
             "ssl",
             "lib/ossl-modules",
             "lib/engines-3",
@@ -288,7 +288,7 @@ dd_cc_packaged(
     # Unix-only in practice: the Windows payload is installed by :windows_pkg
     # below, with plain pkg_* rules.
     data = [":_openssl_files"] + select({
-        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
+        "@@//bazel/platforms:fips": [":_fips_extra_files"],
         "//conditions:default": [],
     }),
     dest_dir = "embedded/lib",
@@ -297,7 +297,7 @@ dd_cc_packaged(
         ":openssl_binary": "embedded/bin",
     } | select({
         # Engines, modules, and fips provider are only installed for FIPS builds.
-        "@@//packages/agent:fips_flavor": {
+        "@@//bazel/platforms:fips": {
             ":_engines": "embedded/lib",
             ":_ossl_modules": "embedded/lib",
             "@openssl_fips//:fips_provider": "embedded/lib/ossl-modules",
