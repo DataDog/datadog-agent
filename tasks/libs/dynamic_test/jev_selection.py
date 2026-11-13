@@ -35,11 +35,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 JOB_CANDIDATES_FILE = Path(__file__).resolve().parent / "jev" / "job_test_candidates.json"
 
 
-def jev_selection(suite: str, pr_summary: str = "") -> dict:
+def jev_selection(suite: str, pr_summary: str = "", tests: set[str] | None = None) -> dict:
     """Run the Jev selector for a suite in-process; return {} on any failure.
 
     pr_summary: a pre-generated LLM summary of the PR changes passed to Jev
     instead of the raw diff (empty: the raw diff).
+    tests: restrict the decisions to these entry points of the suite (None:
+    every entry point), so only they generate Jev calls.
 
     Jev calls run concurrently inside the selector, with a per-request timeout.
     Any failure fails open to run all the suite's tests.
@@ -50,6 +52,7 @@ def jev_selection(suite: str, pr_summary: str = "") -> dict:
             dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
             token_cmd=os.environ.get("JEV_TOKEN_CMD"),
             pr_summary=pr_summary,
+            tests=tests,
         )
         if not isinstance(summary, dict) or not all(
             isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
@@ -168,7 +171,9 @@ class JevDynTestExecutor(DynTestExecutor):
         """Lazily: the candidate tests Jev would RUN, over the suites with candidates.
 
         names restricts the decisions to these tests (e.g. a single job's), uncached.
-        Only suites with something to decide are evaluated. Tests the selector
+        Only suites with something to decide are evaluated, and only for the
+        requested names: the suite's other entry points are not sent to Jev
+        (they count as run, and are never in the index). Tests the selector
         did not decide about (missing or failed-open decisions) run, and a bare
         name occurring in several suites runs if any occurrence runs.
         """
@@ -182,10 +187,11 @@ class JevDynTestExecutor(DynTestExecutor):
             print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
             run: set[str] = set()
             for suite, entries in sorted(suites.items()):
-                summary = jev_selection(suite, self.pr_summary)
+                wanted = entries & names
+                summary = jev_selection(suite, self.pr_summary, wanted)
                 skip = set(summary.get("skip", [])) - set(summary.get("run", []))
                 run.update(entries - skip)
-                print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")
+                print(f"[jev] {suite}: {len(wanted - skip)} run / {len(wanted & skip)} skip")
             if not cache:
                 return run
             self._run = run

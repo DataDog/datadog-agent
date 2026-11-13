@@ -198,3 +198,25 @@ class TestJevTools(unittest.TestCase):
         summarize.assert_called_once()
         self.assertEqual(summarize.call_args.args, ("fake", {"title": "T"}, [("a.go", "")], "base", "RAW DIFF"))
         self.assertEqual(summarize.call_args.kwargs["model"], DEFAULT_SUMMARY_MODEL)
+
+    def test_tests_filter_limits_the_jev_calls(self):
+        module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
+        with (
+            patch(f"{module}.os.path.isdir", return_value=True),
+            patch(f"{module}.fetch_ddci_metadata", return_value=None),
+            patch(f"{module}.fetch_pr_info", return_value={}),
+            patch(f"{module}.changed_files", return_value=([], "base")),
+            patch(f"{module}.pr_diff", return_value=""),
+            patch(f"{module}.suite_definition", return_value=("", "")),
+            patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+            patch(f"{module}.gitlab_section"),
+            patch(f"{module}._printed_contexts", set()),
+            patch(
+                f"{module}.list_suites",
+                return_value=[("TestA", "a_test.go", "code"), ("TestB", "b_test.go", "code")],
+            ),
+            patch(f"{module}.ask_jev", return_value={"answers": answers()}) as ask,
+        ):
+            summary = select_suite("fleet", workers=1, tests={"TestB"})
+        ask.assert_called_once()
+        self.assertEqual([d["test"] for d in summary["decisions"]], ["TestB"])

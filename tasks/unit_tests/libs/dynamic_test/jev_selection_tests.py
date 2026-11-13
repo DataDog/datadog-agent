@@ -23,10 +23,12 @@ class TestJevSelection(unittest.TestCase):
         # In-process call, no interpreter/module/output-file arguments
         self.assertEqual(select.call_args.args, ("installer",))
         self.assertEqual(
-            select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "pr_summary": ""}
+            select.call_args.kwargs,
+            {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "pr_summary": "", "tests": None},
         )
-        jev_selection("installer", pr_summary="summary")
+        jev_selection("installer", pr_summary="summary", tests={"TestA"})
         self.assertEqual(select.call_args.kwargs["pr_summary"], "summary")
+        self.assertEqual(select.call_args.kwargs["tests"], {"TestA"})
 
     @patch(f"{MODULE}.select_suite")
     def test_selector_failures_return_no_skip_decisions(self, select):
@@ -67,19 +69,30 @@ class TestJevDynTestExecutor(unittest.TestCase):
         executor = JevDynTestExecutor(MagicMock())
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestA", "TestDup"})
+        executor._index.add_tests("other-job", "candidates", {"TestOther"})
         with (
-            patch(f"{MODULE}.suite_entry_points", return_value={"a": {"TestA", "TestDup"}, "b": {"TestDup"}}),
+            patch(
+                f"{MODULE}.suite_entry_points",
+                return_value={"a": {"TestA", "TestDup", "TestOther", "TestNotCandidate"}, "b": {"TestDup"}},
+            ),
             patch(
                 f"{MODULE}.jev_selection",
-                side_effect=lambda suite, _summary="": {
+                side_effect=lambda suite, _summary, _tests: {
                     "a": {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skips both
                     "b": {},  # suite b: selector failure, fail open
                 }[suite],
-            ),
+            ) as selection,
         ):
-            self.assertEqual(executor.tests_to_run_per_job([]), {"job": {"TestDup"}})
+            self.assertEqual(executor.tests_to_run_per_job([]), {"job": {"TestDup"}, "other-job": {"TestOther"}})
+            # Only the candidates are sent to Jev, never the other entry points
+            self.assertEqual(selection.call_args_list[0].args[2], {"TestA", "TestDup", "TestOther"})
             self.assertEqual(executor.tests_to_run("job", []), {"TestDup"})
+            selection.reset_mock()
             self.assertEqual(executor.tests_to_skip("job", []), {"TestA"})
+            # A single job's skips only ask Jev about that job's tests
+            self.assertEqual(
+                {c.args[0]: c.args[2] for c in selection.call_args_list}, {"a": {"TestA", "TestDup"}, "b": {"TestDup"}}
+            )
         self.assertEqual(executor.triggering_paths("job", "TestA"), [])
 
 
