@@ -8,8 +8,6 @@ go_library(
     deps = [
         "//comp/forwarder/eventplatform/impl",
         "//comp/ndmtmp/forwarder/def",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
         "@org_uber_go_mock//gomock",
     ],
 )

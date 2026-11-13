@@ -16,6 +16,8 @@ import (
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -34,6 +36,7 @@ func TestBundleDependencies(t *testing.T) {
 
 func TestMockBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, MockBundle(),
+		fx.Invoke(func(forwarder.Component, forwardermock.MockComponent) {}),
 		core.MockBundle(),
 		fx.Provide(func() *ddagg.AgentDemultiplexer {
 			return &ddagg.AgentDemultiplexer{}

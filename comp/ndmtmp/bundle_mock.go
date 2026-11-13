@@ -12,6 +12,11 @@
 package ndmtmp
 
 import (
+	"testing"
+
+	"go.uber.org/fx"
+
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -21,5 +26,8 @@ import (
 // MockBundle defines the fx options for mock versions of everything in this bundle.
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		forwardermock.MockModule())
+		fx.Provide(func(t testing.TB) (forwarder.Component, forwardermock.MockComponent) {
+			mock := forwardermock.New(t)
+			return mock, mock
+		}))
 }
