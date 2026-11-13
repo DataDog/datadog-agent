@@ -58,6 +58,8 @@ type OrchestratorInformerFactory struct {
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
+	// HelmReleaseConfigMapInformerFactory only watches the ConfigMaps Helm uses to store releases.
+	HelmReleaseConfigMapInformerFactory informers.SharedInformerFactory
 	// ConfigMapMetadataInformerFactory watches ConfigMap metadata. It excludes Helm releases when they are collected
 	// separately.
 	ConfigMapMetadataInformerFactory metadatainformer.SharedInformerFactory

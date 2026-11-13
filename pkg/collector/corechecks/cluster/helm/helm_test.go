@@ -21,6 +21,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -267,7 +268,10 @@ func TestRun(t *testing.T) {
 				"option": "option_value",
 			}
 
-			check.kubeClient = fake.NewSimpleClientset(kubeObjects...)
+			check.informerFactory = informers.NewSharedInformerFactory(
+				fake.NewSimpleClientset(kubeObjects...),
+				time.Minute,
+			)
 
 			mockedSender := mocksender.NewMockSender(t, CheckName)
 			mockedSender.SetupAcceptAll()
@@ -325,7 +329,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
-	check.kubeClient = k8sClient
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
 	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
@@ -428,7 +432,7 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
-	check.kubeClient = k8sClient
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
 	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
@@ -570,7 +574,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.SetupAcceptAll()
 
 			k8sClient := fake.NewSimpleClientset()
-			check.kubeClient = k8sClient
+			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 			err := check.CommonConfigure(mockedSender.GetSenderManager(), nil, nil, "", "")
 			require.NoError(t, err)
 			err = check.Run()

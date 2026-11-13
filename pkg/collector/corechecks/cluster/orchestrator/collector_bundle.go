@@ -33,7 +33,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/helminformers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -407,24 +406,19 @@ func (cb *CollectorBundle) Initialize() {
 		if _, found := cb.startedInformers[store]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			cb.startedInformers[store] = struct{}{}
-			shared := helminformers.Owns(informer)
 
 			// add event handlers for terminated resources
 			if collector.Metadata().SupportsTerminatedResourceCollection {
-				if reg, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 					DeleteFunc: cb.terminatedResourceHandler(collector),
 				}); err != nil {
 					log.Warnf("Failed to add delete event handler for %s: %s", collectorFullName, err)
-				} else if shared {
-					cb.removeHandlerOnStop(informer, reg)
 				}
 			}
 
 			if collector.Metadata().Name == utilTypes.CrdName {
-				if reg, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
+				if _, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
 					log.Warnf("Failed to add CRD change handler, custom resources added later will not be collected until the check restarts: %s", err)
-				} else if shared {
-					cb.removeHandlerOnStop(informer, reg)
 				}
 			}
 
@@ -432,10 +426,7 @@ func (cb *CollectorBundle) Initialize() {
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 
-			// shared informers are run by the registry that owns them
-			if !shared {
-				go informer.Run(cb.stopCh)
-			}
+			go informer.Run(cb.stopCh)
 		}
 	}
 
@@ -446,16 +437,6 @@ func (cb *CollectorBundle) Initialize() {
 			cb.skipCollector(informerName, err)
 		}
 	}
-}
-
-// removeHandlerOnStop removes a handler from a shared informer, which outlives the check, once the check stops.
-func (cb *CollectorBundle) removeHandlerOnStop(informer cache.SharedInformer, reg cache.ResourceEventHandlerRegistration) {
-	go func() {
-		<-cb.stopCh
-		if err := informer.RemoveEventHandler(reg); err != nil {
-			log.Debugf("Failed to remove event handler: %s", err)
-		}
-	}()
 }
 
 func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
