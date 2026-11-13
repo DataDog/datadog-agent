@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -25,6 +24,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	utiltelemetry "github.com/DataDog/datadog-agent/pkg/util/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -48,27 +48,14 @@ type forwarder struct {
 	intakeURL    string
 	httpClient   *http.Client
 	log          log.Component
-	httpErrors   telemetry.Counter
+	// httpErrors is the shared forwarder.http_errors counter (pkg/util/telemetry); tests swap in their own.
+	httpErrors telemetry.Counter
 }
 
 // Requires defines the dependencies for the forwarder.
 type Requires struct {
-	Log       log.Component
-	Config    config.Component
-	Telemetry telemetry.Component
-}
-
-// newHTTPErrorsCounter registers the forwarder.http_errors counter. It mirrors the default
-// forwarder's transactions.http_errors (domain, endpoint, exact status code, counted for status >= 400)
-// with an extra `forwarder` tag, so forwarders other than the default one can report HTTP errors
-// without sharing its metric.
-func newHTTPErrorsCounter(tel telemetry.Component) telemetry.Counter {
-	return tel.NewCounter(
-		"forwarder",
-		"http_errors",
-		[]string{"domain", "endpoint", "code", "forwarder"},
-		"Count of HTTP errors from Datadog intakes per http code and forwarder",
-	)
+	Log    log.Component
+	Config config.Component
 }
 
 // NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
@@ -81,7 +68,7 @@ func NewComponent(reqs Requires) forwarderdef.Component {
 		intakeURL:    domain + intakeEndpointPath,
 		httpClient:   buildHTTPClient(reqs.Config),
 		log:          reqs.Log,
-		httpErrors:   newHTTPErrorsCounter(reqs.Telemetry),
+		httpErrors:   utiltelemetry.ForwarderHTTPErrors,
 	}
 }
 
@@ -118,10 +105,7 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Same semantics as transactions.http_errors: only HTTP errors (>= 400), exact status code.
-		if resp.StatusCode >= 400 {
-			f.httpErrors.Inc(f.intakeDomain, intakeEndpointName, strconv.Itoa(resp.StatusCode), forwarderName)
-		}
+		utiltelemetry.RecordForwarderHTTPError(f.httpErrors, forwarderName, f.intakeDomain, intakeEndpointName, resp.StatusCode)
 		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 

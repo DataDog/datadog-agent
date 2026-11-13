@@ -23,6 +23,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	utiltelemetry "github.com/DataDog/datadog-agent/pkg/util/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,7 +41,7 @@ func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telem
 		intakeURL:    domain + intakeEndpointPath,
 		httpClient:   buildHTTPClient(cfg),
 		log:          logmock.New(t),
-		httpErrors:   newHTTPErrorsCounter(tel),
+		httpErrors:   utiltelemetry.NewForwarderHTTPErrors(tel),
 	}
 }
 
