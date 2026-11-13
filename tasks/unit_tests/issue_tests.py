@@ -14,6 +14,13 @@ from tasks.libs.ciproviders.github_api import get_pr_size
 
 
 class TestAskReviews(unittest.TestCase):
+    def setUp(self):
+        # The tests below clear and refill the module-level map: restore it afterwards so they don't leak
+        # into other tests (e.g. the CODEOWNERS routing checks).
+        patcher = patch.dict(GITHUB_SLACK_REVIEW_MAP)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @patch('builtins.print')
     @patch(
         'os.environ',

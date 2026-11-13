@@ -1291,12 +1291,13 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	return false, true
 }
 
-// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
-// with the sampling rate.
+// runSamplersV1 runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate. It is the V1 counterpart of runSamplers and must make the same decisions.
 //
 // If the agent is set as Error Tracking Standalone, only the ErrorSampler is run (other samplers are bypassed).
 // Otherwise, the rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
-// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// enabled, the trace is kept if the rare sampler kept it, else if the probabilistic sampler keeps it; only
+// an errored trace neither of them kept goes to the error sampler. Otherwise, If the trace has a
 // priority set, the sampling priority is used with the Priority Sampler. When there is no priority
 // set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
 // samplers, the error sampler is run.
@@ -1322,15 +1323,14 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
 		probKeep := false
+
 		if rare {
 			samplerName = sampler.NameRare
 			probKeep = true
-		}
-		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
+		} else if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
 			probKeep = true
-		}
-		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+		} else if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
 			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}

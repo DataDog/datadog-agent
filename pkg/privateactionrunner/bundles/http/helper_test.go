@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -138,6 +139,14 @@ func TestHasSameDomain(t *testing.T) {
 	}
 }
 
+type staticClientProvider struct{ client httpclient.HTTPClient }
+
+func (p staticClientProvider) NewDefaultClient() (httpclient.HTTPClient, error) { return p.client, nil }
+
+func (p staticClientProvider) NewClient(*httpclient.RunnerHttpClientConfig) (httpclient.HTTPClient, error) {
+	return p.client, nil
+}
+
 func TestRequestBaseURLScheme(t *testing.T) {
 	for _, test := range []struct {
 		name          string
@@ -170,9 +179,8 @@ func TestRequestBaseURLScheme(t *testing.T) {
 			task.Data.Attributes = &types.Attributes{
 				BundleID: "com.datadoghq.http", Name: "request",
 				Inputs: map[string]interface{}{
-					"verb":                    "GET",
-					"url":                     server.URL + "/path",
-					"allowExpiredCertificate": test.tlsServer,
+					"verb": "GET",
+					"url":  server.URL + "/path",
 				},
 			}
 			credentials := &privateconnection.PrivateCredentials{
@@ -183,6 +191,8 @@ func TestRequestBaseURLScheme(t *testing.T) {
 			}
 
 			action := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{target.Hostname()}})
+			// Trust the httptest certificate directly: allowExpiredCertificate still verifies chain and hostname.
+			action.WithHttpClientProvider(staticClientProvider{client: server.Client()})
 			_, err = action.Run(context.Background(), task, credentials)
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
