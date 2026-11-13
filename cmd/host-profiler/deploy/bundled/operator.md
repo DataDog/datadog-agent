@@ -10,40 +10,25 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-Your Datadog Agent must be managed by the Datadog Operator version **1.25.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Your Datadog Agent must be managed by the Datadog Operator version **1.32.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
-Update your existing `DatadogAgent` Custom Resource with the following annotations and host-profiler container override. Merge this snippet into your existing resource rather than replacing unrelated fields:
+Update your existing `DatadogAgent` Custom Resource with the following Host Profiler feature and image override. Merge this snippet into your existing resource rather than replacing unrelated fields:
 
 ```yaml
 metadata:
   annotations:
-    # Enable the Host Profiler sidecar and set the preview Host Profiler image.
-    agent.datadoghq.com/host-profiler-enabled: "true"
     experimental.agent.datadoghq.com/image-override-config: |
       {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
 spec:
+  features:
+    hostProfiler:
+      enabled: true
   override:
     nodeAgent:
       containers:
         host-profiler:
-          # Required for current Datadog Operator versions.
-          # Future Operator versions are expected to configure the Host Profiler
-          # security context automatically.
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              # Drop default capabilities and add only the ones the Host Profiler needs.
-              drop: ["ALL"]
-              add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
-            # Keep AppArmor unconfined so it does not block cross-process access.
-            appArmorProfile:
-              type: Unconfined
-            # Use spc_t, or an equivalent type, so SELinux permits the required host and process access.
-            seLinuxOptions:
-              type: spc_t
           # Explicit zero requests avoid reserving CPU or memory on every node,
           # while limits cap runaway usage.
           resources:
@@ -54,6 +39,8 @@ spec:
               cpu: "500m"
               memory: "1Gi"
 ```
+
+The Operator configures the required capabilities, seccomp profile, SELinux, and AppArmor settings on the host-profiler container automatically. A manual security context override is no longer needed; `spec.override.nodeAgent.containers.host-profiler.securityContext` remains available for exceptions.
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
