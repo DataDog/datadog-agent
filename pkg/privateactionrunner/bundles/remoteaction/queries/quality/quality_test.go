@@ -124,7 +124,7 @@ func qualitySetup(t *testing.T) *qualityFixture {
 	f.task = &types.Task{}
 	f.task.Data.Attributes = &types.Attributes{Inputs: map[string]interface{}{
 		"integration": "postgres", "target": map[string]interface{}{"database_instance": "orders"}, "resolveOnly": false, "query": "select 1", "includeSchema": false,
-		"resultDelivery": &remotequeries.Delivery{RunID: "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", TaskID: "d25e7f9f-6883-4462-b31e-b449f70c0894", UploadID: "quality", BaseURL: "https://datadoghq.com/intake", Limits: remotequeries.Limits{MaxFileBytes: "32768", MaxResultBytes: "999999999999", MaxRowBytes: "32768", MaxColumns: "1", MaxSchemaBytes: "1", MaxPages: "100000", TimeoutMs: "60000"}},
+		"resultDelivery": &remotequeries.Delivery{CrawlID: "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", TaskID: "d25e7f9f-6883-4462-b31e-b449f70c0894", UploadID: "quality", BaseURL: "https://datadoghq.com/intake", Limits: remotequeries.Limits{MaxFileBytes: "32768", MaxResultBytes: "999999999999", MaxRowBytes: "32768", MaxColumns: "1", MaxSchemaBytes: "1", MaxPages: "100000", TimeoutMs: "60000"}},
 	}}
 	f.task.Data.ID = "quality"
 	f.task.Data.Attributes.BundleID = "com.datadoghq.remoteaction.queries"

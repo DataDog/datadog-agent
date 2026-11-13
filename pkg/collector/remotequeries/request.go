@@ -47,7 +47,7 @@ type Limits struct {
 
 // Delivery identifies the upload session; it never contains a credential.
 type Delivery struct {
-	RunID    string `json:"runId"`
+	CrawlID  string `json:"crawlId"`
 	TaskID   string `json:"taskId"`
 	UploadID string `json:"uploadId"`
 	BaseURL  string `json:"baseUrl"`
@@ -225,7 +225,7 @@ func parseTarget(raw []byte) (Target, error) {
 }
 
 func parseDelivery(raw []byte, site string) (*Delivery, error) {
-	fields, err := object(raw, "resultDelivery", "runId", "taskId", "uploadId", "baseUrl", "limits")
+	fields, err := object(raw, "resultDelivery", "crawlId", "taskId", "uploadId", "baseUrl", "limits")
 	if err != nil {
 		return nil, err
 	}
@@ -233,14 +233,14 @@ func parseDelivery(raw []byte, site string) (*Delivery, error) {
 	for _, pair := range []struct {
 		key  string
 		dest *string
-	}{{"runId", &d.RunID}, {"taskId", &d.TaskID}, {"uploadId", &d.UploadID}, {"baseUrl", &d.BaseURL}} {
+	}{{"crawlId", &d.CrawlID}, {"taskId", &d.TaskID}, {"uploadId", &d.UploadID}, {"baseUrl", &d.BaseURL}} {
 		*pair.dest, err = stringField(fields, pair.key, "resultDelivery."+pair.key)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if !uuidPattern.MatchString(d.RunID) {
-		return nil, errors.New("resultDelivery.runId must be a UUID")
+	if !uuidPattern.MatchString(d.CrawlID) {
+		return nil, errors.New("resultDelivery.crawlId must be a UUID")
 	}
 	if !uuidPattern.MatchString(d.TaskID) {
 		return nil, errors.New("resultDelivery.taskId must be a UUID")

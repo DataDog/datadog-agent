@@ -74,7 +74,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	start := time.Now()
 	var req Request
-	var integration, runID, taskID, uploadID string
+	var integration, crawlID, taskID, uploadID string
 	var stats summary
 	answer := failure(false, "invalid_request", "input is malformed")
 	defer func() {
@@ -88,7 +88,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.Log != nil {
 			// Values use quoted formatting; neither check errors nor request bodies are logged.
-			s.Log.Infof("remote query integration=%q run_id=%q task_id=%q upload_id=%q kind=%s outcome=%s code=%s duration=%s candidates=%d matched_check=%q", integration, runID, taskID, uploadID, kind, answer.Status, code, time.Since(start), stats.candidates, stats.matched)
+			s.Log.Infof("remote query integration=%q crawl_id=%q task_id=%q upload_id=%q kind=%s outcome=%s code=%s duration=%s candidates=%d matched_check=%q", integration, crawlID, taskID, uploadID, kind, answer.Status, code, time.Since(start), stats.candidates, stats.matched)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(answer)
@@ -101,7 +101,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	integration, runID, taskID, uploadID = requestIdentity(fields["input"])
+	integration, crawlID, taskID, uploadID = requestIdentity(fields["input"])
 	var validationErr error
 	req, validationErr = Parse(fields["input"], s.Config.GetString("site"))
 	allowed := parconfig.NewActionsAllowlist(s.Config.GetStringSlice("private_action_runner.actions_allowlist")).IsActionAllowed("com.datadoghq.remoteaction.queries", "execute")
@@ -130,11 +130,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Correlation fields are safe to log even if a different field fails validation.
 // Never log arbitrary malformed values supplied in place of an identifier.
-func requestIdentity(raw []byte) (integration, runID, taskID, uploadID string) {
+func requestIdentity(raw []byte) (integration, crawlID, taskID, uploadID string) {
 	var identity struct {
 		Integration string `json:"integration"`
 		Delivery    struct {
-			RunID    string `json:"runId"`
+			CrawlID  string `json:"crawlId"`
 			TaskID   string `json:"taskId"`
 			UploadID string `json:"uploadId"`
 		} `json:"resultDelivery"`
@@ -144,8 +144,8 @@ func requestIdentity(raw []byte) (integration, runID, taskID, uploadID string) {
 	if integrationPattern.MatchString(name) {
 		integration = name
 	}
-	if uuidPattern.MatchString(identity.Delivery.RunID) {
-		runID = identity.Delivery.RunID
+	if uuidPattern.MatchString(identity.Delivery.CrawlID) {
+		crawlID = identity.Delivery.CrawlID
 	}
 	if uuidPattern.MatchString(identity.Delivery.TaskID) {
 		taskID = identity.Delivery.TaskID
@@ -227,7 +227,7 @@ func parseAnswer(raw []byte, resolve bool) (Answer, error) {
 // Cancellation can race the integration registering its run. Retrying the
 // idempotent signal until the call returns covers that race, including Python
 // interpreter thread switches before registration. Waiting never holds the GIL.
-func cancelUntilDone(querier check.RemoteQuerier, runID string, answer <-chan callResult) {
+func cancelUntilDone(querier check.RemoteQuerier, crawlID string, answer <-chan callResult) {
 	// A buggy check must not panic out of this detached cleanup goroutine.
 	defer func() { _ = recover() }()
 	for {
@@ -236,7 +236,7 @@ func cancelUntilDone(querier check.RemoteQuerier, runID string, answer <-chan ca
 			return
 		default:
 		}
-		if err := querier.CancelRemoteQuery(runID); err != nil {
+		if err := querier.CancelRemoteQuery(crawlID); err != nil {
 			return
 		}
 		timer := time.NewTimer(100 * time.Millisecond)
@@ -358,9 +358,9 @@ func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
 	go func() { answer <- invoke(ctx, querier, string(executeInput), false) }()
 	select {
 	case <-ctx.Done():
-		// Runs with the same run ID are cancelled together by the integration.
+		// Runs with the same crawl ID are cancelled together by the integration.
 		// Cancellation is prompt, but must not extend the caller's task deadline.
-		go cancelUntilDone(querier, req.ResultDelivery.RunID, answer)
+		go cancelUntilDone(querier, req.ResultDelivery.CrawlID, answer)
 		return failure(false, "cancelled", "caller ended during execution")
 	case result := <-answer:
 		if ctx.Err() != nil {

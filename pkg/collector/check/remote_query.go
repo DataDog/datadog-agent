@@ -22,5 +22,5 @@ var ErrRemoteQueryCancelled = errors.New("check is being unscheduled")
 type RemoteQuerier interface {
 	SupportsRemoteQueries() bool
 	RemoteQuery(ctx context.Context, request string) (string, error)
-	CancelRemoteQuery(runID string) error
+	CancelRemoteQuery(crawlID string) error
 }

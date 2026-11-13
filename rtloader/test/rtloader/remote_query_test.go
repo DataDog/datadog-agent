@@ -122,7 +122,7 @@ rq.cancelled = []`)
 	if err != nil || out != "True" {
 		t.Fatalf("call did not enter Python: %q, %v", out, err)
 	}
-	if err := c.cancel("run-123"); err != nil {
+	if err := c.cancel("crawl-123"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -134,7 +134,7 @@ rq.cancelled = []`)
 		t.Fatal("remote_query held GIL or was not cancelled")
 	}
 	out, err = runString(fmt.Sprintf("with open(r'%s', 'w') as f:\n    f.write(rq.cancelled[-1])\nrq.blocking = False", tmpfile.Name()))
-	if err != nil || out != "run-123" {
-		t.Fatalf("run ID changed: %q, %v", out, err)
+	if err != nil || out != "crawl-123" {
+		t.Fatalf("crawl ID changed: %q, %v", out, err)
 	}
 }

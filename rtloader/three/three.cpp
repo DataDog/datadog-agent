@@ -603,12 +603,12 @@ char *Three::remoteQuery(RtLoaderPyObject *check, const char *request)
     return ret;
 }
 
-bool Three::cancelRemoteQuery(RtLoaderPyObject *check, const char *run_id)
+bool Three::cancelRemoteQuery(RtLoaderPyObject *check, const char *crawl_id)
 {
-    if (check == NULL || run_id == NULL) {
+    if (check == NULL || crawl_id == NULL) {
         return false;
     }
-    PyObject *result = PyObject_CallMethod(reinterpret_cast<PyObject *>(check), "cancel_remote_query", "(s)", run_id);
+    PyObject *result = PyObject_CallMethod(reinterpret_cast<PyObject *>(check), "cancel_remote_query", "(s)", crawl_id);
     if (result == NULL) {
         PyErr_Clear();
         setError("cancel_remote_query call failed");

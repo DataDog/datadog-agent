@@ -14,7 +14,7 @@ import (
 )
 
 const resolveInput = `{"integration":"postgres","target":{"host":"db","port":5432,"dbname":"orders"},"resolveOnly":true}`
-const executeInput = `{"integration":"postgres","target":{"database_instance":"orders"},"resolveOnly":false,"query":"select secret_value","includeSchema":false,"timeout":3000,"resultDelivery":{"runId":"7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c","taskId":"d25e7f9f-6883-4462-b31e-b449f70c0894","uploadId":"upload-1","baseUrl":"https://dd.datadoghq.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":16777216,"maxResultBytes":107374182400,"maxRowBytes":16777216,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":1280,"timeoutMs":3000000}}}`
+const executeInput = `{"integration":"postgres","target":{"database_instance":"orders"},"resolveOnly":false,"query":"select secret_value","includeSchema":false,"timeout":3000,"resultDelivery":{"crawlId":"7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c","taskId":"d25e7f9f-6883-4462-b31e-b449f70c0894","uploadId":"upload-1","baseUrl":"https://dd.datadoghq.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":16777216,"maxResultBytes":107374182400,"maxRowBytes":16777216,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":1280,"timeoutMs":3000000}}}`
 
 func changeInput(t *testing.T, original string, change func(map[string]interface{})) []byte {
 	t.Helper()
@@ -131,18 +131,36 @@ func TestINPUT04(t *testing.T) {
 		{"empty query", func(i map[string]interface{}) { i["query"] = "" }, false},
 		{"missing schema", func(i map[string]interface{}) { delete(i, "includeSchema") }, false},
 		{"missing delivery", func(i map[string]interface{}) { delete(i, "resultDelivery") }, false},
-		{"run UUID", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["runId"] = "bad" }, false},
+		{"crawl UUID", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["crawlId"] = "bad" }, false},
+		{"missing crawl ID", func(i map[string]interface{}) { delete(i["resultDelivery"].(map[string]interface{}), "crawlId") }, false},
 		{"task UUID", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["taskId"] = "bad" }, false},
 		{"upload ID", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["uploadId"] = "bad/id" }, false},
 		{"unknown delivery", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["artifactVersion"] = "v1" }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Parse(changeInput(t, executeInput, tc.change), "datadoghq.com")
+			req, err := Parse(changeInput(t, executeInput, tc.change), "datadoghq.com")
 			if tc.valid {
 				require.NoError(t, err)
+				require.Equal(t, "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", req.ResultDelivery.CrawlID)
 			} else {
 				require.Error(t, err)
 			}
+		})
+	}
+	for _, tc := range []struct {
+		name        string
+		keepCrawlID bool
+	}{{"stale runId", false}, {"both crawlId and runId", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := changeInput(t, executeInput, func(input map[string]interface{}) {
+				delivery := input["resultDelivery"].(map[string]interface{})
+				delivery["runId"] = delivery["crawlId"]
+				if !tc.keepCrawlID {
+					delete(delivery, "crawlId")
+				}
+			})
+			_, err := Parse(raw, "datadoghq.com")
+			require.ErrorContains(t, err, "resultDelivery contains an unknown field")
 		})
 	}
 	for _, field := range []string{"maxFileBytes", "maxResultBytes", "maxRowBytes", "maxColumns", "maxSchemaBytes", "maxPages", "timeoutMs", "unknown"} {

@@ -69,7 +69,7 @@ public:
     void cancelCheck(RtLoaderPyObject *check);
     bool hasRemoteQuery(RtLoaderPyObject *check);
     char *remoteQuery(RtLoaderPyObject *check, const char *request);
-    bool cancelRemoteQuery(RtLoaderPyObject *check, const char *run_id);
+    bool cancelRemoteQuery(RtLoaderPyObject *check, const char *crawl_id);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);
     void decref(RtLoaderPyObject *obj);

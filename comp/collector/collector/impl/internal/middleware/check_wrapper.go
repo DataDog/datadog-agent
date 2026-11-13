@@ -123,13 +123,13 @@ func (c *CheckWrapper) RemoteQuery(ctx context.Context, request string) (string,
 }
 
 // CancelRemoteQuery cancels a run only while this check still admits calls.
-func (c *CheckWrapper) CancelRemoteQuery(runID string) error {
+func (c *CheckWrapper) CancelRemoteQuery(crawlID string) error {
 	inner, err := c.admitRemoteQuery()
 	if err != nil {
 		return err
 	}
 	defer c.remoteCalls.Done()
-	return inner.CancelRemoteQuery(runID)
+	return inner.CancelRemoteQuery(crawlID)
 }
 
 // SupportsRemoteQueries reports whether the underlying check exposes remote queries.

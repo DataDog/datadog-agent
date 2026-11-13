@@ -215,7 +215,7 @@ DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *
 // non-string outcomes fail without exposing Python exception text.
 DATADOG_AGENT_RTLOADER_API int has_remote_query(rtloader_t *, rtloader_pyobject_t *check);
 DATADOG_AGENT_RTLOADER_API char *remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *request);
-DATADOG_AGENT_RTLOADER_API int cancel_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *run_id);
+DATADOG_AGENT_RTLOADER_API int cancel_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *crawl_id);
 
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.

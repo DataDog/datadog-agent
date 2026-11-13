@@ -26,8 +26,8 @@ class RemoteQueryCheck(AgentCheck):
             released.wait(5)
         return reply
 
-    def cancel_remote_query(self, run_id):
-        cancelled.append(run_id)
+    def cancel_remote_query(self, crawl_id):
+        cancelled.append(crawl_id)
         released.set()
 
     def cancel(self):

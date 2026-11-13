@@ -113,7 +113,7 @@ func (f *collectorIPC) call(resolve bool) (remotequeries.Answer, error) {
 	if !resolve {
 		input["query"] = "select 1"
 		input["includeSchema"] = false
-		input["resultDelivery"] = &remotequeries.Delivery{RunID: "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", TaskID: "d25e7f9f-6883-4462-b31e-b449f70c0894", UploadID: "upload", BaseURL: "https://datadoghq.com/intake", Limits: remotequeries.Limits{MaxFileBytes: "1", MaxResultBytes: "1", MaxRowBytes: "1", MaxColumns: "1", MaxSchemaBytes: "1", MaxPages: "1", TimeoutMs: "10000"}}
+		input["resultDelivery"] = &remotequeries.Delivery{CrawlID: "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", TaskID: "d25e7f9f-6883-4462-b31e-b449f70c0894", UploadID: "upload", BaseURL: "https://datadoghq.com/intake", Limits: remotequeries.Limits{MaxFileBytes: "1", MaxResultBytes: "1", MaxRowBytes: "1", MaxColumns: "1", MaxSchemaBytes: "1", MaxPages: "1", TimeoutMs: "10000"}}
 	}
 	raw, err := json.Marshal(input)
 	if err != nil {

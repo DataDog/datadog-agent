@@ -298,9 +298,9 @@ char *remote_query(rtloader_t *rtloader, rtloader_pyobject_t *check, const char 
     return AS_TYPE(RtLoader, rtloader)->remoteQuery(AS_TYPE(RtLoaderPyObject, check), request);
 }
 
-int cancel_remote_query(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *run_id)
+int cancel_remote_query(rtloader_t *rtloader, rtloader_pyobject_t *check, const char *crawl_id)
 {
-    return AS_TYPE(RtLoader, rtloader)->cancelRemoteQuery(AS_TYPE(RtLoaderPyObject, check), run_id) ? 1 : 0;
+    return AS_TYPE(RtLoader, rtloader)->cancelRemoteQuery(AS_TYPE(RtLoaderPyObject, check), crawl_id) ? 1 : 0;
 }
 
 char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)

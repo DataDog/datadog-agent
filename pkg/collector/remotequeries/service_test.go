@@ -349,7 +349,7 @@ func TestRUN01(t *testing.T) {
 	require.JSONEq(t, string(raw), got)
 }
 
-// RUN-04: deadline/caller cancellation discards the answer and signals the run ID.
+// RUN-04: deadline/caller cancellation discards the answer and signals the crawl ID.
 func TestRUN04(t *testing.T) {
 	for _, tc := range []struct{ deadline, lateRegistration bool }{{false, false}, {true, false}, {false, true}} {
 		t.Run(strconv.FormatBool(tc.deadline)+"/late="+strconv.FormatBool(tc.lateRegistration), func(t *testing.T) {
@@ -451,7 +451,7 @@ func TestOBS02OBS03(t *testing.T) {
 	callIPC(t, f, executeInput)
 	lines := f.logs.snapshot()
 	require.Len(t, lines, 1)
-	for _, field := range []string{`integration="postgres"`, `run_id="7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c"`, `task_id="d25e7f9f-6883-4462-b31e-b449f70c0894"`, `upload_id="upload-1"`, `kind=execute`, `outcome=SUCCEEDED`, `code=`, `duration=`, `candidates=1`, `matched_check="candidate"`} {
+	for _, field := range []string{`integration="postgres"`, `crawl_id="7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c"`, `task_id="d25e7f9f-6883-4462-b31e-b449f70c0894"`, `upload_id="upload-1"`, `kind=execute`, `outcome=SUCCEEDED`, `code=`, `duration=`, `candidates=1`, `matched_check="candidate"`} {
 		require.Contains(t, lines[0], field)
 	}
 	require.NotContains(t, lines[0], "secret_value")

@@ -74,12 +74,12 @@ func (c *remoteQueryCheck) query(request string) (string, error) {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(result))
 	return C.GoString(result), nil
 }
-func (c *remoteQueryCheck) cancel(runID string) error {
+func (c *remoteQueryCheck) cancel(crawlID string) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	gil := C.ensure_gil(rtloader)
 	defer C.release_gil(rtloader, gil)
-	id := C.CString(runID)
+	id := C.CString(crawlID)
 	defer C.free(unsafe.Pointer(id))
 	if C.cancel_remote_query(rtloader, c.instance, id) == 0 {
 		return fetchError()

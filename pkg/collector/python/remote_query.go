@@ -60,8 +60,8 @@ func (c *PythonCheck) RemoteQuery(ctx context.Context, request string) (string, 
 	return C.GoString(result), nil
 }
 
-// CancelRemoteQuery signals all of this check's active runs with this run ID.
-func (c *PythonCheck) CancelRemoteQuery(runID string) error {
+// CancelRemoteQuery signals all of this check's active runs with this crawl ID.
+func (c *PythonCheck) CancelRemoteQuery(crawlID string) error {
 	lock, err := newStickyLock()
 	if err != nil {
 		return errors.New("Python runtime is unavailable")
@@ -70,7 +70,7 @@ func (c *PythonCheck) CancelRemoteQuery(runID string) error {
 	if c.cancelled.Load() {
 		return nil
 	}
-	id := C.CString(runID)
+	id := C.CString(crawlID)
 	defer C.free(unsafe.Pointer(id))
 	if C.cancel_remote_query(rtloader, c.instance, id) == 0 {
 		_ = getRtLoaderError()
