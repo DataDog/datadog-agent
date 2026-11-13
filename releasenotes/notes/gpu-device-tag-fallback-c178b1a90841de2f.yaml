@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix missing ``gpu_device`` tags on NVIDIA GPU metrics emitted before the
+    GPU tagger has collected the device. The Agent now uses the GPU model
+    already available in its device cache for these early samples.

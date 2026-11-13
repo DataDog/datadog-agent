@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -21,6 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -130,8 +132,10 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 		}
 		return nil
 	}
+	const gpuDeviceTagPrefix = "gpu_device:"
 	for _, dev := range allDevices {
-		uuid := dev.GetDeviceInfo().UUID
+		deviceInfo := dev.GetDeviceInfo()
+		uuid := deviceInfo.UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
@@ -142,6 +146,16 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
 			tags = []string{"gpu_uuid:" + uuid}
+		}
+		hasDeviceTag := false
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, gpuDeviceTagPrefix) {
+				hasDeviceTag = true
+				break
+			}
+		}
+		if !hasDeviceTag && strings.TrimSpace(deviceInfo.Name) != "" {
+			tags = append(tags, gpuDeviceTagPrefix+gpuutil.NormalizeGPUDeviceName(deviceInfo.Name))
 		}
 
 		tagsMapping[uuid] = tags
