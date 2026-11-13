@@ -7,13 +7,11 @@ package benchmark
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
+	"html"
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,11 +20,10 @@ import (
 )
 
 const (
-	// MarkdownReportFile is the name of the Markdown report, meant to be posted as a pull
-	// request comment. It is only written when a metric changed significantly, or couldn't be
-	// compared.
+	// MarkdownReportFile is the name of the Markdown report, in the Markdown of GitHub, which the
+	// pull request comment of the benchmark shows.
 	MarkdownReportFile = "report.md"
-	// JSONReportFile is the name of the machine-readable report, always written.
+	// JSONReportFile is the name of the machine-readable report.
 	JSONReportFile = "report.json"
 
 	timeFormat = "2006-01-02 15:04 MST"
@@ -87,6 +84,20 @@ type Version struct {
 type ProfileComparison struct {
 	Component string `json:"component"`
 	URL       string `json:"url"`
+}
+
+// mark returns the colored mark of the verdict in the Markdown report, to tell the verdicts apart at
+// a glance.
+func (v Verdict) mark() string {
+	switch v {
+	case VerdictImprovement:
+		return "\U0001F7E2" // large green circle
+	case VerdictRegression:
+		return "\U0001F534" // large red circle
+	case VerdictError:
+		return "\u26A0\uFE0F" // warning sign
+	}
+	return "\u26AA" // medium white circle
 }
 
 // Result is the comparison of a metric of a component between the two versions.
@@ -156,14 +167,6 @@ type Report struct {
 	ProfileComparisons []ProfileComparison `json:"profile_comparisons,omitempty"`
 }
 
-// notable reports whether a metric improved, regressed or couldn't be compared: the outcomes
-// worth a pull request comment, the last two failing the benchmark.
-func (r *Report) notable() bool {
-	return slices.ContainsFunc(r.Results, func(result Result) bool {
-		return result.Verdict != VerdictUnchanged
-	})
-}
-
 // significance returns the p-value under which the changes of the results are significant,
 // and whether it is the same for all of them: if not, the p-value is that of the first result.
 func (r *Report) significance() (float64, bool) {
@@ -176,8 +179,7 @@ func (r *Report) significance() (float64, bool) {
 	})
 }
 
-// Write writes the JSON report to dir, and the Markdown report only if the report is notable.
-// Otherwise, it removes the Markdown report of a previous run, if any.
+// Write writes the JSON and the Markdown reports to dir.
 func (r *Report) Write(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -189,35 +191,31 @@ func (r *Report) Write(dir string) error {
 	if err := os.WriteFile(filepath.Join(dir, JSONReportFile), append(data, '\n'), 0o644); err != nil {
 		return err
 	}
-
-	markdownPath := filepath.Join(dir, MarkdownReportFile)
-	if !r.notable() {
-		if err := os.Remove(markdownPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		return nil
-	}
-	return os.WriteFile(markdownPath, []byte(r.Markdown()), 0o644)
+	return os.WriteFile(filepath.Join(dir, MarkdownReportFile), []byte(r.Markdown()), 0o644)
 }
 
-// Markdown renders the report in Markdown.
+// Markdown renders the report in the Markdown of GitHub, to be posted as a pull request comment: the
+// results and the versions are in sections collapsed by default, whose summaries tell the verdicts
+// and the commits.
 func (r *Report) Markdown() string {
 	var b strings.Builder
 	// No heading: whoever publishes the report, e.g. as a pull request comment, adds its own.
 	versions := []Version{r.Baseline, r.Comparison}
-	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in %d phases, between which installations a and b, each with node pools of its own, swap their images:\n\n",
-		r.ClusterName, len(r.Phases))
+	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in %d phases.", r.ClusterName, len(r.Phases))
+	if r.DashboardURL != "" {
+		fmt.Fprintf(&b, " Graphs and profiles of the run: [dashboard](%s)", r.DashboardURL)
+	}
+	b.WriteString("\n\n")
+
+	openDetails(&b, r.verdictSummary())
+	b.WriteString("Between the phases, installations a and b, each with node pools of its own, swap their images:\n\n")
 	for i, phase := range r.Phases {
 		baselineOn, comparisonOn := SwapInPhase(i, "a", "b")
 		fmt.Fprintf(&b, "- phase %d, %s: baseline images on installation %s, comparison images on installation %s\n", i+1,
 			phase.span(), baselineOn, comparisonOn)
 	}
-	b.WriteString("\n")
-	if r.DashboardURL != "" {
-		fmt.Fprintf(&b, "Graphs and profiles of the run: [dashboard](%s)\n\n", r.DashboardURL)
-	}
 
-	b.WriteString("| Component | Metric | Baseline | Comparison | Change | p-value | Verdict |\n")
+	b.WriteString("\n| Component | Metric | Baseline | Comparison | Change | p-value | Verdict |\n")
 	b.WriteString("|---|---|--:|--:|--:|--:|---|\n")
 	for _, result := range r.Results {
 		metric := result.metricName()
@@ -225,13 +223,14 @@ func (r *Report) Markdown() string {
 			metric = "[" + metric + "](" + result.ExplorerURL + ")"
 		}
 		if result.Error != "" {
-			fmt.Fprintf(&b, "| %s | %s | | | | | **error**: %s |\n", result.Component, metric, markdownCell(result.Error))
+			fmt.Fprintf(&b, "| %s | %s | | | | | %s **error**: %s |\n", result.Component, metric, VerdictError.mark(), markdownCell(result.Error))
 			continue
 		}
 		verdict := string(result.Verdict)
 		if result.Verdict != VerdictUnchanged {
 			verdict = "**" + verdict + "**"
 		}
+		verdict = result.Verdict.mark() + " " + verdict
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %+.1f%% (%s) | %s | %s |\n",
 			result.Component, metric,
 			result.Unit.format(result.BaselineMean, false),
@@ -261,10 +260,12 @@ func (r *Report) Markdown() string {
 		"Each phase is split into blocks of %s, in which the means of the images are compared through their log ratio. "+
 		"The change is exp(e) - 1, e being the average over the phases of the mean log ratio of each phase, in which the difference between the node pools cancels out. "+
 		"Baseline and Comparison are the averages of the means of each image over the phases. "+
-		"A change is an improvement or a regression when it is significant (t-test of e = 0, %s) and at least as large as both thresholds of its metric: %s.\n\n",
+		"A change is an improvement or a regression when it is significant (t-test of e = 0, %s) and at least as large as both thresholds of its metric: %s.\n",
 		// All the phases have blocks of the same duration.
 		lo.FirstOrEmpty(r.Phases).Block, significanceText, strings.Join(thresholds, "; "))
+	closeDetails(&b)
 
+	openDetails(&b, fmt.Sprintf("Baseline %s, comparison %s", r.Baseline.summary(), r.Comparison.summary()))
 	for _, version := range versions {
 		if version.Commit != "" {
 			fmt.Fprintf(&b, "- %s commit: [`%.8s`](https://github.com/DataDog/datadog-agent/commit/%s)\n", version.Name, version.Commit, version.Commit)
@@ -281,14 +282,66 @@ func (r *Report) Markdown() string {
 			fmt.Fprintf(&b, "| %s | %s | %s |\n", version.Name, image.Component, reference)
 		}
 	}
+	closeDetails(&b)
 
 	if len(r.ProfileComparisons) > 0 {
 		comparisons := lo.Map(r.ProfileComparisons, func(comparison ProfileComparison, _ int) string {
 			return "[" + comparison.Component + "](" + comparison.URL + ")"
 		})
-		fmt.Fprintf(&b, "\nCPU profiles of the baseline (A) and of the comparison (B) over the phases: %s\n", strings.Join(comparisons, ", "))
+		fmt.Fprintf(&b, "CPU profiles of the baseline (A) and of the comparison (B) over the phases: %s\n", strings.Join(comparisons, ", "))
 	}
 	return b.String()
+}
+
+// openDetails starts a section collapsed by default, whose summary, in HTML, is always shown. Like
+// the blank lines around its content, which GitHub needs to render it as Markdown.
+func openDetails(b *strings.Builder, summary string) {
+	fmt.Fprintf(b, "<details>\n\n<summary>%s</summary>\n\n", summary)
+}
+
+// closeDetails ends the section openDetails started.
+func closeDetails(b *strings.Builder) {
+	b.WriteString("\n</details>\n\n")
+}
+
+// verdictSummary tells, in the summary of the results, whether metrics regressed, improved or
+// couldn't be compared, and how many.
+func (r *Report) verdictSummary() string {
+	counts := lo.CountValuesBy(r.Results, func(result Result) Verdict { return result.Verdict })
+	var parts []string
+	for _, verdict := range []Verdict{VerdictRegression, VerdictImprovement, VerdictError} {
+		if n := counts[verdict]; n > 0 {
+			parts = append(parts, verdict.mark()+" "+verdictCount(verdict, n))
+		}
+	}
+	if len(parts) == 0 {
+		return VerdictUnchanged.mark() + " No significant change"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// verdictCount describes n results of verdict, which isn't VerdictUnchanged.
+func verdictCount(verdict Verdict, n int) string {
+	noun, suffix := string(verdict), ""
+	if verdict == VerdictError {
+		noun, suffix = "metric", " not compared"
+	}
+	if n > 1 {
+		noun += "s"
+	}
+	return fmt.Sprintf("%d %s%s", n, noun, suffix)
+}
+
+// summary names the version in the summary of the versions, in HTML: its commit if known, else
+// the image of its first component.
+func (v Version) summary() string {
+	switch {
+	case v.Commit != "":
+		return fmt.Sprintf("<code>%.8s</code>", v.Commit)
+	case len(v.Images) > 0:
+		return "<code>" + html.EscapeString(v.Images[0].Image) + "</code>"
+	}
+	return "unknown"
 }
 
 // formatSignificance describes the p-value under which a change is significant.

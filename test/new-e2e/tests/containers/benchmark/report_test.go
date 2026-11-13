@@ -11,10 +11,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,24 +79,63 @@ func TestReportMarkdown(t *testing.T) {
 	markdown := testReport(VerdictRegression).Markdown()
 
 	for _, expected := range []string{
-		"on the EKS cluster `bench-cluster`, in 2 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n" +
+		// The results, collapsed, after the visible introduction
+		"Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `bench-cluster`, in 2 phases. " +
+			"Graphs and profiles of the run: [dashboard](https://dddev.datadoghq.com/dashboard/abc-def-ghi)\n\n" +
+			"<details>\n\n<summary>\U0001F534 1 regression, \u26A0\uFE0F 1 metric not compared</summary>\n\n" +
+			"Between the phases, installations a and b, each with node pools of its own, swap their images:\n\n" +
 			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s): baseline images on installation a, comparison images on installation b\n" +
-			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s): baseline images on installation b, comparison images on installation a\n\n",
-		"| Node Agent | [`container.cpu.usage`](https://dddev.datadoghq.com/metric/explorer?exp_metric=container.cpu.usage) | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | **regression** |",
-		`| Cluster Agent | ` + "`container.memory.rss`" + ` | | | | | **error**: baseline: no data \| at all |`,
-		"Graphs and profiles of the run: [dashboard](https://dddev.datadoghq.com/dashboard/abc-def-ghi)\n",
+			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s): baseline images on installation b, comparison images on installation a\n\n" +
+			"| Component | Metric |",
+		"| Node Agent | [`container.cpu.usage`](https://dddev.datadoghq.com/metric/explorer?exp_metric=container.cpu.usage) | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | \U0001F534 **regression** |",
+		`| Cluster Agent | ` + "`container.memory.rss`" + ` | | | | | ` + "\u26A0\uFE0F" + ` **error**: baseline: no data \| at all |`,
 		"each image runs half of the phases on the node pools of each installation",
 		"Each phase is split into blocks of 5m0s, in which",
 		"significant (t-test of e = 0, p < 0.05)",
-		"| Node Agent | `kubelet` check run time | 40.0 ms | 38.0 ms | -5.0% (-2.0 ms) | 0.200 | unchanged |",
-		"`container.cpu.usage` 5% and 5.0 millicores; `container.memory.rss` 5% and 10.0 MiB; `kubelet` check run time 10% and 5.0 ms.",
+		"| Node Agent | `kubelet` check run time | 40.0 ms | 38.0 ms | -5.0% (-2.0 ms) | 0.200 | \u26AA unchanged |",
+		// The versions, collapsed, after the results
+		"`container.cpu.usage` 5% and 5.0 millicores; `container.memory.rss` 5% and 10.0 MiB; `kubelet` check run time 10% and 5.0 ms.\n\n</details>\n\n" +
+			"<details>\n\n<summary>Baseline <code>01234567</code>, comparison <code>registry/agent-qa:1234-abcdef</code></summary>\n\n" +
+			"- baseline commit: [`01234567`](https://github.com/DataDog/datadog-agent/commit/0123456789abcdef0123456789abcdef01234567)\n",
 		"| baseline | Node Agent | `registry/agent:7.84.0` (`registry/agent@sha256:1234`) |",
-		"| comparison | Node Agent | `registry/agent-qa:1234-abcdef` |",
-		"- baseline commit: [`01234567`](https://github.com/DataDog/datadog-agent/commit/0123456789abcdef0123456789abcdef01234567)\n",
-		"CPU profiles of the baseline (A) and of the comparison (B) over the phases: [Node Agent](https://dddev.datadoghq.com/profiling/comparison?node), [Cluster Agent](https://dddev.datadoghq.com/profiling/comparison?dca)\n",
+		"| comparison | Node Agent | `registry/agent-qa:1234-abcdef` |\n\n</details>\n\n" +
+			"CPU profiles of the baseline (A) and of the comparison (B) over the phases: [Node Agent](https://dddev.datadoghq.com/profiling/comparison?node), [Cluster Agent](https://dddev.datadoghq.com/profiling/comparison?dca)\n",
 	} {
 		assert.Contains(t, markdown, expected)
 	}
+}
+
+func TestReportVerdictSummary(t *testing.T) {
+	results := func(verdicts ...Verdict) *Report {
+		return &Report{Results: lo.Map(verdicts, func(verdict Verdict, _ int) Result {
+			return Result{Comparison: Comparison{Verdict: verdict}}
+		})}
+	}
+	for _, tt := range []struct {
+		name    string
+		report  *Report
+		summary string
+	}{
+		{name: "no result", report: results(), summary: "\u26AA No significant change"},
+		{name: "unchanged", report: results(VerdictUnchanged, VerdictUnchanged), summary: "\u26AA No significant change"},
+		{name: "improvements", report: results(VerdictImprovement, VerdictUnchanged, VerdictImprovement), summary: "\U0001F7E2 2 improvements"},
+		{name: "regression", report: results(VerdictUnchanged, VerdictRegression), summary: "\U0001F534 1 regression"},
+		{
+			name:    "all",
+			report:  results(VerdictImprovement, VerdictError, VerdictRegression, VerdictError, VerdictRegression),
+			summary: "\U0001F534 2 regressions, \U0001F7E2 1 improvement, \u26A0\uFE0F 2 metrics not compared",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.summary, tt.report.verdictSummary())
+		})
+	}
+}
+
+func TestVersionSummary(t *testing.T) {
+	assert.Equal(t, "<code>01234567</code>", Version{Commit: "0123456789abcdef"}.summary())
+	assert.Equal(t, "<code>registry/agent:7.84.0&lt;x&gt;</code>", Version{Images: []Image{{Image: "registry/agent:7.84.0<x>"}}}.summary())
+	assert.Equal(t, "unknown", Version{}.summary())
 }
 
 func TestReportMarkdownFourPhases(t *testing.T) {
@@ -104,7 +143,7 @@ func TestReportMarkdownFourPhases(t *testing.T) {
 	report.Phases = testWindows(4, 15*time.Minute)
 
 	assert.Contains(t, report.Markdown(),
-		"in 4 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n"+
+		"Between the phases, installations a and b, each with node pools of its own, swap their images:\n\n"+
 			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
 			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:15 UTC (15m0s): baseline images on installation b, comparison images on installation a\n"+
 			"- phase 3, from 2026-10-13 12:00 UTC to 2026-10-13 12:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
@@ -112,46 +151,21 @@ func TestReportMarkdownFourPhases(t *testing.T) {
 }
 
 func TestReportWrite(t *testing.T) {
-	tests := []struct {
-		name    string
-		verdict Verdict
-		// failed keeps the result of testReport that couldn't be compared.
-		failed   bool
-		markdown bool
-	}{
-		{name: "regression", verdict: VerdictRegression, failed: true, markdown: true},
-		{name: "improvement", verdict: VerdictImprovement, markdown: true},
-		{name: "unchanged", verdict: VerdictUnchanged, markdown: false},
-		{name: "unchanged with an error", verdict: VerdictUnchanged, failed: true, markdown: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := filepath.Join(t.TempDir(), "report")
-			report := testReport(tt.verdict)
-			if !tt.failed {
-				report.Results = slices.DeleteFunc(report.Results, func(result Result) bool { return result.Error != "" })
-			}
-			// A Markdown report left by a previous run must not survive an unchanged one.
-			require.NoError(t, os.MkdirAll(dir, 0o755))
-			require.NoError(t, os.WriteFile(filepath.Join(dir, MarkdownReportFile), []byte("stale"), 0o644))
+	dir := filepath.Join(t.TempDir(), "report")
+	// With a result that couldn't be compared, whose error the JSON report keeps too
+	report := testReport(VerdictRegression)
 
-			require.NoError(t, report.Write(dir))
+	require.NoError(t, report.Write(dir))
 
-			markdown, err := os.ReadFile(filepath.Join(dir, MarkdownReportFile))
-			if tt.markdown {
-				require.NoError(t, err)
-				assert.Equal(t, report.Markdown(), string(markdown))
-			} else {
-				assert.ErrorIs(t, err, os.ErrNotExist)
-			}
+	markdown, err := os.ReadFile(filepath.Join(dir, MarkdownReportFile))
+	require.NoError(t, err)
+	assert.Equal(t, report.Markdown(), string(markdown))
 
-			data, err := os.ReadFile(filepath.Join(dir, JSONReportFile))
-			require.NoError(t, err)
-			var decoded Report
-			require.NoError(t, json.Unmarshal(data, &decoded))
-			assert.Equal(t, *report, decoded)
-		})
-	}
+	data, err := os.ReadFile(filepath.Join(dir, JSONReportFile))
+	require.NoError(t, err)
+	var decoded Report
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.Equal(t, *report, decoded)
 }
 
 func TestReportMarkdownDifferentSignificances(t *testing.T) {

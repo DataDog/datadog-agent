@@ -7,13 +7,19 @@
 # TestBenchmarkEKSSuite deploys a baseline and a comparison Agent (node Agent, Cluster Agent and cluster checks runner)
 # on an EKS cluster and compares their resource usage over four phases, between which the two installations swap their
 # images. The comparison is the Agent of the pipeline, the baseline the one of a commit of the base branch chosen like
-# SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`). The report is posted to the pull request when a metric
-# improved, regressed or couldn't be compared.
+# SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
 #
-# The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches, and only manually for now,
-# not to add an EKS cluster to every pull request changing the code it measures: such a pull request gets a comment
-# explaining how to run it instead. To run it, play new-e2e-containers-benchmarkeks-baseline only: the other jobs need
-# it, so GitLab skips them until it is played, and then runs them after it.
+# The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches, and only on demand, not to add
+# an EKS cluster to every pull request changing the code it measures, but for the changes of the benchmark itself:
+# - every push of a branch changing the benchmark runs it automatically, even before its pull request is opened;
+# - a pull request changing the code it measures gets a comment with a button to run it, from its push pipelines;
+# - any other pipeline can still run it, without a comment until it is run.
+# To run it, play new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it
+# is played, and then runs them after it.
+#
+# A single comment of the pull request follows the benchmark, which its jobs update as it progresses (see
+# `dda inv new-e2e-tests.benchmarkeks-comment`): the button to run it, that it runs, then its results, every time. Only
+# the jobs of the pipeline of the head commit of the pull request update it.
 
 # Pipelines the benchmark never runs in. Shared by all the benchmark jobs, so that they always exist together.
 .except_benchmarkeks_unsupported:
@@ -23,8 +29,24 @@
   - !reference [.except_deploy]
   - !reference [.except_disable_e2e_tests]
 
-# The code measured by the benchmark, and the benchmark itself
-.benchmarkeks_changes: &benchmarkeks_changes
+# The benchmark itself: the pushes changing it run it automatically
+.benchmarkeks_test_changes: &benchmarkeks_test_changes
+  paths:
+    - test/e2e-framework/components/datadog/apps/churn/**/*
+    - test/e2e-framework/components/datadog/apps/kwok/**/*
+    - test/e2e-framework/scenarios/aws/benchmarkeks/**/*
+    - test/e2e-framework/scenarios/outputs/benchmarkeks.go
+    - test/e2e-framework/testing/environments/benchmarkeks.go
+    - test/e2e-framework/testing/environments/kubernetes_readiness.go
+    - test/e2e-framework/testing/provisioners/aws/kubernetes/benchmarkeks/**/*
+    - test/new-e2e/tests/containers/benchmark/**/*
+    - test/new-e2e/tests/containers/benchmarkeks*
+    - .gitlab/test/e2e/e2e_containers_benchmarkeks.yml
+    - tasks/libs/testing/benchmarkeks.py
+  compare_to: $COMPARE_TO_BRANCH
+
+# The code measured by the benchmark: the pull requests changing it get a comment with a button to run the benchmark
+.benchmarkeks_component_changes: &benchmarkeks_component_changes
   paths:
     - comp/core/autodiscovery/**/*
     - comp/core/tagger/**/*
@@ -39,39 +61,24 @@
     - pkg/util/containers/**/*
     - pkg/util/kubernetes/**/*
     - pkg/util/prometheus/**/*
-    - test/e2e-framework/components/datadog/apps/churn/**/*
-    - test/e2e-framework/components/datadog/apps/kwok/**/*
-    - test/e2e-framework/scenarios/aws/benchmarkeks/**/*
-    - test/e2e-framework/scenarios/outputs/benchmarkeks.go
-    - test/e2e-framework/testing/environments/benchmarkeks.go
-    - test/e2e-framework/testing/environments/kubernetes_readiness.go
-    - test/e2e-framework/testing/provisioners/aws/kubernetes/benchmarkeks/**/*
-    - test/new-e2e/tests/containers/benchmark/**/*
-    - test/new-e2e/tests/containers/benchmarkeks*
-    - .gitlab/test/e2e/e2e_containers_benchmarkeks.yml
-    - tasks/libs/testing/benchmarkeks.py
   compare_to: $COMPARE_TO_BRANCH
 
-.on_benchmarkeks_changes:
-  - changes: *benchmarkeks_changes
-    when: on_success
+# Automatic run of new-e2e-containers-benchmarkeks-baseline, on the changes of the benchmark itself. Only in push
+# pipelines, not to run the benchmark again in a pipeline started from the UI or the API, e.g. to retry other jobs of a
+# commit whose push pipeline ran it. Not only for the branches of a pull request, which GitLab can't tell apart, and as
+# the first push of a branch usually comes before its pull request.
+.if_benchmarkeks_automatic_run: &if_benchmarkeks_automatic_run
+  if: $CI_PIPELINE_SOURCE == "push"
+  changes: *benchmarkeks_test_changes
 
-# First rules of the jobs of the benchmark: the pipelines it never runs in, and its automatic run, disabled for now.
-# To run the benchmark automatically again, uncomment the line below and the automatic run rule of
-# new-e2e-containers-benchmarkeks-pr-comment, and remove new-e2e-containers-benchmarkeks-instructions, with the
-# new-e2e-tests.benchmarkeks-instructions task and its helpers in tasks/libs/testing/benchmarkeks.py.
-.on_benchmarkeks_automatic_run:
-  - !reference [.except_benchmarkeks_unsupported]
-  # - !reference [.on_benchmarkeks_changes]
-
-# Manual run of the jobs following new-e2e-containers-benchmarkeks-baseline: needing it, directly or not, they are
-# skipped while it is not played, and run after it once it is. Like it, they are then allowed to fail.
-.on_benchmarkeks_manual_run:
+# The jobs following new-e2e-containers-benchmarkeks-baseline: needing it, directly or not, they are skipped while it
+# is not played, and run after it once it is, or right away on an automatic run. Like it, they are allowed to fail.
+.after_benchmarkeks_baseline:
   - when: on_success
     allow_failure: true
 
 # Fails before provisioning anything if the baseline is unknown, the dotenv report of
-# new-e2e-containers-benchmarkeks-baseline being missing when it failed while allowed to (manual run).
+# new-e2e-containers-benchmarkeks-baseline being missing when it failed while allowed to.
 .benchmarkeks_check_baseline:
   - |
     if [ -z "${E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE:-}" ] || [ -z "${E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE:-}" ]; then
@@ -79,7 +86,8 @@
       exit 1
     fi
 
-# Explains how to run the benchmark in a comment of the pull requests changing the code it measures.
+# Explains how to run the benchmark in the comment of the pull requests changing the code it measures, with a button
+# linking to new-e2e-containers-benchmarkeks-baseline.
 new-e2e-containers-benchmarkeks-instructions:
   stage: e2e_init
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -87,7 +95,15 @@ new-e2e-containers-benchmarkeks-instructions:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    - !reference [.on_benchmarkeks_changes]
+    # The benchmark runs automatically (see .if_benchmarkeks_automatic_run), and new-e2e-containers-benchmarkeks-baseline
+    # comments that it runs
+    - <<: *if_benchmarkeks_automatic_run
+      when: never
+    # Only in push pipelines too: the button of a pipeline started from the UI or the API would replace the results of
+    # the benchmark of the push pipeline of the same commit
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes: *benchmarkeks_component_changes
+      when: on_success
   needs: []
   # A comment that couldn't be posted must not block the pull request
   allow_failure: true
@@ -95,24 +111,38 @@ new-e2e-containers-benchmarkeks-instructions:
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
-    # Both tasks run in a single invoke process, in this order: pr-commenter reads the file the first one writes.
-    - >-
-      dda inv -- -e new-e2e-tests.benchmarkeks-instructions --output-file=benchmarkeks_instructions.md
-      github.pr-commenter --title="Agent performance benchmark (benchmarkeks)" --body-file=benchmarkeks_instructions.md
+    - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=pending
 
 # Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
 # pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.
+# It also starts the benchmark, manually or automatically: it shows in the pull request comment that the benchmark runs.
 new-e2e-containers-benchmarkeks-baseline:
-  extends: .docker_publish_job_definition
+  extends:
+    - .docker_publish_job_definition
+    - .dd_octo_sts
   stage: e2e_init
   rules:
-    - !reference [.on_benchmarkeks_automatic_run]
+    - !reference [.except_benchmarkeks_unsupported]
+    # Like a manual run, the automatic one is allowed to fail
+    - <<: *if_benchmarkeks_automatic_run
+      when: on_success
+      allow_failure: true
     - !reference [.manual]
-  needs: [] # Only needs images of the base branch
+  needs:
+    # Only needs images of the base branch. When the button of the pull request comment links to this job, it can only
+    # be played once the comment is posted, which it would otherwise overwrite.
+    - job: new-e2e-containers-benchmarkeks-instructions
+      optional: true
+      artifacts: false
   variables:
     GIT_DEPTH: 0 # Full history: merge base and first-parent walk
     IMG_REGISTRIES: agent-qa
   script:
+    # A comment that couldn't be updated must not stop the benchmark
+    - !reference [.setup_github_token_comment_pr]
+    - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=running || echo "The pull request comment wasn't updated"
+    # The commands below don't need the GitHub token
+    - unset GITHUB_TOKEN
     - dda inv -- -e new-e2e-tests.benchmarkeks-baseline --output-file=benchmarkeks_baseline.env
     - source benchmarkeks_baseline.env
     # The script of .docker_publish_job_definition, once per image
@@ -138,8 +168,8 @@ new-e2e-containers-benchmarkeks-init:
     # Not to create a cluster when there is no baseline (e.g. on a branch too old), and to follow it on a manual run
     - new-e2e-containers-benchmarkeks-baseline
   rules:
-    - !reference [.on_benchmarkeks_automatic_run]
-    - !reference [.on_benchmarkeks_manual_run]
+    - !reference [.except_benchmarkeks_unsupported]
+    - !reference [.after_benchmarkeks_baseline]
   before_script:
     - !reference [.benchmarkeks_check_baseline]
     - !reference [.new_e2e_template, before_script]
@@ -170,8 +200,8 @@ new-e2e-containers-benchmarkeks:
     - job: new-e2e-containers-benchmarkeks-baseline
       artifacts: true
   rules:
-    - !reference [.on_benchmarkeks_automatic_run]
-    - !reference [.on_benchmarkeks_manual_run]
+    - !reference [.except_benchmarkeks_unsupported]
+    - !reference [.after_benchmarkeks_baseline]
   before_script:
     - !reference [.benchmarkeks_check_baseline]
     - !reference [.new_e2e_template, before_script]
@@ -190,7 +220,8 @@ new-e2e-containers-benchmarkeks:
   # this job, but not the pipeline.
   allow_failure: true
 
-# Posts the report of the benchmark to the pull request, in a job of its own as the GitHub token only lives an hour.
+# Shows the results of the benchmark in the pull request comment, whatever they are, or that it failed, in a job of its
+# own as the GitHub token only lives an hour.
 new-e2e-containers-benchmarkeks-pr-comment:
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -198,28 +229,24 @@ new-e2e-containers-benchmarkeks-pr-comment:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # Automatic run, disabled for now (see .on_benchmarkeks_automatic_run): also after a failure of the benchmark, which
-    # is how it reports a regression
-    # - changes: *benchmarkeks_changes
-    #   when: always
-    # On a manual run, the benchmark is allowed to fail: this job runs after it whatever its result
-    - !reference [.on_benchmarkeks_manual_run]
+    # Automatic run, under the conditions of .if_benchmarkeks_automatic_run: whatever the result of the benchmark, a
+    # failure being how it reports a regression, even when it was canceled, so that the comment doesn't keep saying that
+    # the benchmark runs
+    - <<: *if_benchmarkeks_automatic_run
+      when: always
+      allow_failure: true
+    # Manual run: the benchmark is allowed to fail, so this job runs after it whatever its result, unless it is skipped
+    # or canceled, e.g. when a build of the images of the pipeline failed, which leaves the comment saying that it runs.
+    # Not `always`, which would run this job before new-e2e-containers-benchmarkeks-baseline is played.
+    - !reference [.after_benchmarkeks_baseline]
   needs:
     - job: new-e2e-containers-benchmarkeks
       artifacts: true
   variables:
-    BENCHMARKEKS_PR_COMMENT_TITLE: Agent performance comparison (benchmarkeks)
     # E2E_BENCHMARKEKS_REPORT_DIR of new-e2e-containers-benchmarkeks, relative to the project directory
     BENCHMARKEKS_REPORT_DIR: e2e-output/benchmarkeks-report
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
-    # report.md is only written when a metric changed significantly or couldn't be compared, report.json once the comparison completed
-    - |
-      if [ -s "$BENCHMARKEKS_REPORT_DIR/report.md" ]; then
-        dda inv -- -e github.pr-commenter --title="$BENCHMARKEKS_PR_COMMENT_TITLE" --body-file="$BENCHMARKEKS_REPORT_DIR/report.md"
-      elif [ -f "$BENCHMARKEKS_REPORT_DIR/report.json" ]; then
-        dda inv -- -e github.pr-commenter --title="$BENCHMARKEKS_PR_COMMENT_TITLE" --force-delete
-      else
-        echo "The benchmark did not complete, the pull request comment of a previous run is left as is"
-      fi
+    # The reports are missing when the benchmark failed before comparing the versions: the comment says so
+    - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=done --report-dir="$BENCHMARKEKS_REPORT_DIR"
