@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "wire",
+    srcs = [
+        "cmd.go",
+        "const.go",
+        "dtyp.go",
+        "fscc.go",
+        "guid.go",
+        "iface.go",
+        "packet.go",
+        "request.go",
+        "response.go",
+        "smb2.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/x/wire",
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/utf16le",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

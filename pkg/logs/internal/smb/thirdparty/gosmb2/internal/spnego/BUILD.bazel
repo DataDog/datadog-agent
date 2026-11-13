@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "spnego",
+    srcs = ["spnego.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/internal/spnego",
+    visibility = ["//pkg/logs/internal/smb/thirdparty/gosmb2:__subpackages__"],
+    deps = ["@com_github_geoffgarside_ber//:ber"],
+)
