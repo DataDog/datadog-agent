@@ -36,11 +36,8 @@ const (
 // is known at compile time.
 func LevelFromInt(i int) Level { return kzstd.EncoderLevelFromZstd(i) }
 
-// nocgoEncoderOptions returns the klauspost encoder options for the given
-// level. The ZSTD_NOCGO_CONCURRENCY and ZSTD_NOCGO_WINDOW environment
-// variables can be used to tune concurrency and the window size; missing or
-// invalid values fall back to sensible defaults.
-func nocgoEncoderOptions(level Level) []kzstd.EOption {
+// nocgoEncoderOptions applies per-writer options after the environment defaults.
+func nocgoEncoderOptions(level Level, options ...WriterOption) []kzstd.EOption {
 	conc, err := strconv.Atoi(os.Getenv("ZSTD_NOCGO_CONCURRENCY"))
 	if err != nil {
 		conc = 1
@@ -49,11 +46,15 @@ func nocgoEncoderOptions(level Level) []kzstd.EOption {
 	if err != nil {
 		window = 1 << 15
 	}
+	o := writerOptions{windowSize: window, lowerEncoderMem: true}
+	for _, option := range options {
+		option(&o)
+	}
 	return []kzstd.EOption{
 		kzstd.WithEncoderLevel(level),
 		kzstd.WithEncoderConcurrency(conc),
-		kzstd.WithLowerEncoderMem(true),
-		kzstd.WithWindowSize(window),
+		kzstd.WithLowerEncoderMem(o.lowerEncoderMem),
+		kzstd.WithWindowSize(o.windowSize),
 		// WithZeroFrames(true) ensures empty input produces a valid zstd frame.
 		// Without this, klauspost/compress returns empty output for empty
 		// input, which the CGO zstd library cannot decompress. By enabling
@@ -96,7 +97,13 @@ func NewWriter(w io.Writer) (Writer, error) {
 
 // NewWriterLevel returns a streaming zstd writer at the given level.
 func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
-	return kzstd.NewWriter(w, nocgoEncoderOptions(level)...)
+	return NewWriterLevelWithOptions(w, level)
+}
+
+// NewWriterLevelWithOptions creates a pure-Go writer. Options override defaults
+// and ZSTD_NOCGO_* environment variables; the last option wins.
+func NewWriterLevelWithOptions(w io.Writer, level Level, options ...WriterOption) (Writer, error) {
+	return kzstd.NewWriter(w, nocgoEncoderOptions(level, options...)...)
 }
 
 // NewReader returns a streaming zstd reader.
