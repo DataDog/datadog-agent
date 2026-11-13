@@ -663,6 +663,8 @@ func TestIsDomainAllowed(t *testing.T) {
 		{name: "suffix is not a match", allowlist: []string{"example.com"}, hostname: "jenkins.example.com.other.net", expected: false},
 		{name: "other host", allowlist: []string{"jenkins.example.com"}, hostname: "localhost", expected: false},
 		{name: "ip literal", allowlist: []string{"10.0.0.5"}, hostname: "10.0.0.5", expected: true},
+		{name: "non-ascii hostname that lowercases to a listed one", allowlist: []string{"jenkins.example.com"}, hostname: "jen\u212Ains.example.com", expected: false},
+		{name: "non-ascii entry is skipped", allowlist: []string{"jen\u212Ains.example.com"}, hostname: "jenkins.example.com", expected: false},
 		{name: "invalid glob still matches exactly", allowlist: []string{"[jenkins"}, hostname: "[jenkins", expected: true},
 		{name: "invalid glob matches nothing else", allowlist: []string{"[jenkins"}, hostname: "jenkins", expected: false},
 	}
