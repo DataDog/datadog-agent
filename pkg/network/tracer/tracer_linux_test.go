@@ -3693,7 +3693,10 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	}, 30*time.Second, 200*time.Millisecond)
 
 	// Stop dropping packets so the connection delivers its data and closes.
-	env.changeNetem(t, "loss", "0%")
+	// Remove the qdisc rather than changing it to "loss 0%": the iproute2 in
+	// older distros (e.g. 4.15 on Ubuntu 18.04) rejects a zero percentage
+	// with 'Illegal "loss percent"'.
+	env.delNetem(t)
 
 	// Close and verify rto_count and recovery_count after the close event
 	localAddr := c.LocalAddr()
@@ -3750,6 +3753,14 @@ func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
 	changeCmd := exec.Command(cmd[0], cmd[1:]...)
 	out, err := changeCmd.CombinedOutput()
 	require.NoError(t, err, "tc qdisc change netem failed: %s", out)
+}
+
+// delNetem removes the netem qdisc from the loopback device inside the
+// namespace, restoring an unimpaired link.
+func (env *netemTestEnv) delNetem(t *testing.T) {
+	t.Helper()
+	out, err := exec.Command("ip", "netns", "exec", env.Netns, "tc", "qdisc", "del", "dev", "lo", "root").CombinedOutput()
+	require.NoError(t, err, "tc qdisc del failed: %s", out)
 }
 
 // setupNetemTestEnv creates an isolated network namespace with loopback up.
