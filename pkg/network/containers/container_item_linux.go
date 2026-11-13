@@ -63,6 +63,11 @@ func newContainerReader(reader resolvConfReader) containerReader {
 	return cr
 }
 
+const (
+	noDataProcessNotRunning = "process not running"
+	noDataProcessExiting    = "process exiting"
+)
+
 type readContainerItemResult struct {
 	item         containerStoreItem
 	noDataReason string
@@ -87,7 +92,7 @@ func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.
 	}
 	if !isRunning {
 		return readContainerItemResult{
-			noDataReason: "process not running",
+			noDataReason: noDataProcessNotRunning,
 		}, nil
 	}
 	// isProcessStillRunning only checks that /proc/<pid> exists, which stays true for
@@ -95,7 +100,7 @@ func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.
 	// there is nothing to read; don't cache that as a missing resolv.conf.
 	if errors.Is(resolvConfErr, errProcessRootGone) {
 		return readContainerItemResult{
-			noDataReason: "process exiting",
+			noDataReason: noDataProcessExiting,
 		}, nil
 	}
 
@@ -162,7 +167,8 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 		return r.readResolvConfInRoot(hostRoot())
 	}
 
-	rootPath := kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
+	pid := strconv.Itoa(int(entry.Pid))
+	rootPath := kernel.HostProc(pid, "root")
 	contents, err := r.readResolvConfInRoot(rootPath)
 	// The process may exit at any point during the read. Tearing down its mount
 	// namespace detaches the bind-mounted resolv.conf, so the lookup can then see
@@ -171,10 +177,41 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	// releases the fs_struct before the namespaces, so if the root still resolves
 	// after the read, the namespace was intact during it, and the result, whether
 	// contents or error, is genuine.
-	if processRootGone(rootPath) {
+	if !processRootGone(rootPath) {
+		return contents, err
+	}
+
+	// /proc/<pid>/root is the thread-group leader's root. If the leader called
+	// pthread_exit while other threads keep running, it is gone although the
+	// process is alive, so read through one of the live threads instead.
+	threadRoot, ok := liveThreadRoot(pid)
+	if !ok {
+		return "", errProcessRootGone
+	}
+	contents, err = r.readResolvConfInRoot(threadRoot)
+	if processRootGone(threadRoot) {
 		return "", errProcessRootGone
 	}
 	return contents, err
+}
+
+// liveThreadRoot returns /proc/<pid>/task/<tid>/root for the first thread other
+// than the thread-group leader whose root still resolves.
+func liveThreadRoot(pid string) (string, bool) {
+	tasks, err := os.ReadDir(kernel.HostProc(pid, "task"))
+	if err != nil {
+		return "", false
+	}
+	for _, task := range tasks {
+		if task.Name() == pid {
+			continue
+		}
+		threadRoot := kernel.HostProc(pid, "task", task.Name(), "root")
+		if !processRootGone(threadRoot) {
+			return threadRoot, true
+		}
+	}
+	return "", false
 }
 
 func (r *resolvStripper) readResolvConfInRoot(rootPath string) (string, error) {
@@ -193,8 +230,10 @@ func (r *resolvStripper) readResolvConfInRoot(rootPath string) (string, error) {
 
 	file, err := openResolvConf(rootDir)
 	if isNotExistErr(err) {
-		// report no file. don't turn this into an error, since if the process exited,
-		// that will be checked later by isProcessStillRunning
+		// report no file. For a container process, readResolvConf rechecks the root
+		// after this returns, so a process that exited mid-read gets errProcessRootGone
+		// rather than a cached "<missing>". That recheck is needed: isProcessStillRunning
+		// still reports exiting and zombie processes as running.
 		return "<missing>", nil
 	}
 	if err != nil {
@@ -211,7 +250,8 @@ func (r *resolvStripper) readResolvConfInRoot(rootPath string) (string, error) {
 }
 
 // openRoot opens a root directory as an O_PATH handle, for use with openResolvConf.
-func openRoot(rootPath string) (*os.File, error) {
+// It is a variable so that tests can tell when the read has started.
+var openRoot = func(rootPath string) (*os.File, error) {
 	return os.OpenFile(rootPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 }
 

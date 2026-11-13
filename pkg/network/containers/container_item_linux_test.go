@@ -81,10 +81,18 @@ func TestReadResolvConfProcessExitsDuringRead(t *testing.T) {
 	kernel.ProcFSRoot = func() string { return fakeProc }
 	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
 
-	// simulate the process exiting during the read: its root no longer resolves
-	// once the lookup is done
+	// simulate the process exiting during the read: its root resolves until the
+	// read has started and is gone after it. This also checks that the root is
+	// rechecked after the read, not before it.
+	readStarted := false
+	oldOpenRoot := openRoot
+	openRoot = func(rootPath string) (*os.File, error) {
+		readStarted = true
+		return oldOpenRoot(rootPath)
+	}
+	t.Cleanup(func() { openRoot = oldOpenRoot })
 	oldProcessRootGone := processRootGone
-	processRootGone = func(string) bool { return true }
+	processRootGone = func(string) bool { return readStarted }
 	t.Cleanup(func() { processRootGone = oldProcessRootGone })
 
 	// pid 42: the lookup finds a resolv.conf, e.g. the image's own one after the
@@ -97,12 +105,36 @@ func TestReadResolvConfProcessExitsDuringRead(t *testing.T) {
 
 	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
 	for _, pid := range []uint32{42, 43} {
+		readStarted = false
 		_, err := rs.readResolvConf(&events.Process{
 			Pid:         pid,
 			ContainerID: intern.GetByString("test-container"),
 		})
 		require.ErrorIs(t, err, errProcessRootGone, "pid %d", pid)
 	}
+}
+
+func TestReadResolvConfLeaderExitedThreadAlive(t *testing.T) {
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	// pid 44: the thread-group leader called pthread_exit, so /proc/44/root and
+	// /proc/44/task/44/root are gone, but thread 45 is still running
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "44", "task", "44"), 0755))
+	threadRoot := filepath.Join(fakeProc, "44", "task", "45", "root")
+	require.NoError(t, os.MkdirAll(filepath.Join(threadRoot, "etc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(threadRoot, "etc", "resolv.conf"),
+		[]byte("nameserver 1.1.1.1\n"), 0644))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConf(&events.Process{
+		Pid:         44,
+		ContainerID: intern.GetByString("test-container"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "nameserver 1.1.1.1", result)
 }
 
 func TestReadResolvConfInRootMissingRoot(t *testing.T) {
