@@ -251,21 +251,32 @@ A `# keep` comment is only useful when Gazelle would rewrite or drop the value i
 To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
 the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
 
-#### `test/new-e2e/tests/` is not migrated — exclude new suite directories
+#### E2E suites are `dd_agent_go_test` targets tagged `manual`
 
-Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real
-cloud infrastructure via Pulumi; CI runs `bazel test --config=no-dd-agent-go-tests //...`, so a `go_test` target for a
-suite would be *executed* by that job and fail in the sandbox (no credentials, no network). Only the helper
-`go_library` packages under `test/new-e2e/` are migrated — no e2e suite has a `go_test` target.
+`test/new-e2e/tests/` is migrated. The root `BUILD.bazel` enables `# gazelle:dd_agent_go_test on`, so Gazelle emits a
+`dd_agent_go_test` (the macro in `//bazel/rules/go:dd_agent_go_test.bzl` appends the `dd_agent_go_test` tag). Each
+suite target also has `tags = ["manual"]`, and `manual` drops the target from wildcard patterns such as `//...`.
 
-When adding a suite directory, add a matching `# gazelle:exclude test/new-e2e/tests/<area>` to the root `BUILD.bazel`
-in the same change. Without it Gazelle generates a `go_test` on the next `bazel run //:gazelle` and keeps re-adding it
-after every deletion.
+Linux and macOS CI run `bazel test //...` (`.gitlab/build/bazel/test.yml`). Windows splits that pattern across
+`--config=no-dd-agent-go-tests` and `--config=dd-agent-go-tests-only` (`bazel/configs/go_tests.bazelrc`). A suite
+without `manual` is part of `//...`, so the Linux and macOS jobs and the Windows Go-test lane would run it. Those
+jobs do not provision the cloud hosts a suite needs. The GitLab e2e jobs run the suites.
+`--config=no-dd-agent-go-tests` filters `dd_agent_go_test` out; it is not what keeps a suite from running.
 
-Do not reach for `select()` on `deps` to keep a platform-specific suite file out of the build. E2E test binaries are
-cross-platform by design: the binary runs on the CI host while the *target VM* is Windows/Linux. Files like
-`foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
-would stop Windows suites from ever running from Linux CI.
+Gazelle does not manage `tags` (see above), so it keeps `tags = ["manual"]` and does not add it. The extension adds
+`manual` on its own only when a test's sources match no supported build-tag set, which is not the e2e case: suite
+files carry no `//go:build` constraint. After `bazel run //:gazelle -- <suite>`, add `tags = ["manual"]` on the new
+`dd_agent_go_test`. The root `# gazelle:exclude` block does not list `test/new-e2e/tests/`. Excluding a suite
+directory there would hide its `go_library` too.
+
+A package that also has ordinary unit tests keeps those files out of the `manual` target with
+`# gazelle:exclude <file>` and gives them a separate `dd_agent_go_test` without `manual`, which the Bazel test jobs
+do run. `test/new-e2e/tests/installer/windows/` is the example: `windows_test` is `manual`, `installer_test` is not.
+Suite layout and the `_win` / `_nix` filenames are in `test/new-e2e/AGENTS.md`.
+
+Do not `select()` a platform-specific suite file out of the build. The test binary runs on the CI host and provisions
+a Windows or Linux VM. `foo_win_test.go` has no Go build constraint (`_win` is not a `GOOS` suffix; `_windows` is).
+A constraint on those files would stop a Windows suite from building on Linux CI.
 
 #### A directory-scoped run deletes `write_pb_go` rules
 
@@ -284,14 +295,17 @@ So for any directory with checked-in generated `.pb.go` files (`pkg/proto/pbgo/.
 repo-wide, or `git diff` the BUILD file afterwards and restore the `write_pb_go` rule plus its
 `load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")`.
 
-#### `@//` in a generated dep means Gazelle found no target
+#### An in-repo import resolves only to an indexed `go_library`
 
-A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
-import matched a local `go.work` module, but no `go_library` was indexed at that path, so no rule was found to point at.
-It always fails at analysis with `no such target '//...:<dir>'`. The usual cause is a `# gazelle:ignore` in the target
-package — e.g. `test/new-e2e/tests/windows/common`, which cannot be migrated while its
-`//go:embed fixtures/get-acl-helpers.ps1` refers to a `gazelle:exclude`d directory (no `embedsrcs` is generated, so the
-package does not compile). Fix the dependency's package or exclude the consumer; never hand-edit the `@//` label.
+Gazelle emits a `//pkg` dep when its index has a `go_library` for that import. With library indexing on, which is the
+default for `bazel run //:gazelle`, a miss is not rewritten into a guessed in-repo label. The `//pkg` guess
+(`label.New("", pkg, name)` in Gazelle's Go resolver) runs only when indexing is off. A label whose repo component is
+the sentinel `@` prints as `@//pkg` (`Label.String` in gazelle 0.54). Hand-editing either form does not survive the next
+Gazelle run.
+
+`# gazelle:ignore` makes Gazelle leave that BUILD file alone, so a missing library stays missing. Fix that package, or
+exclude the importer. `test/new-e2e/tests/windows/common` is not in that state: it is an indexed `go_library`, and its
+`//go:embed` PowerShell fixtures are `embedsrcs` on that rule.
 
 ### Always name files `BUILD.bazel`, never `BUILD`
 
