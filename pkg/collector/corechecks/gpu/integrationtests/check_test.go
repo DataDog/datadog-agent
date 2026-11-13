@@ -8,6 +8,9 @@
 package integrationtests
 
 import (
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
-func physicalDevices(t *testing.T) []safenvml.Device {
+// specDevices groups the host's GPUs by the device mode they are validated under.
+type specDevices struct {
+	// physical are the GPUs without MIG mode.
+	physical []safenvml.Device
+	// migParents are the GPUs in MIG mode. They usually have MIG devices, but may have none yet.
+	migParents []safenvml.Device
+	// migChildren are the MIG devices of migParents.
+	migChildren []safenvml.Device
+}
+
+func discoverSpecDevices(t *testing.T) specDevices {
 	t.Helper()
 	lib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
@@ -30,31 +43,65 @@ func physicalDevices(t *testing.T) []safenvml.Device {
 	devices, err := cache.AllPhysicalDevices()
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
-	return devices
+
+	var grouped specDevices
+	for _, device := range devices {
+		physicalDevice, ok := device.(*safenvml.PhysicalDevice)
+		require.True(t, ok, "device %s should be a PhysicalDevice", device.GetDeviceInfo().UUID)
+
+		if !physicalDevice.HasMIGFeatureEnabled {
+			grouped.physical = append(grouped.physical, device)
+			continue
+		}
+		// A GPU in MIG mode is validated as a MIG parent even if it has no MIG device: NVML supports the same
+		// APIs on it either way.
+		grouped.migParents = append(grouped.migParents, device)
+		for _, child := range physicalDevice.MIGChildren {
+			grouped.migChildren = append(grouped.migChildren, child)
+		}
+	}
+	return grouped
 }
 
-func TestSpec(t *testing.T) {
-	testutil.RequireGPU(t)
-	testutil.RequireSmi(t)
-	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+// specScenario is a set of devices validated against the spec by running the check while idle and
+// with a workload.
+type specScenario struct {
+	// devices are the devices whose metrics are validated.
+	devices []safenvml.Device
+	configs map[string]gpuspec.GPUConfig
+	// smiOptions selects the devices compared with nvidia-smi; nil disables nvidia-smi validation.
+	smiOptions map[string][]testutil.SmiCollectionOption
+	// xidDevices get an XID event injected so the XID metrics are emitted.
+	xidDevices []safenvml.Device
+	// startWorkload starts a GPU workload on the devices and returns the calibrated values to validate
+	// against, keyed by lowercase UUID; nil disables calibrated validation.
+	startWorkload func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64
+}
 
-	specs, err := gpuspec.LoadSpecs()
-	require.NoError(t, err)
-	devices := physicalDevices(t)
-	configsByUUID, smiOptionsByUUID := physicalDeviceConfigs(t, specs, devices)
-	uuids := make([]string, len(devices))
-	for i, device := range devices {
-		uuids[i] = device.GetDeviceInfo().UUID
+func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) {
+	uuids := make([]string, len(scenario.devices))
+	var workloadUUIDs, workloadFreeUUIDs []string
+	for i, device := range scenario.devices {
+		uuid := device.GetDeviceInfo().UUID
+		uuids[i] = uuid
+		// The devices that never run a workload, such as MIG parents, are validated as idle while the
+		// others run the workload.
+		config := scenario.configs[strings.ToLower(uuid)]
+		if config.CanRunWorkloads() {
+			workloadUUIDs = append(workloadUUIDs, uuid)
+		} else {
+			workloadFreeUUIDs = append(workloadFreeUUIDs, uuid)
+		}
 	}
 
 	t.Run("idle", func(t *testing.T) {
 		metricsByUUID, smiSamples := collectCheckAndNvidiaSmiMetrics(t, checkCollectionOptions{
 			passes:           1,
 			interval:         time.Second,
-			smiOptionsByUUID: smiOptionsByUUID,
-			injectXIDDevices: devices,
+			smiOptionsByUUID: scenario.smiOptions,
+			injectXIDDevices: scenario.xidDevices,
 		})
-		validateCollectedMetrics(t, specs, uuids, configsByUUID, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
+		validateCollectedMetrics(t, specs, uuids, scenario.configs, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
 			// This test does not configure system-probe.
 			ConfigFeatures: nil,
 		})
@@ -65,22 +112,88 @@ func TestSpec(t *testing.T) {
 		lib, err := safenvml.GetSafeNvmlLib()
 		require.NoError(t, err)
 
-		indices := make([]int, len(devices))
-		for index := range devices {
-			indices[index] = index
-		}
-		calibratedValuesByUUID := startCalibratedWorkload(t, lib, indices, 100)
+		calibratedValuesByUUID := scenario.startWorkload(t, lib)
 		metricsByUUID, smiSamples := collectCheckAndNvidiaSmiMetrics(t, checkCollectionOptions{
 			passes:           gpuBurnerCollectionPasses,
 			interval:         gpuBurnerCollectionInterval,
-			smiOptionsByUUID: smiOptionsByUUID,
-			injectXIDDevices: devices,
+			smiOptionsByUUID: scenario.smiOptions,
+			injectXIDDevices: scenario.xidDevices,
 		})
-		validateCollectedMetrics(t, specs, uuids, configsByUUID, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
+		validateCollectedMetrics(t, specs, workloadUUIDs, scenario.configs, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
 			WorkloadActive:  true,
 			ConfigFeatures:  nil,
 			WorkloadTagsets: map[string]bool{"process": true},
 		})
+		validateCollectedMetrics(t, specs, workloadFreeUUIDs, scenario.configs, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
+			ConfigFeatures: nil,
+		})
+	})
+}
+
+// TestSpec validates the GPUs that are not in MIG mode.
+func TestSpec(t *testing.T) {
+	testutil.RequireGPU(t)
+	testutil.RequireSmi(t)
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+	devices := discoverSpecDevices(t).physical
+	if len(devices) == 0 {
+		t.Skip("all GPUs are in MIG mode, see TestSpecMIG")
+	}
+
+	runSpecScenario(t, specs, specScenario{
+		devices:    devices,
+		configs:    deviceConfigs(t, specs, devices, gpuspec.DeviceModePhysical),
+		smiOptions: smiOptionsForPhysicalDevices(t, devices),
+		xidDevices: devices,
+		startWorkload: func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64 {
+			indices := make([]int, len(devices))
+			for i, device := range devices {
+				indices[i] = device.GetDeviceInfo().Index
+			}
+			return startCalibratedWorkload(t, lib, indices, 100)
+		},
+	})
+}
+
+// TestSpecMIG validates GPUs in MIG mode: the parents against the mig_parent spec and their MIG devices
+// against the mig spec. It runs on hosts that are already in MIG mode. With GPU_TEST_CONFIGURE_MIG set,
+// it first puts the MIG-capable GPUs in MIG mode and creates MIG devices, and restores the GPUs afterwards.
+func TestSpecMIG(t *testing.T) {
+	testutil.RequireGPU(t)
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+
+	if configureMIGRequested(t) {
+		configureMIG(t)
+	}
+
+	specs, err := gpuspec.LoadSpecs()
+	require.NoError(t, err)
+	grouped := discoverSpecDevices(t)
+	if len(grouped.migParents) == 0 {
+		t.Skipf("no GPU in MIG mode, enable it or set %s to let the test configure one", configureMIGEnv)
+	}
+
+	devices := slices.Concat(grouped.migParents, grouped.migChildren)
+	configs := deviceConfigs(t, specs, grouped.migParents, gpuspec.DeviceModeMIGParent)
+	maps.Copy(configs, deviceConfigs(t, specs, grouped.migChildren, gpuspec.DeviceModeMIG))
+
+	runSpecScenario(t, specs, specScenario{
+		devices: devices,
+		configs: configs,
+		// nvidia-smi dmon cannot sample MIG devices, and a parent in MIG mode reports no usable utilization.
+		smiOptions: nil,
+		// The XID metrics are not supported in MIG mode.
+		xidDevices: nil,
+		startWorkload: func(t *testing.T, _ safenvml.SafeNVML) map[string]map[string]*float64 {
+			// A CUDA process sees a single MIG device, so run one gpu-burner per MIG device.
+			for _, child := range grouped.migChildren {
+				StartGPUBurner(t, child.GetDeviceInfo().UUID, 1, 100)
+			}
+			return nil
+		},
 	})
 }
 

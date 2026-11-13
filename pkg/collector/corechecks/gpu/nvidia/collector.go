@@ -371,14 +371,18 @@ func driverVersionForTelemetry() string {
 	return cachedDriverVersion
 }
 
+// isMIGParent returns true for a GPU that hosts MIG devices.
+func isMIGParent(device ddnvml.Device) bool {
+	physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+	return ok && len(physicalDevice.MIGChildren) > 0
+}
+
 func slicingModeTag(device ddnvml.Device) string {
-	switch device := device.(type) {
-	case *ddnvml.MIGDevice:
+	if isMIGParent(device) {
+		return "mig-parent"
+	}
+	if _, ok := device.(*ddnvml.MIGDevice); ok {
 		return "mig"
-	case *ddnvml.PhysicalDevice:
-		if len(device.MIGChildren) > 0 {
-			return "mig-parent"
-		}
 	}
 	return "none"
 }

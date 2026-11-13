@@ -9,10 +9,10 @@
 #   - capabilities.nvlink: int (highest NVML NVLink version supported by this architecture/mode, or 0)
 #   - capabilities.c2c: bool (whether this architecture/mode supports NVLink-C2C)
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
-#       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
+#       - device_modes: [physical|mig|mig_parent|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode; a MIG parent supports the fields a physical GPU does. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
 #   - support (optional): mode-specific capabilities and additional unsupported_fields entries
-#   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
+#   - unsupported_device_modes: [mig|mig_parent|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 nvlink_generations:
   1: # NVLink 1.0
     supported_fields:
@@ -95,12 +95,13 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   volta:
     capabilities:
       gpm: false
@@ -119,12 +120,13 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   turing:
     capabilities:
       gpm: false
@@ -143,12 +145,13 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   ampere:
     capabilities:
       gpm: false
@@ -165,7 +168,7 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
@@ -187,7 +190,7 @@ architectures:
       - device_modes: [physical]
         unsupported_fields:
           - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
-      - device_modes: [mig]
+      - device_modes: [mig, mig_parent]
         capabilities:
           nvlink: 0
           c2c: false
@@ -217,10 +220,11 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, vgpu]
+      - device_modes: [mig, mig_parent, vgpu]
         unsupported_fields: []
     unsupported_device_modes:
       - mig
+      - mig_parent
   blackwell:
     capabilities:
       gpm: true
@@ -245,7 +249,7 @@ architectures:
           - FI_DEV_NVLINK_ERROR_DL_REPLAY
           - FI_DEV_NVLINK_ERROR_DL_RECOVERY
           - FI_DEV_NVLINK_ERROR_DL_CRC
-      - device_modes: [mig]
+      - device_modes: [mig, mig_parent]
         capabilities:
           nvlink: 0
           c2c: false

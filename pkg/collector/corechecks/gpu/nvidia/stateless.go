@@ -82,6 +82,14 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 	var processSamples []Sample
 	var allWorkloadIDs []workloadmeta.EntityID
 
+	// For a GPU in MIG mode, NVML lists the processes running on any of its MIG devices as processes of the
+	// parent too. They are already reported on the MIG device they run on, where the rest of the per-process
+	// metrics are also reported (the per-process utilization API is not supported on the parent), so don't
+	// attribute them to the parent as well: it would show the same process on two devices.
+	if isMIGParent(device) {
+		usage = nil
+	}
+
 	for _, usage := range usage {
 		workloads := []workloadmeta.EntityID{{
 			Kind: workloadmeta.KindProcess,

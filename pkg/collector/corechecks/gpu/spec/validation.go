@@ -58,6 +58,13 @@ func nvLinkCapabilityEqual(a, b *bool) bool {
 	return *a == *b
 }
 
+// CanRunWorkloads returns false for the configs whose devices never run a workload, which must be validated as
+// idle even when workloads are running. A MIG parent hosts MIG devices: the workloads run on those, so the
+// workload tags and the per-process metrics are not reported for the parent.
+func (c *GPUConfig) CanRunWorkloads() bool {
+	return c.DeviceMode != DeviceModeMIGParent
+}
+
 // TagFilter returns the Datadog tag filter expression for a GPU config.
 func (c *GPUConfig) TagFilter() string {
 	// kube_cluster_name:* is required to exclude hosts that are not part of the standard clusters (e.g., workspaces)
@@ -65,10 +72,12 @@ func (c *GPUConfig) TagFilter() string {
 	switch c.DeviceMode {
 	case DeviceModeMIG:
 		parts = append(parts, "gpu_slicing_mode:mig")
+	case DeviceModeMIGParent:
+		parts = append(parts, "gpu_slicing_mode:mig-parent")
 	case DeviceModeVGPU:
 		parts = append(parts, "gpu_virtualization_mode:*vgpu")
 	default:
-		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig")
+		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig", "NOT gpu_slicing_mode:mig-parent")
 	}
 	if c.NVLinkCapable != nil {
 		parts = append(parts, fmt.Sprintf("gpu_nvlink_capable:%t", *c.NVLinkCapable))
@@ -81,6 +90,8 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 	deviceMode := DeviceModePhysical
 	if slicingMode == "mig" {
 		deviceMode = DeviceModeMIG
+	} else if slicingMode == "mig-parent" {
+		deviceMode = DeviceModeMIGParent
 	} else if virtualizationMode == "vgpu" {
 		deviceMode = DeviceModeVGPU
 	}

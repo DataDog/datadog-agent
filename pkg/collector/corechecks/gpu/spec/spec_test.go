@@ -37,7 +37,7 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	}
 	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
-			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
+			require.Containsf(t, []string{"physical", "mig", "mig_parent", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
 
@@ -227,6 +227,13 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 	err := yaml.Unmarshal([]byte("values: [.nan]\n"), &validator)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "metric validator values must be finite")
+}
+
+func TestGPUConfigCanRunWorkloads(t *testing.T) {
+	for _, mode := range AllDeviceModes {
+		config := GPUConfig{DeviceMode: mode}
+		require.Equalf(t, mode != DeviceModeMIGParent, config.CanRunWorkloads(), "mode %s", mode)
+	}
 }
 
 func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
@@ -421,7 +428,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 }
 
 func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
-	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeVGPU}
+	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeMIGParent, DeviceModeVGPU}
 	archSpec, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 	archName := "blackwell"
@@ -458,7 +465,7 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 				migEnabled, _, err := dev.GetMigMode()
 				require.NoError(t, err, "should be able to get MIG mode")
 
-				if mode != DeviceModeMIG {
+				if mode != DeviceModeMIG && mode != DeviceModeMIGParent {
 					assert.False(t, isMig, "device %d should not be a MIG device", i)
 					if mode == DeviceModeVGPU {
 						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, virtMode, "virtualization mode should be vGPU for vgpu mode")
