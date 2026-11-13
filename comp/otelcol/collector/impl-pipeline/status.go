@@ -33,10 +33,13 @@ func (c *collectorImpl) populateStatus(stats map[string]interface{}) {
 
 	var otlpCollectorStatus otlp.CollectorStatus
 
-	if otlpIsEnabled {
-		otlpCollectorStatus = c.Status()
-	} else {
+	switch {
+	case !otlpIsEnabled:
 		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
+	case !configcheck.IsAgentPipelineEnabled(c.config):
+		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running, the data plane handles OTLP ingest", ErrorMessage: ""}
+	default:
+		otlpCollectorStatus = c.Status()
 	}
 	otlpStatus["otlpStatus"] = otlpIsEnabled
 	otlpStatus["otlpCollectorStatus"] = otlpCollectorStatus.Status

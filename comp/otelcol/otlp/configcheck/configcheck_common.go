@@ -7,6 +7,8 @@
 package configcheck
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -14,18 +16,22 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+// ErrDataPlaneProxyTLS reports receiver TLS configured while the data plane proxies OTLP signals to the Agent.
+var ErrDataPlaneProxyTLS = errors.New("OTLP receiver TLS is not supported when the data plane proxies OTLP signals to the Agent")
+
+var dataPlaneProxySignals = []string{
+	coreconfig.DataPlaneExperimentalOTLPProxyLogs,
+	coreconfig.DataPlaneExperimentalOTLPProxyMetrics,
+	coreconfig.DataPlaneExperimentalOTLPProxyTraces,
+}
+
 // confmapKeyDelimiter is the delimiter used for keys in go.opentelemetry.io/collector/confmap
 // We hardcode it to avoid the import to the dependency
-//
-//nolint:unused // used only if otlp tag is defined
 const confmapKeyDelimiter = "::"
 
 // viperKeyKeyDelimiter is the delimiter for viper keys
-//
-//nolint:unused // used only if otlp tag is defined
 const viperKeyDelimiter = "."
 
-//nolint:unused // used only if otlp tag is defined
 func convertToStringConfMap(cfg configmodel.Reader, inmap map[string]interface{}, prefix string, path []string, outmap map[string]interface{}) {
 	for k, v := range inmap {
 		nextPath := append(slices.Clone(path), k)
@@ -50,7 +56,6 @@ func convertToStringConfMap(cfg configmodel.Reader, inmap map[string]interface{}
 	}
 }
 
-//nolint:unused // used only if otlp tag is defined
 func readConfigSection(cfg configmodel.Reader, section string) map[string]interface{} {
 	stringMap := map[string]interface{}{}
 
@@ -68,7 +73,75 @@ func hasSection(cfg configmodel.Reader, section string) bool {
 	return cfg.HasSection(key) || cfg.IsConfigured(key)
 }
 
-// IsConfigEnabled checks if OTLP pipeline is enabled in a given config.
+// IsConfigEnabled checks if OTLP ingest is configured in a given config.
 func IsConfigEnabled(cfg configmodel.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
+}
+
+// isDataPlaneOTLPEnabled reports whether the data plane owns the configured OTLP receiver endpoints.
+func isDataPlaneOTLPEnabled(cfg configmodel.Reader) bool {
+	return cfg.GetBool(coreconfig.DataPlaneEnabled) && cfg.GetBool(coreconfig.DataPlaneOTLPEnabled)
+}
+
+func enabledDataPlaneProxySignals(cfg configmodel.Reader) []string {
+	var keys []string
+	for _, key := range dataPlaneProxySignals {
+		if cfg.GetBool(key) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// IsDataPlaneProxyEnabled reports whether the data plane owns OTLP ingest and proxies at least one signal to the Agent,
+// which then relocates its OTLP listeners.
+func IsDataPlaneProxyEnabled(cfg configmodel.Reader) bool {
+	return isDataPlaneOTLPEnabled(cfg) && len(enabledDataPlaneProxySignals(cfg)) > 0
+}
+
+// IsDataPlaneOnlyEnabled reports whether the data plane handles all OTLP ingest, so the Agent must not listen for OTLP.
+func IsDataPlaneOnlyEnabled(cfg configmodel.Reader) bool {
+	return isDataPlaneOTLPEnabled(cfg) && len(enabledDataPlaneProxySignals(cfg)) == 0
+}
+
+// IsAgentPipelineEnabled reports whether OTLP ingest is configured and the Agent runs its own OTLP pipeline.
+func IsAgentPipelineEnabled(cfg configmodel.Reader) bool {
+	return IsConfigEnabled(cfg) && !IsDataPlaneOnlyEnabled(cfg)
+}
+
+// ValidateDataPlaneProxy returns an error wrapping ErrDataPlaneProxyTLS when an enabled receiver protocol has a tls
+// key in proxy mode. The key counts even when its value is null or empty.
+func ValidateDataPlaneProxy(cfg configmodel.Reader) error {
+	if !IsDataPlaneProxyEnabled(cfg) {
+		return nil
+	}
+	receiver := readConfigSection(cfg, coreconfig.OTLPReceiverSection)
+	var protocols []string
+	for _, protocol := range []string{"grpc", "http"} {
+		if hasConfMapKey(receiver, "protocols", protocol, "tls") {
+			protocols = append(protocols, coreconfig.OTLPReceiverSection+".protocols."+protocol)
+		}
+	}
+	if len(protocols) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: remove tls from %s, or set %s to false",
+		ErrDataPlaneProxyTLS, strings.Join(protocols, " and "), strings.Join(enabledDataPlaneProxySignals(cfg), " and "))
+}
+
+// IsTraceInternalReceiverEnabled reports whether the trace-agent should listen on the internal OTLP traces port. The
+// port stays closed when the proxy configuration is invalid, so OTLP traces cannot bypass the rejection.
+func IsTraceInternalReceiverEnabled(cfg configmodel.Reader) bool {
+	return IsAgentPipelineEnabled(cfg) && ValidateDataPlaneProxy(cfg) == nil
+}
+
+// hasConfMapKey reports whether a flattened confmap has the key made of path, or any key below it.
+func hasConfMapKey(m map[string]interface{}, path ...string) bool {
+	key := strings.Join(path, confmapKeyDelimiter)
+	for k := range m {
+		if k == key || strings.HasPrefix(k, key+confmapKeyDelimiter) {
+			return true
+		}
+	}
+	return false
 }

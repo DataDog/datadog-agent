@@ -8,6 +8,7 @@
 package otlp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -924,66 +925,102 @@ func TestFromAgentConfigDebug(t *testing.T) {
 	}
 }
 
-func TestRelocateReceiverListenersStripsTLS(t *testing.T) {
-	for _, protocol := range []string{"grpc", "http"} {
-		t.Run(protocol, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
-			require.NoError(t, err)
-			receiver := map[string]interface{}{
-				"protocols": map[string]interface{}{
-					protocol: map[string]interface{}{
-						"include_metadata": true,
-						"tls": map[string]interface{}{
-							"cert_file":      "cert.pem",
-							"key_file":       "key.pem",
-							"client_ca_file": "ca.pem",
-						},
-					},
-				},
-			}
+func TestDataPlaneOTLPProxyRejectsReceiverTLS(t *testing.T) {
+	paths := []string{
+		"receiver/tls.yaml",
+		"receiver/tls_null.yaml",
+		"receiver/tls_empty.yaml",
+		"receiver/tls_unix.yaml",
+		"receiver/unix_grpc_tls_http.yaml",
+	}
+	for _, signal := range []string{"LOGS", "METRICS", "TRACES"} {
+		for _, path := range paths {
+			t.Run(signal+"/"+path, func(t *testing.T) {
+				t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+				t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+				t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_"+signal, "true")
+				cfg, err := testutil.LoadConfig(t, "./testdata/"+path)
+				require.NoError(t, err)
+				before := cfg.Get("otlp_config.receiver")
+				want := configcheck.ReadConfigSection(cfg, "otlp_config.receiver").ToStringMap()
 
-			require.NoError(t, relocateReceiverListeners(cfg, receiver))
-			endpoints := map[string]string{"grpc": "127.0.0.1:4319", "http": "127.0.0.1:4320"}
-			assert.Equal(t, map[string]interface{}{
-				"protocols": map[string]interface{}{
-					protocol: map[string]interface{}{
-						"endpoint":         endpoints[protocol],
-						"include_metadata": true,
-					},
-				},
-			}, receiver)
+				got, err := FromAgentConfig(cfg)
+				require.ErrorIs(t, err, configcheck.ErrDataPlaneProxyTLS)
+				// Relocation is not attempted, so Unix transports without a relocation endpoint report only TLS.
+				assert.NotErrorIs(t, err, ErrAgentReceiverEndpointNotConfigured)
+				assert.Equal(t, want, got.OTLPReceiverConfig)
+				assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+			})
+		}
+	}
+}
+
+func TestDataPlaneOnlySkipsRelocation(t *testing.T) {
+	// adp_proxy_empty_grpc.yaml has empty relocation endpoints, which proxy mode rejects.
+	for _, path := range []string{"receiver/tls.yaml", "receiver/advanced.yaml", "adp_proxy_empty_grpc.yaml"} {
+		t.Run(path, func(t *testing.T) {
+			t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+			t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+path)
+			require.NoError(t, err)
+			before := cfg.Get("otlp_config.receiver")
+			want := configcheck.ReadConfigSection(cfg, "otlp_config.receiver").ToStringMap()
+
+			got, err := FromAgentConfig(cfg)
+			require.NoError(t, err)
+			assert.Equal(t, want, got.OTLPReceiverConfig)
+			assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
 		})
 	}
 }
 
-func TestDataPlaneOTLPRelocationKeepsTLSForDataPlane(t *testing.T) {
-	t.Setenv("DD_DATA_PLANE_ENABLED", "true")
-	t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
-	cfg, err := testutil.LoadConfig(t, "./testdata/receiver/tls.yaml")
-	require.NoError(t, err)
-	before := cfg.Get("otlp_config.receiver")
+func TestDataPlaneOTLPKeepsSharedReceiverTLS(t *testing.T) {
+	for _, proxy := range []string{"", "true"} {
+		t.Run("proxy="+proxy, func(t *testing.T) {
+			t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+			t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+			if proxy != "" {
+				t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES", proxy)
+			}
+			cfg, err := testutil.LoadConfig(t, "./testdata/receiver/tls.yaml")
+			require.NoError(t, err)
+			_, _ = FromAgentConfig(cfg)
 
-	got, err := FromAgentConfig(cfg)
-	require.NoError(t, err)
-	protocols, ok := got.OTLPReceiverConfig["protocols"].(map[string]interface{})
-	require.True(t, ok)
-	for _, protocol := range []string{"grpc", "http"} {
-		section, ok := protocols[protocol].(map[string]interface{})
-		require.True(t, ok, protocol)
-		assert.NotContains(t, section, "tls", protocol)
+			// The data plane reads the receiver TLS settings from the flattened configuration stream.
+			settings, _ := cfg.AllFlattenedSettingsWithSequenceID()
+			for key, value := range map[string]string{
+				"otlp_config.receiver.protocols.grpc.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
+				"otlp_config.receiver.protocols.grpc.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
+				"otlp_config.receiver.protocols.grpc.tls.client_ca_file": "/etc/datadog-agent/otlp/ca.pem",
+				"otlp_config.receiver.protocols.http.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
+				"otlp_config.receiver.protocols.http.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
+			} {
+				assert.Equal(t, value, settings[key], key)
+			}
+		})
 	}
-	assert.Equal(t, before, cfg.Get("otlp_config.receiver"))
+}
 
-	// The data plane reads the receiver TLS settings from the flattened configuration stream.
-	settings, _ := cfg.AllFlattenedSettingsWithSequenceID()
-	for key, value := range map[string]string{
-		"otlp_config.receiver.protocols.grpc.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
-		"otlp_config.receiver.protocols.grpc.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
-		"otlp_config.receiver.protocols.grpc.tls.client_ca_file": "/etc/datadog-agent/otlp/ca.pem",
-		"otlp_config.receiver.protocols.http.tls.cert_file":      "/etc/datadog-agent/otlp/cert.pem",
-		"otlp_config.receiver.protocols.http.tls.key_file":       "/etc/datadog-agent/otlp/key.pem",
-	} {
-		assert.Equal(t, value, settings[key], key)
+func TestDataPlaneOTLPProxyFlagsRelocate(t *testing.T) {
+	for _, signals := range [][]string{{"LOGS"}, {"METRICS"}, {"TRACES"}, {"LOGS", "METRICS", "TRACES"}} {
+		t.Run(strings.Join(signals, ","), func(t *testing.T) {
+			t.Setenv("DD_DATA_PLANE_ENABLED", "true")
+			t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+			for _, signal := range signals {
+				t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_"+signal, "true")
+			}
+			cfg, err := testutil.LoadConfig(t, "./testdata/receiver/simple.yaml")
+			require.NoError(t, err)
+
+			got, err := FromAgentConfig(cfg)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]interface{}{
+				"protocols": map[string]interface{}{
+					"grpc": map[string]interface{}{"endpoint": "127.0.0.1:4319"},
+					"http": map[string]interface{}{"endpoint": "127.0.0.1:4320"},
+				},
+			}, got.OTLPReceiverConfig)
+		})
 	}
 }
 
@@ -1012,7 +1049,7 @@ func TestDataPlaneOTLPRelocationGate(t *testing.T) {
 			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_LOGS", "true")
 			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS", "true")
 			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES", "true")
-			// receiver/tls.yaml pins that TLS and non-loopback relocation endpoints are untouched outside proxy mode.
+			// Receiver TLS, and relocation endpoints that collide with receiver/advanced.yaml, are ignored outside proxy mode.
 			for _, path := range []string{"receiver/advanced.yaml", "receiver/tls.yaml"} {
 				t.Run(path, func(t *testing.T) {
 					cfg, err := testutil.LoadConfig(t, "./testdata/"+path)
@@ -1086,16 +1123,6 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 		{
 			name:      "empty protocols are enabled",
 			path:      "receiver/simple.yaml",
-			endpoints: defaultEndpoints,
-		},
-		{
-			name: "signal proxy flags do not control relocation",
-			path: "receiver/simple.yaml",
-			env: map[string]string{
-				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_LOGS":    "true",
-				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS": "true",
-				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES":  "true",
-			},
 			endpoints: defaultEndpoints,
 		},
 		{
@@ -1211,83 +1238,6 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 			endpoints: map[string]string{"grpc": "127.0.0.1:4317", "http": "127.0.0.1:4318"},
 		},
 		{
-			name:      "TLS is stripped from default loopback relocation endpoints",
-			path:      "receiver/tls.yaml",
-			endpoints: defaultEndpoints,
-		},
-		{
-			name: "TLS is stripped from IPv6 and 127/8 loopback relocation endpoints",
-			path: "receiver/tls.yaml",
-			env: map[string]string{
-				grpcEndpointEnv: "[::1]:4319",
-				httpEndpointEnv: "127.10.0.1:4320",
-			},
-			endpoints: map[string]string{"grpc": "[::1]:4319", "http": "127.10.0.1:4320"},
-		},
-		{
-			name:      "null TLS section is treated as configured TLS",
-			path:      "receiver/tls_null.yaml",
-			endpoints: map[string]string{"grpc": "127.0.0.1:4319"},
-		},
-		{
-			name:      "TLS is stripped from Unix socket relocation endpoint",
-			path:      "receiver/tls_unix.yaml",
-			env:       map[string]string{grpcEndpointEnv: "/tmp/agent-otlp.sock"},
-			endpoints: map[string]string{"grpc": "/tmp/agent-otlp.sock"},
-		},
-		{
-			name:        "TLS rejects wildcard relocation endpoint",
-			path:        "receiver/tls.yaml",
-			env:         map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
-			err:         ErrAgentReceiverPlaintextNotLoopback,
-			errContains: []string{"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint = \"0.0.0.0:4319\" for OTLP/grpc (transport \"tcp\")"},
-		},
-		{
-			name: "TLS rejects empty-host relocation endpoint",
-			path: "receiver/tls.yaml",
-			env:  map[string]string{grpcEndpointEnv: ":4319"},
-			err:  ErrAgentReceiverPlaintextNotLoopback,
-		},
-		{
-			name: "TLS rejects routable relocation endpoint",
-			path: "receiver/tls.yaml",
-			env:  map[string]string{grpcEndpointEnv: "192.0.2.10:4319"},
-			err:  ErrAgentReceiverPlaintextNotLoopback,
-		},
-		{
-			name:        "TLS rejects hostname relocation endpoint",
-			path:        "receiver/tls.yaml",
-			env:         map[string]string{httpEndpointEnv: "agent.example.com:4320"},
-			err:         ErrAgentReceiverPlaintextNotLoopback,
-			errContains: []string{"OTLP/http (transport \"tcp\")"},
-		},
-		{
-			name: "TLS rejects localhost relocation endpoints",
-			path: "receiver/tls.yaml",
-			env: map[string]string{
-				grpcEndpointEnv: "localhost:4319",
-				httpEndpointEnv: "LOCALHOST:4320",
-			},
-			err: ErrAgentReceiverPlaintextNotLoopback,
-			errContains: []string{
-				"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint = \"localhost:4319\" for OTLP/grpc (transport \"tcp\")",
-				"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint = \"LOCALHOST:4320\" for OTLP/http (transport \"tcp\")",
-			},
-			numErrs: 2,
-		},
-		{
-			name:    "reports invalid gRPC and HTTP relocations together",
-			path:    "receiver/unix_grpc_tls_http.yaml",
-			env:     map[string]string{httpEndpointEnv: "0.0.0.0:4320"},
-			err:     ErrAgentReceiverEndpointNotConfigured,
-			alsoErr: ErrAgentReceiverPlaintextNotLoopback,
-			errContains: []string{
-				"data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint must be explicitly configured with a Unix socket path when OTLP/grpc transport is \"unix\"",
-				"data_plane.experimental.otlp.proxy.agent_receiver_http_endpoint = \"0.0.0.0:4320\" for OTLP/http (transport \"tcp\")",
-			},
-			numErrs: 2,
-		},
-		{
 			name:    "reports invalid gRPC relocation and HTTP collision together",
 			path:    "adp_proxy_empty_grpc.yaml",
 			env:     map[string]string{httpEndpointEnv: "0.0.0.0:4318"},
@@ -1300,13 +1250,7 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 			numErrs: 2,
 		},
 		{
-			name: "null TLS section rejects wildcard relocation endpoint",
-			path: "receiver/tls_null.yaml",
-			env:  map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
-			err:  ErrAgentReceiverPlaintextNotLoopback,
-		},
-		{
-			name:      "without TLS a wildcard relocation endpoint is allowed",
+			name:      "wildcard relocation endpoint is allowed",
 			path:      "receiver/advanced.yaml",
 			env:       map[string]string{grpcEndpointEnv: "0.0.0.0:4319"},
 			endpoints: map[string]string{"grpc": "0.0.0.0:4319", "http": "127.0.0.1:4320"},
@@ -1324,6 +1268,7 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_DATA_PLANE_ENABLED", "true")
 			t.Setenv("DD_DATA_PLANE_OTLP_ENABLED", "true")
+			t.Setenv("DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_METRICS", "true")
 			for key, value := range tt.env {
 				t.Setenv(key, value)
 			}
@@ -1340,7 +1285,6 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 					section = map[string]interface{}{}
 				}
 				section["endpoint"] = endpoint
-				delete(section, "tls")
 				protocols[protocol] = section
 			}
 

@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 
 	"go.uber.org/multierr"
@@ -31,7 +30,6 @@ import (
 var (
 	ErrAgentReceiverEndpointNotConfigured = errors.New("data plane OTLP enabled but Agent receiver endpoint is not configured")
 	ErrAgentReceiverEndpointCollision     = errors.New("relocated Agent OTLP receiver endpoint conflicts with another listener")
-	ErrAgentReceiverPlaintextNotLoopback  = errors.New("relocated Agent OTLP receiver is plaintext and must use a loopback IP address, or a socket path with a Unix transport, when TLS is configured")
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -49,8 +47,12 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	otlpReceiverConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	otlpReceiverConfigMap := otlpReceiverConfig.ToStringMap()
 
-	if cfg.GetBool(coreconfig.DataPlaneEnabled) && cfg.GetBool(coreconfig.DataPlaneOTLPEnabled) {
-		errs = append(errs, relocateReceiverListeners(cfg, otlpReceiverConfigMap))
+	if configcheck.IsDataPlaneProxyEnabled(cfg) {
+		if err := configcheck.ValidateDataPlaneProxy(cfg); err != nil {
+			errs = append(errs, err)
+		} else {
+			errs = append(errs, relocateReceiverListeners(cfg, otlpReceiverConfigMap))
+		}
 	}
 
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -129,10 +131,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 }
 
 // relocateReceiverListeners moves enabled Agent OTLP listeners off the endpoints configured in otlp_config.receiver,
-// which the data plane owns in proxy mode. The data plane terminates TLS on those endpoints, so relocated listeners
-// are always plaintext and must be loopback IP addresses, or socket paths with a Unix transport, when receiver TLS is
-// configured. All validation errors are reported together, and nothing is changed unless validation passes. Only the
-// receiver copy is modified: the shared configuration keeps its TLS settings for the data plane.
+// which the data plane owns in proxy mode. All validation errors are reported together, and nothing is changed unless
+// validation passes. Only the receiver copy is modified.
 func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{}) error {
 	protocols, _ := receiver["protocols"].(map[string]interface{})
 	listeners := []struct {
@@ -141,7 +141,6 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		config             map[string]interface{}
 		configuredEndpoint string
 		agentEndpoint      string
-		tls                bool
 	}{
 		{protocol: "grpc", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint},
 		{protocol: "http", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint},
@@ -175,19 +174,9 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 			continue
 		}
 		transport, _ := listenerConfig["transport"].(string)
-		unixTransport := isUnixTransport(transport)
-		if unixTransport && !cfg.IsConfigured(listener.key) {
+		if isUnixTransport(transport) && !cfg.IsConfigured(listener.key) {
 			errs = append(errs, fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
 				ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport))
-			continue
-		}
-		_, tls := listenerConfig["tls"]
-		if tls && !unixTransport && !isLoopbackEndpoint(agentEndpoint) {
-			if transport == "" {
-				transport = "tcp"
-			}
-			errs = append(errs, fmt.Errorf("%w: %s = %q for OTLP/%s (transport %q)",
-				ErrAgentReceiverPlaintextNotLoopback, listener.key, agentEndpoint, listener.protocol, transport))
 			continue
 		}
 		configuredEndpoint, explicit := listenerConfig["endpoint"].(string)
@@ -198,7 +187,6 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		listener.config = listenerConfig
 		listener.agentEndpoint = agentEndpoint
 		listener.configuredEndpoint = configuredEndpoint
-		listener.tls = tls
 	}
 
 	for i, listener := range listeners {
@@ -226,12 +214,6 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		}
 		listener.config["endpoint"] = listener.agentEndpoint
 		protocols[listener.protocol] = listener.config
-		if listener.tls {
-			delete(listener.config, "tls")
-			log.Infof("Relocating Agent OTLP/%s receiver from %q to %q as plaintext because the data plane terminates TLS on the configured endpoint",
-				listener.protocol, listener.configuredEndpoint, listener.agentEndpoint)
-			continue
-		}
 		log.Infof("Relocating Agent OTLP/%s receiver from %q to %q", listener.protocol, listener.configuredEndpoint, listener.agentEndpoint)
 	}
 	return nil
@@ -243,17 +225,6 @@ func isUnixTransport(transport string) bool {
 		return true
 	}
 	return false
-}
-
-// isLoopbackEndpoint reports whether the host of endpoint is a loopback IP literal, such as 127.0.0.1, 127.10.0.1, ::1
-// or [::1]. Hostnames, including localhost, are rejected because they are not guaranteed to resolve to loopback.
-func isLoopbackEndpoint(endpoint string) bool {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		host = endpoint
-	}
-	ip := net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"))
-	return ip != nil && ip.IsLoopback()
 }
 
 func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {

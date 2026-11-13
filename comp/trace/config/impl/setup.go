@@ -510,8 +510,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
-	if configcheck.IsEnabled(pkgconfigsetup.Datadog()) {
-		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {
+		switch {
+		case configcheck.IsTraceInternalReceiverEnabled(datadog):
+			grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		case configcheck.IsDataPlaneOnlyEnabled(datadog):
+			log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
+		default:
+			log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, configcheck.ValidateDataPlaneProxy(datadog))
+		}
 	}
 
 	// We use a noop set of telemetry settings. This silences all warnings and metrics from the attributes translator.

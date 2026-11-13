@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// IsEnabled checks if OTLP pipeline is enabled in a given config.
+// IsEnabled checks if OTLP ingest is configured in a given config, and the binary has OTLP support.
 func IsEnabled(_ model.Reader) bool {
 	return false
 }
