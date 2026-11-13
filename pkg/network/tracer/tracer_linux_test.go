@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -1267,57 +1266,64 @@ func (s *TracerSuite) TestSelfConnect() {
 		}
 	})
 
-	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
-	require.NoError(t, err, "error reading port from fork.py")
+	// fork.py prints "<port> <child PID>".
+	line, err := bufio.NewReader(stdOutReader).ReadString('\n')
+	require.NoError(t, err, "error reading port and child PID from fork.py")
+	fields := strings.Fields(line)
+	require.Len(t, fields, 2, "unexpected fork.py output %q", line)
 
-	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
-	require.NoError(t, err, "could not convert %s to integer port", portStr)
+	port, err := strconv.ParseUint(fields[0], 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", fields[0])
+	childPID64, err := strconv.ParseUint(fields[1], 10, 32)
+	require.NoError(t, err, "could not convert %s to integer PID", fields[1])
 
-	t.Logf("port is %d", port)
+	parentPID := uint32(cmd.Process.Pid)
+	childPID := uint32(childPID64)
+	t.Logf("port is %d, parent PID %d, child PID %d", port, parentPID, childPID)
 
 	buildmode := ebpftest.GetBuildMode()
-	parentPID := uint32(cmd.Process.Pid)
 	// The two sides of the self-connection share the 4-tuple and differ only by PID. Once they have
 	// exchanged their 3 bytes they are idle, so the client sees each of them in one fetch only: the
 	// state skips an active connection whose stats haven't changed since the client's last fetch. The
 	// two sides update their stats at slightly different times (the sender's tcp_sendmsg returns after
 	// the data has already reached the receiver), so a fetch can land between them and report only
-	// one side, after which neither comes back. So keep the latest copy of each side seen across
-	// fetches, keyed by PID only: other tuple fields such as Direction can differ between fetches, and
-	// keying on them would let one side show up twice.
+	// one side, after which neither comes back. So keep the latest connection seen for the parent and
+	// for the child across fetches, keyed by PID only: other tuple fields such as Direction can differ
+	// between fetches, and keying on them would let one side show up twice.
 	seen := make(map[uint32]network.ConnectionStats)
+	// SK reports a single connection carrying both sides' bytes; keep the latest non-empty fetch, so a
+	// fetch that reports it under an unexpected PID can be corrected by a later one.
+	var skLatest []network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
+		defer cleanup()
 		polled := network.FilterConnections(allConnections, func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
 		t.Logf("connections in this fetch: %v", polled)
-		for _, c := range polled {
-			seen[c.Pid] = c
-		}
-		cleanup()
 
 		if buildmode == ebpftest.SK {
-			// SK tracer will have one connection but capture all the sent/recv
-			conns := slices.Collect(maps.Values(seen))
-			require.Len(collect, conns, 1)
-			assert.Equal(collect, 3, int(conns[0].Monotonic.SentBytes))
-			assert.Equal(collect, 3, int(conns[0].Monotonic.RecvBytes))
+			if len(polled) > 0 {
+				skLatest = polled
+			}
+			require.Len(collect, skLatest, 1)
+			assert.Equal(collect, 3, int(skLatest[0].Monotonic.SentBytes))
+			assert.Equal(collect, 3, int(skLatest[0].Monotonic.RecvBytes))
 			return
 		}
 
-		// The parent (fork.py's own PID) received the 3 bytes and the child sent them.
-		parent, ok := seen[parentPID]
-		if assert.True(collect, ok, "no connection for the parent (PID %d)", parentPID) {
-			assert.Equal(collect, 3, int(parent.Monotonic.RecvBytes), "parent recv bytes")
-		}
-		var childFound bool
-		for pid, c := range seen {
-			if pid != parentPID && c.Monotonic.SentBytes == 3 {
-				childFound = true
+		for _, c := range polled {
+			if c.Pid == parentPID || c.Pid == childPID {
+				seen[c.Pid] = c
 			}
 		}
-		assert.True(collect, childFound, "no connection for the child that sent 3 bytes; seen: %v", seen)
+		// The parent received the 3 bytes and the child sent them.
+		if parent, ok := seen[parentPID]; assert.True(collect, ok, "no connection for the parent (PID %d); seen: %v", parentPID, seen) {
+			assert.Equal(collect, 3, int(parent.Monotonic.RecvBytes), "parent recv bytes")
+		}
+		if child, ok := seen[childPID]; assert.True(collect, ok, "no connection for the child (PID %d); seen: %v", childPID, seen) {
+			assert.Equal(collect, 3, int(child.Monotonic.SentBytes), "child sent bytes")
+		}
 	}, 5*time.Second, 100*time.Millisecond, "could not find connection(s)")
 }
 
