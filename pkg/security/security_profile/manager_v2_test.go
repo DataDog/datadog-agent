@@ -593,15 +593,17 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
-				SecurityProfileV2Enabled:                        true,
-				SecurityProfileMaxImageTags:                     20,
-				AnomalyDetectionEnabled:                         true,
-				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
-				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
-				SecurityProfileV2ProfileReportingDelayTimeBased: true,
-				SecurityProfileDNSMatchMaxDepth:                 3,
-				SecurityProfileCleanupDelay:                     time.Minute,
+				SecurityProfileEnabled:                                  true,
+				SecurityProfileV2Enabled:                                true,
+				SecurityProfileMaxImageTags:                             20,
+				AnomalyDetectionEnabled:                                 true,
+				SecurityProfileV2EventTypes:                             []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
+				SecurityProfileV2MaxDumpSize:                            func() int { return maxSize },
+				SecurityProfileV2ProfileReportingDelayTimeBased:         true,
+				SecurityProfileDNSMatchMaxDepth:                         3,
+				SecurityProfileCleanupDelay:                             time.Minute,
+				SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+				SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
 			},
 		},
 		statsdClient: &statsd.NoOpClient{},
@@ -611,19 +613,25 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			TimeResolver:   timeResolver,
 			HashResolver:   &hash.Resolver{},
 		},
-		kernelVersion:          &kernel.Version{},
-		pathsReducer:           activity_tree.NewPathsReducer(),
-		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		localStorage:           localStorage,
-		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
-		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:        cookieMap,
-		sampleRefreshReceived:  atomic.NewUint64(0),
-		sampleRefreshHits:      atomic.NewUint64(0),
-		sampleRefreshMisses:    atomic.NewUint64(0),
-		cleanupProfilesRemoved: atomic.NewUint64(0),
-		imageExcluder:          imgExcluder,
+		kernelVersion:             &kernel.Version{},
+		pathsReducer:              activity_tree.NewPathsReducer(),
+		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		localStorage:              localStorage,
+		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
+		cleanupProfilesRemoved:    atomic.NewUint64(0),
+		imageExcluder:             imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
@@ -645,6 +653,8 @@ func newTestEventV2(eventType model.EventType, imageTag string, variant string) 
 	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
 	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.CGroup.CGroupID = containerutils.CGroupID("/docker/" + testContainerID)
+	entry.CGroup.CGroupPathKey = model.PathKey{Inode: 4242, MountID: 1}
 	entry.FileEvent.PathnameStr = "/usr/bin/proc"
 	entry.FileEvent.BasenameStr = "proc"
 	// a file with an inode but without mount ID would be seen as fileless
@@ -1046,6 +1056,62 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 
 		m.cleanupPendingProfiles()
 		assert.Contains(t, m.profiles, testSelector)
+	})
+
+	t.Run("cleanup after profile lookup does not detach revived profile", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, cgce)
+		m.onCGroupDeleted(cgce)
+		require.Empty(t, p.Instances)
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
+
+		lookupDone := make(chan struct{})
+		resumeInsertion := make(chan struct{})
+		m.afterProfileLookup = func() {
+			close(lookupDone)
+			<-resumeInsertion
+		}
+
+		var resumedProfile *profile.Profile
+		var resumedInserted bool
+		insertDone := make(chan struct{})
+		go func() {
+			defer close(insertDone)
+			resumedProfile, resumedInserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		}()
+
+		<-lookupDone
+		m.cleanupPendingProfiles()
+		close(resumeInsertion)
+		<-insertDone
+
+		require.True(t, resumedInserted)
+		assert.Same(t, p, resumedProfile)
+		assert.Same(t, p, m.profiles[testSelector])
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+		assert.Len(t, p.Instances, 1)
+		assert.NotNil(t, findTestEventNode(m.profiles[testSelector], model.ExecEventType, "new"))
+
+		m.persistAllProfiles()
+		reloaded := profile.New(profile.WithWorkloadSelector(testSelector))
+		ok, err := m.localStorage.Load(&testSelector, reloaded)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.NotNil(t, findTestEventNode(reloaded, model.ExecEventType, "new"))
 	})
 }
 
@@ -1490,4 +1556,111 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
 		assert.Zero(t, p.ComputeHeapSize())
 	})
+}
+
+type subscribableFakeTagger struct {
+	tags map[types.EntityID][]string
+	ch   chan []types.EntityEvent
+}
+
+type fakeSubscription struct {
+	ch chan []types.EntityEvent
+}
+
+func (s *fakeSubscription) EventsChan() chan []types.EntityEvent { return s.ch }
+func (s *fakeSubscription) ID() string                           { return "test" }
+func (s *fakeSubscription) Unsubscribe()                         {}
+
+func (f *subscribableFakeTagger) Tag(id types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return f.tags[id], nil
+}
+
+func (f *subscribableFakeTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (f *subscribableFakeTagger) Subscribe(_ string, _ *types.Filter) (types.Subscription, error) {
+	return &fakeSubscription{ch: f.ch}, nil
+}
+
+func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing.T) {
+	m, anomalies := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &subscribableFakeTagger{
+		tags: make(map[types.EntityID][]string),
+		ch:   make(chan []types.EntityEvent, 4),
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	nopTriggered := make(chan struct{}, 4)
+	var failFirstNop atomic.Bool
+	failFirstNop.Store(true)
+	m.triggerNopEvent = func() error {
+		nopTriggered <- struct{}{}
+		if failFirstNop.CompareAndSwap(true, false) {
+			return assert.AnError
+		}
+		return nil
+	}
+
+	ctx := t.Context()
+	require.NoError(t, m.resolvers.TagsResolver.SubscribeContainerTags(ctx, "security-profile-v2", m.onTagsUpdated))
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	require.Equal(t, uint64(1), m.queueSize.Load())
+	require.Equal(t, uint64(1), m.pendingProfiles.Load())
+	assert.Empty(t, m.profiles)
+
+	containerEntityID := types.NewEntityID(types.ContainerID, testContainerID)
+	imageEntityID := types.NewEntityID(types.ContainerImageMetadata, "sha256:testimage")
+
+	tagger.tags[containerEntityID] = []string{"image_name:" + testImageName, "image_id:sha256:testimage"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+
+	<-nopTriggered
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeModified,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+	<-nopTriggered
+	m.DrainPendingEvents()
+	assert.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
+
+	m.nopWakeupPending.Store(true)
+	m.DrainPendingEvents()
+	assert.False(t, m.nopWakeupPending.Load())
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.resolvers.CGroupResolver.Delete(cgce.GetCGroupInode())
+	m.onCGroupDeleted(cgce)
+
+	tagger.tags[imageEntityID] = []string{"image_tag:v1"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: imageEntityID},
+	}}
+
+	<-nopTriggered
+	m.DrainPendingEvents()
+
+	assert.Equal(t, uint64(0), m.queueSize.Load())
+	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Empty(t, m.resolvedCgroups)
+
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+	require.Len(t, *anomalies, 1)
+	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
 }

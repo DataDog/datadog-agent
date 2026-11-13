@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -130,4 +131,48 @@ func TestProcessEvent_Replace(t *testing.T) {
 	entity = store.getEntity(anotherEntityID)
 
 	assert.NotNil(t, entity)
+}
+
+func TestSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := newTagStore(telemetryStore)
+
+	err := store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                          entityID,
+				OrchestratorCardinalityTags: []string{"image_name:nginx"},
+			},
+		},
+	}, false)
+	require.NoError(t, err)
+
+	filter := types.NewFilterBuilder().Include(types.ContainerID).Build(types.OrchestratorCardinality)
+	sub, err := store.subscribe("test-sub", filter)
+	require.NoError(t, err)
+	defer sub.Unsubscribe()
+
+	initialBatch := <-sub.EventsChan()
+	require.Len(t, initialBatch, 1)
+	assert.Equal(t, types.EventTypeAdded, initialBatch[0].EventType)
+	assert.Equal(t, entityID, initialBatch[0].Entity.ID)
+	assert.Equal(t, []string{"image_name:nginx"}, initialBatch[0].Entity.OrchestratorCardinalityTags)
+
+	err = store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeModified,
+			Entity: types.Entity{
+				ID:                          entityID,
+				OrchestratorCardinalityTags: []string{"image_name:nginx", "image_tag:1.27"},
+			},
+		},
+	}, false)
+	require.NoError(t, err)
+
+	updateBatch := <-sub.EventsChan()
+	require.Len(t, updateBatch, 1)
+	assert.Equal(t, types.EventTypeModified, updateBatch[0].EventType)
+	assert.Equal(t, []string{"image_name:nginx", "image_tag:1.27"}, updateBatch[0].Entity.OrchestratorCardinalityTags)
 }
