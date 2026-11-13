@@ -36,7 +36,6 @@ go_library(
         "cgroup.go",
         "cidr.go",
         "dev.go",
-        "ecs.go",
         "endpoint.go",
         "graph.go",
         "ipnet.go",
@@ -64,7 +63,6 @@ go_library(
     deps = [
         "//comp/logs/agent/config",
         "//pkg/process/procutil",
-        "//pkg/security/secl/containerutils",
         "//pkg/template/text",
         "//pkg/util/hostport",
         "//pkg/util/scrubber",
@@ -77,6 +75,7 @@ go_library(
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/seclog",
             "//pkg/security/utils/cgroup",
@@ -86,6 +85,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/seclog",
             "//pkg/security/utils/cgroup",
@@ -103,7 +103,6 @@ dd_agent_go_test(
     srcs = [
         "cgroup_test.go",
         "cidr_test.go",
-        "ecs_test.go",
         "endpoint_test.go",
         "limiter_test.go",
         "proc_linux_test.go",

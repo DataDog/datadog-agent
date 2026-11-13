@@ -15,13 +15,11 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sys/unix"
 
 	"github.com/vmihailenco/msgpack/v5"
@@ -41,8 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -209,11 +205,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		if entry := p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp); entry != nil {
 			if syscallMsg.ContainerID != "" {
 				entry.ContainerContext.ContainerID = syscallMsg.ContainerID
-				entry.ContainerContext.ECSTaskID = p.Resolvers.ProcessResolver.GetECSTaskID()
 			}
 			if syscallMsg.CGroupID != "" {
 				entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 			}
+			p.Resolvers.ProcessResolver.ResolveECSTaskID(entry)
 		}
 
 	case ebpfless.SyscallTypeOpen:
@@ -439,6 +435,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
 		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		p.Resolvers.ProcessResolver.ResolveECSTaskID(event.ProcessCacheEntry)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
@@ -605,13 +602,6 @@ func (p *EBPFLessProbe) Start() error {
 		return err
 	}
 
-	// on ECS Fargate, the tracers reaching system-probe over loopback run in its task
-	var lateECSTaskID <-chan string
-	metadataURI := os.Getenv(utils.ECSMetadataURIv4EnvVar)
-	if metadataURI != "" && fargate.GetOrchestrator() == fargate.ECS {
-		lateECSTaskID = p.resolveECSTaskID(metadataURI)
-	}
-
 	// Start listening for TCP connections on the given address
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
@@ -649,8 +639,6 @@ func (p *EBPFLessProbe) Start() error {
 				listener.Close()
 
 				return
-			case taskID := <-lateECSTaskID:
-				p.Resolvers.ProcessResolver.SetECSTaskID(taskID)
 			case msg := <-ch:
 				if msg.Type == ebpfless.MessageTypeGoodbye {
 					if msg.client.containerID != "" {
@@ -667,44 +655,6 @@ func (p *EBPFLessProbe) Start() error {
 	seclog.Infof("starting listening for ebpf less events on : %s", p.config.RuntimeSecurity.EBPFLessSocket)
 
 	return nil
-}
-
-// resolveECSTaskID returns a channel delivering the task ID if it's resolved after tracers can connect, nil otherwise
-func (p *EBPFLessProbe) resolveECSTaskID(metadataURI string) <-chan string {
-	fetch := func() (string, error) {
-		ctx, cancel := context.WithTimeout(p.ctx, ecscommon.MetadataTimeout())
-		defer cancel()
-
-		return utils.GetECSTaskID(ctx, metadataURI)
-	}
-
-	// resolved before tracers connect, so that their first processes get it
-	taskID, err := fetch()
-	if err == nil {
-		seclog.Infof("ECS task ID resolved: %s", taskID)
-		p.Resolvers.ProcessResolver.SetECSTaskID(taskID)
-		return nil
-	}
-	seclog.Warnf("unable to resolve the ECS task ID, retrying: %v", err)
-
-	lateTaskID := make(chan string, 1)
-
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-
-		taskID, err := backoff.Retry(p.ctx, fetch, backoff.WithMaxElapsedTime(10*time.Minute))
-		if err != nil {
-			if p.ctx.Err() == nil {
-				seclog.Errorf("unable to resolve the ECS task ID: %v", err)
-			}
-			return
-		}
-		seclog.Infof("ECS task ID resolved: %s", taskID)
-		lateTaskID <- taskID
-	}()
-
-	return lateTaskID
 }
 
 // Snapshot the already existing entities
