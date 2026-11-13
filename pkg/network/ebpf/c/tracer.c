@@ -639,7 +639,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__ip_make_skb, void *rc) {
         log_debug("kprobe/udp_recvmsg: flags: %x", flags);                                               \
         u64 pid_tgid = bpf_get_current_pid_tgid();                                                       \
         if (flags & MSG_PEEK) {                                                                          \
-            /* The receive probes treat a missing entry as a peek. Before 4.14 the kernel */             \
+            /* The receive probes treat a missing entry as a peek. Before 4.13 the kernel */             \
             /* passes a non-negative length to the skb free function even for a peek, so the */          \
             /* entry is the only way to tell. Delete any entry a missed kretprobe left behind */         \
             /* for this thread, or the peek would be counted as a receive. */                            \

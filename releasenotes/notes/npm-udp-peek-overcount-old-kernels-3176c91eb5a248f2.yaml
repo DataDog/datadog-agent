@@ -10,7 +10,7 @@ fixes:
   - |
     Fixes Cloud Network Monitoring sometimes counting a UDP datagram that
     an application peeks at (``MSG_PEEK``) as received bytes, on kernels
-    older than 4.14. This inflated the received bytes of the connection.
+    older than 4.13. This inflated the received bytes of the connection.
     A similar overcount of TCP data read with ``MSG_PEEK`` is also fixed,
     on kernels where Cloud Network Monitoring uses kprobes instead of
     fentry.
