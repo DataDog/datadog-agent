@@ -275,13 +275,14 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSec
 	if len(document.Content) == 0 {
 		return []byte{}, secrets, nil
 	}
-	if err := c.inspectYamlNode(&document, "", &secrets); err != nil {
-		return nil, nil, err
+	if containsYamlAlias(&document) {
+		return nil, nil, errors.New("YAML aliases are not supported")
 	}
 	var validation interface{}
 	if err := document.Decode(&validation); err != nil {
 		return nil, nil, err
 	}
+	c.collectYamlEncSecrets(&document, "", &secrets)
 
 	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{}), &secrets); err != nil {
 		return nil, nil, err
@@ -352,10 +353,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 					// Replacers may mutate decoded maps; read the original node
 					// to check whether the field actually changed.
 					var before interface{}
-					if err := value.Decode(&before); err != nil {
-						return err
-					}
-					if recordRawSecret(secrets, valuePath, before, replacement) {
+					if err := value.Decode(&before); err == nil && recordRawSecret(secrets, valuePath, before, replacement) {
 						childSecrets = nil
 					}
 				}
@@ -382,17 +380,6 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 		return errors.New("YAML aliases are not supported")
 	}
 	return nil
-}
-
-func yamlKeyString(node *yaml.Node) (string, error) {
-	var decoded interface{}
-	if err := node.Decode(&decoded); err != nil {
-		return "", err
-	}
-	if key, ok := decoded.(string); ok {
-		return key, nil
-	}
-	return node.Value, nil
 }
 
 func (c *Scrubber) scrubYamlText(value string) string {
@@ -425,49 +412,19 @@ func (c *Scrubber) scrubYamlDataValue(key string, path string, value interface{}
 	return false, ""
 }
 
-// inspectYamlNode rejects aliases and records ENC handles before scrubbing can
-// hide them inside a replaced container.
-func (c *Scrubber) inspectYamlNode(node *yaml.Node, path string, secrets *[]ConfigSecret) error {
-	switch node.Kind {
-	case yaml.AliasNode:
-		return errors.New("YAML aliases are not supported")
-	case yaml.DocumentNode, yaml.SequenceNode:
-		for i, child := range node.Content {
-			childPath := path
-			if node.Kind == yaml.SequenceNode {
-				childPath = joinPath(path, strconv.Itoa(i))
-			}
-			if err := c.inspectYamlNode(child, childPath, secrets); err != nil {
-				return err
-			}
-		}
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			key := node.Content[i]
-			if err := c.inspectYamlNode(key, path, nil); err != nil {
-				return err
-			}
-			keyValue, err := yamlKeyString(key)
-			if err != nil {
-				return err
-			}
-			if err := c.inspectYamlNode(node.Content[i+1], joinPath(path, c.scrubYamlText(keyValue)), secrets); err != nil {
-				return err
-			}
-		}
-	case yaml.ScalarNode:
-		if secrets != nil {
-			var value interface{}
-			if err := node.Decode(&value); err != nil {
-				return err
-			}
-			if value, ok := value.(string); ok && IsEnc(value) {
-				value = strings.TrimSpace(value)
-				*secrets = append(*secrets, ConfigSecret{Path: path, Kind: "enc", Handle: value[4 : len(value)-1]})
-			}
+func containsYamlAlias(node *yaml.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind == yaml.AliasNode {
+		return true
+	}
+	for _, child := range node.Content {
+		if containsYamlAlias(child) {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func replaceYamlNode(node *yaml.Node, value interface{}) {

@@ -176,6 +176,21 @@ func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestScrubYamlPreserveStructureRejectsAliasesBeforeDecoding(t *testing.T) {
+	for name, input := range map[string]string{
+		"invalid scalar": "value: !!int invalid\nanchor: &anchor secret\npassword: *anchor\n",
+		"mapping key":    "anchor: &anchor secret\n? *anchor\n: value\n",
+		"recursive":      "password: &password {nested: *password}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cleaned, secrets, err := ScrubYamlPreserveStructure([]byte(input))
+			require.EqualError(t, err, "YAML aliases are not supported")
+			assert.Nil(t, cleaned)
+			assert.Nil(t, secrets)
+		})
+	}
+}
+
 func TestScrubYamlPreserveStructureCommentOnly(t *testing.T) {
 	cleaned, _, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
 	require.NoError(t, err)

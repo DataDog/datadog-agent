@@ -20,6 +20,7 @@ func TestScrubYamlPreserveStructureSecrets(t *testing.T) {
 	}{
 		{
 			"scalars", `api_key: !custom ENC[shared]
+binary_reference: !!binary RU5DW2VuY29kZWRd
 instances: [{password: raw-secret}, {password: 'ENC[shared]'}, {password: 123456}]
 auth_token: |
   raw-secret
@@ -29,6 +30,7 @@ app_key: null
 already_redacted: {password: '********'}
 `, []ConfigSecret{
 				{Path: "api_key", Kind: "enc", Handle: "shared"},
+				{Path: "binary_reference", Kind: "enc", Handle: "encoded"},
 				{Path: "instances.0.password", Kind: "raw"},
 				{Path: "instances.1.password", Kind: "enc", Handle: "shared"},
 				{Path: "instances.2.password", Kind: "raw"},
