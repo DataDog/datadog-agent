@@ -110,7 +110,7 @@ them on `build`: under `common`, `query` and `info` overwrite the files and wipe
 |------|---------|-----------|
 | `bazel-invocation.profile.gz` | JSON trace profile | find what is slow: critical path, remote queueing, transfers, retries |
 | `bazel-invocation.grpc.log` | Delimited `LogEntry` protos for every remote cache/execution gRPC call | find gRPC status codes, latencies and retries |
-| `bazel-invocation.exec.zst` | zstd-compressed execution log of all spawns, cache hits included | find why an action ran instead of hitting the cache (compare two logs) |
+| `bazel-invocation.exec.zst` | zstd-compressed log of spawns that ran, remote cache hits included | find why an action ran instead of hitting the remote cache |
 
 **Each invocation overwrites all three.** Bazel commands run later for any reason, including `cquery`/`aquery`, replace
 the evidence of the failing or slow run with that of the new one. `query`, `info`, `mod` and `shutdown` do not touch
@@ -145,12 +145,13 @@ Preserve the files and report to `@DataDog/agent-build` (Slack: `#agent-build`) 
   with a valid `BUILDBARN_ID_TOKEN`; an expired or missing token is a local problem to fix first.
 - Missing or evicted blobs: `BulkTransferException`, "Failed to fetch blobs because they do not exist remotely", digest
   or checksum mismatches, or Bazel exit code 39 (remote cache evicted) when a retry does not heal it.
-- Remote execution failures: exit code 34, `FAILED_PRECONDITION`, "no worker" for the requested platform or exec
-  properties, actions queued for a long time with a short execution time in the profile, or Linux x86_64 actions failing
-  remotely but passing locally.
+- Remote execution failures: a spawn result of exit code 34 (`REMOTE_ERROR`), `FAILED_PRECONDITION`, "no worker" for
+  the requested platform or exec properties, actions queued for a long time with a short execution time in the profile,
+  or Linux x86_64 actions failing remotely but passing locally. The Bazel process often still exits 1.
 - Unexplained cache misses: identical sources or a repeated CI/merge-queue job re-executes many actions or tests, and
   the execution logs of both runs show the same input digests (different digests point to non-hermetic actions in the
-  repo; investigate those first).
+  repo; investigate those first). A hit in the local persistent action cache is absent from this log, so a repeated
+  local run can look empty. Keep the log of the run that actually executed.
 - Results that differ between `--config=no-remote-cache` and the default, or between remote and local execution.
 
 Do not escalate ordinary compilation errors, test failures, Gazelle diffs, or ADMS failures outside the Datadog network.
