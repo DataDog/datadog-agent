@@ -249,8 +249,8 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 // that is sent automatically as metadata.
 //
 // Returned secret declarations belong only to this call. Raw declarations identify
-// replaced fields, including whole containers; ENC declarations retain every
-// original path and handle.
+// changed leaves where keys and indexes can be matched, or whole fields when
+// they cannot. ENC declarations retain every original path and handle.
 func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSecret, error) {
 	secrets := []ConfigSecret{}
 	if len(input) == 0 {
@@ -348,19 +348,15 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 			}
 			valuePath := joinPath(path, c.scrubYamlText(keyValue))
 			if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
-				childSecrets := secrets
-				if secrets != nil {
-					// Replacers may mutate decoded maps; read the original node
-					// to check whether the field actually changed.
-					var before interface{}
-					if err := value.Decode(&before); err == nil && recordRawSecret(secrets, valuePath, before, replacement) {
-						childSecrets = nil
-					}
-				}
+				// Replacers may mutate decoded. Keep the original YAML subtree:
+				// replaceYamlNode builds a new tree, so a shallow copy is enough.
+				before := *value
 				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, valuePath, visited, childSecrets); err != nil {
+				if err := c.scrubYamlNode(value, valuePath, visited, nil); err != nil {
 					return err
 				}
+				// Compare once after all nested replacements, including text scrubbing.
+				c.recordYamlRawSecrets(secrets, valuePath, &before, value)
 			} else if err := c.scrubYamlNode(value, valuePath, visited, secrets); err != nil {
 				return err
 			}
