@@ -379,7 +379,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 
 	errFieldNotFound := &eval.ErrFieldNotFound{}
 
-	for field := range rs.opts.SupportedDiscarders {
+	for field, fields := range rs.opts.SupportedDiscarders {
 		eventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			return nil, err
@@ -390,7 +390,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 			continue
 		}
 
-		_, rule, err := rs.IsDiscarder(ctx, field, bucket.GetRules())
+		_, rule, err := rs.IsDiscarder(ctx, fields, bucket.GetRules())
 		if err != nil {
 			if errors.As(err, &errFieldNotFound) {
 				report.Invalid = append(report.Invalid, DiscarderInvalidReport{
@@ -1040,8 +1040,8 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	return values
 }
 
-// IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, *Rule, error) {
+// IsDiscarder partially evaluates an Event against a set of fields
+func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*Rule) (bool, *Rule, error) {
 	var isDiscarder bool
 
 	for _, rule := range rules {
@@ -1050,7 +1050,7 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 			continue
 		}
 
-		isTrue, err := rule.PartialEval(ctx, field)
+		isTrue, err := rule.PartialEval(ctx, fields...)
 		if err != nil || isTrue {
 			return false, rule, err
 		}
@@ -1260,11 +1260,12 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			}
 		}
 
-		if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+		fields, exists := rs.opts.SupportedDiscarders[field]
+		if !exists {
 			continue
 		}
 
-		if isDiscarder, _, _ := rs.IsDiscarder(ctx, field, bucket.rules); isDiscarder {
+		if isDiscarder, _, _ := rs.IsDiscarder(ctx, fields, bucket.rules); isDiscarder {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
@@ -1284,7 +1285,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 				break
 			}
 
-			if isDiscarder, _, _ := rs.IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+			if isDiscarder, _, _ := rs.IsDiscarder(dctx, []eval.Field{entry.Field}, bucket.rules); !isDiscarder {
 				isMultiDiscarder = false
 				break
 			}
