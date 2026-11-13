@@ -104,3 +104,21 @@ spec:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Migrating from annotations
+
+Earlier Operator versions configured the Host Profiler with `agent.datadoghq.com/host-profiler-*` annotations. The Datadog Operator version **1.32.0** replaces them with the `spec.features.hostProfiler` fields used in this guide.
+
+If both are present, the Custom Resource takes precedence for each field it defines; annotations only fill in fields left unset in the spec. The Operator reports leftover annotations as deprecated in the `DatadogAgent` status, visible with `kubectl describe datadogagent`, and in its logs.
+
+Move each annotation to its replacement, then remove the annotation:
+
+| Annotation | Replacement |
+|:------------|:-------------|
+| `agent.datadoghq.com/host-profiler-enabled` | `spec.features.hostProfiler.enabled` |
+| `agent.datadoghq.com/host-profiler-seccomp-enabled` | `spec.features.hostProfiler.seccomp.enabled` |
+| `agent.datadoghq.com/host-profiler-logging-seccomp-enabled` | `spec.features.hostProfiler.seccomp.loggingEnabled` |
+| `agent.datadoghq.com/host-profiler-non-root-enabled` | `spec.features.hostProfiler.runAsRoot` (inverted: the annotation's `"true"` maps to `runAsRoot: false`) |
+| `agent.datadoghq.com/host-profiler-selinux-type` | `spec.features.hostProfiler.seLinuxType` |
+
+The `experimental.agent.datadoghq.com/image-override-config` annotation has no replacement yet; keep using it to set the preview Host Profiler image.
