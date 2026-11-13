@@ -8,6 +8,7 @@ package agentplatform
 import (
 	"encoding/json"
 	"fmt"
+	stdos "os"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -203,12 +205,35 @@ func assertNoMacosUnexpectedLaunchDaemons(t *testing.T, client *common.MacOSTest
 	}
 }
 
+const macosPostinstallWorkDir = "/tmp/e2e-dmg-postinstall"
+
 // macosExtractPipelinePostinstall downloads this pipeline's .dmg and extracts the postinstall
-// script of the .pkg it ships, so the script can be re-run on its own. Returns the script's path on
-// the host.
+// script of the .pkg it ships. See macosExtractPostinstall.
 func macosExtractPipelinePostinstall(t *testing.T, client *common.MacOSTestClient, dmgURL string) string {
+	return macosExtractPostinstall(t, client, fmt.Sprintf(
+		"for i in 1 2 3 4 5; do curl -fsSL %s -o %s/agent.dmg && break || sleep $((2**i)); done", dmgURL, macosPostinstallWorkDir))
+}
+
+// macosExtractLocalPostinstall copies the local .dmg to the host and extracts the postinstall
+// script of the .pkg it ships. See macosExtractPostinstall.
+func macosExtractLocalPostinstall(t *testing.T, host *components.RemoteHost, client *common.MacOSTestClient, localDMG string) string {
+	const remoteDMG = "/tmp/e2e-postinstall-local-agent.dmg"
+	t.Cleanup(func() {
+		if _, err := client.Execute("rm -f " + remoteDMG); err != nil {
+			t.Logf("cleanup: failed to remove %s: %v", remoteDMG, err)
+		}
+	})
+	host.CopyFile(localDMG, remoteDMG)
+	return macosExtractPostinstall(t, client, fmt.Sprintf("cp %s %s/agent.dmg", remoteDMG, macosPostinstallWorkDir))
+}
+
+// macosExtractPostinstall runs fetchDMG to put a .dmg at <work dir>/agent.dmg, then extracts the
+// postinstall script of the .pkg it ships, so the script can be re-run on its own. Returns the
+// script's path on the host. A reinstall cannot be used to exercise the fallback: the .pkg
+// payload, which replaces the installer binary, is laid down before the postinstall script runs.
+func macosExtractPostinstall(t *testing.T, client *common.MacOSTestClient, fetchDMG string) string {
 	const (
-		workDir    = "/tmp/e2e-dmg-postinstall"
+		workDir    = macosPostinstallWorkDir
 		mountPoint = "/Volumes/e2e_datadog_agent"
 	)
 	t.Cleanup(func() {
@@ -219,7 +244,7 @@ func macosExtractPipelinePostinstall(t *testing.T, client *common.MacOSTestClien
 	client.MustExecuteOn(t, fmt.Sprintf(`set -e
 sudo rm -rf %[1]s
 mkdir -p %[1]s/scripts
-for i in 1 2 3 4 5; do curl -fsSL %[3]s -o %[1]s/agent.dmg && break || sleep $((2**i)); done
+%[3]s
 test -s %[1]s/agent.dmg
 sudo hdiutil detach %[2]s >/dev/null 2>&1 || true
 sudo hdiutil attach %[1]s/agent.dmg -mountpoint %[2]s -nobrowse >/dev/null
@@ -242,7 +267,7 @@ if [ ! -f %[1]s/scripts/postinstall ]; then
     find %[1]s/expanded -ls >&2
     exit 1
 fi
-`, workDir, mountPoint, dmgURL))
+`, workDir, mountPoint, fetchDMG))
 	return workDir + "/scripts/postinstall"
 }
 
@@ -252,19 +277,25 @@ fi
 // `installer -pkg` report a failed install. It does not touch the LaunchDaemons itself, so the
 // Agent left running before keeps running.
 //
-// The pipeline's own postinstall script is re-run on its own after the installer is removed or
-// replaced with one that always fails: a reinstall cannot be used, since the .pkg payload, which
-// replaces the installer binary, is laid down before the postinstall script runs.
+// The postinstall script of the build under test (the pipeline's .dmg, or the local .dmg named
+// by E2E_MACOS_LOCAL_DMG) is re-run on its own after the installer is removed or replaced with one
+// that always fails: a reinstall cannot be used, since the .pkg payload, which replaces the
+// installer binary, is laid down before the postinstall script runs.
 //
 // The ZY prefix runs this after the read-only tests and before TestZZUninstallAgent. Each case
 // restores the real installer and leaves the Agent healthy.
 func (m *macosInstallSuite) TestZYPostinstFailsWhenTheInstallerFails() {
-	params := installparams.NewParams(installparams.WithArch("x64"))
-	if params.PipelineID == "" {
-		m.T().Skip("E2E_PIPELINE_ID is not set: there is no pipeline .dmg to extract the postinstall script from")
-	}
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
-	postinstall := macosExtractPipelinePostinstall(m.T(), macosTestClient, install.MacOSPipelineRepoURL(params.PipelineID, params.Arch)+"/datadog-agent-7-latest.dmg")
+	var postinstall string
+	if localDMG := stdos.Getenv(macosLocalDMGEnvVar); localDMG != "" {
+		postinstall = macosExtractLocalPostinstall(m.T(), m.Env().RemoteHost, macosTestClient, localDMG)
+	} else {
+		params := installparams.NewParams(installparams.WithArch("x64"))
+		if params.PipelineID == "" {
+			m.T().Skip("neither E2E_PIPELINE_ID nor " + macosLocalDMGEnvVar + " is set: there is no .dmg to extract the postinstall script from")
+		}
+		postinstall = macosExtractPipelinePostinstall(m.T(), macosTestClient, install.MacOSPipelineRepoURL(params.PipelineID, params.Arch)+"/datadog-agent-7-latest.dmg")
+	}
 
 	const savedInstaller = macosInstallerBinary + ".e2e-orig"
 	for _, tc := range []struct {
@@ -353,7 +384,7 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 	agentPIDBefore := macosLaunchdPID(t, macosTestClient, "system/com.datadoghq.agent")
 	macosTestClient.MustExecuteOn(t, fmt.Sprintf("echo %q | sudo tee -a %s >/dev/null", marker, confFilePath))
 
-	install.MacOS(t, macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	macosInstallAgentUnderTest(t, m.Env().RemoteHost, macosTestClient)
 	require.False(t, t.Failed(), "the reinstall failed")
 
 	assert.Equal(t, versionBefore, macosTestClient.MustExecuteOn(t, macosAgentBinary+" version"), "the same version should have been reinstalled")

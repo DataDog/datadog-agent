@@ -1,0 +1,21 @@
+#!/bin/sh
+# Force every `go` invocation in the omnibus build to target x86_64.
+#
+# GOARCH cannot be exported into the build: tasks/omnibus.py runs omnibus with replace_env=True and
+# an allowlist (ENV_PASSHTROUGH / OS_SPECIFIC_ENV_PASSTHROUGH) that does not include GOARCH, so the
+# variable is dropped before omnibus shells out to `dda inv agent.build`. PATH *is* forwarded, so a
+# shim is the way in. Rosetta does not help either: an arm64 `go` invoked from a translated process
+# still runs natively as arm64.
+GOARCH=amd64
+CGO_ENABLED=1
+export GOARCH CGO_ENABLED
+# Run the next `go` on PATH after this shim's own directory, so the build script can pick the Go
+# release (see its .go-version pin); fall back to Homebrew's.
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+IFS=:
+for dir in $PATH; do
+    if [ "$dir" != "$shim_dir" ] && [ -x "$dir/go" ]; then
+        exec "$dir/go" "$@"
+    fi
+done
+exec /opt/homebrew/bin/go "$@"

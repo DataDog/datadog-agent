@@ -9,10 +9,13 @@ package macos
 
 import "embed"
 
+// InstallScriptPath is the path of the Agent install script in Scripts.
+const InstallScriptPath = "install_mac_os.sh"
+
 // UninstallScriptPath is the path of the Agent uninstall script in Scripts.
 const UninstallScriptPath = "uninstall_mac_os.sh"
 
 // Scripts contains the macOS Agent scripts needed by Go consumers.
 //
-//go:embed uninstall_mac_os.sh
+//go:embed install_mac_os.sh uninstall_mac_os.sh
 var Scripts embed.FS

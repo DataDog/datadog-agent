@@ -10,12 +10,14 @@ import (
 	"testing"
 )
 
-func TestUninstallScriptIsEmbedded(t *testing.T) {
-	script, err := Scripts.ReadFile(UninstallScriptPath)
-	if err != nil {
-		t.Fatalf("read embedded uninstall script: %v", err)
-	}
-	if !bytes.HasPrefix(script, []byte("#!/usr/bin/env bash\n")) {
-		t.Fatal("embedded uninstall script does not start with the expected shebang")
+func TestScriptsAreEmbedded(t *testing.T) {
+	for _, path := range []string{InstallScriptPath, UninstallScriptPath} {
+		script, err := Scripts.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read embedded script %s: %v", path, err)
+		}
+		if !bytes.HasPrefix(script, []byte("#!/usr/bin/env bash\n")) {
+			t.Fatalf("embedded script %s does not start with the expected shebang", path)
+		}
 	}
 }
