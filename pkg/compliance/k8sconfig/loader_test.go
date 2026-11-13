@@ -1206,6 +1206,44 @@ func TestKubeletConfigLargerThanReadLimit(t *testing.T) {
 	assert.NotEmpty(t, config.User)
 }
 
+// A flag without an equal sign takes its value from the next argument, and
+// reads as true when a flag or the end of the command line follows it.
+func TestBuildProc(t *testing.T) {
+	tests := []struct {
+		cmdline string
+		want    map[string]string
+	}{
+		{"kubelet", nil},
+		{"kubelet --config=/a", map[string]string{"--config": "/a"}},
+		{"kubelet --config=", map[string]string{"--config": ""}},
+		{"kubelet --config /a", map[string]string{"--config": "/a"}},
+		{"kubelet --config /a --kubeconfig /b", map[string]string{"--config": "/a", "--kubeconfig": "/b"}},
+		{"kubelet --config /a --rotate-certificates", map[string]string{"--config": "/a", "--rotate-certificates": "true"}},
+		{"kubelet --rotate-certificates --config /a", map[string]string{"--rotate-certificates": "true", "--config": "/a"}},
+		{"kubelet --config /a run", map[string]string{"--config": "/a", "run": ""}},
+	}
+	for _, tt := range tests {
+		args := strings.Fields(tt.cmdline)
+		assert.Equal(t, tt.want, buildProc(args[0], args).flags, "buildProc(%q)", tt.cmdline)
+	}
+}
+
+// The kubelets of EKS, AKS and Bottlerocket pass several values in their own
+// argument, and every key of the result is a flag.
+func TestBuildProcValuesInTheirOwnArgument(t *testing.T) {
+	for name, table := range map[string]string{
+		"eks":          eksProcTable,
+		"aks":          aksProcTable,
+		"bottlerocket": bottleRocketProcTable,
+	} {
+		for _, p := range procTable(table) {
+			for flag := range p.flags {
+				assert.True(t, strings.HasPrefix(flag, "--"), "%s %s: argument %q read as a flag", name, p.name, flag)
+			}
+		}
+	}
+}
+
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
 	_, data := l.load(context.Background(), func(_ context.Context) []proc {
