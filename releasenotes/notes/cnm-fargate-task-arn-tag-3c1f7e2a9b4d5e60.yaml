@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    On ECS Fargate, CNM connections payloads from system-probe and the
+    process-agent now carry a ``task_arn:<task ARN>`` host tag, so the
+    task can be identified when the payload's hostname is empty, as it is
+    with ``network_config.direct_send``.

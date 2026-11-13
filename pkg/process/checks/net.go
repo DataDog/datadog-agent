@@ -35,6 +35,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,7 +86,7 @@ type ConnectionsCheck struct {
 
 	sysprobeClient *http.Client
 
-	hostTagProvider *hosttags.HostTagProvider
+	hostTagProvider hosttags.Getter
 	tagger          tagger.Component
 	clock           clock.Clock
 }
@@ -119,7 +120,11 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 	c.processData.Register(c.processNameExtractor)
-	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
+	c.hostTagProvider = hosttags.WithExtraTags(
+		hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")),
+		// lets the backend identify the task without relying on the fargate_task: hostname
+		fargate.NewTaskARNTag().Tags,
+	)
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
@@ -450,7 +455,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	hostInfo *HostInfo,
-	hostTagProvider *hosttags.HostTagProvider,
+	hostTagProvider hosttags.Getter,
 	containerTagProvider func(string) ([]string, error),
 	processTagProvider func(int32) ([]string, error),
 	maxConnsPerMessage int,

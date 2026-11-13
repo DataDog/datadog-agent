@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -144,11 +145,16 @@ func New(
 	hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 
 	syscfg := deps.Sysprobeconfig
+	hostTagProvider := hosttags.WithExtraTags(
+		hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		// identifies the task in ECS Fargate, where the hostname is empty
+		fargate.NewTaskARNTag().Tags,
+	)
 	ctx, cancel := context.WithCancel(ctx)
 	ds := directSender{
 		tracer: tr,
 
-		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		hostTagProvider: hostTagProvider,
 		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
 		ctx:             ctx,
 		cancelFunc:      cancel,
@@ -187,7 +193,7 @@ type directSender struct {
 	tracer  ConnectionsSource
 	groupID atomic.Int32
 
-	hostTagProvider *hosttags.HostTagProvider
+	hostTagProvider hosttags.Getter
 	agentCfg        *model.AgentConfiguration
 
 	sysprobeconfig sysprobeconfig.Component
