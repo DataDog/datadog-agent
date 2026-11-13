@@ -4,18 +4,49 @@ set -euo pipefail
 
 # Image COPY and ConfigMap mounts leave cont-init entries mode 0644, often as symlinks
 # into a read-only ..data directory, so stage executable copies first.
-# /var/run/s6 is a VOLUME: writable under Docker --read-only, and kept across docker
-# restart, so wipe it. mkdir without -p proves the directory is fresh and writable by this
-# UID. /opt/datadog-agent/run may be a host mount shared by other containers, hence mktemp.
-# bash as PID 1 ignores an unhandled SIGTERM, hence the TERM trap.
+# Writability is not enough: the copies are executed directly, so a noexec mount fails
+# at exec time. Each candidate has to run a probe first. /var/run/s6 is a VOLUME: writable
+# under Docker --read-only, and kept across docker restart, so wipe it. mkdir without -p
+# proves the directory is fresh and writable by this UID. ${TMPDIR:-/tmp} is tried before
+# /opt/datadog-agent/run because it is private to this container, so a SIGKILL there cannot
+# leak onto a host mount. Plain Docker --read-only leaves /tmp read-only and --tmpfs /tmp
+# defaults to noexec, so /opt/datadog-agent/run, which may be shared, hence mktemp, is last.
+# bash as PID 1 ignores an unhandled SIGTERM, so a fallback directory installs a TERM trap.
+stage_executes() {
+    local probe="$1/.procmgr-exec-probe" status=1
+    if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then
+        status=0
+    fi
+    rm -f "$probe"
+    return "$status"
+}
+
+copy_dir=
 primary=/var/run/s6/procmgr-cont-init.d
-if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null; then
+if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then
     copy_dir=$primary
-elif copy_dir=$(mktemp -d /opt/datadog-agent/run/procmgr-cont-init.d.XXXXXX 2>/dev/null); then
-    trap 'rm -rf "$copy_dir"' EXIT
-    trap 'rm -rf "$copy_dir"; exit 143' TERM INT
 else
-    echo "cannot stage /etc/cont-init.d: neither /var/run/s6 nor /opt/datadog-agent/run is writable" >&2
+    rm -rf "$primary" 2>/dev/null || true
+fi
+if [[ -z "$copy_dir" ]]; then
+    for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do
+        if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then
+            continue
+        fi
+        # Install the trap before the probe, so a signal during it removes this directory.
+        copy_dir=$candidate
+        trap 'rm -rf "$copy_dir"' EXIT
+        trap 'rm -rf "$copy_dir"; exit 143' TERM INT
+        if stage_executes "$candidate"; then
+            break
+        fi
+        rm -rf "$candidate"
+        trap - EXIT TERM INT
+        copy_dir=""
+    done
+fi
+if [[ -z "$copy_dir" ]]; then
+    echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2
     exit 1
 fi
 printf '===== STAGING cont-init in %s =====\n' "$copy_dir"

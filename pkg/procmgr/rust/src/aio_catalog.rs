@@ -669,17 +669,33 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     // stay attached to the bodies they close.
     let staging_cleanup =
         r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi"#;
+    // Unique lines only: pos() returns the first match, so a repeated `fi` would not
+    // prove order. The probe runs the file directly, so a noexec mount rejects the dir.
     let steps = [
+        "stage_executes() {",
+        r#"local probe="$1/.procmgr-exec-probe" status=1"#,
+        r#"if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then"#,
+        "status=0",
+        r#"rm -f "$probe""#,
+        r#"return "$status""#,
+        "copy_dir=",
         "primary=/var/run/s6/procmgr-cont-init.d",
-        r#"if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null; then"#,
+        r#"if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then"#,
         "copy_dir=$primary",
-        r#"elif copy_dir=$(mktemp -d /opt/datadog-agent/run/procmgr-cont-init.d.XXXXXX 2>/dev/null); then"#,
+        r#"rm -rf "$primary" 2>/dev/null || true"#,
+        r#"for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do"#,
+        r#"if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then"#,
+        "continue",
+        "copy_dir=$candidate",
         r#"trap 'rm -rf "$copy_dir"' EXIT"#,
         r#"trap 'rm -rf "$copy_dir"; exit 143' TERM INT"#,
-        "else",
-        r#"echo "cannot stage /etc/cont-init.d: neither /var/run/s6 nor /opt/datadog-agent/run is writable" >&2"#,
+        r#"if stage_executes "$candidate"; then"#,
+        "break",
+        r#"rm -rf "$candidate""#,
+        "trap - EXIT TERM INT",
+        r#"copy_dir="""#,
+        r#"echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2"#,
         "exit 1",
-        "fi",
         r#"printf '===== STAGING cont-init in %s =====\n' "$copy_dir""#,
         mapfile_line,
         r#"wait "$!""#,
@@ -730,6 +746,10 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     assert!(
         !script.contains("mkdir -p"),
         "mkdir -p would accept a leftover directory this UID cannot clean"
+    );
+    assert!(
+        !script.contains("procmgr-cont-init.d.*"),
+        "a glob would delete another container's live staging directory on a shared mount"
     );
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
     assert!(script.contains(
