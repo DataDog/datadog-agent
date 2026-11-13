@@ -27,7 +27,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -37,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -890,4 +893,33 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
 	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
 	assert.Len(t, anomalies, 1)
+}
+
+func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
+	ddebpf.ResetAllMappings()
+	t.Cleanup(ddebpf.ResetAllMappings)
+
+	tcResolver := tc.NewResolver(&pconfig.Config{})
+	tcResolver.AddTestProgram(tc.ProgramKey{FuncName: "classifier_egress", IfIndex: 2, NetNS: 1}, 100)
+	tcResolver.AddTestProgram(tc.ProgramKey{FuncName: "classifier_egress", IfIndex: 3, NetNS: 2}, 101)
+	ddebpf.AddProgramNameMapping(200, "unloaded_program", "cws")
+
+	p := &EBPFProbe{
+		Manager:   ebpf.NewRuntimeSecurityManager(false, false),
+		Resolvers: &resolvers.EBPFResolvers{TCResolver: tcResolver},
+	}
+	tcResolver.FlushNetworkNamespaceID(2, p.Manager.Get())
+	p.updateEBPFCheckMapping()
+
+	name, err := ddebpf.GetProgNameFromProgID(100)
+	require.NoError(t, err)
+	assert.Equal(t, "classifier_egress", name)
+	module, err := ddebpf.GetModuleFromProgID(100)
+	require.NoError(t, err)
+	assert.Equal(t, "cws", module)
+
+	_, err = ddebpf.GetModuleFromProgID(101)
+	assert.Error(t, err, "program of a flushed network namespace")
+	_, err = ddebpf.GetModuleFromProgID(200)
+	assert.Error(t, err, "program that is no longer loaded")
 }
