@@ -52,7 +52,7 @@ var kmtPlatforms = []kmtPlatform{
 	{name: "ubuntu_22.04", osID: "ubuntu", osVersionID: "22.04", arch: "arm64"},
 	{name: "ubuntu_24.04", osID: "ubuntu", osVersionID: "24.04"},
 	{name: "ubuntu_25.10", osID: "ubuntu", osVersionID: "25.10", fentrySupported: true},
-	{name: "ubuntu_26.04", osID: "ubuntu", osVersionID: "26.04"},
+	{name: "ubuntu_26.04", osID: "ubuntu", osVersionID: "26.04", fentrySupported: true},
 	{name: "amazon_4.14", osID: "amzn", osVersionID: "2", kernel: "4.14"},
 	{name: "amazon_5.4", osID: "amzn", osVersionID: "2", kernel: "5.4"},
 	{name: "amazon_5.10", osID: "amzn", osVersionID: "2", arch: "x86_64", kernel: "5.10", fentrySupported: true},
