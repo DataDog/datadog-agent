@@ -65,8 +65,7 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 				continue
 			}
 
-			_, _ = conn.Write([]byte("hello"))
-			conn.Close()
+			go respondAndCloseTCP(conn)
 		}
 	}()
 	<-ch
@@ -79,6 +78,29 @@ func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for TCP server to come up")
 
 	return l
+}
+
+// tcpDrainTimeout bounds how long respondAndCloseTCP waits for the client to
+// close its side of the connection.
+const tcpDrainTimeout = 5 * time.Second
+
+// respondAndCloseTCP writes "hello" to conn and closes it gracefully.
+//
+// Closing a socket that still has unread data in its receive buffer (e.g. the
+// "ping" sent by PingTCP) makes the kernel abort the connection with a RST
+// instead of a FIN, and a RST that overtakes the "hello" segment makes the
+// client's read fail with ECONNRESET and lose the data. To avoid that, the
+// server half-closes (FIN, which TCP orders correctly behind the data), then
+// reads and discards whatever the client sends until it closes its side or the
+// drain timeout expires, and only then closes the socket.
+func respondAndCloseTCP(conn net.Conn) {
+	defer conn.Close()
+	_, _ = conn.Write([]byte("hello"))
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.CloseWrite()
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(tcpDrainTimeout))
+	_, _ = io.Copy(io.Discard, conn)
 }
 
 // StartServerUDPNs is identical to StartServerUDP, but it operates with the
