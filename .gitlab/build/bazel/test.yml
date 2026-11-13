@@ -39,7 +39,10 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    # Download mode lives in $BAZEL_COVERAGE_EXTRA. Amd64 passes --config=rbe, which sets
+    # --remote_download_minimal and --noremote_local_fallback, then overrides the fallback and
+    # adds --remote_download_regex. A later --remote_download_outputs=toplevel would undo minimal.
+    - bazel coverage $BAZEL_COVERAGE_EXTRA --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.bazel:test:reporting, after_script]
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
@@ -55,6 +58,7 @@
     COVERAGE_FILE: coverage-bazel-*.out
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
+    BAZEL_COVERAGE_EXTRA: "--remote_download_outputs=toplevel"
 
 .bazel:test:linux:
   extends: [.bazel:test:reporting, .bazel:test]

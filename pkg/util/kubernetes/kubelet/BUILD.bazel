@@ -90,6 +90,8 @@ dd_agent_go_test(
         ],
     ],
     include_default = False,
+    # Unix socket paths exceed sun_path on RBE workers
+    tags = ["no-remote-exec"],
     deps = [
         "//pkg/config/create",
         "//pkg/config/mock",

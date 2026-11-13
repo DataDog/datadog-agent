@@ -86,6 +86,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":systemd"],
+    # Unix socket paths exceed sun_path on RBE workers
+    tags = ["no-remote-exec"],
     deps = [
         "//pkg/rshell/builtins",
         "@com_github_godbus_dbus_v5//:dbus",

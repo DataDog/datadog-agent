@@ -21,6 +21,8 @@ dd_agent_go_test(
     name = "dbconfig_test",
     srcs = ["loader_test.go"],
     embed = [":dbconfig"],
+    # expects umask 022, RBE workers use 077
+    tags = ["no-remote-exec"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/types",

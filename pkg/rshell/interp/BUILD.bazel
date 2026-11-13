@@ -165,6 +165,8 @@ dd_agent_go_test(
     ],
     data = ["runner_redir.go"],
     embed = [":interp"],
+    # seccomp sandbox and Unix socket tests fail on RBE workers
+    tags = ["no-remote-exec"],
     deps = [
         "//pkg/fleet/installer/telemetry",
         "//pkg/rshell/allowedpaths",

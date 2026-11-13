@@ -54,6 +54,8 @@
 
 tests_linux-x64-py3:
   extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux, .conduit_on_coverage]
+  variables:
+    BAZEL_COVERAGE_EXTRA: "--config=rbe --remote_local_fallback --remote_download_regex=.*/coverage\\.dat$$"
 
 tests_linux-arm64-py3:
   extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
