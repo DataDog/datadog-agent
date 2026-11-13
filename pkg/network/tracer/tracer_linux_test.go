@@ -2708,8 +2708,10 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		}
 		if nonblocking && waitForTimeout {
 			// Wait for the kernel to time out the connect before the test polls the tracer. Polling makes
-			// bpf() map syscalls, and a kprobe that fires on a CPU in such a syscall is skipped. poll()
-			// doesn't read SO_ERROR, so sk_err is left set as it would be for an app that never checks it.
+			// bpf() map syscalls, and a kprobe that fires on a CPU in such a syscall is skipped. This
+			// removes only the test's own polling: the tracer's background goroutines still make bpf()
+			// syscalls during the window. poll() doesn't read SO_ERROR, so sk_err is left set as it
+			// would be for an app that never checks it.
 			fds := []unix.PollFd{{Fd: int32(sfd), Events: unix.POLLOUT}}
 			for {
 				_, err = unix.Poll(fds, 5000)
@@ -2782,10 +2784,15 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	tr := setupTracer(t, cfg)
 
 	// findClosedConn polls for the closed connection from localAddr and returns it, or nil if it isn't
-	// reported within waitFor. A closed connection is reported in a single fetch only.
+	// reported within waitFor. A closed connection is reported in a single fetch only. A failed fetch is
+	// logged and retried on the next tick, as EventuallyWithT would.
 	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
 		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
-			conns, cleanup := getConnections(t, tr)
+			conns, cleanup, err := tr.GetActiveConnections(clientID)
+			if err != nil {
+				t.Logf("error getting active connections: %s", err)
+				continue
+			}
 			// the tuple can match an open entry as well as the closed one, so look for the closed one
 			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
 				return c.IsClosed
@@ -2807,7 +2814,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			// reports the failed connection. Retry with a new connection when the connection isn't
 			// reported at all. A connection that is reported must carry the right failure.
 			// fentry programs (Fentry and SK modes) have a per-program recursion guard instead, so
-			// they don't lose events this way and get a single attempt: a miss there is a real bug.
+			// they are much less likely to lose events this way and get a single attempt: a miss
+			// there is most likely a real bug.
 			attempts := 1
 			if mode := ebpftest.GetBuildMode(); mode == ebpftest.CORE || mode == ebpftest.RuntimeCompiled {
 				attempts = 3
@@ -2826,6 +2834,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				conn = findClosedConn(t, localAddr, 3*time.Second)
 				if conn == nil {
 					t.Logf("attempt %d/%d: failed connection %s -> %s was not reported", attempt, attempts, localAddr, remoteAddr)
+					// close it now so that it can't be reported during a later attempt or subtest
+					c.Close()
 				}
 			}
 			require.NotNil(t, conn, "Failed connection not recorded properly")
