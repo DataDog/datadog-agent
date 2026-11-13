@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -27,7 +28,12 @@ func (h ebpflessContextEventHandler) HandleEvent(event *model.Event) { h(event) 
 
 func newEBPFLessContextTestProbe(t *testing.T) (*EBPFLessProbe, *client) {
 	t.Helper()
-	resolver, err := process.NewEBPFLessResolver(nil, nil, nil, process.NewResolverOpts())
+	return newEBPFLessContextTestProbeWithOpts(t, process.NewResolverOpts())
+}
+
+func newEBPFLessContextTestProbeWithOpts(t *testing.T, opts *process.ResolverOpts) (*EBPFLessProbe, *client) {
+	t.Helper()
+	resolver, err := process.NewEBPFLessResolver(nil, nil, nil, opts)
 	require.NoError(t, err)
 	r := &resolvers.EBPFLessResolvers{ProcessResolver: resolver}
 	fh := &EBPFLessFieldHandlers{BaseFieldHandlers: &BaseFieldHandlers{}, resolvers: r}
@@ -272,4 +278,115 @@ func TestEBPFLessPartialContextBeforeCredentialChange(t *testing.T) {
 		SetUID: &ebpfless.SetUIDSyscallMsg{UID: 33, EUID: 34, User: "worker", EUser: "effective-worker"},
 	})
 	assert.Equal(t, 1, calls)
+}
+
+func TestEBPFLessECSTaskID(t *testing.T) {
+	const (
+		taskID      = "dc2291f7a6a244d1872a33c1bc424d61"
+		containerID = taskID + "-3148110421"
+		cgroupID    = "/ecs/" + taskID + "/" + containerID
+	)
+
+	exec := func(containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) *ebpfless.SyscallMsg {
+		return &ebpfless.SyscallMsg{
+			PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeExec,
+			ContainerID: containerID, CGroupID: cgroupID,
+			Exec: &ebpfless.ExecSyscallMsg{File: ebpfless.FileSyscallMsg{Filename: "/app"}, Args: []string{"app"}},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		disabled bool
+		setup    func(p *EBPFLessProbe, cl *client)
+		syscall  *ebpfless.SyscallMsg
+		expected string
+	}{
+		{
+			name:     "exec",
+			syscall:  exec(containerID, cgroupID),
+			expected: taskID,
+		},
+		{
+			name:     "exec-without-container",
+			syscall:  exec("", cgroupID),
+			expected: "",
+		},
+		{
+			name:     "not-an-ecs-task",
+			syscall:  exec(containerID, "/docker/"+containerID),
+			expected: "",
+		},
+		{ // like on EKS Fargate, whose cgroups also start with /ecs/<id>/
+			name:     "resolution-disabled",
+			disabled: true,
+			syscall:  exec(containerID, cgroupID),
+			expected: "",
+		},
+		{
+			name: "procfs-snapshot",
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeOpen,
+				ContainerID: containerID, CGroupID: cgroupID,
+				Exec: ebpflessTestSnapshot(1), Open: &ebpfless.OpenSyscallMsg{},
+			},
+			expected: taskID,
+		},
+		{
+			name: "fork-of-unknown-parent",
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeFork,
+				ContainerID: containerID, CGroupID: cgroupID,
+				Fork: &ebpfless.ForkSyscallMsg{PPID: 100},
+			},
+			expected: taskID,
+		},
+		{
+			name: "fork-inherits-from-parent",
+			setup: func(p *EBPFLessProbe, cl *client) {
+				p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: 100, NSID: cl.nsID},
+					1, "/parent", []string{"parent"}, false, nil, false, containerID, cgroupID, 100, "")
+			},
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, StartTime: 200, Timestamp: 300, Type: ebpfless.SyscallTypeFork,
+				Fork: &ebpfless.ForkSyscallMsg{PPID: 100},
+			},
+			expected: taskID,
+		},
+		{
+			name: "cgroup-filled-by-a-later-event",
+			setup: func(p *EBPFLessProbe, cl *client) {
+				p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: 200, NSID: cl.nsID},
+					1, "/app", []string{"app"}, false, nil, false, containerID, "", 100, "")
+			},
+			syscall: &ebpfless.SyscallMsg{
+				PID: 200, Timestamp: 300, Type: ebpfless.SyscallTypeOpen,
+				ContainerID: containerID, CGroupID: cgroupID,
+				Open: &ebpfless.OpenSyscallMsg{},
+			},
+			expected: taskID,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := process.NewResolverOpts()
+			if !test.disabled {
+				opts.WithECSTaskIDResolutionEnabled()
+			}
+			p, cl := newEBPFLessContextTestProbeWithOpts(t, opts)
+			if test.setup != nil {
+				test.setup(p, cl)
+			}
+			calls := 0
+			require.NoError(t, p.probe.AddEventHandler(ebpflessContextEventHandler(func(event *model.Event) {
+				calls++
+				value, err := event.GetFieldValue("process.container.ecs_task_id")
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, value)
+			})))
+			handleEBPFLessContextTestMessage(t, p, cl, test.syscall)
+			assert.Equal(t, 1, calls)
+		})
+	}
 }

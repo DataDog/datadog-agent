@@ -55,6 +55,13 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 	return p, nil
 }
 
+// ResolveECSTaskID sets the ECS task ID of a process running in a container from its cgroup
+func (p *EBPFLessResolver) ResolveECSTaskID(entry *model.ProcessCacheEntry) {
+	if p.opts.ecsTaskIDResolutionEnabled && entry.ContainerContext.ContainerID != "" {
+		entry.ContainerContext.ECSTaskID = containerutils.FindECSTaskID(entry.CGroup.CGroupID)
+	}
+}
+
 func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time) {
 	delete(p.processStartTimes, key)
 	entry, ok := p.entryCache[key]
@@ -160,6 +167,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 	}
 	entry.Process.ContainerContext.ContainerID = containerutils.ContainerID(ctrID)
 	entry.Process.CGroup.CGroupID = cgroupID
+	p.ResolveECSTaskID(entry)
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 

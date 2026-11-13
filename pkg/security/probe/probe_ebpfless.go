@@ -209,6 +209,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			if syscallMsg.CGroupID != "" {
 				entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 			}
+			p.Resolvers.ProcessResolver.ResolveECSTaskID(entry)
 		}
 
 	case ebpfless.SyscallTypeOpen:
@@ -434,6 +435,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
 		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		p.Resolvers.ProcessResolver.ResolveECSTaskID(event.ProcessCacheEntry)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 

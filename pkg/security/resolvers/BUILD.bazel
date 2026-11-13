@@ -14,6 +14,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/workloadmeta/def",
+            "//pkg/config/env",
             "//pkg/security/config",
             "//pkg/security/probe/erpc",
             "//pkg/security/probe/managerhelper",
@@ -46,6 +47,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/workloadmeta/def",
+            "//pkg/config/env",
             "//pkg/security/config",
             "//pkg/security/probe/erpc",
             "//pkg/security/probe/managerhelper",
