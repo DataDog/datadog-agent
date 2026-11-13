@@ -2243,11 +2243,21 @@ properties:
       remote_config:
         node_type: section
         type: object
+        visibility: public
+        description: Configurations for receiving Network Path tests created in the
+          Datadog UI through Remote Configuration.
+        tags:
+        - template_section:CoreAgent
         properties:
           enabled:
             node_type: setting
             type: boolean
             default: false
+            visibility: public
+            description: Enables receiving Network Path scheduled tests and dynamic
+              test filters created in the Datadog UI through Remote Configuration.
+              Requires Remote Configuration to be enabled.
+            example: 'true'
   network_pcap:
     node_type: section
     title: Network Pcap Configuration
