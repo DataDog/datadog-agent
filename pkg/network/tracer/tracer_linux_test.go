@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -4415,9 +4416,20 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t.Cleanup(ownServer.Shutdown)
 	t.Cleanup(func() { ownConn.Close() })
 
+	// These connections are idle, so the client sees each of them in one fetch only: the state skips an
+	// active connection whose stats haven't changed since the client's last fetch. Checking each fetch
+	// alone would need every connection, including the accepted side that the server's goroutine tracks
+	// later, to be in the first fetch, and a miss there would hide the others for the rest of the wait.
+	// So keep the latest copy of every connection seen.
+	seen := make(map[network.ConnectionTuple]network.ConnectionStats)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
+		payload, cleanup := getConnections(collect, tr)
+		for _, c := range payload.Conns {
+			c.Tags = slices.Clone(c.Tags) // the payload's buffer is reused after cleanup
+			seen[c.ConnectionTuple] = c
+		}
+		cleanup()
+		conns := &network.Connections{BufferedData: network.BufferedData{Conns: slices.Collect(maps.Values(seen))}}
 
 		pod, ok := findConnection(podConn.LocalAddr(), podConn.RemoteAddr(), conns)
 		require.True(collect, ok, "connection in the pod namespace not found")
