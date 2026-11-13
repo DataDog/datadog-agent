@@ -3672,24 +3672,25 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	c.Write(make([]byte, 64*1024)) //nolint:errcheck
 
-	// rto_count and recovery_count live in the same tcp_event_stats struct
-	// that gets copied at close, so either one is enough to validate the
-	// sync. This test checks the close-event plumbing, not which signal
-	// fires: TestTCPRTOCount and TestTCPRecoveryCount cover each signal.
+	// rto_count is the signal under test. With every packet dropped no ACK
+	// arrives, so there is no fast recovery and recovery_count stays 0. That
+	// still covers recovery_count's close path: the close event copies the
+	// whole tcp_event_stats struct (tracer: events.h, SK: sk_conn.h), and
+	// active and closed connections share FromTCPEventStats, so a working
+	// rto_count copy implies a working recovery_count copy.
+	// TestTCPRTOCount and TestTCPRecoveryCount cover each signal while active.
 	//
 	// A fetch only reports an active connection whose stats changed since
-	// the previous fetch, so keep the highest counters seen across fetches
+	// the previous fetch, so keep the highest count seen across fetches
 	// instead of requiring the connection in the latest one.
-	var rtoCount, recoveryCount uint32
+	var rtoCount uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
 			rtoCount = max(rtoCount, conn.Monotonic.TCPRTOCount)
-			recoveryCount = max(recoveryCount, conn.Monotonic.TCPRecoveryCount)
 		}
-		assert.Greater(ct, rtoCount+recoveryCount, uint32(0),
-			"rto_count or recovery_count should be > 0 while active")
+		assert.Greater(ct, rtoCount, uint32(0), "rto_count should be > 0 while active")
 	}, 30*time.Second, 200*time.Millisecond)
 
 	// Stop dropping packets so the connection delivers its data and closes.
@@ -3716,8 +3717,6 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 
 	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
 		"close event should preserve rto_count")
-	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRecoveryCount, recoveryCount,
-		"close event should preserve recovery_count")
 }
 
 // netemTestEnv holds the resources for an isolated network namespace where
