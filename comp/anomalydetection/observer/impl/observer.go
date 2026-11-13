@@ -1166,7 +1166,14 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.
 	if scorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+		scorerCfg := scorer.config
+		if storageCfg.TrackScorerHistory {
+			scorerCfg.MaxBuckets = math.MaxInt64
+		}
+		scorer = newAnomalyScorerWithTelemetry(scorerCfg, nil, nil)
+		if storageCfg.TrackScorerHistory {
+			scorer.enableHistory()
+		}
 	}
 	o.replayMu.Lock()
 	defer o.replayMu.Unlock()

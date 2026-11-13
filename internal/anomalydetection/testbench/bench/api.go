@@ -1202,19 +1202,106 @@ func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, stats)
 }
 
-// handleScores returns the current AnomalyScoreState from the live scorer.
+type scorerReportContributor struct {
+	Name  string  `json:"name"`
+	Share float64 `json:"share"`
+}
+
+type scorerReport struct {
+	Timestamp    int64                     `json:"timestamp"`
+	Contributors []scorerReportContributor `json:"contributors"`
+}
+
+type scorerInputResponse struct {
+	ScoringSecond     int64    `json:"scoringSecond"`
+	IsLog             bool     `json:"isLog,omitempty"`
+	Source            string   `json:"source"`
+	SourceSeriesID    string   `json:"sourceSeriesId,omitempty"`
+	DetectorName      string   `json:"detectorName"`
+	DetectorComponent string   `json:"detectorComponent,omitempty"`
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	Host              string   `json:"host,omitempty"`
+	Tags              []string `json:"tags"`
+	Timestamp         int64    `json:"timestamp"`
+}
+
+type scorerScoreResponse struct {
+	observerdef.AnomalyScoreState
+	Available    bool                              `json:"available"`
+	CooldownSecs int64                             `json:"cooldown_secs"`
+	Events       []severityeventsdef.SeverityEvent `json:"events"`
+	Reports      []scorerReport                    `json:"reports"`
+	Inputs       []scorerInputResponse             `json:"inputs,omitempty"`
+}
+
+// handleScores returns the scorer history captured during the original replay.
 // GET /api/scores
 func (api *BenchAPI) handleScores(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		api.writeError(w, http.StatusMethodNotAllowed, "use GET")
 		return
 	}
-	sv := api.tb.getStateView()
+	api.writeJSON(w, api.tb.scorerSnapshot())
+}
+
+func (tb *Bench) scorerSnapshot() scorerScoreResponse {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	sv := tb.debug.StateView()
 	if sv == nil {
-		api.writeJSON(w, observerdef.AnomalyScoreState{})
-		return
+		return scorerScoreResponse{}
 	}
-	api.writeJSON(w, sv.ScoreState())
+	history := sv.ScorerHistory()
+	if !history.Available {
+		return scorerScoreResponse{}
+	}
+
+	storage := tb.debug.StorageReader()
+	reports := make([]scorerReport, 0, len(history.Reports))
+	for _, report := range history.Reports {
+		reports = append(reports, buildScorerReport(report.Timestamp, report.Contributors, storage))
+	}
+
+	detectorComponents := make(map[string]string)
+	for _, detector := range sv.ListDetectors() {
+		detectorComponents[detector.Name] = detector.Name
+	}
+	inputs := make([]scorerInputResponse, 0, len(history.Inputs))
+	for _, input := range history.Inputs {
+		anomaly := input.Anomaly
+		title, description := observerdef.FormatAnomaly(anomaly)
+		sourceSeriesID := ""
+		if anomaly.SourceRef != nil {
+			sourceSeriesID = anomaly.SourceRef.CompactID()
+		}
+		inputs = append(inputs, scorerInputResponse{
+			ScoringSecond:     input.ScoringSecond,
+			IsLog:             anomaly.Type == observerdef.AnomalyTypeLog,
+			Source:            anomaly.Source.String(),
+			SourceSeriesID:    sourceSeriesID,
+			DetectorName:      anomaly.DetectorName,
+			DetectorComponent: detectorComponents[anomaly.DetectorName],
+			Title:             title,
+			Description:       description,
+			Host:              anomaly.Source.Host,
+			Tags:              anomaly.Source.Tags.UnsafeToReadOnlySliceString(),
+			Timestamp:         anomaly.Timestamp,
+		})
+	}
+
+	return scorerScoreResponse{
+		AnomalyScoreState: observerdef.AnomalyScoreState{
+			Buckets: history.Buckets,
+			Config:  history.Config,
+		},
+		Available:    true,
+		CooldownSecs: history.CooldownSecs,
+		Events:       history.Events,
+		Reports:      reports,
+		Inputs:       inputs,
+	}
 }
 
 // handleScoresConfig returns the server-side default AnomalyScorerConfig so the UI
@@ -1251,14 +1338,6 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		observerdef.AnomalyScorerConfig
 		CooldownSecs int64 `json:"cooldown_secs"`
 	}
-	type scorerReportContributor struct {
-		Name  string  `json:"name"`
-		Share float64 `json:"share"`
-	}
-	type scorerReport struct {
-		Timestamp    int64                     `json:"timestamp"`
-		Contributors []scorerReportContributor `json:"contributors"`
-	}
 	defaults := observerimpl.DefaultAnomalyScorerConfig()
 	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1271,7 +1350,7 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 
 	sv := api.tb.getStateView()
 	if sv == nil {
-		api.writeJSON(w, observerdef.AnomalyScoreState{})
+		api.writeJSON(w, scorerScoreResponse{})
 		return
 	}
 
@@ -1288,7 +1367,11 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		anomalies = append(anomalies, a)
 	}
 	if len(anomalies) == 0 {
-		api.writeJSON(w, observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig})
+		api.writeJSON(w, scorerScoreResponse{
+			AnomalyScoreState: observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig},
+			Available:         true,
+			CooldownSecs:      req.CooldownSecs,
+		})
 		return
 	}
 
@@ -1340,33 +1423,46 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 			if event.Kind != observerdef.CorrelatorEventEpisodeStarted {
 				continue
 			}
-			report := scorerReport{Timestamp: event.Timestamp}
-			for _, contributor := range event.Contributors {
-				meta := storage.GetSeriesMeta(contributor.Handle.Ref)
-				if meta == nil {
-					continue
-				}
-				contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
-				var context *observerdef.MetricContext
-				if hasContext {
-					context = &contextValue
-				}
-				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
-					Share: contributor.Share,
-				})
-			}
-			reports = append(reports, report)
+			reports = append(reports, buildScorerReport(event.Timestamp, event.Contributors, storage))
 		}
 	}
 
 	// Return a wrapper that adds the collected events alongside the state snapshot.
 	state := scorer.ScoreState()
-	api.writeJSON(w, struct {
-		observerdef.AnomalyScoreState
-		Events  []severityeventsdef.SeverityEvent `json:"events"`
-		Reports []scorerReport                    `json:"reports"`
-	}{AnomalyScoreState: state, Events: collector.events, Reports: reports})
+	api.writeJSON(w, scorerScoreResponse{
+		AnomalyScoreState: state,
+		Available:         true,
+		CooldownSecs:      req.CooldownSecs,
+		Events:            collector.events,
+		Reports:           reports,
+	})
+}
+
+func buildScorerReport(
+	timestamp int64,
+	contributors []observerdef.ScorerContributor,
+	storage observerdef.StorageReader,
+) scorerReport {
+	report := scorerReport{Timestamp: timestamp}
+	if storage == nil {
+		return report
+	}
+	for _, contributor := range contributors {
+		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+		if meta == nil {
+			continue
+		}
+		contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+		var context *observerdef.MetricContext
+		if hasContext {
+			context = &contextValue
+		}
+		report.Contributors = append(report.Contributors, scorerReportContributor{
+			Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
+			Share: contributor.Share,
+		})
+	}
+	return report
 }
 
 // scorerReportContributorName presents log-derived metrics with the same

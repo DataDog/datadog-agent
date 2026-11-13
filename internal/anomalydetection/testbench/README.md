@@ -197,6 +197,12 @@ profile; an enabled-only entry preserves the replay defaults.
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
+The Scorer tab defaults to **Detection time**, which shows the original replay
+with the scorer's effective input seconds and cooldown-filtered transitions.
+**Change-point time** recomputes the same anomaly set at detector change-point
+timestamps, including scan-detector lookback, so the two views intentionally
+differ when detection is delayed.
+
 ### Extractors
 
 Extractors are always enabled and convert raw observations into timeseries:

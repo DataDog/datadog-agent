@@ -229,6 +229,7 @@ func run(
 		ParquetFormat:            params.ParquetFormat,
 		StreamParquet:            params.Headless != "" && !params.RetainParquet,
 		IncludeDetectorAnomalies: params.IncludeDetectorAnomalies,
+		TrackScorerHistory:       params.Headless == "",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
