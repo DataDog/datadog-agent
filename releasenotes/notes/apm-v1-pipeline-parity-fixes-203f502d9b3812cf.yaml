@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Fix an issue where the error sampler and rare sampler could accidentally 
+    override the probabilistic sampler for V1 trace payloads.
+  - |
+    APM: Restore the behavior of dropping traces whose 128-bit trace ID is zero, including empty
+    or missing trace IDs, and counts them as dropped with reason ``trace_id_zero``,
+    in the V1 trace pipeline..
+  - |
+    APM: Fix inconsistency with processing of v1 trace payloads where non-string
+    span attributes, and fields like "component", "version", and "env" were not
+    properly truncated with the default limits: 200 bytes for keys, 25,000 for values.
