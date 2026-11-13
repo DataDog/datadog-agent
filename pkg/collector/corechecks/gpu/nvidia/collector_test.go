@@ -246,6 +246,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		},
 		{
 			name: "Tagger has not collected the GPU yet",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
+			},
 			expected: func(t *testing.T, tagsMapping map[string][]string) {
 				require.Equal(t, map[string][]string{
 					testutil.DefaultGpuUUID: {"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:tesla_t4"},
@@ -255,6 +258,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		{
 			name: "NVML cache supplies the model observed on the affected host",
 			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
 				testutil.WithCustomHook(func(device *testutil.MockDevice) {
 					device.GetNameFunc = func() (string, nvml.Return) { return "NVIDIA A10G", nvml.SUCCESS }
 				}),
@@ -267,6 +271,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		},
 		{
 			name: "Tagger provides partial GPU tags",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
+			},
 			setupTagger: func(fakeTagger taggermock.Mock) {
 				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.DefaultGpuUUID), "foo", []string{
 					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_vendor:nvidia",
@@ -280,6 +287,9 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		},
 		{
 			name: "Tagger model takes precedence over the NVML cache",
+			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
+			},
 			setupTagger: func(fakeTagger taggermock.Mock) {
 				fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.DefaultGpuUUID), "foo", []string{
 					"gpu_uuid:" + testutil.DefaultGpuUUID, "gpu_device:from_tagger",
@@ -294,6 +304,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		{
 			name: "NVML cache has an empty model",
 			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
 				testutil.WithCustomHook(func(device *testutil.MockDevice) {
 					device.GetNameFunc = func() (string, nvml.Return) { return "", nvml.SUCCESS }
 				}),
@@ -307,6 +318,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		{
 			name: "NVML cache has a whitespace-only model",
 			mockOpts: []testutil.NvmlMockOption{
+				testutil.WithDeviceCount(1),
 				testutil.WithCustomHook(func(device *testutil.MockDevice) {
 					device.GetNameFunc = func() (string, nvml.Return) { return "   ", nvml.SUCCESS }
 				}),
