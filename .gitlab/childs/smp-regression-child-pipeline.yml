@@ -178,10 +178,11 @@ variables:
           : > involved_teams.txt
         else
           SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.smp-pr-context || true)
-          if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null; then
+          if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt --context-out pr_context.json </dev/null; then
             echo "WARNING: pull request context is unavailable; submitting the always bucket only."
             : > pr_labels.txt
             : > involved_teams.txt
+            rm -f pr_context.json
           fi
         fi
         SMP_LABELS=$(cat pr_labels.txt 2>/dev/null || true)
@@ -230,6 +231,18 @@ variables:
           echo "outputs/report.v1.json is missing -- cannot render reports"
           datadog-ci tag --level job --tags smp_failure_mode:"missing-report"
           exit 1
+      fi
+    # Render the separate health report only for container experiments.
+    - |
+      if [ "${SELECT_EXPERIMENTS}" == "true" ]; then
+        export SMP_LABELS SMP_INVOLVED
+        if ! dda inv smp.experiment-health; then
+          echo "WARNING: SMP experiment health rendering failed; existing CI gates remain active."
+          mkdir -p outputs/experiment-health
+          echo '{"status":"error","upload_enabled":true}' > outputs/experiment-health/render-status.json
+        else
+          echo '{"status":"rendered","upload_enabled":true}' > outputs/experiment-health/render-status.json
+        fi
       fi
     # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
     # invoke task has additional logic that does not seem to apply well to SMP's
@@ -283,6 +296,16 @@ variables:
     - if [[ -f outputs/smp-failed-flag ]]; then exit 1; fi
 
 single-machine-performance-regression_detector:
+  artifacts:
+    paths:
+      - outputs/pr_report_comment.json
+      - outputs/report.v1.json
+      - submission_metadata
+      - outputs/report.md
+      - outputs/junit.xml
+      - outputs/decision.json
+      - outputs/report.json
+      - outputs/experiment-health/
   extends:
     - .single-machine-performance-run_regression_detector
   # Child pipelines do not inherit the parent token configuration.
@@ -304,6 +327,36 @@ single-machine-performance-regression_detector:
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression/container
     SELECT_EXPERIMENTS: "true"
+
+single-machine-performance-experiment-health-upload:
+  stage: functional_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: single-machine-performance-regression_detector
+      artifacts: true
+  rules:
+    - when: always
+  allow_failure: true
+  retry: 0
+  variables:
+    DD_ENV: ci
+    DD_CIVISIBILITY_LOGS_ENABLED: "false"
+  script:
+    - test -s outputs/experiment-health/experiment-health.junit.xml
+    - |
+      if ! jq -e '."smp.context" == "pr" or ."smp.context" == "main"' outputs/experiment-health/context.json >/dev/null; then
+        echo "No resolved PR or main context; skipping experiment health upload."
+        exit 0
+      fi
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - >-
+      datadog-ci junit upload
+      --service datadog-agent-smp-experiment-health
+      --env ci
+      --skip-git-metadata-upload
+      --tags smp.upload_job_id:${CI_JOB_ID}
+      outputs/experiment-health/experiment-health.junit.xml
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
