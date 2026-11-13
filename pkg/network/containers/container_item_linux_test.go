@@ -49,6 +49,102 @@ func TestReadResolvConfAbsoluteSymlink(t *testing.T) {
 	require.Equal(t, "nameserver 1.2.3.4", result)
 }
 
+func TestReadResolvConfMissingVsProcessRootGone(t *testing.T) {
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	// pid 42: the root exists but has no etc/resolv.conf -> "<missing>"
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "42", "root", "etc"), 0755))
+	// pid 43: /proc/43 exists but its root can't be opened, as for an exiting or zombie process
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "43"), 0755))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConf(&events.Process{
+		Pid:         42,
+		ContainerID: intern.GetByString("test-container"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "<missing>", result)
+
+	_, err = rs.readResolvConf(&events.Process{
+		Pid:         43,
+		ContainerID: intern.GetByString("test-container"),
+	})
+	require.ErrorIs(t, err, errProcessRootGone)
+}
+
+func TestReadResolvConfProcessExitsDuringRead(t *testing.T) {
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	// simulate the process exiting during the read: its root resolves until the
+	// read has started and is gone after it. This also checks that the root is
+	// rechecked after the read, not before it.
+	readStarted := false
+	oldOpenRoot := openRoot
+	openRoot = func(rootPath string) (*os.File, error) {
+		readStarted = true
+		return oldOpenRoot(rootPath)
+	}
+	t.Cleanup(func() { openRoot = oldOpenRoot })
+	oldProcessRootGone := processRootGone
+	processRootGone = func(string) bool { return readStarted }
+	t.Cleanup(func() { processRootGone = oldProcessRootGone })
+
+	// pid 42: the lookup finds a resolv.conf, e.g. the image's own one after the
+	// bind mount was detached
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "42", "root", "etc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(fakeProc, "42", "root", "etc", "resolv.conf"),
+		[]byte("nameserver 9.9.9.9\n"), 0644))
+	// pid 43: the lookup finds no resolv.conf
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "43", "root", "etc"), 0755))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	for _, pid := range []uint32{42, 43} {
+		readStarted = false
+		_, err := rs.readResolvConf(&events.Process{
+			Pid:         pid,
+			ContainerID: intern.GetByString("test-container"),
+		})
+		require.ErrorIs(t, err, errProcessRootGone, "pid %d", pid)
+	}
+}
+
+func TestReadResolvConfLeaderExitedThreadAlive(t *testing.T) {
+	fakeProc := t.TempDir()
+	oldProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
+
+	// pid 44: the thread-group leader called pthread_exit, so /proc/44/root and
+	// /proc/44/task/44/root are gone, but thread 45 is still running
+	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "44", "task", "44"), 0755))
+	threadRoot := filepath.Join(fakeProc, "44", "task", "45", "root")
+	require.NoError(t, os.MkdirAll(filepath.Join(threadRoot, "etc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(threadRoot, "etc", "resolv.conf"),
+		[]byte("nameserver 1.1.1.1\n"), 0644))
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConf(&events.Process{
+		Pid:         44,
+		ContainerID: intern.GetByString("test-container"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "nameserver 1.1.1.1", result)
+}
+
+func TestReadResolvConfInRootMissingRoot(t *testing.T) {
+	// a missing host root is a missing resolv.conf, not an exiting process
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	result, err := rs.readResolvConfInRoot(filepath.Join(t.TempDir(), "does-not-exist"))
+	require.NoError(t, err)
+	require.Equal(t, "<missing>", result)
+}
+
 func TestStripResolvConf(t *testing.T) {
 	resolvConf := `
 ; comment goes here
@@ -275,6 +371,16 @@ func TestReadContainerItemProcessRunningVsNotRunning(t *testing.T) {
 			readResolvConfErr:        os.ErrNotExist,
 			expectedNoDataReason:     "",
 			expectedError:            true,
+			expectedResolvConf:       "",
+		},
+		{
+			name:                     "readResolvConf errProcessRootGone + process still in procfs should not cache",
+			isProcessRunning:         true,
+			isProcessStillRunningErr: nil,
+			readResolvConfResult:     "",
+			readResolvConfErr:        errProcessRootGone,
+			expectedNoDataReason:     "process exiting",
+			expectedError:            false,
 			expectedResolvConf:       "",
 		},
 		{
