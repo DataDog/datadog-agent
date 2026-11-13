@@ -5287,6 +5287,8 @@ properties:
         comment: Legacy port keys (unused; 0 = disabled)
   private_action_runner:
     $ref: private_action_runner.yaml
+  remote_queries:
+    $ref: remote_queries.yaml
   GUI_host:
     node_type: setting
     type: string

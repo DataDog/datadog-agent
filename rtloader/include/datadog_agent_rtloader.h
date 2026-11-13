@@ -210,6 +210,13 @@ DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *ch
 */
 DATADOG_AGENT_RTLOADER_API void cancel_check(rtloader_t *, rtloader_pyobject_t *check);
 
+// Remote-query calls require the GIL, just like run_check. The returned UTF-8
+// outcome is owned by the caller and freed with rtloader_free. Exceptions and
+// non-string outcomes fail without exposing Python exception text.
+DATADOG_AGENT_RTLOADER_API int has_remote_query(rtloader_t *, rtloader_pyobject_t *check);
+DATADOG_AGENT_RTLOADER_API char *remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *request);
+DATADOG_AGENT_RTLOADER_API int cancel_remote_query(rtloader_t *, rtloader_pyobject_t *check, const char *crawl_id);
+
 /*! \fn char **get_checks_warnings(rtloader_t *, rtloader_pyobject_t *check)
     \brief Get all warnings, if any, for a check instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

@@ -43,6 +43,7 @@ dd_agent_go_test(
     name = "runners_test",
     srcs = [
         "common_runner_test.go",
+        "remote_queries_test.go",
         "task_ledger_test.go",
         "workflow_task_executor_kubeapiserver_test.go",
         "workflow_task_executor_test.go",
@@ -55,9 +56,15 @@ dd_agent_go_test(
         "kubelet",
     ]],
     deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//pkg/collector/remotequeries",
+        "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/bundles",
+        "//pkg/privateactionrunner/bundles/remoteaction/queries",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",

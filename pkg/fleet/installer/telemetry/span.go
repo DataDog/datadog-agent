@@ -78,6 +78,25 @@ func newSpan(
 	return s
 }
 
+// TraceContext returns the active span IDs and effective sampling priority.
+// A locally dropped span has no propagatable context. The default matches the
+// priority applied when the tracer flushes a span without an explicit priority.
+func (s *Span) TraceContext() (traceID, spanID uint64, samplingPriority int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finished.Load() || s.span.TraceID == dropTraceID {
+		return 0, 0, 0
+	}
+	priority := 2
+	if value, ok := s.span.Metrics["_sampling_priority_v1"]; ok {
+		if value != 1 && value != 2 {
+			return s.span.TraceID, s.span.SpanID, 0
+		}
+		priority = int(value)
+	}
+	return s.span.TraceID, s.span.SpanID, priority
+}
+
 // Finish finishes the span with an error.
 func (s *Span) Finish(err error) {
 	s.finished.Store(true)

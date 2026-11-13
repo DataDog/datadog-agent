@@ -8,6 +8,7 @@
 package python
 
 import (
+	"context"
 	"errors"
 	"runtime"
 	"testing"
@@ -95,6 +96,28 @@ void cancel_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	cancel_check_instance = check;
 	cancel_check_calls++;
 	return;
+}
+
+int remote_query_supported = 1;
+int remote_query_calls = 0;
+char *remote_query_return = NULL;
+char remote_query_request[4096];
+rtloader_pyobject_t *remote_query_instance = NULL;
+int has_remote_query(rtloader_t *s, rtloader_pyobject_t *check) {
+    return remote_query_supported;
+}
+char *remote_query(rtloader_t *s, rtloader_pyobject_t *check, const char *request) {
+    remote_query_calls++;
+    remote_query_instance = check;
+    strncpy(remote_query_request, request, sizeof(remote_query_request)-1);
+    return remote_query_return;
+}
+int remote_query_cancel_calls = 0;
+char remote_query_crawl_id[128];
+int cancel_remote_query(rtloader_t *s, rtloader_pyobject_t *check, const char *crawl_id) {
+    remote_query_cancel_calls++;
+    strncpy(remote_query_crawl_id, crawl_id, sizeof(remote_query_crawl_id)-1);
+    return 1;
 }
 
 char *get_check_diagnoses_return = NULL;
@@ -207,6 +230,45 @@ void reset_check_mock() {
 */
 import "C"
 
+// RUN-01 / RUN-04 PythonCheck bridge conformance with the existing C mock mechanism.
+func testRemoteQueryBridge(t *testing.T) {
+	mockRtloader(t)
+	ch, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	ch.instance = newMockPyObjectPtr()
+	C.remote_query_supported = 1
+	require.True(t, ch.SupportsRemoteQueries())
+	C.remote_query_supported = 0
+	require.False(t, ch.SupportsRemoteQueries())
+	C.remote_query_supported = 1
+	C.remote_query_calls = 0
+	C.remote_query_cancel_calls = 0
+	outcome := C.CString(`{"status":"SUCCEEDED"}`)
+	defer C.free(unsafe.Pointer(outcome))
+	C.remote_query_return = outcome
+	request := `{"operation":"execute","target":{"database_instance":"orders"}}`
+	answer, err := ch.RemoteQuery(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, `{"status":"SUCCEEDED"}`, answer)
+	require.Equal(t, request, C.GoString(&C.remote_query_request[0]))
+	require.Equal(t, ch.instance, C.remote_query_instance)
+	require.NoError(t, ch.CancelRemoteQuery("crawl-123"))
+	require.Equal(t, "crawl-123", C.GoString(&C.remote_query_crawl_id[0]))
+	require.Equal(t, C.int(1), C.remote_query_cancel_calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = ch.RemoteQuery(ctx, request)
+	require.Error(t, err)
+	require.Equal(t, C.int(1), C.remote_query_calls)
+	ch.Cancel()
+	_, err = ch.RemoteQuery(context.Background(), request)
+	require.Error(t, err)
+	require.NoError(t, ch.CancelRemoteQuery("crawl-123"))
+	require.Equal(t, C.int(1), C.remote_query_calls)
+	require.Equal(t, C.int(1), C.remote_query_cancel_calls)
+	C.remote_query_return = nil
+}
+
 func testRunCheck(t *testing.T) {
 	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
@@ -302,7 +364,7 @@ func testCheckCancel(t *testing.T) {
 	assert.Equal(t, check.instance, C.run_check_instance)
 
 	check.Cancel()
-	assert.True(t, check.cancelled)
+	assert.True(t, check.cancelled.Load())
 
 	// Check that the lock was acquired
 	assert.Equal(t, C.int(2), C.gil_locked_calls)
@@ -683,7 +745,7 @@ func testRunAfterCancel(t *testing.T) {
 	assert.Nil(t, err)
 
 	check.Cancel()
-	assert.True(t, check.cancelled)
+	assert.True(t, check.cancelled.Load())
 
 	err = check.runCheck(false)
 	assert.EqualError(t, err, "check fake_check is already cancelled")

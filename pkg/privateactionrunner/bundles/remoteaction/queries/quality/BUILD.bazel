@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+# keep: this opt-in quality mode is outside the Agent's generated test tag sets.
+go_test(
+    name = "quality_test",
+    srcs = ["quality_test.go"],
+    gotags = [
+        "quality",
+        "test",
+    ],
+    tags = ["manual"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/core/ipc/httphelpers",
+            "//pkg/collector/check",
+            "//pkg/collector/check/id",
+            "//pkg/collector/check/stub",
+            "//pkg/collector/remotequeries",
+            "//pkg/privateactionrunner/adapters/config",
+            "//pkg/privateactionrunner/adapters/rcclient",
+            "//pkg/privateactionrunner/runners",
+            "//pkg/privateactionrunner/types",
+            "//pkg/remoteconfig/state",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_apimachinery//pkg/util/sets",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/core/ipc/httphelpers",
+            "//pkg/collector/check",
+            "//pkg/collector/check/id",
+            "//pkg/collector/check/stub",
+            "//pkg/collector/remotequeries",
+            "//pkg/privateactionrunner/adapters/config",
+            "//pkg/privateactionrunner/adapters/rcclient",
+            "//pkg/privateactionrunner/runners",
+            "//pkg/privateactionrunner/types",
+            "//pkg/remoteconfig/state",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_stretchr_testify//require",
+            "@io_k8s_apimachinery//pkg/util/sets",
+        ],
+        "//conditions:default": [],
+    }),
+)

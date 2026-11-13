@@ -7,12 +7,25 @@ package types
 
 import (
 	"context"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
 
 type Bundle interface {
 	GetAction(actionName string) Action
+}
+
+// TaskTimeoutProvider is implemented by actions whose contract carries a task
+// timeout. An absent timeout uses the runner's configured default.
+type TaskTimeoutProvider interface {
+	TaskTimeout(task *Task) (timeout time.Duration, present bool, err error)
+}
+
+// RunnerStopCancellable is implemented by actions whose caller must end when
+// the runner stops, rather than draining independently of its lifecycle.
+type RunnerStopCancellable interface {
+	CancelOnRunnerStop() bool
 }
 
 type Action interface {

@@ -35,7 +35,10 @@ One schema per config file, all under `pkg/config/schema/yaml/`:
 
 Large top-level sections are **split into sibling files** referenced via `$ref`,
 so the node for `apm_config.enabled` lives in `apm_config.yaml`, not in
-`core_schema.yaml`.
+`core_schema.yaml`. When adding a new sibling schema file, also add it to
+`core_schema_subfiles` (or `system_probe_schema_subfiles`) in
+`pkg/config/schema/BUILD.bazel`: settings code generation uses these explicit
+filegroups as sandbox inputs.
 
 Never grep for the file by hand — `dda inv -- schema.locate` resolves the `$ref`
 for you (see Step 2).
