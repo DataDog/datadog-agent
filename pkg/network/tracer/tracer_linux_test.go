@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -2782,8 +2781,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
-	// findClosedConn polls for the closed connection from localAddr and returns a copy of it, or nil if
-	// it isn't reported within waitFor. A closed connection is reported in a single fetch only.
+	// findClosedConn polls for the closed connection from localAddr and returns it, or nil if it isn't
+	// reported within waitFor. A closed connection is reported in a single fetch only.
 	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
 		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
 			conns, cleanup := getConnections(t, tr)
@@ -2791,14 +2790,10 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
 				return c.IsClosed
 			})
-			if closed != nil {
-				found := *closed
-				// cleanup returns the connection buffer to a pool, so don't keep references into it
-				found.TCPFailures = maps.Clone(closed.TCPFailures)
-				cleanup()
-				return &found
-			}
 			cleanup()
+			if closed != nil {
+				return closed
+			}
 		}
 		return nil
 	}
