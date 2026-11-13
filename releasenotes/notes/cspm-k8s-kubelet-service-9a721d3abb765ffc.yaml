@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration now reports the
+    ownership and permissions of the kubelet systemd service file and leaves
+    its content out. The content used to be read as YAML, which turned a unit
+    into the name of its first section, such as ``["Unit"]``.

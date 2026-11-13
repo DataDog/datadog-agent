@@ -1497,6 +1497,56 @@ func TestKubeletConfigLargerThanReadLimit(t *testing.T) {
 	assert.NotEmpty(t, config.User)
 }
 
+// The kubelet service file is a systemd unit, so the loader reports its
+// ownership and permissions alone.
+func TestKubeletServiceFileMeta(t *testing.T) {
+	unit := mockFile{
+		name: "/etc/systemd/system/kubelet.service",
+		mode: 0644,
+		content: `[Unit]
+Description=Kubelet
+ConditionPathExists=/usr/local/bin/kubelet
+
+[Service]
+ExecStart=/usr/local/bin/kubelet --config=/etc/default/kubeletconfig.json
+`,
+	}
+	dropin := mockFile{
+		name: "/etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
+		mode: 0600,
+		content: `# Note: This dropin only works with kubeadm and kubelet v1.11+
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS
+`,
+	}
+	tests := []struct {
+		name  string
+		files []mockFile
+		want  mockFile
+	}{
+		{"unit", []mockFile{unit}, unit},
+		{"drop-in", []mockFile{dropin}, dropin},
+		{"drop-in over unit", []mockFile{unit, dropin}, dropin},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			conf := loadTestConfiguration(t, tmpDir, "")
+			require.NotNil(t, conf.KubeletService)
+			assert.Equal(t, tt.want.name, conf.KubeletService.Path)
+			assert.Equal(t, tt.want.mode, conf.KubeletService.Mode)
+			assert.NotEmpty(t, conf.KubeletService.User)
+			assert.NotEmpty(t, conf.KubeletService.Group)
+			assert.Nil(t, conf.KubeletService.Content)
+		})
+	}
+}
+
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
 	_, data := l.load(context.Background(), func(_ context.Context) []proc {

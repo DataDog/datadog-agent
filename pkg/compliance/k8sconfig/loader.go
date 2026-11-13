@@ -287,11 +287,17 @@ func (l *loader) loadFileMeta(name string) *K8sFileMeta {
 	}
 }
 
+// loadServiceFileMeta stats the first of names found and leaves its content
+// out: YAML decodes a systemd unit to the name of its first section.
 func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
 	for _, name := range names {
-		meta, ok := l.loadConfigFileMeta(name)
-		if ok {
-			return meta
+		if _, info, _, ok := l.loadMeta(name, false); ok {
+			return &K8sConfigFileMeta{
+				Path:  name,
+				User:  utils.GetFileUser(info),
+				Group: utils.GetFileGroup(info),
+				Mode:  uint32(info.Mode()),
+			}
 		}
 	}
 	return nil
