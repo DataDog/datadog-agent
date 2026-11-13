@@ -35,7 +35,7 @@ func initializeProcessIdentity() {
 // has to be in place before the Go runtime starts, so it rides an .init_array constructor.
 func capMallocArenas() {
 	// Logging before setup is buffered and replayed once the logger exists.
-	if summary, err := mallocarena.SetMax(mallocarena.DefaultMaxArenas); err != nil {
+	if summary, err := mallocarena.SetMax(); err != nil {
 		log.Warn(summary)
 	} else {
 		log.Info(summary)

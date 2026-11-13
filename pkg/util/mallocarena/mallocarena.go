@@ -49,29 +49,37 @@ var errUnsupported = errors.New("arena limit unsupported on this build")
 // summary of the outcome for logging. The returned error is non-nil only when the limit was
 // expected to apply and did not.
 //
+// It takes no limit, and reports DefaultMaxArenas because that is what the constructor
+// compiled in. glibc fixes its ceiling on the first secondary arena and from then on mallopt
+// keeps returning success while the effective limit stays where it latched, so a
+// caller-supplied value could be reported as applied without ever being in force.
+//
 // Call it early in main. It cannot undo arenas glibc has already handed out, so on its own it
-// freezes the count rather than reaching limit — the constructor is what reaches it, and the
-// summary says which of the two applied.
+// freezes the count rather than reaching the limit — the constructor is what reaches it, and
+// the summary says which of the two applied.
 //
 // An operator-provided MALLOC_ARENA_MAX or GLIBC_TUNABLES wins: glibc already applied it at
 // startup, so overriding it here would discard a deliberate choice.
-func SetMax(limit int) (string, error) {
+func SetMax() (string, error) {
 	if override, ok := environmentLimit(); ok {
 		return fmt.Sprintf("glibc malloc arena limit left to the environment (%s)", override), nil
 	}
 
-	switch err := setArenaMax(limit); {
+	switch err := setArenaMax(DefaultMaxArenas); {
 	case errors.Is(err, errUnsupported):
 		return "glibc malloc arena limit does not apply to this build", nil
 	case err != nil:
-		return fmt.Sprintf("could not cap glibc malloc arenas at %d: %v", limit, err), err
+		return fmt.Sprintf("could not cap glibc malloc arenas at %d: %v", DefaultMaxArenas, err), err
 	}
 
-	when := "after startup, so arenas already open are kept"
 	if constructorApplied() {
-		when = "before startup"
+		return fmt.Sprintf("capped glibc malloc arenas at %d (before startup), override with %s",
+			DefaultMaxArenas, arenaMaxEnv), nil
 	}
-	return fmt.Sprintf("capped glibc malloc arenas at %d (%s), override with %s", limit, when, arenaMaxEnv), nil
+	// mallopt reports success even once glibc has fixed its ceiling, so this path cannot claim
+	// the cap is in force.
+	return fmt.Sprintf("asked glibc for at most %d malloc arenas after startup: arenas already open are kept, and the request is ignored if glibc has already fixed its ceiling. Override with %s",
+		DefaultMaxArenas, arenaMaxEnv), nil
 }
 
 // environmentLimit reports an arena limit already pinned by the process environment.

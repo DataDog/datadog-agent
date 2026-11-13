@@ -56,7 +56,7 @@ func TestSetMaxDefersToEnvironment(t *testing.T) {
 	t.Setenv(arenaMaxEnv, "4")
 	t.Setenv(tunablesEnv, "")
 
-	summary, err := SetMax(DefaultMaxArenas)
+	summary, err := SetMax()
 	require.NoError(t, err)
 	assert.Contains(t, summary, "left to the environment")
 	assert.Contains(t, summary, "MALLOC_ARENA_MAX=4")
@@ -67,7 +67,7 @@ func TestSetMaxIgnoresRejectedEnvironment(t *testing.T) {
 	t.Setenv(arenaMaxEnv, "0")
 	t.Setenv(tunablesEnv, "")
 
-	summary, err := SetMax(DefaultMaxArenas)
+	summary, err := SetMax()
 	require.NoError(t, err)
 	assert.NotContains(t, summary, "left to the environment")
 }
@@ -78,7 +78,7 @@ func TestSetMaxWithoutOverride(t *testing.T) {
 	t.Setenv(arenaMaxEnv, "")
 	t.Setenv(tunablesEnv, "")
 
-	summary, err := SetMax(DefaultMaxArenas)
+	summary, err := SetMax()
 	require.NoError(t, err)
 	assert.NotEmpty(t, summary)
 }

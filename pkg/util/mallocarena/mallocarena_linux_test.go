@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -51,7 +52,7 @@ func runProbe(capped bool) int {
 	var summary string
 	if capped {
 		var err error
-		if summary, err = SetMax(DefaultMaxArenas); err != nil {
+		if summary, err = SetMax(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -127,4 +128,21 @@ func TestArenasAreCapped(t *testing.T) {
 // The constructor cannot read Go constants, so the limit is spelled twice.
 func TestConstructorLimitMatchesDefault(t *testing.T) {
 	assert.Equal(t, DefaultMaxArenas, constructorLimit)
+}
+
+// Comparing the two constants above says nothing about what SetMax tells the operator. Once
+// glibc has fixed its ceiling mallopt keeps returning success, so a summary naming any other
+// number would read as a cap in force that is not. Check the reported limit against the one
+// the constructor compiled in, and against the arena count the probe actually reached.
+func TestSummaryReportsLimitInForce(t *testing.T) {
+	capped := spawnProbe(t, true)
+
+	match := regexp.MustCompile(`arenas at (\d+)`).FindStringSubmatch(capped.summary)
+	require.Lenf(t, match, 2, "no limit in summary %q", capped.summary)
+	reported, err := strconv.Atoi(match[1])
+	require.NoError(t, err)
+
+	assert.Equal(t, constructorLimit, reported)
+	assert.LessOrEqualf(t, capped.arenas, reported,
+		"summary reports %d arenas, probe reached %d", reported, capped.arenas)
 }
