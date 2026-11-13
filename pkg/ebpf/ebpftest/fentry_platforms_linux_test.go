@@ -37,10 +37,10 @@ type kmtPlatform struct {
 // on: the union of the TAG matrices of kmt_run_sysprobe_tests_x64 and
 // kmt_run_sysprobe_tests_arm64 in
 // .gitlab/test/kernel_matrix_testing/system_probe.yml, with the fentry
-// expectation established empirically for each. When a platform is added to
-// those matrices it must be added here as well: unrecognized platforms are
-// assumed fentry-supported, so the test fails on a new platform until its
-// row is added. When fentry support legitimately changes on a platform
+// expectation established empirically for each. Platforms without a row are
+// assumed fentry-supported, so a new platform only fails the test when the
+// probe reports unsupported there, forcing an explicit row. When fentry
+// support legitimately changes on a platform
 // (e.g. a kernel image refresh), update the corresponding row in the same
 // commit. Platforms whose support differs per architecture need one row per
 // architecture.
@@ -116,8 +116,9 @@ func kernelMajorMinor(release string) string {
 
 // expectedFentrySupport returns the fentry expectation for the platform the
 // test is running on, along with its KMT platform name ("" when no row
-// matches). Platforms missing from kmtPlatforms are assumed fentry-supported,
-// so a new KMT platform fails the test until its row is added.
+// matches). Platforms missing from kmtPlatforms are assumed fentry-supported:
+// the test fails on such a platform only when the probe reports unsupported,
+// which forces an explicit row to be added.
 func expectedFentrySupport(tb testing.TB) (bool, string) {
 	tb.Helper()
 	osID, osVersionID := osReleaseID(tb)
