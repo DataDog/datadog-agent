@@ -123,8 +123,19 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags ma
 
 // snapshotProcSys recursively reads files in /proc/sys and builds a nested JSON structure.
 func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
-	return filepath.WalkDir(kernel.HostProc("/sys"), func(file string, d fs.DirEntry, err error) error {
+	root := kernel.HostProc("/sys")
+	return filepath.WalkDir(root, s.procSysWalkFunc(kernel.ProcFSRoot(), root, ignoredBaseNames))
+}
+
+// procSysWalkFunc returns the function inserting the files walked under root in the snapshot, keyed by their
+// path relative to procRoot
+func (s *Snapshot) procSysWalkFunc(procRoot string, root string, ignoredBaseNames []string) fs.WalkDirFunc {
+	return func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
+			// entries can vanish during the walk, with their network interface for example
+			if file != root && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 
@@ -136,6 +147,9 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 		// Skip if mode doesn't allow reading
 		info, err := d.Info()
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 		mode := info.Mode()
@@ -143,7 +157,7 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(kernel.ProcFSRoot(), file)
+		relPath, err := filepath.Rel(procRoot, file)
 		if err != nil {
 			return err
 		}
@@ -155,7 +169,7 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 
 		s.InsertSnapshotEntry(s.Proc, relPath, string(value))
 		return nil
-	})
+	}
 }
 
 func readSnapshotSystemControl(primaryPath, fallbackPath string, ignoredBaseNames []string) ([]byte, error) {

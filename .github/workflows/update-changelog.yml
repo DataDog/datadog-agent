@@ -21,6 +21,7 @@ jobs:
   update_changelog:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
     environment:
       name: main

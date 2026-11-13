@@ -16,7 +16,6 @@ from tasks import release
 from tasks.libs.common.gomodules import GoModule
 from tasks.libs.releasing.json import (
     COMPATIBLE_MAJOR_VERSIONS,
-    _get_jmxfetch_release_json_info,
     _get_windows_release_json_info,
     _update_release_json_entry,
     find_previous_tags,
@@ -173,29 +172,14 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
 
 
-MOCK_JMXFETCH_CONTENT = b"jmxfetch content"
-
-
-def mocked_jmxfetch_requests_get(*_args, **_kwargs):
-    class MockResponse:
-        def __init__(self, content, status_code):
-            self.content = content
-            self.status_code = status_code
-
-    return MockResponse(MOCK_JMXFETCH_CONTENT, 200)
-
-
 class TestUpdateReleaseJsonEntry(unittest.TestCase):
-    @patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
-    def test_update_release_json_entry(self, _):
+    def test_update_release_json_entry(self):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
                 "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
                     "WINDOWS_DDNPM_DRIVER": "release-signed",
                     "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
@@ -209,8 +193,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
-        jmxfetch_version = Version(major=0, minor=45, patch=0)
-        jmxfetch_shasum = "jmxfetchhashsum"
         security_agent_policies_version = Version(prefix="v", major="0", minor="15")
         windows_ddnpm_driver = "release-signed"
         windows_ddnpm_version = "1.2.1"
@@ -223,8 +205,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             release_json=initial_release_json,
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
-            jmxfetch_version=jmxfetch_version,
-            jmxfetch_shasum=jmxfetch_shasum,
             security_agent_policies_version=security_agent_policies_version,
             windows_ddnpm_driver=windows_ddnpm_driver,
             windows_ddnpm_version=windows_ddnpm_version,
@@ -239,8 +219,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 "dependencies": {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
-                    "JMXFETCH_VERSION": str(jmxfetch_version),
-                    "JMXFETCH_HASH": str(jmxfetch_shasum),
                     "WINDOWS_DDNPM_DRIVER": str(windows_ddnpm_driver),
                     "WINDOWS_DDNPM_VERSION": str(windows_ddnpm_version),
                     "WINDOWS_DDNPM_SHASUM": str(windows_ddnpm_shasum),
@@ -258,17 +236,10 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
         "dependencies": {
-            "JMXFETCH_VERSION": "0.44.1",
             "SECURITY_AGENT_POLICIES_VERSION": "v0.10",
             "TEST_COMPONENT_VERSION": "invalid_version",
         },
     }
-
-    def test_release_jmxfetch_version(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
-        )
-        self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
     def test_release_security_version(self):
         version = _get_release_version_from_release_json(
@@ -288,8 +259,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
         "dependencies": {
             "VERSION": "ver7_nightly",
             "HASH": "hash7_nightly",
-            "JMXFETCH_VERSION": "ver7_nightly",
-            "JMXFETCH_HASH": "hash7_nightly",
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -298,12 +267,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
     }
-
-    def test_jmxfetch_info_extraction(self):
-        """Test extraction of JMXFetch specific fields"""
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json)
-        self.assertEqual(jmxfetch_version, "ver7_nightly")
-        self.assertEqual(jmxfetch_hash, "hash7_nightly")
 
     def test_windows_info_extraction(self):
         """Test extraction of Windows driver specific fields"""

@@ -12,6 +12,7 @@ load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@dd_release_json//:release_json.bzl", "release_json")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "EMBEDDED_LIB_DIR")
 load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
 
 # The location where the product should be installed on a user system.
@@ -127,6 +128,7 @@ def _variables_impl(ctx):
     if ctx.attr._install_dir and BuildSettingInfo in ctx.attr._install_dir:
         install_dir = ctx.attr._install_dir[BuildSettingInfo].value
     values["install_dir"] = install_dir
+    embedded_lib_dirs = [EMBEDDED_LIB_DIR.format(install_dir = install_dir)]
 
     # Mirrors get_version_ldflags() in tasks/libs/common/utils.py: versioned
     # installs such as /opt/datadog-packages/datadog-agent/<version> report it.
@@ -138,6 +140,10 @@ def _variables_impl(ctx):
         agent_package_version = paths.basename(install_dir)
         if agent_package_version == "datadog-agent":
             agent_package_version = env_vars.PACKAGE_VERSION or values["agent_version"]
+        else:  # upgrades run the new installer before unpacking its version (#56351)
+            embedded_lib_dirs.append(
+                EMBEDDED_LIB_DIR.format(install_dir = paths.join(paths.dirname(install_dir), "stable")),
+            )
     values["agent_package_version"] = agent_package_version
 
     output_config_dir = DEFAULT_OUTPUT_CONFIG_DIR
@@ -153,6 +159,7 @@ def _variables_impl(ctx):
         DdBuildTimeInfo(values = values),
         platform_common.TemplateVariableInfo({
             "AGENT_PACKAGE_VERSION": agent_package_version,
+            "EMBEDDED_LIB_DIRS": ":".join(embedded_lib_dirs),
         }),
     ]
 
