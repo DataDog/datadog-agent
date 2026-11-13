@@ -3669,8 +3669,13 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	var env *netemTestEnv
 	c := setupNetemCongestionTest(t, []string{"loss", "100%"}, func(_ *testing.T, e *netemTestEnv) { env = e })
 	defer c.Close()
+	// The write only has to queue data for the kernel to (re)transmit, so a
+	// short write or a deadline timeout under 100% loss is fine; log it.
 	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-	c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	n, err := c.Write(make([]byte, 64*1024))
+	t.Logf("wrote %d of %d bytes under 100%% loss (err: %v)", n, 64*1024, err)
+	require.Greater(t, n, 0, "no data queued for transmission")
+	c.SetWriteDeadline(time.Time{})
 
 	// rto_count is the signal under test. With every packet dropped no ACK
 	// arrives, so there is no fast recovery and recovery_count stays 0. That
@@ -3684,11 +3689,16 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	// the previous fetch, so keep the highest count seen across fetches
 	// instead of requiring the connection in the latest one.
 	var rtoCount uint32
+	var seen bool
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			seen = true
 			rtoCount = max(rtoCount, conn.Monotonic.TCPRTOCount)
+		}
+		if !assert.True(ct, seen, "connection not found") {
+			return
 		}
 		assert.Greater(ct, rtoCount, uint32(0), "rto_count should be > 0 while active")
 	}, 30*time.Second, 200*time.Millisecond)
@@ -3699,7 +3709,7 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	// with 'Illegal "loss percent"'.
 	env.delNetem(t)
 
-	// Close and verify rto_count and recovery_count after the close event
+	// Close and verify that the close event preserves rto_count
 	localAddr := c.LocalAddr()
 	remoteAddr := c.RemoteAddr()
 	c.Close()
@@ -3708,11 +3718,15 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	require.Eventually(t, func() bool {
 		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
+		// Require the closed entry: after delNetem the queued data is
+		// retransmitted, so the active entry is also reported and carries
+		// the same monotonic rto_count.
 		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if ok {
+		if ok && conn.IsClosed {
 			closedConn = conn
+			return true
 		}
-		return ok
+		return false
 	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
 
 	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
