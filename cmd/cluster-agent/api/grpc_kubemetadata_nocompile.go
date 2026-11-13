@@ -16,3 +16,6 @@ import (
 func startKubeMetadataStreamer(_ context.Context, _ workloadmeta.Component) kubeMetadataStreamer {
 	return nil
 }
+
+// SetKubeMetadataClusterChecks is a no-op without the kube metadata stream.
+func SetKubeMetadataClusterChecks(_ ClusterCheckNodes) {}

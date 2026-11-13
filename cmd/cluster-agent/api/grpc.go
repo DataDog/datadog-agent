@@ -12,6 +12,12 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
+// ClusterCheckNodes returns the Kubernetes nodes whose node Agent runs a check
+// dispatched as an endpoints check, and false when they are unknown.
+type ClusterCheckNodes interface {
+	NodesRunningCheck(checkName string) (map[string]struct{}, bool)
+}
+
 type kubeMetadataStreamer interface {
 	StreamKubeMetadata(*pbgo.KubeMetadataStreamRequest, pbgo.AgentSecure_StreamKubeMetadataServer) error
 }
