@@ -56,6 +56,7 @@ type componentEntry struct {
 type detectorRegistration struct {
 	detector observerdef.Detector
 	filter   observerdef.DetectionFilter
+	timing   *detectorTiming
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.

@@ -50,8 +50,8 @@ const (
 
 	// VariantA and VariantB are the variants of the two Agent installations, each running on
 	// node pools of its own. The variants play symmetric roles, so that a benchmark can swap
-	// the images of the installations half way through to cancel out the difference between
-	// the machines of the node pools.
+	// the images of the installations between its measurement phases to cancel out the
+	// difference between the machines of the node pools.
 	VariantA = "a"
 	VariantB = "b"
 

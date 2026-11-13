@@ -12,7 +12,7 @@ _DEFAULT_DEFINES = {
 
 # rpm only removes directories listed in the package on uninstall. Declare the
 # implicit parent directories of srcs so they don't get left behind.
-def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
+def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwargs):
     owned_dirs = "%s_owned_dirs_" % name
     dd_pkg_owned_dirs(
         name = owned_dirs,
@@ -21,6 +21,8 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
         visibility = ["//visibility:private"],
     )
 
+    merged_defines = dict(_DEFAULT_DEFINES)
+    merged_defines.update(defines or {})
     pkg_rpm_impl(
         name = name,
         srcs = srcs + [":" + owned_dirs],
@@ -28,7 +30,7 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
             "//:is_release": "w9T8.xzdio",
             "//conditions:default": "w5T8.xzdio",
         }),
-        defines = _DEFAULT_DEFINES,
+        defines = merged_defines,
         description = rpm_description(description),
         visibility = visibility,
         **kwargs
@@ -40,7 +42,7 @@ dd_pkg_rpm = macro(
     implementation = _dd_pkg_rpm_impl,
     attrs = {
         "binary_payload_compression": None,
-        "defines": None,
+        "defines": attr.string_dict(configurable = False),
         "description": attr.string(configurable = False),
         "private_stamp_detect": None,
         "stamp": None,
