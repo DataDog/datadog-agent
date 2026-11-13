@@ -147,8 +147,20 @@ class TestBazel(unittest.TestCase):
 
     @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_unsupported_fips_backend(self, _, run_command):
-        with self.assertRaises(NotImplementedError):
+    @patch.dict(os.environ, {}, clear=True)
+    def test_boringcrypto_fips_backend(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("", 0, "", "")
+        bazel("build", "//:go", fips_backend=FipsBackend.boringcrypto)
+        self.assertEqual(
+            run_command.call_args.args[0],
+            ("/bzlx", "build", "--@rules_go//go/toolchain:sdk_name=boringcrypto", "//:go"),
+        )
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    @patch.dict(os.environ, {"AGENT_FLAVOR": "fips"}, clear=True)
+    def test_fips_agent_flavor_with_boringcrypto(self, _, run_command):
+        with self.assertRaises(ValueError):
             bazel("build", "//:go", fips_backend=FipsBackend.boringcrypto)
         run_command.assert_not_called()
 

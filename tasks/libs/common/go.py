@@ -204,7 +204,7 @@ def go_build(
             *args,
             capture_stderr=check_deadcode,
             env=env,
-            fips_backend=fips_backend.strip_boringcrypto(),
+            fips_backend=fips_backend,
         )
     else:  # AIX and the Docker images building the OTel agent
         ctx.run(join_command(["go", *args]), env=env)
@@ -221,7 +221,7 @@ def go_build(
             "--ignore-unrecognized-input",
             input=stderr,
             capture_output=True,
-            fips_backend=fips_backend.strip_boringcrypto(),
+            fips_backend=fips_backend,
         )
     ):
         print(

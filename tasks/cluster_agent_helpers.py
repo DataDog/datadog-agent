@@ -40,7 +40,7 @@ def build_common(
     Build Cluster Agent
     """
 
-    schema_compress(ctx, fips_backend=fips_backend.strip_boringcrypto())
+    schema_compress(ctx, fips_backend=fips_backend)
 
     agent_bin = os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}"))
 

@@ -8,6 +8,11 @@ go_sdk.from_file(
     go_work = "//:go.work",
     patches = ["//bazel/patches:go_sdk-civisibility.patch"],
 )
+go_sdk.from_file(
+    name = "boringcrypto",
+    experiments = ["boringcrypto"],
+    go_work = "//:go.work",
+)
 use_repo(go_sdk, "go_toolchains", "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 

@@ -324,17 +324,19 @@ def build_binary_with_bazel(
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...], fips_backend: FipsBackend) -> tuple[str, ...]:
-    """Insert either --platforms for the given FIPS backend or --//packages/agent:flavor, then --//:install_dir and
-    --//:output_config_dir, pinned from the corresponding omnibus build environment variables.
+    """Insert either --platforms or the Go SDK for the given FIPS backend, or --//packages/agent:flavor, then
+    --//:install_dir and --//:output_config_dir, pinned from the corresponding omnibus build environment variables.
     💡 Mirrors `omnibazel_flags` in omnibus/lib/ostools.rb.
     """
     flags = []
     if fips_backend == FipsBackend.msgo:
         flags.append(f"--platforms=//bazel/platforms:{platform.system().lower()}_{Arch.local().bazel_cpu}_fips")
-    elif fips_backend != FipsBackend.none:
-        raise NotImplementedError(f"Bazel does not support --fips-backend={fips_backend} yet.")
     elif (agent_flavor := os.environ.get("AGENT_FLAVOR")) == "fips":
-        raise ValueError("AGENT_FLAVOR=fips but fips_backend=FipsBackend.none: missing fips_backend=FipsBackend.msgo?")
+        raise ValueError(
+            f"AGENT_FLAVOR=fips but fips_backend=FipsBackend.{fips_backend}: missing fips_backend=FipsBackend.msgo?"
+        )
+    elif fips_backend == FipsBackend.boringcrypto:
+        flags.append("--@rules_go//go/toolchain:sdk_name=boringcrypto")
     elif agent_flavor:
         flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):

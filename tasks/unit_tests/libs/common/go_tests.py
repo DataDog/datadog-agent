@@ -66,7 +66,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"},
-            fips_backend=FipsBackend.none,
+            fips_backend=FipsBackend.boringcrypto,
         )
 
     @patch.dict("os.environ", {"GOOS": "linux"})
