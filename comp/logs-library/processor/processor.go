@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -53,6 +54,7 @@ type Processor struct {
 	configChan                chan failoverConfig
 	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
 	failoverConfig            failoverConfig
+	quotaEnforcer             *quota.Enforcer
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -90,6 +92,12 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	}
 
 	return p
+}
+
+// SetQuotaEnforcer makes the processor drop messages matching active quota rules.
+// Must be called before Start.
+func (p *Processor) SetQuotaEnforcer(e *quota.Enforcer) {
+	p.quotaEnforcer = e
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
@@ -205,6 +213,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 		} else {
 			metrics.TlmTruncatedCount.Inc("", "")
 		}
+	}
+
+	if p.quotaEnforcer != nil && p.quotaEnforcer.Check(msg) {
+		return
 	}
 
 	if toSend := p.applyRedactingRules(msg); toSend {

@@ -108,3 +108,26 @@
   {{- end }}
 {{- end }}
 {{- end }}
+{{- with .quotaEnforcement }}
+{{- if or .LastSync .Configs }}
+
+  =================
+  Quota Enforcement
+  =================
+    Last update: {{ .LastSync }}
+  {{- range .Configs }}
+
+    - {{ .Path }}
+      {{- if .Error }}
+      Error: {{ .Error }}
+      {{- else if not .Quotas }}
+      No quotas
+      {{- end }}
+      {{- range .Quotas }}
+      Tags: {{ .Tags }}
+        State: {{ .State }}  Expires: {{ .ExpiresAt }}
+        Dropped: {{ .DroppedEvents }} events, {{ .DroppedBytes }} bytes{{ if .LastDrop }} (last {{ .LastDrop }}){{ end }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

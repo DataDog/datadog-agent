@@ -37,6 +37,21 @@ func TestTagsWithConfigTagsOnly(t *testing.T) {
 	assert.Equal(t, "sourcecategory:b,c:d,e", origin.TagsToString())
 }
 
+func TestHasTag(t *testing.T) {
+	cfg := &config.LogsConfig{SourceCategory: "b", Tags: []string{"c:d"}}
+	origin := NewOrigin(sources.NewLogSource("", cfg))
+	origin.SetTags([]string{"foo:bar"})
+	for _, tag := range origin.Tags() {
+		assert.True(t, origin.HasTag(tag), tag)
+	}
+	assert.False(t, origin.HasTag("foo:baz"))
+	assert.False(t, origin.HasTag("sourcecategory:"))
+	assert.False(t, (*Origin)(nil).HasTag("foo:bar"))
+
+	origin = NewOrigin(sources.NewLogSource("", &config.LogsConfig{}))
+	assert.False(t, origin.HasTag("sourcecategory:"))
+}
+
 func TestSetTagsWithNoConfigTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -65,6 +66,7 @@ func NewPipeline(
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		tagFilters, encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+	processor.SetQuotaEnforcer(quota.Default())
 
 	return &Pipeline{
 		InputChan:       inputChan,
