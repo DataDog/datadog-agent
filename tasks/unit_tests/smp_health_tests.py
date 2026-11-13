@@ -437,6 +437,50 @@ class TestHealthRendering(unittest.TestCase):
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual((Path(tmp) / 'outputs/experiment-health/render-status.json').exists(), status)
 
+    def test_ci_selection_writes_pr_context_and_removes_stale_context_on_failure(self):
+        class Loader(yaml.SafeLoader):
+            pass
+
+        Loader.add_constructor('!reference', lambda loader, node: loader.construct_sequence(node))
+        pipeline = yaml.load(Path('.gitlab/childs/smp-regression-child-pipeline.yml').read_text(), Loader=Loader)
+        script = pipeline['.single-machine-performance-run_regression_detector']['script']
+        selection = next(
+            command for command in script if isinstance(command, str) and 'owners.smp-pr-context' in command
+        )
+        stub = r'''dd-octo-sts() { echo test-token; }
+        dda() {
+          if [[ "$LOOKUP_FAIL" == "true" ]]; then return 1; fi
+          while [[ $# -gt 0 ]]; do
+            if [[ "$1" == "--context-out" ]]; then
+              printf '{"status":"resolved","number":123,"url":"https://github.com/DataDog/datadog-agent/pull/123"}' > "$2"
+              return 0
+            fi
+            shift
+          done
+        }
+        '''
+        for failed in [False, True]:
+            with self.subTest(failed=failed), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / 'pr_context.json'
+                if failed:
+                    path.write_text('{"status":"resolved","number":999}')
+                result = subprocess.run(
+                    ['bash', '-eu', '-c', stub + selection],
+                    cwd=tmp,
+                    env={
+                        **os.environ,
+                        'SELECT_EXPERIMENTS': 'true',
+                        'CI_COMMIT_BRANCH': 'example',
+                        'CI_DEFAULT_BRANCH': 'main',
+                        'LOOKUP_FAIL': str(failed).lower(),
+                    },
+                    capture_output=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(path.exists(), not failed)
+                if not failed:
+                    self.assertEqual(json.loads(path.read_text())['number'], 123)
+
     def test_automatic_upload_uses_only_the_new_report(self):
         class Loader(yaml.SafeLoader):
             pass
