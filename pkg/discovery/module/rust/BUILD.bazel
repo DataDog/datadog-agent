@@ -1,8 +1,9 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_static_library", "rust_test")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 
 # ============================================================================
 # Library Targets (rlib + cdylib)
@@ -157,13 +158,16 @@ rust_binary(
     ],
 )
 
-pkg_files(
-    name = "all_files",
-    srcs = [":system-probe-lite"],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
+agent_binary_for_package(
+    name = "system_probe_lite_binary",
     prefix = "embedded/bin",
+    target = ":system-probe-lite",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [":system_probe_lite_binary"],
     visibility = ["//packages:__subpackages__"],
 )
 
