@@ -40,6 +40,7 @@ import (
 	autodiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -837,6 +838,11 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	if err != nil {
 		return nil, fmt.Errorf("fail to load custom config: %v", err)
 	}
+
+	// The operator chose this file on the command line. Treat it as a file
+	// provider config so checks that only accept local files (for example jetson)
+	// run the same way they do from conf.d.
+	customConf.Provider = names.File
 
 	return []integration.Config{customConf}, nil
 }

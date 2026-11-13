@@ -20,6 +20,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -186,6 +187,15 @@ func (c *JetsonCheck) Run() error {
 
 // Configure the GPU check
 func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	// Jetson runs a host binary and uses a singleton check id, so a tenant-controlled
+	// Autodiscovery config could choose that binary, stop a file-configured instance,
+	// or mutate its shared sender. Only a local configuration file is accepted. This
+	// gate runs before CommonConfigure so a rejected config cannot touch the sender
+	// keyed by the singleton "jetson" id.
+	if provider != names.File {
+		return fmt.Errorf("the jetson check only accepts configuration from local files, got provider %q", provider)
+	}
+
 	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
