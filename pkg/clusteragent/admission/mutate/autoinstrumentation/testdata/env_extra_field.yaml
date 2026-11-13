@@ -1,0 +1,9 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "value-from"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            vaule: "true"
