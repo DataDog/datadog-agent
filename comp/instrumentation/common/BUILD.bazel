@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "apm_store.go",
+        "autodiscovery_utils.go",
+        "target.go",
+        "writers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/instrumentation/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadfilter/def",
+        "//pkg/ssi",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = [
+        "apm_store_test.go",
+        "autodiscovery_utils_test.go",
+    ],
+    embed = [":common"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/ssi",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)

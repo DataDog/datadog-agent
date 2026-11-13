@@ -10,6 +10,7 @@ package controllers
 import (
 	"context"
 
+	instrumentationcontroller "github.com/DataDog/datadog-agent/comp/instrumentation/controller/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -79,19 +80,15 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 			return
 		}
 
-		controller, err := instrumentation.NewController(
-			ctx.DynamicUpdateClient,
-			ctx.DynamicInformerFactory,
-			ctx.InstrumentationHandlers,
-			ctx.IsLeaderFunc,
-			ctx.Telemetry,
-		)
-		if err != nil {
-			log.Errorf("Failed to create DatadogInstrumentation controller: %v", err)
+		if err := ctx.InstrumentationController.Start(controllerCtx, instrumentationcontroller.Params{
+			StatusClient:    ctx.DynamicUpdateClient,
+			InformerFactory: ctx.DynamicInformerFactory,
+			IsLeader:        ctx.IsLeaderFunc,
+		}); err != nil {
+			log.Errorf("Failed to start DatadogInstrumentation controller: %v", err)
 			return
 		}
 
-		go controller.Run(controllerCtx)
 		ctx.DynamicInformerFactory.Start(ctx.StopCh)
 	}()
 }

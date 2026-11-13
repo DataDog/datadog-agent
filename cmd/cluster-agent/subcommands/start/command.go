@@ -35,7 +35,6 @@ import (
 	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -83,6 +82,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	instrumentationbundle "github.com/DataDog/datadog-agent/comp/instrumentation"
+	instrumentationchecks "github.com/DataDog/datadog-agent/comp/instrumentation/checks/def"
+	instrumentationstore "github.com/DataDog/datadog-agent/comp/instrumentation/common"
+	instrumentationcontroller "github.com/DataDog/datadog-agent/comp/instrumentation/controller/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
@@ -107,7 +110,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
@@ -237,9 +239,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[serializer.MetricSerializer]()
 				}),
 				adfx.Module(),
-				// both concrete and interface typs of service store are needed.
-				fx.Provide(instrumentationhandlers.NewServiceCheckTemplateStore),
-				fx.Provide(func(s *instrumentationhandlers.ServiceCheckTemplateStore) adtypes.ServiceTracker { return s }),
+				instrumentationbundle.Bundle(),
 				rcservicefx.Module(),
 				rcstatusfx.Module(),
 				rctelemetryreporterfx.Module(),
@@ -324,7 +324,12 @@ func start(log log.Component,
 	eventPlatform eventplatform.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
-	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
+	serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore,
+	checkStore *instrumentationstore.CheckStore,
+	apmTargetStore *instrumentationstore.APMTargetStore,
+	instrumentationController instrumentationcontroller.Component,
+	instrumentationChecks instrumentationchecks.Component,
+	instrHandlers []instrumentation.Handler,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
 	helmactions helmactions.Component,
 	kubeActions kubeactionscomp.Component,
@@ -441,10 +446,10 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	apmTargetStore := instrumentationhandlers.NewAPMTargetStore()
-	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, apmTargetStore)
+		useEndpointSlices := apiserver.UseEndpointSlices()
+		instrumentationChecks.SetServiceTargetEnabled(useEndpointSlices)
+		setupInstrumentationCRDHandler(ac, checkStore, serviceTemplateStore, useEndpointSlices)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -461,8 +466,7 @@ func start(log log.Component,
 		WorkloadMeta:                wmeta,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
-		InstrumentationHandlers:     instrHandlers,
-		Telemetry:                   telemetry,
+		InstrumentationController:   instrumentationController,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -873,20 +877,12 @@ func loopbackOnly(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, apmStore *instrumentationhandlers.APMTargetStore) []instrumentation.Handler {
-	checkStore := instrumentationhandlers.NewCheckStore()
-	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
-		IsLeader:                  le.IsLeader,
-		CheckStore:                checkStore,
-		ServiceCheckTemplateStore: serviceTemplateStore,
-		APMTargetStore:            apmStore,
-	})
-
+func setupInstrumentationCRDHandler(ac autodiscovery.Component, checkStore *instrumentationstore.CheckStore, serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore, useEndpointSlices bool) {
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
 		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
 	})
 
-	if apiserver.UseEndpointSlices() {
+	if useEndpointSlices {
 		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
 		if err != nil {
 			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
@@ -894,7 +890,6 @@ func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodisc
 			ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
 		}
 	}
-	return instrHandlers
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {
