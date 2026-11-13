@@ -2679,7 +2679,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: 10000,
 	}
-	makeConn := func(t *testing.T, nonblocking bool) net.Conn {
+	makeConn := func(t *testing.T, nonblocking, waitForTimeout bool) net.Conn {
 		addr := syscall.SockaddrInet4{
 			Port: remoteAddr.Port,
 		}
@@ -2707,6 +2707,20 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				require.NoError(t, err, "could not connect to server: ", err)
 			}
 		}
+		if nonblocking && waitForTimeout {
+			// Wait for the kernel to time out the connect before the test polls the tracer. Polling makes
+			// bpf() map syscalls, and a kprobe that fires on a CPU in such a syscall is skipped. poll()
+			// doesn't read SO_ERROR, so sk_err is left set as it would be for an app that never checks it.
+			fds := []unix.PollFd{{Fd: int32(sfd), Events: unix.POLLOUT}}
+			for {
+				_, err = unix.Poll(fds, 5000)
+				if !errors.Is(err, unix.EINTR) {
+					break
+				}
+			}
+			require.NoError(t, err)
+			require.NotZero(t, fds[0].Revents&(unix.POLLERR|unix.POLLHUP), "connect did not time out")
+		}
 
 		c, err := net.FileConn(f)
 		require.NoError(t, err)
@@ -2722,7 +2736,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		{
 			name: "blocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
-				return makeConn(t, false)
+				return makeConn(t, false, false)
 			},
 			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
 				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
@@ -2732,8 +2746,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		{
 			name: "nonblocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
-				// connection will time out in 500ms while checkConn is running
-				return makeConn(t, true)
+				// returns once the connection has timed out (500ms)
+				return makeConn(t, true, true)
 			},
 			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
 				assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
@@ -2743,7 +2757,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		{
 			name: "userspace cancel",
 			makeConn: func(t *testing.T) net.Conn {
-				c := makeConn(t, true)
+				c := makeConn(t, true, false)
 				// immediately close c to cause a cancellation
 				require.NoError(t, c.Close())
 				return c
@@ -2773,11 +2787,14 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
 		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
 			conns, cleanup := getConnections(t, tr)
-			conn, _ := findConnection(localAddr, remoteAddr, conns)
-			if conn != nil && conn.IsClosed {
-				found := *conn
+			// the tuple can match an open entry as well as the closed one, so look for the closed one
+			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
+				return c.IsClosed
+			})
+			if closed != nil {
+				found := *closed
 				// cleanup returns the connection buffer to a pool, so don't keep references into it
-				found.TCPFailures = maps.Clone(conn.TCPFailures)
+				found.TCPFailures = maps.Clone(closed.TCPFailures)
 				cleanup()
 				return &found
 			}
@@ -2794,7 +2811,12 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 			// the TCP retransmit timer softirq, which can interrupt such a window, so tcp_done never
 			// reports the failed connection. Retry with a new connection when the connection isn't
 			// reported at all. A connection that is reported must carry the right failure.
-			const attempts = 3
+			// fentry programs (Fentry and SK modes) have a per-program recursion guard instead, so
+			// they don't lose events this way and get a single attempt: a miss there is a real bug.
+			attempts := 1
+			if mode := ebpftest.GetBuildMode(); mode == ebpftest.CORE || mode == ebpftest.RuntimeCompiled {
+				attempts = 3
+			}
 			var conn *network.ConnectionStats
 			for attempt := 1; attempt <= attempts && conn == nil; attempt++ {
 				// use the testcase's connection
