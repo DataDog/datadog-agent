@@ -4057,10 +4057,13 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	// the rest by 50ms, causing out-of-order delivery.
 	env.addNetem(t, "delay", "50ms", "reorder", "75%")
 
-	// rcv_ooopack is 0 before netem is applied, so the monotonic value is
-	// the count caused by netem. Keep the highest value seen across fetches
-	// instead of requiring the connection in the latest one.
+	// Assert on Last, the per-fetch delta that is shipped in the payload.
+	// The connection is dropped from fetches where its stats didn't change,
+	// so keep the highest delta seen across fetches instead of requiring a
+	// non-zero delta in the latest one. rcv_ooopack is 0 before netem is
+	// applied, so the fetch where it first grows has a non-zero delta.
 	var rcvOOOPack uint32
+	var connSeen bool
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Drain available data to trigger tcp_recvmsg snapshots.
 		c.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -4069,7 +4072,11 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
-			rcvOOOPack = max(rcvOOOPack, conn.Monotonic.TCPRcvOOOPack)
+			connSeen = true
+			rcvOOOPack = max(rcvOOOPack, conn.Last.TCPRcvOOOPack)
+		}
+		if !assert.True(ct, connSeen, "connection not found") {
+			return
 		}
 		assert.Greater(ct, rcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
 	}, 30*time.Second, 200*time.Millisecond)
