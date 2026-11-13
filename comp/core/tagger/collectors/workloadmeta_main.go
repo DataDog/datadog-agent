@@ -89,6 +89,18 @@ type WorkloadMetaCollector struct {
 	autoscalers         map[string]workloadmeta.AutoscalerTarget
 	autoscalersByTarget map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind
 
+	// Index of Kueue Workloads by the namespace and value of their job-uid
+	// label, to join pods managed by the plain Pod integration to the Workload
+	// that claims them without scanning all the Workloads of the cluster.
+	// kueueJobWorkloads maps the job to the names of the Workloads claiming
+	// it, and kueueWorkloadJobs maps the Workload entity ID to its claim, to
+	// handle job-uid changes and removals.
+	kueueJobWorkloads map[kueueJob]map[string]struct{}
+	kueueWorkloadJobs map[string]kueueJobClaim
+	// kueueAmbiguousJobsLogged holds the jobs claimed by several Workloads
+	// that a warning was logged for.
+	kueueAmbiguousJobsLogged map[kueueJob]struct{}
+
 	// refreshCh routes tag refresh requests through the stream goroutine, avoiding races with staticTags reads in processEvents.
 	refreshCh chan refreshRequest
 }
@@ -263,6 +275,9 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
 		autoscalers:                       make(map[string]workloadmeta.AutoscalerTarget),
 		autoscalersByTarget:               make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind),
+		kueueJobWorkloads:                 make(map[kueueJob]map[string]struct{}),
+		kueueWorkloadJobs:                 make(map[string]kueueJobClaim),
+		kueueAmbiguousJobsLogged:          make(map[kueueJob]struct{}),
 		refreshCh:                         make(chan refreshRequest),
 	}
 
