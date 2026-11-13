@@ -30,9 +30,13 @@ type StreamID uint64
 type SenderClass uint8
 
 const (
-	// Reliable senders replay what they have not had acknowledged, and only
-	// their acknowledgement makes a payload durable. At least one sender must
-	// be reliable.
+	// Reliable senders are the members of one reliable set, the library's
+	// FOLDSPACE_SENDER_RELIABLE_SET. The first member on a payload's route to
+	// acknowledge it makes it durable, as any one reliable HTTP destination
+	// advances the auditor. A member replays what it has not had acknowledged
+	// until the payload is durable, and the payload is abandoned only once
+	// every member on its route has given it up. At least one sender must be
+	// reliable.
 	Reliable SenderClass = 0
 	// Unreliable senders attempt once, discard what fails, and promise
 	// nothing.

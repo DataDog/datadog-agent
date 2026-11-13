@@ -19,8 +19,18 @@ import (
 const fakeRedialBackoff = 10 * time.Millisecond
 
 // FakeCore is an in-process Core used by driver tests. It seals one payload
-// per accepted record, fans that payload out to every sender, and resolves
-// durability when every reliable sender has acknowledged.
+// per accepted record and fans that payload out to every sender on its route.
+//
+// The reliable senders on a route form one reliable set, as the library's
+// FOLDSPACE_SENDER_RELIABLE_SET members do: the first one's acknowledgement
+// makes the payload durable, and the payload is abandoned only once every one
+// of them has given it up. A route with no reliable sender carries no promise,
+// so its payload is durable at seal. A durable payload is still sent by every
+// sender that owes it, and their acknowledgements are counted.
+//
+// A payload frees its capacity when it resolves, so IsDrained can report true
+// while a sender still owes a durable payload. The library holds it until
+// every sender that owes it has settled.
 //
 // A sender dials from the PollSender that finds it holding a queued payload,
 // and a stream that ends with nothing outstanding and nothing queued closes
@@ -67,14 +77,18 @@ type queuedSend struct {
 }
 
 type fakePayload struct {
-	id           uint64
-	body         []byte
-	route        Route
-	acked        []bool
-	dropped      []bool
-	batchOn      []uint32
-	resolved     bool
-	reliableLeft int
+	id      uint64
+	body    []byte
+	route   Route
+	acked   []bool
+	dropped []bool
+	givenUp []bool // dropped by an abandoning give-up
+	batchOn []uint32
+	// resolved is whether the payload's notification has been emitted.
+	resolved bool
+	// abandoned is whether it resolved as abandoned, after which no sender
+	// owes it.
+	abandoned bool
 }
 
 // FakeCoreConfig tunes FakeCore construction.
@@ -170,9 +184,9 @@ func (c *FakeCore) hasCapacityLocked() bool {
 	return !c.shuttingDown && !c.abandoned && c.inflight < c.maxInflight
 }
 
-// PushLog offers one record. Only senders named in route receive it; a
-// reliable sender excluded from route contributes nothing to reliableLeft, or
-// the payload would wait forever on an ack from a sender it was never sent to.
+// PushLog offers one record. Only senders named in route receive it, and only
+// the reliable senders in route form the set whose acknowledgement makes it
+// durable: one excluded from route is never sent it and cannot settle it.
 func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress) {
 	c.enterIngest()
 	defer c.leaveIngest()
@@ -205,15 +219,8 @@ func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, ro
 		route:   route,
 		acked:   make([]bool, len(c.classes)),
 		dropped: make([]bool, len(c.classes)),
+		givenUp: make([]bool, len(c.classes)),
 		batchOn: make([]uint32, len(c.classes)),
-	}
-	for i, class := range c.classes {
-		if !route.Contains(SenderID(i)) {
-			continue
-		}
-		if class == Reliable {
-			p.reliableLeft++
-		}
 	}
 	c.pending[metadataID] = p
 	c.order = append(c.order, metadataID)
@@ -230,7 +237,27 @@ func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, ro
 		c.enqueueSendLocked(SenderID(i), metadataID, body)
 		wake = append(wake, SenderID(i))
 	}
+	if !c.routesReliableLocked(route) {
+		c.resolveLocked(p, Notification{Kind: PayloadDurable, MetadataIDs: []uint64{p.id}})
+	}
 	return Accepted, c.progressLocked(wake)
+}
+
+// routesReliableLocked is whether route names a reliable sender.
+func (c *FakeCore) routesReliableLocked(route Route) bool {
+	for i, class := range c.classes {
+		if class == Reliable && route.Contains(SenderID(i)) {
+			return true
+		}
+	}
+	return false
+}
+
+// owedLocked is whether sender still has to carry p: it is on p's route, has
+// neither acknowledged nor dropped it, and p was not abandoned. A durable
+// payload stays owed to the senders that have not settled it.
+func (c *FakeCore) owedLocked(sender SenderID, p *fakePayload) bool {
+	return !p.abandoned && p.route.Contains(sender) && !p.acked[sender] && !p.dropped[sender]
 }
 
 func (c *FakeCore) enqueueSendLocked(sender SenderID, id uint64, body []byte) {
@@ -290,7 +317,11 @@ func (c *FakeCore) Abandon() Progress {
 	ids := make([]uint64, 0, len(c.pending))
 	for _, id := range c.order {
 		p := c.pending[id]
-		if p == nil || p.resolved {
+		if p == nil {
+			continue
+		}
+		p.abandoned = true
+		if p.resolved {
 			continue
 		}
 		p.resolved = true
@@ -340,7 +371,7 @@ func (c *FakeCore) dialLocked(sender SenderID, after time.Duration) Effect {
 func (c *FakeCore) owesQueuedLocked(sender SenderID) bool {
 	kept := c.queued[sender][:0]
 	for _, q := range c.queued[sender] {
-		if p := c.pending[q.id]; p != nil && !p.resolved && !p.acked[sender] && !p.dropped[sender] {
+		if p := c.pending[q.id]; p != nil && c.owedLocked(sender, p) {
 			kept = append(kept, q)
 		}
 	}
@@ -358,7 +389,7 @@ func (c *FakeCore) busyLocked(sender SenderID) bool {
 	}
 	for _, id := range c.order {
 		p := c.pending[id]
-		if p != nil && !p.resolved && p.batchOn[sender] != 0 && !p.acked[sender] && !p.dropped[sender] {
+		if p != nil && p.batchOn[sender] != 0 && c.owedLocked(sender, p) {
 			return true
 		}
 	}
@@ -411,7 +442,7 @@ func (c *FakeCore) HandleAck(sender SenderID, stream StreamID, batchID uint32, s
 	}
 	for _, id := range c.order {
 		p := c.pending[id]
-		if p == nil || p.resolved || p.batchOn[sender] != batchID {
+		if p == nil || p.batchOn[sender] != batchID {
 			continue
 		}
 		c.ackLocked(sender, p)
@@ -420,21 +451,20 @@ func (c *FakeCore) HandleAck(sender SenderID, stream StreamID, batchID uint32, s
 	return c.progressLocked(nil)
 }
 
+// ackLocked counts sender's acknowledgement of p. The first reliable one makes
+// p durable; any later one only counts.
 func (c *FakeCore) ackLocked(sender SenderID, p *fakePayload) {
-	if p.acked[sender] || p.dropped[sender] {
+	if !c.owedLocked(sender, p) {
 		return
 	}
 	p.acked[sender] = true
 	c.counts[sender].SentRecords++
 	c.counts[sender].SentBytes += uint64(len(p.body))
 	if c.classes[sender] == Reliable {
-		p.reliableLeft--
-		if p.reliableLeft == 0 {
-			c.resolveLocked(p, Notification{
-				Kind:        PayloadDurable,
-				MetadataIDs: []uint64{p.id},
-			})
-		}
+		c.resolveLocked(p, Notification{
+			Kind:        PayloadDurable,
+			MetadataIDs: []uint64{p.id},
+		})
 	}
 }
 
@@ -447,10 +477,10 @@ func (c *FakeCore) resolveLocked(p *fakePayload, n Notification) {
 	c.notifications = append(c.notifications, n)
 }
 
-// Drop marks a sender as having given up on an in-flight payload without
-// acknowledging it, and counts it in the sender's stats. A non-abandoning drop
-// names no record and never resolves the auditor. An abandoning drop from a
-// reliable sender is a resolution: it names the record and ends its life.
+// Drop marks a sender as having dropped every payload it owes without
+// acknowledging it, and counts each in the sender's stats. A non-abandoning
+// drop resolves nothing. An abandoning drop gives each payload up, which
+// abandons one only once every reliable sender on its route has given it up.
 func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
@@ -461,19 +491,14 @@ func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progre
 	}
 	for _, id := range c.order {
 		p := c.pending[id]
-		if p == nil || p.resolved || p.acked[sender] || p.dropped[sender] {
+		if p == nil || !c.owedLocked(sender, p) {
 			continue
 		}
-		if !p.route.Contains(sender) {
+		if abandoned {
+			c.giveUpLocked(sender, p)
 			continue
 		}
 		c.dropLocked(sender, p)
-		if abandoned && c.classes[sender] == Reliable {
-			c.resolveLocked(p, Notification{
-				Kind:        PayloadAbandoned,
-				MetadataIDs: []uint64{p.id},
-			})
-		}
 	}
 	return c.progressLocked(nil)
 }
@@ -511,9 +536,11 @@ func (c *FakeCore) HandleStreamError(sender SenderID, stream StreamID, message s
 
 // HandleStreamAbandoned reports that a sender's stream cannot be opened and is
 // not expected to become openable. It fails the stream like HandleStreamError,
-// and the sender gives up every payload it holds, as it does what seals for it
-// until a stream opens. Each is counted dropped, and one a reliable sender held
-// is abandoned at once rather than after its other senders settle it.
+// and the sender gives up every payload it owes, as it does what seals for it
+// until a stream opens. Each is counted dropped. A payload is abandoned once
+// every reliable sender on its route has given it up; while another reliable
+// sender still owes it, that sender's acknowledgement can still make it
+// durable.
 func (c *FakeCore) HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
@@ -553,17 +580,27 @@ func (c *FakeCore) HandleStreamAbandoned(sender SenderID, stream StreamID, messa
 	return c.progressLocked([]SenderID{sender})
 }
 
+// giveUpLocked drops p for sender as an abandoning give-up, and abandons p if
+// that leaves no reliable sender on its route that has not given it up.
 func (c *FakeCore) giveUpLocked(sender SenderID, p *fakePayload) {
-	if p.resolved || p.acked[sender] || p.dropped[sender] {
+	if !c.owedLocked(sender, p) {
 		return
 	}
 	c.dropLocked(sender, p)
-	if c.classes[sender] == Reliable {
-		c.resolveLocked(p, Notification{
-			Kind:        PayloadAbandoned,
-			MetadataIDs: []uint64{p.id},
-		})
+	p.givenUp[sender] = true
+	if p.resolved || c.classes[sender] != Reliable {
+		return
 	}
+	for i, class := range c.classes {
+		if class == Reliable && p.route.Contains(SenderID(i)) && !p.givenUp[i] {
+			return
+		}
+	}
+	p.abandoned = true
+	c.resolveLocked(p, Notification{
+		Kind:        PayloadAbandoned,
+		MetadataIDs: []uint64{p.id},
+	})
 }
 
 func (c *FakeCore) dropLocked(sender SenderID, p *fakePayload) {

@@ -473,6 +473,79 @@ func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 	assert.Equal(t, SenderCounts{SentRecords: 1, SentBytes: 6}, core.SenderStats(0))
 }
 
+// The reliable senders form one set, as the library's reliable-set members do:
+// the first one's ack makes the payload durable, and the other still carries it.
+func TestReliableSetFirstAckMakesDurable(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
+	_, _ = core.PushLog(Record{Body: []byte("set")}, 1, 4, AllSenders(2))
+
+	first, effects := openFor(t, core, 0)
+	require.Len(t, effects, 1)
+	effects[0].Batch.Release()
+	core.HandleAck(0, first, effects[0].BatchID, AckOK)
+	notes := core.PollNotifications()
+	require.Len(t, notes, 1)
+	assert.Equal(t, PayloadDurable, notes[0].Kind)
+	assert.Equal(t, []uint64{4}, notes[0].MetadataIDs)
+
+	late, effects := openFor(t, core, 1)
+	require.Len(t, effects, 1, "a durable payload is still owed to the member that has not tried it")
+	require.Equal(t, SendBatch, effects[0].Kind)
+	effects[0].Batch.Release()
+	core.HandleAck(1, late, effects[0].BatchID, AckOK)
+	assert.Empty(t, core.PollNotifications(), "a payload resolves once")
+	assert.Equal(t, SenderCounts{SentRecords: 1, SentBytes: 3}, core.SenderStats(1))
+}
+
+// One member giving a payload up leaves it to the rest of the set: it is
+// abandoned only once every reliable sender on its route has given it up.
+func TestReliableSetAbandonsOnlyWhenEveryMemberGivesUp(t *testing.T) {
+	t.Run("a healthy member still delivers", func(t *testing.T) {
+		core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
+		_, _ = core.PushLog(Record{Body: []byte("kept")}, 1, 5, AllSenders(2))
+		dial := core.PollSender(0)
+		require.Len(t, dial, 1)
+		core.HandleStreamAbandoned(0, dial[0].Stream, errNoCredential.Error())
+		assert.Empty(t, core.PollNotifications(), "the other member still owes it")
+		assert.Equal(t, uint64(1), core.SenderStats(0).DroppedRecords)
+
+		stream, effects := openFor(t, core, 1)
+		require.Len(t, effects, 1)
+		effects[0].Batch.Release()
+		core.HandleAck(1, stream, effects[0].BatchID, AckOK)
+		notes := core.PollNotifications()
+		require.Len(t, notes, 1)
+		assert.Equal(t, PayloadDurable, notes[0].Kind)
+		assert.Equal(t, []uint64{5}, notes[0].MetadataIDs)
+	})
+
+	t.Run("every member gives up", func(t *testing.T) {
+		core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
+		_, _ = core.PushLog(Record{Body: []byte("lost")}, 1, 6, AllSenders(2))
+		for sender := SenderID(0); sender < 2; sender++ {
+			dial := core.PollSender(sender)
+			require.Len(t, dial, 1)
+			core.HandleStreamAbandoned(sender, dial[0].Stream, errNoCredential.Error())
+		}
+		notes := core.PollNotifications()
+		require.Len(t, notes, 1)
+		assert.Equal(t, PayloadAbandoned, notes[0].Kind)
+		assert.Equal(t, []uint64{6}, notes[0].MetadataIDs)
+		assert.True(t, core.IsDrained())
+	})
+}
+
+// A route with no reliable sender carries no promise, so the library makes its
+// payload durable at seal.
+func TestUnreliableOnlyRouteIsDurableAtSeal(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Unreliable}})
+	_, _ = core.PushLog(Record{Body: []byte("extra")}, 1, 7, Route(0).WithSender(1))
+	notes := core.PollNotifications()
+	require.Len(t, notes, 1)
+	assert.Equal(t, PayloadDurable, notes[0].Kind)
+	assert.Equal(t, []uint64{7}, notes[0].MetadataIDs)
+}
+
 // Dual-ship names sink ownership: the primary destination owns the auditor, so
 // this driver must not write it even once its records are durable.
 func TestDualShipDoesNotWriteTheSink(t *testing.T) {
