@@ -85,8 +85,11 @@ static __always_inline void send_tcp_close_event(struct sock *sk, sk_tcp_stats_t
         return;
     }
 
-    sk_stats->close_sent = 1;
-    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+    // only mark the close as sent once the event is in the ring buffer, so that if it was
+    // full, the other close hook can still send it
+    if (bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t))) == 0) {
+        sk_stats->close_sent = 1;
+    }
 }
 
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
