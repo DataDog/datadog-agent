@@ -304,7 +304,7 @@
 /cmd/agent/dist/conf.d/cpu.d/                          @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/cri.d/                          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/datadog_csi_driver.d/           @DataDog/container-platform
-/cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-discovery
+/cmd/agent/dist/conf.d/discovery.d/                    @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/disk.d/                         @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/docker.d/                       @DataDog/container-integrations
 /cmd/agent/dist/conf.d/file_handle.d/                  @DataDog/agent-runtimes
@@ -399,6 +399,7 @@
 /cmd/system-probe/modules/dynamic_instrumentation*  @DataDog/debugger-go
 /cmd/system-probe/modules/noisy_neighbor*           @DataDog/container-experiences
 /cmd/system-probe/modules/gpu*                      @DataDog/accelerator-telemetry
+/cmd/system-probe/modules/privileged_logs*          @DataDog/agent-log-pipelines
 /cmd/system-probe/windows/                          @DataDog/windows-products
 /cmd/system-probe/windows_resources/                @DataDog/windows-products
 /cmd/system-probe/main_windows*.go                  @DataDog/windows-products
@@ -654,7 +655,7 @@
 /pkg/cli/subcommands/processchecks                                    @DataDog/container-experiences
 /pkg/discovery/                                                       @DataDog/agent-discovery
 /pkg/errors/                                                          @DataDog/agent-runtimes
-/pkg/privileged-logs/                                                 @DataDog/agent-discovery @DataDog/agent-log-pipelines
+/pkg/privileged-logs/                                                 @DataDog/agent-log-pipelines
 /pkg/fips                                                             @DataDog/agent-runtimes
 /pkg/gohai                                                            @DataDog/fleet-automation
 /pkg/gpu/                                                             @DataDog/accelerator-telemetry
@@ -695,7 +696,7 @@
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go                   @DataDog/agent-integrations
-/comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-discovery @DataDog/agent-log-pipelines
+/comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
@@ -729,7 +730,7 @@
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/                         @DataDog/container-integrations
-/pkg/collector/corechecks/discovery/                                  @DataDog/agent-discovery
+/pkg/collector/corechecks/discovery/                                  @DataDog/agent-log-pipelines
 /pkg/collector/corechecks/ebpf/                                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/noisyneighbor/                         @DataDog/container-experiences
