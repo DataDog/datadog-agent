@@ -1,0 +1,7 @@
+# invalid settings are reverted to their default
+schema:
+  enforce: true
+jmx_thread_pool_size: [3]
+inventories_enabled:
+  enabled: true
+kubernetes_pod_labels_as_tags: [app]

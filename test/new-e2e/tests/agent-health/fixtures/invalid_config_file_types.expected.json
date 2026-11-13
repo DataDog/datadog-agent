@@ -1,0 +1,835 @@
+{
+  "emitted_at": "<timestamp>",
+  "event_type": "agent-health-issues",
+  "host": {
+    "agent_version": "<agent_version>",
+    "hostname": "<hostname>",
+    "resource_id": "<hostname>",
+    "resource_type": "host"
+  },
+  "issues": {
+    "invalid-config:/container_labels_as_tags": {
+      "category": "configuration",
+      "description": "`/container_labels_as_tags` expects a YAML mapping, but received a number.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/container_labels_as_tags": [
+            "`/container_labels_as_tags` expects a YAML mapping, but received a number. Set `/container_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "number",
+            "default_status": "known",
+            "default_value": {},
+            "expected_types": [
+              "object"
+            ],
+            "path": "/container_labels_as_tags"
+          }
+        ]
+      },
+      "id": "invalid-config:/container_labels_as_tags",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/container_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/container_labels_as_tags`"
+    },
+    "invalid-config:/docker_labels_as_tags": {
+      "category": "configuration",
+      "description": "`/docker_labels_as_tags` expects a YAML mapping, but received a string.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/docker_labels_as_tags": [
+            "`/docker_labels_as_tags` expects a YAML mapping, but received a string. Set `/docker_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "string",
+            "default_status": "known",
+            "default_value": {},
+            "expected_types": [
+              "object"
+            ],
+            "path": "/docker_labels_as_tags"
+          }
+        ]
+      },
+      "id": "invalid-config:/docker_labels_as_tags",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/docker_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/docker_labels_as_tags`"
+    },
+    "invalid-config:/histogram_aggregates": {
+      "category": "configuration",
+      "description": "`/histogram_aggregates` expects a YAML list, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/histogram_aggregates": [
+            "`/histogram_aggregates` expects a YAML list, but received a YAML mapping. Set `/histogram_aggregates` to a YAML list. The default value for this setting is `[\"max\",\"median\",\"avg\",\"count\"]`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "known",
+            "default_value": [
+              "max",
+              "median",
+              "avg",
+              "count"
+            ],
+            "expected_types": [
+              "array"
+            ],
+            "path": "/histogram_aggregates"
+          }
+        ]
+      },
+      "id": "invalid-config:/histogram_aggregates",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/histogram_aggregates` to a YAML list. The default value for this setting is `[\"max\",\"median\",\"avg\",\"count\"]`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/histogram_aggregates`"
+    },
+    "invalid-config:/hostname_file": {
+      "category": "configuration",
+      "description": "`/hostname_file` expects a string, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/hostname_file": [
+            "`/hostname_file` expects a string, but received a YAML mapping. Set `/hostname_file` to a string. The default value for this setting is `\"\"` (an empty string)."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "known",
+            "default_value": "",
+            "expected_types": [
+              "string"
+            ],
+            "path": "/hostname_file"
+          }
+        ]
+      },
+      "id": "invalid-config:/hostname_file",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/hostname_file` to a string. The default value for this setting is `\"\"` (an empty string)."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/hostname_file`"
+    },
+    "invalid-config:/inventories_enabled": {
+      "category": "configuration",
+      "description": "`/inventories_enabled` expects true or false, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/inventories_enabled": [
+            "`/inventories_enabled` expects true or false, but received a YAML mapping. Set `/inventories_enabled` to true or false. The default value for this setting is `true`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "known",
+            "default_value": true,
+            "expected_types": [
+              "boolean"
+            ],
+            "path": "/inventories_enabled"
+          }
+        ]
+      },
+      "id": "invalid-config:/inventories_enabled",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/inventories_enabled` to true or false. The default value for this setting is `true`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/inventories_enabled`"
+    },
+    "invalid-config:/jmx_collection_timeout": {
+      "category": "configuration",
+      "description": "`/jmx_collection_timeout` expects a whole number, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/jmx_collection_timeout": [
+            "`/jmx_collection_timeout` expects a whole number, but received a YAML mapping. Set `/jmx_collection_timeout` to a whole number. The default value for this setting is `60`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "known",
+            "default_value": 60,
+            "expected_types": [
+              "integer"
+            ],
+            "path": "/jmx_collection_timeout"
+          }
+        ]
+      },
+      "id": "invalid-config:/jmx_collection_timeout",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/jmx_collection_timeout` to a whole number. The default value for this setting is `60`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/jmx_collection_timeout`"
+    },
+    "invalid-config:/jmx_thread_pool_size": {
+      "category": "configuration",
+      "description": "`/jmx_thread_pool_size` expects a whole number, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/jmx_thread_pool_size": [
+            "`/jmx_thread_pool_size` expects a whole number, but received a YAML list. Set `/jmx_thread_pool_size` to a whole number. The default value for this setting is `3`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": 3,
+            "expected_types": [
+              "integer"
+            ],
+            "path": "/jmx_thread_pool_size"
+          }
+        ]
+      },
+      "id": "invalid-config:/jmx_thread_pool_size",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/jmx_thread_pool_size` to a whole number. The default value for this setting is `3`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/jmx_thread_pool_size`"
+    },
+    "invalid-config:/kubernetes_pod_labels_as_tags": {
+      "category": "configuration",
+      "description": "`/kubernetes_pod_labels_as_tags` expects a YAML mapping, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/kubernetes_pod_labels_as_tags": [
+            "`/kubernetes_pod_labels_as_tags` expects a YAML mapping, but received a YAML list. Set `/kubernetes_pod_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": {},
+            "expected_types": [
+              "object"
+            ],
+            "path": "/kubernetes_pod_labels_as_tags"
+          }
+        ]
+      },
+      "id": "invalid-config:/kubernetes_pod_labels_as_tags",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/kubernetes_pod_labels_as_tags` to a YAML mapping. The default value for this setting is `{}`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/kubernetes_pod_labels_as_tags`"
+    },
+    "invalid-config:/logs_enabled": {
+      "category": "configuration",
+      "description": "`/logs_enabled` expects true or false, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/logs_enabled": [
+            "`/logs_enabled` expects true or false, but received a YAML list. Set `/logs_enabled` to true or false. The default value for this setting is `false`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": false,
+            "expected_types": [
+              "boolean"
+            ],
+            "path": "/logs_enabled"
+          }
+        ]
+      },
+      "id": "invalid-config:/logs_enabled",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/logs_enabled`"
+    },
+    "invalid-config:/metric_filterlist_match_prefix": {
+      "category": "configuration",
+      "description": "`/metric_filterlist_match_prefix` expects true or false, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/metric_filterlist_match_prefix": [
+            "`/metric_filterlist_match_prefix` expects true or false, but received a YAML list. Set `/metric_filterlist_match_prefix` to true or false. The default value for this setting is `false`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": false,
+            "expected_types": [
+              "boolean"
+            ],
+            "path": "/metric_filterlist_match_prefix"
+          }
+        ]
+      },
+      "id": "invalid-config:/metric_filterlist_match_prefix",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/metric_filterlist_match_prefix` to true or false. The default value for this setting is `false`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/metric_filterlist_match_prefix`"
+    },
+    "invalid-config:/network_path/collector/dest_excludes/10.0.0.0~18": {
+      "category": "configuration",
+      "description": "`/network_path/collector/dest_excludes/10.0.0.0~18` expects a YAML list, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/network_path/collector/dest_excludes/10.0.0.0~18": [
+            "`/network_path/collector/dest_excludes/10.0.0.0~18` expects a YAML list, but received a YAML mapping. Set `/network_path/collector/dest_excludes/10.0.0.0~18` to a YAML list."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "unknown",
+            "expected_types": [
+              "array"
+            ],
+            "path": "/network_path/collector/dest_excludes/10.0.0.0~18"
+          }
+        ]
+      },
+      "id": "invalid-config:/network_path/collector/dest_excludes/10.0.0.0~18",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/network_path/collector/dest_excludes/10.0.0.0~18` to a YAML list."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/network_path/collector/dest_excludes/10.0.0.0~18`"
+    },
+    "invalid-config:/network_path/collector/dest_excludes/https:~1~1qa:RAW_FILE_URL_PASSWORD_e2e@example.test": {
+      "category": "configuration",
+      "description": "`/network_path/collector/dest_excludes/https:~1~1qa:********@example.test` expects a YAML list, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/network_path/collector/dest_excludes/https:~1~1qa:********@example.test": [
+            "`/network_path/collector/dest_excludes/https:~1~1qa:********@example.test` expects a YAML list, but received a YAML mapping. Set `/network_path/collector/dest_excludes/https:~1~1qa:********@example.test` to a YAML list."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "unknown",
+            "expected_types": [
+              "array"
+            ],
+            "path": "/network_path/collector/dest_excludes/https:~1~1qa:********@example.test"
+          }
+        ]
+      },
+      "id": "invalid-config:/network_path/collector/dest_excludes/https:~1~1qa:RAW_FILE_URL_PASSWORD_e2e@example.test",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/network_path/collector/dest_excludes/https:~1~1qa:********@example.test` to a YAML list."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/network_path/collector/dest_excludes/https:~1~1qa:********@example.test`"
+    },
+    "invalid-config:/network_path/collector/source_excludes": {
+      "category": "configuration",
+      "description": "`/network_path/collector/source_excludes` expects a YAML mapping, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/network_path/collector/source_excludes": [
+            "`/network_path/collector/source_excludes` expects a YAML mapping, but received a YAML list. Set `/network_path/collector/source_excludes` to a YAML mapping. The default value for this setting is `{}`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": {},
+            "expected_types": [
+              "object"
+            ],
+            "path": "/network_path/collector/source_excludes"
+          }
+        ]
+      },
+      "id": "invalid-config:/network_path/collector/source_excludes",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/network_path/collector/source_excludes` to a YAML mapping. The default value for this setting is `{}`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Incorrect type for `/network_path/collector/source_excludes`"
+    }
+  },
+  "service": "agent"
+}
