@@ -414,21 +414,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	resp, err := client.Do(req)
 
 	if err != nil {
+		t.ErrorCount++
+		transactionsErrors.Add(1)
+		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
+
 		if errors.Is(ctx.Err(), context.Canceled) {
 			// The request was canceled before the Agent observed an intake response.
 			// Delivery is ambiguous: the intake may have accepted the payload just before
 			// cancellation. Surface the cancellation as a retryable error so shutdown
 			// keeps the transaction for retry/persistence, preferring at-least-once
-			// delivery over silent loss. This is not a real delivery failure, so error
-			// counters and blockedEndpoints are intentionally left untouched.
+			// delivery over silent loss.
 			return 0, nil, fmt.Errorf("request canceled while sending transaction to %q, rescheduling it: %w", logURL, ctx.Err())
 		}
-		// Covers context.DeadlineExceeded (a genuine timeout) as well as any other
-		// transport-level failure: these are real delivery problems and must be
-		// counted like any other error.
-		t.ErrorCount++
-		transactionsErrors.Add(1)
-		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
