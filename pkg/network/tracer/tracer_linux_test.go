@@ -3661,33 +3661,55 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 
 	tr := setupTracer(t, cfg)
 
-	c := setupNetemCongestionTest(t, []string{"delay", "100ms", "loss", "30%", "50%"}, nil)
+	// Drop every packet so that the data, the tail loss probe and every
+	// retransmit are lost, and the retransmission timer has to fire. Random
+	// loss isn't enough: with one segment in flight per write, the kernel
+	// repairs most losses with a tail loss probe, which counts neither as an
+	// RTO nor as a recovery, and a run can go 30s without either.
+	var env *netemTestEnv
+	c := setupNetemCongestionTest(t, []string{"loss", "100%"}, func(_ *testing.T, e *netemTestEnv) { env = e })
 	defer c.Close()
+	// The write only has to queue data for the kernel to (re)transmit, so a
+	// short write or a deadline timeout under 100% loss is fine; log it.
+	c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	n, err := c.Write(make([]byte, 64*1024))
+	t.Logf("wrote %d of %d bytes under 100%% loss (err: %v)", n, 64*1024, err)
+	require.Greater(t, n, 0, "no data queued for transmission")
+	c.SetWriteDeadline(time.Time{})
 
-	// Wait for either rto_count or recovery_count to appear. Both live
-	// in the same tcp_event_stats struct that gets copied at close, so
-	// either one is sufficient to validate the sync. This test checks
-	// the close-event plumbing, not which signal fires — TestTCPRTOCount
-	// and TestTCPRecoveryCount cover each signal independently.
-	var rtoCount, recoveryCount uint32
+	// rto_count is the signal under test. With every packet dropped no ACK
+	// arrives, so there is no fast recovery and recovery_count stays 0. That
+	// still covers recovery_count's close path: the close event copies the
+	// whole tcp_event_stats struct (tracer: events.h, SK: sk_conn.h), and
+	// active and closed connections share FromTCPEventStats, so a working
+	// rto_count copy implies a working recovery_count copy.
+	// TestTCPRTOCount and TestTCPRecoveryCount cover each signal while active.
+	//
+	// A fetch only reports an active connection whose stats changed since
+	// the previous fetch, so keep the highest count seen across fetches
+	// instead of requiring the connection in the latest one.
+	var rtoCount uint32
+	var seen bool
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		data := make([]byte, 64*1024)
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(data) //nolint:errcheck
-
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "active connection not found") {
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			seen = true
+			rtoCount = max(rtoCount, conn.Monotonic.TCPRTOCount)
+		}
+		if !assert.True(ct, seen, "connection not found") {
 			return
 		}
-		rtoCount = conn.Monotonic.TCPRTOCount
-		recoveryCount = conn.Monotonic.TCPRecoveryCount
-		assert.Greater(ct, rtoCount+recoveryCount, uint32(0),
-			"rto_count or recovery_count should be > 0 while active")
+		assert.Greater(ct, rtoCount, uint32(0), "rto_count should be > 0 while active")
 	}, 30*time.Second, 200*time.Millisecond)
 
-	// Close and verify rto_count and recovery_count after the close event
+	// Stop dropping packets so the connection delivers its data and closes.
+	// Remove the qdisc rather than changing it to "loss 0%": the iproute2 in
+	// older distros (e.g. 4.15 on Ubuntu 18.04) rejects a zero percentage
+	// with 'Illegal "loss percent"'.
+	env.delNetem(t)
+
+	// Close and verify that the close event preserves rto_count
 	localAddr := c.LocalAddr()
 	remoteAddr := c.RemoteAddr()
 	c.Close()
@@ -3696,17 +3718,19 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	require.Eventually(t, func() bool {
 		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
+		// Require the closed entry: after delNetem the queued data is
+		// retransmitted, so the active entry is also reported and carries
+		// the same monotonic rto_count.
 		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if ok {
+		if ok && conn.IsClosed {
 			closedConn = conn
+			return true
 		}
-		return ok
+		return false
 	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
 
 	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
 		"close event should preserve rto_count")
-	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRecoveryCount, recoveryCount,
-		"close event should preserve recovery_count")
 }
 
 // netemTestEnv holds the resources for an isolated network namespace where
@@ -3742,6 +3766,14 @@ func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
 	changeCmd := exec.Command(cmd[0], cmd[1:]...)
 	out, err := changeCmd.CombinedOutput()
 	require.NoError(t, err, "tc qdisc change netem failed: %s", out)
+}
+
+// delNetem removes the netem qdisc from the loopback device inside the
+// namespace, restoring an unimpaired link.
+func (env *netemTestEnv) delNetem(t *testing.T) {
+	t.Helper()
+	out, err := exec.Command("ip", "netns", "exec", env.Netns, "tc", "qdisc", "del", "dev", "lo", "root").CombinedOutput()
+	require.NoError(t, err, "tc qdisc del failed: %s", out)
 }
 
 // setupNetemTestEnv creates an isolated network namespace with loopback up.
