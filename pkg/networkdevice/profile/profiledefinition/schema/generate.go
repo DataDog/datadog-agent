@@ -8,15 +8,11 @@ package schema
 import (
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/invopop/jsonschema"
 )
 
 // GenerateJSONSchema generate jsonschema from profiledefinition.DeviceProfileRcConfig
 func GenerateJSONSchema() ([]byte, error) {
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-	}
-	schema := reflector.Reflect(&profiledefinition.DeviceProfileRcConfig{})
+	schema := Reflect(&profiledefinition.DeviceProfileRcConfig{})
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return nil, err
