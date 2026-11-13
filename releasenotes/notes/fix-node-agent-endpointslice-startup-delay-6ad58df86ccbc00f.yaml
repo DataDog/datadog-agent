@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fix unnecessary node Agent startup delays when
-    ``kubernetes_use_endpoint_slices`` is enabled and the Kubernetes API server
-    is slow or unavailable.
