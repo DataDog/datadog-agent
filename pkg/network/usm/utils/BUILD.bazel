@@ -63,6 +63,7 @@ dd_agent_go_test(
     srcs = [
         "connection_rollup_test.go",
         "debugger_test.go",
+        "debugger_testutils_test.go",
         "ebpfoptions_test.go",
         "file_registry_test.go",
     ],

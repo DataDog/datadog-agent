@@ -65,6 +65,7 @@ func IsProgramTraced(moduleName, programType string, pid int) bool {
 
 // WaitForProgramsToBeTraced waits for the program to be traced by the given programs type of the given module.
 func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid int, traceManually TraceMethod) {
+	t.Helper()
 	// Wait for the program to be traced
 	end := time.Now().Add(time.Second * 5)
 	for time.Now().Before(end) {
@@ -81,17 +82,27 @@ func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid
 	}
 	t.Logf("process %v is not traced by %v, trying to attach manually", pid, programType)
 
-	// Get attacher for the program type
-	attacher, ok := debugger.attachers[moduleName][programType]
-	require.True(t, ok, "attacher for %v not found", programType)
-	// Try to attach the PID. Any error other than ErrPathIsAlreadyRegistered is a failure.
-	if err := attacher.AttachPID(uint32(pid)); err != ErrPathIsAlreadyRegistered {
-		require.NoError(t, err)
-	}
+	require.NoError(t, attachManually(t, moduleName, programType, pid))
 	require.Eventuallyf(t, func() bool {
 		return IsProgramTraced(moduleName, programType, pid)
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
 }
+
+// attachManually attaches pid through the attacher registered for programType. It returns
+// AttachPID's error, except ErrPathIsAlreadyRegistered, which means the pid was already attached.
+func attachManually(t *testing.T, moduleName, programType string, pid int) error {
+	t.Helper()
+	attacher, ok := debugger.attachers[moduleName][programType]
+	require.True(t, ok, "attacher for %v not found", programType)
+	if err := attacher.AttachPID(uint32(pid)); err != nil && !errors.Is(err, ErrPathIsAlreadyRegistered) {
+		return err
+	}
+	return nil
+}
+
+// librariesTracedTimeout is how long WaitForLibrariesToBeTraced waits before, and again after,
+// the manual attach. Unit tests shorten it.
+var librariesTracedTimeout = 5 * time.Second
 
 // missingTracedLibraries returns the entries of libPrefixes for which pid is not yet traced
 // through a library whose file name starts with that prefix.
@@ -116,8 +127,11 @@ func missingTracedLibraries(moduleName, programType string, pid int, libPrefixes
 //
 // If the libraries are not all traced within 5 seconds and traceManually is set, it attaches
 // the pid manually. AttachPID attaches every matching library in the pid's maps and skips the
-// ones that are already registered, so it fills in whichever library was missed.
+// ones that are already registered, so it fills in whichever library was missed. An AttachPID
+// error is only logged: it can come from an unrelated matching library, so the wait that
+// follows decides whether the listed libraries are traced.
 func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pid int, libPrefixes []string, traceManually TraceMethod) {
+	t.Helper()
 	waitForAll := func(timeout time.Duration) []string {
 		end := time.Now().Add(timeout)
 		for {
@@ -129,7 +143,7 @@ func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pi
 		}
 	}
 
-	missing := waitForAll(5 * time.Second)
+	missing := waitForAll(librariesTracedTimeout)
 	if len(missing) == 0 {
 		return
 	}
@@ -138,12 +152,10 @@ func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pi
 	}
 	t.Logf("process %v is not traced by %v through %v, trying to attach manually", pid, programType, missing)
 
-	attacher, ok := debugger.attachers[moduleName][programType]
-	require.True(t, ok, "attacher for %v not found", programType)
-	if err := attacher.AttachPID(uint32(pid)); err != nil && !errors.Is(err, ErrPathIsAlreadyRegistered) {
-		require.NoError(t, err)
+	if err := attachManually(t, moduleName, programType, pid); err != nil {
+		t.Logf("manual attach of process %v returned an error: %v", pid, err)
 	}
-	if missing = waitForAll(5 * time.Second); len(missing) != 0 {
+	if missing = waitForAll(librariesTracedTimeout); len(missing) != 0 {
 		t.Fatalf("process %v is not traced by %v through %v after manual attach", pid, programType, missing)
 	}
 }

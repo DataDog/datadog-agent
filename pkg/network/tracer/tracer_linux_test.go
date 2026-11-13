@@ -3467,8 +3467,8 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 	})
 
 	// The cert is captured only if both the libssl uprobes (SSL_do_handshake etc.) and the
-	// libcrypto uprobes (i2d_X509) are attached before the handshake, and the attacher
-	// registers each library separately.
+	// libcrypto uprobes (i2d_X509) are in place before the handshake. The attacher registers
+	// each library separately, so wait until both are registered for this pid.
 	usmutils.WaitForLibrariesToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid,
 		[]string{"libssl.so", "libcrypto.so"}, usmutils.ManualTracingFallbackEnabled)
 
