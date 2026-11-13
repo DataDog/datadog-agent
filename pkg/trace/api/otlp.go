@@ -502,8 +502,18 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 // idxChunkBuilder collects the spans of one trace for receiveResourceSpansV2Idx.
 type idxChunkBuilder struct {
-	spans        []*idx.InternalSpan
-	samplingTags []transform.IdxSpanSamplingTags // of each span
+	spans []*idx.InternalSpan
+	// tracerDM is the first valid _dd.p.dm tag of the spans of the trace, if hasTracerDM.
+	tracerDM    string
+	hasTracerDM bool
+	// tracestates are the non-empty w3c.tracestate tags of the spans of the trace, in order.
+	// They are only parsed when the trace needs a decision maker and no span has a valid one.
+	tracestates []string
+	// traceIDHex is the hex encoding of the 128-bit trace ID of the first span of the trace,
+	// otelTraceID. Spans are grouped by the lower 64 bits of their trace ID, so the spans of the
+	// trace whose upper 64 bits differ encode their own.
+	otelTraceID  pcommon.TraceID
+	traceIDHex   string
 	fields       idx.SpanConvertedFields
 	rootSampling idx.RootSamplingMergeState
 	// priority is the sampling priority of the last span of the trace that has one, if hasPriority.
@@ -518,13 +528,17 @@ func (o *OTLPReceiver) receiveResourceSpansV2Idx(ctx context.Context, rspans ptr
 	res := o.resourceV2(ctx, rspans, hostFromAttributesHandler)
 	otelres := res.otelres
 
-	// Start the string table with room for the strings of a few spans, as many hold
-	// about 30, rather than growing it from a single entry.
+	// Size the string table for the strings shared by every span (the resource attribute
+	// keys and values, and the keys the conversion adds) plus a few unique strings per span,
+	// rather than growing it from a single entry. Spans of a payload share most of their
+	// strings, and the writer keeps the table until it flushes, so don't oversize it: growing
+	// a slightly undersized table is cheap.
 	numSpans := 0
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		numSpans += rspans.ScopeSpans().At(i).Spans().Len()
 	}
-	strs := idx.NewStringTableWithCapacity(min(64+32*numSpans, 1024))
+	numResourceAttrs := rspans.Resource().Attributes().Len()
+	strs := idx.NewStringTableWithCapacity(min(48+2*numResourceAttrs+4*numSpans, 1024))
 	builderByID := make(map[uint64]*idxChunkBuilder)
 	var builders []*idxChunkBuilder // in the order the traces are first seen
 	var spancount int64
@@ -541,17 +555,28 @@ func (o *OTLPReceiver) receiveResourceSpansV2Idx(ctx context.Context, rspans ptr
 				b = &idxChunkBuilder{fields: *idx.NewSpanConvertedFields()}
 				b.fields.TraceIDUpper = binary.BigEndian.Uint64(otelTraceID[:8])
 				b.fields.TraceIDLower = traceID
+				b.otelTraceID = otelTraceID
+				b.traceIDHex = hex.EncodeToString(otelTraceID[:])
 				builderByID[traceID] = b
 				builders = append(builders, b)
 			}
-			span, samplingTags := transform.OtelSpanToIdxSpanWithConvertedFields(otelspan, otelres, libspans.Scope(), o.conf, strs, &b.fields)
+			traceIDHex := "" // computed by the conversion
+			if otelTraceID == b.otelTraceID {
+				traceIDHex = b.traceIDHex
+			}
+			span, samplingTags := transform.OtelSpanToIdxSpanWithConvertedFields(otelspan, otelres, libspans.Scope(), o.conf, strs, &b.fields, traceIDHex)
 			b.rootSampling.ReconcileSamplingPriorityAfterChunkSpan(&b.fields, span.ParentID())
 			if p, ok := idxDoubleAttribute(span, string(semantics.ConceptSamplingPriority)); ok {
 				b.priority = sampler.SamplingPriority(p)
 				b.hasPriority = true
 			}
 			b.spans = append(b.spans, span)
-			b.samplingTags = append(b.samplingTags, samplingTags)
+			if !b.hasTracerDM && isValidDecisionMaker(samplingTags.DecisionMaker) {
+				b.tracerDM, b.hasTracerDM = samplingTags.DecisionMaker, true
+			}
+			if samplingTags.Tracestate != "" {
+				b.tracestates = append(b.tracestates, samplingTags.Tracestate)
+			}
 		}
 	}
 
@@ -600,7 +625,7 @@ func (o *OTLPReceiver) createChunksIdx(builders []*idxChunkBuilder, strs *idx.St
 			var decisionMaker string
 			if b.hasPriority {
 				decided = b.priority
-				if dm, ok := tracerDecisionMakerIdx(b.samplingTags); ok {
+				if dm, ok := b.tracerDecisionMaker(); ok {
 					// the sampling decision was made upstream by a Datadog SDK exporting OTLP
 					// (e.g. remote or adaptive sampling rules); preserve its decision maker.
 					decisionMaker = dm
@@ -658,15 +683,15 @@ func setIdxDecisionMaker(span *idx.InternalSpan, dm string) {
 	span.SetStringAttribute("_dd.p.dm", dm)
 }
 
-// tracerDecisionMakerIdx is tracerDecisionMaker for the sampling tags of the idx spans of a trace.
-func tracerDecisionMakerIdx(tags []transform.IdxSpanSamplingTags) (string, bool) {
-	for _, t := range tags {
-		if isValidDecisionMaker(t.DecisionMaker) {
-			return t.DecisionMaker, true
-		}
+// tracerDecisionMaker is tracerDecisionMaker for the sampling tags of the idx spans of the trace:
+// the first valid _dd.p.dm tag of its spans, else the first decision maker found in their
+// w3c.tracestate tags.
+func (b *idxChunkBuilder) tracerDecisionMaker() (string, bool) {
+	if b.hasTracerDM {
+		return b.tracerDM, true
 	}
-	for _, t := range tags {
-		if dm, ok := decisionMakerFromTracestate(t.Tracestate); ok {
+	for _, ts := range b.tracestates {
+		if dm, ok := decisionMakerFromTracestate(ts); ok {
 			return dm, true
 		}
 	}
