@@ -277,8 +277,10 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets. The configuration is validated against
-// its schema with schemaValidator.
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator) error {
+// its schema with schemaValidator. With ignoreMissingConfigFile, a main config file that does not exist is not an
+// error: LoadDatadog skips the extra config files and runs every post-load step (proxy, secrets, API key sanitization,
+// FIPS, ...).
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator, ignoreMissingConfigFile bool) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -288,7 +290,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, schemaValidator, config)
+	err := loadCustom(config, schemaValidator, config, ignoreMissingConfigFile)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -403,7 +405,7 @@ func delegatedAuthStartupContext(ctx context.Context, config pkgconfigmodel.Conf
 // configuration is validated against its schema with schemaValidator.
 func LoadSystemProbe(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator) error {
 	// schema enforcement is configured in datadog.yaml, which is always loaded before system-probe.yaml
-	if err := loadCustom(config, schemaValidator, Datadog()); err != nil {
+	if err := loadCustom(config, schemaValidator, Datadog(), false); err != nil {
 		return err
 	}
 	WarnDirectSendDelegatedAuthDirectives(config)
@@ -411,11 +413,16 @@ func LoadSystemProbe(config pkgconfigmodel.Config, schemaValidator pkgconfigmode
 }
 
 // loadCustom reads config into the provided config object and validates it with schemaValidator. If 'schema.enforce' is
-// true in datadog.yaml, invalid settings are reverted to their default.
-func loadCustom(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator, ddConf pkgconfigmodel.Config) error {
+// true in datadog.yaml, invalid settings are reverted to their default. With ignoreMissingConfigFile, a main config
+// file that does not exist is not an error.
+func loadCustom(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator, ddConf pkgconfigmodel.Config, ignoreMissingConfigFile bool) error {
 	log.Info("Starting to load the configuration")
 	err := config.ReadInConfig()
 	config.Validate(schemaValidator, ddConf.GetBool("schema.enforce"))
+	if ignoreMissingConfigFile && errors.Is(err, pkgconfigmodel.ErrMissingConfigFile) {
+		log.Info("Main config file does not exist, continuing with the other configuration sources")
+		return nil
+	}
 	return err
 }
 
@@ -605,7 +612,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			}
 		})
 		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+			return fmt.Errorf("unable to decrypt secrets in the configuration: %v", err)
 		}
 	}
 	log.Info("Finished resolving secrets")

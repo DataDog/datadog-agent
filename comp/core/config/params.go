@@ -40,6 +40,11 @@ type Params struct {
 	// If an error occurs, Component.warnings.Warning contains the error.
 	ignoreErrors bool
 
+	// ignoreMissingConfigFileError makes the config load ignore a missing main config file. The load then skips the
+	// extra config files and runs every post-load step (proxy, secrets, API key sanitization, ...). Unlike
+	// ignoreErrors, it covers only the missing main file: the load returns every other error.
+	ignoreMissingConfigFileError bool
+
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
 	defaultConfPath string
@@ -101,6 +106,13 @@ func WithConfigName(name string) func(*Params) {
 func WithIgnoreErrors(v bool) func(*Params) {
 	return func(b *Params) {
 		b.ignoreErrors = v
+	}
+}
+
+// WithIgnoreMissingConfigFileError returns an option which sets ignoreMissingConfigFileError
+func WithIgnoreMissingConfigFileError(v bool) func(*Params) {
+	return func(b *Params) {
+		b.ignoreMissingConfigFileError = v
 	}
 }
 
