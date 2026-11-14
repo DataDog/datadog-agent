@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The OpenTelemetry Agent's ``datadog`` extension now picks up a rotated Datadog API
+    key without requiring a restart, matching the behaviour of the Datadog exporter.
+    Previously the extension kept using the key it was given at startup and returned
+    ``403 API Key invalid`` on ``/api/v1/metadata`` indefinitely after a rotation.
