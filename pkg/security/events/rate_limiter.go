@@ -61,15 +61,28 @@ type RateLimiter struct {
 	config       *config.RuntimeSecurityConfig
 }
 
-// NewRateLimiter initializes an empty rate limiter
+// NewRateLimiter initializes a rate limiter that knows only the custom rules until a rule set is applied
 func NewRateLimiter(config *config.RuntimeSecurityConfig, client statsd.ClientInterface) *RateLimiter {
 	rl := &RateLimiter{
-		limiters:     make(map[string]Limiter),
 		statsdClient: client,
 		config:       config,
 	}
+	rl.limiters = rl.newCustomLimiters(AllCustomRuleIDs())
 
 	return rl
+}
+
+func (rl *RateLimiter) newCustomLimiters(customRuleIDs []eval.RuleID) map[string]Limiter {
+	limiters := make(map[string]Limiter)
+
+	for _, id := range customRuleIDs {
+		limiters[id] = NewStdLimiter(rate.Every(defaultEvery), defaultBurst)
+	}
+
+	// override if there is more specific defs
+	rl.applyBaseLimitersFromDefault(limiters)
+
+	return limiters
 }
 
 func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter) {
@@ -91,14 +104,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	rl.Lock()
 	defer rl.Unlock()
 
-	newLimiters := make(map[string]Limiter)
-
-	for _, id := range customRuleIDs {
-		newLimiters[id] = NewStdLimiter(rate.Every(defaultEvery), defaultBurst)
-	}
-
-	// override if there is more specific defs
-	rl.applyBaseLimitersFromDefault(newLimiters)
+	newLimiters := rl.newCustomLimiters(customRuleIDs)
 
 	var err error
 	for _, rule := range ruleSet.GetRules() {
