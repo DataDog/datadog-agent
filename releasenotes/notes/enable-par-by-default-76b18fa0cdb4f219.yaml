@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    The Private Action Runner is now enabled by default. To disable it, set
+    ``private_action_runner.enabled`` to ``false`` in ``datadog.yaml`` or set
+    the ``DD_PRIVATE_ACTION_RUNNER_ENABLED`` environment variable to ``false``.
