@@ -49,6 +49,10 @@ dd_agent_go_test(
     srcs = [
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
+        "pagesize_darwin_test.go",
+        "pagesize_fixed_test.go",
+        "pagesize_linux_test.go",
+        "pagesize_test.go",
         "phonehome_test.go",
         "utils_test.go",
     ],
