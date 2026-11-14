@@ -374,6 +374,108 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	os.Unsetenv("KUBERNETES_SERVICE_PORT")
 }
 
+func (suite *KubeletTestSuite) TestGetNodenameFromConfiguredKubeletNodename() {
+	ctx := context.Background()
+	mockConfig := configmock.New(suite.T())
+
+	// No stats summary body: the dummy kubelet answers 404 on /stats/summary,
+	// so init() must not rely on it.
+	kubelet, err := newDummyKubelet("", "", "")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.StartTLS()
+	defer os.Remove(kubelet.testingCertificate)
+	defer os.Remove(kubelet.testingPrivateKey)
+	require.Nil(suite.T(), err)
+	defer ts.Close()
+
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", -1)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubelet_use_api_server", true)
+	mockConfig.SetInTest("kubernetes_kubelet_nodename", "my-configured-node")
+
+	os.Setenv("KUBERNETES_SERVICE_HOST", "127.0.0.1")
+	os.Setenv("KUBERNETES_SERVICE_PORT_HTTPS", strconv.Itoa(kubeletPort))
+	defer func() {
+		os.Unsetenv("KUBERNETES_SERVICE_HOST")
+		os.Unsetenv("KUBERNETES_SERVICE_PORT_HTTPS")
+	}()
+
+	kubeutil := suite.getCustomKubeUtil()
+
+	concreteKubeUtil, ok := kubeutil.(*KubeUtil)
+	require.True(suite.T(), ok, "cannot cast kubeutil interface to real kubeutil object")
+
+	require.NotNil(suite.T(), concreteKubeUtil.getKubeletClient(), "cannot get the currently allocated kubeutilclient")
+
+	// The node name comes from the configuration, without any /stats/summary request.
+	require.Equal(suite.T(), "my-configured-node", concreteKubeUtil.getKubeletClient().config.nodeName)
+
+	hostname, err := kubeutil.GetNodename(ctx)
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-configured-node", hostname)
+
+	select {
+	case r := <-kubelet.Requests:
+		require.NotEqual(suite.T(), "/stats/summary", r.URL.Path)
+	default:
+	}
+
+	// Pod list queries are sent to the API server with the configured node name.
+	pods, err := kubeutil.GetLocalPodList(ctx)
+	require.NotNil(suite.T(), err) // the dummy kubelet answers 404 on /api/v1/pods
+	require.Len(suite.T(), pods, 0)
+
+	select {
+	case r := <-kubelet.Requests:
+		require.Equal(suite.T(), "/api/v1/pods", r.URL.Path)
+		require.Equal(suite.T(), "fieldSelector=spec.nodeName=my-configured-node", r.URL.RawQuery)
+	case <-time.After(2 * time.Second):
+		require.FailNow(suite.T(), "Timeout on receive channel")
+	}
+}
+
+func (suite *KubeletTestSuite) TestGetNodenameFromStatsSummaryWhenKubeletNodenameNotSet() {
+	ctx := context.Background()
+	mockConfig := configmock.New(suite.T())
+
+	// Without kubernetes_kubelet_nodename, keep the existing behavior:
+	// the node name is fetched from the kubelet /stats/summary endpoint.
+	kubelet, err := newDummyKubelet("", "./testdata/stats_summary.json", "")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	require.Nil(suite.T(), err)
+	defer ts.Close()
+
+	mockConfig.SetInTest("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetInTest("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetInTest("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("kubelet_auth_token_path", "")
+	mockConfig.SetInTest("kubelet_use_api_server", true)
+
+	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+	os.Setenv("KUBERNETES_SERVICE_PORT_HTTPS", "443")
+	defer func() {
+		os.Unsetenv("KUBERNETES_SERVICE_HOST")
+		os.Unsetenv("KUBERNETES_SERVICE_PORT_HTTPS")
+	}()
+
+	kubeutil := suite.getCustomKubeUtil()
+	kubelet.dropRequests() // Throwing away first GETs
+
+	concreteKubeUtil, ok := kubeutil.(*KubeUtil)
+	require.True(suite.T(), ok, "cannot cast kubeutil interface to real kubeutil object")
+
+	require.Equal(suite.T(), "my-node-name", concreteKubeUtil.getKubeletClient().config.nodeName)
+
+	hostname, err := kubeutil.GetNodename(ctx)
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "my-node-name", hostname)
+}
+
 func (suite *KubeletTestSuite) TestGetNodename() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())

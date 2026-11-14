@@ -258,6 +258,12 @@ func getKubeletClientConfig() (*kubeletClientConfig, error) {
 		clientConfig.useAPIServer = true
 		clientConfig.apiServerHost = "https://" + net.JoinHostPort(apiServerHost, apiServerPort)
 
+		// The node name may be configured explicitly (e.g. DD_KUBERNETES_KUBELET_NODENAME set via the
+		// downward API). Use it to build API server pod-list queries instead of fetching it from the
+		// kubelet /stats/summary endpoint, which is not always reachable when kubelet calls are
+		// proxied through the API server with fine-grained authorization.
+		clientConfig.nodeName = pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_nodename")
+
 		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}
 
