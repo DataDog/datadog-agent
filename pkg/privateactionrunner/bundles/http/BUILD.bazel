@@ -29,6 +29,7 @@ dd_agent_go_test(
     srcs = [
         "basic_runner_credential_smoke_test.go",
         "helper_test.go",
+        "request_test.go",
     ],
     embed = [":http"],
     deps = [
