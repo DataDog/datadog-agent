@@ -9,11 +9,13 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*RuntimeSecurityAgent, error) {
-	client, err := NewRuntimeSecurityCmdClient()
+func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, ipc ipc.Component) (*RuntimeSecurityAgent, error) {
+	client, err := NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -22,6 +24,7 @@ func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string) (*Runtim
 
 	rsa := &RuntimeSecurityAgent{
 		cmdClient:            client,
+		ipc:                  ipc,
 		hostname:             hostname,
 		storage:              nil,
 		running:              atomic.NewBool(false),
