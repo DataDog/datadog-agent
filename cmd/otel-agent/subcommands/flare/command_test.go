@@ -8,22 +8,36 @@ package flare
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// testAPIKey looks like a real API key so that the scrubber recognizes it
+const testAPIKey = "0123456789abcdef0123456789abcdef"
+
 func newGlobalParamsTest(t *testing.T) *subcommands.GlobalParams {
 	tmpDir := t.TempDir()
+	t.Setenv("TEST_FLARE_API_KEY", testAPIKey)
 
 	// Create a simple OTel configuration file
 	configPath := path.Join(tmpDir, "otel-config.yaml")
@@ -38,7 +52,7 @@ func newGlobalParamsTest(t *testing.T) *subcommands.GlobalParams {
 exporters:
   datadog:
     api:
-      key: test-api-key
+      key: ${env:TEST_FLARE_API_KEY}
 
 extensions:
   health_check:
@@ -69,11 +83,38 @@ service:
 	}
 }
 
+// newUnreachableCollector returns a config and an IPC client for which no collector is running,
+// so the flare falls back to the configuration files.
+func newUnreachableCollector(t *testing.T) (config.Component, *ipcmock.IPCMock) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("otelcollector.extension_url", "https://127.0.0.1:1")
+	return cfg, ipcmock.New(t)
+}
+
+// readZip returns the content of every file of a zip archive
+func readZip(t *testing.T, zipPath string) map[string][]byte {
+	zipReader, err := zip.OpenReader(zipPath)
+	require.NoError(t, err)
+	defer zipReader.Close()
+
+	files := map[string][]byte{}
+	for _, f := range zipReader.File {
+		rc, err := f.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		files[f.Name] = content
+	}
+	return files
+}
+
 func TestCreateOTelFlare(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
 
 	// Create the flare
-	flarePath, err := createOTelFlare(globalParams)
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
 	require.NoError(t, err, "createOTelFlare should succeed")
 	require.NotEmpty(t, flarePath, "flare path should not be empty")
 
@@ -90,12 +131,13 @@ func TestCreateOTelFlare(t *testing.T) {
 	defer zipReader.Close()
 
 	expectedFiles := map[string]bool{
-		"otel-response.json":         false,
-		"build-info.txt":             false,
-		"config/env-config.yaml":     false,
-		"config/runtime-config.yaml": false,
-		"environment.json":           false,
-		"debug-sources.json":         false,
+		"otel-response.json":          false,
+		"build-info.txt":              false,
+		"config/customer-config.yaml": false,
+		"config/env-config.yaml":      false,
+		"config/runtime-config.yaml":  false,
+		"environment.json":            false,
+		"debug-sources.json":          false,
 	}
 
 	for _, file := range zipReader.File {
@@ -108,13 +150,126 @@ func TestCreateOTelFlare(t *testing.T) {
 	for fileName, found := range expectedFiles {
 		assert.True(t, found, "Expected file %s not found in flare archive", fileName)
 	}
+
+	// The API key, resolved from the environment, must be scrubbed everywhere
+	for name, content := range readZip(t, flarePath) {
+		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
+	}
+}
+
+func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+
+	profile := []byte("\x00\x01binary pprof " + testAPIKey)
+	debugServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/debug/pprof/heap":
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Write(profile)
+		case "/debug/servicez":
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte("<html>api_key: " + testAPIKey + "</html>"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer debugServer.Close()
+	debugHost := strings.TrimPrefix(debugServer.URL, "http://")
+
+	response := extensiontypes.Response{
+		BuildInfoResponse: extensiontypes.BuildInfoResponse{AgentCommand: "otel-agent", ExtensionVersion: "running-collector"},
+		ConfigResponse: extensiontypes.ConfigResponse{
+			CustomerConfig: "exporters:\n  datadog:\n    api:\n      key: ${env:DD_API_KEY}\n",
+			RuntimeConfig:  "exporters:\n  datadog:\n    api:\n      key: " + testAPIKey + "\nextensions:\n  zpages/dd-autoconfigured: {}\n",
+		},
+		DebugSourceResponse: extensiontypes.DebugSourceResponse{
+			Sources: map[string]extensiontypes.OTelFlareSource{
+				"pprof":                    {URLs: []string{debugHost + "/debug/pprof/heap"}},
+				"zpages/dd-autoconfigured": {URLs: []string{debugHost + "/debug/servicez", debugHost + "/debug/missing"}},
+			},
+		},
+		Environment: map[string]string{"DD_API_KEY": testAPIKey},
+	}
+	responseBytes, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	ipcComp := ipcmock.New(t)
+	extensionServer := ipcComp.NewMockServer(ipcComp.HTTPMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(responseBytes)
+	})))
+	cfg := configmock.New(t)
+	cfg.SetInTest("otelcollector.extension_url", extensionServer.URL)
+
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+
+	files := readZip(t, flarePath)
+
+	// The effective configuration of the running collector is used, not the configuration files
+	assert.Contains(t, string(files["build-info.txt"]), "Extension Version: running-collector")
+	assert.Contains(t, string(files["config/runtime-config.yaml"]), "zpages/dd-autoconfigured")
+
+	// Debug sources are fetched, including the ones added by the converter
+	assert.Equal(t, profile, files["otel-flare/pprof_debug_pprof_heap.dat"], "binary profiles must be kept as is")
+	assert.Contains(t, string(files["otel-flare/zpages/dd-autoconfigured_debug_servicez.dat"]), "<html>")
+	assert.Contains(t, string(files["otel-flare/zpages/dd-autoconfigured_debug_missing.err"]), "404")
+
+	for name, content := range files {
+		if name == "otel-flare/pprof_debug_pprof_heap.dat" {
+			continue
+		}
+		assert.NotContains(t, string(content), testAPIKey, "API key not scrubbed from %s", name)
+	}
+}
+
+// TestScrubResponseStructuredSecrets checks secrets that the text scrubber alone misses once
+// serialized: quoted JSON keys and YAML embedded in JSON strings.
+func TestScrubResponseStructuredSecrets(t *testing.T) {
+	data := &extensiontypes.Response{
+		ConfigResponse: extensiontypes.ConfigResponse{
+			CustomerConfig: noConfigProvided,
+			RuntimeConfig:  "exporters:\n  otlphttp:\n    headers:\n      password: hunter2\nreceivers:\n  otlp: {}\n",
+		},
+		Environment: map[string]string{"AWS_SECRET_ACCESS_KEY": "supersecret", "HOME": "/root"},
+	}
+
+	scrubbed, err := scrubResponse(data)
+	require.NoError(t, err)
+
+	tmp := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, createFlareArchive(tmp, responseFiles(scrubbed)))
+	files := readZip(t, tmp)
+	for name, content := range files {
+		assert.NotContains(t, string(content), "supersecret", "secret not scrubbed from %s", name)
+		assert.NotContains(t, string(content), "hunter2", "secret not scrubbed from %s", name)
+	}
+	assert.Contains(t, string(files["environment.json"]), "/root", "non-secret values are kept")
+	assert.Contains(t, string(files["config/runtime-config.yaml"]), "otlp", "non-secret config is kept")
+	assert.Equal(t, noConfigProvided, string(files["config/customer-config.yaml"]))
+
+	// the input is not modified
+	assert.Equal(t, "supersecret", data.Environment["AWS_SECRET_ACCESS_KEY"])
+}
+
+func TestFlareConfigUsesExporterAPIKey(t *testing.T) {
+	globalParams := newGlobalParamsTest(t)
+	// flareConfigModule rebuilds the global config: the mock restores it after the test
+	configmock.New(t)
+
+	var cfg config.Component
+	app := fx.New(flareConfigModule(globalParams), fx.Populate(&cfg))
+	require.NoError(t, app.Err())
+
+	assert.Equal(t, testAPIKey, cfg.GetString("api_key"))
 }
 
 func TestCollectOTelData(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 
 	// Collect OTel data
-	data, err := collectOTelData(globalParams)
+	data, err := collectConfigData(globalParams)
 	require.NoError(t, err, "collectOTelData should succeed")
 	require.NotNil(t, data, "collected data should not be nil")
 
@@ -229,11 +384,13 @@ func TestExtractExtensionType(t *testing.T) {
 func TestCreateOTelFlareUsesUnpredictableDir(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 
-	p1, err := createOTelFlare(globalParams)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	p1, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
 	require.NoError(t, err)
 	defer os.RemoveAll(filepath.Dir(p1))
 
-	p2, err := createOTelFlare(globalParams)
+	p2, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
 	require.NoError(t, err)
 	defer os.RemoveAll(filepath.Dir(p2))
 
@@ -249,8 +406,9 @@ func TestCreateOTelFlareDirectoryIsPrivate(t *testing.T) {
 	}
 
 	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
 
-	flarePath, err := createOTelFlare(globalParams)
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
 	require.NoError(t, err)
 	defer os.RemoveAll(filepath.Dir(flarePath))
 
