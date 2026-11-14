@@ -22,6 +22,7 @@ boot-end-marker
 !
 enable secret 5 $1$QZCP$w8a6j3H2o0Vv3iJmJr2ly.
 enable password 7 0822455D0A16
+enable password level 5 plainLevelPassword
 !
 username admin privilege 15 secret 5 $1$7G9N$k4v3q1QG3eK9L1zVfH8dN.
 username ops password 0 ops-cleartext
@@ -45,6 +46,19 @@ snmp-server contact netops@lab.example.net
 ! ---- RADIUS / TACACS -------------------------------------------------
 radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 045802150C2E1A
 tacacs-server host 192.0.2.20 key 7 094F471A1A0C
+radius-server key 0 plainRadiusKey
+!
+radius server ISE-1
+ address ipv4 192.0.2.30 auth-port 1812 acct-port 1813
+ key 0 plainRadiusServerKey
+ timeout 5
+!
+tacacs server TAC-1
+ address ipv4 192.0.2.40
+ key plainTacacsKey
+!
+aaa group server tacacs+ TAC-GROUP
+ server-private 192.0.2.50 timeout 5 key 0 plainPrivateKey
 !
 ! ---- ISAKMP / IPsec --------------------------------------------------
 crypto isakmp policy 10
@@ -54,6 +68,10 @@ crypto isakmp policy 10
  group 14
  lifetime 86400
 crypto isakmp key plainPreShare address 203.0.113.1
+crypto ikev2 profile IKEV2-PROF
+ match identity remote address 203.0.113.2 255.255.255.255
+ authentication remote pre-share key plainRemotePsk
+ authentication local pre-share key plainLocalPsk
 !
 ! ---- Key chains (includes a “key 7 …” style) -------------------------
 key chain OSPF-CHAIN
@@ -68,6 +86,25 @@ dot11 ssid CorpWiFi
    authentication open
    authentication key-management wpa version 2
    wpa-psk ascii 0 SuperSecretPlainPSK
+!
+dot11 ssid GuestWiFi
+   authentication key-management wpa version 2
+   wpa-psk ascii plainGuestPSK
+!
+interface Serial0/0/0
+ encapsulation ppp
+ ppp chap password plainChapPassword
+ ppp pap password 7 070C285F4D06
+!
+wlan CORP-PSK 2 CORP-PSK
+ security wpa psk set-key ascii plainWlanPsk
+!
+ap profile default-ap-profile
+ dot1x username apuser password plainDot1xPassword
+ mgmtuser username apadmin password plainMgmtPassword secret plainMgmtSecret
+!
+aaa server radius dynamic-author
+ client 192.0.2.60 server-key plainCoaKey
 !
 interface GigabitEthernet0/0
  description Uplink to ISP
@@ -127,6 +164,9 @@ ip route 0.0.0.0 0.0.0.0 198.51.100.1
 !
 logging host 10.0.0.50
 ntp server 192.0.2.123 prefer
+ntp authentication-key 1 md5 104D000A0618 7
+ntp authentication-key 2 md5 plainNtpKey
+ntp trusted-key 1 - 3
 !
 end
 !
