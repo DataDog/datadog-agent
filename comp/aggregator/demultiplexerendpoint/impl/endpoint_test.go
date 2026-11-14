@@ -7,6 +7,7 @@ package demultiplexerendpointimpl
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -26,6 +27,49 @@ type contextDumperFunc func(io.Writer) error
 
 func (f contextDumperFunc) DumpDogstatsdContexts(w io.Writer) error {
 	return f(w)
+}
+
+func TestGetDogstatsdContextsDump(t *testing.T) {
+	runPath := t.TempDir()
+	path := filepath.Join(runPath, dogstatsdContextsDumpFilename)
+	require.NoError(t, os.WriteFile(path, []byte("saved dump"), 0o644))
+
+	endpoint := demultiplexerEndpoint{
+		runPath: runPath,
+		demux: contextDumperFunc(func(io.Writer) error {
+			t.Fatal("reading dump metadata must not generate a new dump")
+			return nil
+		}),
+	}
+	recorder := httptest.NewRecorder()
+	endpoint.getDogstatsdContextsDump(recorder, httptest.NewRequest(http.MethodGet, "/dogstatsd-contexts-dump", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var result dogstatsdContextsDumpInfo
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &result))
+	require.Equal(t, path, result.Path)
+	require.Equal(t, int64(len("saved dump")), result.Size)
+	require.NotZero(t, result.ModifiedAtUnixNano)
+}
+
+func TestGetDogstatsdContextsDumpReturnsNotFoundWithoutSavedDump(t *testing.T) {
+	endpoint := demultiplexerEndpoint{runPath: t.TempDir()}
+	recorder := httptest.NewRecorder()
+
+	endpoint.getDogstatsdContextsDump(recorder, httptest.NewRequest(http.MethodGet, "/dogstatsd-contexts-dump", nil))
+
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Contains(t, recorder.Body.String(), errDogstatsdDumpNotFound.Error())
+}
+
+func TestGetDogstatsdContextsDumpRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
+	endpoint := demultiplexerEndpoint{dogstatsdOnDataPlane: true}
+	recorder := httptest.NewRecorder()
+
+	endpoint.getDogstatsdContextsDump(recorder, httptest.NewRequest(http.MethodGet, "/dogstatsd-contexts-dump", nil))
+
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "Agent Data Plane")
 }
 
 func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
@@ -66,27 +110,24 @@ func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
 	}()
 	<-dumpStarted
 
-	secondCallStarted := make(chan struct{})
-	secondResultCh := make(chan result, 1)
-	go func() {
-		close(secondCallStarted)
-		path, err := endpoint.writeDogstatsdContexts()
-		secondResultCh <- result{path: path, err: err}
-	}()
-	<-secondCallStarted
+	finalPath := filepath.Join(endpoint.runPath, dogstatsdContextsDumpFilename)
+	secondResultCh := endpoint.dumpGroup.DoChan(finalPath, func() (any, error) {
+		return endpoint.writeDogstatsdContextsFile(finalPath)
+	})
 	close(releaseDump)
 
 	firstResult := <-firstResultCh
 	secondResult := <-secondResultCh
 	require.NoError(t, firstResult.err)
-	require.NoError(t, secondResult.err)
-	require.Equal(t, firstResult.path, secondResult.path)
+	require.NoError(t, secondResult.Err)
+	require.True(t, secondResult.Shared)
+	require.Equal(t, firstResult.path, secondResult.Val)
 	require.Equal(t, int32(1), dumpCalls.Load())
 }
 
 func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	runPath := t.TempDir()
-	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	started := make(chan struct{})
@@ -136,14 +177,14 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	decoder.Close()
 	require.JSONEq(t, `{"name":"new dump"}`, string(decompressed))
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }
 
 func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	runPath := t.TempDir()
-	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	dumpErr := errors.New("dump failed")
@@ -163,7 +204,7 @@ func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("previous dump"), contents)
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }

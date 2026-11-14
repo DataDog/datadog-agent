@@ -14,6 +14,7 @@ import (
 )
 
 type fakeIPCClient struct {
+	get  func(string, ...ipc.RequestOption) ([]byte, error)
 	post func(string, string, io.Reader, ...ipc.RequestOption) ([]byte, error)
 }
 
@@ -21,8 +22,11 @@ func (c *fakeIPCClient) Do(*http.Request, ...ipc.RequestOption) ([]byte, error) 
 	panic("unexpected call")
 }
 
-func (c *fakeIPCClient) Get(string, ...ipc.RequestOption) ([]byte, error) {
-	panic("unexpected call")
+func (c *fakeIPCClient) Get(endpointURL string, options ...ipc.RequestOption) ([]byte, error) {
+	if c.get == nil {
+		panic("unexpected call")
+	}
+	return c.get(endpointURL, options...)
 }
 
 func (c *fakeIPCClient) Head(string, ...ipc.RequestOption) ([]byte, error) {
@@ -30,6 +34,9 @@ func (c *fakeIPCClient) Head(string, ...ipc.RequestOption) ([]byte, error) {
 }
 
 func (c *fakeIPCClient) Post(endpointURL, contentType string, body io.Reader, options ...ipc.RequestOption) ([]byte, error) {
+	if c.post == nil {
+		panic("unexpected call")
+	}
 	return c.post(endpointURL, contentType, body, options...)
 }
 
