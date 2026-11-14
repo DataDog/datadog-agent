@@ -192,7 +192,7 @@ def strip_invalid_components(file_path, components_to_remove):
         ) from e
 
 
-@task(post=[tidy])
+@task
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
@@ -295,6 +295,22 @@ def generate(ctx):
                     f.write(content)
                 ctx.run(f"gofmt -l -s -w {file_path}")
                 print(f"Updated package name and ensured license header in: {file_path}")
+
+    # Imported here so it doesn't also get collected as a `collector.add-all-replace` task
+    from tasks.modules import add_all_replace
+
+    # OCB writes impl/go.mod from scratch, so the intra-repo replace block is gone and the local modules it pointed at
+    # resolve to their published versions instead. Restore it, otherwise `tidy` bakes those published versions into
+    # go.sum and CI's modules.check-all-replace fails.
+    #
+    # Two passes are needed. add-all-replace ends with check-go-mod-replaces, which repairs replaces that are missing
+    # according to go.sum — and spells them `../../../core/config` where add-all-replace itself writes the canonical
+    # `../../../../comp/core/config`. Until tidy drops the published versions from go.sum, that repair keeps firing and
+    # leaves the non-canonical spelling behind, which check-all-replace then reports as a diff.
+    print("Restoring intra-repo replace directives")
+    add_all_replace(ctx)
+    tidy(ctx)
+    add_all_replace(ctx)
 
 
 def update_go_mod_file(go_mod_path, module_versions):

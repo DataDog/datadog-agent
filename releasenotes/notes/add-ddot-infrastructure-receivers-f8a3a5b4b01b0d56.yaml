@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Added the ``postgresql``, ``mysql``, ``nginx``, ``kafkametrics``,
+    ``sqlserver``, ``apache``, ``iis``, ``haproxy`` and ``apachespark``
+    receivers to the Datadog OpenTelemetry Collector (DDOT) manifest, enabling
+    collection of infrastructure metrics from these databases, web servers,
+    message brokers and application frameworks in standalone DDOT deployments.
+    The ``iis`` receiver only collects on Windows.
