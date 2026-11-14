@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ``DatadogInstrumentation`` checks and logs configurations can now target
+    Argo Workflows ``Workflow`` and ``CronWorkflow`` resources. Pods of a
+    Workflow created by a CronWorkflow are matched by the ``CronWorkflow``
+    target, not by the generated ``Workflow`` name.

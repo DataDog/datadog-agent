@@ -178,6 +178,10 @@ const (
 	RolloutKind = "Rollout"
 	// StrimziPodSetKind represents the Strimzi PodSet object kind
 	StrimziPodSetKind = "StrimziPodSet"
+	// WorkflowKind represents the Argo Workflows Workflow object kind
+	WorkflowKind = "Workflow"
+	// CronWorkflowKind represents the Argo Workflows CronWorkflow object kind
+	CronWorkflowKind = "CronWorkflow"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"
