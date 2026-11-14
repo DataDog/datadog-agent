@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -683,4 +684,67 @@ func TestRemapSource_EscapedDotPath(t *testing.T) {
 		assert.True(shouldProcess)
 		assert.Equal("fallback", msg.Origin.Source())
 	})
+}
+
+type routingTestEncoder struct {
+	calls int
+	err   error
+}
+
+func (e *routingTestEncoder) Encode(*message.Message, string) error { e.calls++; return e.err }
+
+type routingTestDiagnostic struct{}
+
+func (routingTestDiagnostic) HandleMessage(*message.Message, []byte, string) {}
+
+func TestRoutingSelectionOwnsItsOutcomeAndPrecedesEncoding(t *testing.T) {
+	for _, tc := range []struct {
+		name                                       string
+		decision                                   RoutingDecision
+		drop, failEncoding, failRendering, barrier bool
+		selections, encodings, losses, outputs     int
+	}{
+		{name: "continue", decision: RoutingContinue, selections: 1, encodings: 1, outputs: 1},
+		{name: "exclude", decision: RoutingExcluded, selections: 1},
+		{name: "unresolved", decision: RoutingUnresolved, selections: 1},
+		{name: "common drop", drop: true, losses: 1},
+		{name: "encoding loss", decision: RoutingContinue, failEncoding: true, selections: 1, encodings: 1, losses: 1},
+		{name: "rendering loss", decision: RoutingContinue, failRendering: true, selections: 1, losses: 1},
+		{name: "flush barrier", barrier: true, outputs: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			enc := &routingTestEncoder{}
+			if tc.failEncoding {
+				enc.err = errors.New("test encoding failure")
+			}
+			output := make(chan *message.Message, 1)
+			selections, losses := 0, 0
+			var rules []*config.ProcessingRule
+			if tc.drop {
+				rules = []*config.ProcessingRule{{Type: config.ExcludeAtMatch, Regex: regexp.MustCompile("secret")}}
+			}
+			p := NewForRouting(configmock.New(t), nil, output, rules, nil, enc, routingTestDiagnostic{}, nil, metrics.NewNoopPipelineMonitor(""), "", func(*message.Message) { losses++ }, func(m *message.Message) RoutingDecision {
+				selections++
+				require.Equal(t, message.StateStructured, m.State)
+				require.Zero(t, enc.calls)
+				value, ok := m.GetStructuredAttribute("field")
+				require.True(t, ok)
+				require.Equal(t, "value", value)
+				return tc.decision
+			})
+			content := &message.BasicStructuredContent{Data: map[string]interface{}{"message": "secret", "field": "value"}}
+			if tc.failRendering {
+				content.Data["unserializable"] = func() {}
+			}
+			m := message.NewStructuredMessage(content, message.NewOrigin(sources.NewLogSource("test", &config.LogsConfig{})), "info", 0)
+			if tc.barrier {
+				m.SetRoutingBarrier(make(chan struct{}))
+			}
+			p.processMessage(m)
+			require.Equal(t, tc.selections, selections)
+			require.Equal(t, tc.encodings, enc.calls)
+			require.Equal(t, tc.losses, losses)
+			require.Len(t, output, tc.outputs)
+		})
+	}
 }

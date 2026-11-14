@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add a log delivery mechanism for integrations that selectively send logs
+    to multiple endpoints.
