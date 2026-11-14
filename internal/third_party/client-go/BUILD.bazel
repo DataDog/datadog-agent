@@ -1,0 +1,25 @@
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
+# Copied from https://github.com/kubernetes/client-go/tree/v0.27.0/tools/leaderelection/resourcelock.
+package(default_package_metadata = [":package_metadata"])
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = purl.builder()
+        .type("golang")
+        .namespace("k8s.io")
+        .name("client-go")
+        .version("v0.27.0")
+        .subpath("tools/leaderelection/resourcelock")
+        .build(),
+    visibility = ["//internal/third_party/client-go:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+)
