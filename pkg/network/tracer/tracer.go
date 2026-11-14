@@ -448,8 +448,9 @@ func (t *Tracer) Stop() {
 		t.reverseDNS.Close()
 	}
 	if t.ebpfTracer != nil {
-		t.ebpfTracer.Stop()
+		// Unregister first, so that no Gather collects from closed maps.
 		t.telemetryComp.UnregisterCollector(t.ebpfTracer)
+		t.ebpfTracer.Stop()
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
@@ -458,8 +459,8 @@ func (t *Tracer) Stop() {
 		t.gwLookup.Close()
 	}
 	if t.conntracker != nil {
-		t.conntracker.Close()
 		t.telemetryComp.UnregisterCollector(t.conntracker)
+		t.conntracker.Close()
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
