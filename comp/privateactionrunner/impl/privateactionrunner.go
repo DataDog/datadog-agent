@@ -113,10 +113,15 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	executorServer  *executor.Server
-	encryptionStore *encryptioncontext.Store
-	executorDone    chan struct{}
-	shutdowner      compdef.Shutdowner
+	executorServer      *executor.Server
+	encryptionStore     *encryptioncontext.Store
+	executorDone        chan struct{}
+	executorMu          sync.Mutex // Protects executor startup/cancellation publication.
+	executorStopping    bool
+	executorCleanupOnce sync.Once
+	executorCleanupDone chan struct{}
+	executorCleanupErr  error
+	shutdowner          compdef.Shutdowner
 
 	telemetry   *telemetry.Telemetry
 	keysManager taskverifier.KeysManager
@@ -301,33 +306,53 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 // StartExecutor starts the on-demand executor gRPC server. Idempotent via startOnce.
 func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
 	var err error
-	p.started = true
 	p.startOnce.Do(func() {
 		defer close(p.startChan)
-		err = p.startExecutor(ctx)
+		p.executorMu.Lock()
+		if p.executorStopping {
+			p.executorMu.Unlock()
+			err = context.Canceled
+			return
+		}
+		// Startup keeps the Fx deadline; the server lives until StopExecutor.
+		startupCtx, cancelStartup := context.WithCancel(ctx)
+		runCtx, cancelRun := context.WithCancel(context.WithoutCancel(ctx))
+		p.cancelStart = func() {
+			cancelStartup()
+			cancelRun()
+		}
+		p.started = true
+		p.executorMu.Unlock()
+		defer cancelStartup()
+
+		err = p.startExecutor(startupCtx, runCtx)
+		if err != nil {
+			p.cancelStart()
+			err = errors.Join(err, p.cleanupExecutor(ctx))
+		}
 	})
 	return err
 }
 
-func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
-	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
-	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	p.cancelStart = cancel
+func (p *PrivateActionRunner) startExecutor(ctx, runCtx context.Context) error {
 	defer p.logger.Flush()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	runCtx, cfg, err := p.configureExecutor(ctx, runCtx)
 	if err != nil {
-		cancel()
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	snapshot, err := executor.ControlPlaneConfig(p.coreConfig, cfg)
 	if err != nil {
-		cancel()
 		return err
 	}
 	tlsConfig := p.ipc.GetTLSServerConfig().Clone()
 	if len(tlsConfig.Certificates) == 0 || len(tlsConfig.Certificates[0].Certificate) == 0 {
-		cancel()
 		return errors.New("shared IPC certificate is missing")
 	}
 	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
@@ -335,7 +360,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	socketPath := p.coreConfig.GetString(par.ExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
-		cancel()
 		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)
 	}
 	p.logger.Info("Private action runner executor listening on " + socketPath)
@@ -442,43 +466,80 @@ func executorIdleTimeout(idleSeconds int) time.Duration {
 
 // StopExecutor gracefully stops the executor gRPC server and releases resources.
 func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
+	p.executorMu.Lock()
+	p.executorStopping = true
 	if !p.started {
+		p.executorMu.Unlock()
 		return nil // Never started, nothing to stop
 	}
-
 	p.cancelStart()
+	p.executorMu.Unlock()
+
 	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
 	defer cancelWaitCtx()
 	if err := p.waitForStartup(waitCtx); err != nil {
-		p.logger.Warn("PAR executor startup did not complete in time, forcing cleanup")
+		p.logger.Warn("PAR executor startup did not complete in time, deferring cleanup until it finishes")
+		// Startup owns these fields until startChan closes, even after cancellation.
+		go func() {
+			<-p.startChan
+			<-p.startExecutorCleanup(ctx)
+			if p.executorCleanupErr != nil {
+				p.logger.Errorf("Private action runner executor deferred cleanup failed: %v", p.executorCleanupErr)
+			}
+		}()
+		return err
 	}
+	return p.cleanupExecutor(ctx)
+}
 
-	if p.executorDone != nil {
-		select {
-		case <-p.executorDone:
-			p.logger.Info("Private action runner executor stopped gracefully")
-		case <-ctx.Done():
-			p.logger.Warn("Private action runner executor did not stop in time")
-		}
+func (p *PrivateActionRunner) cleanupExecutor(ctx context.Context) error {
+	done := p.startExecutorCleanup(ctx)
+	select {
+	case <-done:
+		return p.executorCleanupErr
+	default:
 	}
+	select {
+	case <-done:
+		return p.executorCleanupErr
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
-	// Flush completed spans after draining, or best-effort if the stop deadline expired.
-	// Actions still running after the deadline may finish after the sender stops.
-	p.stopTelemetry()
+func (p *PrivateActionRunner) startExecutorCleanup(ctx context.Context) <-chan struct{} {
+	p.executorCleanupOnce.Do(func() {
+		p.executorCleanupDone = make(chan struct{})
+		// Only starting the worker is serialized; each caller waits with its own deadline.
+		go func() {
+			defer close(p.executorCleanupDone)
+			if p.executorDone != nil {
+				select {
+				case <-p.executorDone:
+					p.logger.Info("Private action runner executor stopped gracefully")
+				case <-ctx.Done():
+					p.logger.Warn("Private action runner executor did not stop in time")
+				}
+			}
 
-	var stopErr error
-	if p.encryptionStore != nil {
-		p.encryptionStore.Stop()
-	}
-	if p.ownsMetricsClient && p.metricsClient != nil {
-		if err := p.metricsClient.Flush(); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
-		}
-		if err := p.metricsClient.Close(); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("failed to close metrics client: %w", err))
-		}
-	}
-	return stopErr
+			// Flush completed spans after draining, or best-effort if the stop deadline expired.
+			// Actions still running after the deadline may finish after the sender stops.
+			p.stopTelemetry()
+
+			if p.encryptionStore != nil {
+				p.encryptionStore.Stop()
+			}
+			if p.ownsMetricsClient && p.metricsClient != nil {
+				if err := p.metricsClient.Flush(); err != nil {
+					p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to flush metrics client: %w", err))
+				}
+				if err := p.metricsClient.Close(); err != nil {
+					p.executorCleanupErr = errors.Join(p.executorCleanupErr, fmt.Errorf("failed to close metrics client: %w", err))
+				}
+			}
+		}()
+	})
+	return p.executorCleanupDone
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {
