@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	defaultBinListSize      = 2 * defaultBinLimit
-	defaultKeyListSize      = 256
-	defaultOverflowListSize = 16
+	defaultBinListSize = 2 * defaultBinLimit
+	defaultKeyListSize = 256
+	defaultRunListSize = 2 * defaultBinLimit
 )
 
 var (
@@ -33,9 +33,9 @@ var (
 		},
 	}
 
-	overflowListPool = sync.Pool{
+	runListPool = sync.Pool{
 		New: func() interface{} {
-			a := make([]bin, 0, defaultOverflowListSize)
+			a := make([]run, 0, defaultRunListSize)
 			return &a
 		},
 	}
@@ -59,13 +59,13 @@ func putKeyList(a []Key) {
 	keyListPool.Put(&a)
 }
 
-func getOverflowList() []bin {
-	a := *(overflowListPool.Get().(*[]bin))
+func getRunList() []run {
+	a := *(runListPool.Get().(*[]run))
 	return a[:0]
 }
 
-func putOverflowList(a []bin) {
-	overflowListPool.Put(&a)
+func putRunList(a []run) {
+	runListPool.Put(&a)
 }
 
 var floatKeyCountPool = sync.Pool{
