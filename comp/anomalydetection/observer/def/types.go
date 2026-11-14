@@ -624,6 +624,10 @@ type MetricKindMatcher interface {
 	// Window returns the bounded history requirement for classification.
 	Window() DetectorPointWindow
 
+	// Classify evaluates the supplied window without updating per-series state.
+	// The caller supplies a complete, chronological, visible window.
+	Classify(points []Point) MetricKind
+
 	// Observe evaluates a chronological window of points up to dataTime against
 	// the series' current committed kind in storage, returning a confirmed transition
 	// when qualified. Points are borrowed and must not be retained by the matcher.
