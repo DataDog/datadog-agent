@@ -89,6 +89,13 @@ func TestCheckRemotePaths(t *testing.T) {
 	assert.Equal(t, CheckDenied, checkRemoteScript(t, "cat app.log", policy).Status)
 }
 
+func TestCheckRemoteBraceExpansionWorkLimit(t *testing.T) {
+	policy := RemotePolicy{AllowedCommands: []string{"rshell:echo"}}
+	report := checkRemoteScript(t, "echo "+strings.Repeat("{a..a}", 2000), policy)
+	assert.Equal(t, CheckIndeterminate, report.Status)
+	assert.True(t, checkHasIssue(report, CheckRequiresExecution))
+}
+
 func TestCheckRemoteModesAndDuplicateGrants(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "remote")
 	policy := RemotePolicy{AllowedCommands: []string{"rshell:echo", "rshell:rm", "rshell:tee", "rshell:sed"}, AllowedPaths: []string{root + ":rw"}}

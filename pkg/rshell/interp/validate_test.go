@@ -235,6 +235,21 @@ func TestValidateTildeNestedBraceScaling(t *testing.T) {
 	}
 }
 
+// Tilde analysis splits braces only within the brace work bound, so a word
+// at the tilde nesting limit cannot be split over a very large word.
+func TestValidateTildeBraceSplitWorkLimit(t *testing.T) {
+	prog, err := ParseScript("echo x~"+strings.Repeat("{", maxBraceTildeDepth)+strings.Repeat("$e", 20000), "")
+	require.NoError(t, err)
+	err = validateNode(context.Background(), prog, false)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "brace expansion exceeds maximum word complexity")
+	}
+
+	prog, err = ParseScript("echo x~"+strings.Repeat("{", maxBraceTildeDepth)+strings.Repeat("$e", 100), "")
+	require.NoError(t, err)
+	assert.NoError(t, validateNode(context.Background(), prog, false))
+}
+
 // Brace analysis honours cancellation.
 func TestValidateNodeHonoursCancellation(t *testing.T) {
 	prog, err := ParseScript("echo "+strings.Repeat("{,}", 4096)+"~root", "")
