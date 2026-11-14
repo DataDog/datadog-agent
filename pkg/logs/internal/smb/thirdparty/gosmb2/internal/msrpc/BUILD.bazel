@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "msrpc",
+    srcs = [
+        "errors.go",
+        "lsarpc.go",
+        "msrpc.go",
+        "ndr.go",
+        "pdu.go",
+        "pipe.go",
+        "response.go",
+        "srvsvc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/internal/msrpc",
+    visibility = ["//pkg/logs/internal/smb/thirdparty/gosmb2:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/erref",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/internal/utf16le",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/security",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol",
+        "//pkg/logs/internal/smb/thirdparty/gosmb2/x/wire",
+    ],
+)
