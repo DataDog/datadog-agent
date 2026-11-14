@@ -80,8 +80,13 @@ type Version struct {
 	// Commit is the datadog-agent commit the images were built from, if known.
 	Commit string  `json:"commit,omitempty"`
 	Images []Image `json:"images"`
-	// ProfilesURL lists the profiles of the images over the first phase.
-	ProfilesURL string `json:"profiles_url,omitempty"`
+}
+
+// ProfileComparison links to the comparison of the profiles of a component of the baseline
+// with those of the comparison.
+type ProfileComparison struct {
+	Component string `json:"component"`
+	URL       string `json:"url"`
 }
 
 // Result is the comparison of a metric of a component between the two versions.
@@ -147,6 +152,8 @@ type Report struct {
 	Comparison   Version  `json:"comparison"`
 	Results      []Result `json:"results"`
 	DashboardURL string   `json:"dashboard_url,omitempty"`
+	// ProfileComparisons compare the profiles of each component over the phases.
+	ProfileComparisons []ProfileComparison `json:"profile_comparisons,omitempty"`
 }
 
 // notable reports whether a metric improved, regressed or couldn't be compared: the outcomes
@@ -275,11 +282,11 @@ func (r *Report) Markdown() string {
 		}
 	}
 
-	profiles := lo.FilterMap(versions, func(version Version, _ int) (string, bool) {
-		return "[" + version.Name + "](" + version.ProfilesURL + ")", version.ProfilesURL != ""
-	})
-	if len(profiles) > 0 {
-		fmt.Fprintf(&b, "\nProfiles of the first phase: %s\n", strings.Join(profiles, ", "))
+	if len(r.ProfileComparisons) > 0 {
+		comparisons := lo.Map(r.ProfileComparisons, func(comparison ProfileComparison, _ int) string {
+			return "[" + comparison.Component + "](" + comparison.URL + ")"
+		})
+		fmt.Fprintf(&b, "\nCPU profiles of the baseline (A) and of the comparison (B) over the phases: %s\n", strings.Join(comparisons, ", "))
 	}
 	return b.String()
 }
@@ -316,12 +323,20 @@ func MetricsExplorerURL(appURL url.URL, metric string, scope, groupBy []string, 
 	return appPageURL(appURL, "/metric/explorer", values, from, to)
 }
 
-// ProfilesURL returns the URL of the profiling explorer of the Datadog app at the root of appURL
-// listing the profiles matching query over [from, to].
-func ProfilesURL(appURL url.URL, query string, from, to time.Time) string {
+// ProfileComparisonURL returns the URL of the profile comparison page of the Datadog app at the
+// root of appURL comparing, as flame graphs of the CPU time, the profiles matching queryA with
+// those matching queryB, both over [from, to].
+func ProfileComparisonURL(appURL url.URL, queryA, queryB string, from, to time.Time) string {
 	values := url.Values{}
-	values.Set("query", query)
-	return appPageURL(appURL, "/profiling/explorer", values, from, to)
+	values.Set("profile_type", "cpu-time")
+	values.Set("comparisonViz", "flamegraph")
+	values.Set("compareValuesMode", "absolute")
+	for side, query := range map[string]string{"A": queryA, "B": queryB} {
+		values.Set("compare_query_"+side, query)
+		values.Set("compare_start_"+side, strconv.FormatInt(from.UnixMilli(), 10))
+		values.Set("compare_end_"+side, strconv.FormatInt(to.UnixMilli(), 10))
+	}
+	return appPageURL(appURL, "/profiling/comparison", values, from, to)
 }
 
 // DashboardURL returns the URL of the dashboard dashboardID of the Datadog app at the root of
