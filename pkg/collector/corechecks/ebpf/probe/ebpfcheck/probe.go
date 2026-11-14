@@ -69,6 +69,7 @@ type Probe struct {
 	links                 []link.Link
 	mapBuffers            entryCountBuffers
 	entryCountMaxRestarts int
+	programs              programAggregator
 
 	mphCache *mapProgHelperCache
 
@@ -193,7 +194,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		}
 	}
 
-	p := Probe{nrcpus: nrcpus}
+	p := Probe{nrcpus: nrcpus, programs: newProgramAggregator()}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -388,13 +389,9 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[progr
 			log.Debug(err)
 			continue
 		}
-		key := progKey(ps)
-		if _, ok := uniquePrograms[key]; ok {
-			continue
-		}
-		uniquePrograms[key] = progid
-		stats.Programs = append(stats.Programs, *ps)
+		k.programs.add(stats, uniquePrograms, ps)
 	}
+	k.programs.flush(stats, uniquePrograms)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("found %d programs", len(stats.Programs))

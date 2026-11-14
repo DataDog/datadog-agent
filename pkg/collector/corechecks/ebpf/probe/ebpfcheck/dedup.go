@@ -11,6 +11,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 )
@@ -50,4 +53,70 @@ func deduplicateMapNames(stats *model.EBPFStats) {
 		}
 		i++
 	}
+}
+
+type programCounters struct {
+	runtime         time.Duration
+	runCount        uint64
+	recursionMisses uint64
+}
+
+func (c programCounters) plus(o programCounters) programCounters {
+	return programCounters{c.runtime + o.runtime, c.runCount + o.runCount, c.recursionMisses + o.recursionMisses}
+}
+
+func (c programCounters) since(prev programCounters) programCounters {
+	// a decrease means that the ID now belongs to another program
+	if c.runtime < prev.runtime || c.runCount < prev.runCount || c.recursionMisses < prev.recursionMisses {
+		return c
+	}
+	return programCounters{c.runtime - prev.runtime, c.runCount - prev.runCount, c.recursionMisses - prev.recursionMisses}
+}
+
+// programAggregator merges the programs that share a key into the entry of the first one. The counters of the entry
+// add up the increase of each program between flushes rather than its current value: a sum of current values would
+// drop, and look like a counter reset, whenever one of the programs is unloaded.
+type programAggregator struct {
+	last   map[ebpf.ProgramID]programCounters
+	next   map[ebpf.ProgramID]programCounters
+	totals map[programKey]programCounters
+}
+
+func newProgramAggregator() programAggregator {
+	return programAggregator{
+		last:   make(map[ebpf.ProgramID]programCounters),
+		next:   make(map[ebpf.ProgramID]programCounters),
+		totals: make(map[programKey]programCounters),
+	}
+}
+
+func (a *programAggregator) add(stats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID, ps *model.EBPFProgramStats) {
+	id := ebpf.ProgramID(ps.ID)
+	counters := programCounters{ps.Runtime, ps.RunCount, ps.RecursionMisses}
+	if counters != (programCounters{}) {
+		a.next[id] = counters
+	}
+	key := progKey(ps)
+	a.totals[key] = a.totals[key].plus(counters.since(a.last[id]))
+
+	if _, ok := uniquePrograms[key]; ok {
+		return
+	}
+	uniquePrograms[key] = id
+	stats.Programs = append(stats.Programs, *ps)
+}
+
+func (a *programAggregator) flush(stats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) {
+	for key := range a.totals {
+		if _, ok := uniquePrograms[key]; !ok {
+			delete(a.totals, key)
+		}
+	}
+	for i := range stats.Programs {
+		ps := &stats.Programs[i]
+		total := a.totals[progKey(ps)]
+		ps.Runtime, ps.RunCount, ps.RecursionMisses = total.runtime, total.runCount, total.recursionMisses
+	}
+	a.last, a.next = a.next, a.last
+	clear(a.next)
 }
