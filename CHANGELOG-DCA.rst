@@ -2,6 +2,33 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.3:
+
+7.85.3
+======
+
+.. _Release Notes_7.85.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-11
+Pinned to datadog-agent v7.85.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7853>`_.
+
+
+.. _Release Notes_7.85.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where updates to DatadogInstrumentation resources containing both
+  checks and logs could leave node Agents running the previous configuration.
+
+- Fix a race in Cluster Agent leader election where a replica that lost the
+  lease could keep acting as the cluster checks leader, so two replicas
+  dispatched cluster checks at the same time.
+
+
 .. _Release Notes_7.85.2:
 
 7.85.2
