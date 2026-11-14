@@ -87,6 +87,8 @@ pkg_filegroup(
     name = "whole_distro",
     srcs = [
         ":installed_distro",
+        "//cmd/agent/dist:dd_agent_stub",
+        "//packages/common:log_dir",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
