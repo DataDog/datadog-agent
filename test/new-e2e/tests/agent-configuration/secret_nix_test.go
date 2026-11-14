@@ -27,7 +27,7 @@ type secretLinuxRuntimeSuite struct {
 
 func TestSecretLinuxRuntimeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &secretLinuxRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &secretLinuxRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 //go:embed secret/fixtures/secret_script.py

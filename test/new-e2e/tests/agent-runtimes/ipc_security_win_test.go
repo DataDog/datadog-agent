@@ -27,7 +27,7 @@ type ipcSecurityWindowsSuite struct {
 
 func TestIPCSecurityWindowsSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &ipcSecurityWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
+	e2e.Run(t, &ipcSecurityWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
 func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
