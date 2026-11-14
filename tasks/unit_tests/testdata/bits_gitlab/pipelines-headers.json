@@ -1,0 +1,7 @@
+{
+  "content-type": "application/json",
+  "link": "<https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/pipelines?id=gitlab-org%2Fcli&order_by=id&page=2&per_page=1&sort=desc>; rel=\"next\", <https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/pipelines?id=gitlab-org%2Fcli&order_by=id&page=1&per_page=1&sort=desc>; rel=\"first\"",
+  "x-next-page": "2",
+  "x-page": "1",
+  "x-per-page": "1"
+}

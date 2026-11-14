@@ -6,6 +6,7 @@ import sys
 from invoke import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.bits_code import running_in_bits_code
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     AGENT_VERSION_CACHE_NAME,
@@ -403,6 +404,12 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     try:
         described_version = ctx.run(cmd, hide=True).stdout.strip()
     except UnexpectedExit:
+        if running_in_bits_code():
+            raise RuntimeError(
+                "Bits Code requires reachable release tags to determine the Agent version. "
+                "Fetch the real release tags/history using the host coding agent authenticated Git operation, "
+                "then retry; no version was fabricated."
+            ) from None
         # In CI, a missing tag is a real error — re-raise so packaging/release jobs don't
         # silently produce artifacts under a fabricated version.
         if os.getenv("CI_PIPELINE_ID") or os.getenv("CI"):
