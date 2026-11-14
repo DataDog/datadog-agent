@@ -10,7 +10,6 @@ package phonehomeimpl
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -43,11 +42,6 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	lc := &lifecycle{}
 	tel := telemetrymock.New(t)
 	require.NotNil(t, NewComponent(Requires{Config: cfg, Lifecycle: lc, Telemetry: tel}).Comp)
-	if runtime.GOOS == "windows" {
-		require.Empty(t, lc.hooks)
-		require.Empty(t, output.String())
-		return
-	}
 	require.Len(t, lc.hooks, 1)
 	require.NoError(t, lc.hooks[0].OnStart(context.Background()))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

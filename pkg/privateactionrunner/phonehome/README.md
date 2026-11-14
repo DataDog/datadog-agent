@@ -1,29 +1,34 @@
 # RC- and AAA-gated PAR startup
 
-Core Agent owns the initial startup of packaged Linux host split-mode PAR. After RC's
+Core Agent owns the initial startup of packaged Linux and Windows host split-mode PAR. After RC's
 last successful `Enabled && Authorized`, AAA `GET /api/v2/validate` must confirm
 `private_action_runner_enroll` before core starts PAR, including a stopped runner with
 a saved identity. Neither gate changes Go enrollment/persistence/retries or Rust
 bootstrap. Running children and potential credential holders are left alone.
 
-The worker is enabled by `private_action_runner.enabled` on non-Windows platforms;
-there is no separate phone-home opt-in. Linux process-manager packages register both PAR children
-without auto-start. Core starts the Rust control plane after its prerequisites pass;
-Rust's existing bootstrap starts the Go executor. Monolithic startup, Windows and
+The worker is enabled by `private_action_runner.enabled`; there is no separate phone-home
+opt-in. Linux and Windows process-manager packages register both PAR children without
+auto-start. Core starts the Rust control plane after its prerequisites pass;
+Rust's existing bootstrap starts the Go executor. Intentional monolithic startup and
 container registrations are unchanged. Unsupported configurations report a blocked
 state; they do not cause core to launch or stop a monolithic runner.
 
 ## Configuration
 
 - Core: PAR enabled, split mode enabled, local RC enabled.
-- Non-containerized, non-FIPS Linux core Agent; matching core/executor config, API key,
+- Non-containerized, non-FIPS Linux or Windows core Agent; matching core/executor config, API key,
   site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
   and extra PAR config files are not supported. Live credential/endpoint changes need
   a coordinated restart.
-- The standard supervisor socket is `/var/run/datadog-procmgrd/dd-procmgrd.sock`.
-  `DD_PM_SOCKET_PATH` may override it with an absolute path. Same-user children
-  receive it from the supervisor. Core needs it set when core is not one of
-  those children.
+- Windows requires `process_manager.enabled: true` and a reachable process manager.
+  Missing registrations or supervisor failure wait without falling back to the legacy
+  PAR service. Explicit split/PM opt-outs retain the existing monolithic startup policy.
+- The standard supervisor socket is `/var/run/datadog-procmgrd/dd-procmgrd.sock` on Linux
+  and `\\.\pipe\datadog-procmgrd` on Windows. `DD_PM_SOCKET_PATH` may override it with an
+  absolute Unix path or a local Windows named pipe. The Windows client uses the same
+  restricted access mask and identification impersonation level as COAT; no ACLs change.
+  Same-user children receive it from the supervisor. Core needs it set when core is not
+  one of those children.
 - Identity location uses the existing enrollment resolver: explicit
   `private_action_runner.identity_file_path`, otherwise next to `auth_token_file_path`
   when configured, otherwise next to `datadog.yaml`. The resolved path must be absolute.
@@ -48,7 +53,9 @@ Replacing only one registration waits without starting anything. Losing connecti
 alone does not re-arm the gate, and a recovered connection restores the handoff state.
 Unchanged registrations remain supervisor-owned even if their configuration becomes invalid.
 Safe automatic recovery assumes the old supervisor's children have been terminated, as with
-systemd's packaged control-group cleanup. Custom supervisors need equivalent cleanup:
+systemd's packaged control-group cleanup or Windows procmgr's kill-on-close job objects.
+Core cancellation also stops the gate before Windows dependent-service teardown.
+Custom supervisors need equivalent cleanup:
 new UUIDs alone do not prove that old OS processes are gone.
 
 There is at most one accepted or ambiguous core Start request for the same observed
@@ -142,4 +149,7 @@ grants, dispatch/launch gate loss, expired/late grants, cancellation, backoff/Re
 strict parsing and redirects. Recovery tests cover fresh/partial registration replacement,
 connectivity loss, unchanged child IDs, ambiguous Start, fresh AAA after replacement, and
 watch-loop cancellation. Supervisor calls are mocked; these are not Linux process or live
-enrollment tests.
+enrollment tests. The shared permission/recovery tests also compile on Windows; a Windows-only
+named-pipe test exercises the real gRPC dialer. Linux test execution and Windows cross-builds
+do not validate Windows SCM startup, installation/upgrade, pipe ACLs under the installed Agent
+account, or process/job cleanup at runtime.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build test && !windows
+//go:build test
 
 package phonehome
 
@@ -242,7 +242,7 @@ func TestStartGetsFreshDeadlineAfterPreflight(t *testing.T) {
 
 func TestSupervisorSocketUsesPackagedDefaultOrOverride(t *testing.T) {
 	t.Setenv("DD_PM_SOCKET_PATH", "")
-	require.Equal(t, "/var/run/datadog-procmgrd/dd-procmgrd.sock", supervisorSocketPath())
+	require.Equal(t, defaultSupervisorSocket, supervisorSocketPath())
 	socket := filepath.Join(t.TempDir(), "procmgr.sock")
 	t.Setenv("DD_PM_SOCKET_PATH", socket)
 	require.Equal(t, socket, supervisorSocketPath())

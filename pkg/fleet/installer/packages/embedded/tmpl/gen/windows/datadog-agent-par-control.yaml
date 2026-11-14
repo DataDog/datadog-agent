@@ -5,7 +5,8 @@ args:
   - '\\.\pipe\dd-par-executor'
   - --ipc-cert-file
   - '__PAR_ETC_ROOT__/ipc_cert.pem'
-auto_start: true
+# Core owns initial startup after RC and AAA authorization.
+auto_start: false
 # par-control drains for at most 170 seconds, including terminal publication.
 stop_timeout: 180
 condition_path_exists: '__PAR_INSTALL_ROOT__/bin/agent/par-control.exe'
