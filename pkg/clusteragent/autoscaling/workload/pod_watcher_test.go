@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	corev1 "k8s.io/api/core/v1"
 )
 
 func TestHandleSetEvent(t *testing.T) {
@@ -102,6 +103,85 @@ func TestHandleUnsetEvent(t *testing.T) {
 
 	numReadyPods = pw.GetReadyPodsForOwner(expectedOwner)
 	assert.Equal(t, int32(0), numReadyPods)
+}
+
+func TestHandleSetEventTerminalPods(t *testing.T) {
+	expectedOwner := NamespacedPodOwner{
+		Namespace: "default",
+		Kind:      kubernetes.DeploymentKind,
+		Name:      "deploymentName",
+	}
+	newPod := func(id string, phase corev1.PodPhase, ready bool) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   id,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "pod-" + id,
+				Namespace: "default",
+			},
+			Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "deploymentName-766dbb7846"}},
+			Phase:  string(phase),
+			Ready:  ready,
+		}
+	}
+	set := func(pw *PodWatcherImpl, pod *workloadmeta.KubernetesPod) {
+		pw.HandleEvent(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod})
+	}
+	unset := func(pw *PodWatcherImpl, pod *workloadmeta.KubernetesPod) {
+		pw.HandleEvent(workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod})
+	}
+	podIDs := func(pods []*workloadmeta.KubernetesPod) []string {
+		ids := make([]string, 0, len(pods))
+		for _, pod := range pods {
+			ids = append(ids, pod.ID)
+		}
+		return ids
+	}
+
+	t.Run("terminal pods are never indexed", func(t *testing.T) {
+		pw := NewPodWatcher(nil, nil)
+		set(pw, newPod("running", corev1.PodRunning, true))
+		set(pw, newPod("pending", corev1.PodPending, false))
+		set(pw, newPod("evicted", corev1.PodFailed, false))
+		set(pw, newPod("completed", corev1.PodSucceeded, false))
+
+		assert.ElementsMatch(t, []string{"running", "pending"}, podIDs(pw.GetPodsForOwner(expectedOwner)))
+		assert.Equal(t, int32(1), pw.GetReadyPodsForOwner(expectedOwner))
+	})
+
+	t.Run("pods transitioning to a terminal phase are removed", func(t *testing.T) {
+		pw := NewPodWatcher(nil, nil)
+		set(pw, newPod("keep", corev1.PodRunning, true))
+		set(pw, newPod("evicted", corev1.PodRunning, true))
+		set(pw, newPod("completed", corev1.PodRunning, true))
+		require.Len(t, pw.GetPodsForOwner(expectedOwner), 3)
+		require.Equal(t, int32(3), pw.GetReadyPodsForOwner(expectedOwner))
+
+		// Evicted: kubelet sets phase Failed (reason Evicted) and the pod stays in the API.
+		set(pw, newPod("evicted", corev1.PodFailed, false))
+		set(pw, newPod("completed", corev1.PodSucceeded, false))
+		assert.ElementsMatch(t, []string{"keep"}, podIDs(pw.GetPodsForOwner(expectedOwner)))
+		assert.Equal(t, int32(1), pw.GetReadyPodsForOwner(expectedOwner))
+
+		// Deleting the terminal pods later does not change the counts.
+		unset(pw, newPod("evicted", corev1.PodFailed, true))
+		unset(pw, newPod("completed", corev1.PodSucceeded, true))
+		assert.ElementsMatch(t, []string{"keep"}, podIDs(pw.GetPodsForOwner(expectedOwner)))
+		assert.Equal(t, int32(1), pw.GetReadyPodsForOwner(expectedOwner))
+	})
+
+	t.Run("owner is dropped when its last pod becomes terminal", func(t *testing.T) {
+		pw := NewPodWatcher(nil, nil)
+		set(pw, newPod("evicted", corev1.PodRunning, true))
+		set(pw, newPod("evicted", corev1.PodFailed, false))
+
+		assert.Nil(t, pw.GetPodsForOwner(expectedOwner))
+		assert.Equal(t, int32(0), pw.GetReadyPodsForOwner(expectedOwner))
+		assert.NotContains(t, pw.podsPerPodOwner, expectedOwner)
+		assert.NotContains(t, pw.readyPodsPerPodOwner, expectedOwner)
+	})
 }
 
 func TestPodWatcherStartStop(t *testing.T) {
