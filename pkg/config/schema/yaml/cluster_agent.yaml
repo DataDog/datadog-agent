@@ -329,6 +329,15 @@ properties:
           resources maps overrides the same key in the pod maps. Enabled by
           default.
         comment: Requires cluster_agent.kueue.enabled.
+      workloads_per_node:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |-
+          Send each node Agent only the Kueue Workloads of its pods, instead of every Workload in the
+          cluster. Requires cluster_agent.kueue.enabled. A node Agent running the Kueue check then only
+          has the Workloads of its own pods, so the Kueue Workload events it submits for other Workloads
+          lack the tags from the Workload labels, annotations and resource flavors. Disabled by default.
   language_detection:
     node_type: section
     type: object
