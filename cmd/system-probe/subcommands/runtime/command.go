@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -120,6 +122,9 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
+				// policies can be checked locally without the IPC artifacts; system-probe still
+				// authenticates the connection when checking the loaded policies over TCP
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}
@@ -143,6 +148,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -160,6 +166,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -223,6 +230,7 @@ func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Com
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -233,8 +241,8 @@ func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Com
 	return []*cobra.Command{dumpLoadedPoliciesCmd}
 }
 
-func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component, cliParams *dumpLoadedPoliciesCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, cliParams *dumpLoadedPoliciesCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -289,6 +297,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -327,6 +336,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -353,6 +363,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -367,8 +378,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:unused
-func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -385,8 +396,8 @@ func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, 
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
-func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -406,13 +417,13 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	return nil
 }
 
-func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
+func checkPolicies(_ log.Component, _ config.Component, ipc ipc.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		if args.windowsModel {
 			return errors.New("unable to evaluate loaded policies using the windows model")
 		}
 
-		client, err := secagent.NewRuntimeSecurityCmdClient()
+		client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 		if err != nil {
 			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 		}
@@ -458,8 +469,8 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 }
 
 //nolint:unused
-func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -478,8 +489,8 @@ func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component
 	return nil
 }
 
-func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -614,7 +625,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 
 	if downloadPolicyArgs.check {
-		if err := checkPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
+		if err := checkPolicies(log, config, nil, &checkPoliciesCliParams{dir: tempDir}); err != nil {
 			return err
 		}
 	}
@@ -663,8 +674,8 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 }
 
 //nolint:unused
-func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
-	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient()
+func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component) error {
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
