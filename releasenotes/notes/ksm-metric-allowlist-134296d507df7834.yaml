@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduce the CPU and memory usage of the ``kubernetes_state_core`` check by
+    deriving the metric families it forwards from its configuration, instead
+    of filtering them through a hand-maintained deny list. The families the
+    check consumes, forwards, or uses for label joins are unchanged.
