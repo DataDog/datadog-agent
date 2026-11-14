@@ -30,6 +30,32 @@ type dockerDaemonConfig map[string]interface{}
 
 const dockerDaemonPath = "/etc/docker/daemon.json"
 
+// DockerRuntimeNeedsRepair reports whether the install script must replay the
+// injector post-install hook to restore Docker instrumentation.
+func DockerRuntimeNeedsRepair() bool {
+	return dockerRuntimeNeedsRepair(dockerDaemonPath)
+}
+
+func dockerRuntimeNeedsRepair(configPath string) bool {
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return true
+	}
+	config := dockerDaemonConfig{}
+	if err := unmarshalDockerConfigContent(content, &config); err != nil {
+		return true
+	}
+	if config["default-runtime"] != "dd-shim" {
+		return true
+	}
+	runtimes, ok := config["runtimes"].(map[string]interface{})
+	if !ok {
+		return true
+	}
+	runtime, ok := runtimes["dd-shim"].(map[string]interface{})
+	return !ok || runtime["path"] != path.Join(injectorPath, "inject", "auto_inject_runc")
+}
+
 // sanitizeJSON removes Docker daemon.json extensions that encoding/json rejects.
 // It strips a leading UTF-8 BOM and Docker 28-style comments while preserving
 // comment markers inside JSON string values.

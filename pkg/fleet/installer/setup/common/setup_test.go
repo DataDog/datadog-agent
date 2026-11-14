@@ -118,6 +118,15 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 			Packages: Packages{install: map[string]packageWithVersion{}},
 		}
 	}
+	stubRepairDetector := func(t *testing.T, mode string, needsRepair bool) {
+		t.Helper()
+		previousDetector := detectAPMInjectorReinstall
+		detectAPMInjectorReinstall = func(got string) bool {
+			assert.Equal(t, mode, got)
+			return needsRepair
+		}
+		t.Cleanup(func() { detectAPMInjectorReinstall = previousDetector })
+	}
 
 	t.Run("leaves a new standalone injector installation unchanged", func(t *testing.T) {
 		spy := &setupInstallerSpy{}
@@ -131,13 +140,53 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 	})
 
 	t.Run("reinstalls a stale standalone injector", func(t *testing.T) {
-		previousDetector := detectAPMInjectorReinstall
-		detectAPMInjectorReinstall = func() bool { return true }
-		t.Cleanup(func() { detectAPMInjectorReinstall = previousDetector })
+		stubRepairDetector(t, "", true)
 
 		spy := &setupInstallerSpy{installed: true}
 		setup := newSetup(spy)
 		setup.Packages.Install(DatadogAPMInjectPackage, "0.69.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
+	t.Run("reinstalls an injector after Docker uninstrumentation", func(t *testing.T) {
+		stubRepairDetector(t, env.APMInstrumentationEnabledDocker, true)
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledDocker
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
+	t.Run("reinstalls an injector after host uninstrumentation", func(t *testing.T) {
+		stubRepairDetector(t, env.APMInstrumentationEnabledHost, true)
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledHost
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
+	})
+
+	t.Run("reinstalls an injector when all instrumentation needs repair", func(t *testing.T) {
+		stubRepairDetector(t, env.APMInstrumentationEnabledAll, true)
+
+		spy := &setupInstallerSpy{installed: true}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledAll
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.71.0-1")
 
 		reinstall, err := prepare(setup)
 		require.NoError(t, err)
@@ -178,6 +227,21 @@ func TestPrepareAPMInjectorReinstall(t *testing.T) {
 		reinstall, err := prepare(setup)
 		require.NoError(t, err)
 		assert.False(t, reinstall, "an idempotent run must preserve injector experiments and avoid hook downtime")
+	})
+
+	t.Run("repairs an injector even when the Agent version is unchanged", func(t *testing.T) {
+		stubRepairDetector(t, env.APMInstrumentationEnabledHost, true)
+
+		spy := &setupInstallerSpy{installed: true, state: repository.State{Stable: "7.84.0"}}
+		setup := newSetup(spy)
+		setup.Env.InstallScript.APMInstrumentationEnabled = env.APMInstrumentationEnabledHost
+		setup.Packages.Install(DatadogAgentPackage, "7.84.0-1")
+		setup.Packages.Install(DatadogAPMInjectPackage, "0.69.0-1")
+
+		reinstall, err := prepare(setup)
+		require.NoError(t, err)
+		assert.True(t, reinstall)
+		assert.Zero(t, spy.stateCalls)
 	})
 
 	t.Run("reinstalls when the requested Agent differs", func(t *testing.T) {
