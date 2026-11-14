@@ -118,7 +118,13 @@ type cliParams struct {
 	pidfilePath string
 }
 
-const configSyncTimeout = 10 * time.Second
+const (
+	// configSyncTimeout is the timeout of each config sync request to the core agent
+	configSyncTimeout = 3 * time.Second
+	// configSyncOnInitTimeout is how long config sync retries at startup before failing,
+	// leaving time for the core agent to start its IPC server
+	configSyncOnInitTimeout = 30 * time.Second
+)
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -277,7 +283,7 @@ func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
 			remotehostnameimpl.WithMaxAttempts(10),
 			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
 		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncOnInitTimeout)),
 		remoteagentfx.Module(),
 	)
 }
