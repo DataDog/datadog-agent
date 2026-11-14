@@ -1,0 +1,139 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+//go:build test
+
+package healthplatform
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+__PKG_IMPORT_LINE____RUNNER_IMPORT__	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
+)
+
+// team: fleet-remediation
+
+__CONSTS_COMMENT__
+const (
+	__PKG_VAR__IssueID   = "__ISSUE_ID__"
+	__PKG_VAR__IssueName = "__ISSUE_NAME__"
+	__PKG_VAR__IssueType = "__ISSUE_TYPE__"
+)
+
+// The map key is IssueID scoped per instance, so match by prefix.
+func __FIND_FUNC__(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
+	for id, iss := range issues {
+		if strings.HasPrefix(id, __PKG_VAR__IssueID) {
+			return iss
+		}
+	}
+	return nil
+}
+
+type __TYPE_BASE__PipelineDeps struct {
+	fx.In
+__RUNNER_DEP__	Store  storedef.Component
+}
+
+// start__TYPE_BASE__Pipeline runs the whole bundle against an in-process
+// fakeintake. configure sets signal-specific config before start (nil for none).
+func start__TYPE_BASE__Pipeline(t *testing.T, configure func(cfg config.Component)) (__TYPE_BASE__PipelineDeps, *fakeintakeclient.Client) {
+	t.Helper()
+
+	ready := make(chan bool, 1)
+	fi := fakeintakeserver.NewServer(
+		fakeintakeserver.WithAddress("127.0.0.1:0"),
+		fakeintakeserver.WithReadyChannel(ready),
+	)
+	fi.Start()
+	require.True(t, <-ready, "fakeintake server did not become ready")
+	t.Cleanup(func() { _ = fi.Stop() })
+
+	const tickInterval = 50 * time.Millisecond
+
+	deps := fxutil.Test[__TYPE_BASE__PipelineDeps](t,
+		Bundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
+			cfg.SetInTest("run_path", t.TempDir())
+			if configure != nil {
+				configure(cfg)
+			}
+			return cfg
+		}),
+		telemetrymock.Module(),
+		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	return deps, fakeintakeclient.NewClient(fi.URL())
+}
+
+func await__TYPE_BASE__Issue(t *testing.T, fiClient *fakeintakeclient.Client) *healthplatformpayload.Issue {
+	t.Helper()
+	var received *healthplatformpayload.Issue
+	require.Eventually(t, func() bool {
+		payloads, err := fiClient.GetAgentHealth()
+		if err != nil {
+			return false
+		}
+		for _, p := range payloads {
+			if iss := __FIND_FUNC__(p.Issues); iss != nil {
+				received = iss
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond, "__ISSUE_TYPE__ issue never reached fakeintake")
+	return received
+}
+
+__RESOLVED_HELPER__// assert__TYPE_BASE__Wire asserts the fields the backend requires, as received.
+func assert__TYPE_BASE__Wire(t *testing.T, received *healthplatformpayload.Issue) {
+	t.Helper()
+	assert.Equal(t, __PKG_VAR__IssueName, received.GetIssueName())
+	assert.Equal(t, __PKG_VAR__IssueType, received.GetIssueType())
+	assert.Equal(t, "__CATEGORY__", received.GetCategory())
+	assert.Equal(t, "__LOCATION__", received.GetLocation())
+	assert.Equal(t, "__SOURCE__", received.GetSource())
+	assert.NotNil(t, received.GetExtra(), "extra carries the context the text was built from")
+	assert.Equal(t, __WIRE_SEVERITY__, received.GetSeverity())
+	assert.NotEmpty(t, received.GetTitle(), "empty title means the registry fell back to the minimal proto")
+	assert.NotEmpty(t, received.GetDescription())
+	assert.NotEmpty(t, received.GetRemediation().GetSteps(), "empty steps means the template did not resolve")
+}
+
+__REGISTRATION_COMMENT__
+func __TEST_NAME__(t *testing.T) {
+	deps, fiClient := start__TYPE_BASE__Pipeline(t, nil)
+
+__REPORT_BLOCK__
+
+	assert__TYPE_BASE__Wire(t, await__TYPE_BASE__Issue(t, fiClient))
+__RESOLVE_BLOCK__}
+
+__MODULE_PIPELINE_TEST__

@@ -1,0 +1,69 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+__BUILD_TAG_LINE__package __PKG__
+
+import (
+__STD_IMPORTS__
+__CHECK_IMPORTS__
+)
+
+__HOLD_CONST____PENDING_ERR____INSTANCE_BLOCK__
+type checker struct {
+__CHECKER_FIELDS__	// detect returns no instances when healthy, one instance per occurrence of the
+	// condition, and an error when it could not be evaluated (a non-nil error
+	// leaves active issues untouched instead of resolving them). Transient
+	// failures (timeouts, EAGAIN, a busy peer) are "could not evaluate": return
+	// an error for them, never an instance.
+	detect func() ([]instance, error)
+__STATE_FIELDS__}
+
+func newChecker(__CTOR_PARAMS__) *checker {
+	c := &checker{__CTOR_INIT__}
+__STATE_INIT__	c.detect = c.detectCondition
+	return c
+}
+
+__DETECT_COMMENT__// Dependencies: the health platform bundle also ships in the cluster agent and
+// other builds. Heavy or platform-specific imports (kubelet, docker, logs
+// internals, grpc clients) are allowed only in a file that is
+// gated by the matching build tag. Set build_tag in the spec: this file is then
+// gated and check_noop.go is rendered with the negated tag (same constructor,
+// returns nil, nil). Never import them from an untagged file.
+func (c *checker) detectCondition() ([]instance, error) {
+	return nil, nil
+}
+
+// Run reports one issue per instance while the condition holds, and returns
+// (nil, nil) when healthy. The scheduler resolves every issue ID that a run
+// stops returning, so an instance that disappears resolves without extra code.
+func (c *checker) Run() ([]runnerdef.IssueReport, error) {
+	found, err := c.detect()
+	if err != nil {
+__DETECT_ERR_RESET__		return nil, err
+	}
+__RUN_FILTER__	if len(instances) == 0 {
+		return nil, nil
+	}
+	reports := make([]runnerdef.IssueReport, 0, len(instances))
+	for _, in := range instances {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(__ID_ARG__),
+			IssueName: IssueName,
+			Source:    "__SOURCE__",
+			Context:   in.Context,
+		})
+	}
+	return reports, nil
+}
+
+__STATE_METHODS__// instanceIssueID scopes the issue ID by the discriminator and, for several instances
+// per host, by the instance key. The backend deduplicates Agent Health issues by
+// ID, so a bare constant would collapse every host (or every instance) into one issue.
+func (c *checker) instanceIssueID(__ID_PARAM__) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(__DISCRIMINATOR_EXPR__))
+__ID_KEY_WRITE__	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
+}

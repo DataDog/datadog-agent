@@ -1,0 +1,188 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+package __OWNER_PKG__
+
+import (
+	"context"
+	"fmt"
+	"hash/fnv"
+	"os"
+	"reflect"
+	"sync"
+
+	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
+
+	healthissue "__ISSUE_IMPORT_PATH__"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+)
+
+// __STORE_IFACE__ is the slice of the health platform store this reporter uses;
+// tests inject a fake. The real store (the storedef component) satisfies it.
+type __STORE_IFACE__ interface {
+	ReportIssue(issue *healthplatform.Issue) error
+	ResolveIssue(issueID string)
+	GetActiveIssueIDsByIssueName(issueName string) []string
+}
+
+var _ __STORE_IFACE__ = storedef.Component(nil)
+
+// healthLogger is the part of the component logger the reporter needs; nil disables logging.
+type healthLogger interface {
+	Warnf(format string, params ...interface{}) error
+}
+
+// __REPORTER__ reports "__ISSUE_NAME__" from the component that detects it.
+//
+// Wiring: take the store as an optional dependency (an `optional:"true"` field in the
+// component's Requires, or option.Option[storedef.Component]) so binaries without the
+// health platform still build, pass it to New__REPORTER__, call ObserveScan at the detection
+// site when the state is known, and call ResolveAll when the owner is disabled. A nil
+// reporter or a nil store is a no-op. Run the fx graph test of every binary that includes
+// the owner (for example the run subcommand) to prove the optional dependency resolves.
+//
+// Edge-triggered state: the reporter remembers what it last told the store, so a scan that
+// is cancelled midway must not notify. ObserveScan checks ctx.Err() first; if you call
+// Observe directly, check it yourself before the call.
+//
+// ID scope: one issue per host (the host name hashed into the ID), because the condition is
+// host-local and must resolve without touching other hosts. An empty hostname falls back to
+// the OS hostname. For several instances per host append a bounded key to the hash; never
+// use the bare constant.
+//
+// Stale issues: persisted issues survive restarts. The first observation resolves any active
+// issue of this type under another ID (for example after a host name change), and ResolveAll
+// resolves every active issue of this type.
+type __REPORTER__ struct {
+	store      __STORE_IFACE__
+	logger     healthLogger
+	build      func(context map[string]string) (*healthplatform.Issue, error)
+	id         string
+	mu         sync.Mutex
+	seen       bool
+	reconciled bool
+	active     bool
+	last       map[string]string
+}
+
+// New__REPORTER__ returns a reporter scoped to hostname. It returns nil when store is nil.
+func New__REPORTER__(store __STORE_IFACE__, hostname string, logger healthLogger) *__REPORTER__ {
+	return new__REPORTER__(store, hostname, logger, os.Hostname)
+}
+
+func new__REPORTER__(store __STORE_IFACE__, hostname string, logger healthLogger, osHostname func() (string, error)) *__REPORTER__ {
+	if store == nil {
+		return nil
+	}
+	return &__REPORTER__{
+		store:  store,
+		logger: logger,
+		build:  healthissue.__TYPE_STRUCT__{}.BuildIssue,
+		id:     __REPORTER__ID(hostname, osHostname),
+	}
+}
+
+// __REPORTER__ID hashes the host into the issue ID so hosts never share or resolve each other's issue.
+func __REPORTER__ID(hostname string, osHostname func() (string, error)) string {
+	if hostname == "" {
+		if h, err := osHostname(); err == nil {
+			hostname = h
+		}
+	}
+	if hostname == "" {
+		hostname = "unknown-host"
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(hostname))
+	return fmt.Sprintf("%s:%016x", healthissue.IssueID, h.Sum64())
+}
+
+// ObserveScan is Observe for a scan that may have been cancelled: a cancelled scan carries no
+// information about the condition, so it neither reports nor resolves.
+func (r *__REPORTER__) ObserveScan(ctx context.Context, present bool, context map[string]string) {
+	if ctx.Err() != nil {
+		return
+	}
+	r.Observe(present, context)
+}
+
+// Observe records whether the condition is present. It reports on a transition or when the
+// context changes, and resolves on a transition to absent.
+func (r *__REPORTER__) Observe(present bool, context map[string]string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reconcileLocked()
+
+	if !present {
+		// The first observation also resolves an issue persisted under this ID by a previous run.
+		if r.active || !r.seen {
+			r.store.ResolveIssue(r.id)
+		}
+		r.seen, r.active, r.last = true, false, nil
+		return
+	}
+	r.seen = true
+	if r.active && reflect.DeepEqual(r.last, context) {
+		return
+	}
+	issue, err := r.build(context)
+	if err != nil {
+		r.warnf("cannot build the %s health issue: %v", healthissue.IssueType, err)
+		return
+	}
+	issue.Id = r.id
+	if err := r.store.ReportIssue(issue); err != nil {
+		r.warnf("cannot report the %s health issue: %v", healthissue.IssueType, err)
+		return // leave the state unchanged so the next observation retries
+	}
+	r.active = true
+	r.last = copyContext(context)
+}
+
+// ResolveAll resolves every active issue of this type, including IDs persisted under another ID.
+// Call it when the owner is disabled so a persisted issue does not outlive the feature.
+func (r *__REPORTER__) ResolveAll() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, id := range r.store.GetActiveIssueIDsByIssueName(healthissue.IssueName) {
+		r.store.ResolveIssue(id)
+	}
+	r.seen, r.reconciled, r.active, r.last = true, true, false, nil
+}
+
+func (r *__REPORTER__) reconcileLocked() {
+	if r.reconciled {
+		return
+	}
+	r.reconciled = true
+	for _, id := range r.store.GetActiveIssueIDsByIssueName(healthissue.IssueName) {
+		if id != r.id {
+			r.store.ResolveIssue(id)
+		}
+	}
+}
+
+func (r *__REPORTER__) warnf(format string, params ...interface{}) {
+	if r.logger != nil {
+		_ = r.logger.Warnf(format, params...)
+	}
+}
+
+func copyContext(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
