@@ -30,6 +30,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewGetFlareCommand(cl),
 		NewGetLogServiceCommand(cl),
 		NewGetMetadataCommand(cl),
+		NewGetPayloadPageCommand(cl),
 		NewGetMetricCommand(cl),
 		NewGetSketchCommand(cl),
 		NewGetHistogramCommand(cl),

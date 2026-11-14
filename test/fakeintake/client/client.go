@@ -46,8 +46,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -561,6 +563,23 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 // to assert properties of the raw request such as the compression algorithm.
 func (c *Client) GetRawPayloads(endpoint string) ([]api.Payload, error) {
 	return c.getFakePayloads(endpoint)
+}
+
+// GetRawPayloadPage returns up to limit (1..128) original payloads without
+// fetching earlier history. Start with an empty cursor, then reuse NextCursor,
+// including after HasMore is false, to poll for appends. Each page observes its
+// own high-water mark; it does not pin retention or provide a cross-page snapshot.
+// Flush, restart or retention can expire a cursor (HTTP 410). Treat that error
+// as incomplete history rather than silently restarting the export.
+func (c *Client) GetRawPayloadPage(endpoint, cursor string, limit int) (api.PayloadPage, error) {
+	query := url.Values{"endpoint": {endpoint}, "cursor": {cursor}, "limit": {strconv.Itoa(limit)}}
+	body, err := c.get("fakeintake/payloads/page?" + query.Encode())
+	if err != nil {
+		return api.PayloadPage{}, err
+	}
+	var page api.PayloadPage
+	err = json.Unmarshal(body, &page)
+	return page, err
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
