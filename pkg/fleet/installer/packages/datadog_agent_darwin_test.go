@@ -63,6 +63,7 @@ func stubLaunchd(t *testing.T) *[][]string {
 	}
 	t.Cleanup(func() { launchdClient = original })
 	stubUninstall(t)
+	stubProcmgrCatalog(t, &calls)
 	return &calls
 }
 
@@ -81,6 +82,44 @@ func stubUninstall(t *testing.T) *[][]string {
 	}
 	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
 	return &commands
+}
+
+type catalogStub struct {
+	writeErr  error
+	removeErr error
+}
+
+const (
+	catalogWriteCall  = "write-processes.d"
+	catalogRemoveCall = "remove-processes.d"
+)
+
+// stubProcmgrCatalog records catalog writes and removals in calls and returns the errors it is given.
+func stubProcmgrCatalog(t *testing.T, calls *[][]string) *catalogStub {
+	t.Helper()
+
+	stub := &catalogStub{}
+	originalWrite, originalRemove := writeProcmgrCatalog, removeProcmgrCatalog
+	writeProcmgrCatalog = func(installRoot string) error {
+		*calls = append(*calls, []string{catalogWriteCall, installRoot})
+		return stub.writeErr
+	}
+	removeProcmgrCatalog = func(installRoot string) error {
+		*calls = append(*calls, []string{catalogRemoveCall, installRoot})
+		return stub.removeErr
+	}
+	t.Cleanup(func() { writeProcmgrCatalog, removeProcmgrCatalog = originalWrite, originalRemove })
+	return stub
+}
+
+func launchctlCalls(calls [][]string) [][]string {
+	return slices.DeleteFunc(slices.Clone(calls), func(c []string) bool {
+		return len(c) > 0 && (c[0] == catalogWriteCall || c[0] == catalogRemoveCall)
+	})
+}
+
+func callIndex(calls [][]string, call ...string) int {
+	return slices.IndexFunc(calls, func(c []string) bool { return slices.Equal(c, call) })
 }
 
 // stubJobDir points the hooks at a temporary directory instead of /Library/LaunchDaemons.
@@ -504,7 +543,7 @@ func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {
 	ensured := false
 	ensureInstallerDataDir = func() error {
 		ensured = true
-		callsWhenEnsured = len(*calls)
+		callsWhenEnsured = len(launchctlCalls(*calls))
 		return nil
 	}
 	ctx := testHookContext(t)
@@ -554,7 +593,7 @@ func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "_dd-agent does not exist")
-	assert.Empty(t, *calls, "launchd was called without the Agent's account")
+	assert.Empty(t, launchctlCalls(*calls), "launchd was called without the Agent's account")
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
 	}
@@ -807,4 +846,68 @@ func TestTheUninstallLayoutMatchesTheInstall(t *testing.T) {
 	assert.Contains(t, defaultUninstallLayout.paths, "/opt/datadog-packages")
 	assert.Contains(t, defaultUninstallLayout.paths, "/Applications/Datadog Agent.app")
 	assert.Contains(t, defaultUninstallLayout.paths, "/usr/local/bin/datadog-installer")
+}
+
+// dmgHookContext is a .dmg hook context, with the installer state and install layout stubbed so
+// the post-install runs against temporary directories.
+func dmgHookContext(t *testing.T) HookContext {
+	t.Helper()
+	stubInstallerState(t)
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	return ctx
+}
+
+func assertLoaded(t *testing.T, calls [][]string, dir string) {
+	t.Helper()
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+
+	write := callIndex(*calls, catalogWriteCall, defaultDmgLayout.installDir)
+	require.NotEqual(t, -1, write, "the catalog was not written to %s", defaultDmgLayout.installDir)
+	bootout := callIndex(*calls, "bootout", "system/"+procmgrLabel)
+	require.NotEqual(t, -1, bootout)
+	assert.Less(t, write, bootout)
+	assertLoaded(t, *calls, dir)
+}
+
+func TestPostInstallDMGLoadsEveryJobWhenTheCatalogWriteFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubProcmgrCatalog(t, calls).writeErr = errors.New("no space left on device")
+
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+	assertLoaded(t, *calls, dir)
+}
+
+func TestPreRemoveRemovesTheCatalogAfterTheJobs(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+
+	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
+
+	remove := callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir)
+	require.NotEqual(t, -1, remove, "the catalog was not removed from %s", defaultDmgLayout.installDir)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		bootout := callIndex(*calls, "bootout", "system/"+label)
+		require.NotEqual(t, -1, bootout)
+		assert.Less(t, bootout, remove, "%s was unloaded after the catalog was removed", label)
+	}
+}
+
+func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubProcmgrCatalog(t, calls).removeErr = errors.New("permission denied")
+
+	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
 }

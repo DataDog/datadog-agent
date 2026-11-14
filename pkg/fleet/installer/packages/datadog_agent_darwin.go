@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -50,13 +51,15 @@ type datadogAgentLaunchdJobs struct {
 var agentLaunchdJobs = datadogAgentLaunchdJobs{
 	LaunchdMainJobStable: "com.datadoghq.agent",
 	LaunchdJobsStable: []string{
-		"com.datadoghq.procmgr",
+		procmgrLabel,
 		"com.datadoghq.agent",
 		"com.datadoghq.sysprobe",
 		"com.datadoghq.data-plane",
 		"com.datadoghq.installer",
 	},
 }
+
+const procmgrLabel = "com.datadoghq.procmgr"
 
 // ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the
 // hook tests can run unprivileged.
@@ -77,6 +80,12 @@ var agentUserExists = func() bool {
 var (
 	launchdClient = func() *launchd.Client { return launchd.NewClient(launchd.System) }
 	launchdJobDir = launchd.System.Dir()
+)
+
+// Indirected so the hook tests never touch the real install root.
+var (
+	writeProcmgrCatalog  = processmanager.WriteDarwinProcmgrCatalog
+	removeProcmgrCatalog = processmanager.RemoveDarwinProcmgrCatalog
 )
 
 // installStableJobs writes and loads the stable launchd job set from the embedded definitions.
@@ -142,9 +151,10 @@ func postInstallDatadogAgent(ctx HookContext) error {
 
 // postInstallDMG is the post-install the .dmg's postinstall script delegates to
 // `installer postinst datadog-agent dmg`: setting up the account, directories, configuration,
-// application and links (setUpDMGInstall), registering the Agent as a package, loading the stable
-// job set, and installing the GUI LaunchAgents (startDMGGUI). If it fails, the script fails the
-// install.
+// application and links (setUpDMGInstall), writing the processes.d catalog, registering the Agent
+// as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
+// it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
+// when its job loads. A catalog write error is only logged.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -154,6 +164,9 @@ func postInstallDMG(ctx HookContext) error {
 	env := readInstallEnv(defaultDmgLayout)
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
+	}
+	if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+		log.Warnf("failed to write the processes.d catalog: %v", err)
 	}
 	// The packages root holds the package entry the installer daemon reports the Agent from, and
 	// only root may write to it. Create it, or repair it, before the entry is registered below.
@@ -321,6 +334,8 @@ func removeOtherEntries(dir string, keep ...string) {
 // The definitions are removed on an upgrade too: both install paths write every definition from
 // scratch, so nothing is lost.
 //
+// The processes.d entries are removed too, so a downgrade never inherits an entry it does not know.
+//
 // When the Agent is uninstalled rather than upgraded, as cmd/agent/macos/uninstall_mac_os.sh does
 // through `installer prerm datadog-agent dmg`, the rest of the install goes too (uninstallAgent).
 //
@@ -344,6 +359,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 			log.Warnf("failed to remove job definition %s: %v", label, err)
 			errs = append(errs, fmt.Errorf("failed to remove job definition %s: %w", label, err))
 		}
+	}
+	if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+		log.Warnf("failed to remove the processes.d catalog: %v", err)
 	}
 	if ctx.Upgrade {
 		return nil

@@ -1,0 +1,16 @@
+description: Datadog System Probe
+command: '/opt/datadog-agent/embedded/bin/system-probe'
+args:
+  - run
+  - -c
+  - '/opt/datadog-agent/etc'
+# Stays false while launchd's com.datadoghq.sysprobe owns the binary.
+auto_start: false
+condition_path_exists: '/opt/datadog-agent/embedded/bin/system-probe'
+# on-failure: a system-probe with nothing enabled exits 0 and stays down.
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: inherit
+stderr: inherit

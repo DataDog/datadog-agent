@@ -45,6 +45,13 @@ var procmgrUnits embed.FS
 //go:embed tmpl/gen/darwin
 var launchdJobs embed.FS
 
+// darwinProcmgrConfigs holds the macOS processes.d entries (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin-pm/processes.d
+var darwinProcmgrConfigs embed.FS
+
+const darwinProcmgrConfigsDir = "tmpl/gen/darwin-pm/processes.d"
+
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
 //
@@ -140,18 +147,43 @@ func GetLaunchdJob(label string) ([]byte, error) {
 	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", label+".plist"))
 }
 
+// DarwinProcmgrProcesses returns the basenames of the macOS processes.d entries.
+func DarwinProcmgrProcesses() ([]string, error) {
+	entries, err := darwinProcmgrConfigs.ReadDir(darwinProcmgrConfigsDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+			out = append(out, entry.Name())
+		}
+	}
+	return out, nil
+}
+
+// GetDarwinProcmgrProcess returns the macOS processes.d entry with the given basename.
+func GetDarwinProcmgrProcess(name string) ([]byte, error) {
+	return darwinProcmgrConfigs.ReadFile(path.Join(darwinProcmgrConfigsDir, name))
+}
+
+// shippedProcmgrConfigDirs lists the embedded directories ShippedProcmgrConfigFiles scans.
+var shippedProcmgrConfigDirs = []struct {
+	fs  embed.FS
+	rel string
+}{
+	{procmgrUnits, "tmpl/gen/pm/processes.d"},
+	{windowsProcmgrConfigs, "tmpl/gen/windows"},
+	{darwinProcmgrConfigs, darwinProcmgrConfigsDir},
+}
+
 // ShippedProcmgrConfigFiles returns the basenames of processes.d YAML files the installer embeds
-// for Linux (tmpl/gen/pm/processes.d) and Windows (tmpl/gen/windows). Used by COAT drift tests
-// so a new shipped config cannot land without migratableServices coverage.
+// for Linux (tmpl/gen/pm/processes.d), Windows (tmpl/gen/windows) and macOS
+// (tmpl/gen/darwin-pm/processes.d). Used by COAT drift tests so a new shipped config cannot land
+// without migratableServices coverage.
 func ShippedProcmgrConfigFiles() ([]string, error) {
 	seen := map[string]struct{}{}
-	for _, dir := range []struct {
-		fs  embed.FS
-		rel string
-	}{
-		{procmgrUnits, "tmpl/gen/pm/processes.d"},
-		{windowsProcmgrConfigs, "tmpl/gen/windows"},
-	} {
+	for _, dir := range shippedProcmgrConfigDirs {
 		entries, err := dir.fs.ReadDir(dir.rel)
 		if err != nil {
 			return nil, err
