@@ -187,6 +187,16 @@ single_version_override(
     version = "0.1.3",
 )
 
+http_archive(
+    name = "better_gitlab",
+    sha256 = "6691d0c9fb4a3d7d4ac2af2f22881c1960622e4e0b2b4ba492ec9fd82fafbd53",
+    strip_prefix = "better_gitlab-0.0.4",
+    type = "tar.gz",
+    urls = [
+        "https://github.com/tonyaiuto/better_gitlab/archive/refs/tags/0.0.4.tar.gz",
+    ],
+)
+
 ##########################################
 ## Tools that ship with the OS and we wrap
 ##########################################
