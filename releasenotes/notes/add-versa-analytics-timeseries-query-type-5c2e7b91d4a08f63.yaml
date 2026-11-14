@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add an ``analytics_query_type`` option to the Versa integration, selecting how Versa
+    Analytics metrics are queried. The default, ``tableData``, keeps the existing behavior
+    of one aggregate value per entity covering the whole lookback window. Setting it to
+    ``timeseries`` queries Versa for one value per time bucket instead, so short-lived
+    spikes inside the lookback window are preserved rather than averaged away. The
+    companion ``analytics_gap`` option sets the requested bucket size, defaulting to
+    ``1MINUTE``, which Versa renders at whatever resolution the tenant is configured for.
+
+    SLA, path QoS and circuit QoS metrics collected this way are submitted with the
+    timestamp of their own bucket and deduplicated per tenant and entity, so a lookback
+    window longer than the check interval does not double report. Other endpoints continue
+    to use ``tableData`` whatever this option is set to. The newest bucket of each entity
+    is held back for one collection, because Versa's buckets are wall-clock aligned and
+    the current one is still accumulating.

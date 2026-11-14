@@ -32,6 +32,23 @@ const (
 	defaultLookback    = "30minutesAgo"
 	defaultHTTPTimeout = 10 * time.Second
 	defaultHTTPScheme  = "https"
+
+	// QueryTypeTableData returns one aggregate row per entity covering the whole lookback
+	// window. This is the default, and historically it was the only behavior.
+	QueryTypeTableData = "tableData"
+	// QueryTypeTimeseries returns one row per entity per time bucket, so outliers inside
+	// the lookback window survive instead of being averaged away.
+	QueryTypeTimeseries = "timeseries"
+
+	// defaultAnalyticsGap is the bucket size requested for timeseries queries. Versa only
+	// accepts 1MINUTE, 1HOUR and 1DAY here, and it renders at the tenant's configured
+	// resolution regardless, so 1MINUTE means "the finest the tenant will give us": 15
+	// minutes on a 15 minute tenant, 5 on a 5 minute one.
+	defaultAnalyticsGap = "1MINUTE"
+	// timeseriesEndDate bounds a timeseries query. tableData queries send no end-date.
+	// Versa resolves "today" to now, not to midnight: a 4hoursAgo request against a 15
+	// minute tenant comes back with 16 buckets ending at the current quarter hour.
+	timeseriesEndDate = "today"
 )
 
 // Endpoint identifies a group of Versa API calls whose request settings
@@ -54,6 +71,7 @@ const (
 	EndpointTopUserMetrics                 Endpoint = "top_user_metrics"
 	EndpointTunnelMetrics                  Endpoint = "tunnel_metrics"
 	EndpointQoSMetrics                     Endpoint = "qos_metrics"
+	EndpointCircuitQoSMetrics              Endpoint = "circuit_qos_metrics"
 	EndpointDIAMetrics                     Endpoint = "dia_metrics"
 	EndpointInterfaceMetrics               Endpoint = "interface_metrics"
 )
@@ -72,6 +90,7 @@ var allEndpoints = []Endpoint{
 	EndpointTopUserMetrics,
 	EndpointTunnelMetrics,
 	EndpointQoSMetrics,
+	EndpointCircuitQoSMetrics,
 	EndpointDIAMetrics,
 	EndpointInterfaceMetrics,
 }
@@ -125,6 +144,8 @@ type Client struct {
 	timeout             time.Duration
 	endpointOverrides   map[Endpoint]EndpointConfig
 	lookback            string
+	analyticsQueryType  string
+	analyticsGap        string
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -194,6 +215,8 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		timeout:             defaultHTTPTimeout,
 		endpointOverrides:   make(map[Endpoint]EndpointConfig),
 		lookback:            defaultLookback,
+		analyticsQueryType:  QueryTypeTableData,
+		analyticsGap:        defaultAnalyticsGap,
 	}
 
 	for _, opt := range options {
@@ -310,6 +333,29 @@ func (client *Client) endpointConfig(endpoint Endpoint) EndpointConfig {
 func WithLookback(lookback int) ClientOptions {
 	return func(c *Client) {
 		c.lookback = createLookbackString(lookback)
+	}
+}
+
+// WithAnalyticsQueryType is a functional option to set the Analytics query type used by
+// every analytics call. Accepts QueryTypeTableData or QueryTypeTimeseries; an unknown
+// value leaves the default in place, since the check validates it before reaching here.
+func WithAnalyticsQueryType(queryType string) ClientOptions {
+	return func(c *Client) {
+		if queryType == QueryTypeTableData || queryType == QueryTypeTimeseries {
+			c.analyticsQueryType = queryType
+		}
+	}
+}
+
+// WithAnalyticsGap is a functional option to set the bucket size for timeseries queries.
+// It has no effect on tableData queries.
+func WithAnalyticsGap(gap string) ClientOptions {
+	return func(c *Client) {
+		if gap != "" {
+			// Versa matches the gap exactly, so normalize here rather than sending "1hour"
+			// and taking an opaque 4xx on every analytics call.
+			c.analyticsGap = strings.ToUpper(gap)
+		}
 	}
 }
 
@@ -571,13 +617,14 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 			"revLossRatio",
 			"pduLossRatio",
 		},
+		slaTimeseriesLayout,
 		parseSLAMetrics,
 	)
 }
 
 // GetPathQoSMetrics retrieves QoS (Class of Service) metrics from the Versa Analytics API
 func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
-	return getPaginatedAnalytics(
+	metrics, err := getPaginatedAnalytics(
 		client,
 		client.endpointConfig(EndpointQoSMetrics),
 		tenant,
@@ -604,8 +651,90 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 			"percentdrop", // percent drop bytes
 			"bandwidth",   // total bandwidth bps
 		},
+		pathQoSTimeseriesLayout,
 		parsePathQoSMetrics,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		})
+	}
+	return metrics, nil
+}
+
+// GetCircuitQoSMetrics retrieves per access circuit QoS (Class of Service) metrics from
+// the Versa Analytics API. Where pathcos reports class of service between a pair of sites,
+// cos reports it for each access circuit of a site, which is the branch side view of
+// egress queueing.
+//
+// Versa logs only the main traffic class unless log-fc-stats is enabled under the
+// network's class of service configuration, so a tenant without it will see the four
+// classes here but no per queue detail.
+func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, error) {
+	if tenant == "" {
+		return nil, errors.New("tenant cannot be empty")
+	}
+	metrics, err := getPaginatedAnalytics(
+		client,
+		client.endpointConfig(EndpointCircuitQoSMetrics),
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"cos(site,accckt)",
+		"",
+		"",
+		[]string{
+			"betx",        // best effort bytes
+			"betxdrop",    // best effort dropped
+			"eftx",        // expedited forwarding bytes
+			"eftxdrop",    // expedited forwarding dropped
+			"aftx",        // assured forwarding bytes
+			"aftxdrop",    // assured forwarding dropped
+			"nctx",        // network control bytes
+			"nctxdrop",    // network control dropped
+			"bebandwidth", // best effort bps
+			"efbandwidth", // expedited forwarding bps
+			"afbandwidth", // assured forwarding bps
+			"ncbandwidth", // network control bps
+			"volume-tx",   // total volume bytes
+			"totaldrop",   // total drops bytes
+			"percentdrop", // percent drop bytes
+			"bandwidth",   // total bandwidth bps
+		},
+		circuitQoSTimeseriesLayout,
+		parseCircuitQoSMetrics,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		computePercentDrop(metrics, func(m *CircuitQoSMetrics) (*float64, *float64, *float64, *bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		})
+	}
+	return metrics, nil
+}
+
+// computePercentDrop replaces percentdrop in the rows of a timeseries QoS query. Versa
+// reports it as zero in every timeseries bucket, even where totaldrop is non-zero, while
+// tableData reports it as totaldrop/volume-tx, a fraction. Each bucket gets that same
+// ratio here; a bucket with no transmitted volume has no defined ratio, so its percent
+// drop is marked unset. fields returns pointers to the row's volume, drop, percent drop
+// and unset marker, so path and circuit QoS share the computation.
+func computePercentDrop[T any](metrics []T, fields func(*T) (volumeTx, totalDrop, percentDrop *float64, unset *bool)) {
+	for i := range metrics {
+		volumeTx, totalDrop, percentDrop, unset := fields(&metrics[i])
+		if *volumeTx == 0 {
+			*percentDrop = 0
+			*unset = true
+			continue
+		}
+		*percentDrop = *totalDrop / *volumeTx
+		*unset = false
+	}
 }
 
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
@@ -622,6 +751,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		[]string{
 			"availability",
 		},
+		nil,
 		parseLinkStatusMetrics,
 	)
 }
@@ -643,6 +773,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-tx",
 			"bw-rx",
 		},
+		nil,
 		parseLinkUsageMetrics,
 	)
 }
@@ -665,6 +796,7 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 			"bw-rx",
 			"availability",
 		},
+		nil,
 		parseSiteMetrics,
 	)
 }
@@ -689,6 +821,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 			"bw-rx",
 			"bandwidth",
 		},
+		nil,
 		parseApplicationsByApplianceMetrics,
 	)
 }
@@ -713,6 +846,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 			"bw-rx",
 			"bandwidth",
 		},
+		nil,
 		parseTopUserMetrics,
 	)
 }
@@ -736,6 +870,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
+		nil,
 		parseTunnelMetrics,
 	)
 }
@@ -761,6 +896,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 			"bw-tx",
 			"bw-rx",
 		},
+		nil,
 		parseDIAMetrics,
 	)
 }
@@ -790,49 +926,75 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 			"bw-tx",
 			"bandwidth",
 		},
+		nil,
 		parseAnalyticsInterfaceMetrics,
 	)
 }
 
-// buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
-// TODO: maybe this becomes a struct function. Modifications will be easier and the function signature will be
-// much cleaner
+// analyticsQuery describes a single Versa Analytics query.
 //
-// Parameters:
+// Fields:
 //   - tenant: tenant name within the environment (e.g., "datadog")
-//   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.)
-//   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h")
+//   - feature: category of analytics metrics (e.g., "SDWAN", "SYSTEM", "CGNAT", etc.)
+//   - queryType: type of query, QueryTypeTableData or QueryTypeTimeseries
 //   - query: Versa query expression (e.g., "slam(...columns...)")
-//   - queryType: type of query (e.g., "tableData", "table", "summary")
+//   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h")
+//   - endDate: relative end date, only sent for timeseries queries
+//   - gap: bucket size for timeseries queries, one of "1MINUTE", "1HOUR" or "1DAY",
+//     ignored otherwise. Versa rejects any other value, 15MINUTE included, and renders
+//     at the tenant's configured resolution whichever of the three is asked for.
 //   - filterQuery: filter query (e.g. "(accessType:DIA)")
 //   - joinQuery: table to join from (e.g. "siteStatus")
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio")
 //   - count: number of rows to retrieve (similar to limit)
 //   - fromCount: row to start at (similar to offset)
-//
-// Returns the full encoded URL string.
-func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, filterQuery string, joinQuery string, metrics []string, count int, fromCount int) string {
+type analyticsQuery struct {
+	tenant      string
+	feature     string
+	queryType   string
+	query       string
+	lookback    string
+	endDate     string
+	gap         string
+	filterQuery string
+	joinQuery   string
+	metrics     []string
+	count       int
+	fromCount   int
+}
+
+// buildAnalyticsPath constructs a Versa Analytics query path, returning the full encoded
+// URL string.
+func buildAnalyticsPath(q analyticsQuery) string {
 	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
-	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
+	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, q.tenant, q.feature)
 	params := url.Values{
-		"start-date": []string{lookback},
-		"qt":         []string{queryType},
-		"q":          []string{query},
+		"start-date": []string{q.lookback},
+		"qt":         []string{q.queryType},
+		"q":          []string{q.query},
 		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
-		"count":      []string{strconv.Itoa(count)},
-		"from-count": []string{strconv.Itoa(fromCount)},
+		"count":      []string{strconv.Itoa(q.count)},
+		"from-count": []string{strconv.Itoa(q.fromCount)},
+	}
+	// endDate and gap only apply to timeseries queries, and sending them on a tableData
+	// query would change requests that work today, so both stay opt-in.
+	if q.endDate != "" {
+		params.Add("end-date", q.endDate)
+	}
+	if q.gap != "" {
+		params.Add("gap", q.gap)
 	}
 	// filterQuery is not required for most calls
 	// only include in the params if needed
-	if filterQuery != "" {
-		params.Add("fq", filterQuery)
+	if q.filterQuery != "" {
+		params.Add("fq", q.filterQuery)
 	}
 	// joinQuery is not required for most calls
 	// only include in the params if needed
-	if joinQuery != "" {
-		params.Add("jq", joinQuery)
+	if q.joinQuery != "" {
+		params.Add("jq", q.joinQuery)
 	}
-	for _, m := range metrics {
+	for _, m := range q.metrics {
 		params.Add("metrics", m)
 	}
 	return path + "?" + params.Encode()

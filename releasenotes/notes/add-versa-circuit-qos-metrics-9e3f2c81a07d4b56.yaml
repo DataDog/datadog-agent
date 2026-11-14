@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add a ``collect_circuit_qos_metrics`` option to the Versa integration, collecting
+    class of service metrics per access circuit as ``versa.circuit_qos.*``, tagged by
+    ``site`` and ``access_circuit``. Where the existing ``collect_qos_metrics`` reports
+    class of service between a pair of sites, these report it for each access circuit of a
+    site, which is the branch side view of egress queueing. Alongside the per forwarding
+    class byte, drop and bandwidth counters, they include the aggregates
+    ``versa.circuit_qos.volume_tx``, ``total_drop``, ``percent_drop`` and
+    ``bandwidth``, so drops can be read as a share of circuit throughput without
+    summing the classes by hand. ``percent_drop`` is a fraction, ``total_drop``
+    divided by ``volume_tx``; with the timeseries query type it is computed per bucket
+    from those two values, because Versa reports it as zero there, and is not sent for
+    a bucket with no transmitted volume. The same applies to ``versa.qos.percent_drop``
+    from ``collect_qos_metrics``. Versa logs only the main
+    traffic class unless ``log-fc-stats`` is enabled under the network's class of service
+    configuration.

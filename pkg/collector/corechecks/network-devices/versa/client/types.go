@@ -17,6 +17,7 @@ type Content interface {
 		ApplianceListResponse |
 		DirectorStatus |
 		AnalyticsMetricsResponse |
+		AnalyticsTimeseriesResponse |
 		InterfaceListResponse |
 		InterfaceMetricsResponse |
 		InterfaceMetricsCollection |
@@ -333,6 +334,34 @@ type AnalyticsMetricsResponse struct {
 	AaData               [][]interface{} `json:"aaData"`
 }
 
+// AnalyticsTimeseriesResponse is the body returned for a qt=timeseries query. Where
+// tableData returns one aggregate row per entity in aaData, a timeseries response returns
+// one series per (entity, metric) pair, each holding a point per time bucket.
+type AnalyticsTimeseriesResponse struct {
+	QTime int                   `json:"qTime"`
+	Data  []AnalyticsTimeseries `json:"data"`
+}
+
+// AnalyticsTimeseries is a single (entity, metric) series from a timeseries query. Name is
+// the same comma joined drill key that tableData returns in column zero, so the group by
+// fields can be recovered by splitting it.
+type AnalyticsTimeseries struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Metric     string `json:"metric"`
+	MetricName string `json:"metricName"`
+	Label      string `json:"label"`
+	// Data holds [epochMillis, value] pairs, oldest first.
+	Data [][]interface{} `json:"data"`
+}
+
+// timestamped is implemented by the metric types that can carry the bucket timestamp of a
+// timeseries query. Types that do not implement it keep the tableData behavior of being
+// submitted at collection time.
+type timestamped interface {
+	setTimestamp(int64)
+}
+
 // SLAMetrics represents the columns to parse from the SLAMetricsResponse interface/API call
 type SLAMetrics struct {
 	// TODO: utilize this ordered list of fields for AaData
@@ -348,7 +377,12 @@ type SLAMetrics struct {
 	FwdLossRatio        float64
 	RevLossRatio        float64
 	PDULossRatio        float64
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *SLAMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
 
 // IPAddress returns the first management IP address of the director
 // or an error if no management IPs are found
@@ -513,7 +547,47 @@ type QoSMetrics struct {
 	TotalDrop            float64
 	PercentDrop          float64
 	Bandwidth            float64
+	// PercentDropUnset is true when PercentDrop has no value to report: a timeseries
+	// bucket with no transmitted volume.
+	PercentDropUnset bool
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *QoSMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
+
+// CircuitQoSMetrics represents the columns to parse from the per access circuit QoS
+// (Class of Service) metrics response
+type CircuitQoSMetrics struct {
+	DrillKey             string
+	Site                 string
+	AccessCircuit        string
+	BestEffortTx         float64
+	BestEffortTxDrop     float64
+	ExpeditedForwardTx   float64
+	ExpeditedForwardDrop float64
+	AssuredForwardTx     float64
+	AssuredForwardDrop   float64
+	NetworkControlTx     float64
+	NetworkControlDrop   float64
+	BestEffortBandwidth  float64
+	ExpeditedForwardBW   float64
+	AssuredForwardBW     float64
+	NetworkControlBW     float64
+	VolumeTx             float64
+	TotalDrop            float64
+	PercentDrop          float64
+	Bandwidth            float64
+	// PercentDropUnset is true when PercentDrop has no value to report: a timeseries
+	// bucket with no transmitted volume.
+	PercentDropUnset bool
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
+}
+
+func (m *CircuitQoSMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
 
 // DIAMetrics represents the columns to parse from the DIA (Direct Internet Access) metrics response
 type DIAMetrics struct {

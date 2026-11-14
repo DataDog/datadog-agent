@@ -101,8 +101,56 @@ instances:
     ## @param lookback_time_window_minutes - integer - optional - default: 30
     ## The time window to query when polling Versa metrics where available.
     ## Some metrics must be pulled with a minimum of a 1 day lookback.
+    ## Note: applications, top users and DIA metrics always use a 1 day lookback and
+    ## ignore this setting.
+    ##
+    ## With analytics_query_type set to timeseries, this window must span at least two of
+    ## the tenant's buckets, because the newest bucket of each entity is held back for one
+    ## collection. A window of exactly one bucket therefore publishes nothing at all, and
+    ## a window that only sometimes contains two publishes intermittently. On a tenant
+    ## rendering 15 minute buckets, 30 is the minimum and 45 or more leaves room for the
+    ## window landing mid-bucket.
     #
     # lookback_time_window_minutes: 30
+
+    ## @param analytics_query_type - string - optional - default: tableData
+    ## How Versa Analytics metrics are queried.
+    ##
+    ## tableData returns a single aggregate value per entity covering the whole lookback
+    ## window, submitted at collection time. Short-lived spikes inside the window are
+    ## averaged away.
+    ##
+    ## timeseries returns one value per entity per time bucket, each submitted with the
+    ## timestamp of its own bucket, so as-polled detail is preserved. Metrics become more
+    ## volatile than with tableData, so review monitor thresholds before switching.
+    ##
+    ## timeseries applies to SLA metrics, QoS metrics and circuit QoS metrics. Every other
+    ## endpoint stays on tableData regardless of this setting, because Versa's drill keys
+    ## for those queries do not map onto their responses the same way.
+    ##
+    ## The newest bucket of each entity is held back for one collection, since Versa
+    ## buckets are wall-clock aligned and the current one is still filling. Expect these
+    ## metrics to lag real time by one bucket, and set lookback_time_window_minutes to at
+    ## least two buckets, or the held-back bucket is the only one there is and nothing is
+    ## published.
+    ##
+    ## timeseries sends one request per endpoint rather than paging, so max_count must
+    ## exceed the number of sites, paths or circuits in the tenant. A warning is logged if
+    ## a response comes back at or above max_count.
+    #
+    # analytics_query_type: tableData
+
+    ## @param analytics_gap - string - optional - default: 1MINUTE
+    ## Bucket size requested for timeseries queries. Has no effect when
+    ## analytics_query_type is tableData. Versa accepts only 1MINUTE, 1HOUR or 1DAY here
+    ## and rejects anything else, including 15MINUTE.
+    ##
+    ## Versa renders data at the resolution the tenant is configured for regardless of
+    ## what is requested (commonly 5 or 15 minutes for windows under 48 hours), so
+    ## 1MINUTE means "the finest resolution this tenant will return", not one point per
+    ## minute.
+    #
+    # analytics_gap: 1MINUTE
 
     ## @param min_collection_interval - integer - optional - default: 60
     ## This changes the collection interval of the check. For more information, see:
@@ -123,6 +171,38 @@ instances:
     # excluded_tenants:
     #   - <TENANT_NAME_1>
     #   - <TENANT_NAME_2>
+
+    ## @param included_devices - list of strings or mappings - optional
+    ## List of appliances to include. If specified, only these appliances are
+    ## monitored and every other appliance is skipped. Names are matched
+    ## case-insensitively against the appliance name reported by the Director.
+    ##
+    ## This does not apply to the Versa Director itself, which is always collected.
+    ## Use collect_hardware_metrics and collect_director_interface_metrics to control
+    ## what is reported for the Director.
+    #
+    # included_devices:
+    #   - <DEVICE_NAME_1>
+    #   - <DEVICE_NAME_2>
+    ##
+    ## An entry may instead be a mapping with a name and a set of tags, which are
+    ## attached to that device's metadata as "key:value" tags. The two forms can be
+    ## mixed in the same list.
+    #
+    # included_devices:
+    #   - <DEVICE_NAME_1>
+    #   - name: <DEVICE_NAME_2>
+    #     tags:
+    #       <TAG_KEY_1>: <TAG_VALUE_1>
+    #       <TAG_KEY_2>: <TAG_VALUE_2>
+
+    ## @param excluded_devices - list of strings - optional
+    ## List of appliance names to exclude from monitoring. Applied after
+    ## included_devices, so an appliance named in both lists is excluded.
+    #
+    # excluded_devices:
+    #   - <DEVICE_NAME_1>
+    #   - <DEVICE_NAME_2>
 
     ## @param collect_hardware_metrics - boolean - optional - default: true
     ## Enable collection of hardware metrics (CPU, memory, disk, uptime).
@@ -176,8 +256,27 @@ instances:
 
     ## @param collect_qos_metrics - boolean - optional - default: false
     ## Enable collection of QoS metrics.
+    ##
+    ## percent_drop is a fraction (total_drop / volume_tx). With the timeseries query
+    ## type it is computed per bucket from those two values, because Versa reports it as
+    ## zero there, and is not sent for a bucket with no transmitted volume.
     #
     # collect_qos_metrics: false
+
+    ## @param collect_circuit_qos_metrics - boolean - optional - default: false
+    ## Enable collection of per access circuit QoS metrics. Where collect_qos_metrics
+    ## reports class of service between a pair of sites, this reports it for each access
+    ## circuit of a site, which is the branch side view of egress queueing.
+    ##
+    ## Versa logs only the main traffic class unless log-fc-stats is enabled under the
+    ## network's class of service configuration, so a tenant without it sees the four
+    ## forwarding classes but no per queue detail.
+    ##
+    ## percent_drop is a fraction (total_drop / volume_tx). With the timeseries query
+    ## type it is computed per bucket from those two values, because Versa reports it as
+    ## zero there, and is not sent for a bucket with no transmitted volume.
+    #
+    # collect_circuit_qos_metrics: false
 
     ## @param collect_dia_metrics - boolean - optional - default: false
     ## Enable collection of DIA (Direct Internet Access) metrics.

@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Versa integration: entries in ``included_devices`` may now be a mapping with a
+    ``name`` and a set of ``tags`` instead of a bare appliance name. The tags are
+    attached to that device's metadata as ``key:value`` tags. Both forms can be
+    mixed in the same list, so existing configurations continue to work unchanged.
+  - |
+    Versa integration: every Versa API call the Agent makes is now logged at debug
+    level with its HTTP method, path, query parameters, response code, and duration.
+    This covers the Director API, Analytics, and the authentication calls. Request
+    headers and bodies are never logged, so credentials are not written to the log.
