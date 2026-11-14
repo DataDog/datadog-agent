@@ -137,6 +137,8 @@ type reconcilingConfigManager struct {
 	staticConfigIndex *listeners.StaticConfigIndex
 
 	secretResolver secrets.Component
+	// secretOrigins records the secret origins used by each config, see decryptConfig
+	secretOrigins  *secretOrigins
 	healthPlatform healthplatformdef.Component
 	telemetryStore *actelemetry.Store
 
@@ -158,6 +160,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		nonTemplateResolutions: map[string]string{},
 		staticConfigIndex:      staticConfigIndex,
 		secretResolver:         secretResolver,
+		secretOrigins:          newSecretOrigins(),
 		healthPlatform:         healthPlatform,
 		telemetryStore:         telStore,
 	}
@@ -266,7 +269,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
+		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest, cm.secretOrigins)
 		if err != nil {
 			if len(decryptedConfig.Instances) == 0 {
 				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
@@ -324,7 +327,9 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
 		// Remove all resolved secrets for this config
-		cm.secretResolver.RemoveOrigin(digest)
+		for _, origin := range cm.secretOrigins.remove(digest) {
+			cm.secretResolver.RemoveOrigin(origin)
+		}
 
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
@@ -509,7 +514,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest, cm.secretOrigins)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)

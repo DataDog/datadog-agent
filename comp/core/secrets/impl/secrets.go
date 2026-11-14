@@ -846,6 +846,7 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 
 	type pathAndHandle struct {
 		originName string
+		origin     string
 		path       []string
 		handle     string
 	}
@@ -858,13 +859,20 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 			if !found {
 				originName = secretCtx.origin
 			}
-			entries = append(entries, pathAndHandle{originName: originName, path: secretCtx.path, handle: handle})
+			entries = append(entries, pathAndHandle{
+				originName: originName,
+				origin:     secretCtx.origin,
+				path:       secretCtx.path,
+				handle:     handle,
+			})
 		}
 	}
 
 	// sort for a deterministic output
 	// NOTE: entries from datadog.yaml come first, followed by other origins sorted by name
-	// NOTE: numeric indexes are compared numerically (example: "list.2" precedes "list.10")
+	// NOTE: numeric indexes are compared numerically, in paths and in origin names (example: "list.2" precedes
+	// "list.10")
+	// NOTE: distinct origins can share a name, the origin itself breaks ties
 	slices.SortStableFunc(entries, func(a, b pathAndHandle) int {
 		if a.originName != b.originName {
 			if a.originName == coreAgentConfig {
@@ -873,23 +881,15 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 			if b.originName == coreAgentConfig {
 				return 1
 			}
-			return strings.Compare(a.originName, b.originName)
+			return compareDottedPaths(strings.Split(a.originName, "."), strings.Split(b.originName, "."))
 		}
-		for i := 0; i < len(a.path) && i < len(b.path); i++ {
-			if a.path[i] == b.path[i] {
-				continue
-			}
-			idxA, errA := strconv.Atoi(a.path[i])
-			idxB, errB := strconv.Atoi(b.path[i])
-			if errA == nil && errB == nil {
-				return idxA - idxB
-			}
-			return strings.Compare(a.path[i], b.path[i])
+		if c := compareDottedPaths(a.path, b.path); c != 0 {
+			return c
 		}
-		if len(a.path) != len(b.path) {
-			return len(a.path) - len(b.path)
+		if c := strings.Compare(a.handle, b.handle); c != 0 {
+			return c
 		}
-		return strings.Compare(a.handle, b.handle)
+		return strings.Compare(a.origin, b.origin)
 	})
 
 	paths := make([]string, 0, len(entries))
@@ -909,6 +909,22 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 		handles = append(handles, entry.handle)
 	}
 	return paths, handles
+}
+
+// compareDottedPaths orders two dotted paths element by element, comparing numeric elements numerically
+func compareDottedPaths(a, b []string) int {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] == b[i] {
+			continue
+		}
+		idxA, errA := strconv.Atoi(a[i])
+		idxB, errB := strconv.Atoi(b[i])
+		if errA == nil && errB == nil {
+			return idxA - idxB
+		}
+		return strings.Compare(a[i], b[i])
+	}
+	return len(a) - len(b)
 }
 
 // GetHashValues returns the SHA-256 hash (hex encoded) of the cached secret value for each given handle. Handles

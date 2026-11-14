@@ -710,7 +710,7 @@ func TestRefreshConfig(t *testing.T) {
 	}{
 		{
 			name:               "secret rotation with active config origin",
-			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			callbackOrigin:     func(tpl integration.Config) string { return secretOrigin(tpl.Digest(), "instances.0") },
 			oldValue:           "bar_resolved",
 			newValue:           "new_resolved_value",
 			expectedFinalValue: "foo: new_resolved_value",
@@ -724,14 +724,14 @@ func TestRefreshConfig(t *testing.T) {
 		},
 		{
 			name:               "previously unresolved secret recovery",
-			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			callbackOrigin:     func(tpl integration.Config) string { return secretOrigin(tpl.Digest(), "instances.0") },
 			oldValue:           "",
 			newValue:           "new_resolved_value",
 			expectedFinalValue: "foo: new_resolved_value",
 		},
 		{
 			name:               "callback with oldValue as unresolved secret",
-			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
+			callbackOrigin:     func(tpl integration.Config) string { return secretOrigin(tpl.Digest(), "instances.0") },
 			oldValue:           "ENC[foo]",
 			newValue:           "",
 			expectedFinalValue: "foo: bar_resolved",
@@ -852,8 +852,9 @@ func TestSecretRefreshesAreCoalescedByOrigin(t *testing.T) {
 	require.Len(t, changes.Schedule, 1)
 
 	resolver.scenarios[1].returnedData = []byte("foo: recovered")
-	for range 3 {
-		resolver.triggerCallback("password", config.Digest(), []string{"password"}, "", "recovered")
+	// notifications for any section of the config refresh it once
+	for _, section := range []string{"instances.0", "instances.0", "init_config"} {
+		resolver.triggerCallback("password", secretOrigin(config.Digest(), section), []string{"password"}, "", "recovered")
 	}
 
 	ac.refreshConfigMu.Lock()
