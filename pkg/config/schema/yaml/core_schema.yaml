@@ -6784,17 +6784,21 @@ properties:
               proxy:
                 node_type: section
                 type: object
-                description: Temporary, development-only OTLP proxy settings that will be removed in the future.
+                description: |-
+                  Temporary, development-only OTLP proxy settings that will be removed in the future.
+                  Apply when data_plane.enabled and data_plane.otlp.enabled are true. Setting any signal to true makes the data
+                  plane proxy that signal to the Agent, which relocates its OTLP listeners; otlp_config.receiver TLS is then a
+                  configuration error and the Agent's OTLP ingest does not start. When every signal is false, the data plane
+                  handles all OTLP ingest and the Agent does not listen for OTLP, including on otlp_config.traces.internal_port.
                 properties:
                   agent_receiver_grpc_endpoint:
                     node_type: setting
                     type: string
                     default: 127.0.0.1:4319
                     description: |-
-                      Relocated Agent OTLP/gRPC listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
-                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address or, for Unix transports,
-                      a socket path. Any local process that can reach this endpoint can send OTLP data without TLS client authentication.
+                      Relocated Agent OTLP/gRPC listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
                       When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
                       is a configuration error and the Agent's OTLP ingest does not start.
                       Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
@@ -6803,10 +6807,9 @@ properties:
                     type: string
                     default: 127.0.0.1:4320
                     description: |-
-                      Relocated Agent OTLP/HTTP listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
-                      The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address. Any local process that
-                      can reach this endpoint can send OTLP data without TLS client authentication.
+                      Relocated Agent OTLP/HTTP listener endpoint in proxy mode. If TLS is configured on either OTLP receiver
+                      protocol, proxy mode is rejected and this listener does not start. Configured TLS is never silently downgraded
+                      to plaintext. Without receiver TLS, this listener is plaintext: any local process that can reach it can send OTLP data.
                       Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
                   logs:
                     node_type: setting
