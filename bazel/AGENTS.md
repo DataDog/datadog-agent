@@ -100,6 +100,62 @@ try-import %workspace%/user.bazelrc
 Add personal overrides (cache config, local tweaks) to `user.bazelrc` at the workspace root. This file is `.gitignore`d.
 Personal `--config` names should start with `_` to avoid conflicts.
 
+## Invocation diagnostics
+
+The workspace `.bazelrc` sets these on `build`. `test`, `coverage`, `run`, `cquery` and `aquery` inherit that, so a
+`bazel test` or `bazel coverage` writes the same three files at the repo root, next to `.bazelrc` (gitignored). Leave
+them on `build`: under `common`, `query` and `info` overwrite the files and wipe the run you meant to keep.
+
+| File | Content | Use it to |
+|------|---------|-----------|
+| `bazel-invocation.profile.gz` | JSON trace profile | find what is slow: critical path, remote queueing, transfers, retries |
+| `bazel-invocation.grpc.log` | Delimited `LogEntry` protos for every remote cache/execution gRPC call | find gRPC status codes, latencies and retries |
+| `bazel-invocation.exec.zst` | zstd-compressed log of spawns that ran, remote cache hits included | find why an action ran instead of hitting the remote cache |
+
+**Each invocation overwrites all three.** Bazel commands run later for any reason, including `cquery`/`aquery`, replace
+the evidence of the failing or slow run with that of the new one. `query`, `info`, `mod` and `shutdown` do not touch
+them. Run Bazel from the repo root: from a subdirectory the gRPC and execution logs land in the working directory
+instead (only the profile follows the workspace).
+
+When a run looks fishy (see below), before running anything else with Bazel:
+
+```sh
+d=/tmp/bazel-triage/$(date +%Y%m%dT%H%M%S) && mkdir -p "$d"
+cp bazel-invocation.* "$d"/
+```
+
+Also save the exact command line, Bazel's exit code, the invocation ID and the relevant console excerpt in the same
+directory, and tell the user where it is. Do this only after the invocation has ended: the logs are incomplete while it
+runs. For a cache-miss comparison keep the logs of both runs. Different worktrees have separate files. The files can be
+large (the gRPC log of a cold build especially), so compress them before sharing. They contain internal paths, labels
+and digests: share them with `@DataDog/agent-build` only.
+
+### When to reach out to Agent Build
+
+Preserve the files and report to `@DataDog/agent-build` (Slack: `#agent-build`) when you see any of:
+
+- Performance problems: a build or test is slow, a critical path grew, or a command that used to be fast now spends its
+  time in analysis, remote queueing, downloads, uploads or retries. Attach the preserved profile. Do not tune jobs,
+  timeouts or cache flags to paper over it.
+- `DEADLINE_EXCEEDED` on a remote cache or execution call, or timeouts that persist across retries. Do not just raise
+  `--remote_timeout` to make it pass.
+- gRPC status `UNAVAILABLE`, `RESOURCE_EXHAUSTED`, `INTERNAL`, `ABORTED` or `CANCELLED`, connection resets or TLS errors
+  against `buildbarn-frontend-datadog-agent.us1.ddbuild.io`, while the network and VPN are fine.
+- `UNAUTHENTICATED` or `PERMISSION_DENIED` after a fresh login (`ddtool auth login --datacenter us1.ddbuild.io`) or
+  with a valid `BUILDBARN_ID_TOKEN`; an expired or missing token is a local problem to fix first.
+- Missing or evicted blobs: `BulkTransferException`, "Failed to fetch blobs because they do not exist remotely", digest
+  or checksum mismatches, or Bazel exit code 39 (remote cache evicted) when a retry does not heal it.
+- Remote execution failures: a spawn result of exit code 34 (`REMOTE_ERROR`), `FAILED_PRECONDITION`, "no worker" for
+  the requested platform or exec properties, actions queued for a long time with a short execution time in the profile,
+  or Linux x86_64 actions failing remotely but passing locally. The Bazel process often still exits 1.
+- Unexplained cache misses: identical sources or a repeated CI/merge-queue job re-executes many actions or tests, and
+  the execution logs of both runs show the same input digests (different digests point to non-hermetic actions in the
+  repo; investigate those first). A hit in the local persistent action cache is absent from this log, so a repeated
+  local run can look empty. Keep the log of the run that actually executed.
+- Results that differ between `--config=no-remote-cache` and the default, or between remote and local execution.
+
+Do not escalate ordinary compilation errors, test failures, Gazelle diffs, or ADMS failures outside the Datadog network.
+
 ## Bazel client/server
 
 Bazel runs as a long-lived server per output base (one per workspace + user). Each server holds the **analysis cache** —
@@ -1148,6 +1204,7 @@ command lines); use it to debug what commands Bazel will run.
 
 ```sh
 # JSON trace — open in chrome://tracing or perfetto.dev
+# (always written to bazel-invocation.profile.gz, see "Invocation diagnostics"; copy it before the next run)
 bazel build //... --profile=/tmp/bazel.profile
 
 # Starlark CPU profile (pprof format)

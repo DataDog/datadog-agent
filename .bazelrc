@@ -76,6 +76,14 @@ common:linux --strip=never # TODO: Apply independently of platform
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
+# Invocation diagnostics -----------------------------------------------------------------------------------------------
+# `build` is inherited by test, coverage, run, cquery and aquery. Keep these off `common`: query and info would
+# overwrite the files too. Each invocation replaces all three; copy them first (bazel/AGENTS.md). Run from the repo
+# root: only --profile resolves against the workspace root, the other two against the working directory.
+build --execution_log_compact_file=bazel-invocation.exec.zst
+build --profile=bazel-invocation.profile.gz
+build --remote_grpc_log=bazel-invocation.grpc.log
+
 # Lint config (static code analyzers) ----------------------------------------------------------------------------------
 # Go -TODO(agent-build)
 # Python -TODO(agent-build)
