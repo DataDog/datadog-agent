@@ -38,11 +38,15 @@ const (
 )
 
 var statsTelemetry = struct {
-	processedStats telemetry.Counter
-	droppedStats   telemetry.Counter
+	processedStats     telemetry.Counter
+	droppedStats       telemetry.Counter
+	lateResponses      telemetry.Counter
+	unmatchedResponses telemetry.Counter
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
 	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
+	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "late_responses", []string{}, "Counter measuring the number of DNS responses that arrived after the timeout but before their query expired, and were counted as timeouts"),
+	telemetryimpl.GetCompatComponent().NewCounter(dnsStatKeeperModuleName, "unmatched_responses", []string{}, "Counter measuring the number of DNS responses with no pending query: duplicates, responses after their query expired, or queries that were not recorded"),
 }
 
 type dnsPacketInfo struct {
@@ -52,6 +56,10 @@ type dnsPacketInfo struct {
 	rCode         uint8    // responseCode
 	question      Hostname // only relevant for query packets
 	queryType     QueryType
+	// partial is set when the response was read from its header only, so it
+	// has no answers. Only the parser and the snooper use it, and they aren't
+	// built on Windows without npm.
+	partial bool //nolint:unused
 }
 
 type stateKey struct {
@@ -76,7 +84,11 @@ type dnsStatKeeper struct {
 	deleteCount      int
 	processedStats   int64
 	droppedStats     int64
-	maxStats         int64
+	// response counts kept under mux and flushed to telemetry with the stats,
+	// to keep telemetry calls off the per-packet path
+	lateResponses      int64
+	unmatchedResponses int64
+	maxStats           int64
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
@@ -128,6 +140,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	start, ok := d.state[sk]
 
 	if !ok {
+		d.unmatchedResponses++
 		return
 	}
 
@@ -163,6 +176,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		byqtype.Timeouts++
+		d.lateResponses++
 	} else {
 		byqtype.CountByRcode[uint32(info.rCode)]++
 		if info.pktType == successfulResponse {
@@ -184,6 +198,10 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats, d.droppedStats)
 	d.processedStats = 0
 	d.droppedStats = 0
+	statsTelemetry.lateResponses.Add(float64(d.lateResponses))
+	statsTelemetry.unmatchedResponses.Add(float64(d.unmatchedResponses))
+	d.lateResponses = 0
+	d.unmatchedResponses = 0
 	return ret
 }
 
