@@ -24,7 +24,8 @@ import (
 // An array of identifiers, `[O_RDONLY, O_WRONLY]`, is replaced by the array of
 // the trees they refer to, which must all be literals.
 //
-// The identifiers left refer to a field, they are replaced by field references.
+// Once the identifiers are resolved, the names left refer to fields, see
+// ResolveFields.
 func ResolveIdents(lookup func(name string) (ast.Node, bool)) Pass {
 	return func(node ast.Node) (ast.Node, error) {
 		// one editor per tree, its error is the one of the tree
@@ -54,8 +55,11 @@ func (e *identEditor) edit(node ast.Node) ast.Node {
 		if tree, ok := e.lookup(n.Name); ok {
 			return copyAt(tree, n.Pos)
 		}
-		// after this pass all the Idents are resolved, only FieldRefs remain
-		return &ast.FieldRef{Meta: n.Meta, Name: n.Name}
+		return node
+	case *ast.Selector, *ast.Index, *ast.Interpolation:
+		// the name of a macro or of a constant is a lone identifier, a dotted
+		// or subscripted name is a field, and so is a name in a `%{}`
+		return node
 	case *ast.IdentArray:
 		array, err := e.resolveIdentArray(n)
 		if err != nil {

@@ -22,8 +22,7 @@ const (
 	Int
 	// Duration is a duration, in nanoseconds: `10s`.
 	Duration
-	// String is a string: `"/etc/passwd"`. It may hold `${variable}` and
-	// `%{field}` interpolations.
+	// String is a string: `"/etc/passwd"`.
 	String
 	// Pattern is a glob pattern: `~"/etc/*"`.
 	Pattern

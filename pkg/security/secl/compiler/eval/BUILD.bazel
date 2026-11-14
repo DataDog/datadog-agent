@@ -22,8 +22,6 @@ go_library(
         "context.go",
         "context_functests.go",
         "context_regular.go",
-        "dns_linux.go",
-        "dns_others.go",
         "errors.go",
         "eval.go",
         "eval_operators.go",

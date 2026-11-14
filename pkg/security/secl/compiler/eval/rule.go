@@ -292,7 +292,7 @@ func (r *Rule) genPartials(fields []Field, key string) error {
 		return nil
 	}
 
-	node, err := pass.Run(r.evaluator.tree, pass.ProjectFields(fields, r.Opts.fieldOf), pass.FoldBools())
+	node, err := pass.Run(r.evaluator.tree, pass.ProjectFields(fields), pass.FoldBools())
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for fields %v and rule %s: %w", fields, r.ID, err)
 	}

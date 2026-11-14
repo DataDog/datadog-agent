@@ -18,13 +18,15 @@
 //	bitwise and     a & b
 //	additive        a + b, a - b
 //	unary           !a, not a, -a, ^a
-//	primary         literals, identifiers, arrays, (a)
+//	primary         literals, names, arrays, (a)
 //
 // Binary operators are left associative, `a - b - c` is `(a - b) - c`, but for
 // comparisons that can't be chained: `a == b == c` is an error.
 //
-// The parser looks one token ahead, and never backtracks. Syntax errors are
-// returned as an ErrorList holding every error found.
+// The parser looks one token ahead, and never backtracks. A string is one
+// token, the parser moving the scanner back into it for the parts of a string
+// with interpolations. Syntax errors are returned as an ErrorList holding every
+// error found.
 package parser
 
 import (
@@ -32,6 +34,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -396,7 +399,7 @@ func (p *parser) parseUnaryOperand(opTok Token, op ast.UnaryOp) ast.Node {
 
 // parsePrimary parses a single operand.
 //
-//	Primary → Ident | Int | String | Pattern | Regexp | ... | Array | "(" Or ")"
+//	Primary → Name | Int | String | Pattern | Regexp | ... | Array | "(" Or ")"
 func (p *parser) parsePrimary() ast.Node {
 	tok := p.tok
 	meta := ast.At(tok.Pos)
@@ -404,13 +407,15 @@ func (p *parser) parsePrimary() ast.Node {
 	switch tok.Kind {
 	case Ident:
 		p.next()
-		return &ast.Ident{Meta: meta, Name: tok.Text}
+		return p.parseName(tok)
 	case Int:
 		return p.parseInt(nil)
 	case String:
+		if strings.Contains(tok.Text, "${") || strings.Contains(tok.Text, "%{") {
+			return p.parseInterpolation()
+		}
 		p.next()
-		// escape sequences are kept as written
-		return &ast.Literal{Meta: meta, Value: ast.MakeString(tok.Text[1 : len(tok.Text)-1])}
+		return stringLiteral(tok)
 	case Pattern:
 		p.next()
 		return &ast.Literal{Meta: meta, Value: ast.MakePattern(tok.Text[2 : len(tok.Text)-1])}
@@ -431,9 +436,8 @@ func (p *parser) parsePrimary() ast.Node {
 	case Variable:
 		p.next()
 		return &ast.VariableRef{Meta: meta, Name: tok.Text[2 : len(tok.Text)-1]}
-	case FieldRef:
-		p.next()
-		return &ast.FieldRef{Meta: meta, Name: tok.Text[2 : len(tok.Text)-1]}
+	case FieldOpen:
+		return p.parseFieldRef()
 	case LBracket:
 		return p.parseArray()
 	case LParen:
@@ -442,6 +446,130 @@ func (p *parser) parsePrimary() ast.Node {
 
 	p.errorExpected("operand", "")
 	return nil
+}
+
+// parseName parses a name: an identifier, the token of which is already
+// consumed, and the chain of the selectors and the subscripts over it.
+//
+//	Name → Ident { "." Ident | "[" Primary "]" }
+func (p *parser) parseName(tok Token) ast.Node {
+	meta := ast.At(tok.Pos)
+	var node ast.Node = &ast.Ident{Meta: meta, Name: tok.Text}
+	for {
+		switch p.tok.Kind {
+		case Dot:
+			p.next()
+			if p.tok.Kind != Ident {
+				p.errorExpected("name after `.`", "")
+				return nil
+			}
+			node = &ast.Selector{Meta: meta, Base: node, Member: p.tok.Text}
+			p.next()
+		case LBracket:
+			open := p.tok
+			p.next()
+			index := p.parsePrimary()
+			if index == nil {
+				// already reported
+				return nil
+			}
+			if p.tok.Kind != RBracket {
+				p.errorExpected("`]`", "to close the `[` at "+open.Pos.String())
+				return nil
+			}
+			p.next()
+			node = &ast.Index{Meta: meta, Base: node, Subscript: index}
+		default:
+			return node
+		}
+	}
+}
+
+// parseFieldRef parses a field reference, `%{process.pid}`, the current token
+// being its `%{`: the name inside the braces, the same as written bare,
+// `process.pid`.
+//
+//	FieldRef → "%{" Name "}"
+func (p *parser) parseFieldRef() ast.Node {
+	open := p.tok
+	p.next()
+
+	if p.tok.Kind != Ident {
+		p.errorExpected("field name after `%{`", "")
+		return nil
+	}
+	ident := p.tok
+	p.next()
+	name := p.parseName(ident)
+	if name == nil {
+		// already reported
+		return nil
+	}
+
+	if p.tok.Kind != RBrace {
+		p.errorExpected("`}`", "to close the `%{` at "+open.Pos.String())
+		return nil
+	}
+	p.next()
+	return name
+}
+
+// parseInterpolation parses a string with values interpolated in it, the
+// current token: `"pid:%{process.pid}"`, `"${my_var}/x"`. The scanner goes
+// back into the string, and returns its parts. A string that turns out to have
+// no interpolation, `"\${a}"`, is a literal.
+//
+//	Interpolation → { StringText | Variable | FieldRef } StringEnd
+func (p *parser) parseInterpolation() ast.Node {
+	tok := p.tok
+	p.scanner.enterString(tok)
+	p.next()
+
+	var (
+		parts        []ast.Node
+		interpolated bool
+		failed       bool
+	)
+	for p.tok.Kind != StringEnd && p.tok.Kind != EOF {
+		part := p.tok
+		switch part.Kind {
+		case StringText:
+			p.next()
+			parts = append(parts, &ast.Literal{Meta: ast.At(part.Pos), Value: ast.MakeString(part.Text)})
+		case Variable:
+			p.next()
+			interpolated = true
+			parts = append(parts, &ast.VariableRef{Meta: ast.At(part.Pos), Name: part.Text[2 : len(part.Text)-1]})
+		case FieldOpen:
+			interpolated = true
+			if name := p.parseFieldRef(); name != nil {
+				parts = append(parts, name)
+			} else {
+				// already reported, the rest of the string is skipped
+				failed = true
+			}
+		default:
+			// an illegal token, already reported, or the rest of a string
+			// skipped after an error
+			p.next()
+			failed = true
+		}
+	}
+	p.next() // the closing quote
+
+	switch {
+	case failed:
+		return nil
+	case !interpolated:
+		return stringLiteral(tok)
+	}
+	return &ast.Interpolation{Meta: ast.At(tok.Pos), Parts: parts}
+}
+
+// stringLiteral returns the literal of a string token, its escape sequences
+// kept as written.
+func stringLiteral(tok Token) *ast.Literal {
+	return &ast.Literal{Meta: ast.At(tok.Pos), Value: ast.MakeString(tok.Text[1 : len(tok.Text)-1])}
 }
 
 // parseInt parses an integer literal, sign being the token of its sign, if
@@ -556,12 +684,20 @@ func (p *parser) parseArray() ast.Node {
 			return nil
 		}
 
-		switch member := p.parseMember().(type) {
-		case *ast.Literal:
+		if kind == identArray {
+			// a member is a constant, its name is kept as written
+			tok := p.tok
+			p.next()
+			name := p.parseName(tok)
+			if name == nil {
+				// already reported
+				p.skipArray()
+				return nil
+			}
+			idents = append(idents, ast.Sprint(name))
+		} else if member, ok := p.parseMember().(*ast.Literal); ok {
 			members = append(members, member)
-		case *ast.Ident:
-			idents = append(idents, member.Name)
-		default:
+		} else {
 			// already reported
 			p.skipArray()
 			return nil
@@ -598,8 +734,13 @@ func (p *parser) skipArray() {
 }
 
 // parseMember parses a member of an array literal: a literal, or an
-// identifier.
+// identifier. A string member is a literal, never interpolated: `["${IFS}"]`
+// is the text `${IFS}`.
 func (p *parser) parseMember() ast.Node {
+	if tok := p.tok; tok.Kind == String {
+		p.next()
+		return stringLiteral(tok)
+	}
 	if p.tok.Kind != Minus && p.tok.Kind != Plus {
 		return p.parsePrimary()
 	}
@@ -615,7 +756,7 @@ func (p *parser) parseMember() ast.Node {
 
 func (p *parser) startsOperand() bool {
 	switch p.tok.Kind {
-	case Ident, Int, Duration, String, Pattern, Regexp, IP, CIDR, Variable, FieldRef,
+	case Ident, Int, Duration, String, Pattern, Regexp, IP, CIDR, Variable, FieldOpen,
 		LParen, LBracket, Bang, Not, Minus, Plus, BXor:
 		return true
 	}

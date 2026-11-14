@@ -246,6 +246,15 @@ type SetDefinition struct {
 	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited,omitempty"`
 }
 
+// source returns the field or the expression the value of the variable is read
+// from, empty for a constant value.
+func (s *SetDefinition) source() string {
+	if s.Field != "" {
+		return s.Field
+	}
+	return s.Expression
+}
+
 // PreCheck returns an error if the set action is invalid
 func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if s.Name == "" {

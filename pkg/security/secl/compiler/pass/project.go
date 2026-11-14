@@ -8,7 +8,6 @@ package pass
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -29,9 +28,9 @@ import (
 // once folded, a rule that can't be decided by the fields alone, or that doesn't
 // use them, projects to `true`.
 //
-// fieldOf returns the field a field reference refers to.
-func ProjectFields(fields []string, fieldOf func(name string) string) Pass {
-	p := projection{fields: fields, fieldOf: fieldOf}
+// The names of the rule are expected to be resolved, see ResolveFields.
+func ProjectFields(fields []string) Pass {
+	p := projection{fields: fields}
 	return func(node ast.Node) (ast.Node, error) {
 		ast.EditChildren(node, func(root ast.Node) ast.Node {
 			return p.project(root, true)
@@ -41,8 +40,7 @@ func ProjectFields(fields []string, fieldOf func(name string) string) Pass {
 }
 
 type projection struct {
-	fields  []string
-	fieldOf func(name string) string
+	fields []string
 }
 
 // project projects a boolean expression, positive when it is under an even
@@ -71,18 +69,9 @@ func (p projection) project(node ast.Node, positive bool) ast.Node {
 func (p projection) isUnknown(node ast.Node) bool {
 	switch n := node.(type) {
 	case *ast.FieldRef:
-		return !slices.Contains(p.fields, p.fieldOf(n.Name))
+		return !slices.Contains(p.fields, n.Name)
 	case *ast.VariableRef:
 		return true
-	case *ast.Literal:
-		// an interpolation, `${variable}` or `%{field}`, is resolved at
-		// evaluation; a literal that only looks like one is unknown as well,
-		// which is sound
-		if n.Value.Kind() != ast.String {
-			return false
-		}
-		value := ast.StringVal(n.Value)
-		return strings.Contains(value, "${") || strings.Contains(value, "%{")
 	}
 	return false
 }
