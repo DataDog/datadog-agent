@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,6 +45,17 @@ type Controller struct {
 	queue                workqueue.TypedRateLimitingInterface[string]
 	isLeaderFunc         func() bool
 	leadershipStateNotif <-chan struct{}
+
+	reconcileErrMu   sync.RWMutex
+	lastReconcileErr error
+}
+
+// LastReconcileError returns the error from the most recent reconciliation
+// attempt, or nil if the last reconciliation succeeded or none has run yet.
+func (c *Controller) LastReconcileError() error {
+	c.reconcileErrMu.RLock()
+	defer c.reconcileErrMu.RUnlock()
+	return c.lastReconcileErr
 }
 
 // NewController returns a new Secret Controller.
@@ -173,7 +186,13 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(key)
 
-	if err := c.reconcile(); err != nil {
+	err := c.reconcile()
+
+	c.reconcileErrMu.Lock()
+	c.lastReconcileErr = err
+	c.reconcileErrMu.Unlock()
+
+	if err != nil {
 		c.requeue(key)
 		log.Errorf("Couldn't reconcile Secret %s/%s: %v", c.config.GetNs(), c.config.GetName(), err)
 		metrics.ReconcileErrors.Inc(metrics.SecretControllerName)
@@ -238,7 +257,7 @@ func (c *Controller) createSecret() error {
 	}
 
 	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Create(context.TODO(), secret, metav1.CreateOptions{})
-	return err
+	return common.WrapIfForbidden(err, "create", "secrets", c.config.GetNs(), c.config.GetName())
 }
 
 // updateSecret stores a new certificate in the Secret object
@@ -251,7 +270,7 @@ func (c *Controller) updateSecret(secret *corev1.Secret) error {
 	secret = secret.DeepCopy()
 	secret.Data = data
 	_, err = c.clientSet.CoreV1().Secrets(c.config.GetNs()).Update(context.TODO(), secret, metav1.UpdateOptions{})
-	return err
+	return common.WrapIfForbidden(err, "update", "secrets", c.config.GetNs(), c.config.GetName())
 }
 
 // notAfter defines the validity bounds when creating a new certificate
