@@ -21,3 +21,7 @@ or changed GPU metrics or tags. Instead, flag a PR that adds, removes, or
 renames a metric or tag without updating `spec/gpu_metrics.yaml` or
 `spec/tags.yaml`, because the spec-driven tests only cover what the spec
 declares.
+
+## Independent hardware capabilities
+
+When adding NVML metrics, check support at the operation, field, and port level. Flag using one counter's support as a prerequisite for independent counters when that discards supported metrics. Preserve successful independent results and distinguish unsupported capability errors from other failures. A shared support probe is valid when the vendor contract guarantees that those capabilities are supported together.
