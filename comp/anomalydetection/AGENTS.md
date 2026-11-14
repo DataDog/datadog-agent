@@ -239,10 +239,10 @@ Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
-| `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |
-| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each materialized log-count bucket |
+| `anomaly_detection.logs.time_buckets.enabled` | `false` | Expose fixed-width log-count buckets with implicit empty intervals |
+| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each logical log-count bucket |
 | `anomaly_detection.logs.time_buckets.idle_ttl` | `5m` | Continue emitting empty buckets after the last matching log |
-| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for materialized log-count buckets; native metric retention is unchanged |
+| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for logical log-count buckets; native metric retention is unchanged |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |

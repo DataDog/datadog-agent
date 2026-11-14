@@ -82,6 +82,38 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 }
 
+func TestObserverResetConfiguresLogTimeBuckets(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	obs := &observerImpl{
+		engine:  mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		catalog: defaultCatalog(), metricsCh: make(chan observation, 1),
+		logsCh: make(chan observation, 1), metricFilter: filter,
+	}
+	done := make(chan struct{})
+	go func() { obs.run(); close(done) }()
+	t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh); <-done })
+	buckets := DefaultLogCountBucketConfig()
+	buckets.Enabled = true
+	for _, test := range []struct {
+		config  *LogCountBucketConfig
+		enabled bool
+	}{
+		{&buckets, true}, {nil, true}, {&LogCountBucketConfig{}, false},
+	} {
+		require.NoError(t, obs.Reset(ComponentSettings{LogCountBuckets: test.config}, StorageConfig{}))
+		obs.engine.IngestLog("logs", &logObs{timestampMs: 1000, content: "error request failed"})
+		obs.engine.Advance(10)
+		series := obs.engine.storage.AllSeries("log_metrics_extractor", observerdef.AggregateAverage)
+		require.Len(t, series, 1)
+		if test.enabled {
+			require.Equal(t, []observerdef.Point{{Timestamp: 5, Value: 1}, {Timestamp: 10, Value: 0}}, series[0].Points)
+		} else {
+			require.Equal(t, []observerdef.Point{{Timestamp: 1, Value: 1}}, series[0].Points)
+		}
+	}
+}
+
 func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)

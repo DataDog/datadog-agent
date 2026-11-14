@@ -40,6 +40,7 @@ type TestbenchParamsFile struct {
 	UseMetricPipeline bool                       `json:"use_metric_pipeline"`
 	AnomalyCutoff     *bool                      `json:"anomaly_cutoff"`
 	Components        map[string]json.RawMessage `json:"components"`
+	LogTimeBuckets    json.RawMessage            `json:"log_time_buckets,omitempty"`
 }
 
 // LoadTestbenchParams reads a params JSON file and returns ComponentSettings
@@ -69,5 +70,12 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 	}
 	settings.UseMetricPipeline = file.UseMetricPipeline
 	settings.MetricPipelineAnomalyCutoff = file.AnomalyCutoff
+	if len(file.LogTimeBuckets) > 0 && string(file.LogTimeBuckets) != "null" {
+		buckets := observerimpl.DefaultLogCountBucketConfig()
+		if err := json.Unmarshal(file.LogTimeBuckets, &buckets); err != nil {
+			return settings, fmt.Errorf("parsing log_time_buckets: %w", err)
+		}
+		settings.LogCountBuckets = &buckets
+	}
 	return settings, nil
 }

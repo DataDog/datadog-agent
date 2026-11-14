@@ -719,8 +719,9 @@ type StorageReader interface {
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
-	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
-	// Uses binary search for efficiency. Returns 0 if the series is not found.
+	// PointCountUpTo returns the number of retained logical points with timestamp
+	// <= endTime, including completed implicit zero buckets for log counts.
+	// Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
 
 	// SumRange returns the sum of the specified aggregate over all points with
@@ -731,7 +732,8 @@ type StorageReader interface {
 	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
 
 	// WriteGeneration returns a per-series counter that increments on every
-	// write to that series, including same-bucket merges. Use this to detect
+	// write to that series, including same-bucket merges and completion of
+	// implicit zero buckets. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
 	WriteGeneration(handle SeriesRef) int64
