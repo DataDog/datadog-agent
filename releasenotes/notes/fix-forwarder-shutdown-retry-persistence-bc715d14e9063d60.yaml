@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes an issue where in-flight HTTP payloads canceled during Agent shutdown were
+    dropped instead of being persisted to disk when forwarder storage is enabled. The
+    Datadog intake may have already accepted a payload before cancellation, so this
+    fix changes to at-least-once delivery rather than silently dropping payloads.

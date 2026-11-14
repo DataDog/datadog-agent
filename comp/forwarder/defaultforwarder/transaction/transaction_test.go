@@ -152,7 +152,7 @@ func TestProcessCancel(t *testing.T) {
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	err := transaction.Process(ctx, mockConfig, log, secrets, client, nil)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func Test_truncateBodyForLog(t *testing.T) {
