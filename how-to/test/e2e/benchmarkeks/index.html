@@ -4422,6 +4422,7 @@
 <p><strong>Baseline</strong> and <strong>Comparison</strong> are the averages of each version over the phases, and the value in parentheses in <strong>Change</strong> is their difference. The percentage comes from the ratios of both versions block by block, averaged over the phases, which <a href="statistics/#cancelling-out-the-machines">cancels out the machines</a>: it can differ slightly from the ratio of the two columns. <a href="statistics/">How the test decides</a> explains the p-value and the verdict.</p>
 <p>In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the <code>kubelet</code> check (−13.4%, under 20%). Both builds run the same code: these are differences that <a href="statistics/#limits">escape the p-value</a>, and that the thresholds absorb.</p>
 <p>The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.</p>
+<p>The report and the end of the log also link to the dashboard <a href="https://dddev.datadoghq.com/dashboard/bkx-svx-pjc">E2e tests — containers — benchmarkeks</a> of dddev, set to the cluster and the time of the run. Its graphs of the Agents have a curve per <code>image_tag</code>, that is per version, as long as the images of the two versions have different tags: a version keeps its curve across the swaps, which only move it to the node pools of the other installation. The links of the metrics in the report split them by <code>image_tag</code> too. Green and orange markers show the start and the end of each phase: the test posts them to dddev as events, whose text tells which images each installation runs.</p>
 <h2 id="run-it-locally">Run it locally<a class="headerlink" href="#run-it-locally" title="Permanent link">&para;</a></h2>
 <p>Follow the <a href="../#one-time-setup">one-time E2E setup</a> first. Because the test reads the metrics of the Agents back from dddev, your E2E configuration needs a dddev API key, and the test needs a dddev application key, set as for an <a href="../../manual-qa/aws-eks/#prerequisites">EKS cluster of manual QA</a>.</p>
 <p>Set the images of both versions, for instance to compare two releases:</p>
@@ -4458,7 +4459,7 @@
 <p class="admonition-title">Warning</p>
 <p>Set the Cluster Agent image too: without it, both versions run the same default Cluster Agent image. Without an explicit image, the E2E framework picks one in its usual <a href="https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/components/datadog/agent/docker_image.go#L56">resolution order</a>, which uses the images of the pipeline when <code>E2E_PIPELINE_ID</code> and <code>E2E_COMMIT_SHA</code> are set.</p>
 </div>
-<p>The test reads these environment variables, whose defaults are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L67">the suite</a>:</p>
+<p>The test reads these environment variables, whose defaults are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L69">the suite</a>:</p>
 <table>
 <thead>
 <tr>

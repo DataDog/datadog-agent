@@ -4508,7 +4508,7 @@
 </tr>
 </tbody>
 </table>
-<p>The <code>kubelet</code> check gets a larger threshold because its run time varies from one Agent pod to another: see <a href="#limits">the limits</a>. The thresholds are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L101"><code>test/new-e2e/tests/containers/benchmarkeks_test.go</code></a>, and each report states those it applied.</p>
+<p>The <code>kubelet</code> check gets a larger threshold because its run time varies from one Agent pod to another: see <a href="#limits">the limits</a>. The thresholds are set in <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/tests/containers/benchmarkeks_test.go#L104"><code>test/new-e2e/tests/containers/benchmarkeks_test.go</code></a>, and each report states those it applied.</p>
 <h2 id="the-verdict">The verdict<a class="headerlink" href="#the-verdict" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a> p-value ≥ 0.05 / 11 ? ─────────── yes ──► unchanged: it could be noise
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>     │ no
