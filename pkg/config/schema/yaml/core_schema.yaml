@@ -559,7 +559,7 @@ properties:
           enabled:
             node_type: setting
             type: string
-            default: datadog_only
+            default: 'false'
             visibility: public
             description: |-
               Global default for the distribution metrics intake version. Accepted values:

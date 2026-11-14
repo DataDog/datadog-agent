@@ -315,7 +315,6 @@ func TestBuildPipelinesSketchShadowFires(t *testing.T) {
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{"https://app.datadoghq.com": {"kept"}})
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
-	config.SetInTest("use_v3_api.distributions.enabled", "false")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -372,7 +371,6 @@ func TestBuildPipelinesSketchShadowCustomRoute(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
-	config.SetInTest("use_v3_api.distributions.enabled", "false")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.beta_route", "/api/intake/metrics/custom/sketches")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
@@ -436,7 +434,6 @@ func TestBuildPipelinesSketchShadowSitesKnobOptsInNonUS1(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.distributions.enabled", "false")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sites", []string{"us3.datadoghq.com"})
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
@@ -469,7 +466,6 @@ func TestBuildPipelinesSketchShadowSkippedForNonShadowSite(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
-	config.SetInTest("use_v3_api.distributions.enabled", "false")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -753,12 +749,7 @@ func TestSketchesV3Mode(t *testing.T) {
 		wantV3 map[string]bool
 	}{
 		{
-			name:   "default is datadog_only",
-			wantV3: map[string]bool{ddURL: true, proxyURL: false},
-		},
-		{
-			name:   "false",
-			config: map[string]any{"use_v3_api.distributions.enabled": "false"},
+			name:   "default is v2",
 			wantV3: map[string]bool{ddURL: false, proxyURL: false},
 		},
 		{
@@ -772,20 +763,9 @@ func TestSketchesV3Mode(t *testing.T) {
 			wantV3: map[string]bool{ddURL: true, proxyURL: false},
 		},
 		{
-			name: "per-URL opt-in",
-			config: map[string]any{
-				"use_v3_api.distributions.enabled":   "false",
-				"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "true"},
-			},
+			name:   "per-URL opt-in",
+			config: map[string]any{"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "true"}},
 			wantV3: map[string]bool{ddURL: false, proxyURL: true},
-		},
-		{
-			name: "per-URL datadog_only",
-			config: map[string]any{"use_v3_api.distributions.endpoints": map[string]string{
-				ddURL:    "datadog_only",
-				proxyURL: "datadog_only",
-			}},
-			wantV3: map[string]bool{ddURL: true, proxyURL: false},
 		},
 		{
 			name: "per-URL opt-out",
@@ -935,11 +915,7 @@ func TestSketchesV2Domains(t *testing.T) {
 		expected []string
 	}{
 		{
-			name: "Datadog URL on v3 by default",
-		},
-		{
-			name:     "sketches on v2 when disabled",
-			config:   map[string]any{"use_v3_api.distributions.enabled": "false"},
+			name:     "sketches on v2 by default",
 			expected: []string{"https://app.datadoghq.com"},
 		},
 		{
