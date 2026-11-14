@@ -192,6 +192,9 @@ type EBPFProbe struct {
 	// snapshot
 	ruleSetVersion    uint64
 	replayEventsState *atomic.Bool
+	// replaySysCtl is set when the loaded rule set has sysctl rules, so that
+	// the current value of every system control parameter is replayed
+	replaySysCtl *atomic.Bool
 
 	// Setsockopt and BPF Filter
 	BPFFilterTruncated *atomic.Uint64
@@ -1165,6 +1168,11 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		p.putBackPoolEvent(re.event)
 	}
+
+	if p.replaySysCtl.Load() {
+		p.replaySysCtlEvents(notifyConsumers)
+	}
+
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
 	// if this is not the first ruleset loaded, remove filters that are not used
@@ -1230,6 +1238,52 @@ func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
 		events = append(events, p.newLoadModuleEventFromProcFSSnapshot(mod, modulePaths[mod.Name], anchor))
 	}
 	return events
+}
+
+// replaySysCtlEvents dispatches a synthetic sysctl read event for every
+// parameter in /proc/sys, so that rules can match on the values set before the
+// agent started (e.g. at boot), which no sysctl event reports. The events are
+// built and dispatched one at a time: a host has thousands of parameters, about
+// 130 more per network interface.
+func (p *EBPFProbe) replaySysCtlEvents(notifyConsumers bool) {
+	// /proc/sys gives no process to attribute the values to
+	anchor := model.NewPlaceholderProcessCacheEntry(0, 0, false)
+	timestamp := time.Now()
+	timestampRaw := uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(timestamp))
+
+	var count int
+	err := sysctl.WalkProcSys(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, func(name, value string) {
+		event := p.newSysCtlEventFromProcFSSnapshot(name, value, anchor, timestamp, timestampRaw)
+		p.DispatchEvent(event, notifyConsumers)
+		p.putBackPoolEvent(event)
+		count++
+	})
+	if err != nil {
+		seclog.Warnf("sysctl replay failed after %d parameters: %v", count, err)
+		return
+	}
+	seclog.Debugf("replayed %d sysctl parameters", count)
+}
+
+// newSysCtlEventFromProcFSSnapshot returns a sysctl read event reporting the
+// current value of a system control parameter, read from /proc/sys.
+func (p *EBPFProbe) newSysCtlEventFromProcFSSnapshot(name, value string, anchor *model.ProcessCacheEntry, timestamp time.Time, timestampRaw uint64) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = timestamp
+	event.TimestampRaw = timestampRaw
+	event.Type = uint32(model.SysCtlEventType)
+	event.ProcessCacheEntry = anchor
+	event.ProcessContext = &anchor.ProcessContext
+	event.Source = model.EventSourceReplay
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.SysCtl.Action = uint32(model.SysCtlReadAction)
+	event.SysCtl.Name = name
+	// as for the read events from the kernel, both values are the current one
+	event.SysCtl.OldValue = value
+	event.SysCtl.Value = value
+
+	return event
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -3112,6 +3166,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 	}
 
 	eventTypes := rs.GetEventTypes()
+	p.replaySysCtl.Store(slices.Contains(eventTypes, model.SysCtlEventType.String()))
 
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
@@ -3777,6 +3832,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		cancelFnc:            cancelFnc,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
+		replaySysCtl:         atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
 		dnsRequests:          dnsRequests,
 		hostname:             hostname,

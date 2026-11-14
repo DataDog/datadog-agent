@@ -172,6 +172,60 @@ func (s *Snapshot) procSysWalkFunc(procRoot string, root string, ignoredBaseName
 	}
 }
 
+// WalkProcSys calls fn with the name and the current value of every readable
+// system control parameter in /proc/sys. The name is the path relative to
+// /proc/sys, as reported by sysctl events (e.g. "kernel/yama/ptrace_scope"),
+// and the value has its surrounding whitespace trimmed, as in sysctl events.
+// The values of the parameters listed in ignoredBaseNames are redacted, as in
+// the snapshot.
+func WalkProcSys(ignoredBaseNames []string, fn func(name, value string)) error {
+	return walkSystemControls(kernel.HostProc("/sys"), ignoredBaseNames, fn)
+}
+
+// walkSystemControls calls fn with the name, relative to root, and the trimmed
+// value of every readable file under root.
+func walkSystemControls(root string, ignoredBaseNames []string, fn func(name, value string)) error {
+	return filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if file == root {
+				return err
+			}
+			// Skip what can't be read, such as fs/binfmt_misc when it is an
+			// automount point that can't be triggered from a container (ELOOP),
+			// rather than giving up on the remaining parameters.
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return nil // the parameter may have disappeared, e.g. with its network interface
+		}
+		if info.Mode()&0444 == 0 {
+			return nil
+		}
+
+		name, err := filepath.Rel(root, file)
+		if err != nil {
+			return err
+		}
+
+		value, err := readFileContent(file, ignoredBaseNames)
+		if err != nil {
+			return nil // Skip files that can't be read
+		}
+
+		fn(name, strings.TrimSpace(string(value)))
+		return nil
+	})
+}
+
 func readSnapshotSystemControl(primaryPath, fallbackPath string, ignoredBaseNames []string) ([]byte, error) {
 	value, err := readFileContent(primaryPath, ignoredBaseNames)
 	if err == nil {

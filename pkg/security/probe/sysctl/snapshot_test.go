@@ -358,3 +358,62 @@ func TestSnapshot_InsertSnapshotEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestWalkSystemControls(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"kernel/yama/ptrace_scope":       "2\n",
+		"kernel/random/boot_id":          "secret\n",
+		"net/ipv4/conf/lo/forwarding":    " 0 \n",
+		"net/ipv4/tcp_rmem":              "4096\t131072\t6291456\n",
+		"vm/write_only_file_not_visited": "1",
+	}
+	for name, value := range files {
+		file := filepath.Join(root, name)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+		assert.NoError(t, os.WriteFile(file, []byte(value), 0o644))
+	}
+	assert.NoError(t, os.Chmod(filepath.Join(root, "vm/write_only_file_not_visited"), 0o200))
+
+	got := make(map[string]string)
+	err := walkSystemControls(root, []string{"boot_id"}, func(name, value string) {
+		got[name] = value
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"kernel/yama/ptrace_scope":    "2",
+		"kernel/random/boot_id":       redactedContent,
+		"net/ipv4/conf/lo/forwarding": "0",
+		"net/ipv4/tcp_rmem":           "4096\t131072\t6291456",
+	}, got)
+}
+
+func TestWalkSystemControlsSkipsUnreadableDirectories(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read directories without the read permission")
+	}
+
+	root := t.TempDir()
+	for name, value := range map[string]string{
+		"fs/binfmt_misc/status": "enabled\n",
+		"fs/file-max":           "100\n",
+		"vm/swappiness":         "60\n",
+	} {
+		file := filepath.Join(root, name)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+		assert.NoError(t, os.WriteFile(file, []byte(value), 0o644))
+	}
+	unreadable := filepath.Join(root, "fs/binfmt_misc")
+	assert.NoError(t, os.Chmod(unreadable, 0))
+	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o755) })
+
+	got := make(map[string]string)
+	err := walkSystemControls(root, nil, func(name, value string) {
+		got[name] = value
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"fs/file-max":   "100",
+		"vm/swappiness": "60",
+	}, got)
+}

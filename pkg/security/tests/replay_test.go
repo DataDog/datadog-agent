@@ -380,6 +380,47 @@ func TestReplay(t *testing.T) {
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the load_module event from snapshot")
 	})
+
+	t.Run("procfs-snapshot-sysctl", func(t *testing.T) {
+		checkKernelCompatibility(t, "missing cgroup/sysctl support", func(kv *kernel.Version) bool {
+			mp, err := utils.GetCgroup2MountPoint()
+			return !kv.HasCgroupSysctlSupportWithRingbuf() || err != nil || len(mp) == 0
+		})
+
+		// the value set before the module starts is only reported by the replay
+		value, err := readSysctlValue("kernel/kptr_restrict")
+		if err != nil {
+			t.Fatalf("couldn't read kernel/kptr_restrict: %v", err)
+		}
+		value = strings.TrimSpace(value)
+
+		ruleDefs := []*rules.RuleDefinition{
+			{
+				ID: "test_rule_replay_sysctl",
+				Expression: fmt.Sprintf(
+					`event.source == "replay" && sysctl.action == SYSCTL_READ && sysctl.name == "kernel/kptr_restrict" && sysctl.old_value == "%s" && sysctl.value == "%s"`,
+					value, value,
+				),
+			},
+		}
+
+		gotEvent := atomic.NewBool(false)
+
+		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+			ruleMatchHandler: func(_ *testModule, e *model.Event, r *rules.Rule) {
+				assertTriggeredRule(t, r, "test_rule_replay_sysctl")
+				assert.Equal(t, uint64(model.ProcessCacheEntryFromPlaceholder), e.ProcessContext.Source,
+					"snapshot sysctl events must be anchored on a placeholder PCE")
+				gotEvent.Store(true)
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.CloseTest()
+
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the sysctl event from snapshot")
+	})
 }
 
 // readProcSnapshotCredentials independently reads the credential fields used by
