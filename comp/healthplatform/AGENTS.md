@@ -188,7 +188,7 @@ Declare every context key your module reads as a package-private `const` at the 
       Text:  "Check known issues for version " + checkVersion,
   })
   ```
-- When the error type determines different remediation paths, use a helper (`buildAnnotationContent`, `buildSourceSpecificContent`, etc.) to keep `BuildIssue` readable — see `ad-misconfiguration/annotation_issue.go`
+- When the error type determines different remediation paths, use a helper (such as `buildAnnotationContent`) to keep `BuildIssue` readable — see `ad-misconfiguration/annotation_issue.go`
 
 ---
 
@@ -299,7 +299,7 @@ The pattern (see `TestIssueStateLifecycleForwarded`):
 1. Start an in-process fakeintake server: `fi := fakeintakeserver.NewServer(...); fi.Start()`
 2. Boot the full bundle with `fxutil.Test`, pointing `health_platform.forwarder.dd_url` at `fi.URL()`
 3. Trigger the condition by calling `store.ReportIssue(...)` or `scheduler.Schedule(...)`
-4. Poll `fiClient.GetAgentHealth()` and assert on issue state (`ISSUE_STATE_NEW`, `ISSUE_STATE_RESOLVED`)
+4. Poll `fiClient.GetAgentHealth()` and assert on issue state (`ISSUE_STATE_ACTIVE`, `ISSUE_STATE_RESOLVED`)
 
 Use this when the issue is triggered by agent-internal logic (a startup check, a config validation) and does not require a specific OS environment.
 
