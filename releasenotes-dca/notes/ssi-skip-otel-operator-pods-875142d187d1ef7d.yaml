@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Single Step Instrumentation no longer injects pods that request instrumentation from the
+    OpenTelemetry Operator with an ``instrumentation.opentelemetry.io/inject-*`` annotation whose
+    value is neither empty nor ``false``, to avoid instrumenting them twice. Remote Configuration
+    rules, targets and cluster-wide injection skip these pods, which get the
+    ``internal.apm.datadoghq.com/injection-status: skipped`` annotation with the reason in
+    ``internal.apm.datadoghq.com/injection-error``. Datadog library annotations and
+    ``DatadogInstrumentation`` resources still inject them. Annotations set on the namespace are
+    not considered yet, so pods that only inherit them are still instrumented twice.
