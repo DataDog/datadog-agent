@@ -22,10 +22,12 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -1540,11 +1542,16 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
 	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
-	workload := c.getKueueWorkloadForPod(pod)
-	if workload != nil {
+	workload, err := c.store.GetKubernetesKueueWorkloadForPod(pod)
+	if err == nil {
 		clusterQueueName := c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
 		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
+	}
+	// Missing Workloads are expected, including for pods not managed by Kueue.
+	// Ambiguous associations need investigation; keep queue-only tags below.
+	if !pkgerrors.IsNotFound(err) {
+		log.Warnf("Unable to resolve Kueue Workload for pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
@@ -1578,20 +1585,11 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 	tagList.AddOrchestrator(tags.SchedulerWorkload, workloadName)
 }
 
-func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
-	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
-	if workloadName == "" {
-		// Known limitation: for plain-Pod groups the Kueue Workload object name
-		// is not guaranteed to equal the pod-group-name label value. When they
-		// diverge, the lookup in getKueueWorkloadForPod fails and we fall back
-		// to pod-label queue tags (fail-closed, no incorrect tags).
-		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
-	}
-	return workloadName
-}
-
 func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	return kueueWorkloadNameForPod(pod) != "" ||
+	// The managed label covers plain Pods with only a UID association. Keep
+	// explicit references and queue labels for controller-created pods and
+	// queue-only tagging, which do not require that label.
+	return kueue.IsManagedPod(pod) || kueue.WorkloadName(pod) != "" ||
 		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
@@ -1656,33 +1654,17 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
-		return pod.Namespace == e.Namespace && kueueWorkloadNameForPod(pod) == e.Name
+		return kueue.WorkloadMatchesPod(e, pod)
 	case *workloadmeta.KubernetesKueueQueue:
 		// Pods can reach a queue through their Workload, so matching them
 		// exactly would need a Workload lookup per pod. Queue events are rare,
 		// so match every Kueue pod that can use the queue instead.
 		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
 	case *workloadmeta.KubernetesKueueResourceFlavor:
-		return kueueWorkloadNameForPod(pod) != ""
+		return podHasKueueInfo(pod)
 	default:
 		return false
 	}
-}
-
-func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
-	workloadName := kueueWorkloadNameForPod(pod)
-	if workloadName == "" {
-		return nil
-	}
-
-	workloadID := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
-	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
-	if err != nil || workload == nil {
-		log.Debugf("Could not get Kueue workload entity for namespace %s and name %s: %v", pod.Namespace, workloadName, err)
-		return nil
-	}
-
-	return workload
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKAIInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

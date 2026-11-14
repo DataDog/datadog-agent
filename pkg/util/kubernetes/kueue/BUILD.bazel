@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kueue",
+    srcs = ["pod.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/kubernetes",
+    ],
+)

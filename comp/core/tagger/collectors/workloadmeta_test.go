@@ -7276,3 +7276,112 @@ func podAutoscalerKindTags(tagInfos []*types.TagInfo) map[string][]string {
 	}
 	return res
 }
+
+// The standalone-Pod integration creates a Workload owned by the Pod, even
+// when the Pod itself belongs to a RayCluster. The job-uid label is streamed
+// to node Agents, while the Pod may have neither workload-name reference.
+func TestKueuePodUIDTagsPropagate(t *testing.T) {
+	for _, workloadFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("workloadFirst=%t", workloadFirst), func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			ch := make(chan []*types.TagInfo, 10)
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, &fakeProcessor{ch})
+			pod := &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "ray-worker", Namespace: "team-a", Labels: map[string]string{
+					kubernetes.KueueManagedLabelKey: "true",
+				}},
+				Containers: []workloadmeta.OrchestratorContainer{{ID: "container-id", Name: "worker"}},
+			}
+			store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-id"}})
+			workload := &workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/pod-ray-worker-12345"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "pod-ray-worker-12345", Namespace: "team-a", UID: "workload-uid",
+					Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: pod.ID}},
+				QueueName: "batch",
+				PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
+					{Name: "main", Flavors: map[string]string{"nvidia.com/gpu": "a100"}},
+				},
+			}
+			process := func(kind workloadmeta.EventType, entity workloadmeta.Entity) map[types.EntityID]*types.TagInfo {
+				t.Helper()
+				if kind == workloadmeta.EventTypeSet {
+					store.Set(entity)
+				} else {
+					store.Unset(entity)
+				}
+				collector.processEvents(workloadmeta.EventBundle{Events: []workloadmeta.Event{{Type: kind, Entity: entity, IsComplete: true}}, Ch: make(chan struct{})})
+				out := make(map[types.EntityID]*types.TagInfo)
+				for len(ch) > 0 {
+					for _, info := range <-ch {
+						out[info.EntityID] = info
+					}
+				}
+				return out
+			}
+			check := func(infos map[types.EntityID]*types.TagInfo, wantIdentity bool) {
+				t.Helper()
+				for _, id := range []types.EntityID{types.NewEntityID(types.KubernetesPodUID, pod.ID), types.NewEntityID(types.ContainerID, "container-id")} {
+					require.Contains(t, infos, id)
+					if wantIdentity {
+						assert.Contains(t, infos[id].OrchestratorCardTags, "kueue_workload:"+workload.Name)
+						assert.Contains(t, infos[id].OrchestratorCardTags, "kueue_workload_uid:workload-uid")
+					} else {
+						for _, tag := range infos[id].OrchestratorCardTags {
+							assert.NotContains(t, tag, "kueue_workload")
+						}
+					}
+				}
+			}
+			if workloadFirst {
+				process(workloadmeta.EventTypeSet, workload)
+				check(process(workloadmeta.EventTypeSet, pod), true)
+			} else {
+				check(process(workloadmeta.EventTypeSet, pod), false)
+				check(process(workloadmeta.EventTypeSet, workload), true)
+			}
+
+			// A managed pod without name or queue labels still needs retagging
+			// when its Workload's queue or ResourceFlavor arrives later.
+			queue := &workloadmeta.KubernetesKueueQueue{
+				EntityID:         workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueQueue, ID: "localqueue/team-a/batch"},
+				EntityMeta:       workloadmeta.EntityMeta{Name: "batch", Namespace: "team-a"},
+				QueueType:        workloadmeta.KueueLocalQueue,
+				ClusterQueueName: "cluster-batch",
+			}
+			queueInfos := process(workloadmeta.EventTypeSet, queue)
+			check(queueInfos, true)
+			for _, info := range queueInfos {
+				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
+					assert.Contains(t, info.LowCardTags, "kueue_cluster_queue:cluster-batch")
+				}
+			}
+			flavor := &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID:           workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"},
+				EntityMeta:         workloadmeta.EntityMeta{Name: "a100"},
+				NodeAffinityLabels: map[string]string{"nvidia.com/gpu.family": "Ampere"},
+			}
+			flavorInfos := process(workloadmeta.EventTypeSet, flavor)
+			check(flavorInfos, true)
+			for _, info := range flavorInfos {
+				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
+					assert.Contains(t, info.LowCardTags, "gpu_architecture:ampere")
+				}
+			}
+
+			// A duplicate claim is ambiguous; deleting it restores the mapping.
+			duplicate := workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload)
+			duplicate.ID, duplicate.Name = "team-a/duplicate", "duplicate"
+			check(process(workloadmeta.EventTypeSet, duplicate), false)
+			check(process(workloadmeta.EventTypeUnset, duplicate), true)
+
+			// Repeated metadata updates preserve the same association.
+			check(process(workloadmeta.EventTypeSet, workload), true)
+			check(process(workloadmeta.EventTypeUnset, workload), false)
+		})
+	}
+}
