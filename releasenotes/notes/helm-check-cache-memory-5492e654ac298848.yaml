@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Reduce the Helm check's memory usage by retaining compact release summaries
+    instead of full Kubernetes ConfigMap and Secret payloads in its informer caches.

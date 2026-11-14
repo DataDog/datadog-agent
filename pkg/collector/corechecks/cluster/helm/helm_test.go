@@ -15,13 +15,16 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -267,7 +270,10 @@ func TestRun(t *testing.T) {
 				"option": "option_value",
 			}
 
-			check.kubeClient = fake.NewSimpleClientset(kubeObjects...)
+			check.informerFactory = informers.NewSharedInformerFactory(
+				fake.NewSimpleClientset(kubeObjects...),
+				time.Minute,
+			)
 
 			mockedSender := mocksender.NewMockSender(t, CheckName)
 			mockedSender.SetupAcceptAll()
@@ -325,7 +331,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
-	check.kubeClient = k8sClient
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
 	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
@@ -428,7 +434,7 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
-	check.kubeClient = k8sClient
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
 	mockedSender := mocksender.NewMockSender(t, CheckName)
 	mockedSender.SetupAcceptAll()
@@ -570,7 +576,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.SetupAcceptAll()
 
 			k8sClient := fake.NewSimpleClientset()
-			check.kubeClient = k8sClient
+			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 			err := check.CommonConfigure(mockedSender.GetSenderManager(), nil, nil, "", "")
 			require.NoError(t, err)
 			err = check.Run()
@@ -626,6 +632,161 @@ func TestRun_ServiceCheck(t *testing.T) {
 		})
 	}
 
+}
+
+// Test the actual informer stores as well as watch updates and deletions: a
+// transform that only trims the check's release store leaves the large Kubernetes
+// payloads alive in these caches.
+func TestCompactInformerCache(t *testing.T) {
+	for _, storage := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		t.Run(string(storage), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				check := newCheck().(*HelmCheck)
+				check.instance.CollectEvents = true
+				check.instance.HelmValuesAsTags = map[string]string{"option": "option_value", "default": "default_value"}
+				check.startTS = time.Now().Add(-time.Hour)
+				check.informersStopCh = make(chan struct{})
+				defer check.Cancel()
+
+				rel := release{
+					Name: "app", Namespace: "default", Version: 1,
+					Info:   &info{Status: "deployed"},
+					Config: map[string]interface{}{"option": "override", "unused": strings.Repeat("x", 100000)},
+					Chart: &chart{
+						Metadata: &metadata{Name: "chart", Version: "1.0", AppVersion: "2.0"},
+						Values:   map[string]interface{}{"option": "default", "default": "fallback", "unused": strings.Repeat("y", 100000)},
+					},
+				}
+				makeObject := func(rel *release, resourceVersion string) runtime.Object {
+					var obj runtime.Object
+					var err error
+					if storage == k8sSecrets {
+						obj, err = secretForRelease(rel, time.Now())
+					} else {
+						obj, err = configMapForRelease(rel)
+					}
+					require.NoError(t, err)
+					metadata := obj.(metav1.Object)
+					metadata.SetNamespace("default")
+					metadata.SetResourceVersion(resourceVersion)
+					metadata.SetCreationTimestamp(metav1.Now())
+					metadata.SetAnnotations(map[string]string{"unused": strings.Repeat("z", 100000)})
+					return obj
+				}
+				first := makeObject(&rel, "1")
+				latest := rel
+				latest.Version = 2
+				second := makeObject(&latest, "2")
+				client := fake.NewSimpleClientset(first, second)
+				check.informerFactory = informers.NewSharedInformerFactory(client, time.Minute)
+				require.NoError(t, check.setupInformers())
+				synctest.Wait()
+				require.Len(t, check.store.getAll(storage), 2)
+
+				informer := check.informerFactory.Core().V1().ConfigMaps().Informer()
+				resource := v1.SchemeGroupVersion.WithResource("configmaps")
+				if storage == k8sSecrets {
+					informer = check.informerFactory.Core().V1().Secrets().Informer()
+					resource = v1.SchemeGroupVersion.WithResource("secrets")
+				}
+				require.Len(t, informer.GetStore().List(), 2)
+				for _, obj := range informer.GetStore().List() {
+					cached, ok := obj.(*cachedRelease)
+					require.True(t, ok, "informer retained Kubernetes object %T", obj)
+					require.Nil(t, cached.Annotations)
+					require.Nil(t, cached.Labels)
+					require.Nil(t, cached.release.Config)
+					require.Nil(t, cached.release.Chart.Values)
+					require.Contains(t, cached.tagsForMetricsAndEvents, "option_value:override")
+					require.Contains(t, cached.tagsForMetricsAndEvents, "default_value:fallback")
+					stored := check.store.get(cached.release.namespacedName(), cached.release.revision(), storage)
+					require.Same(t, cached.release, stored.release)
+					transformed, err := check.transformRelease(cached)
+					require.NoError(t, err)
+					require.Same(t, cached, transformed, "transform must be idempotent")
+				}
+
+				latest.Info = &info{Status: "failed"}
+				require.NoError(t, client.Tracker().Update(resource, makeObject(&latest, "3"), "default"))
+				synctest.Wait()
+				require.Equal(t, "failed", check.store.get("default/app", 2, storage).release.Info.Status)
+				check.eventsManager.eventsMutex.Lock()
+				events := append([]event.Event(nil), check.eventsManager.events...)
+				check.eventsManager.eventsMutex.Unlock()
+				require.Len(t, events, 3)
+				require.Contains(t, events[2].Text, `changed its status from "deployed" to "failed"`)
+				require.Contains(t, events[2].Tags, "option_value:override")
+
+				// Deleting the latest revision must restore the previous revision.
+				require.NoError(t, client.Tracker().Delete(resource, "default", "app.2"))
+				synctest.Wait()
+				require.Len(t, check.store.getAll(storage), 1)
+				require.Equal(t, 1, check.store.getLatestRevisions(storage)[0].release.Version)
+				require.NoError(t, client.Tracker().Delete(resource, "default", "app.1"))
+				synctest.Wait()
+				require.Empty(t, check.store.getAll(storage))
+				require.Empty(t, informer.GetStore().List())
+				check.eventsManager.eventsMutex.Lock()
+				events = append([]event.Event(nil), check.eventsManager.events...)
+				check.eventsManager.eventsMutex.Unlock()
+				require.Len(t, events, 4)
+				require.Contains(t, events[3].Tags, "helm_status:uninstalled")
+				require.Contains(t, events[3].Tags, "option_value:override")
+				require.Contains(t, events[3].Tags, "default_value:fallback")
+				require.NotContains(t, events[3].Tags, "helm_revision:1")
+			})
+		})
+	}
+}
+
+func TestCachedReleaseTombstone(t *testing.T) {
+	for _, storage := range []helmStorage{k8sConfigmaps, k8sSecrets} {
+		t.Run(string(storage), func(t *testing.T) {
+			check := newCheck().(*HelmCheck)
+			check.instance.CollectEvents = true
+			check.instance.HelmValuesAsTags = map[string]string{"option": "option_value"}
+			rel := &release{
+				Name: "app", Namespace: "default", Version: 1,
+				Info:   &info{Status: "deployed"},
+				Config: map[string]interface{}{"option": "custom"},
+			}
+			var obj interface{}
+			var err error
+			if storage == k8sSecrets {
+				obj, err = secretForRelease(rel, time.Now())
+			} else {
+				obj, err = configMapForRelease(rel)
+			}
+			require.NoError(t, err)
+			obj, err = check.transformRelease(obj)
+			require.NoError(t, err)
+			check.addRelease(obj)
+			check.deleteRelease(cache.DeletedFinalStateUnknown{Key: "default/app.1", Obj: obj})
+			require.Empty(t, check.store.getAll(storage))
+			deleted := check.eventsManager.events[len(check.eventsManager.events)-1]
+			require.Contains(t, deleted.Tags, "option_value:custom")
+			require.Contains(t, deleted.Tags, "helm_status:uninstalled")
+			require.NotContains(t, deleted.Tags, "helm_revision:1")
+			require.Contains(t, obj.(*cachedRelease).tagsForMetricsAndEvents, "helm_status:deployed", "deletion must not mutate cached tags")
+		})
+	}
+}
+
+func TestTransformInvalidRelease(t *testing.T) {
+	for _, obj := range []interface{}{
+		&v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "bad", Labels: map[string]string{"owner": "helm"}}, Data: map[string]string{"release": "invalid"}},
+		&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "bad", Labels: map[string]string{"owner": "helm"}}, Data: map[string][]byte{"release": []byte("invalid")}},
+	} {
+		check := newCheck().(*HelmCheck)
+		transformed, err := check.transformRelease(obj)
+		require.NoError(t, err, "invalid payloads must not prevent informer synchronization")
+		cached := transformed.(*cachedRelease)
+		require.Equal(t, "bad", cached.Name)
+		require.Nil(t, cached.taggedRelease)
+		check.addRelease(cached)
+		check.deleteRelease(cached)
+		require.Empty(t, check.store.getAll(cached.storage))
+	}
 }
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
