@@ -77,3 +77,14 @@ custom_queries:
 		})
 	}
 }
+
+func TestCollectSchemasConfiguration(t *testing.T) {
+	cfg, err := NewCheckConfig([]byte(`username: datadog
+collect_schemas:
+  enabled: true
+  collection_interval: 120
+`), nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.InstanceConfig.Schemas.Enabled)
+	assert.EqualValues(t, 120, cfg.InstanceConfig.Schemas.CollectionInterval)
+}
