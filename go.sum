@@ -14,6 +14,8 @@ cloud.google.com/go/compute/metadata v0.10.0 h1:pyKMUQSwchgkIBBJGdILqQbs/BNJXqwS
 cloud.google.com/go/compute/metadata v0.10.0/go.mod h1:rGFHRrIif570kSibjFTMbt6/4/tzgJWFGI/HVol4GIk=
 code.cloudfoundry.org/bbs v1.30.0 h1:YKd2YE64Hx0incnnD10Z1U3XtQuanbHjsok0oeyjs8w=
 code.cloudfoundry.org/bbs v1.30.0/go.mod h1:T3Ww9evbaamglolWbIaTcbfDrW0Ajoq5CO/ylPsribU=
+code.cloudfoundry.org/bbs v1.31.0 h1:KMA2xB9lnFkdT+GPubf/DnnVhvkB6AQGHZlmj9wnX2Y=
+code.cloudfoundry.org/bbs v1.31.0/go.mod h1:VaegURBO1/Q6ZYY3jHejL6TgeL6d1WhaSqH19+7DjFw=
 code.cloudfoundry.org/bbs/encryption v1.25.0 h1:CDFHgtLiD980Ot68+CZ/xg1gHvI6RItlCxswCUNomsM=
 code.cloudfoundry.org/bbs/encryption v1.25.0/go.mod h1:HZny9DV+/jOfQaqjS0Zsi8cr0A+KG5HbGhsmTFmOcMA=
 code.cloudfoundry.org/bbs/format v1.18.0 h1:ks8RUPW42FKDTfPlykYRu476+zPDBB5dBHeIt967ayg=
@@ -22,12 +24,16 @@ code.cloudfoundry.org/bbs/models v1.26.0 h1:PVE6K86TliRoBwwL4iyq6msxob4DyLPy543E
 code.cloudfoundry.org/bbs/models v1.26.0/go.mod h1:nsCY0zMA4i/Z/OcQwdfcxfuTaRJpxeFK+uYc7nQvkyU=
 code.cloudfoundry.org/cfhttp/v2 v2.99.0 h1:A2NuxCLW2MuT8Hsiiky3KE6PDvQZ8rkzPimcIs2/vCU=
 code.cloudfoundry.org/cfhttp/v2 v2.99.0/go.mod h1:xJ7XlnKyNnyR0+PGrIKARe0uBTqQK7T4BHMjVHnnb2k=
+code.cloudfoundry.org/cfhttp/v2 v2.101.0 h1:IC0iU2JoYwaZweNjaICmSyAeP/9wb1pEhfyhBhIfoC4=
+code.cloudfoundry.org/cfhttp/v2 v2.101.0/go.mod h1:r+IywdZGyt+PMmE3oVfAhsOIB+13UpKXP0MilM2c8CI=
 code.cloudfoundry.org/garden v0.11.0 h1:Ki0wKYlZKpN2evgkuWHo1f5CKN51mbfNO+IusXRb95o=
 code.cloudfoundry.org/garden v0.11.0/go.mod h1:heonDYHTuFrlOM1MJdZ+Nb8Al/3INhIvHd/ULIc147A=
 code.cloudfoundry.org/lager/v3 v3.94.0 h1:Q98+qcnG/JQjCNmzwjHpt7zB8g7RaMZU2gaQBYyHVv0=
 code.cloudfoundry.org/lager/v3 v3.94.0/go.mod h1:Csec9lyiZSKNTL5/qh2GBiiPSLHGLweq3/EhPCjAV8U=
 code.cloudfoundry.org/tlsconfig v0.69.0 h1:bvlvdU2BKiSEcgeiv0Csomzmq7Gn8vGU4yeNXy5FN2M=
 code.cloudfoundry.org/tlsconfig v0.69.0/go.mod h1:gKv5uSKC6EUgBllA7qDmXPYRz8sJaV3BWpCMsg24R8I=
+code.cloudfoundry.org/tlsconfig v0.70.0 h1:QsR1Ys8j/UcsQmAn8Zv+5BNC4pT66BZmxl+juTPdPvg=
+code.cloudfoundry.org/tlsconfig v0.70.0/go.mod h1:BFWFL5mEhEorvMWj6Pc9qxHJMWkU5UN15DYQ8vHCbk0=
 cyphar.com/go-pathrs v0.2.5 h1:SnX9FBvnoyn3lUs1dkMgZ52bAETpirNu3FTRh5HlRik=
 cyphar.com/go-pathrs v0.2.5/go.mod h1:y8f1EMG7r+hCuFf/rXsKqMJrJAUoADZGNh5/vZPKcGc=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
@@ -2320,6 +2326,8 @@ google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 h1:
 google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941/go.mod h1:AuGAdi9KnXss7xbLxIKhCvk+Ro/SxpET/iS45DNYN+M=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b h1:6WNWHZk91dp4gZ25642OALkuG1UVNZbwENJD19DnB8k=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b/go.mod h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e h1:w3fy/G8OrJHYexn+u5y7hFyc8YRRIr7DCevtIOwAcGY=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e/go.mod h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=
 google.golang.org/grpc v1.85.0 h1:BPBCfuVRQ1qvBhKDOq9uvQllMvO59rKsYhXpp7Dd8vw=
 google.golang.org/grpc v1.85.0/go.mod h1:0rQrOD58yjal/0EaVbGBANindixsCZNQPDV3VKtaKuQ=
 google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6 h1:ExN12ndbJ608cboPYflpTny6mXSzPrDLh0iTaVrRrds=
