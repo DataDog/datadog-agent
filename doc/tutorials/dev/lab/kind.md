@@ -42,7 +42,7 @@ By default, `dda lab local kind` installs the Datadog Agent via Helm. Provide an
 dda lab local kind --id dev
 
 # Custom image
-dda lab local kind --id dev --agent-image gcr.io/datadoghq/agent:7.50.0
+dda lab local kind --id dev --agent-image registry.datadoghq.com/agent:7.50.0
 
 # With custom Helm values
 dda lab local kind --id dev --helm-values ./values.yaml

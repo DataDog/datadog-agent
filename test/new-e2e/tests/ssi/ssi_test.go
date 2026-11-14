@@ -294,7 +294,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "local-sdk-injection-app",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -307,7 +307,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 						},
 						{
 							Name:    "local-sdk-expect-no-injection",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -318,7 +318,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 					Apps: []singlestep.App{
 						{
 							Name:    ddiApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -377,7 +377,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -388,7 +388,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-no-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -449,7 +449,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "workload-selection-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -458,7 +458,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 						},
 						{
 							Name:    "workload-selection-expect-no-injection",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -724,7 +724,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 					Apps: []singlestep.App{
 						{
 							Name:    rcHelmTargetApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -738,7 +738,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 					Apps: []singlestep.App{
 						{
 							Name:    rcAnnotatedPodApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -750,7 +750,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 						},
 						{
 							Name:    rcUnannotatedPodApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},

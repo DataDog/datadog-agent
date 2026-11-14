@@ -18,7 +18,7 @@ import (
 const (
 	awsPublicRegistry     = "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog"
 	awsDockerhubMirror    = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub"
-	gcpPublicRegistry     = "gcr.io/datadoghq"
+	gcpPublicRegistry     = "registry.datadoghq.com"
 	publicDockerhubMirror = "registry-1.docker.io"
 )
 
