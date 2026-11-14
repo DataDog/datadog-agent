@@ -9,10 +9,12 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -35,89 +37,92 @@ func OpenPrivilegedNoFollow(socketPath string, filePath string) (*os.File, error
 }
 
 func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File, error) {
-	// Create a new connection instead of reusing the shared connection from
-	// pkg/system-probe/api/client/client.go, since the connection is hijacked
-	// from the control of the HTTP server library on the server side.  It also
-	// ensures that we don't affect other clients if something goes wrong with
-	// our OOB handling leaving the connection unusable.
-	conn, err := net.Dial("unix", socketPath)
+	// A connection of its own, since the server takes it over to pass the file
+	// descriptor.
+	conn, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: socketPath, Net: "unix"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to system-probe: %v", err)
 	}
 	defer conn.Close()
 
-	req := common.OpenFileRequest{
-		Path:     filePath,
-		NoFollow: noFollow,
-	}
-
-	reqBody, err := json.Marshal(req)
+	body, err := json.Marshal(common.OpenFileRequest{Path: filePath, NoFollow: noFollow})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
-
-	httpReq, err := http.NewRequest("POST", "http://sysprobe/privileged_logs/open", bytes.NewReader(reqBody))
+	req, err := http.NewRequest(http.MethodPost, "http://sysprobe/privileged_logs/open", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	if err := httpReq.Write(conn); err != nil {
+	req.Header.Set("Content-Type", "application/json")
+	// On success the server switches protocols and sends the file descriptor;
+	// otherwise "close" makes it close the connection after its response.
+	// Either way, the reply ends at EOF.
+	req.Header.Set("Connection", "Upgrade, close")
+	req.Header.Set("Upgrade", common.UpgradeProtocol)
+	if err := req.Write(conn); err != nil {
 		return nil, fmt.Errorf("failed to write request: %v", err)
 	}
 
-	unixConn, ok := conn.(*net.UnixConn)
-	if !ok {
-		return nil, errors.New("not a Unix connection")
-	}
-
-	// Read the message and file descriptor using ReadMsgUnix
-	// The server sends the JSON response along with the file descriptor
-	buf := make([]byte, 1024) // Larger buffer for JSON response
-	oob := make([]byte, syscall.CmsgSpace(4))
-
-	n, oobn, _, _, err := unixConn.ReadMsgUnix(buf, oob)
+	reply, fds, err := readWithRights(conn)
+	defer func() {
+		for _, fd := range fds {
+			syscall.Close(fd)
+		}
+	}()
 	if err != nil {
-		return nil, fmt.Errorf("ReadMsgUnix failed: %v", err)
+		return nil, err
 	}
 
-	if n == 0 {
-		return nil, errors.New("no response received")
-	}
-
-	var response common.OpenFileResponse
-	if err := json.Unmarshal(buf[:n], &response); err != nil {
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(reply)), req)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
-
-	if !response.Success {
-		return nil, fmt.Errorf("module error: %s", response.Error)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		message, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("module error: %s", bytes.TrimSpace(message))
+	}
+	if len(fds) != 1 {
+		return nil, fmt.Errorf("expected 1 file descriptor, got %d", len(fds))
 	}
 
-	// Parse the file descriptor from the control message
-	if oobn > 0 {
+	file := os.NewFile(uintptr(fds[0]), filePath)
+	fds = nil
+	return file, nil
+}
+
+// readWithRights reads conn until EOF, collecting the file descriptors passed
+// as SCM_RIGHTS. It only uses recvmsg, since the kernel discards the
+// descriptors attached to bytes consumed by a plain read.
+func readWithRights(conn *net.UnixConn) ([]byte, []int, error) {
+	var data []byte
+	var fds []int
+	buf := make([]byte, 1024)
+	oob := make([]byte, syscall.CmsgSpace(4))
+	for {
+		n, oobn, _, _, err := conn.ReadMsgUnix(buf, oob)
+		if errors.Is(err, io.EOF) {
+			return data, fds, nil
+		}
+		if err != nil {
+			return data, fds, fmt.Errorf("ReadMsgUnix failed: %v", err)
+		}
+		data = append(data, buf[:n]...)
 		msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
 		if err != nil {
-			return nil, fmt.Errorf("ParseSocketControlMessage failed: %v", err)
+			return data, fds, fmt.Errorf("ParseSocketControlMessage failed: %v", err)
 		}
-
 		for _, msg := range msgs {
-			if msg.Header.Level == syscall.SOL_SOCKET && msg.Header.Type == syscall.SCM_RIGHTS {
-				fds, err := syscall.ParseUnixRights(&msg)
-				if err != nil {
-					return nil, fmt.Errorf("ParseUnixRights failed: %v", err)
-				}
-
-				if len(fds) > 0 {
-					fd := fds[0] // We only expect one file descriptor
-					log.Tracef("Received file descriptor: %d", fd)
-					return os.NewFile(uintptr(fd), filePath), nil
-				}
+			if msg.Header.Level != syscall.SOL_SOCKET || msg.Header.Type != syscall.SCM_RIGHTS {
+				continue
 			}
+			rights, err := syscall.ParseUnixRights(&msg)
+			if err != nil {
+				return data, fds, fmt.Errorf("ParseUnixRights failed: %v", err)
+			}
+			fds = append(fds, rights...)
 		}
 	}
-
-	return nil, errors.New("no file descriptor received")
 }
 
 func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.File, error) {
