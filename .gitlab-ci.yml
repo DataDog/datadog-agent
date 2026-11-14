@@ -346,6 +346,7 @@ variables:
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
+  RUN_PR_E2E_KMT_TESTS: "false" # Set to "true" to restore the original behavior: E2E and KMT jobs run on PR (branch) pipelines based on changed paths. By default they are skipped on PRs.
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
@@ -467,6 +468,15 @@ variables:
 # Enable forcing all KMT tests to run
 .if_run_all_kmt_tests: &if_run_all_kmt_tests
   if: $RUN_KMT_TESTS == 'on'
+
+# PR/branch pipelines: any pipeline that is not main, a release branch, a tag, a triggered/deploy pipeline.
+# By default E2E and KMT jobs are not executed there automatically: they become manual jobs. Set RUN_PR_E2E_KMT_TESTS=true to get the previous
+# (path-based) behavior back, or RUN_E2E_TESTS=on / RUN_KMT_TESTS=on to force the respective jobs.
+.if_pr_skip_e2e_tests: &if_pr_skip_e2e_tests
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS != "on" && $RUN_PR_E2E_KMT_TESTS != "true"
+
+.if_pr_skip_kmt_tests: &if_pr_skip_kmt_tests
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_KMT_TESTS != "on" && $RUN_PR_E2E_KMT_TESTS != "true"
 
 .if_disable_unit_tests: &if_disable_unit_tests
   if: $RUN_UNIT_TESTS == "off"
@@ -798,6 +808,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -822,6 +835,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -833,6 +849,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -845,6 +864,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -856,6 +878,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -867,6 +892,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -878,6 +906,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -889,6 +920,9 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
     when: never
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   - <<: *if_installer_tests
   - <<: *on_build_changes
   - changes:
@@ -917,6 +951,9 @@ workflow:
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_light_pipeline]
+  - <<: *if_pr_skip_kmt_tests
+    when: manual
+    allow_failure: true
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
@@ -978,6 +1015,9 @@ workflow:
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
+  - <<: *if_pr_skip_kmt_tests
+    when: manual
+    allow_failure: true
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
@@ -991,6 +1031,9 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
   # Fakeintake server change: run e2e against the built v<sha> override image.
   # Main-targeting pipelines only.
   - if: $COMPARE_TO_BRANCH == "main"
