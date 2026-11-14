@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/cenkalti/backoff/v7"
 	"github.com/shirou/gopsutil/v4/cpu"

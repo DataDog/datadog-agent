@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"unicode/utf8"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	"golang.org/x/text/encoding/unicode"
 )
 

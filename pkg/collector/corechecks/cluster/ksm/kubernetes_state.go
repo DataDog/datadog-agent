@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"

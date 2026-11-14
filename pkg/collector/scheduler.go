@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 

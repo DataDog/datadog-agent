@@ -16,7 +16,7 @@ import (
 	"sort"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"

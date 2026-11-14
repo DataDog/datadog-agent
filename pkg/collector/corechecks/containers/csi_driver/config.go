@@ -8,7 +8,7 @@ package csidriver
 import (
 	"fmt"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const defaultEndpoint = "http://localhost:5000/metrics"

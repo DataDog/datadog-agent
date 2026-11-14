@@ -16,7 +16,7 @@ import (
 	"github.com/qri-io/jsonpointer"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"

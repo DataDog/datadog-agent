@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/itchyny/gojq v0.12.20
 	github.com/stretchr/testify v1.12.1
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 )
 
 require (
@@ -17,6 +17,7 @@ require (
 	github.com/itchyny/timefmt-go v0.1.9 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	go.uber.org/atomic v1.12.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/time v0.16.0 // indirect
 )
 

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 	"google.golang.org/protobuf/proto"
 
 	core "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
