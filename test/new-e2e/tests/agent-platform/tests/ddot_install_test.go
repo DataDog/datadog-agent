@@ -201,7 +201,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	}
 
 	is.T().Run("install ddot", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo apt-get update")
+		ExecuteWithoutError(t, VMclient, "sudo apt-get update -o Dir::Etc::sourcelist=sources.list.d/datadog.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0")
 		ExecuteWithoutError(t, VMclient, "sudo apt-get install datadog-agent-ddot -y -q")
 	})
 
