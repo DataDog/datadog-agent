@@ -46,10 +46,17 @@ import (
 //     of their origins.
 //   - Metrics no rule ever matches are sent exactly as by an aggregator without rules.
 //   - Filtered identities are referenced by exactly the contexts that filter to them, and released with them.
+//
+// Monotonic counts keep state per source, which the model doesn't reproduce: the aggregator without rules computes
+// each source as without filtering, and the model expects its output, filtered under the rules at the commit.
 
 const (
 	modelCounter                  = "m.counter"
+	modelCount                    = "m.count"
 	modelDist                     = "m.dist"
+	modelMono                     = "m.mono"
+	modelHistBuckets              = "m.hist"
+	modelHistBucketBound          = 2
 	modelUnfilteredCounter        = "m.other"
 	modelUnfilteredDist           = "m.otherdist"
 	modelSamplers                 = 3
@@ -57,7 +64,7 @@ const (
 )
 
 // modelFiltered are the metrics rules match.
-var modelFiltered = []string{modelCounter, modelDist}
+var modelFiltered = []string{modelCounter, modelCount, modelDist, modelMono, modelHistBuckets}
 
 // modelRules are the rule sets a run switches between: which tag names are filtered from the filtered metrics.
 var modelRules = [][]string{nil, {"pod"}, {"zone"}, {"pod", "zone"}}
@@ -67,7 +74,10 @@ var modelMetrics = []struct {
 	mtype metrics.MetricType
 }{
 	{modelCounter, metrics.CounterType},
+	{modelCount, metrics.CountType},
 	{modelDist, metrics.DistributionType},
+	{modelMono, metrics.MonotonicCountType},
+	{modelHistBuckets, metrics.HistogramType},
 	{modelUnfilteredCounter, metrics.CounterType},
 	{modelUnfilteredDist, metrics.DistributionType},
 }
@@ -150,8 +160,10 @@ func (m modelMeta) add(noIndex bool, source metrics.MetricSource) modelMeta {
 func (v modelValue) add(o modelValue) modelValue { return modelValue{v.Count + o.Count, v.Sum + o.Sum} }
 
 type modelSampler struct {
-	commits  int // calls to expireContexts so far
-	contexts map[string]*modelContext
+	commits int // calls to expireContexts so far
+	// cumulative is each source's raw monotonic counter.
+	cumulative map[string]float64
+	contexts   map[string]*modelContext
 	// sketches are the sketch samples since the last commit, by context.
 	sketches map[string]modelValue
 }
@@ -236,7 +248,7 @@ func (r *modelRun) register(i int) {
 	r.agg.handleRegisterSampler(modelSamplerID(i))
 	r.baseline.handleRegisterSampler(modelSamplerID(i))
 	if !r.registered[i] {
-		r.samplers[i] = &modelSampler{contexts: map[string]*modelContext{}, sketches: map[string]modelValue{}}
+		r.samplers[i] = &modelSampler{contexts: map[string]*modelContext{}, sketches: map[string]modelValue{}, cumulative: map[string]float64{}}
 	}
 	r.registered[i], r.removing[i] = true, false
 }
@@ -300,9 +312,25 @@ func (r *modelRun) sample(i int) {
 		if r.rng.Intn(5) < 2 {
 			continue
 		}
+		sampleValue, flushFirst := value, false
+		if m.mtype == metrics.MonotonicCountType {
+			// A raw counter, which sometimes resets; some checks flush the first value they see.
+			source := strings.Join(tags, ",")
+			if r.rng.Intn(10) == 0 {
+				s.cumulative[source] = 0
+			}
+			s.cumulative[source] += value
+			sampleValue, flushFirst = s.cumulative[source], r.rng.Intn(2) == 0
+		}
 		for _, agg := range []*BufferedAggregator{r.agg, r.baseline} {
-			sample := &metrics.MetricSample{Name: m.name, Mtype: m.mtype, Value: value, Tags: slices.Clone(tags), SampleRate: 1, Timestamp: ts,
-				NoIndex: noIndex, Source: origin}
+			if m.name == modelHistBuckets {
+				agg.handleSenderBucket(senderHistogramBucket{id: modelSamplerID(i), bucket: &metrics.HistogramBucket{
+					Name: m.name, Value: int64(value), LowerBound: modelHistBucketBound, UpperBound: modelHistBucketBound,
+					Tags: slices.Clone(tags), Timestamp: ts}})
+				continue
+			}
+			sample := &metrics.MetricSample{Name: m.name, Mtype: m.mtype, Value: sampleValue, Tags: slices.Clone(tags), SampleRate: 1, Timestamp: ts,
+				NoIndex: noIndex, Source: origin, FlushFirstValue: flushFirst}
 			agg.handleSenderSample(senderMetricSample{id: modelSamplerID(i), metricSample: sample})
 		}
 
@@ -313,11 +341,18 @@ func (r *modelRun) sample(i int) {
 			s.contexts[key] = ctx
 		}
 		ctx.lastSeen = s.commits
-		if m.mtype != metrics.DistributionType {
+		if m.mtype == metrics.MonotonicCountType {
+			continue // the aggregator without rules computes it
+		}
+		if m.mtype != metrics.DistributionType && m.name != modelHistBuckets {
 			ctx.counter += value
 			ctx.sampled = true
 		} else {
-			s.sketches[key] = s.sketches[key].add(modelValue{1, value})
+			sample := modelValue{1, value}
+			if m.name == modelHistBuckets {
+				sample = modelValue{Count: int64(value)}
+			}
+			s.sketches[key] = s.sketches[key].add(sample)
 		}
 	}
 }
@@ -326,7 +361,21 @@ func (r *modelRun) commit(i int) {
 	r.event("commit %d", i)
 	for _, agg := range []*BufferedAggregator{r.agg, r.baseline} {
 		agg.mu.Lock()
-		agg.checkSamplers[modelSamplerID(i)].commit(r.clock, &agg.flushFilterList)
+		cs := agg.checkSamplers[modelSamplerID(i)]
+		committed := len(cs.series)
+		cs.commit(r.clock, &agg.flushFilterList)
+		if agg == r.baseline {
+			// This commit's monotonic counts, computed per source without filtering.
+			for _, serie := range cs.series[committed:] {
+				if serie.Name != modelMono {
+					continue
+				}
+				tags := serie.Tags.UnsafeToReadOnlySliceString()
+				for _, p := range serie.Points {
+					r.expect(r.identity("serie", modelMono, tags), int64(p.Ts), modelValue{Sum: p.Value}, tags)
+				}
+			}
+		}
 		agg.mu.Unlock()
 	}
 
@@ -452,6 +501,10 @@ func (r *modelRun) flushAggregator(agg *BufferedAggregator, t trigger) []modelSe
 			identity := "sketch|" + sketch.Name + "|" + strings.Join(sortedTags(sketch.Tags.UnsafeToReadOnlySliceString()), ",")
 			for _, p := range sketch.Points {
 				value := modelValue{p.Sketch.Basic.Cnt, p.Sketch.Basic.Sum}
+				if sketch.Name == modelHistBuckets {
+					// Bucket counts are interpolated into sketches: only the counts are exact.
+					value.Sum = 0
+				}
 				points = append(points, modelSentPoint{identity, p.Ts, value, merged, sketch.NoIndex, sketch.Source,
 					fmt.Sprintf("min=%v max=%v host=%s noindex=%v source=%v", p.Sketch.Basic.Min, p.Sketch.Basic.Max, sketch.Host, sketch.NoIndex, sketch.Source)})
 			}

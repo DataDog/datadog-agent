@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
@@ -27,6 +29,8 @@ import (
 type checkOutputMerger struct {
 	series   map[serieSecond]*metrics.Serie
 	sketches map[sketchSecond]*metrics.SketchSeries
+
+	logThrottling util.SimpleThrottler
 }
 
 // mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
@@ -35,9 +39,10 @@ type mergedSketch struct {
 	sketch *metrics.SketchSeries
 }
 
-// serieSecond identifies a second of a merged series.
+// serieSecond identifies a second of a merged series: points of different types are never added up.
 type serieSecond struct {
 	contextKey ckey.ContextKey
+	mtype      metrics.APIMetricType
 	second     int64
 }
 
@@ -56,6 +61,8 @@ func newCheckOutputMerger() *checkOutputMerger {
 	return &checkOutputMerger{
 		series:   make(map[serieSecond]*metrics.Serie),
 		sketches: make(map[sketchSecond]*metrics.SketchSeries),
+
+		logThrottling: util.NewSimpleThrottler(5, 5*time.Minute, ""),
 	}
 }
 
@@ -64,9 +71,10 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 	for _, serie := range series {
 		for _, point := range serie.Points {
 			second := int64(point.Ts)
-			key := serieSecond{contextKey: serie.ContextKey, second: second}
+			key := serieSecond{contextKey: serie.ContextKey, mtype: serie.MType, second: second}
 			merged, held := m.series[key]
 			if !held {
+				m.warnTypeConflict(serie, second)
 				merged = new(metrics.Serie)
 				*merged = *serie
 				merged.Points = []metrics.Point{{Ts: float64(second)}}
@@ -77,6 +85,20 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 			}
 			merged.Points[0].Value += point.Value
 		}
+	}
+}
+
+// warnTypeConflict warns about a series held with another type for the same second: values of different types
+// can't be added up, so both are sent, and the intake keeps one.
+func (m *checkOutputMerger) warnTypeConflict(serie *metrics.Serie, second int64) {
+	for _, mtype := range []metrics.APIMetricType{metrics.APIGaugeType, metrics.APIRateType, metrics.APICountType} {
+		if _, ok := m.series[serieSecond{contextKey: serie.ContextKey, mtype: mtype, second: second}]; !ok || mtype == serie.MType {
+			continue
+		}
+		if !m.logThrottling.ShouldThrottle() {
+			log.Warnf("Check metric %q is reported as both %s and %s with the same tags after metric_tag_filterlist rules: only one of them is kept", serie.Name, mtype, serie.MType)
+		}
+		return
 	}
 }
 
