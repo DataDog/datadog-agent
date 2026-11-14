@@ -16,9 +16,11 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -43,6 +45,8 @@ type Endpoint struct {
 	APIKey string `json:"-"` // never marshal this
 	Host   string
 
+	apiKeyGetter func() (string, bool)
+
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
 	NoProxy bool
@@ -59,6 +63,32 @@ type Endpoint struct {
 	// APIKeyConfigIndex identifies this key's slot in the additional-endpoint host's
 	// key list. Nil for endpoints that do not subscribe to that setting.
 	APIKeyConfigIndex *int `mapstructure:"-" json:"-"`
+}
+
+// GetAPIKeyIfReady reads the current credential without exposing pending directives.
+func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
+	if e.apiKeyGetter != nil {
+		return e.apiKeyGetter()
+	}
+	if e.HasPendingDelegatedAuth || strings.HasPrefix(strings.TrimSpace(e.APIKey), model.DelaDirectivePrefix) {
+		return "", false
+	}
+	return e.APIKey, true
+}
+
+// AdditionalEndpoint binds a destination to its original config slot. The host may later
+// be rewritten for transport without changing which credential is read.
+func (c *AgentConfig) AdditionalEndpoint(setting, host, key string, index int) *Endpoint {
+	e := &Endpoint{Host: host, APIKey: strings.TrimSpace(key), APIKeyConfigIndex: &index}
+	if strings.HasPrefix(e.APIKey, model.DelaDirectivePrefix) {
+		e.APIKey = ""
+		e.HasPendingDelegatedAuth = true
+	}
+	if c.ReadAdditionalEndpointKey != nil {
+		readKey := c.ReadAdditionalEndpointKey
+		e.apiKeyGetter = func() (string, bool) { return readKey(setting, host, index) }
+	}
+	return e
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -388,6 +418,9 @@ type SymDBProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	// ReadAdditionalEndpointKey reads a fixed config slot using the core config's lock.
+	ReadAdditionalEndpointKey func(setting, host string, index int) (string, bool) `mapstructure:"-" json:"-"`
+
 	Features map[string]struct{}
 
 	Enabled      bool

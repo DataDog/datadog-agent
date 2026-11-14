@@ -145,6 +145,7 @@ dd_agent_go_test(
         "container_tags_hash_test.go",
         "converter_test.go",
         "debugger_test.go",
+        "delegated_endpoints_test.go",
         "dogstatsd_test.go",
         "dogstatsd_uds_test.go",
         "evp_proxy_test.go",

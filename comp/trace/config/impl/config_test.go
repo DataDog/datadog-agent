@@ -896,7 +896,7 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true, APIKeyConfigIndex: &firstKey},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true, APIKeyConfigIndex: &secondKey},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true, APIKeyConfigIndex: &thirdKey},
-	}, cfg.Endpoints)
+	}, resolvedEndpointSnapshots(t, cfg.Endpoints))
 	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
 	assert.False(t, cfg.SkipMainEndpoint)
 	assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
@@ -1585,9 +1585,9 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 
 		firstKey, secondKey := 0, 1
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key1", Host: "url1", APIKeyConfigIndex: &firstKey})
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key2", Host: "url1", APIKeyConfigIndex: &secondKey})
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key3", Host: "url2", APIKeyConfigIndex: &firstKey})
+		assert.Contains(t, resolvedEndpointSnapshots(t, cfg.Endpoints), &traceconfig.Endpoint{APIKey: "key1", Host: "url1", APIKeyConfigIndex: &firstKey})
+		assert.Contains(t, resolvedEndpointSnapshots(t, cfg.Endpoints), &traceconfig.Endpoint{APIKey: "key2", Host: "url1", APIKeyConfigIndex: &secondKey})
+		assert.Contains(t, resolvedEndpointSnapshots(t, cfg.Endpoints), &traceconfig.Endpoint{APIKey: "key3", Host: "url2", APIKeyConfigIndex: &firstKey})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"
@@ -3230,12 +3230,12 @@ func TestAcquireHostnameFallbackEUDM(t *testing.T) {
 func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("apm_config.additional_endpoints", map[string][]string{
-		"https://trace.agent.second-org.datadoghq.com": {"00000000000000000000000000000001", "DELA[org-uuid-1, aws]"},
+		"https://trace.agent.second-org.datadoghq.com": {" 00000000000000000000000000000001\n", "\tDELA[org-uuid-1, aws] "},
 		"https://trace.agent.third-org.datadoghq.com":  {"DELA[org-uuid-2, aws]", "DELA[org-uuid-3, aws]"},
 	})
 
 	var endpoints []*traceconfig.Endpoint
-	endpoints = appendEndpoints(endpoints, "apm_config.additional_endpoints")
+	endpoints = appendEndpoints(traceconfig.New(), endpoints, "apm_config.additional_endpoints")
 
 	var real, pending int
 	for _, e := range endpoints {
@@ -3245,27 +3245,28 @@ func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
 			assert.Empty(t, e.APIKey)
 		} else {
 			real++
+			assert.Equal(t, "00000000000000000000000000000001", e.APIKey)
 		}
 	}
 	assert.Equal(t, 1, real, "static key on the mixed domain is kept")
 	assert.Equal(t, 3, pending, "one pending marker per directive, so two orgs sharing a host both ship")
 }
 
-func TestAppendEndpointsPendingMarkerForUnenrolledKey(t *testing.T) {
-	// The telemetry setting is not yet enrolled for delegated-auth write-back; a directive
-	// there must still never ship as an API key.
+func TestAppendTelemetryEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
+	// A pending telemetry credential must never ship as an API key.
 	cfg := configmock.New(t)
 	cfg.SetInTest("apm_config.telemetry.additional_endpoints", map[string][]string{
 		"https://telemetry.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
 	})
 
 	var endpoints []*traceconfig.Endpoint
-	endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+	endpoints = appendEndpoints(traceconfig.New(), endpoints, "apm_config.telemetry.additional_endpoints")
 
 	require.Len(t, endpoints, 1)
 	assert.Empty(t, endpoints[0].APIKey)
 	assert.True(t, endpoints[0].HasPendingDelegatedAuth)
-	assert.Nil(t, endpoints[0].APIKeyConfigIndex)
+	require.NotNil(t, endpoints[0].APIKeyConfigIndex)
+	assert.Equal(t, 0, *endpoints[0].APIKeyConfigIndex)
 }
 
 func TestOnAdditionalEndpointsUpdatePreservesKeySlots(t *testing.T) {
@@ -3319,4 +3320,63 @@ func TestOnAdditionalEndpointsUpdateReconcilesResolvedKey(t *testing.T) {
 	c.OnAdditionalEndpointsUpdate(func(_ string, keys []string) { got = append(got, keys) })
 	core.Set("apm_config.additional_endpoints", map[string][]string{host: {"rotated-key"}}, configmodel.SourceSecret)
 	assert.Equal(t, [][]string{{"current-key"}, {"rotated-key"}}, got)
+}
+
+func TestAdditionalEndpointCredentialReadsOriginalSlot(t *testing.T) {
+	for _, setting := range []string{
+		"apm_config.additional_endpoints",
+		"apm_config.telemetry.additional_endpoints",
+	} {
+		t.Run(setting, func(t *testing.T) {
+			core := configcomp.NewMock(t)
+			const host = "https://intake.datadoghq.eu/path"
+			setKeys := func(keys []string) {
+				core.SetInTest(setting, map[string][]string{host: keys})
+			}
+			setKeys([]string{"DELA[org-a, aws]", "static-key", "resolved-before-startup"})
+			c := traceconfig.New()
+			c.DDAgentBin = "/not/exist"
+			require.NoError(t, applyDatadogConfig(c, core))
+			pending := c.AdditionalEndpoint(setting, host, "DELA[org-a, aws]", 0)
+			resolved := c.AdditionalEndpoint(setting, host, "resolved-before-startup", 2)
+			pending.Host = "intake.datadoghq.eu"
+			key, ready := pending.GetAPIKeyIfReady()
+			assert.Empty(t, key)
+			assert.False(t, ready)
+			key, ready = resolved.GetAPIKeyIfReady()
+			assert.Equal(t, "resolved-before-startup", key)
+			assert.True(t, ready)
+			for _, key := range []string{"first-key", "rotated-key"} {
+				setKeys([]string{" " + key + " ", "static-key", key + "-other"})
+				got, ready := pending.GetAPIKeyIfReady()
+				assert.True(t, ready)
+				assert.Equal(t, key, got)
+				got, ready = resolved.GetAPIKeyIfReady()
+				assert.True(t, ready)
+				assert.Equal(t, key+"-other", got)
+			}
+			setKeys([]string{""})
+			for _, endpoint := range []*traceconfig.Endpoint{pending, resolved} {
+				key, ready := endpoint.GetAPIKeyIfReady()
+				assert.Empty(t, key)
+				assert.False(t, ready)
+			}
+		})
+	}
+}
+
+// Compare configured values separately from the unexported credential getter.
+func resolvedEndpointSnapshots(t *testing.T, endpoints []*traceconfig.Endpoint) []*traceconfig.Endpoint {
+	t.Helper()
+	snapshots := make([]*traceconfig.Endpoint, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		key, ready := endpoint.GetAPIKeyIfReady()
+		require.True(t, ready)
+		assert.Equal(t, endpoint.APIKey, key)
+		snapshots = append(snapshots, &traceconfig.Endpoint{
+			Host: endpoint.Host, APIKey: key, NoProxy: endpoint.NoProxy, IsMRF: endpoint.IsMRF,
+			HasPendingDelegatedAuth: endpoint.HasPendingDelegatedAuth, APIKeyConfigIndex: endpoint.APIKeyConfigIndex,
+		})
+	}
+	return snapshots
 }
