@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/cenkalti/backoff/v7"
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -81,6 +83,7 @@ const (
 	benchmarkChecksTimeout    = 10 * time.Minute
 	benchmarkIngestionTimeout = 15 * time.Minute
 	benchmarkSwapTimeout      = 10 * time.Minute
+	benchmarkEventTimeout     = time.Minute
 
 	nodeAgentComponent     = "Node Agent"
 	clusterAgentComponent  = "Cluster Agent"
@@ -475,6 +478,13 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	comparisonCommit, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CommitSHA, "")
 	s.Require().NoError(err)
 
+	// The events of the phases are posted in the background (see postPhaseEvent): the test
+	// waits for them before it ends, not to log after it.
+	var eventPosts sync.WaitGroup
+	defer eventPosts.Wait()
+	baselineEventImages := []string{baselineImages.AgentFullImagePath, baselineImages.ClusterAgentFullImagePath}
+	comparisonEventImages := []string{comparisonImages.AgentFullImagePath, comparisonImages.ClusterAgentFullImagePath}
+
 	report := benchmark.Report{ClusterName: s.clusterName, Phases: make([]benchmark.Window, phases)}
 	snapshots := make([]map[string]installationSnapshots, phases)
 	snapshotErrs := make([]error, phases)
@@ -493,7 +503,21 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		}
 		s.T().Logf("Phase %d of %d: measuring the baseline images on installation %s and the comparison images on installation %s from %s to %s",
 			phase+1, phases, baselineVariant.name, comparisonVariant.name, window.From.UTC().Format(time.RFC3339), window.To.UTC().Format(time.RFC3339))
+		event := benchmark.PhaseEvent{
+			Boundary:   benchmark.PhaseStart,
+			Phase:      phase,
+			Phases:     phases,
+			Window:     window,
+			Baseline:   baselineEventImages,
+			Comparison: comparisonEventImages,
+		}
+		// At the start of the window rather than in advance, not to post an event dated in the
+		// future.
+		s.sleepUntil(window.From)
+		s.postPhaseEvent(ctx, &eventPosts, event)
 		snapshots[phase], snapshotErrs[phase] = s.runSnapshots(ctx, window)
+		event.Boundary = benchmark.PhaseEnd
+		s.postPhaseEvent(ctx, &eventPosts, event)
 		// A restart during the measurement skews it, and hints at a crash or an OOM kill.
 		s.Require().NoErrorf(s.compareRestarts(ctx, readyRestarts), "an Agent restarted during phase %d or the warm-up before it", phase+1)
 		s.Require().NoErrorf(s.waitForWorkload(time.Minute), "the workload stopped during phase %d", phase+1)
@@ -519,6 +543,8 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		for _, metric := range benchmarkMetrics {
 			thresholds := metric.thresholds
 			thresholds.Significance = significance
+			// The explorer link splits the metric by image, i.e. by version: the curve of each
+			// version is continuous across the swaps.
 			result := benchmark.Result{
 				Component:   component.name,
 				Metric:      metric.name,
@@ -526,7 +552,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 				Thresholds:  thresholds,
 				QueryA:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantA, component.scope),
 				QueryB:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantB, component.scope),
-				ExplorerURL: benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"kube_namespace"}, first.From, last.To),
+				ExplorerURL: benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"image_tag"}, first.From, last.To),
 			}
 			report.Results = append(report.Results, compareResult(result, report.Phases, func(_ int, window benchmark.Window) ([]benchmark.Point, []benchmark.Point, error) {
 				installationA, err := s.dddev.query(ctx, result.QueryA, window.From, window.To)
@@ -653,6 +679,28 @@ func (s *benchmarkEKSSuite) reportVersion(ctx context.Context, name string, vari
 		Images:      images,
 		ProfilesURL: benchmark.ProfilesURL(dddevAppURL, strings.Join(s.variantScope(variant.name), " "), window.From, window.To),
 	}, nil
+}
+
+// postPhaseEvent posts event to dddev, where the dashboard of the benchmark overlays the
+// boundaries of the phases on its graphs. It posts it in a goroutine of posts, not to delay
+// the snapshots of the measurement while dddev retries. A failure, or a post outlasting
+// benchmarkEventTimeout, is only logged: the events only help to read the graphs.
+func (s *benchmarkEKSSuite) postPhaseEvent(ctx context.Context, posts *sync.WaitGroup, event benchmark.PhaseEvent) {
+	t := s.T()
+	request := datadogV1.EventCreateRequest{
+		Title:        event.Title(),
+		Text:         event.Text(),
+		DateHappened: datadog.PtrInt64(event.Time().Unix()),
+		AlertType:    datadogV1.EVENTALERTTYPE_INFO.Ptr(),
+		Tags:         append([]string{"app:agent-new-e2e-tests-containers", "test:" + t.Name(), s.clusterTag()}, event.Tags()...),
+	}
+	posts.Go(func() {
+		ctx, cancel := context.WithTimeout(ctx, benchmarkEventTimeout)
+		defer cancel()
+		if err := s.dddev.postEvent(ctx, request); err != nil {
+			t.Logf("No event for the %s of phase %d: %v", event.Boundary, event.Phase+1, err)
+		}
+	})
 }
 
 // runSnapshots takes snapshots of the runner stats of the components with checks of both

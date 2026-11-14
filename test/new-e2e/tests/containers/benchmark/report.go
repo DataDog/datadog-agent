@@ -32,6 +32,11 @@ const (
 	timeFormat = "2006-01-02 15:04 MST"
 )
 
+// span describes w as "from <start> to <end> (<duration>)", in UTC.
+func (w Window) span() string {
+	return fmt.Sprintf("from %s to %s (%s)", w.From.UTC().Format(timeFormat), w.To.UTC().Format(timeFormat), w.To.Sub(w.From))
+}
+
 // Unit is the unit of the values of a metric.
 type Unit string
 
@@ -197,8 +202,8 @@ func (r *Report) Markdown() string {
 		r.ClusterName, len(r.Phases))
 	for i, phase := range r.Phases {
 		baselineOn, comparisonOn := SwapInPhase(i, "a", "b")
-		fmt.Fprintf(&b, "- phase %d, from %s to %s (%s): baseline images on installation %s, comparison images on installation %s\n", i+1,
-			phase.From.UTC().Format(timeFormat), phase.To.UTC().Format(timeFormat), phase.To.Sub(phase.From), baselineOn, comparisonOn)
+		fmt.Fprintf(&b, "- phase %d, %s: baseline images on installation %s, comparison images on installation %s\n", i+1,
+			phase.span(), baselineOn, comparisonOn)
 	}
 	b.WriteString("\n")
 	if r.DashboardURL != "" {
