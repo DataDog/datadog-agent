@@ -7,6 +7,7 @@ go_library(
         "fingerprint_tailer_diagnostics.go",
         "launcher.go",
         "position.go",
+        "shared_file_diagnostics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file",
     visibility = ["//visibility:public"],
