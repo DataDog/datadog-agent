@@ -11,14 +11,16 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type agentMetadata map[string]interface{}
 
 // RawFile is a scrubbed configuration file and the hash of its scrubbed content.
 type RawFile struct {
-	RawConfig string `json:"raw_config"`
-	Hash      string `json:"hash"`
+	RawConfig string                  `json:"raw_config"`
+	Hash      string                  `json:"hash"`
+	Secrets   []scrubber.ConfigSecret `json:"secrets,omitempty"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload

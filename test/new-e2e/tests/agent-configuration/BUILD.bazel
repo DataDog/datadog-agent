@@ -34,6 +34,7 @@ dd_agent_go_test(
         "gui_win_test.go",
         "inventory_test.go",
         "secret_base_test.go",
+        "secret_metadata_nix_test.go",
         "secret_nix_test.go",
         "secret_win_test.go",
         "sgc_aws_nix_test.go",
@@ -44,6 +45,8 @@ dd_agent_go_test(
     ],
     embed = [":agent-configuration"],
     embedsrcs = [
+        "secret/fixtures/metadata-configs.yaml",
+        "secret/fixtures/metadata-secrets.py",
         "secret/fixtures/secret_script.py",
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",
     ],
@@ -60,8 +63,10 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/utils/e2e/client",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/fakeintake/aggregator",
         "//test/new-e2e/tests/agent-configuration/secretsutils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

@@ -302,6 +302,9 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 			"raw_config": configFile.ConfigFormat,
 			"hash":       configFile.Hash,
 		}
+		if !ic.conf.GetBool("metadata_skip_secrets") {
+			filesMetadata[configFile.Filename].(metadata)["secrets"] = configFile.Secrets
+		}
 	}
 
 	return filesMetadata

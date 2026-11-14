@@ -247,55 +247,61 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 // Invalid YAML is rejected instead of falling back to the text scrubber. The
 // fallback cannot apply YAML-only replacers and is therefore not safe for data
 // that is sent automatically as metadata.
-func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
+//
+// Returned secret declarations belong only to this call. Raw declarations identify
+// replaced fields, including whole containers; ENC declarations retain every
+// original path and handle.
+func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSecret, error) {
+	secrets := []ConfigSecret{}
 	if len(input) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
 
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	var document yaml.Node
 	if err := decoder.Decode(&document); err != nil {
 		if err == io.EOF {
-			return []byte{}, nil
+			return []byte{}, secrets, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	var trailing yaml.Node
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return nil, errors.New("multiple YAML documents are not supported")
+			return nil, nil, errors.New("multiple YAML documents are not supported")
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	if len(document.Content) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
 	if containsYamlAlias(&document) {
-		return nil, errors.New("YAML aliases are not supported")
+		return nil, nil, errors.New("YAML aliases are not supported")
 	}
 	var validation interface{}
 	if err := document.Decode(&validation); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	c.collectYamlEncSecrets(&document, "", &secrets)
 
-	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{})); err != nil {
-		return nil, err
+	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{}), &secrets); err != nil {
+		return nil, nil, err
 	}
 
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(&document); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := encoder.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return buffer.Bytes(), nil
+	return buffer.Bytes(), secrets, nil
 }
 
 // scrubYamlNode scrubs node, whose dotted path is path (see scrubCallback)
-func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}) error {
+func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}, secrets *[]ConfigSecret) error {
 	if node == nil {
 		return nil
 	}
@@ -311,13 +317,13 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 	switch node.Kind {
 	case yaml.DocumentNode:
 		for _, child := range node.Content {
-			if err := c.scrubYamlNode(child, path, visited); err != nil {
+			if err := c.scrubYamlNode(child, path, visited, secrets); err != nil {
 				return err
 			}
 		}
 	case yaml.SequenceNode:
 		for i, child := range node.Content {
-			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited); err != nil {
+			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited, secrets); err != nil {
 				return err
 			}
 		}
@@ -332,7 +338,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 			if decodedKeyString, ok := decodedKey.(string); ok {
 				keyValue = decodedKeyString
 			}
-			if err := c.scrubYamlNode(key, path, visited); err != nil {
+			if err := c.scrubYamlNode(key, path, visited, nil); err != nil {
 				return err
 			}
 
@@ -340,13 +346,22 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 			if err := value.Decode(&decoded); err != nil {
 				return err
 			}
-			valuePath := joinPath(path, keyValue)
+			valuePath := joinPath(path, c.scrubYamlText(keyValue))
 			if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
+				childSecrets := secrets
+				if secrets != nil {
+					// Replacers may mutate decoded maps; read the original node
+					// to check whether the field actually changed.
+					var before interface{}
+					if err := value.Decode(&before); err == nil && recordRawSecret(secrets, valuePath, before, replacement) {
+						childSecrets = nil
+					}
+				}
 				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+				if err := c.scrubYamlNode(value, valuePath, visited, childSecrets); err != nil {
 					return err
 				}
-			} else if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+			} else if err := c.scrubYamlNode(value, valuePath, visited, secrets); err != nil {
 				return err
 			}
 		}
@@ -357,6 +372,7 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 		}
 		if str, ok := decoded.(string); ok {
 			if matched, replacement := c.scrubDataValue("", path, str); matched {
+				recordRawSecret(secrets, path, str, replacement)
 				replaceYamlNode(node, replacement)
 			}
 		}
