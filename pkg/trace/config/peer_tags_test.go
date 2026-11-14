@@ -86,6 +86,75 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 		assert.Contains(t, names, "db.instance")
 		assert.Contains(t, names, "cassandra.keyspace")
 	})
+
+	t.Run("peer.aws.arn contains only callee ARNs", func(t *testing.T) {
+		var names []string
+		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerAWSARN) {
+			names = append(names, info.Name)
+		}
+		assert.Equal(t, []string{
+			"aws.sns.topic_arn",
+			"aws.topic.arn",
+			"aws.stream.arn",
+			"aws.state_machine.arn",
+			"aws.function.arn",
+			"aws.table.arn",
+			"aws.sns.topic.arn",
+			"aws.step_functions.state_machine.arn",
+		}, names)
+		// cloud.resource_id is an OTel resource attribute naming the caller's own resource,
+		// and OTLP spans carry resource attributes in Meta.
+		assert.NotContains(t, basePeerTags(r), "cloud.resource_id")
+		// Lambda functions run by Step Functions carry statemachinearn for their own state machine.
+		assert.NotContains(t, basePeerTags(r), "statemachinearn")
+	})
+
+	t.Run("peer.aws.sqs.queue.url contains queue URLs", func(t *testing.T) {
+		var names []string
+		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerAWSSQSQueueURL) {
+			names = append(names, info.Name)
+		}
+		assert.Equal(t, []string{"aws.queue.url", "aws.sqs.queue.url"}, names)
+	})
+
+	t.Run("scope concepts contain only callee values", func(t *testing.T) {
+		names := func(concept semantics.Concept) []string {
+			var out []string
+			for _, info := range r.GetAttributePrecedence(concept) {
+				out = append(out, info.Name)
+			}
+			return out
+		}
+		assert.Equal(t, []string{"gcloud.project_id"}, names(semantics.ConceptPeerGCPProjectID))
+		assert.Equal(t, []string{"messaging.kafka.cluster_id", "kafka.cluster_id", "messaging.kafka.cluster.id"}, names(semantics.ConceptPeerKafkaClusterID))
+		// The Lambda extension sets region and aws_account from the function's own ARN,
+		// so on Lambda spans they describe the caller, not the peer.
+		assert.NotContains(t, basePeerTags(r), "region")
+		assert.NotContains(t, basePeerTags(r), "aws_account")
+	})
+
+	t.Run("Pub/Sub identities come only from their dedicated full-path attributes", func(t *testing.T) {
+		names := func(concept semantics.Concept) []string {
+			var out []string
+			for _, info := range r.GetAttributePrecedence(concept) {
+				out = append(out, info.Name)
+			}
+			return out
+		}
+		assert.Equal(t, []string{"gcp.pubsub.topic.name"}, names(semantics.ConceptPeerGCPPubSubTopicName))
+		assert.Equal(t, []string{"gcp.pubsub.subscription.name"}, names(semantics.ConceptPeerGCPPubSubSubscriptionName))
+		// Consumers may put the subscription in the generic messaging destination fields,
+		// and pubsub.topic can be a short name or a placeholder.
+		for _, concept := range []semantics.Concept{semantics.ConceptPeerGCPPubSubTopicName, semantics.ConceptPeerGCPPubSubSubscriptionName} {
+			for _, notSource := range []string{"messaging.destination", "messaging.destination.name", "pubsub.topic", "pubsub.subscription"} {
+				assert.NotContains(t, names(concept), notSource, concept)
+			}
+		}
+		assert.NotContains(t, basePeerTags(r), "pubsub.topic")
+		assert.NotContains(t, basePeerTags(r), "pubsub.subscription")
+		assert.Contains(t, basePeerTags(r), "gcp.pubsub.topic.name")
+		assert.Contains(t, basePeerTags(r), "gcp.pubsub.subscription.name")
+	})
 }
 
 func TestPeerTagsAggregation(t *testing.T) {
