@@ -10,6 +10,8 @@ import (
 	"bufio"
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -32,6 +34,7 @@ func main() {
 		service = "sample-service"
 	}
 	tracer.Start(tracer.WithService(service))
+	defer tracer.Stop()
 
 	if os.Getenv("DD_SAMPLE_LOOP") == "" {
 		// Wait for input before executing functions to allow time for uprobe attachment
@@ -41,11 +44,19 @@ func main() {
 		return
 	}
 
+	shutdown, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer stop()
 	ticker := time.NewTicker(500 * time.Millisecond)
-	for range ticker.C {
-		span, ctx := tracer.StartSpanFromContext(context.Background(), "demo-round")
-		runAll(ctx)
-		span.Finish()
+	defer ticker.Stop()
+	for {
+		select {
+		case <-shutdown.Done():
+			return
+		case <-ticker.C:
+			span, ctx := tracer.StartSpanFromContext(context.Background(), "demo-round")
+			runAll(ctx)
+			span.Finish()
+		}
 	}
 }
 
