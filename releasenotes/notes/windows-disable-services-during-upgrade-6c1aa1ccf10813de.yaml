@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Prevent Windows Agent services from starting while MSI installation or removal
+    updates their configuration and permissions. Startup settings are restored
+    if the operation rolls back. Protection during an upgrade's old-version removal
+    applies when the installed version already includes this fix.
