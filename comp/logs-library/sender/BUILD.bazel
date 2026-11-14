@@ -7,6 +7,7 @@ go_library(
         "batch.go",
         "batch_strategy.go",
         "destination_sender.go",
+        "dropped_logs.go",
         "message_buffer.go",
         "sender.go",
         "sender_mock.go",
@@ -20,6 +21,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
+        "//comp/logs-library/client/droppedlogs",
         "//comp/logs-library/metrics",
         "//pkg/config/model",
         "//pkg/logs/message",
@@ -36,6 +38,7 @@ dd_agent_go_test(
         "batch_strategy_test.go",
         "batch_test.go",
         "destination_sender_test.go",
+        "dropped_logs_test.go",
         "message_buffer_test.go",
         "sender_test.go",
         "serializer_test.go",
@@ -59,5 +62,6 @@ dd_agent_go_test(
         "//pkg/util/compression",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/droppedlogs"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,6 +34,8 @@ type Destination struct {
 	retryLock           sync.Mutex
 	lastRetryError      error
 	isMRF               bool
+	// dropTarget names this destination in the dropped-logs health issue.
+	dropTarget metrics.DropTarget
 }
 
 // NewDestination returns a new destination.
@@ -47,6 +50,28 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
 		isMRF:               endpoint.IsMRF,
+		dropTarget:          defaultDropTarget(endpoint, shouldRetry),
+	}
+}
+
+// defaultDropTarget is what a destination reports drops under until its sender says
+// where it sits; TCP destinations carry no position of their own.
+func defaultDropTarget(endpoint config.Endpoint, shouldRetry bool) metrics.DropTarget {
+	kind := metrics.DropTargetPrimary
+	switch {
+	case endpoint.IsMRF:
+		kind = metrics.DropTargetMRF
+	case !shouldRetry:
+		kind = metrics.DropTargetBestEffort
+	}
+	return metrics.DropTarget{Host: endpoint.Host, Kind: kind}
+}
+
+// SetDropTargetKind overrides how this destination is named in the dropped-logs
+// health issue. The sender calls it for reliable additional endpoints.
+func (d *Destination) SetDropTargetKind(kind metrics.DropTargetKind) {
+	if !d.isMRF {
+		d.dropTarget.Kind = kind
 	}
 }
 
@@ -99,6 +124,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			// the delimiter can fail when the payload can not be framed correctly.
 			d.incrementErrors(true)
+			droppedlogs.RecordPayload(payload, metrics.DropReasonEncodeFailed, d.dropTarget)
 			return
 		}
 
@@ -114,6 +140,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				continue
 			}
 			d.incrementErrors(true)
+			droppedlogs.RecordPayload(payload, metrics.DropReasonSendFailed, d.dropTarget)
 			d.updateRetryState(nil, isRetrying)
 			log.Debugf("Resetting TCP connection following write error: %s", err)
 			return

@@ -5,6 +5,8 @@ go_library(
     name = "metrics",
     srcs = [
         "capacity_monitor.go",
+        "dropped_logs.go",
+        "loss_window.go",
         "metrics.go",
         "missed_bytes.go",
         "pipeline_monitor.go",
@@ -27,6 +29,7 @@ dd_agent_go_test(
     srcs = [
         "atomic_align_test.go",
         "capacity_monitor_test.go",
+        "dropped_logs_test.go",
         "metrics_test.go",
         "missed_bytes_test.go",
         "pipeline_monitor_test.go",
