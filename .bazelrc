@@ -20,6 +20,7 @@ common --@rules_jvm_external//settings:stamp_manifest=False # keep jars as publi
 common --@rules_python//python/config_settings:bootstrap_impl=script # don't use any system Python interpreter
 common --@rules_python//python/config_settings:current_config=fail # must match `pip.parse` defined wheels
 common --@rules_python//python/config_settings:experimental_python_import_all_repositories=false # avoid interferences
+common --@rules_python//python/config_settings:py_pbs_distribution=install_only_stripped # halves interpreter downloads
 common --@rules_python//python/config_settings:validate_test_main=enabled # must have runnable tests
 # Default is 50k. A cold //cmd/agent:agent already hashes ~241k files and evicts
 # ~191k, so later reads re-hash. 1M covers that plus CI test //... outputs.
