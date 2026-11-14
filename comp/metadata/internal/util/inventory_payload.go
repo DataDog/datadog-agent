@@ -56,6 +56,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"path/filepath"
 	"sync"
 	"time"
@@ -75,8 +76,12 @@ var (
 	defaultMinInterval = 1 * time.Minute
 	defaultMaxInterval = 10 * time.Minute
 
+	// scheduledJitter is the largest fraction of MaxInterval a scheduled payload comes early by.
+	scheduledJitter = 0.2
+
 	// For testing purposes
 	timeSince = time.Since
+	randFloat = rand.Float64
 )
 
 // PayloadGetter is the callback to generate a new payload exposed by each inventory payload to InventoryPayload utils
@@ -111,6 +116,7 @@ type InventoryPayload struct {
 	LastCollect   time.Time
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
+	nextInterval  time.Duration
 	forceRefresh  atomic.Bool
 	FlareFileName string
 }
@@ -217,13 +223,15 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 		return i.firstRunDelay - timeSince(i.createdAt)
 	}
 
-	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
-	// been at least MaxInterval seconds since the last payload.
-	if !i.forceRefresh.Load() && i.MaxInterval-timeSince(i.LastCollect) > 0 {
+	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if the
+	// next payload is due (see scheduleNext).
+	forced := i.forceRefresh.Load()
+	if !forced && i.dueInterval()-timeSince(i.LastCollect) > 0 {
 		return i.MinInterval
 	}
 
 	i.forceRefresh.Store(false)
+	i.scheduleNext(!forced && !i.LastCollect.IsZero())
 	i.LastCollect = time.Now()
 
 	p := i.getPayload()
@@ -236,6 +244,31 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
 	}
 	return i.MinInterval
+}
+
+// dueInterval returns how long after the last payload the next one is due: MaxInterval until scheduleNext
+// picks a jittered one.
+func (i *InventoryPayload) dueInterval() time.Duration {
+	if i.nextInterval > 0 {
+		return i.nextInterval
+	}
+	return i.MaxInterval
+}
+
+// scheduleNext picks when the payload after the one being sent is due. Without jitter, agents that start or
+// refresh at the same time (a fleet restarted or reconfigured at once) send in lockstep every MaxInterval, and
+// keep doing so: the backend receives the whole fleet's payloads within the same minute.
+//
+// After an unscheduled payload (the first one, a refresh or Submit), the next one is due after a random time
+// between MinInterval and MaxInterval, which spreads such agents over the whole interval. After a scheduled one,
+// it's due after MaxInterval minus up to scheduledJitter, so their phases keep drifting apart. Payloads are never
+// further apart than MaxInterval.
+func (i *InventoryPayload) scheduleNext(scheduled bool) {
+	if scheduled {
+		i.nextInterval = i.MaxInterval - time.Duration(randFloat()*scheduledJitter*float64(i.MaxInterval))
+		return
+	}
+	i.nextInterval = i.MinInterval + time.Duration(randFloat()*float64(max(i.MaxInterval-i.MinInterval, 0)))
 }
 
 // Submit synchronously builds a payload and enqueues it for submission now,
@@ -253,6 +286,7 @@ func (i *InventoryPayload) Submit() error {
 	}
 
 	i.forceRefresh.Store(false)
+	i.scheduleNext(false)
 	i.LastCollect = time.Now()
 	p := i.getPayload()
 	if p == nil {
