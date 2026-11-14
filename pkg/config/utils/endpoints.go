@@ -280,21 +280,18 @@ const ddSitePattern = `([a-z]{2,}\d{1,2}\.)?(` + ddDomainPattern + `)`
 // e.g., "notdatadoghq.com" is not mistaken for "datadoghq.com".
 var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$`)
 
-// ddSiteRe matches a whole Datadog site, such as "datadoghq.com" or "us3.datadoghq.com".
-var ddSiteRe = regexp.MustCompile(`^` + ddSitePattern + `$`)
+// ddLogsHostRe matches a host rooted under the logs subdomain of a Datadog site: one or more
+// labels, then "logs.", then a whole Datadog site.
+var ddLogsHostRe = regexp.MustCompile(`^(?:[a-z0-9-]+\.)+logs\.` + ddSitePattern + `$`)
 
-// IsDatadogIntakeHost reports whether host is exactly prefix followed by a Datadog site. For
-// example, with the prefix "agent-http-intake.logs.", it accepts "agent-http-intake.logs.datadoghq.com"
-// and "agent-http-intake.logs.us3.datadoghq.com", but not "agent-http-intake-pl.logs.datadoghq.com"
-// or "custom.agent-http-intake.logs.datadoghq.com". The comparison is case-insensitive and allows a
+// IsDatadogLogsHost reports whether host is rooted under the logs subdomain of a Datadog site:
+// "<labels>.logs.<site>". For example, it accepts "agent-http-intake.logs.datadoghq.com",
+// "foobar.logs.datad0g.com" and "http-intake.logs.us3.datadoghq.com", but not
+// "logs.datadoghq.com", "agent-http-intake.logs.x.us3.datadoghq.com" or
+// "agent-http-intake.logs.datadoghq.com.evil". The comparison is case-insensitive and allows a
 // single trailing dot (FQDN form).
-func IsDatadogIntakeHost(prefix, host string) bool {
-	host = strings.TrimSuffix(strings.ToLower(host), ".")
-	prefix = strings.ToLower(prefix)
-	if !strings.HasPrefix(host, prefix) {
-		return false
-	}
-	return ddSiteRe.MatchString(host[len(prefix):])
+func IsDatadogLogsHost(host string) bool {
+	return ddLogsHostRe.MatchString(strings.TrimSuffix(strings.ToLower(host), "."))
 }
 
 // ExtractSiteFromURL extracts the Datadog site from a URL.
