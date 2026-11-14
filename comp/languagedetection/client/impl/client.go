@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	client "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
@@ -355,6 +355,12 @@ func (c *languageDetectionClientImpl) handlePodEvent(podEvent workloadmeta.Event
 		for _, cid := range containerIDs {
 			delete(c.processesWithoutPod, cid)
 		}
+		// Evict the pod's processed_events series; otherwise per-pod series leak
+		// forever and trip the agent_telemetry max_returned_metrics limit.
+		c.telemetry.ProcessedEvents.DeletePartialMatch(map[string]string{
+			"scanned_pod_namespace": pod.Namespace,
+			"scanned_pod":           pod.Name,
+		})
 	}
 
 	c.logger.Debugf("processed %s event for pod %s/%s having container IDs: %v", eventType, pod.Namespace, pod.Name, containerIDs)
