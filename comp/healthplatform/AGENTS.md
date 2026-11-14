@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The Health Platform detects, stores, and ships agent health issues to the Datadog backend.
+The Health Platform detects, stores, and ships agent health issues to the Datadog backend. For new issue types, the Agent reports structured diagnostic facts and the backend `agthealth-worker` catalog supplies display content and remediation. `Extra` carries the context needed to render that content and investigate the issue. See [Backend content workflow](#backend-content-workflow) for field ownership, precedence, and rollout requirements.
 
 Two paths lead issues into the store:
 
@@ -29,7 +29,7 @@ Sub-package roles:
 
 | Sub-package | Role |
 |---|---|
-| `issues/<module>/` | Detection + remediation bundled per issue type |
+| `issues/<module>/` | Detection + diagnostic payload construction per issue type |
 | `issueregistry/` | Wires module factories into a `Registry` at startup |
 | `runner/` | Executes `HealthCheckFunc`, translates `IssueReport` → proto `Issue` via the registry (falls back to a minimal proto when no template is registered) |
 | `scheduler/` | Drives periodic checks on a timer |
@@ -133,15 +133,15 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 
 ### `Title` — human sentence, instance-specific
 
-- Set inside `BuildIssue`, not a constant
-- Embed the most actionable instance-specific value from `context` (entity name, path, check name)
+- Define instance-specific wording in the backend template. If the Agent supplies a diagnostic fallback, set it inside `BuildIssue`, not as a constant; the backend preserves any non-empty title.
+- Embed the most actionable instance-specific value (entity name, path, check name), and include that value separately in `Extra` for backend rendering and investigation.
 - A static title is acceptable only for true singleton issues where there is genuinely one possible instance
 
 ---
 
 ## Implementing `BuildIssue`
 
-`BuildIssue(context map[string]string) (*healthplatform.Issue, error)` is the remediation contract. Follow these rules exactly.
+`BuildIssue(context map[string]string) (*healthplatform.Issue, error)` constructs the Agent diagnostic payload. For new issue types, leave `Issue.Remediation` nil; create the remediation in the backend catalog instead. The Agent-side registry `Template` interface and `BuildIssue` still serve payload construction and are distinct from the backend catalog templates.
 
 ### Context access
 
@@ -156,39 +156,84 @@ if checkName == "" {
 
 Declare every context key your module reads as a package-private `const` at the top of `issue.go` (e.g. `contextKeyConfigPath = "config_path"`). This makes the contract between the check and the template explicit.
 
-### Required proto fields
+Backend-generated content can use `Extra` to enrich any supported content field. Include every structured fact needed for display content, remediation, or investigation instructions. The sections below distinguish required Agent data from fields the current worker can enrich; enrichment does not imply unrestricted replacement of Agent values.
+
+### What is required
 
 | Field | Rule |
 |---|---|
 | `IssueName` | Must equal the `IssueName` const — never vary |
 | `IssueType` | Must equal the `IssueType` const — never vary. Must be `IssueName` lowercased with spaces replaced by underscores |
-| `Title` | Embed the most actionable instance-specific value; avoid static titles |
-| `Description` | One-sentence diagnosis with relevant, secret-safe error details |
-| `Category` | Subsystem slug. Controls UI tab routing: `"configuration"` → Configuration tab; `"integration"` or `"check"` → Integrations tab; other values → default tab. Examples from existing modules: `"check-execution"`, `"autodiscovery"`, `"filesystem"`. New values can be created. |
-| `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
-| `Severity` | One of `ISSUE_SEVERITY_LOW`, `ISSUE_SEVERITY_MEDIUM`, `ISSUE_SEVERITY_HIGH` |
-| `Source` | Reporting component (examples: `"agent"`, `"collector"`, `"autodiscovery"`). New values can be created. |
-| `Remediation.Summary` | One actionable sentence |
-| `Remediation.Steps` | Numbered, ordered from fastest/cheapest to most invasive |
+| `Severity` | Agent-owned: report the observed severity. The worker never fills or overrides it from template metadata |
+| `Source` | Reporting component (examples: `"agent"`, `"collector"`). New values can be created. |
 | `Tags` | Lowercase slugs; always include the subsystem and any relevant entity name |
-| `Extra` | `structpb.Struct` — include all context keys so the UI can render them |
+| `Extra` | Agent-owned `structpb.Struct`: include every structured fact needed to generate display content, remediation, or investigation instructions; see the contract below |
+
+Keep `IssueName` and `IssueType` stable in the Agent for registry lookup and lifecycle handling. `Id`, severity, state/lifecycle, `Source`, `Tags`, and diagnostic `Extra` remain reporter-owned; template enrichment does not replace them. Report-level resource identity is independent of display content.
+
+For active issues, the worker requires a title, description, and severity after enrichment, as well as issue name, category, and host identity. Retain useful Agent fallback values until template deployment and resolver rollout are coordinated; missing required fields can cause the issue to be dropped. Account for resolver-disabled, missing-template, and resolution-failure cases as well as local Agent API output.
+
+### What can be enriched or overridden
+
+The current worker fills missing display fields; it does not override non-empty Agent values. Every supported template-generated field can use the diagnostic content in `Extra`.
+
+| Field | Backend behavior |
+|---|---|
+| `IssueName` | Can fill a missing name from the catalog; keep the stable constant in the Agent for registration and lifecycle handling |
+| `Title` | Renders from `Extra` when empty. Any Agent-provided fallback wins; include the underlying facts in `Extra` too |
+| `Description` | Renders the diagnosis from `Extra` when empty. Any Agent-provided fallback wins; do not leave diagnostic facts only in this prose |
+| `Category` | Fills a missing subsystem slug. A separate issue-type lookup also works with the resolver flag disabled. Category controls UI routing; examples include `"configuration"`, `"integration"`, and `"filesystem"` |
+| `Location` | Fills the detection location when missing, such as `"collector"`, `"agent"`, or `"autodiscovery"` |
+| `Remediation` | Supplies remediation for active issues when Agent remediation is empty. Leave nil for new issue types; the backend owns the summary, steps, scripts, and AI prompt |
+| `Remediation.ai_prompt` | Can be supplied by the backend even when the Agent already provides remediation; its existing summary and steps remain unchanged |
+
+Runtime severity and issue identity are not overridden. A template may own title/description/category/location entirely only when its deployment and resolver rollout are coordinated. Local Agent APIs and fakeintake receive the original Agent payload, not the backend-enriched fields.
+
+### `Extra`: the diagnostic and investigation contract
+
+**Every field needed to build display content, remediation, or an investigation must be present in `Issue.Extra`.** This includes template variables and variant selectors, but also the evidence an operator or investigation prompt needs to understand the failure. A value appearing in the title, description, logs, tags, or runner `Context` is not a substitute for a structured `Extra` field. The catalog receives `Extra` as its metadata input; it does not automatically receive those other fields. Agent version is supplied separately as resolver context.
+
+- Include the affected entity and scope (for example hostname, namespace, pod, container, check, or resource identifier), the observed error/reason, relevant paths or sanitized endpoints, timestamps, observed values and thresholds, and environment details such as OS when they determine the investigation or fix. Select the fields relevant to the issue; do not dump configuration or unrelated metadata.
+- Document each key's meaning, type, units where applicable, and behavior when unavailable. Keep wire names and types stable, and match them exactly in backend templates and fixtures. Preserve numbers and booleans as structured values rather than embedding them in prose.
+- Scrub secrets and credentials before constructing `Extra`. Bound large error text and collections; never include raw tokens, full configuration dumps, or unsanitized URLs. Missing evidence must remain distinguishable from an observed empty/zero value; templates need defaults for older reports.
+- Copy the relevant values from `IssueReport.Context` into `Extra` in `BuildIssue`. For direct reporters, populate `Extra` before `store.ReportIssue`. Do not expect the worker to parse descriptions or fetch Agent logs to reconstruct missing facts.
+
+For example, a connectivity issue could report this diagnostic contract (illustrative keys, not a new required schema for every issue):
+
+```json
+{
+  "hostname": "node-a",
+  "namespace": "monitoring",
+  "endpoint": "https://cluster-agent.monitoring.svc:5005",
+  "error_kind": "connection_refused",
+  "error": "dial tcp: connect: connection refused",
+  "failing_since": "2026-11-06T09:00:00Z",
+  "failure_threshold_seconds": 60
+}
+```
+
+The template can use `hostname` in the title, `error_kind` to select network versus TLS instructions, and `namespace`/`endpoint` to target diagnostic commands. The timestamp and threshold explain why the issue was raised. These facts remain available for investigation even when title, description, or remediation wording changes. If a template needs another fact, extend and test the Agent's `Extra` contract as well as the template, with a fallback for reports that do not yet carry it.
 
 **Never set `issue.Id`** inside `BuildIssue` — the runner sets it on the returned issue (from `IssueReport.IssueID`) before forwarding to the store. Tests assert `assert.Empty(t, issue.Id)`.
 
 > **Path B callers** who build and report issues directly (not via a `HealthCheckFunc`) must set `issue.Id` themselves — `store.ReportIssue` rejects an empty id.
 
-### Remediation steps
+### Backend content workflow
 
-- Step 1 is always the fastest diagnostic command (`agent status`, `agent configcheck`, etc.)
-- Include the exact CLI command text in the step string
-- Add optional steps conditionally based on context values; keep `Order` contiguous and 1-indexed:
-  ```go
-  steps = append(steps, &healthplatform.RemediationStep{
-      Order: int32(len(steps) + 1),
-      Text:  "Check known issues for version " + checkVersion,
-  })
-  ```
-- When the error type determines different remediation paths, use a helper (`buildAnnotationContent`, `buildSourceSpecificContent`, etc.) to keep `BuildIssue` readable — see `ad-misconfiguration/annotation_issue.go`
+The backend worker is named `agthealth-worker` in `dd-source`. Its [catalog authoring guide](https://github.com/DataDog/dd-source/blob/main/domains/evp-workers/apps/agthealth-worker/src/catalog/README.md) describes the template format, fixtures, and generation commands.
+
+For every new issue type:
+
+1. Keep detection, severity, issue identity, and resolution in the Agent. Populate the diagnostic fields above and put scrubbed, structured context in `Extra`. The catalog reads `Issue.Extra`, not the runner's internal `IssueReport.Context`; copy the values needed by the template into `Extra` in `BuildIssue`.
+1. Add `domains/evp-workers/apps/agthealth-worker/src/catalog/templates/<issue_type>.md` in a companion `dd-source` PR. Its `issue_type` must exactly match the Agent's `IssueType`. Author the display title, description, category, location, and remediation summary/steps there, using `Extra` for instance-specific values and conditional instructions. Account for the field precedence above when retaining Agent fallbacks. Keep scripts and AI prompts there too. Start with the fastest diagnostic command and include exact commands where useful.
+1. Add catalog fixtures using metadata from an actual Agent payload. Cover display content, remediation/investigation variants, and missing metadata; regenerate the catalog and run its tests as described in the authoring guide. Do not hand-edit generated catalog files or duplicate the steps in Go tests.
+1. Link the Agent and backend PRs. Coordinate deployment of the template and enablement of the `agthealth-catalog-resolver` flag for the intended orgs before relying on backend display content or remediation in the Agent release.
+
+**Precedence matters:** the worker fills missing remediation on active issues; non-empty Agent-provided remediation wins over the template's summary and steps. The backend can still add its AI prompt. Adding a backend template alone therefore does not migrate an issue that still sends remediation from Go. The worker does not attach template remediation to resolved issues.
+
+If the resolver is disabled, no template matches, or resolution fails, the Agent's report is left without backend-generated content or remediation. Retain Agent diagnostic fallbacks until the coordinated rollout permits relying on backend display content; otherwise active issues can fail the worker's required-field checks. Local Agent APIs and fakeintake receive the Agent payload, not the backend-enriched remediation.
+
+For existing issue types, preserve their current Agent-side remediation until a coordinated migration has a matching backend template, metadata coverage, and resolver rollout. Older Agent versions will continue sending their existing steps; backend edits will not override those steps. New issue types must not copy these legacy Go remediation builders.
 
 ---
 
@@ -273,18 +318,23 @@ assert.Equal(t, IssueName, issue.IssueName)        // IssueName is stable
 assert.Equal(t, IssueType, issue.IssueType)        // IssueType is stable
 assert.Equal(t, expectedTitle, issue.Title)
 assert.Contains(t, issue.Description, expectedSub)
-assert.Equal(t, expectedStepCount, len(issue.Remediation.Steps))
+assert.Nil(t, issue.Remediation)                  // New issues use backend remediation
 require.NotNil(t, issue.Extra)
 // verify all Extra fields are present:
 fields := issue.Extra.GetFields()
-assert.NotNil(t, fields["entity_name"])
+require.NotNil(t, fields["entity_name"])
+assert.Equal(t, expectedEntityName, fields["entity_name"].GetStringValue())
 ```
 
 Required test cases:
 - Happy path with a fully-populated context
 - Missing/empty context keys → verify defaults are applied correctly
-- One test case per branch of any conditional remediation path
+- Every display-content, remediation, and investigation input is present in `Extra` with the documented value/type, or explicitly unavailable; secret-bearing inputs are scrubbed
 - `nil` context map (must not panic)
+
+The title/description assertions above apply when the Agent supplies those fields. If they are deliberately backend-owned, assert that the Agent leaves them empty and test their rendering and enrichment failure behavior in the backend. Test `Extra` values and types, not only key presence, including evidence used for investigation beyond template placeholders.
+
+For existing issue types that have not migrated, retain assertions on their Agent-provided remediation. For new issues, validate rendered steps in the backend catalog fixtures; Agent tests validate the metadata contract and nil remediation.
 
 ### `check_test.go` — required if `check.go` exists
 
@@ -364,16 +414,21 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 ### `Title` checks
 
-- [ ] `Title` is set inside `BuildIssue`, not as a constant
+- [ ] Title wording is defined in the backend template; any Agent fallback and its precedence are intentional and tested
 - [ ] `Title` embeds at least one instance-specific value (entity name, check name, path) — a title identical for every instance is a red flag
 - [ ] `Title` does **not** simply repeat `IssueName`; it adds context (e.g. `IssueName + " on '" + entityName + "'"`)
 
-### Other required proto fields
+### Payload and backend content checks
 
-- [ ] `Description` includes relevant error details without exposing secrets
-- [ ] `Category`, `Location`, `Severity`, `Source` are all populated
-- [ ] `Remediation.Summary` and at least one `Remediation.Steps` entry are present
-- [ ] `Extra` is a `structpb.Struct` containing all context keys
+- [ ] Title, description, category, and location ownership is explicit; required fields are available after enrichment, with rollout/failure behavior validated
+- [ ] `Severity` and `Source` are supplied by the Agent; templates do not substitute runtime severity
+- [ ] Diagnostic facts are scrubbed and available in `Extra`, not only in rendered descriptions
+- [ ] New issue types leave `Remediation` nil and link a companion backend catalog PR
+- [ ] Backend template keys match `IssueType` and the scrubbed metadata emitted in `Extra`
+- [ ] Backend fixtures cover remediation variants; template deployment and resolver rollout are coordinated
+- [ ] Existing Agent-provided remediation is removed only as part of a coordinated migration
+- [ ] `Extra` contains every fact needed for display content, remediation, and investigation, with documented keys/types and missing-value behavior
+- [ ] Tests verify emitted `Extra` values/types and scrubbing; backend fixtures use the actual wire metadata
 - [ ] `Tags` contains at least the subsystem slug
 
 ### Path / layout checks
@@ -389,6 +444,9 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 | Anti-pattern | Why it breaks |
 |---|---|
+| Adding a Go remediation builder for a new issue type | Agent-provided steps take precedence over backend templates and require an Agent release to change |
+| Keeping diagnostic facts only in `Context`, descriptions, tags, or logs | The catalog reads `Issue.Extra`; missing structured evidence prevents reliable rendering and investigation |
+| Assuming backend templates override supplied display fields or severity | Display enrichment only fills gaps, and severity always comes from the reporter |
 | Varying `IssueName` per instance | Breaks registry lookup and UI aggregation |
 | Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
