@@ -1691,15 +1691,64 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg := testConfig()
 	skipEbpflessTodo(t, cfg)
 	testutil.IptablesSave(t)
-	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	// The DNS server lives in a network namespace reachable over a veth pair, so that the test does not depend on
+	// external connectivity (it used to NAT to 8.8.8.8, and CI VMs have flaky egress; a slow or missing response
+	// shows up as a DNS timeout or a read i/o timeout). The traffic still leaves the root namespace through a real
+	// interface, unlike a loopback destination, which the DNS snooper does not match up with the NAT'ed connection.
+	ns := netlinktestutil.SetupVethPair(t)
+	dnsServerAddr := netlinktestutil.VethPairNSAddr
+	nsHandle, err := vnetns.GetFromName(ns)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = nsHandle.Close() })
+
+	var dnsServer *dns.Server
+	require.NoError(t, netns.WithNS(nsHandle, func() error {
+		pc, err := net.ListenPacket("udp", net.JoinHostPort(dnsServerAddr, "53"))
+		if err != nil {
+			return err
+		}
+		started := make(chan struct{})
+		dnsServer = &dns.Server{
+			PacketConn:        pc,
+			NotifyStartedFunc: func() { close(started) },
+			Handler: dns.HandlerFunc(func(w dns.ResponseWriter, req *dns.Msg) {
+				resp := new(dns.Msg)
+				resp.SetReply(req)
+				// Build the record directly rather than parsing it with dns.NewRR, so there is no error path that
+				// could silently send an empty answer
+				for _, q := range req.Question {
+					resp.Answer = append(resp.Answer, &dns.A{
+						Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 30},
+						A:   net.IPv4(10, 0, 0, 2),
+					})
+				}
+				_ = w.WriteMsg(resp)
+			}),
+		}
+		serveErr := make(chan error, 1)
+		go func() { serveErr <- dnsServer.ActivateAndServe() }()
+		select {
+		case <-started:
+			return nil
+		case err := <-serveErr:
+			_ = pc.Close()
+			return fmt.Errorf("dns server failed to start: %w", err)
+		case <-time.After(5 * time.Second):
+			_ = pc.Close()
+			return errors.New("timed out waiting for dns server to start")
+		}
+	}))
+	t.Cleanup(func() { _ = dnsServer.Shutdown() })
+
+	// Setup a NAT rule to translate 2.2.2.2 to the DNS server above and issue a DNS request to 2.2.2.2
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination " + dnsServerAddr}
 	testutil.RunCommands(t, cmds, false)
 
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
 
-	t.Logf("requesting golang.com@2.2.2.2 with conntrack type: %T", tr.conntracker)
+	t.Logf("requesting golang.org@2.2.2.2 (DNAT to %s) with conntrack type: %T", dnsServerAddr, tr.conntracker)
 	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
