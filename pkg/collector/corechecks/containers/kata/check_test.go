@@ -12,14 +12,23 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
@@ -286,4 +295,108 @@ func TestAssertServiceCheck_MessageContains(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected a ServiceCheck call with a non-empty message")
+}
+
+type fakeStore struct {
+	workloadmeta.Component
+	ch chan workloadmeta.EventBundle
+}
+
+func (f *fakeStore) Subscribe(string, workloadmeta.SubscriberPriority, *workloadmeta.Filter) chan workloadmeta.EventBundle {
+	return f.ch
+}
+
+func (f *fakeStore) Unsubscribe(chan workloadmeta.EventBundle) {}
+
+type blockingTagger struct {
+	tagger.Component
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingTagger) Tag(taggertypes.EntityID, taggertypes.TagCardinality) ([]string, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	return nil, nil
+}
+
+type fakeSenderManager struct {
+	sender.SenderManager
+	s sender.Sender
+}
+
+func (f *fakeSenderManager) GetSender(checkid.ID) (sender.Sender, error) { return f.s, nil }
+
+func (f *fakeSenderManager) SetSender(s sender.Sender, _ checkid.ID) error {
+	f.s = s
+	return nil
+}
+
+func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tmpDir := t.TempDir()
+		sandboxDir := filepath.Join(tmpDir, "sb")
+		require.NoError(t, os.MkdirAll(sandboxDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(sandboxDir, shimSocket), []byte{}, 0600))
+
+		tag := &blockingTagger{entered: make(chan struct{}), release: make(chan struct{})}
+		store := &fakeStore{ch: make(chan workloadmeta.EventBundle)}
+		c := &KataCheck{
+			CheckBase:           core.NewCheckBase(CheckName),
+			instance:            &KataConfig{},
+			tagger:              tag,
+			store:               store,
+			sandboxContainerIDs: make(map[string]map[string]struct{}),
+			containerSandboxID:  make(map[string]string),
+			stopCh:              make(chan struct{}),
+		}
+		senderManager := &fakeSenderManager{}
+		mocksender.NewMockSenderWithSenderManager(CheckName, senderManager).SetupAcceptAll()
+		require.NoError(t, c.Configure(senderManager, integration.FakeConfigHash, []byte("sandbox_storage_paths: ["+tmpDir+"]"), nil, "test", "provider"))
+
+		runDone := make(chan error, 1)
+		go func() { runDone <- c.Run() }()
+		defer func() {
+			close(tag.release)
+			c.Stop()
+			assert.NoError(t, <-runDone)
+		}()
+
+		// Timeouts below run on synctest's virtual clock, so they only fire
+		// when the check is stuck, never because the machine is slow.
+		sendEvent := func(containerID string) {
+			t.Helper()
+			bundle := workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.Container{
+						EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+						SandboxID: "sb",
+					},
+				}},
+				Ch: make(chan struct{}),
+			}
+			select {
+			case store.ch <- bundle:
+			case <-time.After(time.Minute):
+				t.Fatalf("event for %s was not received", containerID)
+			}
+			<-bundle.Ch
+		}
+
+		// Map a container to the sandbox so the next scrape asks the tagger
+		// for its tags, then let the scrape ticker fire.
+		sendEvent("ctr-1")
+		select {
+		case <-tag.entered:
+		case <-time.After(time.Minute):
+			t.Fatal("scrape never started")
+		}
+
+		sendEvent("ctr-2")
+		c.mu.RLock()
+		assert.Equal(t, "sb", c.containerSandboxID["ctr-2"])
+		c.mu.RUnlock()
+	})
 }
