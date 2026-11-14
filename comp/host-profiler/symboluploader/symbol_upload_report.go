@@ -20,20 +20,19 @@ const (
 
 // Report reason taxonomy. Reasons are prefixed by their pipeline stage.
 const (
-	reasonAlreadyUploaded  = "retrieval.already_uploaded"
-	reasonNoDebugSymbols   = "retrieval.no_debug_symbols"
-	reasonQueueFull        = "retrieval.queue_full"
-	reasonGoPCLnTabError   = "retrieval.gopclntab_error"
-	reasonElfReadError     = "retrieval.elf_read_error"
-	reasonExistingSymbols  = "upload.existing_symbols"
-	reasonUploaded         = "upload.uploaded"
-	reasonExtractError     = "upload.extract_error"
-	reasonIntakeError      = "upload.intake_error"
-	reasonQueried          = "query.queried"
-	reasonSourceParseError = "query.source_parse_error"
-	reasonInvalidBuildID   = "query.invalid_build_id"
-	reasonRateLimited      = "query.rate_limited"
-	reasonRequestError     = "query.request_error"
+	reasonAlreadyUploaded = "retrieval.already_uploaded"
+	reasonNoDebugSymbols  = "retrieval.no_debug_symbols"
+	reasonQueueFull       = "retrieval.queue_full"
+	reasonGoPCLnTabError  = "retrieval.gopclntab_error"
+	reasonElfReadError    = "retrieval.elf_read_error"
+	reasonExistingSymbols = "upload.existing_symbols"
+	reasonUploaded        = "upload.uploaded"
+	reasonExtractError    = "upload.extract_error"
+	reasonIntakeError     = "upload.intake_error"
+	reasonQueried         = "query.queried"
+	reasonInvalidBuildID  = "query.invalid_build_id"
+	reasonRateLimited     = "query.rate_limited"
+	reasonRequestError    = "query.request_error"
 )
 
 type reasonStats struct {
