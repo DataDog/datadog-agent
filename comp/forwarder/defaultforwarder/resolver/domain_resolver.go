@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // DestinationType is used to identified the expected endpoint
@@ -103,11 +102,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 				health.UpdateAPIKeys(resolver.GetConfigName(), []string{oldAPIKey}, []string{newAPIKey})
 			}
 
-			log.Infof("rotating API key for '%s': %s -> %s",
-				setting,
-				scrubber.HideKeyExceptLastChars(oldAPIKey),
-				scrubber.HideKeyExceptLastChars(newAPIKey),
-			)
+			log.Infof("rotating API key for '%s'", setting)
 
 			return
 		}
@@ -156,18 +151,15 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 		health.UpdateAPIKeys(resolver.GetConfigName(), removed, added)
 	}
 
-	removed = scrubKeys(removed)
-	added = scrubKeys(added)
-
 	// Not all calls here will involve changes to the api keys since we are just reloading every time something with
 	// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
 	// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
 	if len(removed) > 0 && len(added) > 0 {
-		log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
+		log.Infof("rotating API keys for '%s': %d removed, %d added", setting, len(removed), len(added))
 	} else if len(removed) > 0 {
-		log.Infof("removing API key for '%s': %s", setting, strings.Join(removed, ","))
+		log.Infof("removing %d API keys for '%s'", len(removed), setting)
 	} else if len(added) > 0 {
-		log.Infof("adding API key for '%s': %s", setting, strings.Join(added, ","))
+		log.Infof("adding %d API keys for '%s'", len(added), setting)
 	}
 }
 
@@ -265,14 +257,6 @@ func missing(a []string, b []string) []string {
 	}
 
 	return missing
-}
-
-// scrubKeys scrubs the API key to avoid leaking the key when logging.
-func scrubKeys(keys []string) []string {
-	for i, key := range keys {
-		keys[i] = scrubber.HideKeyExceptLastChars(key)
-	}
-	return keys
 }
 
 // GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`

@@ -421,7 +421,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		}
 		resstr, reserr := analyzeResponse(r, "abcd123abcd12344abcd1234")
 		require.Equal(t,
-			errors.New("HTTP 403 Forbidden: Make sure your API key is valid. API Key ending with: d1234"),
+			errors.New("HTTP 403 Forbidden: Make sure your API key is valid"),
 			reserr)
 		require.Equal(t, "", resstr)
 	})

@@ -182,10 +182,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 		if len(apiKey) == 0 {
 			errStr = "API key is missing"
 		} else {
-			if len(apiKey) > 5 {
-				apiKey = apiKey[len(apiKey)-5:]
-			}
-			errStr = fmt.Sprintf("Make sure your API key is valid. API Key ending with: %v", apiKey)
+			errStr = "Make sure your API key is valid"
 		}
 
 		return "", fmt.Errorf("HTTP 403 Forbidden: %s", errStr)

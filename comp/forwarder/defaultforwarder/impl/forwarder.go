@@ -8,7 +8,6 @@ package defaultforwarderimpl
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 type dependencies struct {
@@ -77,11 +75,7 @@ func createOptions(params defaultforwarderdef.Params, config config.Component, l
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
 	for _, resolver := range options.DomainResolvers {
-		scrubbedKeys := []string{}
-		for _, k := range resolver.GetAPIKeys() {
-			scrubbedKeys = append(scrubbedKeys, scrubber.HideKeyExceptLastChars(k))
-		}
-		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
+		log.Infof("domain '%s' has %d keys", resolver.GetBaseDomain(), len(resolver.GetAPIKeys()))
 	}
 	return options, nil
 }
