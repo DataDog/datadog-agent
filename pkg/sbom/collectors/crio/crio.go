@@ -39,8 +39,8 @@ func (r scanRequest) Collector() string {
 	return collectors.CrioCollector
 }
 
-// Type returns the scan request type based on ScanOptions
-func (r scanRequest) Type(_ sbom.ScanOptions) string {
+// Type returns the scan request type
+func (r scanRequest) Type() string {
 	return sbom.ScanFilesystemType
 }
 

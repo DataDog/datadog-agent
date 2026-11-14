@@ -131,6 +131,8 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        deprecated: true
+        comment: deprecated and ignored, sbom.container_image.overlayfs_direct_scan replaces it
       use_spread_refresher:
         node_type: setting
         type: boolean

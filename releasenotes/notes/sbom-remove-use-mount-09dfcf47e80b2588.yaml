@@ -1,0 +1,23 @@
+---
+upgrade:
+  - |
+    Container image SBOM scans read containerd images in place, from the
+    snapshotter directories, where ``sbom.container_image.use_mount`` mounted
+    each image. The Datadog Helm chart sets ``use_mount`` by default, so this
+    affects containerd nodes deployed with the chart's default values. The
+    Agent reads the snapshotter directories under
+    ``/host/var/lib/containerd``, which the chart mounts read-only. The SBOMs
+    of these images carry ``scan_method:overlayfs`` in place of
+    ``scan_method:filesystem``, and record the image layer of each package.
+    When ``sbom.container_image.overlayfs_direct_scan`` is ``false``, the
+    Agent exports these images instead.
+deprecations:
+  - |
+    The SBOM setting ``sbom.container_image.use_mount``, and its environment
+    variable ``DD_SBOM_CONTAINER_IMAGE_USE_MOUNT``, are deprecated and
+    ignored. ``sbom.container_image.overlayfs_direct_scan``, enabled by
+    default, scans containerd images in place, from the snapshotter
+    directories. When SBOM collection is enabled, the Agent logs a warning
+    when the setting is set. The Datadog Helm chart and Operator set it when
+    ``uncompressedLayersSupport`` is enabled and ``overlayFSDirectScan`` is
+    not. Remove it from your configuration. A future release deletes it.

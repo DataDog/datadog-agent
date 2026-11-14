@@ -78,8 +78,6 @@ func runScanContainerd(imageMeta *workloadmeta.ContainerImageMetadata, analyzers
 	var report sbom.Report
 	var scanner func(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client containerdutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error)
 	switch strategy {
-	case "mount":
-		scanner = collector.ScanContainerdImageFromFilesystem
 	case "overlayfs":
 		scanner = collector.ScanContainerdImageFromSnapshotter
 	case "image":

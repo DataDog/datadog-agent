@@ -47,8 +47,6 @@ type MockedContainerdClient struct {
 	MockStatus                func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error)
 	MockCallWithClientContext func(namespace string, f func(context.Context) error) error
 	MockIsSandbox             func(namespace string, ctn containerd.Container) (bool, error)
-	MockMountImage            func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error)
-	MockMounts                func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error)
 	MockMountsWithSnapshotter func(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error)
 }
 
@@ -165,16 +163,6 @@ func (client *MockedContainerdClient) CallWithClientContext(namespace string, f 
 // IsSandbox is a mock method
 func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
 	return client.MockIsSandbox(namespace, ctn)
-}
-
-// MountImage is a mock method
-func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
-	return client.MockMountImage(ctx, expiration, namespace, img, targetDir)
-}
-
-// Mounts is a mock method
-func (client *MockedContainerdClient) Mounts(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, func(context.Context) error, error) {
-	return client.MockMounts(ctx, expiration, namespace, img)
 }
 
 // MountsWithSnapshotter is a mock method

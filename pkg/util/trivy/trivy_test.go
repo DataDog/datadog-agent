@@ -20,6 +20,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
@@ -92,13 +93,9 @@ func TestExtractLayersFromOverlayFSMounts(t *testing.T) {
 	}
 }
 
-// TestScanFilesystemImageCreated covers the use_mount path, where the caller
-// supplies the build time of the image it mounted.
-func TestScanFilesystemImageCreated(t *testing.T) {
-	root := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "etc"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "etc", "os-release"), []byte("ID=alpine\nVERSION_ID=3.20.0\n"), 0o644))
-
+// TestAppendSBOMImageCreated checks that the build time of an image goes to
+// the root component in UTC, and only when the image config records it.
+func TestAppendSBOMImageCreated(t *testing.T) {
 	tests := []struct {
 		name    string
 		created time.Time
@@ -113,16 +110,17 @@ func TestScanFilesystemImageCreated(t *testing.T) {
 			name: "config omits created",
 		},
 	}
-	c := NewCollectorForCLI()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			report, err := c.scanFilesystem(t.Context(), root, sbom.ScanOptions{Analyzers: []string{OSAnalyzers}}, false, tt.created)
-			require.NoError(t, err)
+			bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{}}}
+			appendSBOMImageCreated(bom, tt.created)
 
 			var got []string
-			for _, p := range report.ToCycloneDX().GetMetadata().GetComponent().GetProperties() {
-				if p.GetName() == imageCreatedPropertyKey {
-					got = append(got, p.GetValue())
+			if props := bom.Metadata.Component.Properties; props != nil {
+				for _, p := range *props {
+					if p.Name == imageCreatedPropertyKey {
+						got = append(got, p.Value)
+					}
 				}
 			}
 			assert.Equal(t, tt.want, got)
@@ -140,7 +138,7 @@ func TestScanFilesystemLicenseFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(distInfo, "LICENSE"), []byte("MIT License\n"), 0o644))
 
 	c := NewCollectorForCLI()
-	report, err := c.scanFilesystem(t.Context(), root, sbom.ScanOptions{Analyzers: []string{LanguagesAnalyzers}}, false, time.Time{})
+	report, err := c.ScanFilesystem(t.Context(), root, sbom.ScanOptions{Analyzers: []string{LanguagesAnalyzers}}, false)
 	require.NoError(t, err)
 
 	found := false

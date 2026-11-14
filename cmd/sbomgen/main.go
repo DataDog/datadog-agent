@@ -97,7 +97,7 @@ func main() {
 			return runScanContainerd(imageMeta, analyzers, fast, containerdStrategy)
 		},
 	}
-	containerdCmd.Flags().StringVar(&containerdStrategy, "strategy", "image", "strategy to use (mount, overlayfs or image)")
+	containerdCmd.Flags().StringVar(&containerdStrategy, "strategy", "image", "strategy to use (overlayfs or image)")
 	rootCmd.AddCommand(containerdCmd)
 
 	var crioCmd = &cobra.Command{
