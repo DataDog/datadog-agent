@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Reduce the CPU and memory usage of the ``kubernetes_state_core`` check by
+    pre-sizing the metric store result map and its family slices, which
+    removes repeated slice growth and map resizing during metric collection.
