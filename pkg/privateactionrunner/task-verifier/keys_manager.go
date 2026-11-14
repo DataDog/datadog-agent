@@ -106,10 +106,9 @@ func (k *keysManager) GetKey(keyId string) (types.DecodedKey, *types.DirectorKey
 func (k *keysManager) WaitForReady(ctx context.Context) error {
 	select {
 	case <-k.ready:
-		return ctx.Err()
 	case <-ctx.Done():
-		return ctx.Err()
 	}
+	return ctx.Err()
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {

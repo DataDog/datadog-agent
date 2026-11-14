@@ -91,7 +91,7 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 	go func() {
 		defer n.wg.Done()
 		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-		if err := n.keysManager.WaitForReady(readyCtx); err != nil || readyCtx.Err() != nil {
+		if err := n.keysManager.WaitForReady(readyCtx); err != nil {
 			return
 		}
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)

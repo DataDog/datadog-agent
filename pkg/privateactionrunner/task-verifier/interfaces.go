@@ -20,5 +20,6 @@ type TaskVerifier interface {
 type KeysManager interface {
 	Start(ctx context.Context)
 	GetKey(keyId string) (types.DecodedKey, *types.DirectorKeyProof)
+	// WaitForReady waits for keys or cancellation; cancellation takes precedence if both are ready.
 	WaitForReady(ctx context.Context) error
 }

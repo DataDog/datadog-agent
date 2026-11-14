@@ -410,7 +410,7 @@ func (p *PrivateActionRunner) startExecutorReadiness(ctx context.Context, keysMa
 	server := p.executorServer
 	go func() {
 		defer close(p.executorReadyDone)
-		if err := keysManager.WaitForReady(ctx); err != nil || ctx.Err() != nil {
+		if err := keysManager.WaitForReady(ctx); err != nil {
 			return
 		}
 		server.SetReady(true)
