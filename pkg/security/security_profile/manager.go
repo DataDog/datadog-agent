@@ -363,6 +363,9 @@ func (m *Manager) initMetricsMap() {
 
 // Start runs the manager
 func (m *Manager) Start(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	var adCleanupTickerChan <-chan time.Time
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
@@ -405,21 +408,24 @@ func (m *Manager) Start(ctx context.Context) {
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, func(workload *tags.Workload) {
-			m.workloadEvents <- &WorkloadEvent{
+			select {
+			case m.workloadEvents <- &WorkloadEvent{
 				Type:     WorkloadEventResolved,
 				Workload: workload,
+			}:
+			case <-ctx.Done():
 			}
 		})
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, func(workload *tags.Workload) {
-			m.workloadEvents <- &WorkloadEvent{
+			select {
+			case m.workloadEvents <- &WorkloadEvent{
 				Type:     WorkloadEventDeleted,
 				Workload: workload,
+			}:
+			case <-ctx.Done():
 			}
 		})
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	seclog.Infof("security profile manager started")
 

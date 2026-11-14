@@ -104,6 +104,7 @@ dd_agent_go_test(
     name = "security_profile_test",
     srcs = [
         "image_excluder_test.go",
+        "manager_shutdown_test.go",
         "manager_v2_test.go",
     ],
     embed = [":security_profile"],
@@ -125,6 +126,7 @@ dd_agent_go_test(
             "//pkg/security/security_profile/activity_tree/metadata",
             "//pkg/security/security_profile/profile",
             "//pkg/security/security_profile/storage",
+            "//pkg/security/utils",
             "//pkg/util/ktime",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
@@ -150,6 +152,7 @@ dd_agent_go_test(
             "//pkg/security/security_profile/activity_tree/metadata",
             "//pkg/security/security_profile/profile",
             "//pkg/security/security_profile/storage",
+            "//pkg/security/utils",
             "//pkg/util/ktime",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
