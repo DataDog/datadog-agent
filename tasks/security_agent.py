@@ -71,9 +71,7 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH, fips_backend=fips_backend)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
@@ -81,13 +79,14 @@ def build(
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=fips_backend)
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
             vars=vars,
             out="cmd/security-agent/rsrc.syso",
+            fips_backend=fips_backend,
         )
 
     build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())

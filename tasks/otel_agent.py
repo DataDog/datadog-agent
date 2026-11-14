@@ -62,10 +62,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
             raise NotImplementedError("--enable-bazel does not support --byoc.")
         if cross_compiling_windows:
             raise NotImplementedError("--enable-bazel does not support cross compiling.")
-        if flavor.is_fips():
-            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
-        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
-        build_binary_with_bazel("//cmd/otel-agent:otel-agent", args=bazel_args, bin_path=bin_path)
+        build_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path=bin_path, fips_backend=flavor.fips_backend())
     else:
         ldflags, gcflags, env = get_build_flags(ctx)
         build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
@@ -73,13 +70,14 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
 
         # generate windows resources
         if sys.platform == 'win32' or cross_compiling_windows:
-            build_messagetable(ctx)
+            build_messagetable(ctx, fips_backend=flavor.fips_backend())
             vars = versioninfo_vars(ctx)
             build_rc(
                 ctx,
                 "cmd/otel-agent/windows_resources/otel-agent.rc",
                 vars=vars,
                 out="cmd/otel-agent/rsrc.syso",
+                fips_backend=flavor.fips_backend(),
             )
 
         go_build(

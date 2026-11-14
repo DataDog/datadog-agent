@@ -11,6 +11,7 @@ import yaml
 from invoke import task
 from invoke.context import Context
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.schema.codegen_init_settings import run_codegen, run_constants_codegen, run_core_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
@@ -54,7 +55,7 @@ yaml.add_representer(str, str_presenter)
 
 
 @task
-def compress(ctx, output_dir=COMPRESS_DIR):
+def compress(ctx, output_dir=COMPRESS_DIR, fips_backend=FipsBackend.none):
     """
     Compress the schema files for embedding into the Go binary.
 
@@ -64,7 +65,13 @@ def compress(ctx, output_dir=COMPRESS_DIR):
     if sys.platform == "aix":
         _compress_no_bazel(ctx, output_dir)
         return
-    bazel("run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    bazel(
+        "run",
+        "//pkg/config/schema:install_compressed",
+        "--",
+        f"--destdir={os.path.abspath(output_dir)}",
+        fips_backend=fips_backend,
+    )
 
 
 # Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
