@@ -205,6 +205,13 @@ Package log implements a component to handle logging internal to the agent.
 
 Package lsof provides a flare file with data about files opened by the agent process
 
+### [comp/core/metricsevaluator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/metricsevaluator)
+
+*Datadog Team*: fleet-remediation
+
+Package metricsevaluator evaluates the Agent's internal telemetry metrics against monitors and
+notifies callers when a monitor changes state.
+
 ### [comp/core/pid](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/pid)
 
 Package pid writes the current PID to a file, ensuring that the file
