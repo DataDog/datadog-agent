@@ -39,6 +39,7 @@ dd_agent_go_test(
     srcs = [
         "persistence_remote_test.go",
         "store_kubeapiserver_test.go",
+        "store_stress_test.go",
         "store_test.go",
     ],
     embed = [":impl"],
@@ -53,6 +54,7 @@ dd_agent_go_test(
         "//comp/core/flare/builder",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/impl",
