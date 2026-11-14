@@ -1134,3 +1134,21 @@ func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
 	assert.NotContains(t, listeners, remoteservice.ListenKey{IP: "10.0.0.5", Port: 8080}, "the proxy's PID must not name the pod's listener")
 	assert.Equal(t, int32(8), listeners[remoteservice.ListenKey{IP: "10.0.0.6", Port: 9090}])
 }
+
+func TestBatchConnectionsIncludesExtraHostTags(t *testing.T) {
+	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
+	conns := []*model.Connection{makeConnection(1), makeConnection(2)}
+	for _, c := range conns {
+		c.RouteIdx = -1
+	}
+	ex := parser.NewServiceExtractor(false, false, false)
+	hostTagsProvider := hosttags.WithExtraTags(hosttags.NewHostTagProvider(), func() []string { return []string{taskARNTag} })
+
+	chunks := batchConnections(&HostInfo{HostName: "fargate_task:arn"}, hostTagsProvider, nil, nil, 1, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil, nil, nil, nil, nil, nil)
+	require.Len(t, chunks, 2)
+	for _, chunk := range chunks {
+		cc := chunk.(*model.CollectorConnections)
+		require.GreaterOrEqual(t, cc.HostTagsIndex, int32(0))
+		assert.Contains(t, cc.GetTags(int(cc.HostTagsIndex)), taskARNTag)
+	}
+}

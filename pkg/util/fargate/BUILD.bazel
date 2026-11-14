@@ -7,6 +7,7 @@ go_library(
         "detection.go",
         "hostname_core.go",
         "hostname_process.go",
+        "task_arn.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fargate",
@@ -21,9 +22,15 @@ go_library(
 
 dd_agent_go_test(
     name = "fargate_test",
-    srcs = ["hostname_process_test.go"],
+    srcs = [
+        "hostname_process_test.go",
+        "task_arn_test.go",
+    ],
     embed = [":fargate"],
     gotags_sets = [["fargateprocess"]],
     include_default = False,
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
