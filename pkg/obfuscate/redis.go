@@ -146,14 +146,12 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			args = args[:2]
 		}
 
-	case "APPEND", "GETSET", "LPUSHX", "GEORADIUSBYMEMBER", "RPUSHX",
+	case "APPEND", "GETSET", "GEORADIUSBYMEMBER",
 		"SET", "SETNX", "SISMEMBER", "ZRANK", "ZREVRANK", "ZSCORE":
 		// Obfuscate 2nd argument:
 		// • APPEND key value
 		// • GETSET key value
-		// • LPUSHX key value
 		// • GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
-		// • RPUSHX key value
 		// • SET key value [expiration EX seconds|PX milliseconds] [NX|XX]
 		// • SETNX key value
 		// • SISMEMBER key member
@@ -182,14 +180,16 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • LINSERT key BEFORE|AFTER pivot value
 		obfuscateRedisArgN(args, 3)
 
-	case "GEOHASH", "GEOPOS", "GEODIST", "LPUSH", "RPUSH", "SREM",
-		"ZREM", "SADD":
+	case "GEOHASH", "GEOPOS", "GEODIST", "LPUSH", "LPUSHX", "RPUSH",
+		"RPUSHX", "SREM", "ZREM", "SADD":
 		// Obfuscate all arguments after the first one.
 		// • GEOHASH key member [member ...]
 		// • GEOPOS key member [member ...]
 		// • GEODIST key member1 member2 [unit]
 		// • LPUSH key value [value ...]
+		// • LPUSHX key value [value ...]
 		// • RPUSH key value [value ...]
+		// • RPUSHX key value [value ...]
 		// • SREM key member [member ...]
 		// • ZREM key member [member ...]
 		// • SADD key member [member ...]
