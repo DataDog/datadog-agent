@@ -1,11 +1,11 @@
 ---
 name: agent-supply-chain-newsletter
-description: Generate the Agent Supply Chain newsletter by researching team activity on GitHub and Confluence, then creating a Confluence draft and Gmail draft
+description: Generate the Agent Supply Chain newsletter by researching team activity on GitHub and Confluence, then preparing a Confluence blog post draft and creating a Gmail draft
 argument-hint: "<period e.g. 'February-March 2026'>"
 model: sonnet
 ---
 
-Generate the Agent Supply Chain newsletter for the period **$ARGUMENTS** by researching what team members accomplished on GitHub and Confluence, then producing both a Confluence blog post draft and a Gmail draft.
+Generate the Agent Supply Chain newsletter for the period **$ARGUMENTS** by researching what team members accomplished on GitHub and Confluence, then preparing a Confluence blog post draft and creating a Gmail draft.
 
 ## Step 1: Gather team members
 
@@ -20,8 +20,8 @@ Ask the user if any members should be excluded (e.g. people who moved teams).
 ## Step 2: Read past newsletters for format reference
 
 1. Search for the latest blog posts in the ASC1 Confluence space:
-   - `mcp__claude_ai_Atlassian__searchConfluenceUsingCql` with `cql`: `type = "blogpost" AND space = "ASC1" ORDER BY created DESC` (limit 3)
-2. Read the most recent newsletter with `mcp__claude_ai_Atlassian__getConfluencePage` (contentFormat: `markdown`, contentType: `blog`) to match its structure and tone.
+   - `mcp__atlassian__search_content` with `cql`: `type = "blogpost" AND space = "ASC1" ORDER BY created DESC`, `max_results`: 3
+2. Read the most recent newsletter with `mcp__atlassian__get_blogpost` (`blogpost_id`: its ID from the search results) to match its structure and tone.
 
 The newsletter format is:
 - **Header**: greeting, team links (ASC1, ABLD, BARX, ADX spaces), OKR link, support channel link
@@ -51,12 +51,12 @@ Each agent should return a summary per user, grouped thematically (build improve
 Launch a background agent to search for relevant documentation created during the period:
 
 ```
-mcp__claude_ai_Atlassian__searchConfluenceUsingCql
+mcp__atlassian__search_content
 ```
 
-With CQL queries:
-- `space = "ASC1" AND lastModified >= "START_DATE" AND lastModified <= "END_DATE" ORDER BY lastModified DESC` (limit 25)
-- `space = "ADX" AND lastModified >= "START_DATE" AND lastModified <= "END_DATE" ORDER BY lastModified DESC` (limit 25)
+With these `cql` queries (`max_results`: 25):
+- `space = "ASC1" AND lastModified >= "START_DATE" AND lastModified <= "END_DATE" ORDER BY lastModified DESC`
+- `space = "ADX" AND lastModified >= "START_DATE" AND lastModified <= "END_DATE" ORDER BY lastModified DESC`
 
 Identify RFCs, design docs, operational reports, and guides that are newsletter-worthy.
 
@@ -80,13 +80,13 @@ End with a **"Did you know?"** section highlighting one interesting tool, featur
 
 ### 6a. Confluence blog post draft
 
-Use `mcp__claude_ai_Atlassian__createConfluencePage` with:
-- `cloudId`: `datadoghq.atlassian.net`
-- `spaceId`: `4662624793` (ASC1 space)
-- `title`: `<Period> - Agent Supply Chain Monthly Update`
-- `contentType`: `blog`
-- `status`: `draft`
-- `contentFormat`: `markdown`
+The Atlassian MCP server cannot create blog posts or drafts: `create_page` only creates regular pages and has no draft option. Do **not** use it for the newsletter.
+
+Instead, write the newsletter to `/tmp/<period>-asc-newsletter.md` and ask the user to create the draft in the Confluence editor:
+- Space: ASC1
+- Content type: blog post, kept as a draft
+- Title: `<Period> - Agent Supply Chain Monthly Update`
+- Body: the content of the saved file
 
 ### 6b. Gmail draft
 
@@ -99,7 +99,7 @@ Use `mcp__claude_ai_Gmail__gmail_create_draft` with:
 ## Step 7: Present results
 
 Return to the user:
-1. Links to both the Confluence draft and Gmail draft
+1. The path of the saved newsletter file (for the Confluence draft) and the link to the Gmail draft
 2. A bullet-point summary of the sections covered
 3. Remind them to:
    - Review both outputs for accuracy

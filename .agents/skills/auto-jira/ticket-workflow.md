@@ -19,10 +19,11 @@ Read `.ddqa/config.toml`, find the `[teams."..."]` block where `jira_project = "
 
 If the board is not found in `.ddqa/config.toml`, default to `"To Do"` and log a warning in `AUTO_JIRA.md`.
 
-Use `mcp__atlassian__searchJiraIssuesUsingJql` with:
-- `cloudId`: `datadoghq.atlassian.net`
-- `fields`: `["summary", "description", "status", "assignee", "labels", "issuetype", "created", "priority", "parent"]`
-- `maxResults`: 50
+Use `mcp__atlassian__search_issues` with:
+- `jql`: the template below
+- `max_results`: 50
+
+The tool has no field selection; each result carries the server's default issue fields.
 
 ### JQL template
 
@@ -44,12 +45,7 @@ The JQL gets you candidates. You still must evaluate each one before claiming.
 
 For each candidate, fetch full details:
 ```
-mcp__atlassian__getJiraIssue(
-  cloudId="datadoghq.atlassian.net",
-  issueIdOrKey="<KEY>",
-  fields=["summary", "description", "status", "assignee", "labels",
-          "comment", "priority", "issuetype", "parent", "created"]
-)
+mcp__atlassian__get_issue(issue_key="<KEY>")
 ```
 
 Then answer:
@@ -72,64 +68,78 @@ Once a ticket is selected, do BOTH of these steps:
 
 ### Step 1: Get your account ID
 
+There is no "who am I" tool. Find an issue assigned to you:
+
 ```
-mcp__atlassian__atlassianUserInfo()
+mcp__atlassian__search_issues(
+  jql="assignee = currentUser() ORDER BY updated DESC",
+  max_results=1
+)
 ```
 
-Save your `accountId` for subsequent calls.
+Read the assignee's `accountId` from the result. If there is no result, or it does not include an account ID, STOP and ask the user for their Atlassian account ID: it is the last segment of their Jira profile URL (`https://datadoghq.atlassian.net/jira/people/<accountId>`).
+
+Save your `accountId` in `AUTO_JIRA.md` for subsequent calls.
 
 ### Step 2: Assign to yourself
 
 ```
-mcp__atlassian__editJiraIssue(
-  cloudId="datadoghq.atlassian.net",
-  issueIdOrKey="<KEY>",
+mcp__atlassian__update_issue(
+  issue_key="<KEY>",
   fields={"assignee": {"accountId": "<YOUR_ACCOUNT_ID>"}}
 )
 ```
 
-POST-ACTION verify: re-fetch the issue and confirm `assignee.accountId` matches yours.
+This returns a preview. Check it, then repeat the call with `confirmed=true`.
+
+POST-ACTION verify: this search must return the ticket:
+
+```
+mcp__atlassian__search_issues(jql="key = <KEY> AND assignee = currentUser()")
+```
 
 ### Step 3: Add to the current sprint
 
 Fetch your active sprint ID and move the ticket into it:
 
 ```
-mcp__atlassian__searchJiraIssuesUsingJql(
-  cloudId="datadoghq.atlassian.net",
+mcp__atlassian__search_issues(
   jql='project = <BOARD> AND sprint in openSprints() AND sprint not in futureSprints()',
-  fields=["summary", "sprint"],
-  maxResults=1
+  max_results=1
 )
 ```
 
-Extract the `sprint.id` from the result, then:
+Extract the sprint ID from the result's sprint field (`customfield_10020`), then:
 
 ```
-mcp__atlassian__editJiraIssue(
-  cloudId="datadoghq.atlassian.net",
-  issueIdOrKey="<KEY>",
+mcp__atlassian__update_issue(
+  issue_key="<KEY>",
   fields={"customfield_10020": <SPRINT_ID>}
 )
 ```
 
+Check the preview, then repeat the call with `confirmed=true`.
+
 **IMPORTANT:** Pass `<SPRINT_ID>` as a bare integer (e.g. `50028`), NOT as an object (`{"id": 50028}`). The API returns "Number value expected" if you pass an object.
 
-POST-ACTION verify: re-fetch the issue and confirm the sprint field is set.
+POST-ACTION verify: this search must return the ticket:
 
-If no open sprint is found or the edit fails, log a warning in `AUTO_JIRA.md` and continue — this is non-blocking.
+```
+mcp__atlassian__search_issues(jql="key = <KEY> AND sprint in openSprints()")
+```
+
+If no open sprint is found, the result does not include the sprint field, or the edit fails, log a warning in `AUTO_JIRA.md` and continue — this is non-blocking.
 
 ### Step 4: Add a start comment
 
 ```
-mcp__atlassian__addCommentToJiraIssue(
-  cloudId="datadoghq.atlassian.net",
-  issueIdOrKey="<KEY>",
+mcp__atlassian__add_comment(
+  issue_key="<KEY>",
   body="Starting autonomous implementation.\n\n— Auto-JIRA (https://github.com/DataDog/datadog-agent/blob/main/.agents/skills/auto-jira/SKILL.md)"
 )
 ```
 
-POST-ACTION verify: fetch the issue comments and confirm the comment appears.
+POST-ACTION verify: re-fetch the issue with `mcp__atlassian__get_issue` and confirm the comment appears.
 
 Update `AUTO_JIRA.md`:
 ```markdown
