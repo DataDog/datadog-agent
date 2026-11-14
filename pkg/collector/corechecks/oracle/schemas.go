@@ -303,11 +303,6 @@ const (
 	schemaColumnBindSlots    = 50
 )
 
-const (
-	oracleErrorInvalidIdentifier       = "ORA-00904"
-	oracleErrorTableOrViewDoesNotExist = "ORA-00942"
-)
-
 type schemaRowDB struct {
 	ConID            int64          `db:"CON_ID"`
 	Owner            string         `db:"OWNER"`

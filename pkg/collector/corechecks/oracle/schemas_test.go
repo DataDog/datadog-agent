@@ -32,6 +32,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	oracleErrorInvalidIdentifier       = "ORA-00904"
+	oracleErrorTableOrViewDoesNotExist = "ORA-00942"
+)
+
 type schemaTestCollector struct {
 	*schemaCollector
 	t           *testing.T
