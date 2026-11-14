@@ -192,11 +192,11 @@ func waitForNewConnectionsCollection[Env any](v *e2e.BaseSuite[Env], FakeIntake 
 }
 
 // hostsWithoutNewCollection returns the hosts, among those reporting within one
-// check interval of the newest payload, that have no payload of a GroupId outside
-// knownGroups. It also returns how many hosts it checked and the newest payload
-// receive time. A host that stopped reporting (dev mode skips the flush) drops out
-// once the newest payload is more than an interval past its last one, so it
-// doesn't block the wait.
+// check interval plus maxChunkSpread of the newest payload, that have no payload of
+// a GroupId outside knownGroups. It also returns how many hosts it checked and the
+// newest payload receive time. A host that stopped reporting (dev mode skips the
+// flush) drops out once the newest payload is more than that past its last one, so
+// it doesn't block the wait.
 func hostsWithoutNewCollection(payloadsByHost map[string][]*aggregator.Connections, knownGroups map[string]map[int32]bool) (pending []string, active int, newest time.Time) {
 	latest := make(map[string]time.Time)
 	for hostnameNetID, payloads := range payloadsByHost {
@@ -231,11 +231,11 @@ func hostsWithoutNewCollection(payloadsByHost map[string][]*aggregator.Connectio
 
 // connectionKey identifies a connection inside one collection.
 func connectionKey(c *agentmodel.Connection) string {
-	return fmt.Sprintf("%d/%d/%d/%s:%d/%s:%d", c.Type, c.Pid, c.NetNS,
+	return fmt.Sprintf("%d/%d/%d/%d/%s:%d/%s:%d", c.Type, c.Direction, c.Pid, c.NetNS,
 		c.GetLaddr().GetIp(), c.GetLaddr().GetPort(), c.GetRaddr().GetIp(), c.GetRaddr().GetPort())
 }
 
-// connectionsGroup summarizes one complete multi-payload collection (one GroupId) of a host.
+// connectionsGroup summarizes one multi-payload collection (one GroupId) of a host.
 type connectionsGroup struct {
 	id                int32
 	chunks            int
@@ -244,13 +244,14 @@ type connectionsGroup struct {
 	spread            time.Duration
 	// duplicates counts the resent chunks skipped.
 	duplicates int
-	// problems lists the checks the group fails; a group with none is the burst collection.
+	// problems lists the checks the group fails, or that chunks are still in flight;
+	// a group with none is the burst collection.
 	problems []string
 }
 
 // checkConnectionsGroups groups the payloads of one host received after since by GroupId,
-// counting a resent chunk once, and checks every complete group that was split into several
-// payloads. It also returns the GroupIds of payloads holding more than maxConnsPerMessage
+// counting a resent chunk once, and checks every group that was split into several payloads.
+// A group missing chunks gets the single problem "k of N chunks (in flight)". It also returns the GroupIds of payloads holding more than maxConnsPerMessage
 // connections.
 func checkConnectionsGroups(payloads []*aggregator.Connections, since time.Time, isServerConnection func(*agentmodel.Connection) bool) (groups []connectionsGroup, oversized []int32) {
 	byID := make(map[int32][]*aggregator.Connections)
@@ -285,8 +286,8 @@ func checkConnectionsGroups(payloads []*aggregator.Connections, since time.Time,
 	for _, id := range order {
 		chunks := byID[id]
 		groupSize := int(chunks[0].GroupSize)
-		if groupSize < 2 || len(chunks) < groupSize {
-			// a single-payload collection, or chunks still in flight
+		if groupSize < 2 {
+			// a single-payload collection
 			continue
 		}
 
@@ -309,7 +310,13 @@ func checkConnectionsGroups(payloads []*aggregator.Connections, since time.Time,
 		}
 		g.spread = last.Sub(first)
 
-		if len(chunks) != groupSize {
+		if len(chunks) < groupSize {
+			// the other checks would only report the missing chunks again
+			g.problems = append(g.problems, fmt.Sprintf("%d of %d chunks (in flight)", len(chunks), groupSize))
+			groups = append(groups, g)
+			continue
+		}
+		if len(chunks) > groupSize {
 			g.problems = append(g.problems, fmt.Sprintf("%d distinct payloads for GroupSize %d", len(chunks), groupSize))
 		}
 		if g.serverConnections <= maxConnsPerMessage {
@@ -340,9 +347,10 @@ func checkConnectionsGroups(payloads []*aggregator.Connections, since time.Time,
 // fakeintake received up to that collection. The cutoff is a fakeintake receive time, so clock skew between the
 // runner and the fakeintake can't move it. A collection straddling the cutoff is left incomplete and skipped.
 //
-// A collection only qualifies when it is complete. Incomplete collections (chunks still in flight) and collections
-// failing a check are logged and skipped, so background collections can't fail the test: it passes as soon as one
-// collection satisfies every check. Duplicate chunks, e.g. a forwarder retry, are counted once.
+// A collection only qualifies when it is complete. Incomplete collections, logged as "k of N chunks (in flight)",
+// and collections failing a check are logged and skipped, so background collections can't fail the test: it passes
+// as soon as one collection satisfies every check. Each group is logged once per verdict, so a burst whose last
+// chunk never arrives shows up in the output of a timeout. Duplicate chunks, e.g. a forwarder retry, are counted once.
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake, serverAddr string, generateConnections func()) {
 	t := v.T()
 	t.Helper()
