@@ -37,7 +37,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+  env['CGO_CFLAGS'] = "-O2 -I#{install_dir}/embedded/include"
 
   if linux_target?
     # Temporary while we are still building with dda.
