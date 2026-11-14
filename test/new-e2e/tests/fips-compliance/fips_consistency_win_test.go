@@ -45,7 +45,7 @@ func (s *fipsConsistencyWinSuite) SetupSuite() {
 
 	// Set up fips-server on the Linux Docker VM
 	composeFilePath := "/tmp/docker-compose.yaml"
-	s.fipsServer = newFIPSServer(dockerHost, composeFilePath)
+	s.fipsServer = newFIPSServer(s.T(), dockerHost, composeFilePath)
 
 	_, err := dockerHost.WriteFile(composeFilePath, bytes.ReplaceAll(dockerFipsServerCompose, []byte("{APPS_VERSION}"), []byte(apps.Version)))
 	require.NoError(s.T(), err)
@@ -126,9 +126,11 @@ func (s *fipsConsistencyWinSuite) TestFIPSConsistency() {
 	s.Run("FIPSCiphersAfterRegistryDisable", func() {
 		for _, tc := range testcases {
 			s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
-				s.fipsServer.Start(s.T(), tc)
-				s.T().Cleanup(func() {
-					s.fipsServer.Stop()
+				// capture the subtest's T: suite.Run restores the parent T before subtest cleanups run
+				t := s.T()
+				s.fipsServer.Start(t, tc)
+				t.Cleanup(func() {
+					s.fipsServer.Stop(t)
 				})
 
 				out, _ := s.execAgentCommand("agent.exe", "diagnose --include connectivity-datadog-core-endpoints")
