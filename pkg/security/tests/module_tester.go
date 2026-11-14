@@ -28,7 +28,7 @@ import (
 	"time"
 	"unsafe"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"

@@ -12,7 +12,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysconfigcomponent "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"

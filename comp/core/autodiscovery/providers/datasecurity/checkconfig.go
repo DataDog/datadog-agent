@@ -8,7 +8,7 @@ package datasecurity
 import (
 	"encoding/json"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 )
 
 // checkInstance is the instance config handed to the datasecurity Rust check,

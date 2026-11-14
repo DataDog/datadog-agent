@@ -22,7 +22,7 @@ import (
 
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	yy "sigs.k8s.io/yaml"

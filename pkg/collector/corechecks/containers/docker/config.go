@@ -7,7 +7,7 @@
 
 package docker
 
-import "go.yaml.in/yaml/v3"
+import "go.yaml.in/yaml/v4"
 
 // CheckName constants used to call ServiceCheck
 const (
