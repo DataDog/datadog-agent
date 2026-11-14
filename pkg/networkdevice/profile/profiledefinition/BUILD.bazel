@@ -17,7 +17,6 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_invopop_jsonschema//:jsonschema"],
 )
 
 dd_agent_go_test(
@@ -33,7 +32,7 @@ dd_agent_go_test(
     ],
     embed = [":profiledefinition"],
     deps = [
-        "@com_github_invopop_jsonschema//:jsonschema",
+        "//pkg/networkdevice/profile/profiledefinition/schema",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",

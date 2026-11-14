@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package profiledefinition
+package profiledefinition_test
 
 import (
 	"encoding/json"
-	"github.com/invopop/jsonschema"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	profileschema "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 type ExampleStruct struct {
-	Mapping ListMap[string] `json:"mapping"`
+	Mapping profiledefinition.ListMap[string] `json:"mapping"`
 }
 
 var example = ExampleStruct{
@@ -51,17 +52,14 @@ func TestListMap_UnmarshalJSON(t *testing.T) {
 }
 
 func TestListMap_JSONSchema(t *testing.T) {
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-	}
-	schema := reflector.Reflect(&ExampleStruct{})
+	schema := profileschema.Reflect(&ExampleStruct{})
 	schema.Version = "" // no version, to make the test more future-proof
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	require.NoError(t, err)
 
 	expectedSchema := `
 {
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/example-struct",
+  "$id": "https://github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition_test/example-struct",
   "$ref": "#/$defs/ExampleStruct",
   "$defs": {
     "ExampleStruct": {

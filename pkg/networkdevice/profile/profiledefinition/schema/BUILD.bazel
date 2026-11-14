@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "doc.go",
         "generate.go",
+        "listmap.go",
         "schema.go",
     ],
     embedsrcs = ["profile_rc_schema.json"],
