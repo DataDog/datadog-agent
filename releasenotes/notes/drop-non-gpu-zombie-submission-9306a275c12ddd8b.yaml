@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Stop submitting individual zombie processes that are not using a GPU in standard and realtime process payloads.
+    Zombie processes remain included in parent-level zombie counts and rates unless zombie collection is disabled.

@@ -64,7 +64,8 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, pidToGPUTags, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -95,6 +96,7 @@ func fmtProcessStats(
 	maxBatchSize int,
 	procs, lastProcs map[int32]*procutil.Stats,
 	pidToCid map[int]string,
+	pidToGPUTags map[int32][]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	now time.Time,
@@ -109,6 +111,12 @@ func fmtProcessStats(
 	for pid, fp := range procs {
 		if fp == nil {
 			continue
+		}
+		// Submit zombie processes individually only if they use a GPU.
+		if fp.IsZombie() {
+			if _, usesGPU := pidToGPUTags[pid]; !usesGPU {
+				continue
+			}
 		}
 
 		// Skipping any processes that didn't exist in the previous run.
