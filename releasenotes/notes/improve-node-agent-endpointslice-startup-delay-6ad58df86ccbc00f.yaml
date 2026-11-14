@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Reduce node Agent startup time by skipping endpoint slice checks in Autodiscovery
+    registration which is solely used by DCA.
