@@ -22,6 +22,10 @@ USER ContainerAdministrator
 
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
+# Remove base-image tools the Agent does not use (MinGit, curl.exe).
+COPY remove-unused-tools.ps1 ./
+RUN . ./remove-unused-tools.ps1; Remove-Item ./remove-unused-tools.ps1
+
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
 COPY java C:/java
 
