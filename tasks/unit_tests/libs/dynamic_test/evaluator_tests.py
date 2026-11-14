@@ -25,12 +25,11 @@ class _FakeEvaluator(DynTestEvaluator):
 class TestDynTestEvaluator(unittest.TestCase):
     def setUp(self):
         self.executor = MagicMock()
-        self.executor.commit_sha = "commit123"
         self.index = DynamicTestIndex({"job": {"pkg": ["TestPass", "TestFail", "TestFlaky"]}})
         self.executor.index.return_value = self.index
         self.telemetry = MagicMock()
         self.evaluator = _FakeEvaluator(
-            MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=self.telemetry
+            MagicMock(), IndexKind.PACKAGE, self.executor, "42", "commit123", telemetry_handler=self.telemetry
         )
         # the allow-failure fetch is networked; the evaluator tests are not
         # about it (see test_unreliable_jobs_fetch_fails_open)
@@ -88,7 +87,9 @@ class TestDynTestEvaluator(unittest.TestCase):
     def test_unreliable_jobs_fetch_fails_open(self, allowed):
         """If the pipeline jobs cannot be fetched, nothing is filtered (the
         misses stay visible) instead of hiding them all."""
-        evaluator = _FakeEvaluator(MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=MagicMock())
+        evaluator = _FakeEvaluator(
+            MagicMock(), IndexKind.PACKAGE, self.executor, "42", "commit123", telemetry_handler=MagicMock()
+        )
         evaluator._unreliable_jobs = None  # not fetched yet
         allowed.side_effect = RuntimeError("gitlab down")
         self.assertEqual(evaluator.unreliable_jobs, set())
@@ -169,6 +170,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             IndexKind.JEV,
             MagicMock(),
             "42",
+            "abc",
             telemetry_handler=MagicMock(),
         )
         tests = evaluator.list_tests_for_job('job: ["matrix"]')
@@ -194,7 +196,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             self.event("TestRetry", "pass", job_id="8"),  # retried job
         ]
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", "abc", telemetry_handler=MagicMock()
         )
         tests = evaluator.list_tests_for_job("job")
         self.assertEqual(len(tests), 1)
@@ -218,7 +220,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             self.event("TestDup", "pass", job_name="other-e2e-job"),
         ]
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", "abc", telemetry_handler=MagicMock()
         )
         tests = evaluator.list_tests_for_job("job")
         fail = [t for t in tests if t.job_name == "job"][0]
@@ -233,7 +235,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             self.event("TestFlakyRetry", "fail", flaky=True, job_id="8"),
         ]
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", "abc", telemetry_handler=MagicMock()
         )
         tests = evaluator.list_tests_for_job("job")
         self.assertEqual(tests[0].status, "fail")
@@ -243,7 +245,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
     def test_coverage_defaults(self, events):
         events.return_value = [self.event("TestFail", "fail")]
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.FILE, MagicMock(), "42", telemetry_handler=MagicMock()
+            MagicMock(), IndexKind.FILE, MagicMock(), "42", "abc", telemetry_handler=MagicMock()
         )
         self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args

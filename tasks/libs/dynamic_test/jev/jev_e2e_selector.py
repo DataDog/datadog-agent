@@ -97,6 +97,7 @@ def select_suite(
     output: str | None = None,
     dry_run: bool = False,
     pr_summary: str = "",
+    tests: set[str] | None = None,
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
@@ -107,7 +108,9 @@ def select_suite(
     base) so the passed diff is inspectable; the per-test states are not
     printed (use --dry-run for those). A non-empty pr_summary (generated
     beforehand by generate_pr_summary, never here) replaces the raw diff in
-    every state. Fail-open is per test: a failed Jev
+    every state. tests, when given, restricts the selection to these entry
+    points (e.g. a single job's candidates): only they generate Jev calls.
+    Fail-open is per test: a failed Jev
     call yields a RUN decision, never a skip. Raises ValueError on invalid
     arguments.
     """
@@ -144,6 +147,8 @@ def select_suite(
                         suites = [s for s in list_suites(suite_dir) if s[0] in entries]
         if not suites:
             raise ValueError(f"test {test} not found in {suite_dir}")
+    if tests is not None:
+        suites = [s for s in suites if s[0] in tests]
     print(f"[info] evaluating {len(suites)} tests: {', '.join(s[0] for s in suites)}")
 
     token = None if dry_run else get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
