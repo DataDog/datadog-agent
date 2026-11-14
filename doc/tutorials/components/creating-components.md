@@ -243,7 +243,7 @@ func TestCompressionRoundTrip(t *testing.T) {
 Run the test from the repository root:
 
 ```shell
-dda inv test --targets "./comp/compression/..." --test-run-name TestCompressionRoundTrip --verbose
+dda inv test --targets "./comp/compression/..." --test-run-name TestCompressionRoundTrip
 ```
 
 The command supplies the repository's build tags, including `test`. Expect `TestCompressionRoundTrip` to pass and its output to include `Round trip restored "Hello from a component"`. You have now constructed the real implementation through Fx and called it through its public interface.

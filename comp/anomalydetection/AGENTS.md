@@ -276,7 +276,7 @@ dda inv test --targets=./comp/anomalydetection/reporter/impl/
 dda inv test --targets=./comp/anomalydetection/logssource/impl/
 ```
 
-Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.`
+Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args=-test.bench=.`
 
 ## Sub-Guides
 
