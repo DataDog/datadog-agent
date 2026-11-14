@@ -391,6 +391,44 @@ func TestStrippingOriginTagsSameKey(t *testing.T) {
 	testWithTagsStore(t, testStrippingOriginTagsSameKey)
 }
 
+// testStrippingNormalizedRules checks that rules written against the names and
+// tag keys the intake stores apply to samples submitted in a raw form that the
+// intake normalizes to them.
+func testStrippingNormalizedRules(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"my_app.request_count": {Tags: []string{"pod_name", "env"}, Action: "exclude"},
+	}, logmock.New(t))
+	contextResolver := newContextResolver(setupTagger(t), store, "test")
+
+	s1 := &metrics.MetricSample{
+		Name:       "my-app.request count",
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"version:1.0", "Pod Name:web-1", "ENV:prod"},
+		SampleRate: 1,
+	}
+	s2 := &metrics.MetricSample{
+		Name:       "my-app.request count",
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"version:1.0", "pod_name:web-2", "env:staging"},
+		SampleRate: 1,
+	}
+
+	key1 := contextResolver.trackContext(s1, 0, matcher)
+	key2 := contextResolver.trackContext(s2, 0, matcher)
+
+	assert.Equal(t, key1, key2, "tags matching normalized rule keys should be stripped")
+	ctx, ok := contextResolver.get(key1)
+	require.True(t, ok)
+	// The context keeps the name and the remaining tags as submitted.
+	assert.Equal(t, "my-app.request count", ctx.Name)
+	metrics.AssertCompositeTagsEqual(t, ctx.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0"}))
+}
+
+func TestStrippingNormalizedRules(t *testing.T) {
+	testWithTagsStore(t, testStrippingNormalizedRules)
+}
+
 // testStrippingOriginTagsDiffersKey checks that when the strip list does not cover
 // all differing origin tags, contexts remain distinct.
 func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {

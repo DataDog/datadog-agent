@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The metric tag filter list (``metric_tag_filterlist``) now matches metric
+    names and tag keys in the form the Datadog intake stores them in, instead of
+    as submitted. The intake normalizes both on ingest: a metric submitted as
+    ``my-metric`` is stored as ``my_metric``, and a tag submitted as
+    ``Pod Name:web`` is stored as ``pod_name:web``. Previously a rule written
+    with the names and tag keys that users see in Datadog would fail to match
+    such metrics or tags, and the tags were sent anyway. Rule entries are
+    normalized the same way, so existing rules keep matching. Tag keys
+    containing ``:``, which no stored tag can have, are now ignored with a
+    warning. Several entries for the same metric are merged as before, and an
+    entry without an ``action`` now always counts as ``exclude`` when merging,
+    as it already did otherwise.
