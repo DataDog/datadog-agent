@@ -384,6 +384,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
+	c.PeerTagsK8sScope = core.GetBool("apm_config.peer_tags_k8s_scope.enabled")
+
 	// Deprecated/Experimental: apm_config.span_derived_primary_tags is only honored
 	// in serverless contexts — the Datadog Azure App Services extension (detected
 	// via DD_AZURE_APP_SERVICES=1) and cmd/serverless-init (which sets

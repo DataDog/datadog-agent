@@ -1332,3 +1332,128 @@ func TestAggregationPubSubIdentityPeerTags(t *testing.T) {
 	}
 	assert.ElementsMatch(t, [][]string{{topic}, {subscription}, {subscription, topic}}, got)
 }
+
+func TestAggregationPeerK8sScope(t *testing.T) {
+	uidTag := "peer.k8s.cluster.uid:" + testClusterUID
+	// aggregate sends p through a new aggregator and returns the peer tags of
+	// the flushed grouped stats.
+	aggregate := func(t *testing.T, configure func(*config.AgentConfig), p *pb.ClientStatsPayload) []string {
+		conf := &config.AgentConfig{
+			PeerTagsAggregation: true,
+			PeerTagsK8sScope:    true,
+			KubeClusterUID:      func() string { return testClusterUID },
+		}
+		if configure != nil {
+			configure(conf)
+		}
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		a.conf = conf
+		testTime := time.Unix(time.Now().Unix(), 0)
+		p.Stats[0].Start = uint64(testTime.UnixNano())
+		a.add(testTime, p)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 1)
+		require.Len(t, msw.payloads[0].Stats[0].Stats[0].Stats, 1)
+		return msw.payloads[0].Stats[0].Stats[0].Stats[0].PeerTags
+	}
+	payload := func(peerTags ...string) *pb.ClientStatsPayload {
+		p := payloadWithCounts(time.Now(), BucketsAggregationKey{Service: "caller", Name: "http.request", SpanKind: "client"}, "", "v1", "img", "sha", "go", 1, 0, 10)
+		p.Stats[0].Stats[0].PeerTags = peerTags
+		return p
+	}
+
+	for _, tc := range []struct {
+		name     string
+		peerTags []string
+		expected []string
+	}{
+		{
+			name:     "service FQDN",
+			peerTags: []string{"peer.service:orders", "peer.hostname:orders.shop.svc.cluster.local"},
+			expected: []string{"peer.hostname:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop", "peer.service:orders"},
+		},
+		{
+			name:     "out.host",
+			peerTags: []string{"out.host:orders.shop.svc"},
+			expected: []string{"out.host:orders.shop.svc", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "network.destination.name",
+			peerTags: []string{"network.destination.name:orders.shop.svc.cluster.local"},
+			expected: []string{"network.destination.name:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "server.address",
+			peerTags: []string{"server.address:pod-0.orders.shop.svc"},
+			expected: []string{uidTag, "peer.k8s.namespace:shop", "server.address:pod-0.orders.shop.svc"},
+		},
+		{
+			name:     "grpc.host with port",
+			peerTags: []string{"grpc.host:orders.shop.svc:50051"},
+			expected: []string{"grpc.host:orders.shop.svc:50051", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "higher precedence external hostname",
+			peerTags: []string{"out.host:orders.shop.svc", "server.address:api.example.org"},
+			expected: []string{"out.host:orders.shop.svc", "server.address:api.example.org"},
+		},
+		{
+			name:     "empty peer.hostname",
+			peerTags: []string{"peer.hostname:", "out.host:orders.shop.svc"},
+			expected: []string{"out.host:orders.shop.svc", "peer.hostname:", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "bare service",
+			peerTags: []string{"peer.hostname:orders"},
+			expected: []string{"peer.hostname:orders"},
+		},
+		{
+			name:     "service and namespace",
+			peerTags: []string{"peer.hostname:orders.shop"},
+			expected: []string{"peer.hostname:orders.shop"},
+		},
+		{
+			name:     "scheme",
+			peerTags: []string{"grpc.host:dns:///orders.shop.svc"},
+			expected: []string{"grpc.host:dns:///orders.shop.svc"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, aggregate(t, nil, payload(tc.peerTags...)))
+		})
+	}
+	t.Run("no peer tags", func(t *testing.T) {
+		assert.Nil(t, aggregate(t, nil, payload()))
+	})
+	for name, configure := range map[string]func(*config.AgentConfig){
+		"cluster UID unknown":            func(c *config.AgentConfig) { c.KubeClusterUID = func() string { return "" } },
+		"not in Kubernetes":              func(c *config.AgentConfig) { c.KubeClusterUID = nil },
+		"opted out":                      func(c *config.AgentConfig) { c.PeerTagsK8sScope = false },
+		"peer tags aggregation disabled": func(c *config.AgentConfig) { c.PeerTagsAggregation = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, []string{"peer.hostname:orders.shop.svc"}, aggregate(t, configure, payload("peer.hostname:orders.shop.svc")))
+		})
+	}
+	t.Run("scoped payloads aggregate together", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		a.conf = &config.AgentConfig{PeerTagsAggregation: true, PeerTagsK8sScope: true, KubeClusterUID: func() string { return testClusterUID }}
+		testTime := time.Unix(time.Now().Unix(), 0)
+		for range 2 {
+			p := payload("peer.hostname:orders.shop.svc")
+			p.Stats[0].Start = uint64(testTime.UnixNano())
+			a.add(testTime, p)
+		}
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+		groups := msw.payloads[0].Stats[0].Stats[0].Stats
+		require.Len(t, groups, 1)
+		assert.Equal(t, uint64(2), groups[0].Hits)
+		assert.Equal(t, []string{"peer.hostname:orders.shop.svc", uidTag, "peer.k8s.namespace:shop"}, groups[0].PeerTags)
+	})
+}

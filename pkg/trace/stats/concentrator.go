@@ -58,6 +58,7 @@ type Concentrator struct {
 	// never mutated in place; PeerTagKeys always Stores a fresh snapshot.
 	peerTagsCache           atomic.Pointer[config.PeerTagsCache]
 	additionalMetricTagKeys []string
+	peerK8sClusterUIDTag    peerK8sClusterUIDTag
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -213,6 +214,7 @@ type infraTags struct {
 
 // addNow adds the given input into the concentrator.
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
+	k8sScope := newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf))
 	if !c.cidStats {
 		tags.containerID = ""
 	}
@@ -245,12 +247,14 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
+			statSpan.matchingPeerTags = k8sScope.appendTags(statSpan.matchingPeerTags)
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight, now)
 		}
 	}
 }
 
 func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) {
+	k8sScope := newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf))
 	if !c.cidStats {
 		tags.containerID = ""
 	}
@@ -284,6 +288,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
+			statSpan.matchingPeerTags = k8sScope.appendTags(statSpan.matchingPeerTags)
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight, now)
 		}
 	}
