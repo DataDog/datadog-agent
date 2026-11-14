@@ -76,7 +76,6 @@ import (
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -757,7 +756,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 		var clientIP string
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
+			clientIP, clientPort, err = sendUDPToExternalDNS(dnsAddr)
 			assert.NoError(c, err)
 		}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -847,7 +846,10 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	network.Cloud = m
 
 	destAddr := net.ParseIP("8.8.8.8")
-	destDomain := "google.com"
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
@@ -873,7 +875,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	var clientIP string
 	var clientPort int
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, err = sendUDPToExternalDNS(destAddr)
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -890,7 +892,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	require.Nil(t, c.Via)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{destDomain}, destAddr, "udp")
+		clientIP, clientPort, err = sendUDPToExternalDNS(destAddr)
 		assert.NoError(c, err)
 	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
 
@@ -919,6 +921,10 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	m.EXPECT().IsAWS().Return(true)
 	network.Cloud = m
 
+	// Register the restore before the tracer is created, so that it runs after
+	// tr.Stop (cleanups run LIFO) and never races the running gateway lookup.
+	oldSubnetFunc := network.SubnetForHwAddrFunc
+	t.Cleanup(func() { network.SubnetForHwAddrFunc = oldSubnetFunc })
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
@@ -1055,7 +1061,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			netns.WithNS(test2Ns, func() error {
-				clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
+				clientIP, clientPort, err = sendUDPToExternalDNS(dnsAddr)
 				return nil
 			})
 			assert.NoError(c, err)
@@ -1718,6 +1724,33 @@ func iptablesWrapper(t *testing.T, f func()) {
 	require.NoError(t, err)
 
 	f()
+}
+
+// sendUDPToExternalDNS sends a single DNS query datagram to dest:53 and returns the
+// local address used, without waiting for a reply. The gateway lookup tests only need the
+// tracer to observe an outgoing flow that is routed through a gateway; they never use the
+// response. Waiting for an answer from a real public resolver made them depend on external
+// internet connectivity, which is flaky on CI VMs (i/o timeout).
+func sendUDPToExternalDNS(dest net.IP) (string, int, error) {
+	conn, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: dest, Port: 53})
+	if err != nil {
+		return "", 0, err
+	}
+	defer conn.Close()
+
+	msg := new(dns.Msg)
+	msg.SetQuestion(dns.Fqdn("google.com"), dns.TypeA)
+	msg.RecursionDesired = true
+	payload, err := msg.Pack()
+	if err != nil {
+		return "", 0, err
+	}
+	if _, err := conn.Write(payload); err != nil {
+		return "", 0, err
+	}
+
+	local := conn.LocalAddr().(*net.UDPAddr)
+	return local.IP.String(), local.Port, nil
 }
 
 func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
