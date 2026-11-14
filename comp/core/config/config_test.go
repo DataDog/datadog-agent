@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -53,6 +54,32 @@ func TestMockConfig(t *testing.T) {
 type activeConfigStream struct{}
 
 func (activeConfigStream) IsActive() bool { return true }
+
+func TestPrivateActionRunnerExtraConfigWithConfigStream(t *testing.T) {
+	// The core agent's snapshot does not include this runner's additional file.
+	streamed := NewMock(t)
+	streamed.Set("private_action_runner.enabled", false, model.SourceFile)
+	streamed.Set("private_action_runner.restricted_shell.allowed_commands", []string{}, model.SourceFile)
+
+	extraPath := filepath.Join(t.TempDir(), "runner.yaml")
+	require.NoError(t, os.WriteFile(extraPath, []byte(`
+private_action_runner:
+  enabled: true
+  restricted_shell:
+    allowed_commands: [ls]
+`), 0o600))
+
+	cfg, err := newConfig(dependencies{
+		// Both --extracfgpath and DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH
+		// supply their files through WithExtraConfFiles.
+		Params:    NewParams("", WithExtraConfFiles([]string{extraPath})),
+		Cfgstream: activeConfigStream{},
+	})
+	require.NoError(t, err)
+	assert.True(t, cfg.GetBool("private_action_runner.enabled"), "the additional file must enable the runner")
+	assert.Equal(t, []string{"ls"}, cfg.GetStringSlice("private_action_runner.restricted_shell.allowed_commands"),
+		"the additional file's runner restrictions must be preserved")
+}
 
 // The streamed snapshot only carries the core agent's config, so the security agent's own
 // file still has to be merged on the configstream path.
