@@ -224,6 +224,10 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 
 // Stop closes the connection and stops listening
 func (l *NamedPipeListener) Stop() {
+	// Finish accepting and registering clients before stopping their tracker.
+	l.pipe.Close()
+	l.listenWg.Wait()
+
 	// Request closing connections
 	l.connections.closeAllConns <- struct{}{}
 
@@ -231,8 +235,6 @@ func (l *NamedPipeListener) Stop() {
 	<-l.connections.allConnsClosed
 
 	l.packetManager.Close()
-	l.pipe.Close()
-	l.listenWg.Wait()
 }
 
 // getActiveConnectionsCount returns the number of active connections.

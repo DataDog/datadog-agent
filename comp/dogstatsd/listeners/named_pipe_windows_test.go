@@ -73,6 +73,45 @@ func TestNamedPipeReconnection(t *testing.T) {
 	assert.Equal(t, "data", res)
 }
 
+type pausedPipeListener struct {
+	net.Listener
+	accepted chan struct{}
+	release  chan struct{}
+}
+
+func (l *pausedPipeListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err == nil {
+		close(l.accepted)
+		<-l.release
+	}
+	return conn, err
+}
+
+func (l *pausedPipeListener) Close() error {
+	err := l.Listener.Close()
+	close(l.release)
+	return err
+}
+
+func TestNamedPipeStopBeforeClientRegistration(t *testing.T) {
+	var gate *pausedPipeListener
+	listener := newNamedPipeListenerTest(t, func(pipe net.Listener) net.Listener {
+		gate = &pausedPipeListener{Listener: pipe, accepted: make(chan struct{}), release: make(chan struct{})}
+		return gate
+	})
+	client := createNamedPipeClient(t)
+	defer client.Close()
+	<-gate.accepted
+	done := make(chan struct{})
+	go func() { listener.Stop(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("listener retained a client awaiting registration")
+	}
+}
+
 func TestNamedPipeStop(t *testing.T) {
 	listener := newNamedPipeListenerTest(t)
 	client := createNamedPipeClient(t)
@@ -124,7 +163,7 @@ type namedPipeListenerTest struct {
 	packetOut chan packets.Packets
 }
 
-func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
+func newNamedPipeListenerTest(t *testing.T, wrap ...func(net.Listener) net.Listener) namedPipeListenerTest {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComp)
 
@@ -151,6 +190,9 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 		packetOut:         packetOut,
 	}
 
+	if len(wrap) != 0 {
+		listener.pipe = wrap[0](listener.pipe)
+	}
 	listenerTest.Listen()
 	return listenerTest
 }
