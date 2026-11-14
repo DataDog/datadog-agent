@@ -146,6 +146,11 @@ properties:
         default: true
         env_vars:
         - DD_COLLECT_DNS_STATS
+        visibility: public
+        description: |-
+          Enhance connection data with DNS statistics, such as DNS response codes
+          and latency. Relevant only when DNS inspection is enabled (see
+          system_probe_config.disable_dns_inspection).
       collect_local_dns:
         node_type: setting
         type: boolean
@@ -156,6 +161,12 @@ properties:
         node_type: setting
         type: integer
         default: 131072
+        visibility: public
+        description: |-
+          The maximum number of connections with network address translation (NAT)
+          that can be tracked. Sizes both the userspace conntrack cache and the
+          eBPF conntrack map. The default of 131072 is fixed; it does not scale
+          with max_tracked_connections.
       conntrack_rate_limit:
         node_type: setting
         type: integer
@@ -230,6 +241,11 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        visibility: public
+        description: |-
+          Connect to the netlink/conntrack subsystem to add network address
+          translation (NAT) information to connection data.
+          See http://conntrack-tools.netfilter.org/
       enable_conntrack_all_namespaces:
         node_type: setting
         type: boolean
@@ -427,6 +443,13 @@ properties:
         node_type: setting
         type: integer
         default: 75000
+        visibility: public
+        description: |-
+          The maximum number of connection state objects stored per client
+          (for example the process-agent) for Cloud Network Monitoring.
+          When the limit is reached, state for new connections is not stored
+          and the connections are counted as dropped; existing entries are
+          not evicted.
       max_conns_per_message:
         node_type: setting
         type: integer
@@ -439,6 +462,12 @@ properties:
         node_type: setting
         type: integer
         default: 65536
+        visibility: public
+        description: |-
+          The maximum number of connections that can be tracked. This determines
+          the size of the eBPF maps. When the limit is reached, new connections
+          are not tracked until existing ones close. Increase this value on hosts
+          with a large number of concurrent connections.
         tags:
         - golang_type:int64
       memory_controller:
@@ -675,6 +704,8 @@ properties:
         node_type: setting
         type: string
         default: 10s
+        visibility: public
+        description: The time to wait for conntrack to initialize before failing.
         format: duration
         tags:
         - golang_type:duration
@@ -707,6 +738,17 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        visibility: public
+        description: |-
+          Aggregate short-lived closed connections by rolling up ephemeral ports.
+          Short-lived closed connections that differ only by their ephemeral
+          (client-side) port are reported as a single rolled-up connection,
+          reducing cardinality. Active and longer-lived connections are not
+          rolled up. Requires both
+          service_monitoring_config.enable_connection_rollup (disabled by
+          default) and process event monitoring
+          (event_monitoring_config.network_process.enabled); the rollup is
+          disabled with a warning otherwise.
       enable_dns_by_querytype:
         node_type: setting
         type: boolean
