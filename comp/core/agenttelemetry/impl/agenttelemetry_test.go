@@ -3545,25 +3545,34 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	tel := makeTelMock(t)
 	// Only in the gated "troubleshooting" profile.
-	tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "").Inc("d", "e", "dns")
+	txErrors := tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "")
 	// Only in the non-gated "logs-and-metrics" profile: the control.
-	tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "").Inc("d", "e")
+	txRetries := tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "")
+	// Both profiles exclude zero metrics, which applies to per-flush deltas: increment before each
+	// collection so the metrics have something to report.
+	bump := func() {
+		txErrors.Inc("d", "e", "dns")
+		txRetries.Inc("d", "e")
+	}
 
 	sndr := &senderMock{}
 	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
 	require.True(t, a.enabled, "default profiles must parse and compile")
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
 
+	bump()
 	names := collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
 
 	require.NoError(t, a.flag.OnChange(true))
+	bump()
 	names = collectMetricNames(t, a, sndr)
 	assert.Contains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
 
 	a.flag.OnNoConfig()
+	bump()
 	names = collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
@@ -3615,4 +3624,59 @@ func TestDetectedFeatures(t *testing.T) {
 
 	env.SetFeatures(t)
 	assert.Equal(t, []string{}, detectedFeatures())
+}
+
+// TestZeroMetricExcludesZeroDeltas checks that exclude.zero_metric applies to the per-period delta
+// sent for a counter, not to its cumulative Prometheus value: a counter that was incremented once
+// must not keep being reported with value 0 in every later payload.
+func TestZeroMetricExcludesZeroDeltas(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            exclude:
+              zero_metric: true
+            metrics:
+              - name: foo.bar
+                preserve_tags:
+                  - tag
+              - name: zoo.cat
+    `
+
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	idle := tel.NewCounter("foo", "bar", []string{"tag"}, "")
+	busy := tel.NewCounter("zoo", "cat", nil, "")
+	metricsOf := func() map[string]interface{} {
+		payload, err := getPayload(a)
+		require.NoError(t, err)
+		return payload.Payload.(AgentMetricsPayload).Metrics
+	}
+
+	// Cycle 1: both counters move, both are reported.
+	idle.AddWithTags(5, map[string]string{"tag": "a"})
+	busy.Add(1)
+	m1 := metricsOf()
+	require.Contains(t, m1, "foo.bar")
+	assert.Equal(t, 5.0, m1["foo.bar"].(MetricPayload).Value)
+	assert.Equal(t, 1.0, m1["zoo.cat"].(MetricPayload).Value)
+
+	// Cycle 2: only busy moves. idle has a cumulative value of 5 but a delta of 0: it must be excluded.
+	busy.Add(1)
+	m2 := metricsOf()
+	assert.NotContains(t, m2, "foo.bar", "a counter with a zero delta must be excluded by zero_metric")
+	assert.Equal(t, 1.0, m2["zoo.cat"].(MetricPayload).Value)
+
+	// Cycle 3: idle moves again; its delta must account for the excluded cycle (7 - 5 = 2).
+	idle.AddWithTags(2, map[string]string{"tag": "a"})
+	busy.Add(1)
+	m3 := metricsOf()
+	require.Contains(t, m3, "foo.bar")
+	assert.Equal(t, 2.0, m3["foo.bar"].(MetricPayload).Value)
 }

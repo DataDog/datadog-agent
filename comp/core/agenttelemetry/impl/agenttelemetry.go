@@ -513,12 +513,10 @@ func (a *atel) convertPromMetricToDatadogMetricsValues(mt dto.MetricType, metric
 	}
 }
 
-func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
-	// filter out zero values if specified in the profile
-	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
-		return false
-	}
-
+// isMetricFiltered reports whether a metric passes the profile's tag filters. The zero_metric filter
+// is not applied here: for counters and histograms it must see the per-period delta, which is only
+// known after convertPromMetricToDatadogMetricsValues (see transformMetricFamily).
+func isMetricFiltered(p *Profile, mCfg *MetricConfig, m *dto.Metric) bool {
 	// filter out if contains excluded tags
 	if len(p.excludeTagsMap) > 0 && areTagsMatching(m.GetLabel(), p.excludeTagsMap) {
 		return false
@@ -549,11 +547,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 		return nil
 	}
 
-	// Filter the metric according to the profile configuration
-	// Currently we only support filtering out zero values if specified in the profile
+	// Filter the metric according to the profile's tag filters
 	var fm []*dto.Metric
 	for _, m := range mfam.Metric {
-		if isMetricFiltered(p, mCfg, mt, m) {
+		if isMetricFiltered(p, mCfg, m) {
 			fm = append(fm, m)
 		}
 	}
@@ -569,6 +566,23 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	// value encodes the timeseries count and changes when timeseries appear/disappear.
 	// Mathematically: sum(deltas) == delta(sums), so aggregating deltas is equivalent.
 	a.convertPromMetricToDatadogMetricsValues(mt, mCfg.Name, fm)
+
+	// Filter out zero values if specified in the profile. This must happen AFTER the conversion:
+	// a counter keeps a non-zero cumulative value once incremented, so checking it before would
+	// report it with a zero delta in every later payload. All metrics still go through the
+	// conversion so their previous-value cache stays up to date while they are excluded.
+	if p.excludeZeroMetric {
+		nonZero := fm[:0]
+		for _, m := range fm {
+			if !isZeroValueMetric(mt, m) {
+				nonZero = append(nonZero, m)
+			}
+		}
+		fm = nonZero
+		if len(fm) == 0 {
+			return nil
+		}
+	}
 
 	// Aggregate the metric tags (now operating on deltas rather than cumulative values)
 	amt := a.aggregateMetricTags(mCfg, mt, fm)
