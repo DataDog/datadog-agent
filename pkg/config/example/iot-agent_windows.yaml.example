@@ -655,6 +655,72 @@ api_key:
 #
 #   static_metrics_reporting_interval: "15s"
 
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
+
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
 ## Timeout in milliseconds on calls to the Azure metadata endpoints.
@@ -1859,3 +1925,27 @@ api_key:
 ## of all the goroutines are logged.
 #
 # log_all_goroutines_when_unhealthy: false
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
