@@ -14,13 +14,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
-	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
@@ -38,7 +31,16 @@ import (
 	"go.opentelemetry.io/collector/otelcol/otelcoltest"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
+	"go.opentelemetry.io/ebpf-profiler/probes/oom"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/pkg/util/confmaputils"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
@@ -90,6 +92,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	extensionFactories := []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(nil, nil),
 		hpflareextension.NewFactoryForAgent(nil),
+		oom.NewFactory(),
 	}
 	extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
 	require.NoError(t, err)
