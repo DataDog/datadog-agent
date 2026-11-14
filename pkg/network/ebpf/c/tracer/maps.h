@@ -5,6 +5,7 @@
 #include "bpf_helpers.h"
 
 #include "conn_tuple.h"
+#include "conntrack/types.h"
 #include "tracer.h"
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
@@ -122,9 +123,14 @@ BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 // versa (the vice versa is used for cleanup purposes).
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 
+// The eBPF conntracker's map of NAT'd connections, original tuple to reply tuple and back. Userspace replaces this
+// placeholder with the conntracker's map when it's loaded, and then the net_dev_queue probe isn't attached: a
+// socket's packets' tuple is the inverse of the entry for its tuple.
+BPF_HASH_MAP(conntrack, conntrack_tuple_t, conntrack_tuple_t, 1)
+
 // Map to hold conn_tuple_t parameter for tcp_close calls
 // to be used in kretprobe/tcp_close.
-BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
+BPF_HASH_MAP(tcp_close_args, __u64, tcp_close_args_t, 1024)
 
 // Map to store extra information about TLS connections like version, cipher, etc.
 BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_wrapper_t, 0)

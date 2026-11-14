@@ -169,17 +169,27 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 	}()
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent)
-	if err != nil {
-		return nil, err
-	}
-	telemetryComponent.RegisterCollector(tr.ebpfTracer)
-
+	// the conntracker comes first so the connection tracer can share the eBPF conntracker's map
 	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
 	telemetryComponent.RegisterCollector(tr.conntracker)
+
+	var tracerOpts []connection.Option
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	if natMap != nil {
+		tracerOpts = append(tracerOpts, connection.WithConntrackNATMap(natMap))
+	}
+	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent, tracerOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if natMap != nil {
+		// the tracer registered the shared map under its own module, which is keyed by map ID
+		ddebpf.AddNameMappingsForMap(natMap, probes.ConntrackMap, ebpfConntrackerModule)
+	}
+	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 
 	if cfg.EnableGatewayLookup {
 		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
@@ -279,6 +289,43 @@ func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryCompone
 	}
 
 	return NewEBPFConntracker(cfg, telemetryComponent)
+}
+
+// sharedConntrackNATMap returns the eBPF conntracker's map of NAT'd connections for the connection tracer to
+// share, or nil to keep net_dev_queue. It isn't shared alongside a BPF NAT dataplane, found by Cilium's LB
+// conntracker or by findBPFNATDataplane: NAT done in BPF never reaches nf_conntrack, so the map wouldn't hold
+// those connections.
+func sharedConntrackNATMap(cfg *config.Config, c netlink.Conntracker, findBPFNATDataplane func() string) *ebpf.Map {
+	ctks := []netlink.Conntracker{c}
+	if chain, ok := c.(*chainConntracker); ok {
+		ctks = chain.ctks
+	}
+	var ebpfCtk *ebpfConntracker
+	cilium := false
+	for _, ctk := range ctks {
+		switch ctk := ctk.(type) {
+		case *ebpfConntracker:
+			ebpfCtk = ctk
+		case *ciliumLoadBalancerConntracker:
+			cilium = true
+		}
+	}
+	if ebpfCtk == nil {
+		return nil
+	}
+	if !cfg.ShareConntrackNATMap {
+		log.Info("network_config.share_conntrack_nat_map is false, not sharing the ebpf conntracker's map with the connection tracer")
+		return nil
+	}
+	if cilium {
+		log.Info("cilium conntracker loaded, not sharing the ebpf conntracker's map with the connection tracer")
+		return nil
+	}
+	if found := findBPFNATDataplane(); found != "" {
+		log.Infof("found a BPF NAT dataplane (%s), not sharing the ebpf conntracker's map with the connection tracer", found)
+		return nil
+	}
+	return ebpfCtk.ctMap.Map()
 }
 
 func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {

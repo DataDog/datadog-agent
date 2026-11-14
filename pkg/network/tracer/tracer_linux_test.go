@@ -2858,6 +2858,106 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
+func (s *TracerSuite) TestNATFromEbpfConntracker() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+
+	t.Run("ebpf conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = true
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the conntrack map")
+		}
+		natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+		if natMap == nil {
+			t.Skip("ebpf conntracker map not shared")
+		}
+		// the shared map is still reported as the conntracker's
+		if info, err := natMap.Info(); err == nil {
+			if id, ok := info.ID(); ok {
+				module, err := ddebpf.GetModuleFromMapID(uint32(id))
+				require.NoError(t, err)
+				assert.Equal(t, ebpfConntrackerModule, module)
+			}
+		}
+		// net_dev_queue isn't attached, so its map is left at one entry
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, uint32(1), m.MaxEntries())
+		testSNATOneSidedClassification(t, tr)
+	})
+
+	t.Run("netlink conntracker", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableEbpfConntracker = false
+		tr := setupTracer(t, cfg)
+		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
+		}
+		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane))
+		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+		require.NoError(t, err)
+		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
+		// net_dev_queue supplies the NAT'd tuples here
+		testSNATOneSidedClassification(t, tr)
+	})
+}
+
+// testSNATOneSidedClassification checks that both ends of a SNAT'd connection are classified when only one of them
+// sends, so the other end's socket only sees classified traffic under the NAT'd tuple.
+func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
+	netlinktestutil.SetupSNAT(t)
+	request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+	for _, serverSends := range []bool{false, true} {
+		t.Run(fmt.Sprintf("server sends %v", serverSends), func(t *testing.T) {
+			done := make(chan struct{})
+			srv := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(c net.Conn) {
+				defer c.Close()
+				if serverSends {
+					_, _ = c.Write(response)
+				} else {
+					_, _ = io.ReadFull(c, make([]byte, len(request)))
+				}
+				<-done
+			})
+			require.NoError(t, srv.Run())
+			t.Cleanup(srv.Shutdown)
+
+			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+			c, err := d.Dial("tcp", srv.Address())
+			require.NoError(t, err)
+			defer c.Close()
+			defer close(done)
+			if serverSends {
+				_, err = io.ReadFull(c, make([]byte, len(response)))
+			} else {
+				_, err = c.Write(request)
+			}
+			require.NoError(t, err)
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				conns, cleanup := getConnections(collect, tr)
+				defer cleanup()
+				client, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+				if assert.NotNil(collect, client, "client connection not found") {
+					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified")
+				}
+				// the server's socket sees the SNAT'd source
+				server := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
+					return cs.Direction == network.INCOMING && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == srv.Address() && cs.Dest.String() == "7.7.7.7"
+				})
+				if assert.NotNil(collect, server, "server connection not found") {
+					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified")
+				}
+			}, 5*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
 func setupDropTrafficRule(tb testing.TB) (ns string) {
 	state := testutil.IptablesSave(tb)
 	tb.Cleanup(func() {

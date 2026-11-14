@@ -12,6 +12,7 @@
 #include "sock.h"
 #include "port_range.h"
 #include "protocols/classification/shared-tracer-maps.h"
+#include "tracer/nat.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
@@ -171,13 +172,12 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     tls_info_t *tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 
-    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
-    if (!cached_skb_conn_tup_ptr) {
+    conn_tuple_t skb_tup;
+    if (!get_skb_tuple(t, &conn_tuple_copy, &skb_tup)) {
         return;
     }
 
-    conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    normalize_tuple(&conn_tuple_copy);
+    conn_tuple_copy = skb_tup;
     // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);

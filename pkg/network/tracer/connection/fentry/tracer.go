@@ -56,6 +56,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
+		o.MapEditors = mgrOpts.MapEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
@@ -128,7 +129,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	isClassificationSupported := ClassificationSupported(config)
 
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported, o.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
 		return nil, fmt.Errorf("error selecting fentry programs: %w", err)
 	}

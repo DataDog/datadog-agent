@@ -228,6 +228,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
@@ -250,7 +251,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -271,9 +272,9 @@ SEC("kretprobe/tcp_close")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    conn_tuple_t *tup_ptr = (conn_tuple_t *)bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (tup_ptr) {
-        clean_protocol_classification(tup_ptr);
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args) {
+        clean_protocol_classification(args);
         bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     }
 

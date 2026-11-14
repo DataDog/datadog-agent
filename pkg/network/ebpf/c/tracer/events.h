@@ -8,6 +8,7 @@
 #include "tracer/tracer.h"
 #include "tracer/maps.h"
 #include "tracer/stats.h"
+#include "tracer/nat.h"
 #include "tracer/telemetry.h"
 #include "cookie.h"
 #include "ip.h"
@@ -17,23 +18,59 @@
 #define MSG_PEEK 2
 #endif
 
-static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
-    conn_tuple_t conn_tuple = *tup;
+// store_tcp_close_args saves what the tcp_close return hook needs to clean up protocol classification. The packets'
+// tuple is resolved now, because userspace deletes a NAT'd connection's conntrack entry once it sees the close event.
+static __always_inline void store_tcp_close_args(__u64 pid_tgid, conn_tuple_t *t) {
+    tcp_close_args_t args = {};
+    args.tup = *t;
+    conn_tuple_t norm = *t;
+    norm.pid = 0;
+    norm.netns = 0;
+    normalize_tuple(&norm);
+    args.has_skb_tup = get_skb_tuple(t, &norm, &args.skb_tup);
+    bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &args, BPF_ANY);
+}
+
+static __always_inline void clean_protocol_classification(tcp_close_args_t *args) {
+    conn_tuple_t conn_tuple = args->tup;
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
     delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &conn_tuple);
 
-    conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
-    if (skb_tup_ptr == NULL) {
+    conn_tuple_t skb_tup;
+    if (args->has_skb_tup) {
+        skb_tup = args->skb_tup;
+    } else if (!get_skb_tuple(&args->tup, &conn_tuple, &skb_tup)) {
+        // retried because net_dev_queue may first have recorded the packets' tuple for the FIN or RST that
+        // tcp_close itself sent
         return;
     }
 
-    conn_tuple_t skb_tup = *skb_tup_ptr;
     delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&tls_enhanced_tags, &skb_tup);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
+}
+
+// clean_skb_tuple_protocol_classification deletes the protocol classification under the tuple of a NAT'd socket's
+// packets, for a connection tcp_done flushes before close(). Call it before the flush: once userspace sees the flush it
+// deletes the connection's conntrack entry, and then tcp_close can't find that tuple. The net_dev_queue cache isn't
+// deleted from userspace, so tcp_close still cleans up in that mode.
+static __always_inline void clean_skb_tuple_protocol_classification(conn_tuple_t *t) {
+    if (!is_protocol_classification_supported() || nat_lookup_mode() == NAT_LOOKUP_SKB_CACHE) {
+        return;
+    }
+    conn_tuple_t norm = *t;
+    norm.pid = 0;
+    norm.netns = 0;
+    normalize_tuple(&norm);
+    conn_tuple_t skb_tup;
+    if (!get_skb_tuple(t, &norm, &skb_tup)) {
+        return;
+    }
+    delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
+    bpf_map_delete_elem(&tls_enhanced_tags, &skb_tup);
 }
 
 __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {

@@ -838,6 +838,10 @@ properties:
         - 15008
         items:
           type: integer
+      share_conntrack_nat_map:
+        node_type: setting
+        type: boolean
+        default: true
   service_monitoring_config:
     $ref: system-probe-usm.yaml
   ping:

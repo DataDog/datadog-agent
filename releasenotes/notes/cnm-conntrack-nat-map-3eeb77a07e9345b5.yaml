@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Cloud Network Monitoring now resolves the packet tuples of NAT'd
+    connections for protocol classification from the eBPF conntracker's map,
+    instead of recording them on every egress packet, which lowers per-packet
+    overhead on hosts where the eBPF conntracker loads. Sharing is turned off
+    automatically when Cilium or Calico eBPF maps are found, and can be turned
+    off with ``network_config.share_conntrack_nat_map: false``.

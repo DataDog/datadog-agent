@@ -225,7 +225,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     // Pass the entry-time tuple to fexit/tcp_close for protocol-classification
     // cleanup. sk is guaranteed valid here; at fexit it may not be.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -248,12 +248,12 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t *t = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (t == NULL) {
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    clean_protocol_classification(t);
+    clean_protocol_classification(args);
     bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     return 0;
 }
@@ -285,6 +285,7 @@ int BPF_PROG(tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
