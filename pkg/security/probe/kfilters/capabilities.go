@@ -21,12 +21,3 @@ var allCapabilities = make(Capababilities)
 func GetCapababilities() Capababilities {
 	return allCapabilities
 }
-
-// Clone returns a copy of the Capababilities
-func (c *Capababilities) Clone() Capababilities {
-	clone := make(Capababilities, len(*c))
-	for k, v := range *c {
-		clone[k] = v.Clone()
-	}
-	return clone
-}
