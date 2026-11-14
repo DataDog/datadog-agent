@@ -263,9 +263,9 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
-			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
+			_ = log.ErrorfStackDepth(3, "set value for unknown key '%s'", key)
 		} else {
-			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
+			_ = log.ErrorfStackDepth(3, "could not set '%s' unknown key", key)
 			return false
 		}
 	}
@@ -298,9 +298,9 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 				typePair := fmt.Sprintf("%T->%T", newValue, converted)
 				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
 				if isIntWidthConversion && c.setTypeWarnings[typePair] {
-					log.DebugfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.DebugfStackDepth(3, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 				} else {
-					log.WarnfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.WarnfStackDepth(3, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 					if isIntWidthConversion {
 						c.setTypeWarnings[typePair] = true
 					}
@@ -316,7 +316,7 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
+		_ = log.ErrorfStackDepth(3, "could not insert value: %s", err)
 		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
