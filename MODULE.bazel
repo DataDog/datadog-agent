@@ -38,6 +38,21 @@ release_json = use_repo_rule("//bazel/repo:release_json.bzl", "release_json")
 
 release_json(name = "dd_release_json")
 
+# better_gitlab: presubmit/TESTING planning tool, used to compute which
+# linters and bazel test suites apply to a set of changed files.
+# TODO: this is a local checkout for prototyping; switch to a pinned
+# archive_override (or a real Bazel module release) once better_gitlab
+# is published.
+local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+local_repository(
+    name = "better_gitlab",
+    # NOTE: hardcoded to this developer's machine for prototyping; local_repository
+    # paths can't use $HOME or other env expansion. Replace with a pinned
+    # archive_override once better_gitlab is published.
+    path = "/Users/tony.aiuto/ws/better_gitlab",
+)
+
 # Instead of the canonical rules_license, we use the version from supply-chain.
 # This allows mixing both old and new license rules during the multi-year
 # migration between the two styles. The rules_license overlay will never be
