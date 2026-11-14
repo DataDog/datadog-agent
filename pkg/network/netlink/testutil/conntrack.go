@@ -32,14 +32,13 @@ func init() {
 // * 2.2.2.2 to 1.1.1.1 (OUTPUT Chain)
 // * 3.3.3.3 to 1.1.1.1 (PREROUTING Chain)
 func SetupDNAT(t *testing.T) {
-	linkName := "dummy" + strconv.Itoa(rand.Intn(9999)+1)
 	nettestutil.IptablesSave(t)
+	linkName := addDummyLink(t, "dummy")
 	t.Cleanup(func() {
 		teardownDNAT(t, linkName)
 	})
 
 	cmds := []string{
-		fmt.Sprintf("ip link add %s type dummy", linkName),
 		"ip address add 1.1.1.1 broadcast + dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
@@ -51,14 +50,13 @@ func SetupDNAT(t *testing.T) {
 // SetupSNAT sets up a NAT translation from:
 // * 6.6.6.6 to 7.7.7.7 (POSTROUTING Chain)
 func SetupSNAT(t *testing.T) string {
-	linkName := "dummy-2-" + strconv.Itoa(rand.Intn(9999)+1)
 	nettestutil.IptablesSave(t)
+	linkName := addDummyLink(t, "dummy-2-")
 	t.Cleanup(func() {
 		teardownDNAT(t, linkName)
 	})
 
 	cmds := []string{
-		fmt.Sprintf("ip link add %s type dummy", linkName),
 		"ip address add 7.7.7.7 broadcast + dev " + linkName,
 		"ip address add 6.6.6.6 broadcast + dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
@@ -67,6 +65,28 @@ func SetupSNAT(t *testing.T) string {
 	nettestutil.RunCommands(t, cmds, false)
 
 	return linkName
+}
+
+// addDummyLink creates a dummy interface named prefix plus a random number, and returns its name. A random name
+// can already be taken, either by a link from the same test (SetupDNAT and SetupDNAT6 both use the "dummy" prefix)
+// or by one an earlier run leaked, so on EEXIST it tries another name. Keep the "dummy" prefix: offset guessing
+// skips the IPv6 link-local addresses of interfaces named "dummy*".
+func addDummyLink(tb testing.TB, prefix string) string {
+	tb.Helper()
+	const attempts = 10
+	var err error
+	for range attempts {
+		linkName := prefix + strconv.Itoa(rand.Intn(9999)+1)
+		var out string
+		if out, err = nettestutil.RunCommand("ip link add " + linkName + " type dummy"); err == nil {
+			return linkName
+		}
+		if !strings.Contains(out, "File exists") {
+			break
+		}
+	}
+	tb.Fatalf("could not add a dummy interface: %v", err)
+	return ""
 }
 
 // teardownDNAT cleans up the resources created by SetupDNAT
@@ -93,15 +113,14 @@ func getDefaultInterfaceName(t *testing.T) string {
 
 // SetupDNAT6 sets up a NAT translation from fd00::2 to fd00::1
 func SetupDNAT6(t *testing.T) {
-	linkName := "dummy" + strconv.Itoa(rand.Intn(9999)+1)
 	ifName := getDefaultInterfaceName(t)
+	linkName := addDummyLink(t, "dummy")
 	t.Cleanup(func() {
 		teardownDNAT6(t, ifName, linkName)
 	})
 
 	nettestutil.IP6tablesSave(t)
 	cmds := []string{
-		fmt.Sprintf("ip link add %s type dummy", linkName),
 		"ip address add fd00::1 dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
 		fmt.Sprintf("%s/testdata/wait_if.sh %s", curDir, linkName),
