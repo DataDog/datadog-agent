@@ -1156,6 +1156,8 @@
 /test/new-e2e/tests/agent-subcommands/hostname*                 @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-subcommands/configcheck*              @DataDog/agent-runtimes @DataDog/agent-integrations
 /test/new-e2e/tests/agent-subcommands/run*                      @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/dogstatsd*                @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/diagnose*                 @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/secret*                   @DataDog/fleet-automation
 /test/new-e2e/tests/agent-subcommands/flare*                    @DataDog/fleet-remediation
 /test/new-e2e/tests/agent-subcommands/status*                   @DataDog/fleet-remediation

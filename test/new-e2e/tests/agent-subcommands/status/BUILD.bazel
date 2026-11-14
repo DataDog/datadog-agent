@@ -1,0 +1,30 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "status_test",
+    srcs = [
+        "status_common_test.go",
+        "status_nix_test.go",
+        "status_win_test.go",
+    ],
+    data = [
+        "fixtures/custom_check.py",
+        "fixtures/custom_check.yaml",
+    ],
+    embedsrcs = [
+        "fixtures/custom_check.py",
+        "fixtures/custom_check.yaml",
+    ],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
