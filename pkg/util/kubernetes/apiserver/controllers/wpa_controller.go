@@ -43,17 +43,10 @@ var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
 
 // runWPA starts the controller to process events about Watermark Pod Autoscalers
 func (h *autoscalersController) runWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		select {
-		case <-stopCh:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	if err := waitForWPACRD(ctx, wpaClient); ctx.Err() != nil {
-		log.Infof("Stopping WPA CRD check: %v", err)
+	ctx := wait.ContextForChannel(stopCh)
+	waitForWPACRD(ctx, wpaClient)
+	if ctx.Err() != nil {
+		log.Infof("Stopping WPA CRD check: %v", ctx.Err())
 		return
 	}
 
@@ -107,7 +100,7 @@ func isWPACRDNotFoundError(err error) bool {
 		details.Kind == "watermarkpodautoscalers"
 }
 
-func waitForWPACRD(ctx context.Context, wpaClient dynamic_client.Interface) error {
+func waitForWPACRD(ctx context.Context, wpaClient dynamic_client.Interface) {
 	exp := backoff.NewExponentialBackOff()
 	exp.InitialInterval = crdCheckInitialInterval
 	exp.RandomizationFactor = 0
@@ -121,7 +114,7 @@ func waitForWPACRD(ctx context.Context, wpaClient dynamic_client.Interface) erro
 	}
 
 	attempt := 0
-	_, err := backoff.Retry(ctx, func() (any, error) {
+	_, _ = backoff.Retry(ctx, func() (any, error) {
 		err := tryCheckWPACRD(check)
 		if err != nil && isWPACRDNotFoundError(err) {
 			attempt++
@@ -129,7 +122,6 @@ func waitForWPACRD(ctx context.Context, wpaClient dynamic_client.Interface) erro
 		}
 		return nil, err
 	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
-	return err
 }
 
 // enableWPA adds the handlers to the autoscalersController to support WPAs
