@@ -183,12 +183,16 @@ func (c *client) SendLog(level, message string) {
 }
 
 func (c *client) SendTraces(traces traces) {
+	c.sendTraces(context.Background(), traces)
+}
+
+func (c *client) sendTraces(ctx context.Context, traces traces) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	payload := tracePayload{
 		Traces: c.sampleTraces(traces),
 	}
-	c.sendPayload(requestTypeTraces, payload)
+	c.sendPayloadWithContext(ctx, requestTypeTraces, payload)
 }
 
 // sampleTraces is a simple uniform sampling function that samples traces based
@@ -213,10 +217,16 @@ func (c *client) sampleTraces(ts traces) traces {
 }
 
 func (c *client) sendPayload(requestType requestType, payload interface{}) {
+	c.sendPayloadWithContext(context.Background(), requestType, payload)
+}
+
+// sendPayloadWithContext sends payload, giving up when parent is canceled or after the client's
+// send timeout, whichever comes first.
+func (c *client) sendPayloadWithContext(parent context.Context, requestType requestType, payload interface{}) {
 	if !c.siteSupportsTelemetry {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
+	ctx, cancel := context.WithTimeout(parent, c.sendPayloadTimeout)
 	defer cancel()
 
 	event := c.baseEvent
