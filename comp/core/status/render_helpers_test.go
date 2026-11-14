@@ -85,3 +85,19 @@ func TestParseUnixTimeError(t *testing.T) {
 		assert.Zero(t, output)
 	}
 }
+
+func TestIndentLines(t *testing.T) {
+	t.Run("indents every line", func(t *testing.T) {
+		assert.Equal(t, "    a\n    b", indentLines(4, "a\nb"))
+	})
+
+	t.Run("leaves blank lines empty", func(t *testing.T) {
+		// Padding a blank line would add trailing whitespace to the status output,
+		// which trips golden-file comparisons.
+		assert.Equal(t, "    a\n\n    b", indentLines(4, "a\n\nb"))
+	})
+
+	t.Run("preserves existing leading whitespace", func(t *testing.T) {
+		assert.Equal(t, "      1 | x\n    > 2 | y", indentLines(4, "  1 | x\n> 2 | y"))
+	})
+}
