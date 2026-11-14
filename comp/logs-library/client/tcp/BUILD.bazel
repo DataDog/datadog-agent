@@ -30,6 +30,7 @@ dd_agent_go_test(
         "delimiter_test.go",
         "destination_test.go",
         "prefixer_test.go",
+        "shutdown_test.go",
     ],
     embed = [":tcp"],
     deps = [
@@ -42,5 +43,6 @@ dd_agent_go_test(
         "//pkg/logs/status/statusinterface",
         "//pkg/logs/util/testutils",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -89,20 +89,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 
 		var conn net.Conn
-		if cm.endpoint.ProxyAddress != "" {
-			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", cm.endpoint.ProxyAddress, nil, proxy.Direct)
-			if err != nil {
-				log.Warn(err)
-				continue
-			}
-			conn, err = dialer.Dial("tcp", cm.address())
-		} else {
-			var dialer net.Dialer
-			dctx, cancel := context.WithTimeout(ctx, connectionTimeout)
-			defer cancel()
-			conn, err = dialer.DialContext(dctx, "tcp", cm.address())
-		}
+		conn, err = cm.dial(ctx)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -113,8 +100,9 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})
-			err = cm.handshakeWithTimeout(sslConn, connectionTimeout)
+			err = cm.handshakeWithTimeout(ctx, sslConn, connectionTimeout)
 			if err != nil {
+				sslConn.Close()
 				log.Warn(err)
 				continue
 			}
@@ -122,23 +110,44 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 			conn = sslConn
 		}
 
-		go cm.handleServerClose(conn)
+		stopClose := context.AfterFunc(ctx, func() { cm.CloseConnection(conn) })
+		go func() {
+			defer stopClose()
+			cm.handleServerClose(conn)
+		}()
 		cm.status.RemoveGlobalWarning(statusConnectionError)
 		return conn, nil
 	}
 }
 
-func (cm *ConnectionManager) handshakeWithTimeout(conn *tls.Conn, timeout time.Duration) error {
-	errChannel := make(chan error, 2)
-	time.AfterFunc(timeout, func() {
-		errChannel <- tlsTimeoutError{}
-	})
-	go func() {
-		log.Debug("Start TLS handshake")
-		errChannel <- conn.Handshake()
-		log.Debug("TLS handshake ended")
-	}()
-	return <-errChannel
+func (cm *ConnectionManager) dial(ctx context.Context) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, connectionTimeout)
+	defer cancel()
+	direct := &net.Dialer{}
+	if cm.endpoint.ProxyAddress == "" {
+		return direct.DialContext(ctx, "tcp", cm.address())
+	}
+	dialer, err := proxy.SOCKS5("tcp", cm.endpoint.ProxyAddress, nil, direct)
+	if err != nil {
+		return nil, err
+	}
+	contextDialer, ok := dialer.(proxy.ContextDialer)
+	if !ok {
+		return nil, errors.New("SOCKS5 dialer does not support cancellation")
+	}
+	return contextDialer.DialContext(ctx, "tcp", cm.address())
+}
+
+func (cm *ConnectionManager) handshakeWithTimeout(ctx context.Context, conn *tls.Conn, timeout time.Duration) error {
+	handshakeCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	log.Debug("Start TLS handshake")
+	err := conn.HandshakeContext(handshakeCtx)
+	log.Debug("TLS handshake ended")
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		return tlsTimeoutError{}
+	}
+	return err
 }
 
 // address returns the address of the server to send logs to.
@@ -158,10 +167,7 @@ func (cm *ConnectionManager) CloseConnection(conn net.Conn) {
 	log.Debug("Connection closed")
 }
 
-// handleServerClose lets the connection manager detect when a connection
-// has been closed by the server, and closes it for the client.
-// This is not strictly necessary but a good safeguard against callers
-// that might not handle errors properly.
+// handleServerClose closes the connection on peer shutdown or an unexpected read error.
 func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 	for {
 		buff := make([]byte, 1)
@@ -176,6 +182,7 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 			return
 		default:
 			log.Warn(err)
+			cm.CloseConnection(conn)
 			return
 		}
 	}
