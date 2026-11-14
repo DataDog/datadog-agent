@@ -135,6 +135,11 @@ func TestScanMW_DetectsStepChange(t *testing.T) {
 	require.NotNil(t, result.Anomalies[0].DebugInfo)
 	assert.Positive(t, result.Anomalies[0].DebugInfo.PValue)
 	assert.NotZero(t, result.Anomalies[0].DebugInfo.EffectSize)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.AfterMedian, 1)
+	assert.Equal(t, result.Anomalies[0].DebugInfo.BaselineMedian, result.Anomalies[0].LevelChange.BeforeMedian)
+	assert.Equal(t, result.Anomalies[0].DebugInfo.CurrentValue, result.Anomalies[0].LevelChange.AfterMedian)
 	// Changepoint should be near the transition at index 20.
 	assert.InDelta(t, 21, result.Anomalies[0].Timestamp, 3)
 }
@@ -153,6 +158,9 @@ func TestScanMW_DetectsDownwardStepChange(t *testing.T) {
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanMW changepoint: metric:avg", title)
 	assert.Contains(t, description, "decreased")
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.AfterMedian, 1)
 }
 
 func TestScanMW_IncrementalAdvance(t *testing.T) {

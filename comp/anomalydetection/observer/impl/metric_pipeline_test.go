@@ -145,7 +145,7 @@ func newScanMWPipelineWithMatcher(
 }
 
 func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
-	p, err := newScanMWMetricPipeline(cfg, true)
+	p, err := newScanMWMetricPipeline(cfg, true, nil)
 	require.NoError(tb, err)
 	return p
 }
@@ -154,6 +154,40 @@ func testScanMWPipelineConfig() ScanMWConfig {
 	return ScanMWConfig{
 		MinPoints: 6, MinSegment: 2, MaxPoints: 40,
 		SignificanceThreshold: 1e-3, MinEffectSize: 0.85, MinDeviationMAD: 3,
+	}
+}
+
+func TestMetricPipelineStableAnomalyScoringAndFormatting(t *testing.T) {
+	for _, detectorName := range []string{"scanmw", "scanwelch"} {
+		t.Run(detectorName, func(t *testing.T) {
+			original := observer.Anomaly{
+				Source:       observer.SeriesDescriptor{Name: "memory"},
+				DetectorName: detectorName,
+				Score:        scorePtr(20),
+				LevelChange:  &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 106},
+				DebugInfo:    &observer.AnomalyDebugInfo{BaselineMedian: 100, CurrentValue: 106, PValue: 1e-20},
+			}
+			stable, err := newStablePipeline(&stableStubDetector{
+				name: detectorName, anomalies: []observer.Anomaly{original},
+			}, DefaultStablePipelineConfig())
+			require.NoError(t, err)
+			pipeline, err := newMetricPipeline([]pipelineRegistration{{
+				kind: observer.STABLE, metricType: metrics.GaugeType, detector: stable,
+			}}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+			require.NoError(t, err)
+			result := pipeline.Detect(nil, 1000, observer.DetectionFilter{})
+			require.Len(t, result.Anomalies, 1)
+			anomaly := result.Anomalies[0]
+			require.Equal(t, "stable_pipeline:"+detectorName, anomaly.DetectorName)
+			cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+			require.Equal(t, 1, anomalyLevel(anomaly, cfg))
+			require.Equal(t, levelWeights[1], contributorWeight(anomaly, cfg))
+			wantTitle, wantDescription := observer.FormatAnomaly(original)
+			title, description := observer.FormatAnomaly(anomaly)
+			require.NotEmpty(t, description)
+			require.Equal(t, wantTitle, title)
+			require.Equal(t, wantDescription, description)
+		})
 	}
 }
 
@@ -251,14 +285,14 @@ func TestScanMWMetricPipelineRouting(t *testing.T) {
 	require.Len(t, result.Anomalies, 1)
 	require.Equal(t, stable, result.Anomalies[0].SourceRef.Ref)
 	require.Equal(t, observer.AggregateAverage, result.Anomalies[0].SourceRef.Aggregate)
-	require.Len(t, p.registrations[0].detector.(*ScanMWDetector).series, 2)
-	require.Contains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.Len(t, stablePipelineInnerScanMW(p).series, 2)
+	require.Contains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: stable, agg: observer.AggregateAverage})
-	require.Contains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.Contains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: constant, agg: observer.AggregateAverage})
-	require.NotContains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.NotContains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: linear, agg: observer.AggregateAverage})
-	require.NotContains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.NotContains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: count, agg: observer.AggregateAverage})
 }
 
@@ -630,12 +664,12 @@ func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
 	e.Advance(40)
 	e.Advance(41)
 	require.Contains(t, p.series, ref)
-	require.NotEmpty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.NotEmpty(t, stablePipelineInnerScanMW(p).series)
 	e.Advance(60)
 	require.Zero(t, s.TotalSeriesCount())
 	require.Empty(t, p.series)
 	require.Empty(t, p.matcher.(*metricKindMatcher).series)
-	require.Empty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.Empty(t, stablePipelineInnerScanMW(p).series)
 	require.Empty(t, e.DetectorOutputAnomalies(), "production must not retain detector history")
 
 	ref = addPipelineValues(s, 1, 61, 100, 100)
@@ -650,7 +684,7 @@ func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
 	e.Advance(100)
 	e.Advance(101)
 	require.Contains(t, replacement.series, ref)
-	require.NotEmpty(t, replacement.registrations[0].detector.(*ScanMWDetector).series)
+	require.NotEmpty(t, stablePipelineInnerScanMW(replacement).series)
 }
 
 func BenchmarkMetricPipeline(b *testing.B) {
@@ -682,4 +716,7 @@ func BenchmarkMetricPipeline(b *testing.B) {
 			})
 		}
 	}
+}
+func stablePipelineInnerScanMW(p *MetricPipeline) *ScanMWDetector {
+	return p.registrations[0].detector.(*StablePipeline).detector.(*ScanMWDetector)
 }

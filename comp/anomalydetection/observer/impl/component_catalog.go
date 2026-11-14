@@ -95,6 +95,9 @@ type ComponentSettings struct {
 	// previous configured detector workflow.
 	UseMetricPipeline bool
 
+	// StablePipeline optionally overrides the stable pipeline configuration.
+	// Nil selects defaults.
+	StablePipeline *StablePipelineConfig
 	// MetricPipelineAnomalyCutoff controls whether reactivated-series anomalies
 	// are suppressed until a fresh point is observed. Nil uses the enabled default.
 	MetricPipelineAnomalyCutoff *bool
@@ -117,6 +120,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	}
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
+	}
+	if settings.StablePipeline == nil {
+		cfg := DefaultStablePipelineConfig()
+		settings.StablePipeline = &cfg
 	}
 	if settings.MetricPipelineAnomalyCutoff == nil {
 		enabled := true
@@ -415,7 +422,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			enabled := true
 			anomalyCutoff = &enabled
 		}
-		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig(), *anomalyCutoff)
+		pipeline, pipelineErr := newDefaultMetricPipeline(settings.StablePipeline, *anomalyCutoff)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}

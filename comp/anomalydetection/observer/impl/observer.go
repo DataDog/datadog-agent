@@ -320,6 +320,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		return settings
 	}
 	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.stable.min_relative_change") {
+		settings.StablePipeline = &StablePipelineConfig{
+			MinRelativeChange: cfg.GetFloat64("anomaly_detection.metric_pipeline.stable.min_relative_change"),
+		}
+	}
 	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
 		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
 		settings.MetricPipelineAnomalyCutoff = &cutoff

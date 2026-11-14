@@ -90,12 +90,10 @@ func anomalySeverityLabel(level int) string {
 	return anomalySeverityLabels[level]
 }
 
-// anomalyLevel assigns a 0–4 level to an anomaly.
-// If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
-// compared against its four boundaries. Detectors without an entry (including
-// unscored detectors such as bocpd) default to Medium (level 2).
-func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
-	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
+// detectorConfidenceLevel assigns a 0–4 confidence level from the detector
+// score. Detectors without calibrated thresholds default to Medium.
+func detectorConfidenceLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
@@ -110,11 +108,65 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
+// relativeChangeLevel assigns a 0–4 severity level from the gate-relative
+// magnitude between the before and after medians. Bounds are inclusive.
+func relativeChangeLevel(change float64) int {
+	switch {
+	case change <= 0.06:
+		return 0
+	case change <= 0.10:
+		return 1
+	case change <= 0.20:
+		return 2
+	case change <= 0.50:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// relativeChangeMagnitude measures the gate-relative difference between two
+// finite levels. It saturates at MaxFloat64 when the ratio overflows.
+func relativeChangeMagnitude(before, after float64) float64 {
+	if before == 0 {
+		return math.MaxFloat64
+	}
+	change := math.Abs(after - before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	change /= math.Abs(before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	return change
+}
+
+// anomalyLevel assigns a 0–4 level to an anomaly. Stable gate evidence uses
+// relative change for the base level, with one level of confidence bonus.
+func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if a.LevelChange == nil {
+		return detectorConfidenceLevel(a, cfg)
+	}
+	level := relativeChangeLevel(relativeChangeMagnitude(
+		a.LevelChange.BeforeMedian,
+		a.LevelChange.AfterMedian,
+	))
+	if detectorConfidenceLevel(a, cfg) >= 3 {
+		level++
+	}
+	return min(level, len(levelWeights)-1)
+}
+
 // contributorWeight interpolates an anomaly score between the adjacent
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
-	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	if a.LevelChange != nil {
+		return levelWeights[anomalyLevel(a, cfg)]
+	}
+
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
 	}
