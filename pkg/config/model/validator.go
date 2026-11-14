@@ -20,7 +20,10 @@ type Violation struct {
 	SettingKey    string
 	ActualType    string
 	ExpectedTypes []string
-	reverted      atomic.Bool
+	// Reason describes the violation using only the schema (expected types, allowed values, bounds...). It never
+	// contains the configured value, so unlike Message it's safe to report as telemetry.
+	Reason   string
+	reverted atomic.Bool
 }
 
 // MarkAsReverted marks the violation as reverted: its setting was reverted to its default
