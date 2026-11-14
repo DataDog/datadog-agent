@@ -133,6 +133,7 @@ dd_agent_go_test(
         "logic_ops_vuln_hunt_test.go",
         "memory_accounting_test.go",
         "negation_vuln_hunt_test.go",
+        "nested_command_depth_test.go",
         "nesting_vuln_hunt_test.go",
         "parser_lexer_vuln_hunt_test.go",
         "pipe_vuln_hunt_test.go",
