@@ -91,7 +91,7 @@ func compileList(byKey map[string]*keyRules, patterns []string, isExclude bool, 
 		}
 
 		folded := asciiLower(key)
-		if isExclude && isPayloadAttributeKey(folded) {
+		if isExclude && IsPayloadAttributeKey(folded) {
 			report.Warnings = append(report.Warnings, fmt.Sprintf(
 				"exclude pattern %q targets %q, which remains present as a log attribute",
 				p, folded))
@@ -145,8 +145,9 @@ func parsePattern(p string) (key, value, reason string) {
 	return key, value, ""
 }
 
-func isPayloadAttributeKey(key string) bool {
-	return key == "source" || key == "service" || key == "host"
+// IsPayloadAttributeKey reports whether key, case-insensitively, names a log attribute that outlives its filtered tag.
+func IsPayloadAttributeKey(key string) bool {
+	return equalFolded("source", key) || equalFolded("service", key) || equalFolded("host", key)
 }
 
 // asciiLower lowercases ASCII letters in s and returns s unchanged when possible.
@@ -209,7 +210,7 @@ func (f *Filters) decide(key, value string) decision {
 	if f == nil {
 		return noDecision
 	}
-	kr := f.byKey[asciiLower(key)]
+	kr := f.rulesFor(key)
 	if kr == nil {
 		return noDecision
 	}
@@ -220,6 +221,18 @@ func (f *Filters) decide(key, value string) decision {
 		return dropDecision
 	}
 	return noDecision
+}
+
+// rulesFor looks key up case-insensitively, folding short keys on the stack instead of allocating.
+func (f *Filters) rulesFor(key string) *keyRules {
+	var buf [64]byte
+	if len(key) > len(buf) {
+		return f.byKey[asciiLower(key)]
+	}
+	for i := 0; i < len(key); i++ {
+		buf[i] = foldByte(key[i])
+	}
+	return f.byKey[string(buf[:len(key)])]
 }
 
 func matchesGlob(globs []valueGlob, value string) bool {

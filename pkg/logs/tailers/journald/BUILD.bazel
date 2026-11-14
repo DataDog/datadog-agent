@@ -60,6 +60,7 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/tagger/fx-mock",
+            "//comp/core/tagger/types",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -68,9 +69,11 @@ dd_agent_go_test(
             "//pkg/util/cache",
             "@com_github_coreos_go_systemd_v22//sdjournal",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/tagger/fx-mock",
+            "//comp/core/tagger/types",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -79,6 +82,7 @@ dd_agent_go_test(
             "//pkg/util/cache",
             "@com_github_coreos_go_systemd_v22//sdjournal",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

@@ -62,6 +62,7 @@ type Tailer struct {
 	// tagProvider provides additional tags to be attached to each log message.  It
 	// is called once for each log message.
 	tagProvider            tag.Provider
+	tagSnapshots           message.TagSnapshotter
 	tagger                 tagger.Component
 	registry               auditor.Registry
 	defaultApplicationName *string
@@ -435,7 +436,9 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	applicationName := t.getApplicationName(entry, tags)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
-	origin.SetTags(append(tags, t.tagProvider.GetTags()...))
+	providerTags := t.tagProvider.GetTags()
+	all := append(tags, providerTags...)
+	origin.SetTagsWithSnapshot(all, t.tagSnapshots.Get(t.source, nil, providerTags), all[:len(tags)])
 
 	return origin
 }

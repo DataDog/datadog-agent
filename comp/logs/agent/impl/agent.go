@@ -40,6 +40,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -94,6 +95,7 @@ type Provides struct {
 	StatusProvider statusComponent.InformationProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
+	RCListener     rctypes.ListenerProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -187,7 +189,13 @@ func NewComponent(deps Requires) Provides {
 			OnStop:  logsAgent.stop,
 		})
 
+		var rcListener rctypes.ListenerProvider
+		if deps.Config.GetBool(quotaEnabledKey) {
+			rcListener = newQuotaManager(deps.Log, deps.Config).rcListener()
+		}
+
 		return Provides{
+			RCListener:     rcListener,
 			Comp:           option.New[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
