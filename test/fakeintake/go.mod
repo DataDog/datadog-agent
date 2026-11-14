@@ -44,6 +44,7 @@ require (
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

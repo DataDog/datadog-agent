@@ -480,6 +480,7 @@ require (
 	go.uber.org/zap/exp v0.3.0
 	go.yaml.in/yaml/v2 v2.4.5
 	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
@@ -1038,7 +1039,6 @@ require (
 	go.opentelemetry.io/otel/sdk/log v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.opentelemetry.io/proto/otlp/processcontext/v1development v0.4.1 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect

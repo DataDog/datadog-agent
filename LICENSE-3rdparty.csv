@@ -3251,7 +3251,13 @@ core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go.yaml.in/yaml/v4,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
 core,go.yaml.in/yaml/v4/internal/libyaml,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
-core,go.yaml.in/yaml/v4/plugin/limit,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/internal/plugin,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/internal/plugin/mergekey,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/plugin/aliasdata,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/plugin/errorformat/v3,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/plugin/errorformat/v4,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/plugin/loaderlimits,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
+core,go.yaml.in/yaml/v4/plugin/mergekey,Apache-2.0,Copyright 2006-2010 Kirill Simonov | Copyright 2011-2019 Canonical Ltd | Copyright 2025 - The go-yaml Project Contributors | Copyright 2025 The go-yaml Project Contributors
 core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>

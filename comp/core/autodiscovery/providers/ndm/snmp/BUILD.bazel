@@ -19,7 +19,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/snmpintegration",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 

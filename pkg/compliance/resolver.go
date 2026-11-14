@@ -33,8 +33,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "go.yaml.in/yaml/v2" // due to its usage as a fallback from v3
 	yamlv3 "go.yaml.in/yaml/v3"
+	yamlv2 "go.yaml.in/yaml/v4" // due to its usage as a fallback from v3
 )
 
 // inputsResolveTimeout is the timeout that is applied for inputs resolution of one
