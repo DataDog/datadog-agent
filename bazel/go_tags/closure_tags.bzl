@@ -1372,6 +1372,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/gpu/cuda": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "nvml", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/gpu/cuda/testutil": ["test"],
     "github.com/DataDog/datadog-agent/pkg/gpu/prm": ["nvml", "test"],
+    "github.com/DataDog/datadog-agent/pkg/gpu/resources": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "nvml", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/gpu/safenvml": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "nvml", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil": ["bpf", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "nvml", "requirefips", "serverless", "test", "trivy"],
     "github.com/DataDog/datadog-agent/pkg/gpu/tags": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
