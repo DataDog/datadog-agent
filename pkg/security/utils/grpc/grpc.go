@@ -19,9 +19,9 @@ import (
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -57,8 +57,14 @@ func getDDAgentIDs() (int, int) {
 	return uid, gid
 }
 
-// NewServer returns a new gRPC server
-func NewServer(family string, address string) *Server {
+// NewServer returns a new gRPC server. TCP endpoints require TLS and the IPC auth token, so ipcComp
+// must be set for them; it is ignored for the other socket families.
+func NewServer(family string, address string, ipcComp ipc.Component) (*Server, error) {
+	opts, err := serverOptions(family, ipcComp)
+	if err != nil {
+		return nil, err
+	}
+
 	// force socket cleanup of previous socket not cleanup
 	if family == "unix" {
 		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
@@ -66,14 +72,11 @@ func NewServer(family string, address string) *Server {
 		}
 	}
 
-	// Add gRPC metrics interceptors
-	opts := grpcutil.ServerOptionsWithMetrics()
-
 	return &Server{
 		family:  family,
 		address: address,
 		server:  grpc.NewServer(opts...),
-	}
+	}, nil
 }
 
 // ServiceRegistrar returns the gRPC server
