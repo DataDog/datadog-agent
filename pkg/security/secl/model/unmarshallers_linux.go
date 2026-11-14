@@ -251,7 +251,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
 	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
 	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])
-	// [44:48] padding_sid
+	// [44:48] exit_code
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := e.Credentials.UnmarshalBinary(data[48:])

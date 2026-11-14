@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -1837,6 +1838,10 @@ func TestProcessExit(t *testing.T) {
 			ID:         "test_exit_coredump_thread",
 			Expression: `exit.cause == COREDUMPED && exit.code == SIGQUIT && process.file.name == "syscall_tester"`,
 		},
+		{
+			ID:         "test_exit_leader_exited",
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.file.name == "syscall_tester" && process.argv in ["leader-exit-pthread-exec"] && process.envp in ["%s"]`, envpExitSleep),
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -1974,6 +1979,75 @@ func TestProcessExit(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		}, "test_exit_time_2")
+	})
+
+	t.Run("exit-after-leader-pthread-exit", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not applicable to ebpfless")
+		}
+
+		var stdinClosed atomic.Bool
+		test.WaitSignalFromRule(t, func() error {
+			cmd := exec.Command(syscallTester, "leader-exit-pthread-exec", "/nonexistent")
+			cmd.Env = []string{envpExitSleep}
+			stdinPipe, pipeErr := cmd.StdinPipe()
+			if pipeErr != nil {
+				return pipeErr
+			}
+			if err := cmd.Start(); err != nil {
+				_ = stdinPipe.Close()
+				return err
+			}
+
+			ebpfProbe := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			resolveProcessCacheEntry := func() *model.ProcessCacheEntry {
+				if entry := ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)); entry != nil {
+					return entry
+				}
+				var matched *model.ProcessCacheEntry
+				ebpfProbe.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+					if entry.ArgsEntry != nil && slices.Contains(entry.ArgsEntry.Values, "leader-exit-pthread-exec") {
+						matched = entry
+					}
+				})
+				return matched
+			}
+			statusPath := fmt.Sprintf("/proc/%d/status", cmd.Process.Pid)
+			deadline := time.Now().Add(2 * time.Second)
+			leaderZombie := false
+			for time.Now().Before(deadline) {
+				statusBytes, readErr := os.ReadFile(statusPath)
+				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") {
+					leaderZombie = true
+				}
+				if leaderZombie && resolveProcessCacheEntry() != nil {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			require.True(t, leaderZombie, "leader thread did not reach zombie state")
+
+			if err := test.GetProbeEvent(func() error {
+				return exec.Command(syscallTester, "check", "sentinel-leader-exit").Run()
+			}, func(event *model.Event) bool {
+				return event.ProcessContext.ArgsEntry != nil && slices.Contains(event.ProcessContext.ArgsEntry.Values, "sentinel-leader-exit")
+			}, 3*time.Second, model.ExitEventType); err != nil {
+				_ = stdinPipe.Close()
+				_ = cmd.Wait()
+				return err
+			}
+			assert.NotNil(t, resolveProcessCacheEntry(), "process cache entry should remain alive while worker thread is running")
+
+			stdinClosed.Store(true)
+			_ = stdinPipe.Close()
+			return cmd.Wait()
+		}, func(event *model.Event, rule *rules.Rule) {
+			test.validateExitSchema(t, event)
+			assertTriggeredRule(t, rule, "test_exit_leader_exited")
+			assert.True(t, stdinClosed.Load(), "exit event should only be emitted when the last thread exits")
+			assert.Equal(t, uint32(sharedconsts.ExitExited), event.Exit.Cause, "wrong exit cause")
+			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
+		}, "test_exit_leader_exited")
 	})
 }
 
