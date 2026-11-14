@@ -134,7 +134,9 @@ func generateIR(
 		if retErr != nil {
 			return
 		}
-		if len(ret.Probes) == 0 {
+		if !slices.ContainsFunc(ret.Probes, func(p *ir.Probe) bool {
+			return p.GetKind() != ir.ProbeKindRuntimeRecovery
+		}) {
 			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
 		}
 	}()
@@ -173,7 +175,7 @@ func generateIR(
 	}()
 
 	// Build the initial set of interests from the provided probe definitions.
-	interests, issues := makeInterests(probeDefs)
+	interests, issues := makeInterests(probeDefs, cfg.metricProbes)
 
 	cleanupCloser := func(c io.Closer, name string) func() {
 		return func() {
@@ -618,7 +620,7 @@ func generateIR(
 	// Validate that all expression types were properly explored during
 	// expandTypesWithBudgets. This marks invalid segments for expressions
 	// that fail to resolve (e.g., type mismatches, missing fields).
-	exploreTypesForExpressions(typeCatalog, analyzedProbes)
+	exploreTypesForExpressions(typeCatalog, analyzedProbes, cfg.redaction)
 
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
@@ -803,6 +805,11 @@ type analyzedProbe struct {
 	// unsupported expression type, variable not found, etc.). Reported as
 	// a probe issue by populateProbeExpressions.
 	conditionIssue ir.Issue
+
+	// metricIssue is set when a metric probe's value expression can't be
+	// used (parse error, variable not found or not available where the probe
+	// fires, etc.). Reported as a probe issue by populateProbeExpressions.
+	metricIssue ir.Issue
 
 	// Budget for type exploration.
 	budget uint32
@@ -1297,6 +1304,49 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 // probes are created (so we have Events and InjectionPoints) but before type
 // expansion. Returns one analyzedProbe per instance and exploration roots for
 // type expansion.
+// isFloatType returns true if the variable has a float32 or float64 type.
+func isFloatType(v *ir.Variable) bool {
+	k, ok := v.Type.GetGoKind()
+	return ok && (k == reflect.Float32 || k == reflect.Float64)
+}
+
+// variableIsAvailable returns true if the variable has a location at any of
+// the injection points.
+func variableIsAvailable(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) &&
+			v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) &&
+			ip.PC >= v.Locations[locIdx].Range[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// floatIsRegisterOnly returns true if a float variable's locations
+// at the given injection points consist exclusively of register pieces.
+// Such variables cannot be read by the eBPF runtime.
+func floatIsRegisterOnly(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
+			for _, piece := range v.Locations[locIdx].Pieces {
+				if _, isReg := piece.Op.(ir.Register); !isReg {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
@@ -1379,48 +1429,6 @@ func analyzeAllProbes(
 			// resolve through the normal variable-matching paths.
 			if haveReturn {
 				varByName["@duration"] = durationVar
-			}
-
-			// isFloatType returns true if the variable has a float32 or float64 type.
-			isFloatType := func(v *ir.Variable) bool {
-				k, ok := v.Type.GetGoKind()
-				return ok && (k == reflect.Float32 || k == reflect.Float64)
-			}
-
-			// Check variable availability at injection points.
-			variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) &&
-						v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) &&
-						ip.PC >= v.Locations[locIdx].Range[0] {
-						return true
-					}
-				}
-				return false
-			}
-
-			// floatIsRegisterOnly returns true if a float variable's locations
-			// at the given injection points consist exclusively of register pieces.
-			// Such variables cannot be read by the eBPF runtime.
-			floatIsRegisterOnly := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
-						for _, piece := range v.Locations[locIdx].Pieces {
-							if _, isReg := piece.Op.(ir.Register); !isReg {
-								return false
-							}
-						}
-					}
-				}
-				return true
 			}
 
 			// Build segment references for matching.
@@ -1722,12 +1730,31 @@ func analyzeAllProbes(
 				addRoot(rootVar.Type.GetID(), budget)
 			}
 
+			// Process the value expression of metric probes. Unlike capture
+			// expressions, problems with it fail the probe: a metric that
+			// silently never moves is worse than an error status.
+			if mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition); ok {
+				valueExpr, issue := analyzeMetricValue(
+					mp, inst, varByName, red, returnVars, returnDisplayNames,
+				)
+				if !issue.IsNone() {
+					ap.metricIssue = issue
+				} else if valueExpr != nil {
+					ap.expressions = append(ap.expressions, *valueExpr)
+					addRoot(valueExpr.rootVariable.Type.GetID(), budget)
+				}
+			}
+
 			// conditionEventKind determines which event kind a condition variable belongs
 			// to, using the same variable-role-to-event mapping as expression analysis.
 			conditionEventKind := func(
 				rootVar *ir.Variable,
 			) (ir.EventKind, bool) {
 				events := inst.Events
+				if probe.GetKind() == ir.ProbeKindMetric {
+					kind, reason := metricExpressionEvent(inst, metricEvaluatesAtReturn(probe.ProbeDefinition), rootVar)
+					return kind, reason == ""
+				}
 				switch {
 				case rootVar.Role == ir.VariableRoleDuration:
 					// durationVar is only registered in varByName when
@@ -4420,9 +4447,14 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 func exploreTypesForExpressions(
 	tc *typeCatalog,
 	analyzedProbes []analyzedProbe,
+	redactionPolicy *redaction.Config,
 ) {
 	for i := range analyzedProbes {
 		ap := &analyzedProbes[i]
+		var red *redaction.Config
+		if ap.probe.GetKind() == ir.ProbeKindMetric {
+			red = redactionPolicy
+		}
 		for j := range ap.expressions {
 			expr := &ap.expressions[j]
 			if expr.rootVariable == nil {
@@ -4433,13 +4465,25 @@ func exploreTypesForExpressions(
 				exprPath = ref.Ref
 			}
 			if _, err := exploreExpressionTypes(
-				expr.expr, expr.rootVariable.Type, tc, exprPath,
+				expr.expr, expr.rootVariable.Type, tc, exprPath, red,
 			); err != nil {
 				// Mark segment as invalid instead of failing.
 				if expr.segment != nil && ap.template != nil {
 					ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
 						Error: err.Error(),
 						DSL:   expr.dsl,
+					}
+				} else if expr.exprKind == ir.RootExpressionKindMetricValue {
+					// A metric probe can't do anything useful without its
+					// value, so fail the probe.
+					kind := ir.IssueKindInvalidProbeDefinition
+					var unsup *unsupportedFeatureError
+					if errors.As(err, &unsup) {
+						kind = ir.IssueKindUnsupportedFeature
+					}
+					ap.metricIssue = ir.Issue{
+						Kind:    kind,
+						Message: fmt.Sprintf("failed to resolve metric value %q: %v", expr.dsl, err),
 					}
 				} else {
 					// Capture (non-segment) expression failure. Surface
@@ -4485,7 +4529,7 @@ func exploreTypesForExpressions(
 					break
 				}
 				if _, err := exploreExpressionTypes(
-					sub, rootVar.Type, tc, "",
+					sub, rootVar.Type, tc, "", red,
 				); err != nil {
 					var unsup *unsupportedFeatureError
 					if errors.As(err, &unsup) {
@@ -4516,6 +4560,27 @@ func exploreExpressionTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string, // Path for error messages (e.g., "a.b.c")
+	red *redaction.Config,
+) (ir.Type, error) {
+	if err := checkExpressionTypeRedaction(currentType, tc, red); err != nil {
+		return nil, err
+	}
+	t, err := exploreExpressionTypesImpl(expr, currentType, tc, exprPath, red)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkExpressionTypeRedaction(t, tc, red); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func exploreExpressionTypesImpl(
+	expr exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	switch e := expr.(type) {
 	case *exprlang.RefExpr:
@@ -4554,7 +4619,7 @@ func exploreExpressionTypes(
 		}
 
 		// Explore base expression first and get its resolved type.
-		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath)
+		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath, red)
 		if err != nil {
 			return nil, err
 		}
@@ -4616,6 +4681,9 @@ func exploreExpressionTypes(
 				}
 			}
 
+			if err := checkExpressionTypeRedaction(curType, tc, red); err != nil {
+				return nil, err
+			}
 			// Handle structure field access.
 			structType, ok := curType.(*ir.StructureType)
 			if !ok {
@@ -4645,7 +4713,7 @@ func exploreExpressionTypes(
 			curType = field.Type
 			// Recursively explore field type if it's a pointer or struct.
 			if _, err := exploreExpressionTypes(
-				&exprlang.RefExpr{}, curType, tc, currentPath,
+				&exprlang.RefExpr{}, curType, tc, currentPath, red,
 			); err != nil {
 				return nil, err
 			}
@@ -4692,32 +4760,32 @@ func exploreExpressionTypes(
 
 		return curType, nil
 	case *exprlang.LenExpr:
-		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath, red)
 
 	case *exprlang.IsEmptyExpr:
-		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath, red)
 
 	case *exprlang.EqExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.NeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.LtExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.LeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.GtExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.GeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 
 	case *exprlang.IndexExpr:
-		return exploreIndexExprTypes(e, currentType, tc, exprPath)
+		return exploreIndexExprTypes(e, currentType, tc, exprPath, red)
 
 	case *exprlang.AnyExpr:
-		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red)
 
 	case *exprlang.AllExpr:
-		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red)
 
 	case *exprlang.FilterExpr:
 		// filter shares the predicate-validation semantics of any/all
@@ -4729,7 +4797,7 @@ func exploreExpressionTypes(
 		// Nested-position use (e.g. len(filter(...))) is rejected later
 		// by resolveExpression's FilterExpr case as an
 		// unsupportedFeatureError.
-		if _, err := exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath); err != nil {
+		if _, err := exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red); err != nil {
 			return nil, err
 		}
 		return currentType, nil
@@ -4740,7 +4808,7 @@ func exploreExpressionTypes(
 		// type-explore path with a synthesized `@it == key` predicate — the
 		// emit layer will desugar the same way, so we want the same type
 		// check here. The result type is always bool.
-		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath, red)
 		if err != nil {
 			return nil, err
 		}
@@ -4757,7 +4825,7 @@ func exploreExpressionTypes(
 				Left:  &exprlang.RefExpr{Ref: "@it"},
 				Right: litExpr,
 			}
-			if _, err := exploreAnyAllTypes(e.Base, eq, currentType, tc, exprPath); err != nil {
+			if _, err := exploreAnyAllTypes(e.Base, eq, currentType, tc, exprPath, red); err != nil {
 				return nil, err
 			}
 			if tc.boolType == 0 {
@@ -4794,6 +4862,9 @@ func exploreExpressionTypes(
 			return nil, fmt.Errorf("failed to resolve map key type: %w", err)
 		}
 		keyType = tc.typesByID[keyType.GetID()]
+		if err := checkExpressionTypeRedaction(keyType, tc, red); err != nil {
+			return nil, err
+		}
 		if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
 			return nil, err
 		}
@@ -4817,8 +4888,9 @@ func exploreAnyAllTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
-	baseType, err := exploreExpressionTypes(base, currentType, tc, exprPath)
+	baseType, err := exploreExpressionTypes(base, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}
@@ -4880,7 +4952,7 @@ func exploreAnyAllTypes(
 				"any/all predicate leaf references %q, which is not in scope", rootName,
 			)
 		}
-		if _, err := exploreExpressionTypes(sub, rootType, tc, rootName); err != nil {
+		if _, err := exploreExpressionTypes(sub, rootType, tc, rootName, red); err != nil {
 			return nil, err
 		}
 	}
@@ -4899,8 +4971,9 @@ func exploreComparisonExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
-	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath); err != nil {
+	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath, red); err != nil {
 		return nil, err
 	}
 	if _, ok := right.(*exprlang.LiteralExpr); !ok {
@@ -4919,9 +4992,10 @@ func exploreIndexExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Explore the base expression to resolve its type.
-	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}
@@ -4965,7 +5039,7 @@ func exploreIndexExprTypes(
 		}
 		return elemType, nil
 	case *ir.GoMapType:
-		return exploreSwissMapIndexTypes(t, litExpr, tc)
+		return exploreSwissMapIndexTypes(t, litExpr, tc, red)
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
@@ -4977,6 +5051,7 @@ func exploreSwissMapIndexTypes(
 	mapType *ir.GoMapType,
 	litExpr *exprlang.LiteralExpr,
 	tc *typeCatalog,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Unwrap GoMapType → header type.
 	headerType := tc.typesByID[mapType.HeaderType.GetID()]
@@ -4997,6 +5072,9 @@ func exploreSwissMapIndexTypes(
 
 	// Validate the literal key matches the map's key type.
 	keyType = tc.typesByID[keyType.GetID()]
+	if err := checkExpressionTypeRedaction(keyType, tc, red); err != nil {
+		return nil, err
+	}
 	if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
 		return nil, err
 	}
@@ -5090,9 +5168,10 @@ func exploreLenExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Explore the operand to resolve its type.
-	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath)
+	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}
@@ -8023,7 +8102,11 @@ func populateProbeEventsExpressions(
 	}
 
 	for _, probe := range probes {
-		if issue, failed2 := failedProbes[probe]; failed2 {
+		issue, failed2 := failedProbes[probe]
+		if !failed2 {
+			issue = populateMetricGaugeEncoding(probe)
+		}
+		if !issue.IsNone() {
 			failed = append(failed, ir.ProbeIssue{
 				ProbeDefinition: probe.ProbeDefinition,
 				Issue:           issue,
@@ -8040,10 +8123,13 @@ func populateInstanceExpressions(
 	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
-	// Report condition analysis failures recorded during analyzeAllProbes
-	// or exploreTypesForExpressions.
+	// Report condition and metric value analysis failures recorded during
+	// analyzeAllProbes or exploreTypesForExpressions.
 	if !ap.conditionIssue.IsNone() {
 		return ap.conditionIssue
+	}
+	if !ap.metricIssue.IsNone() {
+		return ap.metricIssue
 	}
 
 	for _, event := range inst.Events {
@@ -8164,6 +8250,12 @@ func populateEventExpressions(
 					Message: unsup.message,
 				}
 			}
+			if expr.exprKind == ir.RootExpressionKindMetricValue {
+				return ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("failed to resolve metric value %q: %v", expr.dsl, err),
+				}
+			}
 			// For template segments, mark as invalid instead of failing probe.
 			if expr.segment != nil && ap.template != nil {
 				ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
@@ -8174,6 +8266,16 @@ func populateEventExpressions(
 			}
 			// For snapshot expressions (no segment), skip silently.
 			continue
+		}
+
+		if expr.exprKind == ir.RootExpressionKindMetricValue {
+			mp := ap.probe.ProbeDefinition.(ir.MetricProbeDefinition)
+			if err := checkMetricValueType(mp.GetMetricKind(), resolvedExpr.Type); err != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("metric value %q: %v", expr.dsl, err),
+				}
+			}
 		}
 
 		// Update segment with expression index after successful resolution.
@@ -8207,11 +8309,20 @@ func populateEventExpressions(
 	if inst.Subprogram.DictRegister != nil {
 		dictReg := *inst.Subprogram.DictRegister
 		seenIdx := make(map[int]struct{})
+		var indices []int
 		for _, e := range expressions {
-			if _, seen := seenIdx[e.DictIndex]; e.DictIndex >= 0 && !seen {
-				seenIdx[e.DictIndex] = struct{}{}
+			indices = append(indices, e.DictIndex)
+		}
+		if event.Kind == ir.EventKindEntry && metricEvaluatesAtReturn(ap.probe.ProbeDefinition) {
+			for _, expr := range ap.expressions {
+				indices = append(indices, expr.rootVariable.DictIndex)
+			}
+		}
+		for _, index := range indices {
+			if _, seen := seenIdx[index]; index >= 0 && !seen {
+				seenIdx[index] = struct{}{}
 				dictEntries = append(dictEntries, ir.DictEntry{
-					DictIndex:    e.DictIndex,
+					DictIndex:    index,
 					DictRegister: dictReg,
 					Offset:       uint32(byteSize),
 				})
@@ -8284,6 +8395,11 @@ func newProbeInstance(
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
+	}
+
+	metricReturn := metricEvaluatesAtReturn(probeCfg)
+	if kind == ir.ProbeKindMetric && !metricReturn {
+		skipReturnEvents = true
 	}
 
 	// runtime.recovery probe: skip the normal entry/return resolution
@@ -8373,6 +8489,16 @@ func newProbeInstance(
 	}
 	if returnEvent != nil {
 		events = append(events, returnEvent)
+	}
+	if metricReturn {
+		if returnEvent == nil || slices.ContainsFunc(injectionPoints, func(ip ir.InjectionPoint) bool {
+			return !ip.HasAssociatedReturn
+		}) {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: "return-time metric probes require a non-inlined function with supported return locations",
+			}, nil
+		}
 	}
 
 	inst := &ir.ProbeInstance{
@@ -9235,7 +9361,9 @@ type interests struct {
 	genericPatterns []genericPattern // probes targeting pkg.Type[...].Method
 }
 
-func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
+func makeInterests(
+	cfg []ir.ProbeDefinition, metricProbesEnabled bool,
+) (interests, []ir.ProbeIssue) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
 		subprograms:  make(map[string][]ir.ProbeDefinition),
@@ -9246,6 +9374,18 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		case ir.ProbeKindRuntimeRecovery:
+		case ir.ProbeKindMetric:
+			if metricProbesEnabled {
+				if issue := checkMetricProbeDefinition(probe); !issue.IsNone() {
+					issues = append(issues, ir.ProbeIssue{
+						ProbeDefinition: probe,
+						Issue:           issue,
+					})
+					continue
+				}
+				break
+			}
+			fallthrough
 		default:
 			issues = append(issues, ir.ProbeIssue{
 				ProbeDefinition: probe,

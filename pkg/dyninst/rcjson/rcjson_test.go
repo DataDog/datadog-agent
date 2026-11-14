@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 type testCase struct {
@@ -266,6 +268,91 @@ var testCases = []testCase{
 		},
 	},
 	{
+		name: "metric probe with condition",
+		input: `{
+				"id": "metric-probe-2",
+				"type": "METRIC_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"kind": "GAUGE",
+				"metricName": "my.gauge",
+				"value": {"dsl": "x", "json": {"ref": "x"}},
+				"when": {"dsl": "x > 0", "json": {"gt": [{"ref": "x"}, 0]}}
+			}`,
+		want: &MetricProbe{
+			ProbeCommon: ProbeCommon{
+				ID:      "metric-probe-2",
+				Version: 1,
+				Type:    TypeMetricProbe.String(),
+				Where: &Where{
+					MethodName: "MyMethod",
+				},
+			},
+			When: &When{
+				DSL:  "x > 0",
+				JSON: json.RawMessage(`{"gt": [{"ref": "x"}, 0]}`),
+			},
+			Kind:       "GAUGE",
+			MetricName: "my.gauge",
+			Value: &Value{
+				DSL:  "x",
+				JSON: json.RawMessage(`{"ref": "x"}`),
+			},
+		},
+	},
+	{
+		name: "metric probe without metric name",
+		input: `{
+				"id": "metric-probe-3",
+				"type": "METRIC_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"kind": "COUNT"
+			}`,
+		want: &MetricProbe{
+			ProbeCommon: ProbeCommon{
+				ID:      "metric-probe-3",
+				Version: 1,
+				Type:    TypeMetricProbe.String(),
+				Where: &Where{
+					MethodName: "MyMethod",
+				},
+			},
+			Kind: "COUNT",
+		},
+		validationErr: `metricName must be set`,
+	},
+	{
+		name: "metric probe with unknown kind",
+		input: `{
+				"id": "metric-probe-4",
+				"type": "METRIC_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"kind": "SUMMARY",
+				"metricName": "my.metric"
+			}`,
+		want: &MetricProbe{
+			ProbeCommon: ProbeCommon{
+				ID:      "metric-probe-4",
+				Version: 1,
+				Type:    TypeMetricProbe.String(),
+				Where: &Where{
+					MethodName: "MyMethod",
+				},
+			},
+			Kind:       "SUMMARY",
+			MetricName: "my.metric",
+		},
+		validationErr: `unknown metric kind "SUMMARY"`,
+	},
+	{
 		name: "capture expression probe",
 		input: `{
 				"id": "capture-expr-1",
@@ -398,6 +485,34 @@ func TestMaxReferenceDepthZero(t *testing.T) {
 	}`))
 	require.NoError(t, err)
 	require.Equal(t, uint32(0), probe.GetCaptureConfig().GetMaxReferenceDepth())
+}
+
+func TestMetricProbeAccessors(t *testing.T) {
+	for _, tc := range []struct {
+		kind string
+		want ir.MetricKind
+	}{
+		{kind: "COUNT", want: ir.MetricKindCount},
+		{kind: "count", want: ir.MetricKindCount},
+		{kind: "Gauge", want: ir.MetricKindGauge},
+		{kind: "HISTOGRAM", want: ir.MetricKindHistogram},
+		{kind: "distribution", want: ir.MetricKindDistribution},
+		{kind: "", want: 0},
+		{kind: "SUMMARY", want: 0},
+	} {
+		p := &MetricProbe{Kind: tc.kind}
+		assert.Equal(t, tc.want, p.GetMetricKind(), "kind %q", tc.kind)
+	}
+
+	// A probe without a value or a condition.
+	p := &MetricProbe{Kind: "COUNT", MetricName: "calls"}
+	dsl, valueJSON := p.GetValue()
+	assert.Empty(t, dsl)
+	assert.Nil(t, valueJSON)
+	assert.Nil(t, p.GetWhen())
+	assert.Empty(t, p.GetWhenDSL())
+	assert.Equal(t, "calls", p.GetMetricName())
+	assert.Equal(t, ir.ProbeKindMetric, p.GetKind())
 }
 
 func TestUnmarshalProbe(t *testing.T) {

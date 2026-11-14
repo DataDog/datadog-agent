@@ -276,6 +276,8 @@ type Probe struct {
 	// one instance per matching subprogram (shape function). For
 	// non-generic probes there is exactly one instance.
 	Instances []ProbeInstance
+	// GaugeValueEncoding is shared by all instances of a gauge probe.
+	GaugeValueEncoding MetricValueEncoding `json:"-"`
 }
 
 // ProbeInstance represents a single subprogram targeted by a probe. Each

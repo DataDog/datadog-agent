@@ -21,6 +21,7 @@ type config struct {
 	skipRuntimeRecoveryProbe bool
 	redaction                *redaction.Config
 	coordinatedSampling      *ir.CoordinatedSampling
+	metricProbes             bool
 }
 
 var defaultConfig = config{
@@ -81,6 +82,12 @@ func WithRedaction(cfg *redaction.Config) Option {
 // default.
 func WithCoordinatedSampling(cfg *ir.CoordinatedSampling) Option {
 	return optionFunc(func(c *config) { c.coordinatedSampling = cfg })
+}
+
+// WithMetricProbes enables IR generation for metric probes. Without it, metric
+// probes are rejected as unsupported.
+func WithMetricProbes(enabled bool) Option {
+	return optionFunc(func(c *config) { c.metricProbes = enabled })
 }
 
 type optionFunc func(c *config)

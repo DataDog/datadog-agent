@@ -529,6 +529,58 @@ type PanicUnwindEvictSlotsOp struct {
 	baseOp
 }
 
+// MetricKind is the kind of metric that MetricUpdateOp updates. Must be kept
+// in sync with metric_kind_t in ebpf/types.h.
+type MetricKind uint8
+
+const (
+	// MetricKindCount adds the value (or 1, without a value) to a running sum.
+	MetricKindCount MetricKind = 1
+	// MetricKindGauge records the most recent value.
+	MetricKindGauge MetricKind = 2
+)
+
+// MetricValueKind says how MetricUpdateOp interprets the bytes of a metric
+// probe's value. Must be kept in sync with metric_value_kind_t in
+// ebpf/types.h.
+type MetricValueKind uint8
+
+const (
+	// MetricValueNone means that the probe has no value; each hit counts
+	// as 1.
+	MetricValueNone MetricValueKind = 0
+	// MetricValueSigned is a signed integer, sign-extended to 64 bits.
+	MetricValueSigned MetricValueKind = 1
+	// MetricValueUnsigned is an unsigned integer or a bool, zero-extended to
+	// 64 bits.
+	MetricValueUnsigned MetricValueKind = 2
+	// MetricValueFloat is a float32 or a float64, recorded as its raw bits.
+	MetricValueFloat MetricValueKind = 3
+)
+
+// MetricCondErrorCheckOp follows the condition check of a metric probe's
+// event handler. If the condition failed to evaluate, it records an
+// evaluation error in the probe's metric state and aborts the handler, so
+// the hit is not counted. It has to run before the value expression, whose
+// prepare op clears condition_eval_error.
+type MetricCondErrorCheckOp struct {
+	baseOp
+	ProbeID uint32
+}
+
+// MetricUpdateOp ends a metric probe's event handler. It updates the probe's
+// metric state with the value read from the event root data at ValueOffset
+// (or with 1, for count probes without a value). If the value expression
+// failed to evaluate, it records an evaluation error instead.
+type MetricUpdateOp struct {
+	baseOp
+	ProbeID     uint32
+	Kind        MetricKind
+	ValueKind   MetricValueKind
+	ValueSize   uint8
+	ValueOffset uint32
+}
+
 // EmitFilterSliceMarkerOp is the inline-pass op for a top-level
 // filter(slice, pred) expression; see ir.EmitFilterSliceMarkerOp.
 type EmitFilterSliceMarkerOp struct {

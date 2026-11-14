@@ -133,7 +133,7 @@ func buildMethodIndex(
 
 	typeIndexBuilder, err := factory.newGoTypeToOffsetIndexBuilder(0, typeTab.DataByteSize())
 	require.NoError(t, err)
-	interests, _ := makeInterests(nil)
+	interests, _ := makeInterests(nil, false /* metricProbesEnabled */)
 	{
 		_, err := processDwarf(interests, d, arch, typeIndexBuilder)
 		require.NoError(t, err)

@@ -63,6 +63,9 @@ type runtimeImpl struct {
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
 	tombstoneFilePath string
+	// metrics reports the values of metric probes. nil if there is no client
+	// to report them to.
+	metrics *metricsReporter
 
 	stats runtimeStats
 }
@@ -177,6 +180,10 @@ func (rt *runtimeImpl) Load(
 		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
 	}
 	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
+	// Metric probes are only supported when their values can be reported.
+	if rt.metrics != nil {
+		irgenOpts = append(irgenOpts, irgen.WithMetricProbes(true))
+	}
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
@@ -201,18 +208,6 @@ func (rt *runtimeImpl) Load(
 		return nil, fmt.Errorf("failed to create decoder: %w", err)
 	}
 
-	var tags string
-	if gi := runtimeID.gitInfo; gi != nil {
-		tags = fmt.Sprintf(
-			"git.commit.sha:%s,git.repository_url:%s",
-			gi.CommitSha, gi.RepositoryURL,
-		)
-	}
-	var containerID, entityID string
-	if ci := runtimeID.containerInfo; ci != nil {
-		containerID = ci.ContainerID
-		entityID = ci.EntityID
-	}
 	for i := range irProgram.Issues {
 		issue := &irProgram.Issues[i]
 		issueErr := (*irIssueError)(&issue.Issue)
@@ -239,19 +234,23 @@ func (rt *runtimeImpl) Load(
 		processID:    processID,
 		service:      runtimeID.service,
 		processTags:  strings.Join(runtimeID.processTags, ","),
-		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
-			Tags:        tags,
-			EntityID:    entityID,
-			ContainerID: containerID,
-		}),
-		buffer: eventbuf.NewBuffer(rt.eventbufBudget),
-		probes: irProgram.Probes,
+		logUploader:  rt.logsFactory.GetUploader(logsUploaderMetadata(runtimeID)),
+		buffer:       eventbuf.NewBuffer(rt.eventbufBudget),
+		probes:       irProgram.Probes,
 	}
 	var s dispatcher.Sink = realSink
 	if k := rt.testingKnobs; k != nil && k.sinkOverride != nil {
 		s = k.sinkOverride(realSink, realSink.buffer, rt.eventbufBudget)
 	}
 	rt.dispatcher.RegisterSink(programID, s)
+	if rt.metrics != nil {
+		rt.metrics.register(
+			programID, irProgram, loadedProgram.MetricStates, runtimeID,
+			func() LogsUploader {
+				return rt.logsFactory.GetUploader(logsUploaderMetadata(runtimeID))
+			},
+		)
+	}
 
 	return &loadedProgramImpl{
 		runtime:       rt,
@@ -261,6 +260,28 @@ func (rt *runtimeImpl) Load(
 		executable:    executable,
 		loadedProgram: loadedProgram,
 	}, nil
+}
+
+// logsUploaderMetadata returns the metadata of the uploader that sends the logs
+// and snapshots of a process's probes.
+func logsUploaderMetadata(runtimeID procRuntimeID) uploader.LogsUploaderMetadata {
+	var tags string
+	if gi := runtimeID.gitInfo; gi != nil {
+		tags = fmt.Sprintf(
+			"git.commit.sha:%s,git.repository_url:%s",
+			gi.CommitSha, gi.RepositoryURL,
+		)
+	}
+	var containerID, entityID string
+	if ci := runtimeID.containerInfo; ci != nil {
+		containerID = ci.ContainerID
+		entityID = ci.EntityID
+	}
+	return uploader.LogsUploaderMetadata{
+		Tags:        tags,
+		EntityID:    entityID,
+		ContainerID: containerID,
+	}
 }
 
 type loadedProgramImpl struct {
@@ -319,6 +340,11 @@ func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
 }
 
 func (l *loadedProgramImpl) Close() error {
+	// Stop reading the metric probes before their BPF map is closed. Detach
+	// reported them one last time.
+	if l.runtime.metrics != nil {
+		l.runtime.metrics.unregister(l.programID)
+	}
 	l.loadedProgram.Close()
 	// Detach before unregistering: UnregisterSink drains the sink, which
 	// emits buffered events and would otherwise re-report diagnostics for a
@@ -344,6 +370,13 @@ var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
 
 func (a *attachedProgramImpl) Detach(failure error) error {
 	err := a.inner.Detach(failure)
+	// Now that the probes can't be hit anymore, report the metric probes one
+	// last time. This has to happen before the program is unlinked from its
+	// process, which would keep the probes from being marked as emitting, and
+	// before any error is reported for them.
+	if a.runtime.metrics != nil {
+		a.runtime.metrics.report(a.programID)
+	}
 	if failure != nil {
 		if detachLogLimiter.Allow() {
 			log.Warnf("detaching program %v from process %v due to error: %v", a.programID, a.runtimeID.ID, failure)

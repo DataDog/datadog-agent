@@ -1,5 +1,6 @@
 # gazelle:ignore
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 go_library(
@@ -17,6 +18,9 @@ go_library(
         "issue.go",
         "issuekind_string.go",
         "location.go",
+        "metric_kind.go",
+        "metric_kind_string.go",
+        "metric_value.go",
         "probe_definition.go",
         "probe_kind.go",
         "probe_kind_string.go",
@@ -29,6 +33,14 @@ go_library(
         "//pkg/dyninst/exprlang",
         "//pkg/dyninst/redaction",
     ],
+)
+
+dd_agent_go_test(
+    name = "ir_test",
+    srcs = ["metric_value_test.go"],
+    embed = [":ir"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
 )
 
 go_stringer(
@@ -45,6 +57,14 @@ go_stringer(
     output = "issuekind_string.go",
     trimprefix = "IssueKind",
     types = ["IssueKind"],
+)
+
+go_stringer(
+    name = "metric_kind_string",
+    src = "metric_kind.go",
+    output = "metric_kind_string.go",
+    trimprefix = "MetricKind",
+    types = ["MetricKind"],
 )
 
 go_stringer(

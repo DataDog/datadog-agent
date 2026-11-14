@@ -17,6 +17,7 @@ func TestNilConfig(t *testing.T) {
 	var c *Config
 	require.False(t, c.RedactIdentifier("password"))
 	require.False(t, c.RedactType("crypto/tls.Config"))
+	require.False(t, c.HasRedactedTypes())
 }
 
 func TestDefaultIdentifiers(t *testing.T) {
@@ -80,6 +81,14 @@ func TestEmptyEntriesIgnored(t *testing.T) {
 	c := NewConfig([]string{"", "   "}, []string{"", " "}, []string{""})
 	require.True(t, c.RedactIdentifier("password"))
 	require.False(t, c.RedactType("anything"))
+}
+
+func TestHasRedactedTypes(t *testing.T) {
+	require.False(t, NewConfig(nil, nil, nil).HasRedactedTypes())
+	require.False(t, NewConfig(nil, []string{"", " "}, nil).HasRedactedTypes())
+	require.False(t, NewConfig(nil, nil, []string{"main.Credentials"}).HasRedactedTypes())
+	require.True(t, NewConfig(nil, []string{"main.Credentials"}, nil).HasRedactedTypes())
+	require.True(t, NewConfig(nil, []string{"main.*"}, nil).HasRedactedTypes())
 }
 
 func TestNormalizeIdentifier(t *testing.T) {
