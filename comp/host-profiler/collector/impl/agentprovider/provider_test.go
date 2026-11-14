@@ -469,6 +469,7 @@ hostprofiler:
 			require.True(t, uploader.UseHTTP2)
 			require.Zero(t, uploader.SymbolQueryInterval)
 			require.Equal(t, source == "env", uploader.DryRun)
+			//nolint:staticcheck // SA1019: the deprecated field must keep round-tripping for config compatibility
 			require.True(t, uploader.DisableDebugSectionCompression)
 		})
 	}
