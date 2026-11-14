@@ -8,6 +8,7 @@ unit-tested on its own.
 import contextlib
 import json
 import os
+import random
 import shutil
 import tempfile
 import time
@@ -54,15 +55,15 @@ def _find_benchstat(ctx):
 
 
 def run_compare(
-    ctx, targets, bench, bench_files, base, rounds, benchtime, max_slowdown, report, verdict_file, send_metrics
+    ctx, targets, bench, bench_files, base, rounds, benchtime, max_growth, report, verdict_file, send_metrics
 ):
     """Runs `dda inv logs-tokenizer.bench-compare`; see the task's docstring for what it checks."""
     if rounds < 4:
         raise _cannot_compare(f"--rounds must be at least 4, got {rounds}")
     try:
-        max_slowdown = float(max_slowdown)
+        max_growth = float(max_growth)
     except ValueError:
-        raise _cannot_compare(f"--max-slowdown must be a number of percent like 5, got '{max_slowdown}'") from None
+        raise _cannot_compare(f"--max-growth must be a number of percent like 5, got '{max_growth}'") from None
     benchstat = _find_benchstat(ctx)
 
     root = Path(_checked(ctx, ["git", "rev-parse", "--show-toplevel"], hide=True).stdout.strip())
@@ -118,8 +119,12 @@ def run_compare(
 
         print(f"Comparing {base[:11]} with the working tree at {root}: {rounds} rounds of {bench}")
         outputs = {side: work / f"{side}.txt" for side in files}
-        for _ in range(rounds):
-            for side in files:
+        # Each side goes first in half the rounds, in a random order: base-first every round would give
+        # head the warmer machine, and a fixed pattern can line up with periodic interference.
+        base_first = [True] * (rounds // 2) + [False] * (rounds - rounds // 2)
+        random.shuffle(base_first)
+        for first in base_first:
+            for side in ("base", "head") if first else ("head", "base"):
                 run = [str(binaries[side]), "-test.run", "^$", "-test.bench", bench]
                 run += ["-test.benchmem", "-test.benchtime", benchtime, "-test.cpu", "1"]
                 with contextlib.chdir(work / side / pkg):
@@ -139,9 +144,9 @@ def run_compare(
         shutil.rmtree(work, ignore_errors=True)
 
     rows = parse_benchstat_csv(table)
-    regressions = find_regressions(rows, max_slowdown)
+    regressions = find_regressions(rows, max_growth)
     if report:
-        markdown = markdown_report(f"Benchmarks of `{pkg}`", rows, regressions, base, max_slowdown, text)
+        markdown = markdown_report(f"Benchmarks of `{pkg}`", rows, regressions, base, max_growth, text)
         Path(report).write_text(markdown, encoding="utf-8")
     if verdict_file:
         verdict = {"verdict": "regression" if regressions else "pass", "regressions": regressions, "base": base}
@@ -152,10 +157,12 @@ def run_compare(
         print(f"REGRESSION {message}")
     if regressions:
         raise Exit(
-            message="FAIL: a benchmark got slower or uses more memory (see REGRESSION lines)", code=EXIT_REGRESSION
+            message="FAIL: a benchmark allocates more or uses more bytes per call (see REGRESSION lines)",
+            code=EXIT_REGRESSION,
         )
     print(
-        f"PASS: no benchmark is more than {max_slowdown:g}% slower, allocates more, or uses more than {max_slowdown:g}% more bytes"
+        f"PASS: no benchmark allocates more or uses more than {max_growth:g}% more bytes per call. "
+        "Time is not judged: read the sec/op table above"
     )
 
 

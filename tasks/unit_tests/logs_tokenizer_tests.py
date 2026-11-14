@@ -60,26 +60,23 @@ class TestParseBenchstatCsv(unittest.TestCase):
 
 
 class TestFindRegressions(unittest.TestCase):
-    def test_slower_and_allocating(self):
+    def test_allocating_fails_and_time_does_not(self):
         # The allocation regression goes from 0 to 1, so benchstat prints "?" instead of a percentage:
-        # it must still be caught.
+        # it must still be caught. The +8.18% sec/op row is significant, but time never fails the run.
         self.assertEqual(
             find_regressions(parse_benchstat_csv(BENCHSTAT_CSV), 5),
             [
-                "Consumer/aad_log_signature/applog sec/op: +8.18%",
                 "Consumer/aad_log_signature/applog B/op: 512 -> 1024",
                 "Consumer/logs_auto_multiline/short allocs/op: 0 -> 1",
             ],
         )
 
-    def test_slowdown_within_threshold(self):
-        self.assertEqual(
-            find_regressions(parse_benchstat_csv(BENCHSTAT_CSV), 10),
-            [
-                "Consumer/aad_log_signature/applog B/op: 512 -> 1024",
-                "Consumer/logs_auto_multiline/short allocs/op: 0 -> 1",
-            ],
-        )
+    def test_time_never_fails(self):
+        rows = [
+            Row("sec/op", "Consumer/a", 1e-06, 2e-06, "+100.00%"),
+            Row("sec/op", "geomean", 1e-06, 2e-06, "+100.00%"),
+        ]
+        self.assertEqual(find_regressions(rows, 5), [])
 
     def test_bigger_allocations_fail(self):
         # Same allocation count, but each one is bigger: only B/op shows it.
@@ -98,13 +95,20 @@ class TestFindRegressions(unittest.TestCase):
         ]
         self.assertEqual(find_regressions(rows, 5), [])
 
-    def test_geomean_slowdown_fails_without_a_significant_benchmark(self):
-        rows = [
-            Row("sec/op", "Consumer/a", 1e-06, 1.06e-06, "~"),
-            Row("sec/op", "Consumer/b", 1e-06, 1.06e-06, "~"),
-            Row("sec/op", "geomean", 1e-06, 1.06e-06, "+6.00%"),
-        ]
-        self.assertEqual(find_regressions(rows, 5), ["geomean sec/op: +6.00%"])
+    def test_fractional_bytes_need_significance(self):
+        # Real CI row from an A/A run (same code on both sides): a buffer that grows on some iterations
+        # makes B/op fractional, and the medians moved 2.5 -> 3 (+20%). benchstat says it's noise.
+        rows = parse_benchstat_csv(
+            ",base,,head,,,\n"
+            ",B/op,CI,B/op,CI,vs base,P\n"
+            "Consumer/logs_adaptive_sampler/dense,2.5,20%,3,33%,~,p=0.350 n=10\n"
+            "Consumer/aad_log_signature/applog,512,0%,1024,0%,+100.00%,p=0.000 n=10\n"
+            "\n"
+            ",base,,head,,,\n"
+            ",allocs/op,CI,allocs/op,CI,vs base,P\n"
+            "Consumer/logs_adaptive_sampler/dense,0,0%,1,0%,~,p=0.474 n=10\n"
+        )
+        self.assertEqual(find_regressions(rows, 5), ["Consumer/aad_log_signature/applog B/op: 512 -> 1024"])
 
     def test_faster_and_fewer_allocations_pass(self):
         rows = [
@@ -129,20 +133,59 @@ class TestMarkdownReport(unittest.TestCase):
         )
         self.assertIn("### Benchmarks of `pkg/logs/tokenizer`", report)
         self.assertIn("**Regression** against `4a84f5c051b`", report)
-        self.assertIn("- `Consumer/aad_log_signature/applog sec/op: +8.18%`", report)
+        self.assertIn("- `Consumer/aad_log_signature/applog B/op: 512 -> 1024`", report)
         self.assertIn(f"add the `{BYPASS_LABEL}` label", report)
-        # Significant changes only, with readable units; "~" rows stay in the benchstat block.
-        self.assertIn("| Consumer/aad_log_signature/applog | sec/op | 1.497 µs | 1.619 µs | +8.18% |", report)
+        # Significant allocation and byte changes only, with readable values; "~" rows and every time
+        # row stay in the benchstat block.
         self.assertIn("| Consumer/logs_auto_multiline/short | allocs/op | 0 | 1 | new allocations |", report)
-        self.assertNotIn("| Consumer/logs_auto_multiline/short | sec/op", report)
         self.assertIn("| Consumer/aad_log_signature/applog | B/op | 512 | 1024 | +100.00% |", report)
         self.assertNotIn("| Consumer/logs_auto_multiline/short | B/op", report)
+        self.assertNotIn("| sec/op |", report)
+        self.assertNotIn("| geomean |", report)
+        self.assertIn("Time is not judged", report)
         self.assertIn("```\nthe benchstat tables\n```", report)
 
     def test_no_regression(self):
         report = markdown_report("Benchmarks", self.rows, [], "4a84f5c051b0d", 5, "tables")
         self.assertIn("**No regression**", report)
         self.assertNotIn(BYPASS_LABEL, report)
+
+    def test_pr_59467_on_a_noisy_runner(self):
+        # The CI run that reported every consumer ~20% faster now shows only the allocation and byte
+        # changes TokensToString really made, and passes.
+        rows = parse_benchstat_csv(NOISY_CSV)
+        self.assertEqual(find_regressions(rows, 5), [])
+        report = markdown_report("Benchmarks", rows, [], "4a84f5c051b0d", 5, "tables")
+        self.assertIn("| Consumer/aad_log_signature/applog | allocs/op | 7 | 1 | -85.71% |", report)
+        self.assertIn("| Consumer/aad_log_signature/applog | B/op | 1016 | 512 | -49.61% |", report)
+        self.assertNotIn("-12.88%", report)
+        self.assertNotIn("-18.27%", report)
+
+
+# Real run: the CI job of PR #59467 on a shared runner, trimmed to a few rows. That PR only changes
+# TokensToString, which logs_auto_multiline and logs_adaptive_sampler never call, so their true change is ~0%,
+# yet benchstat reported -12% to -28% on them. Every ± band is 31% to 86%.
+NOISY_CSV = """goos: linux
+goarch: amd64
+,base,,head,,,
+,sec/op,CI,sec/op,CI,vs base,P
+Consumer/logs_auto_multiline/short,4.071e-08,60%,4.195e-08,45%,~,p=0.579 n=10
+Consumer/logs_auto_multiline/applog,2.52e-07,44%,2.195e-07,61%,-12.88%,p=0.043 n=10
+Consumer/aad_log_signature/applog,3.776e-06,35%,2.617e-06,60%,-30.70%,p=0.003 n=10
+geomean,8.136e-07,,6.649e-07,,-18.27%,
+
+,base,,head,,,
+,B/op,CI,B/op,CI,vs base,P
+Consumer/logs_auto_multiline/short,0,0%,0,0%,~,p=1.000 n=10
+Consumer/aad_log_signature/applog,1016,0%,512,0%,-49.61%,p=0.000 n=10
+geomean,,,,,-24.65%,
+
+,base,,head,,,
+,allocs/op,CI,allocs/op,CI,vs base,P
+Consumer/logs_auto_multiline/short,0,0%,0,0%,~,p=1.000 n=10
+Consumer/aad_log_signature/applog,7,0%,1,0%,-85.71%,p=0.000 n=10
+geomean,,,,,-42.10%,
+"""
 
 
 class TestBenchmarkMetrics(unittest.TestCase):
