@@ -78,6 +78,8 @@ type Tailer struct {
 	// is called once for each log message.
 	tagProvider tag.Provider
 
+	tagSnapshots message.TagSnapshotter
+
 	// outputChan is the channel to which fully-decoded messages are written.
 	outputChan chan *message.Message
 
@@ -510,7 +512,8 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset.Store(offset)
-		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
+		source := t.file.Source.UnderlyingSource()
+		origin := message.NewOrigin(source)
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.FilePath = t.file.Path
@@ -522,7 +525,7 @@ func (t *Tailer) forwardMessages() {
 		copy(tags, t.tags)
 		tags = append(tags, providerTags...)
 		tags = append(tags, output.ParsingExtra.Tags...)
-		origin.SetTags(tags)
+		origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(source, t.tags, providerTags), tags[len(t.tags)+len(providerTags):])
 		if !output.HasContent() {
 			continue
 		}

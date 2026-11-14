@@ -26,6 +26,8 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	shared       *TagSnapshot
+	messageTags  []string
 }
 
 // NewOrigin returns a new Origin
@@ -40,6 +42,52 @@ func NewOrigin(source *sources.LogSource) *Origin {
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
+}
+
+// HasTag reports whether Tags would contain the lowercase tag, or tag is service:<Service()>, ignoring ASCII case and without allocating.
+func (o *Origin) HasTag(tag string) bool {
+	if o == nil || o.LogSource == nil {
+		return false
+	}
+	if containsFold(o.tags, tag) || containsFold(o.LogSource.Config.Tags, tag) {
+		return true
+	}
+	if tag == "" || tag[0] != 's' {
+		return false
+	}
+	if service, ok := strings.CutPrefix(tag, "service:"); ok {
+		return service != "" && equalFold(service, o.Service())
+	}
+	category, ok := strings.CutPrefix(tag, "sourcecategory:")
+	return ok && category != "" && equalFold(category, o.LogSource.Config.SourceCategory)
+}
+
+func containsFold(tags []string, tag string) bool {
+	for _, t := range tags {
+		if equalFold(t, tag) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] && lowerASCII(a[i]) != lowerASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func lowerASCII(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
 }
 
 // TransportTags returns tags after filtering for intake encoders. Tags remains unfiltered.
@@ -172,6 +220,28 @@ func (o *Origin) tagsToStringArray() []string {
 // SetTags sets the tags of the origin.
 func (o *Origin) SetTags(tags []string) {
 	o.tags = tags
+	o.shared = nil
+	o.messageTags = nil
+}
+
+// SetTagsWithSnapshot sets tags, which must contain exactly the tags of shared plus messageTags.
+func (o *Origin) SetTagsWithSnapshot(tags []string, shared *TagSnapshot, messageTags []string) {
+	o.tags = tags
+	o.shared = shared
+	o.messageTags = messageTags
+}
+
+// TagSnapshot returns the shared tags plus the message's own tags and service, which together match like HasTag.
+// service is empty when the snapshot already holds it. ok is false when no snapshot was set or the source
+// config changed since it was taken.
+func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, service string, ok bool) {
+	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) {
+		return nil, nil, "", false
+	}
+	if o.shared.service == "" {
+		service = o.service
+	}
+	return o.shared, o.messageTags, service, true
 }
 
 // SetSource sets the source of the origin.
