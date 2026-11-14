@@ -23,12 +23,11 @@ type USMEncoder interface {
 	// Close closes the encoder.
 	Close()
 	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
-	EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
+	EncodeConnection(*network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
 }
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {
-	lookupFn func(network.ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
 	data     map[types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string
 	once     sync.Once
@@ -61,7 +60,6 @@ type USMKeyValue[K comparable, V any] struct {
 func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMConnectionIndex[K, V] {
 	byConnection := &USMConnectionIndex[K, V]{
 		protocol: protocol,
-		lookupFn: USMLookup[K, V],
 
 		// Experimental: Connection Rollups
 		enableConnectionRollup: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enable_connection_rollup"),
@@ -102,7 +100,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 
 // Find returns a `USMConnectionData` object associated to given `network.ConnectionStats`
 // The returned object will include all USM aggregation associated to this connection
-func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
+func (bc *USMConnectionIndex[K, V]) Find(c *network.ConnectionStats) *USMConnectionData[K, V] {
 	// Early return because USM currently doesn't support any protocol over UDP
 	if c.Type != network.TCP {
 		return nil
@@ -118,24 +116,25 @@ func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnecti
 	return result
 }
 
-func (bc *USMConnectionIndex[K, V]) find(c network.ConnectionStats) *USMConnectionData[K, V] {
-	result := bc.lookupFn(c, bc.data)
+func (bc *USMConnectionIndex[K, V]) find(c *network.ConnectionStats) *USMConnectionData[K, V] {
+	result := USMLookup(c, bc.data)
 	if result != nil || !bc.enableConnectionRollup {
 		return result
 	}
 
 	// If no matches were found and we have connection rollups enabled, perfom
-	// 2 additional lookups with each port set to 0
-	tmp := c.SPort
-	c.SPort = 0
-	result = bc.lookupFn(c, bc.data)
+	// 2 additional lookups with each port set to 0, on a copy so c is unchanged.
+	// USMLookup is called directly so escape analysis keeps cc on the stack.
+	cc := *c
+	cc.SPort = 0
+	result = USMLookup(&cc, bc.data)
 	if result != nil {
 		return result
 	}
 
-	c.SPort = tmp
-	c.DPort = 0
-	return bc.lookupFn(c, bc.data)
+	cc.SPort = c.SPort
+	cc.DPort = 0
+	return USMLookup(&cc, bc.data)
 }
 
 // IsPIDCollision can be called on each lookup result returned by
@@ -159,7 +158,7 @@ func (bc *USMConnectionIndex[K, V]) find(c network.ConnectionStats) *USMConnecti
 // Notice that this PID collision scenario is typical in the context pre-forked
 // webservers such as NGINX, where multiple worker processes will share the same
 // listen socket.
-func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) bool {
+func (gd *USMConnectionData[K, V]) IsPIDCollision(c *network.ConnectionStats) bool {
 	if gd.sport == 0 && gd.dport == 0 {
 		// This is the first time a ConnectionStats claim this data. In this
 		// case we return the value and save the source and destination ports

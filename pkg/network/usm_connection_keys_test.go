@@ -58,7 +58,7 @@ func TestWithKey(t *testing.T) {
 func shouldGenerateKeys(t *testing.T, c ConnectionStats, expectedKeys ...types.ConnectionKey) {
 	var generatedKeys []types.ConnectionKey
 
-	WithKey(c, func(key types.ConnectionKey) bool {
+	WithKey(&c, func(key types.ConnectionKey) bool {
 		generatedKeys = append(generatedKeys, key)
 		return false
 	})

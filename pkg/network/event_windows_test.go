@@ -61,7 +61,7 @@ func TestKeyTuplesFromConn(t *testing.T) {
 		Dest:   destinationAddress,
 		DPort:  destinationPort,
 	}}
-	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
+	keyTuples := ConnectionKeysFromConnectionStats(&connectionStats)
 
 	assert.Len(t, keyTuples, 1, "Expected different number of key tuples")
 	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {

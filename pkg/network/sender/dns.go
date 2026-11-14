@@ -89,7 +89,7 @@ func formatDNSStatsByDomain(builder *model.ConnectionBuilder, stats map[dns.Host
 	}
 }
 
-func (d *directSender) addDNS(builder *model.ConnectionBuilder, nc network.ConnectionStats, dnsSet *indexedset.IndexedSet[dns.Hostname], indexToOffset []int32) {
+func (d *directSender) addDNS(builder *model.ConnectionBuilder, nc *network.ConnectionStats, dnsSet *indexedset.IndexedSet[dns.Hostname], indexToOffset []int32) {
 	if !d.dnsDomainsEnabled {
 		var total, successfulResponses, timeouts uint32
 		var successLatencySum, failureLatencySum uint64

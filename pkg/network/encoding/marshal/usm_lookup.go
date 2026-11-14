@@ -14,7 +14,7 @@ import (
 
 // USMLookup determines the strategy for associating a given connection to USM
 // In the context of Linux we may perform up to 4 lookups as described below
-func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
+func USMLookup[K comparable, V any](c *network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
 	var connectionData *USMConnectionData[K, V]
 
 	// WithKey will attempt 4 lookups in total

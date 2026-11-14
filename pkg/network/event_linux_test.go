@@ -35,7 +35,7 @@ func TestKeyTuplesFromConn(t *testing.T) {
 		Dest:   destinationAddress,
 		DPort:  destinationPort,
 	}}
-	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
+	keyTuples := ConnectionKeysFromConnectionStats(&connectionStats)
 
 	assert.Len(t, keyTuples, 2, "Expected different number of key tuples")
 	assert.True(t, slices.ContainsFunc(keyTuples, func(keyTuple types.ConnectionKey) bool {
@@ -78,7 +78,7 @@ func TestKeyTuplesFromConnNAT(t *testing.T) {
 			ReplDstPort: natDestinationPort,
 		},
 	}
-	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
+	keyTuples := ConnectionKeysFromConnectionStats(&connectionStats)
 
 	// Expecting 2 non NAT'd keys and 2 NAT'd keys
 	assert.Len(t, keyTuples, 4, "Expected different number of key tuples")

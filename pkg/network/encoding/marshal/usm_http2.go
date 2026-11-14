@@ -42,14 +42,14 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 	}
 }
 
-func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+func (e *http2Encoder) EncodeConnection(c *network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
 	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
 		staticTags, dynamicTags = e.encodeData(c, b)
 	})
 	return
 }
 
-func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64, map[string]struct{}) {
+func (e *http2Encoder) encodeData(c *network.ConnectionStats, w io.Writer) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}

@@ -61,7 +61,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		streamer := NewProtoTestStreamer[*model.Connection]()
 		builder := model.NewConnectionBuilder(streamer)
 
-		formatter.FormatConnectionDNS(in, builder)
+		formatter.FormatConnectionDNS(&in, builder)
 		expected := &model.Connection{
 			DnsStatsByDomain: map[int32]*model.DNSStats{
 				0: {
@@ -91,7 +91,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		streamer := NewProtoTestStreamer[*model.Connection]()
 		builder := model.NewConnectionBuilder(streamer)
 
-		formatter.FormatConnectionDNS(in, builder)
+		formatter.FormatConnectionDNS(&in, builder)
 		expected := &model.Connection{
 			DnsStatsByDomain: nil,
 			DnsStatsByDomainByQueryType: map[int32]*model.DNSStatsByQueryType{

@@ -33,7 +33,7 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 	}
 }
 
-func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, builder *model.ConnectionBuilder) {
+func (f *dnsFormatter) FormatConnectionDNS(nc *network.ConnectionStats, builder *model.ConnectionBuilder) {
 	var (
 		dnsCountByRcode        map[uint32]uint32
 		dnsSuccessfulResponses uint32

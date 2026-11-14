@@ -45,6 +45,6 @@ func TestUSMLookup(t *testing.T) {
 		DPort:  60000,
 	}}
 
-	assert.Equal(t, val, USMLookup(c1, data))
-	assert.Equal(t, (*USMConnectionData[struct{}, any])(nil), USMLookup(c2, data))
+	assert.Equal(t, val, USMLookup(&c1, data))
+	assert.Equal(t, (*USMConnectionData[struct{}, any])(nil), USMLookup(&c2, data))
 }

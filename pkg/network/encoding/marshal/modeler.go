@@ -68,7 +68,8 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		agentCfg = NewAgentConfiguration(pkgconfigsetup.SystemProbe(), pkgconfigsetup.Datadog())
 	})
 
-	for _, conn := range conns.Conns {
+	for i := range conns.Conns {
+		conn := &conns.Conns[i]
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
 			FormatConnection(builder, conn, c.routeIndex, c.usmEncoders, c.dnsFormatter, c.ipc, c.resolvConfFormatter, c.tagsSet, c.sysProbePid)
 		})
