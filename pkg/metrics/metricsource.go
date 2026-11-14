@@ -1362,7 +1362,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
-	case "gpu", "amd_gpu":
+	case "gpu", "amd_gpu", "tpu":
 		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn

@@ -132,6 +132,21 @@ properties:
           Metrics are read from the amdgpu driver's sysfs files; ROCm is not required.
           In containers, per-process metrics require the container runtime to grant
           access to the GPU render nodes.
+  tpu:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Enables Google Cloud TPU monitoring. Only applies when gpu.enabled is true.
+          On GKE, metrics are read from the TPU device plugin on port 2112 of the node
+          (kubernetes_kubelet_host). On TPU VMs, they are read from the VBAR service
+          (localhost:8353) and the libtpu runtime metrics of the workload (localhost:8431),
+          which needs host networking for a containerized Agent. No device access or
+          RuntimeClass is required.
   disabled_collectors:
     node_type: setting
     type: array

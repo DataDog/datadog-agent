@@ -108,3 +108,30 @@ func TestStaticConfigListenerAMDGPURequiresGPU(t *testing.T) {
 		})
 	}
 }
+
+// The TPU check only applies with GPU monitoring enabled: scheduling it
+// without gpu.enabled would only report a check that refuses to load.
+func TestStaticConfigListenerTPURequiresGPU(t *testing.T) {
+	for name, tc := range map[string]struct {
+		gpu, tpu bool
+		expected bool
+	}{
+		"both enabled":    {gpu: true, tpu: true, expected: true},
+		"tpu only":        {tpu: true},
+		"gpu only":        {gpu: true},
+		"neither enabled": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("gpu.enabled", tc.gpu)
+			cfg.SetInTest("gpu.tpu.enabled", tc.tpu)
+
+			ids := collectStaticConfigServices(&StaticConfigListener{})
+			if tc.expected {
+				assert.Contains(t, ids, "_gpu_tpu")
+			} else {
+				assert.NotContains(t, ids, "_gpu_tpu")
+			}
+		})
+	}
+}

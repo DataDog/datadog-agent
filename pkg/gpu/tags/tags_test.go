@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetTags(t *testing.T) {
@@ -229,4 +230,26 @@ func TestGetTagsAMD(t *testing.T) {
 			assert.Equal(t, tt.expected, getTags())
 		})
 	}
+}
+
+func TestGetTagsTPU(t *testing.T) {
+	originalProcFSRoot := kernel.ProcFSRoot
+	procDir := t.TempDir()
+	kernel.ProcFSRoot = func() string { return procDir }
+	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
+
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
+	sysDir := t.TempDir()
+	sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
+	dir := filepath.Join(sysDir, "bus", "pci", "devices", "0000:00:04.0")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor"), []byte("0x1ae0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "device"), []byte("0x006f\n"), 0o644))
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gpu.tpu.enabled", true)
+	assert.Equal(t, []string{"gpu_host:true"}, getTags())
+	cfg.SetInTest("gpu.tpu.enabled", false)
+	assert.Nil(t, getTags())
 }

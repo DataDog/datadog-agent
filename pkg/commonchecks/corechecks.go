@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	amdgpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nccl"
+	tpugpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/tpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
@@ -119,6 +120,9 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	}))
 	corecheckLoader.RegisterContextualCheck(amdgpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return amdgpu.Factory(tagger, telemetryForMode(ctx), store)
+	}))
+	corecheckLoader.RegisterContextualCheck(tpugpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return tpugpu.Factory(tagger, telemetryForMode(ctx), store)
 	}))
 	corecheckLoader.RegisterContextualCheck(nccl.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return nccl.Factory(tagger, telemetryForMode(ctx), store)
