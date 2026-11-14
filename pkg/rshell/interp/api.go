@@ -405,39 +405,48 @@ func stdinFile(ctx context.Context, r io.Reader) (*os.File, error) {
 	case nil:
 		return nil, nil
 	default:
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			return nil, err
-		}
-		go func() {
-			defer pw.Close()
-			buf := make([]byte, 32*1024)
-			for {
-				if ctx.Err() != nil {
-					return
-				}
-				// Note: r.Read may block past ctx cancellation if the underlying
-				// reader does not respect deadlines. For the StdIO path
-				// (context.Background()), the goroutine is bounded by the
-				// reader reaching EOF or pw.Write failing once the runner
-				// closes the pipe read-end. For the runner_redir.go path
-				// (execution-scoped context), a slow reader may keep this
-				// goroutine alive briefly after the script is cancelled; the
-				// ctx.Err() check at the top of the loop bounds the delay to
-				// at most one additional Read call.
-				n, err := r.Read(buf)
-				if n > 0 {
-					if _, werr := pw.Write(buf[:n]); werr != nil {
-						return
-					}
-				}
-				if err != nil {
+		pr, _, err := stdinPipe(ctx, r)
+		return pr, err
+	}
+}
+
+// stdinPipe returns the read end of a pipe fed from r by a copy goroutine,
+// and a channel closed when that goroutine exits.
+func stdinPipe(ctx context.Context, r io.Reader) (*os.File, <-chan struct{}, error) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer pw.Close()
+		buf := make([]byte, 32*1024)
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			// Note: r.Read may block past ctx cancellation if the underlying
+			// reader does not respect deadlines. For the StdIO path
+			// (context.Background()), the goroutine is bounded by the
+			// reader reaching EOF or pw.Write failing once the runner
+			// closes the pipe read-end. For the runner_redir.go path
+			// (execution-scoped context), a slow reader may keep this
+			// goroutine alive briefly after the script is cancelled; the
+			// ctx.Err() check at the top of the loop bounds the delay to
+			// at most one additional Read call.
+			n, err := r.Read(buf)
+			if n > 0 {
+				if _, werr := pw.Write(buf[:n]); werr != nil {
 					return
 				}
 			}
-		}()
-		return pr, nil
-	}
+			if err != nil {
+				return
+			}
+		}
+	}()
+	return pr, done, nil
 }
 
 // Env sets the initial environment for the interpreter. Each pair must be in

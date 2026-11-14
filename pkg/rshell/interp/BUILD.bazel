@@ -141,6 +141,7 @@ dd_agent_go_test(
         "redir_subsystem_vuln_hunt_test.go",
         "remediation_only_dispatch_test.go",
         "rm_run_budget_test.go",
+        "runner_redir_fifo_unix_test.go",
         "runner_redir_remediation_test.go",
         "runner_redir_test.go",
         "runner_redir_umask_unix_test.go",

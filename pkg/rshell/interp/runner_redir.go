@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths"
 )
 
 // MaxHeredocBytes is the maximum size of a heredoc body in bytes.
@@ -358,10 +360,31 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 	if err != nil {
 		return nil, err
 	}
+	// Close on ctx end: a read from a FIFO with no writer only returns on Close.
+	closer := inputRedirCloser{src: allowedpaths.WithContextClose(ctx, f)}
 	stdin, err := stdinFile(ctx, f)
 	if err != nil {
+		closer.Close() //nolint:errcheck
 		return nil, err
 	}
+	if src, ok := f.(*os.File); !ok || src != stdin {
+		closer.pipe = stdin
+	}
 	r.stdin = stdin
-	return f, nil
+	return closer, nil
+}
+
+// inputRedirCloser closes an input redirect source and, when stdinFile put a
+// pipe in front of it, the pipe's read end so the copy goroutine can exit.
+type inputRedirCloser struct {
+	src  io.Closer
+	pipe io.Closer
+}
+
+func (c inputRedirCloser) Close() error {
+	err := c.src.Close()
+	if c.pipe != nil {
+		c.pipe.Close() //nolint:errcheck
+	}
+	return err
 }
