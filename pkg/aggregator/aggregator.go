@@ -287,6 +287,9 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	filteredIdentities     *filteredIdentityTable
+	checkOutputMerger      *checkOutputMerger
+	tagFilterEnabled       bool
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -376,6 +379,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		filteredIdentities:          newFilteredIdentityTable(),
+		checkOutputMerger:           newCheckOutputMerger(),
+		tagFilterEnabled:            tagFilterEnabled(pkgconfigsetup.Datadog()),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -570,12 +576,14 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 	agg.getSeriesAndSketches(before, &series, &sketches)
+	agg.drainCheckOutputs(&series, &sketches)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+// Check output that merges across sources goes to the check output merger instead.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
@@ -594,6 +602,10 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
 		}
+
+		mergedSeries, mergedSketches := checkSampler.flushMerged()
+		agg.checkOutputMerger.mergeSeries(mergedSeries)
+		agg.checkOutputMerger.mergeSketches(mergedSketches)
 
 		if checkSampler.deregistered {
 			checkSampler.release()
@@ -693,7 +705,27 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.forceFlushAll || trigger.final {
+		agg.drainCheckOutputs(trigger.seriesSink, trigger.sketchesSink)
+	} else {
+		agg.flushCheckOutputs(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
+}
+
+// flushCheckOutputs sends the merged outputs of tag-filtered check metrics from seconds before the flush, holding
+// the others for a later flush.
+func (agg *BufferedAggregator) flushCheckOutputs(now time.Time, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.flush(now.Unix(), seriesSink, sketchesSink)
+}
+
+// drainCheckOutputs sends every merged output of tag-filtered check metrics, for when no flush follows.
+func (agg *BufferedAggregator) drainCheckOutputs(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.drain(seriesSink, sketchesSink)
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
@@ -942,13 +974,18 @@ func (agg *BufferedAggregator) run() {
 	}
 }
 
-// Set a new filterlist, ensuring we also clear the context resolver strip cache
-// for each check sampler.
+// setFilterList applies new metric_tag_filterlist rules: check samplers refilter their contexts.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.tagFilterList = matcher
+	if !agg.tagFilterEnabled {
+		return
+	}
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
+		cs.refilter(matcher)
 	}
-	agg.tagFilterList = matcher
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics
@@ -1088,6 +1125,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
+		agg.filteredIdentities,
 	)
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)

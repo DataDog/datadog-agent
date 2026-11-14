@@ -29,7 +29,7 @@ func benchmarkContextResolver(numContexts int, b *testing.B) {
 		})
 	}
 	cache := tags.NewStore(true, "test")
-	cr := newContextResolver(nooptagger.NewComponent(), cache, "0")
+	cr := newContextResolver(nooptagger.NewComponent(), cache, "0", nil, false)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

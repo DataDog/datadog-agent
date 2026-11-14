@@ -34,6 +34,8 @@ type CheckSampler struct {
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
+	mergedSeries           []*metrics.Serie
+	mergedSketches         []mergedSketch
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
 	pendingSketches        contextSketches
@@ -63,12 +65,13 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
+	filteredIdentities *filteredIdentityTable,
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities, !sketchesAtCommit),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		pendingSketches:        make(contextSketches),
 		sketchesPerTimestamp:   newSketchesPerTimestamp(sketchesAtCommit),
@@ -87,6 +90,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
+		// The observer sees each source with its full tags, even when its output is filtered.
 		context, _ := cs.contextResolver.get(contextKey)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
@@ -104,12 +108,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, ok := cs.contextResolver.get(ck)
-	if !ok {
-		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
-		return nil
-	}
+func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ss := &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:   ctx.Name,
@@ -256,6 +255,11 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
+		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(context); ok && addsUp(serie) {
+			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
+			cs.mergedSeries = append(cs.mergedSeries, serie)
+			continue
+		}
 
 		cs.series = append(cs.series, serie)
 	}
@@ -274,13 +278,20 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 		if sketch == nil {
 			continue
 		}
-		series := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
-		if series == nil {
+		ctx, ok := cs.contextResolver.get(ck)
+		if !ok {
+			log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
 			continue
 		}
+		series := cs.newSketchSeries(ctx, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		if filtered, ok := cs.contextResolver.resolver.filteredIdentityOf(ctx); ok {
+			series.Tags = filtered.Tags()
+			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: filtered.key, sketch: series})
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
@@ -323,10 +334,12 @@ func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		series := cs.newSketchSeries(ck, points)
-		if series == nil {
+		ctx, ok := cs.contextResolver.get(ck)
+		if !ok {
+			log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
 			continue
 		}
+		series := cs.newSketchSeries(ctx, points)
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
@@ -387,6 +400,13 @@ func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
 	return bucket || byBound || sketch || (cs.sketchesPerTimestamp != nil && cs.sketchesPerTimestamp.contains(key))
 }
 
+// flushMerged returns the output committed since the last call that goes to the check output merger.
+func (cs *CheckSampler) flushMerged() ([]*metrics.Serie, []mergedSketch) {
+	series, sketches := cs.mergedSeries, cs.mergedSketches
+	cs.mergedSeries, cs.mergedSketches = nil, nil
+	return series, sketches
+}
+
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
 	series := cs.series
@@ -441,4 +461,15 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 		lower: bucket.LowerBound,
 		upper: bucket.UpperBound,
 	}
+}
+
+// refilter updates the identity every context filters to at output, after the rules changed.
+func (cs *CheckSampler) refilter(filterList filterlist.TagMatcher) {
+	cs.contextResolver.resolver.refilter(filterList)
+}
+
+// addsUp returns whether a series' points add up across sources: the single series of a counter. Other series of a context that merges at output come from metric state that outlived an earlier
+// context with the same key, such as a histogram's.
+func addsUp(serie *metrics.Serie) bool {
+	return serie.NameSuffix == "" && serie.MType == metrics.APIRateType
 }
