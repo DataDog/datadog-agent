@@ -45,6 +45,7 @@ go_library(
 dd_agent_go_test(
     name = "appsec_test",
     srcs = [
+        "cleanup_test.go",
         "injector_integration_test.go",
         "injector_test.go",
     ],
