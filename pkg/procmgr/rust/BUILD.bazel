@@ -199,6 +199,7 @@ rust_test(
         "//Dockerfiles/agent:entrypoint.d/_default",
         "//Dockerfiles/agent:entrypoint.d/privateactionrunner",
         "//Dockerfiles/agent:entrypoint.d/procmgr-all-in-one",
+        "//Dockerfiles/agent:entrypoint.d/s6-all-in-one",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-data-plane.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-otel.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-par.yaml",
@@ -258,6 +259,7 @@ rust_test(
     crate = ":dd-procmgr",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(

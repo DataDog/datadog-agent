@@ -190,13 +190,22 @@ impl ProcessManager {
         drop(cmd_rx);
 
         let _ = grpc_shutdown_tx.send(());
-        match grpc_handle.await {
-            Ok(Err(e)) => warn!("gRPC server error: {e}"),
-            Err(e) => warn!("gRPC server task panicked: {e}"),
-            Ok(Ok(())) => {}
-        }
+        let socket_cleanup = match grpc_handle.await {
+            Ok(Ok(cleanup)) => Some(cleanup),
+            Ok(Err(e)) => {
+                warn!("gRPC server error: {e}");
+                None
+            }
+            Err(e) => {
+                warn!("gRPC server task panicked: {e}");
+                None
+            }
+        };
 
         self.shutdown().await;
+        if let Some(cleanup) = socket_cleanup {
+            cleanup.wait().await;
+        }
         let code = if external_shutdown {
             0
         } else {

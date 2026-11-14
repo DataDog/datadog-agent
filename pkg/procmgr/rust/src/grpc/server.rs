@@ -16,7 +16,7 @@ pub async fn run(
     mgr: ProcessManager,
     cmd_tx: mpsc::Sender<Command>,
     shutdown: tokio::sync::oneshot::Receiver<()>,
-) -> Result<()> {
+) -> Result<transport::SocketCleanup> {
     let svc = ProcessManagerService::new(mgr, cmd_tx);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
