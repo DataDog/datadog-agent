@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -43,6 +44,7 @@ type RuntimeSecurityAgent struct {
 	secInfoReporter      common.RawReporter
 	eventClient          *RuntimeSecurityEventClient
 	cmdClient            *RuntimeSecurityCmdClient
+	ipc                  ipc.Component //nolint:unused // only used on Linux and Windows
 	running              *atomic.Bool
 	wg                   sync.WaitGroup
 	connected            *atomic.Bool
@@ -328,10 +330,14 @@ func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 			return errors.New("unix sockets are not supported on Windows")
 		}
 
-		rsa.eventGPRCServer = grpcutils.NewServer(family, socketPath)
+		server, err := grpcutils.NewServer(family, socketPath, rsa.ipc)
+		if err != nil {
+			return err
+		}
+		rsa.eventGPRCServer = server
 		api.RegisterSecurityAgentAPIServer(rsa.eventGPRCServer.ServiceRegistrar(), rsa)
 	} else {
-		client, err := NewRuntimeSecurityEventClient()
+		client, err := NewRuntimeSecurityEventClient(rsa.ipc)
 		if err != nil {
 			return err
 		}
