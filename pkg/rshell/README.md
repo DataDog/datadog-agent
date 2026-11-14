@@ -64,6 +64,46 @@ The same command through the development CLI:
 rshell --allowed-commands rshell:echo --timeout 5s -c 'echo "hello from rshell"'
 ```
 
+## Restricted usermod POC (Linux)
+
+The only supported mutation is `sudo usermod -aG docker dd-agent` (also
+`--append --groups docker dd-agent`). It requires remediation mode,
+`rshell:usermod` in both command and elevation grants, and a writable
+AllowedPaths root covering `/etc` (normally `/etc:rw`). Existing signed helper
+policy, elevation, Landlock and seccomp checks are unchanged. There is no
+external command or trusted-path bypass. Docker membership grants substantial,
+usually root-equivalent access; authorize it deliberately.
+
+The builtin validates the local passwd record, preserves existing memberships,
+and updates group and an existing matching gshadow record **in place**, gshadow
+first. Missing gshadow is supported; a malformed existing database is not.
+Already-present membership is a no-op, and a rerun repairs membership divergence.
+Only regular, single-linked, effective-user-owned files in a trusted directory
+are accepted; production elevation therefore requires root-owned account files.
+File inodes, ownership and mode are retained. Reads are limited to 1 MiB per file
+and 64 KiB per record; unsupported layouts/control bytes are refused.
+
+**This is a POC, not a crash-atomic account editor.** It serializes rshell runners
+and takes the persistent `.pwd.lock` POSIX lock used by `lckpwdf`. It refuses
+existing passwd/group/gshadow PID locks but does not publish them. This does not
+serialize tools using only PID/link locks, or writers ignoring account locks:
+run only while other account editors are idle. Identity and content are checked
+before writes, but cannot eliminate a privileged concurrent writer's final race.
+Synchronous regular-file I/O is intended for local filesystems; cancellation is
+checked between chunks, not a hard interrupt of blocked kernel I/O.
+
+Before any database write, complete original contents are saved and synced to
+exclusive mode-0600 `/etc/{group,gshadow}.rshell-usermod-<random>` recovery copies.
+These sensitive copies are retained on success as well as failure and require
+operator cleanup. Failed writes can leave a partial file or partial two-file
+update; errors identify the affected file and recovery copy. Do not blindly
+restore a copy over later account edits. Original files are never truncated
+before validation, and no automatic rollback overwrites concurrent state.
+No ACL/SELinux relabeling, NSS/cache refresh, general account management or
+production crash-recovery guarantee is supplied. A subsequent
+`sudo systemctl restart datadog-agent.service` requires its own existing grant;
+file-level success is not proof that a running Agent has refreshed its groups.
+
 ## Check a script without executing it
 
 For checks against the **local execution host**, call `runner.Check(ctx, script)`

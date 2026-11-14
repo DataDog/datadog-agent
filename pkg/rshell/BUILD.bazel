@@ -112,6 +112,7 @@ filegroup(
         "//pkg/rshell/builtins/uname:source_files",
         "//pkg/rshell/builtins/uniq:source_files",
         "//pkg/rshell/builtins/uptime:source_files",
+        "//pkg/rshell/builtins/usermod:source_files",
         "//pkg/rshell/builtins/vmstat:source_files",
         "//pkg/rshell/builtins/wc:source_files",
         "//pkg/rshell/builtins/xargs:source_files",

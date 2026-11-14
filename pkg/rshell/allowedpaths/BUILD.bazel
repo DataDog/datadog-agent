@@ -20,6 +20,9 @@ go_library(
         "read_open_windows.go",
         "sandbox.go",
         "statfs.go",
+        "usermod_data.go",
+        "usermod_linux.go",
+        "usermod_other.go",
         "write_open.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths",
@@ -97,6 +100,9 @@ dd_agent_go_test(
         "statfs_test.go",
         "statfs_unix_test.go",
         "statfs_windows_test.go",
+        "usermod_data_test.go",
+        "usermod_linux_test.go",
+        "usermod_sandbox_purego_linux_test.go",
     ],
     embed = [":allowedpaths"],
     deps = [
@@ -110,6 +116,8 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:android": [
             "//pkg/rshell/allowedpaths/internal/writeopen",
+            "//pkg/rshell/internal/sandbox/landlock",
+            "//pkg/rshell/internal/sandbox/seccomp",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
@@ -138,6 +146,8 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/rshell/allowedpaths/internal/writeopen",
+            "//pkg/rshell/internal/sandbox/landlock",
+            "//pkg/rshell/internal/sandbox/seccomp",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:netbsd": [
