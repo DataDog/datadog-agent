@@ -60,6 +60,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureUserRollback { get; }
 
+        public ManagedAction PrepareServiceRemoval { get; }
+
+        public ManagedAction RestoreServiceRemovalCredentials { get; }
+
         public ManagedAction UninstallUser { get; }
 
         public ManagedAction UninstallUserRollback { get; }
@@ -462,12 +466,38 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false,
             };
 
+            PrepareServiceRemoval = new CustomAction<CustomActions>(
+                new Id(nameof(PrepareServiceRemoval)),
+                CustomActions.PrepareServiceRemoval,
+                Return.check,
+                When.Before,
+                Step.InstallInitialize,
+                Conditions.RemovingForUpgrade
+            );
+
+            RestoreServiceRemovalCredentials = new CustomAction<CustomActions>(
+                new Id(nameof(RestoreServiceRemovalCredentials)),
+                CustomActions.RestoreServiceRemovalCredentials,
+                Return.ignore,
+                When.Before,
+                Step.DeleteServices,
+                Conditions.RemovingForUpgrade & Condition.Create("CanDeleteServices=1")
+            )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("ServiceRemovalAccount=[ServiceRemovalAccount], "
+                               + "ServiceRemovalSid=[ServiceRemovalSid]")
+                .HideTarget(true);
+
             UninstallUser = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUser)),
                     CustomActions.UninstallUser,
                     Return.check,
                     When.After,
-                    Step.StopServices,
+                    // Remove access only after MSI has deleted services when credentials allow it.
+                    Step.DeleteServices,
                     Conditions.Uninstalling | Conditions.RemovingForUpgrade
                 )
             {

@@ -370,8 +370,7 @@ namespace Datadog.CustomActions
             // If the password is not provided on the command line, try to fetch it from the LSA secret store
             try
             {
-                var keyName = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
-                ddAgentUserPassword = _nativeMethods.FetchSecret(keyName);
+                ddAgentUserPassword = AgentCredentials.ReadPassword(_nativeMethods);
             }
             catch (Exception e)
             {
