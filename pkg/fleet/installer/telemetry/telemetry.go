@@ -104,7 +104,10 @@ func (t *Telemetry) Start() {
 // Stop stops the telemetry
 func (t *Telemetry) Stop() {
 	close(t.done)
-	<-t.flushed
+	select {
+	case <-t.flushed:
+	case <-time.After(2 * time.Second):
+	}
 }
 
 func (t *Telemetry) extractCompletedSpans() traces {
