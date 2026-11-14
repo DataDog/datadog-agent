@@ -470,7 +470,11 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	contentType := req.Header.Get("Content-Type")
 
 	apiKey := fi.extractDatadogAPIKey(req)
-	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime)
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime, api.RequestMetadata{
+		Method: req.Method, Target: req.RequestURI, Host: req.Host, Route: req.URL.Path,
+		Protocol: req.Proto, Headers: req.Header, Trailers: req.Trailer,
+		ContentLength: req.ContentLength, TransferEncoding: req.TransferEncoding,
+	})
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)

@@ -152,6 +152,7 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 3, len(payloads))
 		assert.Equal(t, "/fakeintake/payloads", string(payloads[0].Data))
+		assert.Nil(t, payloads[0].Request, "older payload JSON without request metadata remains supported")
 		assert.Equal(t, "1", string(payloads[1].Data))
 		assert.Equal(t, "/foo/bar", string(payloads[2].Data))
 	})

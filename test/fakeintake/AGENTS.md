@@ -20,6 +20,15 @@ test/fakeintake/
     └── client/       # CLI tool (fakeintakectl)
 ```
 
+## Request metadata
+
+Raw `api.Payload` records retain the received compressed body in `Data` and
+optional server-parsed request metadata in `Request`. Metadata includes repeated
+header values, trailers, method, target, host, protocol and route. Go's HTTP
+parser has already normalized header names and removed transfer framing; this
+is not an original wire capture. Parsed JSON query responses retain the same
+metadata. Older payloads without `request` decode with nil metadata.
+
 ## Supported endpoints
 
 | Route | Aggregator | Client method |

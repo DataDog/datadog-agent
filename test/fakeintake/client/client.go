@@ -556,8 +556,8 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 // GetRawPayloads returns the raw payloads received on the given endpoint,
-// including their Content-Encoding. The typed Filter*/Get* methods decompress
-// and parse payloads, discarding wire-level metadata; use this when a test needs
+// including their Content-Encoding and server-parsed request metadata. The typed
+// Filter*/Get* methods decompress and parse payloads, discarding request metadata; use this when a test needs
 // to assert properties of the raw request such as the compression algorithm.
 func (c *Client) GetRawPayloads(endpoint string) ([]api.Payload, error) {
 	return c.getFakePayloads(endpoint)
