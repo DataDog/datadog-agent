@@ -1,12 +1,17 @@
 ---
 name: review-pr-comments
-description: Review and triage PR review comments on the current branch — groups threads by file, separates bots from humans, walks through unresolved comments interactively
+description: >-
+  Review and triage PR review comments on the current branch — groups threads by file, separates bots from humans, walks through unresolved comments interactively.
+  Use when the user asks to triage PR comments, reply to review threads, or address reviewer feedback.
+  CI failures belong to triage-ci-failure, and pipeline watching belongs to follow-pr.
 model: sonnet
 ---
 
 # Review PR Comments
 
 Fetch, summarize, and interactively triage review comments on the PR for the current git branch.
+
+**Owning team:** `@DataDog/agent-devx`
 
 ## Prerequisites
 
@@ -59,6 +64,7 @@ Group review comments into conversation threads using `in_reply_to_id`:
 
 For each thread, track:
 - **File & line** from the root comment
+- **Root comment id**: the comment whose `in_reply_to_id` is null. Replies use this id, not the id of a later reply.
 - **Author** of the root comment
 - **All replies** in chronological order
 - **Resolution status**: resolved if the PR author replied last
@@ -99,14 +105,23 @@ For already-resolved threads (PR author replied last), present them as a summary
 
 ### Step 6: Execute chosen actions
 
-**Fix**: Edit the file, show the diff to the user. Do NOT commit automatically.
+**Fix**: Edit the file and show the diff. Leave the edit uncommitted so the user can inspect it before committing.
 
-**Reply**: Post via gh API:
+**Reply**: Post via gh API. `$COMMENT_ID` is the thread root tracked in Step 3. GitHub's replies endpoint accepts only that id. A later reply in the same thread is not a valid target.
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments \
-  -f body="$REPLY_TEXT" -f in_reply_to=$COMMENT_ID
+gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments/$COMMENT_ID/replies \
+  -f body="$REPLY_TEXT"
 ```
+
+Example: a reviewer comments on `pkg/foo/bar.go:42` (root comment id `1234567890`). The user chooses Reply with "Fixed the nil check before the metric is emitted." Post:
+
+```bash
+gh api repos/DataDog/datadog-agent/pulls/60089/comments/1234567890/replies \
+  -f body="Fixed the nil check before the metric is emitted."
+```
+
+If the POST succeeds, Step 7 records `Replied` for that thread. If it fails, show the error and the reply text, record the action as failed, and stop. Do not try another comment id.
 
 **TODO**: Use the TodoWrite tool to track it.
 
