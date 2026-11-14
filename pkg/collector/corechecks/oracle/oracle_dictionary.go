@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -26,11 +27,13 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 		}
 	}
 	query := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-	err := c.db.Get(SQLStatement, query, value)
-	reconnectOnConnectionError(c, &c.db, err)
-	if errors.Is(err, sql.ErrNoRows) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.QueryTimeoutDuration())
+	defer cancel()
+	err := c.db.GetContext(ctx, SQLStatement, query, value)
+	err = operationError(ctx, err)
+	if errors.Is(err, sql.ErrNoRows) && !isConnectionError(err) {
 		log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
 		return nil
 	}
-	return err
+	return handleError(c, &c.db, err)
 }

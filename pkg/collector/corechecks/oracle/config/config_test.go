@@ -8,7 +8,9 @@
 package config
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,5 +77,46 @@ custom_queries:
 				assert.EqualValues(t, 30, *cfg.InstanceConfig.CustomQueries[0].CollectionInterval)
 			}
 		})
+	}
+}
+
+func TestQueryTimeoutBounds(t *testing.T) {
+	for _, configured := range []int{0, -1, -int(^uint(0)>>1) - 1, 1, 20, 60, int(^uint(0) >> 1)} {
+		t.Run(strconv.Itoa(configured), func(t *testing.T) {
+			c := InstanceConfig{ConnectionConfig: ConnectionConfig{QueryTimeout: configured}}
+			q := c.QueryTimeoutDuration()
+			require.Positive(t, q)
+			require.Positive(t, 2*q)
+			seconds, err := strconv.ParseInt(c.QueryTimeoutString(), 10, 64)
+			require.NoError(t, err)
+			socket, err := strconv.ParseInt(c.SocketTimeoutString(), 10, 64)
+			require.NoError(t, err)
+			require.Equal(t, q, time.Duration(seconds)*time.Second)
+			require.Equal(t, 2*q, time.Duration(socket)*time.Second)
+			if configured <= 0 {
+				require.Equal(t, 20*time.Second, q)
+			}
+			if configured > 0 && configured <= 60 {
+				require.Equal(t, time.Duration(configured)*time.Second, q)
+			}
+		})
+	}
+	c, err := NewCheckConfig([]byte("username: datadog"), []byte("{}"))
+	require.NoError(t, err)
+	require.Equal(t, 20, c.QueryTimeout)
+	require.Equal(t, 20*time.Second, c.QueryTimeoutDuration())
+}
+
+func TestNativeQueryTimeoutDoesNotOverflowOCI(t *testing.T) {
+	for _, connection := range []ConnectionConfig{
+		{OracleClient: true, QueryTimeout: int(^uint(0) >> 1)},
+		{TnsAlias: "test", QueryTimeout: int(^uint(0) >> 1)},
+	} {
+		c := InstanceConfig{ConnectionConfig: connection}
+		q := c.QueryTimeoutDuration()
+		require.Positive(t, q)
+		require.LessOrEqual(t, int64(q/time.Millisecond), int64(1<<32-1))
+		require.Equal(t, "4294967", c.QueryTimeoutString())
+		require.Equal(t, "8589934", c.SocketTimeoutString())
 	}
 }

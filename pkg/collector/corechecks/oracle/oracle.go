@@ -331,11 +331,20 @@ func (c *Check) Run() error {
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
-			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			var err error
+			if c.db == nil {
+				err = reconnectOnConnectionLose(c)
+			}
+			if err == nil {
+				err = execWithDeadline(c, c.db, "BEGIN dbms_monitor.session_trace_disable; END;")
+				err = handleError(c, &c.db, err)
+			}
 			if err != nil {
 				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
-			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+			if c.db != nil {
+				c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+			}
 		}
 	}
 
@@ -362,9 +371,8 @@ func assertBool(val bool) bool {
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
 	log.Infof("%s Teardown", c.logPrompt)
-	closeDatabase(c, c.db)
-	closeDatabase(c, c.dbCustomQueries)
-	c.dbCustomQueries = nil
+	disposePool(c, &c.db)
+	disposePool(c, &c.dbCustomQueries)
 }
 
 // Configure configures the Oracle check.
