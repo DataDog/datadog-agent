@@ -24,6 +24,7 @@ import (
 	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -912,7 +913,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component, ipcComp ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	var containerFilter workloadfilter.FilterBundle
@@ -945,7 +946,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	if !cfg.SendPayloadsFromSystemProbe && (cfg.EventGRPCServer == "security-agent" || cfg.EventGRPCServer == "system-probe") {
 		seclog.Infof("setting up runtime security agent api client")
 
-		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
+		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg, ipcComp)
 		if err != nil {
 			return nil, err
 		}

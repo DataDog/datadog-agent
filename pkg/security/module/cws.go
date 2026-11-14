@@ -77,8 +77,9 @@ func (c *CommandServer) Stop() {
 	c.started = false
 }
 
-// NewCommandServer initializes the gRPC server for the module command API
-func NewCommandServer(cfg *config.RuntimeSecurityConfig) (*CommandServer, error) {
+// NewCommandServer initializes the gRPC server for the module command API. ipcComp is required when the
+// command socket is a TCP address, to authenticate the clients.
+func NewCommandServer(cfg *config.RuntimeSecurityConfig, ipcComp ipc.Component) (*CommandServer, error) {
 	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
 	if err != nil {
 		return nil, err
@@ -86,8 +87,13 @@ func NewCommandServer(cfg *config.RuntimeSecurityConfig) (*CommandServer, error)
 
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
 
+	grpcCmdServer, err := grpcutils.NewServer(family, socketPath, ipcComp)
+	if err != nil {
+		return nil, err
+	}
+
 	return &CommandServer{
-		grpcCmdServer: grpcutils.NewServer(family, socketPath),
+		grpcCmdServer: grpcCmdServer,
 	}, nil
 }
 
@@ -146,7 +152,7 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 	}
 
 	stopChan := make(chan struct{})
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore, ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +230,9 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 		seclog.Infof("starting system-probe remote event server on %s", cfg.SocketPath)
 
 		family, addr := socket.GetSocketAddress(cfg.SocketPath)
-		c.grpcEventServer = grpcutils.NewServer(family, addr)
+		if c.grpcEventServer, err = grpcutils.NewServer(family, addr, ipc); err != nil {
+			return nil, err
+		}
 
 		api.RegisterSecurityAgentAPIServer(c.grpcEventServer.ServiceRegistrar(), NewRemoteEventServer(c.apiServer))
 	default:
@@ -232,7 +240,9 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 		seclog.Infof("starting security module event grpc server on %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
-		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
+		if c.grpcEventServer, err = grpcutils.NewServer(family, cfg.SocketPath, ipc); err != nil {
+			return nil, err
+		}
 
 		api.RegisterSecurityModuleEventServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
 	}
