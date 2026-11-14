@@ -1023,32 +1023,91 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
     print(f"Written to {output_file}")
 
 
-@task(help={"output_file": "Markdown file to write the pull request comment to"})
-def benchmarkeks_instructions(_, output_file: str = "benchmarkeks_instructions.md"):
+@task(
+    help={
+        "state": "State of the benchmark the comment shows: pending (to start), running or done",
+        "report_dir": "Directory of the reports of the benchmark, for the done state",
+        "dry_run": "Print the comment instead of posting it",
+    }
+)
+def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = "", dry_run: bool = False):
     """
-    Write the pull request comment explaining how to start the benchmarkeks suite (TestBenchmarkEKSSuite), which only
-    runs manually: a button linking to its manual job in the current pipeline, or a link to the pipeline if the job
-    can't be found.
+    Update the pull request comment of the benchmarkeks suite (TestBenchmarkEKSSuite) to the state of the benchmark in
+    the current pipeline: pending, with a button linking to its manual job, running, or done, with its results. The CI
+    jobs of the benchmark update the same comment, created by the first of them. A pipeline whose commit is no longer
+    the head of the pull request leaves it to the pipeline of the head.
     """
-    from tasks.libs.testing.benchmarkeks import BASELINE_JOB_NAME, instructions_comment
+    from tasks.github_tasks import pr_commenter
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.testing.benchmarkeks import (
+        BASELINE_JOB_NAME,
+        BENCHMARK_JOB_NAME,
+        COMMENT_STATES,
+        COMMENT_TITLE,
+        LEGACY_COMMENT_TITLE,
+        SHORT_SHA_LENGTH,
+        done_comment,
+        pending_comment,
+        read_reports,
+        running_comment,
+    )
 
+    if state not in COMMENT_STATES:
+        message = f"Invalid state {state}: expected one of {', '.join(COMMENT_STATES)}"
+        raise Exit(color_message(message, Color.RED), code=1)
+    sha = os.environ["CI_COMMIT_SHA"]
+
+    # Before looking up the jobs of the pipeline, which it may not need. A pipeline of an older commit, e.g. one whose
+    # benchmark starts when a new commit is pushed, mustn't overwrite the comment of the pipeline of the new one.
+    if not dry_run:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(GithubAPI().get_pr_for_branch(branch))
+        if len(prs) != 1:
+            print(color_message(f"Found {len(prs)} pull requests for branch {branch}, not commenting", Color.ORANGE))
+            return
+        pr = prs[0]
+        if pr.head.sha != sha:
+            head = pr.head.sha[:SHORT_SHA_LENGTH]
+            print(
+                color_message(
+                    f"The head of the pull request is now {head}, leaving the comment to its pipeline", Color.ORANGE
+                )
+            )
+            return
+
+    pipeline_url = os.environ["CI_PIPELINE_URL"]
+    commit = sha[:SHORT_SHA_LENGTH]
+    if state == "pending":
+        body = pending_comment(_pipeline_job_url(BASELINE_JOB_NAME), pipeline_url)
+    else:
+        benchmark_job_url = _pipeline_job_url(BENCHMARK_JOB_NAME) or pipeline_url
+        if state == "running":
+            body = running_comment(benchmark_job_url, pipeline_url, commit, datetime.datetime.now(datetime.UTC))
+        else:
+            body = done_comment(benchmark_job_url, pipeline_url, commit, *read_reports(report_dir))
+
+    if dry_run:
+        print(body)
+    else:
+        pr_commenter(ctx, title=COMMENT_TITLE, body=body, pr=pr)
+        # Not to leave the results of a former run next to the comment
+        pr_commenter(ctx, title=LEGACY_COMMENT_TITLE, pr=pr, force_delete=True, verbose=False)
+
+
+def _pipeline_job_url(name: str) -> str | None:
+    """
+    Returns the URL of the job name of the current pipeline, whatever its status, or None if it can't be found.
+    """
     try:
-        # At the start of the pipeline, the job is still manual
-        jobs = (
-            get_gitlab_repo()
-            .pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
-            .jobs.list(scope="manual", iterator=True, per_page=100)
-        )
-        job_url = next((job.web_url for job in jobs if job.name == BASELINE_JOB_NAME), None)
-        if job_url is None:
-            print(color_message(f"Job {BASELINE_JOB_NAME} not found, linking to the pipeline", Color.ORANGE))
+        pipeline = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+        jobs = pipeline.jobs.list(iterator=True, per_page=100)
+        job_url = next((job.web_url for job in jobs if job.name == name), None)
     except Exception as e:
-        print(color_message(f"Could not look up job {BASELINE_JOB_NAME}, linking to the pipeline: {e}", Color.ORANGE))
-        job_url = None
-
-    with open(output_file, "w") as f:
-        f.write(instructions_comment(job_url, os.environ["CI_PIPELINE_URL"]))
-    print(f"Written to {output_file}")
+        print(color_message(f"Could not look up job {name}, linking to the pipeline: {e}", Color.ORANGE))
+        return None
+    if job_url is None:
+        print(color_message(f"Job {name} not found, linking to the pipeline", Color.ORANGE))
+    return job_url
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
