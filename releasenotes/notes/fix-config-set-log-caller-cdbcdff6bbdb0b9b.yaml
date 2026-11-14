@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Warnings and errors logged while setting a configuration value, such as
+    ``converting value from int to float64 to match default type`` or
+    ``could not set '<key>' unknown key``, name the code that set the value
+    again, instead of ``pkg/config/nodetreemodel/config.go``.

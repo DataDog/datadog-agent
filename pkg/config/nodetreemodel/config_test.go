@@ -6,10 +6,12 @@
 package nodetreemodel
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -23,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
@@ -2938,4 +2941,85 @@ func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
 		require.True(t, ok, "infra-mode settings must be part of the provided settings")
 		assert.Equal(t, true, feature["enabled"])
 	})
+}
+
+// TestSetLogsCallerPosition checks that the logs emitted while setting a value point at the caller of Set or
+// SetWithLock, and not at the config implementation, so that the code passing a wrongly typed value can be found.
+func TestSetLogsCallerPosition(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(w, log.TraceLvl)
+	require.NoError(t, err)
+	log.SetupLogger(l, "trace")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetDefault("float", 1.0)
+	cfg.SetDefault("float_with_lock", 1.0)
+	cfg.SetDefault("int64", int64(1))
+	cfg.SetDefault("int64_again", int64(1))
+	cfg.BuildSchema()
+
+	// each test case emits a log line and returns the function and line of its call site
+	tests := []struct {
+		name      string
+		wantLevel string
+		emit      func() (string, int)
+	}{
+		{
+			name:      "conversion warning from Set",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("float", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "conversion warning from SetWithLock",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.SetWithLock("float_with_lock", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) { return 2, true })
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "first int width conversion warning",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("int64", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "repeated int width conversion debug",
+			wantLevel: "[DEBUG] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("int64_again", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "unknown key error",
+			wantLevel: "[ERROR] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("unknown_key", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b.Reset()
+			function, line := tt.emit()
+			require.NoError(t, w.Flush())
+
+			assert.Contains(t, b.String(), fmt.Sprintf("%s%s:%d ", tt.wantLevel, function, line))
+		})
+	}
 }
