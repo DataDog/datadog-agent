@@ -22,8 +22,8 @@ require (
 	go.etcd.io/bbolt v1.5.0
 	go.uber.org/atomic v1.12.0
 	go.uber.org/multierr v1.11.0
-	go.yaml.in/yaml/v2 v2.4.5
 	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
