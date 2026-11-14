@@ -838,6 +838,46 @@ properties:
         node_type: setting
         type: integer
         default: 300
+      entropy:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Computes per-interface traffic entropy and writes the values to the Agent log. Entropy values aren't sent as metrics.
+          interval:
+            node_type: setting
+            type: integer
+            default: 300
+            comment: |-
+              Length in seconds of each entropy window. Separate from aggregator_flush_interval.
+          min_records:
+            node_type: setting
+            type: integer
+            default: 10
+          min_bytes:
+            node_type: setting
+            type: integer
+            default: 0
+          max_exporters:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_interfaces_per_exporter:
+            node_type: setting
+            type: integer
+            default: 2000
+          max_peers_per_interface:
+            node_type: setting
+            type: integer
+            default: 50000
+          max_total_entries:
+            node_type: setting
+            type: integer
+            default: 2000000
       forwarder:
         node_type: section
         type: object

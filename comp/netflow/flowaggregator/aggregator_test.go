@@ -1687,3 +1687,58 @@ func TestAggregatorFlushing(t *testing.T) {
 		sender.AssertCalled(t, "Gauge", "datadog.netflow.flow_truncation.threshold_value", float64(100), mock.Anything, mock.Anything)
 	})
 }
+
+func TestFlowAggregator_Entropy(t *testing.T) {
+	sender := mocksender.NewMockSender(t, "")
+	sender.SetupAcceptAll()
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	// unbuffered flowIn: once the send returns, run() has received the flow and handles it before stopping
+	conf := &config.NetflowConfig{
+		AggregatorFlushInterval:       300,
+		AggregatorPortRollupThreshold: 10,
+	}
+	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off when disabled")
+
+	// created just before windowStart, so that window isn't partial
+	windowStart := int64(1_800_000_000)
+	setMockTimeNow(time.Unix(windowStart-1, 0))
+	t.Cleanup(func() { timeNow = time.Now })
+
+	conf.Entropy = config.EntropyConfig{
+		Enabled:                  true,
+		Interval:                 60,
+		MinRecords:               1,
+		MaxExporters:             10,
+		MaxInterfacesPerExporter: 10,
+		MaxPeersPerInterface:     10,
+		MaxTotalEntries:          0,
+	}
+	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off when a limit isn't positive")
+
+	conf.Entropy.MaxTotalEntries = 100
+	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	agg := NewFlowAggregator(sender, epForwarder, conf, "test-host", logger, rdnsQuerier, false, nil)
+	require.NotNil(t, agg.entropy)
+
+	// received in that window; the exporter's end time isn't used
+	setMockTimeNow(time.Unix(windowStart+10, 0))
+	go agg.run()
+	agg.flowIn <- &common.Flow{
+		Namespace:       "ns",
+		ExporterAddr:    []byte{127, 0, 0, 1},
+		SrcAddr:         []byte{10, 0, 0, 1},
+		DstAddr:         []byte{10, 0, 0, 2},
+		InputInterface:  1,
+		OutputInterface: 2,
+		Bytes:           100,
+	}
+	close(agg.stopChan)
+	<-agg.runDone
+
+	// the flush after the 60s window ends closes it, though the flush interval is 300s:
+	// one window for the ingress side and one for the egress side
+	agg.flush(common.FlushContext{FlushTime: time.Unix(windowStart+60, 0)})
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.windows", 2, "", []string{"quality_status:valid"})
+}

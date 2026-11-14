@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
+	"github.com/DataDog/datadog-agent/comp/netflow/entropy"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
@@ -70,6 +71,8 @@ type FlowAggregator struct {
 
 	flowFilter FlowFlushFilter
 	logger     log.Component
+
+	entropy *entropy.Accumulator
 }
 
 type sequenceDeltaKey struct {
@@ -121,6 +124,23 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		appCache = dpi.NewApplicationCache()
 	}
 
+	var entropyAcc *entropy.Accumulator
+	e := config.Entropy
+	if e.Enabled && min(e.Interval, e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries) <= 0 {
+		logger.Warnf("NetFlow interface entropy is disabled: its interval and max_* limits must be positive (got %d, %d, %d, %d, %d)",
+			e.Interval, e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries)
+	} else if e.Enabled {
+		entropyAcc = entropy.NewAccumulator(entropy.Config{
+			Interval:                 time.Duration(e.Interval) * time.Second,
+			MinRecords:               e.MinRecords,
+			MinBytes:                 e.MinBytes,
+			MaxExporters:             e.MaxExporters,
+			MaxInterfacesPerExporter: e.MaxInterfacesPerExporter,
+			MaxPeersPerInterface:     e.MaxPeersPerInterface,
+			MaxTotalEntries:          e.MaxTotalEntries,
+		}, timeNow())
+	}
+
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
@@ -143,6 +163,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		flowFilter:                   topNFilter,
+		entropy:                      entropyAcc,
 	}
 }
 
@@ -185,6 +206,9 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
+			if agg.entropy != nil {
+				agg.entropy.Add(flow, timeNow())
+			}
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -394,6 +418,10 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 		agg.sendFlows(flowsToFlush, ctx.FlushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, ctx.FlushTime)
+
+	if agg.entropy != nil {
+		agg.entropy.CloseWindows(ctx.FlushTime).Submit(agg.sender, agg.logger)
+	}
 
 	flushCount := len(flowsToFlush)
 
