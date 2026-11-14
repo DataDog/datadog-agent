@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added opt-in consumer group sharding for the ``kafka_consumer`` cluster
+    check. When ``cluster_checks.kafka_consumer_sharding_enabled`` is set to
+    ``true``, a ``kafka_consumer`` config with a single instance that sets
+    ``consumer_groups_shard_count`` to N (greater than 1), and no
+    ``consumer_groups_shard_index``, is split into N configs with shard
+    indexes 0 to N-1, so the consumer groups of one Kafka cluster are
+    collected by several Cluster Check Runners. The runners must run a
+    ``kafka_consumer`` check version that supports these options.
