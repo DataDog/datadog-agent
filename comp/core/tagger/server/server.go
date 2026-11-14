@@ -61,7 +61,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
 
-	timeoutRefreshError := make(chan error)
+	timeoutRefreshError := make(chan error, 1)
 
 	go func() {
 		// The remote tagger client has a timeout that closes the
@@ -78,7 +78,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				return
 
 			case <-ticker.C:
-				err = grpc.DoWithTimeout(func() error {
+				err := grpc.DoWithTimeout(func() error {
 					return out.Send(&pb.StreamTagsResponse{
 						Events: []*pb.StreamTagsEvent{},
 					})

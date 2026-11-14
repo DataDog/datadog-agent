@@ -30,12 +30,17 @@ go_library(
 dd_agent_go_test(
     name = "server_test",
     srcs = [
+        "server_test.go",
         "syncthrottler_test.go",
         "util_benchmark_test.go",
         "util_test.go",
     ],
     embed = [":server"],
     deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/telemetry/mock",
+        "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
         "@com_github_stretchr_testify//assert",
     ],
