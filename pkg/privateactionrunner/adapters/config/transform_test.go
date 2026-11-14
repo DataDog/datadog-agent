@@ -592,6 +592,90 @@ func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnam
 	assert.NotContains(t, logs, `"rshell:journalctl"`)
 }
 
+func TestFromDDConfigDomainAllowlist(t *testing.T) {
+	t.Run("unset allows every domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("jenkins.example.com"))
+	})
+
+	t.Run("configured list allows only matching domains", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"jenkins.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"jenkins.example.com"}, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("jenkins.example.com"))
+		assert.False(t, cfg.IsDomainAllowed("127.0.0.1"))
+	})
+
+	t.Run("configured empty list allows no domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed("jenkins.example.com"))
+	})
+
+	t.Run("entries are trimmed", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"jenkins.example.com", " ci.example.com ", " "})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"jenkins.example.com", "ci.example.com"}, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("ci.example.com"))
+	})
+
+	t.Run("blank entries only allow no domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{" "})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed(""))
+	})
+
+	t.Run("http_allowlist does not set it", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.HTTPAllowlist, []string{"api.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.DomainAllowlist)
+	})
+}
+
+func TestIsDomainAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		allowlist []string
+		hostname  string
+		expected  bool
+	}{
+		{name: "nil allows any", allowlist: nil, hostname: "127.0.0.1", expected: true},
+		{name: "empty allows none", allowlist: []string{}, hostname: "jenkins.example.com", expected: false},
+		{name: "exact", allowlist: []string{"jenkins.example.com"}, hostname: "jenkins.example.com", expected: true},
+		{name: "case-insensitive", allowlist: []string{"Jenkins.Example.com"}, hostname: "JENKINS.example.COM", expected: true},
+		{name: "glob subdomain", allowlist: []string{"*.example.com"}, hostname: "ci.jenkins.example.com", expected: true},
+		{name: "glob excludes parent", allowlist: []string{"*.example.com"}, hostname: "example.com", expected: false},
+		{name: "suffix is not a match", allowlist: []string{"example.com"}, hostname: "jenkins.example.com.other.net", expected: false},
+		{name: "other host", allowlist: []string{"jenkins.example.com"}, hostname: "localhost", expected: false},
+		{name: "ip literal", allowlist: []string{"10.0.0.5"}, hostname: "10.0.0.5", expected: true},
+		{name: "non-ascii hostname that lowercases to a listed one", allowlist: []string{"jenkins.example.com"}, hostname: "jen\u212Ains.example.com", expected: false},
+		{name: "non-ascii entry is skipped", allowlist: []string{"jen\u212Ains.example.com"}, hostname: "jenkins.example.com", expected: false},
+		{name: "invalid glob still matches exactly", allowlist: []string{"[jenkins"}, hostname: "[jenkins", expected: true},
+		{name: "invalid glob matches nothing else", allowlist: []string{"[jenkins"}, hostname: "jenkins", expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{DomainAllowlist: tt.allowlist}
+			assert.Equal(t, tt.expected, cfg.IsDomainAllowed(tt.hostname))
+		})
+	}
+}
+
 func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(par.PrivateKey, "")

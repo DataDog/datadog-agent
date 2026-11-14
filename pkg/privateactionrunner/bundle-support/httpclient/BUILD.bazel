@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/httpclient",
         "//pkg/privateactionrunner/util",

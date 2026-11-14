@@ -13,8 +13,21 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
+
+// newHTTPClientProvider applies domain_allowlist rather than http_allowlist,
+// which is scoped to HTTP actions.
+func newHTTPClientProvider(runnerConfig *config.Config) httpclient.Provider {
+	return httpclient.NewDefaultProvider(
+		runnerConfig,
+		httpclient.WithURLAllowlistDisabled(),
+		httpclient.WithDomainAllowlist(),
+		httpclient.WithSameOriginRedirectsOnly(),
+	)
+}
 
 type DomainAndHeaders struct {
 	Domain  string

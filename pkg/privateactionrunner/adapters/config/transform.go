@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/gobwas/glob"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -105,6 +106,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
+		DomainAllowlist:                    domainAllowlist(config),
 		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
@@ -135,6 +137,27 @@ func kubernetesAllowedCustomResources(config config.Component) []string {
 		return nil
 	}
 	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
+}
+
+// domainAllowlist returns nil when domain_allowlist is unset so every domain stays
+// allowed; an explicit list, even empty, allows only matching domains.
+func domainAllowlist(config config.Component) []string {
+	if !config.IsConfigured(par.DomainAllowlist) {
+		return nil
+	}
+	// Env values are split on commas without trimming, so "a, b" yields " b".
+	patterns := []string{}
+	for _, pattern := range config.GetStringSlice(par.DomainAllowlist) {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		if _, err := glob.Compile(strings.ToLower(pattern)); err != nil {
+			log.Warnf("%s entry %q is not a valid glob pattern and only matches exactly: %v", par.DomainAllowlist, pattern, err)
+		}
+		patterns = append(patterns, pattern)
+	}
+	return patterns
 }
 
 func makeActionsAllowlist(config config.Component) ActionsAllowlist {

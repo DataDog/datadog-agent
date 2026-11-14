@@ -163,6 +163,21 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  domain_allowlist:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Optional list of domains that Private Action Runner Jenkins actions may reach.
+      Other actions ignore it; HTTP actions use http_allowlist instead. Entries match the
+      request hostname, including every redirect, case-insensitively and support glob
+      patterns, for example ["jenkins.example.com", "*.example.com"]. When unset, all
+      domains are allowed. When explicitly set, including to an empty list, only
+      matching domains are allowed.
   kubernetes_allowed_custom_resources:
     node_type: setting
     type: array

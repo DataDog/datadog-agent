@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
@@ -26,8 +27,10 @@ type Provider interface {
 }
 
 type defaultHTTPClientProvider struct {
-	runnerConfig        *config.Config
-	enforceURLAllowlist bool
+	runnerConfig            *config.Config
+	enforceURLAllowlist     bool
+	enforceDomainAllowlist  bool
+	sameOriginRedirectsOnly bool
 }
 
 // ProviderOption configures optional behavior on the default HTTP client provider.
@@ -37,6 +40,22 @@ type ProviderOption func(*defaultHTTPClientProvider)
 func WithURLAllowlistDisabled() ProviderOption {
 	return func(p *defaultHTTPClientProvider) {
 		p.enforceURLAllowlist = false
+	}
+}
+
+// WithDomainAllowlist makes all clients created by this provider refuse
+// requests, redirects included, to a host outside private_action_runner.domain_allowlist.
+func WithDomainAllowlist() ProviderOption {
+	return func(p *defaultHTTPClientProvider) {
+		p.enforceDomainAllowlist = true
+	}
+}
+
+// WithSameOriginRedirectsOnly makes all clients created by this provider refuse
+// redirects to another origin, see RunnerHttpClientConfig.SameOriginRedirectsOnly.
+func WithSameOriginRedirectsOnly() ProviderOption {
+	return func(p *defaultHTTPClientProvider) {
+		p.sameOriginRedirectsOnly = true
 	}
 }
 
@@ -51,7 +70,10 @@ func NewDefaultProvider(runnerConfig *config.Config, opts ...ProviderOption) Pro
 	return p
 }
 
-func (d defaultHTTPClientProvider) wrapClient(client HTTPClient) HTTPClient {
+func (d defaultHTTPClientProvider) wrapClient(client *http.Client) HTTPClient {
+	if d.enforceDomainAllowlist {
+		client.Transport = &domainAllowlistTransport{inner: client.Transport, config: d.runnerConfig}
+	}
 	if d.enforceURLAllowlist {
 		return &urlAllowlistClient{inner: client, config: d.runnerConfig}
 	}
@@ -60,7 +82,8 @@ func (d defaultHTTPClientProvider) wrapClient(client HTTPClient) HTTPClient {
 
 func (d defaultHTTPClientProvider) NewDefaultClient() (HTTPClient, error) {
 	client, err := NewRunnerHttpClient(&RunnerHttpClientConfig{
-		HTTPTimeout: d.runnerConfig.HTTPTimeout,
+		HTTPTimeout:             d.runnerConfig.HTTPTimeout,
+		SameOriginRedirectsOnly: d.sameOriginRedirectsOnly,
 	})
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
@@ -69,6 +92,11 @@ func (d defaultHTTPClientProvider) NewDefaultClient() (HTTPClient, error) {
 }
 
 func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfig) (HTTPClient, error) {
+	if d.sameOriginRedirectsOnly && !clientConfig.SameOriginRedirectsOnly {
+		withRedirectPolicy := *clientConfig
+		withRedirectPolicy.SameOriginRedirectsOnly = true
+		clientConfig = &withRedirectPolicy
+	}
 	client, err := NewRunnerHttpClient(clientConfig)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
@@ -87,4 +115,22 @@ func (c *urlAllowlistClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
 	}
 	return c.inner.Do(req)
+}
+
+// domainAllowlistTransport checks every request, including each redirect, against
+// the domain allowlist.
+type domainAllowlistTransport struct {
+	inner  http.RoundTripper
+	config *config.Config
+}
+
+func (t *domainAllowlistTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if host := req.URL.Hostname(); !t.config.IsDomainAllowed(host) {
+		// http.RoundTripper must close the request body, even on error.
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, fmt.Errorf("domain %q is not allowed by %s", host, par.DomainAllowlist)
+	}
+	return t.inner.RoundTrip(req)
 }

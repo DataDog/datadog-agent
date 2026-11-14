@@ -38,6 +38,9 @@ const (
 	HTTPAllowlist         = "private_action_runner.http_allowlist"
 	HTTPAllowIMDSEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
+	// Domains Jenkins actions may reach
+	DomainAllowlist = "private_action_runner.domain_allowlist"
+
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
 
