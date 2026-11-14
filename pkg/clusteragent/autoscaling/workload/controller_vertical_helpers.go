@@ -900,9 +900,16 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 			Requests: resourceListToStringMap(cr.Requests),
 			Limits:   resourceListToStringMap(cr.Limits),
 		}
-		if burstable {
+		// pods/resize rejects removeLimitSentinel (-1), so negative limits are sent as deletions.
+		for name, qty := range cr.Limits {
+			if qty.Sign() < 0 {
+				delete(patch.Limits, string(name))
+				patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
+			}
+		}
+		if burstable && !slices.Contains(patch.LimitsToDelete, string(corev1.ResourceCPU)) {
 			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
-			patch.LimitsToDelete = []string{string(corev1.ResourceCPU)}
+			patch.LimitsToDelete = append(patch.LimitsToDelete, string(corev1.ResourceCPU))
 		}
 		patches = append(patches, patch)
 	}
