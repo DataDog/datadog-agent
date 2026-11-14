@@ -56,7 +56,7 @@ jobs:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
             const pullRequestNumber = context.payload.pull_request.number;
-            const commentBody = "/merge";
+            const commentBody = "/merge -p low";
 
             // Add a comment to the pull request
             await github.rest.issues.createComment({
