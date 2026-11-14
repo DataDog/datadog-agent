@@ -1395,7 +1395,7 @@ def update_image_tag(lines, tag, variables, test=True):
     We update the file content (instead of the yaml.load) to keep the original order/formatting.
     """
     output = []
-    tag_pattern = re.compile(r"v\d+-\w+")
+    tag_pattern = re.compile(r"v\d+-\w+(?:@sha256:[0-9a-f]{64})?")
     for line in lines:
         if any(variable in line for variable in variables):
             if "SUFFIX" in line:

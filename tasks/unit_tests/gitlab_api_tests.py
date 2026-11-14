@@ -568,6 +568,16 @@ class TestModifyContent(unittest.TestCase):
             self.gitlab_ci = gl.readlines()
         return super().setUp()
 
+    def test_digest_pins_are_removed_when_updating_image_tags(self):
+        images = ["CI_IMAGE_DOCKER_X64", "CI_IMAGE_DOCKER_ARM64"]
+        lines = [f'  {image}: v123-abc@sha256:{"a" * 64}\n' for image in images]
+        lines.append('  CI_IMAGE_UNRELATED: v123-abc@sha256:' + 'b' * 64 + '\n')
+        for use_test_image in (True, False):
+            with self.subTest(test=use_test_image):
+                updated = update_image_tag(lines, "v456-def", images, test=use_test_image)
+                self.assertEqual(updated[:2], [f"  {image}: v456-def\n" for image in images])
+                self.assertEqual(updated[2], lines[2])
+
     def test_all_buildimages(self):
         prefix = 'DATADOG_AGENT_'
         images = [
