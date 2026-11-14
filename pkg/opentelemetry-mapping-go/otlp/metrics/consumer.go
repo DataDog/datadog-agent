@@ -168,3 +168,12 @@ type TagSetConsumer interface {
 	// tags is the full slice of "key:value" strings to attach to the metric.
 	ConsumeTagSet(metricSuffix string, tags []string)
 }
+
+// MetricMetadataConsumer is a metric metadata consumer.
+// It is an optional interface that can be implemented by a [Consumer].
+// The translator only calls it when created with [WithMetricMetadata].
+type MetricMetadataConsumer interface {
+	// ConsumeMetricMetadata consumes the description and Datadog unit of a metric.
+	// unit is empty if the OTLP unit has no Datadog equivalent.
+	ConsumeMetricMetadata(name, description, unit string)
+}

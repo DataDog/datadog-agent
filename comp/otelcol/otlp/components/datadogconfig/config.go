@@ -45,6 +45,9 @@ type APIConfig struct {
 	// Create a new API key here: https://app.datadoghq.com/account/settings
 	Key configopaque.String `mapstructure:"key"`
 
+	// AppKey is the Datadog application key.
+	AppKey configopaque.String `mapstructure:"app_key"`
+
 	// Site is the site of the Datadog intake to send data to.
 	// The default value is "datadoghq.com".
 	Site string `mapstructure:"site"`
@@ -320,6 +323,7 @@ func (c *Config) Unmarshal(configMap *confmap.Conf) error {
 	}
 
 	c.API.Key = configopaque.String(strings.TrimSpace(string(c.API.Key)))
+	c.API.AppKey = configopaque.String(strings.TrimSpace(string(c.API.AppKey)))
 
 	// The exporterhelper default can't be told apart from an explicit value once unmarshaled.
 	c.queueNumConsumersSet = configMap.IsSet("sending_queue::num_consumers")

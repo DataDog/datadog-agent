@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -280,7 +282,19 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		}
 		newTranslator = minimalTranslatorFromConfig
 	}
-	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	options := f.options
+	var metadataSubmitter *metadata.Submitter
+	if metricMetadataGate.IsEnabled() {
+		if cfg.API.AppKey == "" {
+			return nil, fmt.Errorf("feature gate %s needs api::app_key", metricMetadataGate.ID())
+		}
+		metadataSubmitter, err = metadata.NewSubmitter(params.TelemetrySettings, cfg.HTTPConfig, cfg.Metrics.Metrics.Endpoint, string(cfg.API.Key), string(cfg.API.AppKey))
+		if err != nil {
+			return nil, err
+		}
+		options = append(slices.Clip(options), otlpmetrics.WithMetricMetadata())
+	}
+	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
@@ -305,6 +319,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 	newExp.hostTags = f.hostTags
+	newExp.metadataSubmitter = metadataSubmitter
 
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueBatchConfig),
@@ -312,6 +327,12 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
+		exporterhelper.WithStart(func(ctx context.Context, host component.Host) error {
+			if metadataSubmitter == nil {
+				return nil
+			}
+			return metadataSubmitter.Start(ctx, host)
+		}),
 		exporterhelper.WithShutdown(func(ctx context.Context) error {
 			if cfg.ShutdownFunc != nil {
 				err = cfg.ShutdownFunc(ctx)
@@ -321,6 +342,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 			}
 			if ownedForwarder != nil {
 				ownedForwarder.Stop()
+			}
+			if metadataSubmitter != nil {
+				return metadataSubmitter.Shutdown(ctx)
 			}
 			return nil
 		}),

@@ -624,6 +624,10 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if t.cfg.withOTelPrefix {
 					renameMetrics(md)
 				}
+				// Remapped metrics are Datadog metrics, so only the original gets OTLP metadata.
+				if t.cfg.withMetricMetadata && t.keepsName(md) {
+					consumeMetricMetadata(consumer, t.unitMapper, md)
+				}
 
 				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
 				if err != nil {
@@ -669,6 +673,18 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 		}
 	}
 	return metadata, nil
+}
+
+// keepsName reports whether md is sent to Datadog under its own name.
+// Summaries, and histograms outside of distributions mode, are only sent as suffixed metrics.
+func (t *defaultTranslator) keepsName(md pmetric.Metric) bool {
+	switch md.Type() {
+	case pmetric.MetricTypeGauge, pmetric.MetricTypeSum, pmetric.MetricTypeExponentialHistogram:
+		return true
+	case pmetric.MetricTypeHistogram:
+		return t.cfg.HistMode == HistogramModeDistributions
+	}
+	return false
 }
 
 func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
