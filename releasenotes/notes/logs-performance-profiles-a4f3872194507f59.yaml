@@ -1,0 +1,19 @@
+---
+features:
+  - |
+    Logs Agent: Added ``logs_config.profile``, a curated set of pre-tuned
+    performance profiles (``high-concurrency``, ``high-throughput``,
+    ``max-throughput``, ``low-latency``, ``low-resource``, and
+    ``high-compression``) that bundle the underlying ``logs_config`` performance
+    settings (pipeline count, batching, channel sizes, and compression) so
+    operators can tune the Logs Agent for a given workload shape without
+    setting each option individually. Individual ``logs_config`` settings set
+    explicitly (via the config file, environment variables, Fleet Automation,
+    remote config, the command line, or at runtime) take precedence over the
+    profile, so a profile can serve as a starting point that is further
+    customized. Profiles are off by default, in which case the Agent keeps its
+    standard default settings. ``max-throughput`` disables compression for
+    HTTP ``additional_endpoints`` as well. ``high-compression`` only takes
+    effect with zstd compression, so it has no effect when
+    ``additional_endpoints`` are configured unless
+    ``logs_config.compression_kind`` is set to ``zstd``.

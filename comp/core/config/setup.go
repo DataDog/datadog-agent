@@ -85,10 +85,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 			}
 		}
 		// Fleet policies are merged after LoadDatadog's override pass, so re-run
-		// ADP overrides that depend on values fleet policies may set.
+		// overrides that depend on values fleet policies may set.
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
 		pkgconfigsetup.SanitizeDataPlaneConfig(config)
+		pkgconfigsetup.ApplyLogsPerformanceProfile(config)
 		// The same goes for delegated-auth endpoint directives: re-run the scan over
 		// the merged values (already-registered directives are replaced in place).
 		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, delegatedAuthComp)
