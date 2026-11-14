@@ -12,11 +12,8 @@
     - when: on_success
   needs: []
   script:
-    # This is desired, but the bazel toolchain needlessly adds -lpthread. We can correct that in a followup PR.
-    # https://datadoghq.atlassian.net/browse/ABLD-606
-    # bazel build --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM} //Dockerfiles/nosys-seccomp:nosys.so
-    # cp -v "$(bazelisk info bazel-bin --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM})/Dockerfiles/nosys-seccomp/nosys.so" Dockerfiles/nosys-seccomp/nosys.so
-    - cd Dockerfiles/nosys-seccomp ; gcc -O2 -fPIC -shared -Wl,--version-script=nosys.sym -o nosys.so nosys.c -lseccomp ; chmod 755 nosys.so
+    - bazel build --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM} //Dockerfiles/nosys-seccomp:nosys.so
+    - cp -v "$(bazelisk info bazel-bin --platforms=//bazel/platforms:${NOSYS_SECCOMP_BAZEL_PLATFORM})/Dockerfiles/nosys-seccomp/nosys.so" Dockerfiles/nosys-seccomp/nosys.so ; chmod 755 Dockerfiles/nosys-seccomp/nosys.so
   artifacts:
     paths:
       - Dockerfiles/nosys-seccomp/nosys.so
