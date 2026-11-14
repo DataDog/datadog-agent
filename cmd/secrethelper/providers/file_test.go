@@ -6,7 +6,6 @@
 package providers
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,11 +22,13 @@ var fileThatDoesNotExist = "secret2"
 var fileThatExceedsMaxSize = "secret3"
 var fileThatIsASymlinkToSameDir = "secret4" // Points to "secret1"
 var fileThatIsASymlinkToOtherDir = "secret5"
+var fileThatIsAnAbsoluteSymlinkToSameDir = "secret6"
+var fileThatIsAnAbsoluteSymlinkToOtherDir = "secret7"
 
 // setupReadSecretFileTree materialises the read-secrets layout in a temp dir.
 // We build it from code instead of reading checked-in testdata so the test
 // behaves identically under `go test` and `bazel test` (Bazel stages testdata
-// via symlinks, which trips the symlink-safety check in ReadSecretFile).
+// via symlinks outside the allowed directory).
 func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath string) {
 	t.Helper()
 
@@ -52,17 +53,22 @@ func setupReadSecretFileTree(t *testing.T) (testDataAbsPath, testSecretsAbsPath 
 		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToSameDir)))
 	require.NoError(t, os.Symlink("../read-secrets-secret5-target",
 		filepath.Join(testSecretsAbsPath, fileThatIsASymlinkToOtherDir)))
+	require.NoError(t, os.Symlink(filepath.Join(testSecretsAbsPath, fileThatExists),
+		filepath.Join(testSecretsAbsPath, fileThatIsAnAbsoluteSymlinkToSameDir)))
+	require.NoError(t, os.Symlink(filepath.Join(testDataAbsPath, "read-secrets-secret5-target"),
+		filepath.Join(testSecretsAbsPath, fileThatIsAnAbsoluteSymlinkToOtherDir)))
 	return
 }
 
-func TestReadSecretFile(t *testing.T) {
-	testDataAbsPath, testSecretsAbsPath := setupReadSecretFileTree(t)
+func TestReadSecretFileConfined(t *testing.T) {
+	_, testSecretsAbsPath := setupReadSecretFileTree(t)
 
 	tests := []struct {
 		name                string
 		inputFile           string
 		expectedSecretValue string
 		expectedError       string
+		expectAnyError      bool
 		skipWindows         bool
 	}{
 		{
@@ -87,14 +93,22 @@ func TestReadSecretFile(t *testing.T) {
 			skipWindows:         true,
 		},
 		{
-			name:      "file is a symlink to other dir",
-			inputFile: fileThatIsASymlinkToOtherDir,
-			expectedError: fmt.Sprintf(
-				"not following symlink \"%s\" outside of \"%s\"",
-				testDataAbsPath+"/read-secrets-secret5-target",
-				testSecretsAbsPath,
-			),
-			skipWindows: true,
+			name:                "file is an absolute symlink pointing to the same dir",
+			inputFile:           fileThatIsAnAbsoluteSymlinkToSameDir,
+			expectedSecretValue: contentsOfFileThatExists,
+			skipWindows:         true,
+		},
+		{
+			name:           "file is a symlink to other dir",
+			inputFile:      fileThatIsASymlinkToOtherDir,
+			expectAnyError: true,
+			skipWindows:    true,
+		},
+		{
+			name:           "file is an absolute symlink to other dir",
+			inputFile:      fileThatIsAnAbsoluteSymlinkToOtherDir,
+			expectAnyError: true,
+			skipWindows:    true,
 		},
 	}
 
@@ -104,9 +118,12 @@ func TestReadSecretFile(t *testing.T) {
 				t.Skip("skipped on windows")
 			}
 
-			secret := ReadSecretFile(filepath.Join(testSecretsAbsPath, test.inputFile))
+			secret := ReadSecretFileConfined(testSecretsAbsPath, test.inputFile)
 
-			if test.expectedError != "" {
+			if test.expectAnyError {
+				assert.NotEmpty(t, secret.ErrorMsg)
+				assert.Empty(t, secret.Value)
+			} else if test.expectedError != "" {
 				assert.Equal(t, test.expectedError, secret.ErrorMsg)
 			} else {
 				assert.Equal(t, test.expectedSecretValue, secret.Value)

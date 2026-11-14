@@ -8,6 +8,7 @@ package providers
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,4 +74,70 @@ func ReadSecretFile(path string) secrets.SecretVal {
 	}
 
 	return secrets.SecretVal{Value: string(bytes), ErrorMsg: ""}
+}
+
+// ReadSecretFileConfined reads a secret within the configured directory.
+func ReadSecretFileConfined(rootPath, path string) secrets.SecretVal {
+	if rootPath == "" {
+		return secrets.SecretVal{ErrorMsg: "secret directory is required"}
+	}
+
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
+	defer root.Close()
+
+	rootAbs, err := filepath.Abs(rootPath)
+	if err != nil {
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
+	if filepath.IsAbs(path) {
+		path, err = filepath.Rel(rootAbs, path)
+		if err != nil {
+			return secrets.SecretVal{ErrorMsg: err.Error()}
+		}
+	}
+
+	// Root.Open rejects absolute symlinks even when they point inside the root.
+	linkInfo, err := root.Lstat(path)
+	if err == nil && linkInfo.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(filepath.Join(rootAbs, path))
+		if err != nil {
+			return secrets.SecretVal{ErrorMsg: err.Error()}
+		}
+		if filepath.IsAbs(target) {
+			path, err = filepath.Rel(rootAbs, target)
+			if err != nil {
+				return secrets.SecretVal{ErrorMsg: err.Error()}
+			}
+		}
+	}
+
+	file, err := root.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return secrets.SecretVal{ErrorMsg: "secret does not exist"}
+		}
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
+	defer file.Close()
+
+	fi, err := file.Stat()
+	if err != nil {
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
+	if fi.Size() > maxSecretFileSize {
+		return secrets.SecretVal{ErrorMsg: "secret exceeds max allowed size"}
+	}
+
+	bytes, err := io.ReadAll(io.LimitReader(file, maxSecretFileSize+1))
+	if err != nil {
+		return secrets.SecretVal{ErrorMsg: err.Error()}
+	}
+	if len(bytes) > maxSecretFileSize {
+		return secrets.SecretVal{ErrorMsg: "secret exceeds max allowed size"}
+	}
+
+	return secrets.SecretVal{Value: string(bytes)}
 }
