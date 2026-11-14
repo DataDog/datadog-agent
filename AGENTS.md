@@ -216,10 +216,13 @@ a branch, PR, or commit whose DDCI run failed—use the
 
 #### Fetching CI job logs locally
 
-Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or installed from [the repo](https://github.com/DataDog/ddgl-cli) using uv:
+Use `ddgl` for this: it can be found either in a `dda` dev env (`dda env dev ...`) or set up locally with:
 ```bash
-uv tool install git+https://github.com/DataDog/ddgl-cli
+dda tools ddgl setup
 ```
+This installs [`ddgl`](https://github.com/DataDog/ddgl-cli) with uv and writes its config file (`gitlab.ddbuild.io` as the GitLab host, the project taken from the git remote, and short-lived tokens from `ddtool auth gitlab token`). It needs `ddtool`; run `ddtool auth gitlab login` once if you have never logged in to GitLab with it.
+
+Installing `ddgl` directly with `uv tool install` (from PyPI or from git) is not enough: without that config, `ddgl` defaults to `gitlab.com` and has no token. If `ddgl` is already installed, `dda tools ddgl setup` refuses to run unless you pass `--force`, which reinstalls it and overwrites its config. To only upgrade it, use `dda tools ddgl update`.
 
 For example:
  - `ddgl logs --name <pattern>` will fetch all logs for jobs in the current ref's latest pipeline that match the pattern
