@@ -205,9 +205,8 @@ func (p *processLogConfigProvider) Stream(ctx context.Context) <-chan integratio
 				}
 
 				evBundle.Acknowledge()
-				changes := p.processEvents(evBundle)
 				select {
-				case outCh <- changes:
+				case outCh <- p.processEvents(evBundle):
 				case <-ctx.Done():
 					return
 				}

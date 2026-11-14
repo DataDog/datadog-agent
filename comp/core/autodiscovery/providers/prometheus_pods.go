@@ -83,9 +83,8 @@ func (p *PrometheusPodsConfigProvider) Stream(ctx context.Context) <-chan integr
 					return
 				}
 
-				changes := p.processEvents(evBundle)
 				select {
-				case outCh <- changes:
+				case outCh <- p.processEvents(evBundle):
 				case <-ctx.Done():
 					evBundle.Acknowledge()
 					return

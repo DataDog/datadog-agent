@@ -87,9 +87,8 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 				// send changes even when they're empty, as we
 				// need to signal that an event has been
 				// received, for flow control reasons
-				changes := k.processEvents(evBundle)
 				select {
-				case outCh <- changes:
+				case outCh <- k.processEvents(evBundle):
 				case <-ctx.Done():
 					evBundle.Acknowledge()
 					return
