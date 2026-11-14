@@ -10,6 +10,8 @@ import (
 	"embed"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -37,6 +39,109 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 	assert.Equal(t, 1, strings.Count(stableSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.Equal(t, 1, strings.Count(experimentSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")
+}
+
+// The socket must not use systemd's default dependencies: they order it
+// Before=sockets.target, while it is ordered After= the agent services, which
+// are After=basic.target (itself After=sockets.target). That is an ordering
+// cycle, and systemd breaks it at boot by dropping one of the start jobs.
+func TestPrivilegedRshellSocketHasNoDefaultDependencies(t *testing.T) {
+	for _, data := range []struct {
+		name        string
+		stable, exp installerTemplateData
+	}{
+		{"oci", stableDataOCI, expDataOCI},
+		{"debrpm", stableDataDebRpm, expDataDebRpm},
+	} {
+		units := unitSetPrivilegedRshell(data.stable, data.exp, true)
+		for _, socket := range []string{
+			"datadog-agent-rshell-privileged.socket",
+			"datadog-agent-rshell-privileged-exp.socket",
+		} {
+			t.Run(data.name+"/"+socket, func(t *testing.T) {
+				content := string(units[socket])
+				for _, line := range []string{
+					"DefaultDependencies=no",
+					"Requires=sysinit.target",
+					"After=sysinit.target",
+					"Before=shutdown.target",
+					"Conflicts=shutdown.target",
+				} {
+					assert.Contains(t, content, "\n"+line+"\n")
+				}
+				assert.NotContains(t, content, "Before=sockets.target")
+			})
+		}
+	}
+}
+
+// TestPrivilegedRshellUnitsHaveNoOrderingCycle loads the rendered units, enabled
+// the way the installer enables them, into systemd-analyze and checks that
+// starting multi-user.target does not hit an ordering cycle.
+func TestPrivilegedRshellUnitsHaveNoOrderingCycle(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("systemd-analyze is only available on Linux")
+	}
+	if _, err := exec.LookPath("systemd-analyze"); err != nil {
+		t.Skip("systemd-analyze is not installed")
+	}
+
+	for _, data := range []struct {
+		name        string
+		stable, exp installerTemplateData
+	}{
+		{"oci", stableDataOCI, expDataOCI},
+		{"debrpm", stableDataDebRpm, expDataDebRpm},
+	} {
+		units := unitSetSystemd(data.stable, data.exp, true)
+		for name, content := range unitSetPrivilegedRshell(data.stable, data.exp, true) {
+			units[name] = content
+		}
+		for _, suffix := range []string{"", "-exp"} {
+			t.Run(data.name+suffix, func(t *testing.T) {
+				socket := "datadog-agent-rshell-privileged" + suffix + ".socket"
+				// Control: with systemd's default dependencies restored, the
+				// cycle must be reported, or this systemd-analyze cannot detect it.
+				withDefaults := strings.Replace(string(units[socket]), "DefaultDependencies=no\n", "", 1)
+				if !strings.Contains(analyzePrivilegedRshellUnits(t, units, suffix, withDefaults), "ordering cycle") {
+					t.Skip("systemd-analyze on this host does not report ordering cycles")
+				}
+				assert.NotContains(t, analyzePrivilegedRshellUnits(t, units, suffix, string(units[socket])), "ordering cycle")
+			})
+		}
+	}
+}
+
+// analyzePrivilegedRshellUnits runs systemd-analyze verify on the agent, action
+// and rshell units, with socketContent as the socket unit, and returns its output.
+func analyzePrivilegedRshellUnits(t *testing.T, units map[string][]byte, suffix, socketContent string) string {
+	dir := t.TempDir()
+	agent := "datadog-agent" + suffix + ".service"
+	action := "datadog-agent-action" + suffix + ".service"
+	socket := "datadog-agent-rshell-privileged" + suffix + ".socket"
+	service := "datadog-agent-rshell-privileged" + suffix + ".service"
+	for _, name := range []string{agent, action, service} {
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, name), units[name], 0644))
+	}
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, socket), []byte(socketContent), 0644))
+	// Enable the units the way their [Install] sections do.
+	for wants, unit := range map[string][]string{
+		"multi-user.target.wants": {agent, action},
+		"sockets.target.wants":    {socket},
+		action + ".wants":         {socket},
+	} {
+		assert.NoError(t, os.MkdirAll(filepath.Join(dir, wants), 0755))
+		for _, u := range unit {
+			assert.NoError(t, os.Symlink(filepath.Join("..", u), filepath.Join(dir, wants, u)))
+		}
+	}
+	cmd := exec.Command("systemd-analyze", "verify", "--man=no", filepath.Join(dir, socket), "multi-user.target")
+	// The trailing separator appends the default unit search path.
+	cmd.Env = append(os.Environ(), "SYSTEMD_UNIT_PATH="+dir+":")
+	// systemd-analyze exits non-zero on unrelated findings, such as the
+	// agent binaries not being installed on this host; only the output matters.
+	out, _ := cmd.CombinedOutput()
+	return string(out)
 }
 
 //go:embed gen
