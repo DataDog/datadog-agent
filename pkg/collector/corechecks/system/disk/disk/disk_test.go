@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/disk"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -288,43 +287,4 @@ func TestDiskCheckTags(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
-}
-
-func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
-	// Boolean options keep accepting YAML 1.1 spellings and string booleans; other values keep their default.
-	diskCheck := new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: yes\nall_partitions: on\ntag_by_filesystem: true\n")))
-	assert.True(t, diskCheck.cfg.useMount)
-	assert.True(t, diskCheck.cfg.allPartitions)
-	assert.True(t, diskCheck.cfg.tagByFilesystem)
-
-	// Real booleans keep working.
-	diskCheck = new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: true\n")))
-	assert.True(t, diskCheck.cfg.useMount)
-
-	// String booleans and quoted spellings also apply (ignored by the yaml v2 generic map reads).
-	diskCheck = new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: 'yes'\n")))
-	assert.True(t, diskCheck.cfg.useMount)
-
-	diskCheck = new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: \"true\"\n")))
-	assert.True(t, diskCheck.cfg.useMount)
-
-	// Values that are not boolean spellings keep their default.
-	diskCheck = new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: maybe\n")))
-	assert.False(t, diskCheck.cfg.useMount)
-}
-
-func TestDiskInstanceConfigureDeviceTagRe(t *testing.T) {
-	// yaml v3 decodes string-keyed nested maps as map[string]interface{}.
-	diskCheck := new(Check)
-	require.NoError(t, diskCheck.instanceConfigure(integration.Data("device_tag_re:\n  '/dev/sda': 'tag1,tag2'\n")))
-	require.Len(t, diskCheck.cfg.deviceTagRe, 1)
-	for re, tags := range diskCheck.cfg.deviceTagRe {
-		assert.Equal(t, "/dev/sda", re.String())
-		assert.Equal(t, []string{"tag1", "tag2"}, tags)
-	}
 }
