@@ -17,13 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
-// TestCommonInstanceConfigYAML11BooleanCompat pins the decode behavior that
-// check.go relies on since its switch from go.yaml.in/yaml/v2 to
-// go.yaml.in/yaml/v3. yaml v3 keeps the YAML 1.1 compatibility of the
-// old parser when unmarshaling into typed bool fields, so the common options
-// empty_default_hostname and no_index keep accepting the legacy spellings.
-// Generic map reads are the ones that lost them (see TestIsJMXInstance and
-// TestCollectDefaultMetricsLegacyBooleans in pkg/collector/check).
+// yaml v3 still resolves YAML 1.1 booleans in typed bool fields, so these common options keep accepting them.
 func TestCommonInstanceConfigYAML11BooleanCompat(t *testing.T) {
 	var config integration.CommonInstanceConfig
 	require.NoError(t, yaml.Unmarshal([]byte("empty_default_hostname: yes\nno_index: 'off'\n"), &config))

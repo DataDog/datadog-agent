@@ -18,7 +18,7 @@ import (
 	"time"
 	"unsafe"
 
-	yamlv2 "go.yaml.in/yaml/v2" // the deprecated check constructor path serializes agent settings for PyYAML (YAML 1.1) in rtloader; the v2 emitter keeps YAML 1.1-ambiguous scalars (e.g. "yes", "0777") quoted, which the v4 emitter would write plain
+	yamlv2 "go.yaml.in/yaml/v2" // the v2 emitter keeps YAML 1.1-ambiguous scalars quoted for PyYAML
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
