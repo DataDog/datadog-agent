@@ -401,21 +401,16 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 	go p.encryptionStore.Start()
 	keysManager.Start(runCtx)
-	p.startExecutorReadiness(runCtx, keysManager)
-	return runCtx, cfg, nil
-}
-
-func (p *PrivateActionRunner) startExecutorReadiness(ctx context.Context, keysManager taskverifier.KeysManager) {
 	p.executorReadyDone = make(chan struct{})
-	server := p.executorServer
 	go func() {
 		defer close(p.executorReadyDone)
-		if err := keysManager.WaitForReady(ctx); err != nil {
+		if err := keysManager.WaitForReady(runCtx); err != nil {
 			return
 		}
-		server.SetReady(true)
+		p.executorServer.SetReady(true)
 		p.logger.Info("Private action runner executor ready to accept actions")
 	}()
+	return runCtx, cfg, nil
 }
 
 func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
