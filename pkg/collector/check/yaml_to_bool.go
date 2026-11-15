@@ -6,19 +6,20 @@
 package check
 
 // YAMLToBool converts a scalar read from a generically parsed YAML map into a
-// boolean, accepting real booleans and the lowercase YAML 1.1 spellings
-// yes/no/on/off that yaml v2 resolved to booleans but yaml v3 leaves as
-// strings. Only use it for options documented as booleans. ok is false when
-// the value is not an accepted spelling (including nil).
+// boolean, accepting real booleans, the lowercase true/false strings and the
+// lowercase YAML 1.1 spellings yes/no/on/off that yaml v2 resolved to
+// booleans but yaml v3 leaves as strings. Only use it for options documented
+// as booleans. ok is false when the value is not an accepted spelling
+// (including nil).
 func YAMLToBool(value interface{}) (b bool, ok bool) {
 	switch v := value.(type) {
 	case bool:
 		return v, true
 	case string:
 		switch v {
-		case "yes", "on":
+		case "true", "yes", "on":
 			return true, true
-		case "no", "off":
+		case "false", "no", "off":
 			return false, true
 		}
 	}

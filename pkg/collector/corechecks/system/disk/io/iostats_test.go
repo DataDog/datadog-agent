@@ -250,9 +250,15 @@ func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
 	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: off\n"), "test", "provider"))
 	assert.False(t, ioCheck.lowercaseDeviceTag)
 
-	// Case variants, single letters and string booleans are not accepted:
-	// they keep the previous value with a warning.
-	for _, value := range []string{"Yes", "y", "\"false\"", "maybe"} {
+	// String booleans also apply.
+	ioCheck = new(IOCheck)
+	mock = mocksender.NewMockSender(t, ioCheck.ID())
+	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: \"true\"\n"), "test", "provider"))
+	assert.True(t, ioCheck.lowercaseDeviceTag)
+
+	// Case variants, single letters and other values keep the previous
+	// value with a warning.
+	for _, value := range []string{"Yes", "y", "\"True\"", "maybe"} {
 		ioCheck = new(IOCheck)
 		ioCheck.lowercaseDeviceTag = true
 		mock = mocksender.NewMockSender(t, ioCheck.ID())

@@ -12,14 +12,16 @@ import (
 )
 
 func TestYAMLToBool(t *testing.T) {
-	// The spellings yaml v2 resolved to booleans, kept for unquoted values in
-	// verbatim YAML configs.
+	// Real booleans, the true/false strings and the YAML 1.1 spellings,
+	// all lowercase.
 	for _, tc := range []struct {
 		value interface{}
 		want  bool
 	}{
 		{true, true},
 		{false, false},
+		{"true", true},
+		{"false", false},
 		{"yes", true},
 		{"on", true},
 		{"no", false},
@@ -30,13 +32,13 @@ func TestYAMLToBool(t *testing.T) {
 		assert.Equal(t, tc.want, b, "expected %v to be %v", tc.value, tc.want)
 	}
 
-	// Everything else is rejected: case variants, single letters, string
-	// booleans and non-boolean values keep their string meaning.
+	// Everything else is rejected: case variants, single letters and
+	// non-boolean values keep their string meaning.
 	for _, value := range []interface{}{
 		nil,
 		"Yes", "YES", "On", "ON", "No", "NO", "Off", "OFF",
 		"y", "Y", "n", "N",
-		"true", "false", "True", "TRUE", "False", "FALSE",
+		"True", "TRUE", "False", "FALSE",
 		"maybe", "0", "1",
 		0, 1,
 		[]interface{}{}, map[string]interface{}{},
