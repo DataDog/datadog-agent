@@ -18,7 +18,6 @@ import (
 	"time"
 	"unsafe"
 
-	yamlv2 "go.yaml.in/yaml/v2" // the v2 emitter keeps YAML 1.1-ambiguous scalars quoted for PyYAML
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -344,7 +343,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		allSettings := pkgconfigsetup.Datadog().AllSettings()
-		agentConfig, err := yamlv2.Marshal(allSettings)
+		agentConfig, err := yaml.Marshal(allSettings)
 		if err != nil {
 			log.Errorf("error serializing agent config: %s", err)
 			return err
