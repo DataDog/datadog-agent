@@ -1,0 +1,17 @@
+description: cd to a non-existent directory fails with exit 1; the working directory is unchanged.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    p1=$(pwd)
+    cd no-such-dir
+    p2=$(pwd)
+    if [ "$p1" = "$p2" ]; then echo unchanged; fi
+expect:
+  stdout: |+
+    unchanged
+  # bash: "bash: line N: cd: no-such-dir: No such file or directory"
+  # ours: "cd: no-such-dir: no such file or directory"
+  # Both contain "cd:" and the operand; case differs on "No such" so we
+  # match the operand only.
+  stderr_contains: ["cd:", "no-such-dir"]
+  exit_code: 0

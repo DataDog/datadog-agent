@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -87,7 +86,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 				TLSClientConfig: conf.IPCTLSClientConfig,
 			},
 		},
-		configSetEndpointFormatString: "https://127.0.0.1:" + strconv.Itoa(conf.DebugServerPort) + "/config/set?log_level=%s",
+		configSetEndpointFormatString: "https://" + conf.DebugServerAddr() + "/config/set?log_level=%s",
 	}
 }
 

@@ -71,13 +71,15 @@ end
 class GoSymbolsInspector
   include Omnibus::Logging
 
-  def initialize(binary, &block)
+  def initialize(omnibazel_flags, fips_mode, binary, &block)
+    @omnibazel_flags = omnibazel_flags
+    @fips_mode = fips_mode
     @binary = binary
     @block = block
   end
 
   def inspect()
     log.info(self.class.name) { "Inspecting binary #{@binary}" }
-    @block.call(`go tool nm #{@binary}`)
+    @block.call(`bazel run #{@omnibazel_flags} #{@fips_mode ? '//:msgo' : '@rules_go//go'} tool nm #{@binary}`)
   end
 end

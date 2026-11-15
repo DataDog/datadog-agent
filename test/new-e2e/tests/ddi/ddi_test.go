@@ -76,6 +76,8 @@ func TestDDI(t *testing.T) {
 	e2e.Run(t, &ddiSuite{},
 		e2e.WithProvisioner(provisionerkindvm.Provisioner(
 			provisionerkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithoutLogsContainerCollectAll(),
 					kubernetesagentparams.WithHelmValues(helmValues),

@@ -1,0 +1,8 @@
+description: Invalid number for star precision produces error with exit 1.
+input:
+  script: |+
+    printf "%.*f\n" abc 3.14
+expect:
+  stdout: "3\n"
+  stderr_contains: ["printf:"]
+  exit_code: 1

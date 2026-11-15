@@ -1,0 +1,14 @@
+description: If condition using test with variable from command substitution.
+input:
+  script: |+
+    x=yes
+    if [ "$x" = "yes" ]; then
+      echo matched
+    else
+      echo nope
+    fi
+expect:
+  stdout: |+
+    matched
+  stderr: ""
+  exit_code: 0

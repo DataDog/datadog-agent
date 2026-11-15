@@ -1,0 +1,16 @@
+description: After cd, relative file paths resolve against the new working directory.
+setup:
+  files:
+    - path: child/leaf.txt
+      content: |+
+        hello-from-child
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    cat leaf.txt
+expect:
+  stdout: |+
+    hello-from-child
+  stderr: ""
+  exit_code: 0

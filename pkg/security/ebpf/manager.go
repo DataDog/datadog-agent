@@ -12,6 +12,7 @@ import (
 	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 )
 
 // ManagerInterface is a wrapper type for ebpf-manager and pkg/ebpf/manager.Manager types
@@ -20,4 +21,9 @@ type ManagerInterface interface {
 	InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error
 	Stop(cleanupType manager.MapCleanupType) error
 	Start() error
+	// TailCallSpecEditor returns the function to apply to the spec of a clone of the provided program, attached to
+	// the provided function, so that it can tail call into its targets. It returns nil if no change is required.
+	TailCallSpecEditor(funcName string, attachTo string) (func(*ebpf.ProgramSpec), error)
+	// AddNameMappings registers the eBPF programs and maps of the manager in the eBPF telemetry
+	AddNameMappings(module string)
 }

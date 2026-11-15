@@ -41,6 +41,7 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 		}
 		m.Def.Values = append(m.Def.Values, m2.Def.Values...)
 	case OverridePolicy:
+		m.Def.Expression = m2.Def.Expression
 		m.Def.Values = m2.Def.Values
 	}
 	return nil

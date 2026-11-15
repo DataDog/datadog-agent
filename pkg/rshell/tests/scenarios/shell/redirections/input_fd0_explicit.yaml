@@ -1,0 +1,13 @@
+description: Explicit fd 0 input redirect (0< file) works like plain < file.
+setup:
+  files:
+    - path: hello.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat 0< hello.txt
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

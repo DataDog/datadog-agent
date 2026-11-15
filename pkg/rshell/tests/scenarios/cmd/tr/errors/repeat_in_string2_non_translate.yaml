@@ -1,0 +1,8 @@
+description: tr rejects repeat constructs in string2 outside translate mode.
+input:
+  script: |+
+    echo aaab | tr -d -s a '[x*]'
+expect:
+  stdout: ""
+  stderr: "tr: the [c*] construct may appear in string2 only when translating\n"
+  exit_code: 1

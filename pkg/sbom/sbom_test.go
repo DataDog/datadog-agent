@@ -124,6 +124,14 @@ func TestUsageEnrichmentEnabled(t *testing.T) {
 	}
 }
 
+func TestScanOptionsFromConfigForContainersOverlayFS(t *testing.T) {
+	assert.True(t, ScanOptionsFromConfigForContainers(configmock.New(t)).OverlayFsScan, "default")
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("sbom.container_image.overlayfs_direct_scan", false)
+	assert.False(t, ScanOptionsFromConfigForContainers(cfg).OverlayFsScan, "overlayfs_direct_scan: false")
+}
+
 func TestConvertScanResultToSBOMErrorLogging(t *testing.T) {
 	tests := []struct {
 		name       string

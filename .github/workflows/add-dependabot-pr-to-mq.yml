@@ -20,7 +20,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.add-dependabot-pr-to-mq.comment-pr
       - name: Check if the PR is mergeable
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -56,7 +56,7 @@ jobs:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
             const pullRequestNumber = context.payload.pull_request.number;
-            const commentBody = "/merge";
+            const commentBody = "/merge -p low";
 
             // Add a comment to the pull request
             await github.rest.issues.createComment({

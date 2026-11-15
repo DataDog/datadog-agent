@@ -1,0 +1,16 @@
+description: rm removes the named file; a subsequent test confirms it is gone.
+setup:
+  files:
+    - path: file.txt
+      content: "data\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm file.txt
+    [ -f file.txt ] || echo gone
+expect:
+  stdout: |+
+    gone
+  stderr: |+
+  exit_code: 0

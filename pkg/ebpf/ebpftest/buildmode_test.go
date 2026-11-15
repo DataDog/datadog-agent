@@ -62,6 +62,7 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_CO_RE"))
 		assert.Equal(t, "true", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ALLOW_KPROBE_FALLBACK"))
 		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
 
 		assert.Equal(t, Fentry, GetBuildMode())

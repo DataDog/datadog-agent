@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import sys
 import tempfile
 import textwrap
 
@@ -186,29 +185,24 @@ def wwhrd_licenses():
         return False
 
     # Parse the output of wwhrd to generate the list
-    result = bazel("run", "//internal/tools:wwhrd", "--", "list", "--no-color", capture_stderr=True, ignore_errors=True)
-    if result.returncode != 0:
-        print(result.stderr, file=sys.stderr)
-        raise Exit(code=result.returncode)
     licenses = []
-    if result.stderr:
-        for line in result.stderr.split("\n"):
-            index = line.find('msg="Found License"')
-            if index == -1:
-                continue
-            license = ""
-            package = ""
-            for val in line[index + len('msg="Found License"') :].split(" "):
-                if val.startswith('license='):
-                    license = val[len('license=') :]
-                elif val.startswith('package='):
-                    package = val[len('package=') :]
-                    if is_excluded(package):
-                        print(f"Skipping {package} ({license}) excluded in .wwhrd.yml")
-                    else:
-                        if package in overrides:
-                            license = overrides[package]
-                        licenses.append({"component": "core", "package": package, "license": license})
+    for line in bazel("run", "//internal/tools:wwhrd", "--", "list", "--no-color", capture_stderr=True).splitlines():
+        index = line.find('msg="Found License"')
+        if index == -1:
+            continue
+        license = ""
+        package = ""
+        for val in line[index + len('msg="Found License"') :].split(" "):
+            if val.startswith('license='):
+                license = val[len('license=') :]
+            elif val.startswith('package='):
+                package = val[len('package=') :]
+                if is_excluded(package):
+                    print(f"Skipping {package} ({license}) excluded in .wwhrd.yml")
+                else:
+                    if package in overrides:
+                        license = overrides[package]
+                    licenses.append({"component": "core", "package": package, "license": license})
 
     for pkg, lic in additional.items():
         url = urlparse(lic)

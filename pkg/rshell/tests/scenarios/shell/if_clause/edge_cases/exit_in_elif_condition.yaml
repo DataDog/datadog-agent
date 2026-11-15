@@ -1,0 +1,15 @@
+description: An "exit" command inside an elif condition (reached mid-chain) terminates the script before the matching branch would be chosen.
+input:
+  script: |+
+    if false; then
+      echo first
+    elif exit 9; then
+      echo elif-body
+    else
+      echo else-body
+    fi
+    echo unreachable
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 9

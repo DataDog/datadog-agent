@@ -110,7 +110,7 @@ properties:
       overlayfs_direct_scan:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       overlayfs_disable_cache:
         node_type: setting
         type: boolean
@@ -137,6 +137,7 @@ properties:
         default: false
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: array
     default: []
     items:

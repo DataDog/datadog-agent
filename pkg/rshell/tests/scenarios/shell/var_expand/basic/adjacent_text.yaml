@@ -1,0 +1,10 @@
+description: Braces disambiguate variable names adjacent to other text.
+input:
+  script: |+
+    FRUIT=apple
+    echo "${FRUIT}sauce"
+expect:
+  stdout: |+
+    applesauce
+  stderr: ""
+  exit_code: 0

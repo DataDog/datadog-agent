@@ -1,0 +1,14 @@
+description: grep on an empty file produces no output and exits 1.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep pattern empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

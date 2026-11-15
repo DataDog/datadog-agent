@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CSPM: Fix host benchmark evaluations that could stall in ``OpenSCAP``
+    and leave a rule without a result.

@@ -385,8 +385,8 @@ def remove_pool_directory(ctx: Context, stack: str):
                     # libvirtd already removed the pool directory through delete_pools
                     if not os.path.exists(rm_path):
                         continue
-                    ensure_sudo_privileges(ctx, f"KMT: remove libvirt pool directory {rm_path}")
-                ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
+                ensure_sudo_privileges(ctx, f"KMT: remove libvirt pool directory {rm_path}")
+                ctx.run(f"sudo -n rm -r '{rm_path}'", hide=True)
                 info(f"[+] Removed libvirt pool directory {rm_path}")
 
 

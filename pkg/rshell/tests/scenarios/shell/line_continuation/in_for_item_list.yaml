@@ -1,0 +1,17 @@
+description: Multiple line continuations in for loop item list.
+input:
+  script: |+
+    for i in a \
+    b \
+    c \
+    d; do
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+    d
+  stderr: ""
+  exit_code: 0

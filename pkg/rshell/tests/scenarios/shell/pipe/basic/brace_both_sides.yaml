@@ -1,0 +1,10 @@
+description: Brace groups can be used on both sides of a pipeline.
+input:
+  script: |+
+    { echo first; echo second; } | { cat; }
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,18 @@
+description: Break inside else branch within a for loop stops the loop.
+input:
+  script: |+
+    for i in a b c; do
+      if [ "$i" = "x" ]; then
+        echo never
+      else
+        if [ "$i" = "b" ]; then
+          break
+        fi
+      fi
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+  stderr: ""
+  exit_code: 0

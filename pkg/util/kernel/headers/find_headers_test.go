@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,18 @@ func TestDownloadKernelHeaders(t *testing.T) {
 	// The download directory here is a test-owned temp dir, not a root-owned one, so
 	// this test supplies a permissive validator; the validation itself is covered below.
 	dirs := GetKernelHeaders(opts, func(string) error { return nil })
+
+	// CentOS < 8 packages cannot be authenticated, so download is refused by design.
+	platform, err := kernel.Platform()
+	require.NoError(t, err)
+	platformVersion, err := kernel.PlatformVersion()
+	require.NoError(t, err)
+	if platform == "centos" && strings.HasPrefix(platformVersion, "7") {
+		assert.Empty(t, dirs)
+		assert.Equal(t, downloadFailure, HeaderProvider.GetResult())
+		return
+	}
+
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
 

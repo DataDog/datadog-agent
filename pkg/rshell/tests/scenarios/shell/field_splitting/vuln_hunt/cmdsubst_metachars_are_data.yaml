@@ -1,0 +1,12 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: Command substitution output is split into data words, not re-parsed as shell syntax.
+input:
+  script: |+
+    for w in $(printf 'one;echo bad\nthree|cat\n'); do echo "[$w]"; done
+expect:
+  stdout: |+
+    [one;echo]
+    [bad]
+    [three|cat]
+  stderr: ""
+  exit_code: 0

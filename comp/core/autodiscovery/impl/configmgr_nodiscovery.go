@@ -7,10 +7,7 @@
 
 package autodiscoveryimpl
 
-import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-)
+import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 
 // discoveryState is empty in non-python builds; the fields are only needed
 // when the discovery worker is active.
@@ -24,8 +21,3 @@ func (cm *reconcilingConfigManager) scheduleDiscovery(_, _, _ string) {}
 
 func (cm *reconcilingConfigManager) start() {}
 func (cm *reconcilingConfigManager) stop()  {}
-
-// discoveredChanges returns nil in non-Python builds.
-func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.ConfigChanges {
-	return nil
-}

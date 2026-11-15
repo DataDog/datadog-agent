@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: A chain of unknown commands with || reaches the first valid command.
+input:
+  script: |+
+    foo || bar || echo reached
+expect:
+  stdout: |+
+    reached
+  stderr_contains: ["foo", "bar", "unknown command"]
+  exit_code: 0

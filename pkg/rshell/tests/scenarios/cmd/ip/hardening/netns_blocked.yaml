@@ -1,0 +1,10 @@
+# GTFOBins: ip netns exec spawns a shell — must be rejected with exit 1.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip netns is blocked (GTFOBins shell escape vector)"
+input:
+  script: |+
+    ip netns exec mynamespace sh
+expect:
+  stderr: "ip: 'netns' subcommand is blocked (shell escape vector via 'ip netns exec')\n"
+  exit_code: 1
+skip_assert_against_bash: true

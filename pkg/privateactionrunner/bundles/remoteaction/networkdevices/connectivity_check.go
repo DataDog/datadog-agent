@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
@@ -25,6 +26,7 @@ import (
 )
 
 type ConnectivityCheckRequest struct {
+	TimeoutSeconds       int32                               `json:"timeout,omitempty"`
 	TargetIPs            []string                            `json:"targetIPs"`
 	Checks               []string                            `json:"checks"`
 	PingOptions          *connectivity.PingOptions           `json:"pingOptions,omitempty"`
@@ -55,6 +57,11 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	req, err := types.ExtractInputs[ConnectivityCheckRequest](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
+	}
+	if req.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.TimeoutSeconds)*time.Second)
+		defer cancel()
 	}
 
 	var secrets secretInputs

@@ -136,10 +136,11 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) RunOption {
 	}
 }
 
-// WithEKSOptions adds options to the EKS cluster
+// WithEKSOptions appends options for the EKS cluster. Later options override
+// earlier options when they configure the same setting.
 func WithEKSOptions(opts ...Option) RunOption {
 	return func(params *RunParams) error {
-		params.eksOptions = opts
+		params.eksOptions = append(params.eksOptions, opts...)
 		return nil
 	}
 }

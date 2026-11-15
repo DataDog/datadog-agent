@@ -1,0 +1,11 @@
+description: An unknown flag positioned BEFORE --help still errors — GNU getopt processes argv left-to-right and reports the leftmost bad option. The args-trim in builtins/builtins.go only truncates AT --help, so a bad flag earlier in argv reaches pflag and is rejected.
+input:
+  script: |+
+    df --no-such-flag --help; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: unrecognized option '--no-such-flag'
+    Try 'df --help' for more information.
+  exit_code: 0

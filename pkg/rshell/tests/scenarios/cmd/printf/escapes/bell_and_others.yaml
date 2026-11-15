@@ -1,0 +1,8 @@
+description: Printf interprets special escape sequences like bell, backspace, form feed, and vertical tab.
+input:
+  script: |+
+    printf "\a\b\f\v"
+expect:
+  stdout: "\a\b\f\v"
+  stderr: ""
+  exit_code: 0

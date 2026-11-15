@@ -1,0 +1,13 @@
+description: The $? variable reflects the exit status of the rightmost command in a pipeline.
+input:
+  script: |+
+    false | true
+    echo $?
+    true | false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

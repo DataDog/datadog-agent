@@ -1655,3 +1655,138 @@ func TestShouldResolvedSecretMultiBackendNamespace(t *testing.T) {
 		assert.False(t, resolver.shouldResolvedSecret("prodk8s;k8s_secret@namespace1/secret/key", "origin", "img", "namespace2"))
 	})
 }
+
+func TestGetPathsAndHandles(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	paths, handles := resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+
+	conf := []byte(`
+api_key: ENC[my_key]
+snmp_traps:
+  enabled: true
+  community_strings:
+  - ENC[secret_0]
+  - ENC[secret_1]
+  - ENC[secret_2]
+  - ENC[secret_3]
+  - ENC[secret_4]
+  - ENC[secret_5]
+  - ENC[secret_6]
+  - ENC[secret_7]
+  - ENC[secret_8]
+  - ENC[secret_9]
+  - ENC[secret_10]
+  - ENC[my_key]
+`)
+	_, err := resolver.Resolve(conf, "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{
+		"api_key",
+		"snmp_traps.community_strings.0",
+		"snmp_traps.community_strings.1",
+		"snmp_traps.community_strings.2",
+		"snmp_traps.community_strings.3",
+		"snmp_traps.community_strings.4",
+		"snmp_traps.community_strings.5",
+		"snmp_traps.community_strings.6",
+		"snmp_traps.community_strings.7",
+		"snmp_traps.community_strings.8",
+		"snmp_traps.community_strings.9",
+		"snmp_traps.community_strings.10",
+		"snmp_traps.community_strings.11",
+	}, paths)
+	assert.Equal(t, []string{
+		"my_key",
+		"secret_0",
+		"secret_1",
+		"secret_2",
+		"secret_3",
+		"secret_4",
+		"secret_5",
+		"secret_6",
+		"secret_7",
+		"secret_8",
+		"secret_9",
+		"secret_10",
+		"my_key",
+	}, handles)
+
+	// integrations use their config digest as origin.
+	postgresDigest, apacheDigest := "1a2b3c4d5e6f7a8b", "f1e2d3c4b5a69788"
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), postgresDigest, "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), apacheDigest, "", "", false)
+	require.NoError(t, err)
+
+	// without names for origins, will get config digest as path prefix
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"1a2b3c4d5e6f7a8b:instances.0.password", "f1e2d3c4b5a69788:token"}, paths[13:])
+	assert.Equal(t, []string{"db_pass", "other_token"}, handles[13:])
+
+	// origins registered with a check name are prefixed with, and sorted by, that name
+	resolver.SetOriginName(postgresDigest, "postgres")
+	resolver.SetOriginName(apacheDigest, "apache")
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache:token", "postgres:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
+
+	// removing the origin removes its paths, handles and name
+	resolver.RemoveOrigin("datadog.yaml")
+	resolver.RemoveOrigin(postgresDigest)
+	resolver.RemoveOrigin(apacheDigest)
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Empty(t, paths)
+	assert.Empty(t, handles)
+	assert.Empty(t, resolver.originNames)
+
+	// Reporting must sanitize URL keys without changing the resolver's original paths.
+	_, err = resolver.Resolve([]byte("some_setting:\n  https://alice:url-secret@proxy.example.com:\n    password: ENC[url_key]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, paths)
+	assert.Equal(t, []string{"url_key"}, handles)
+	require.Len(t, resolver.origin["url_key"], 1)
+	assert.Equal(t, []string{"some_setting", "https://alice:url-secret@proxy.example.com", "password"}, resolver.origin["url_key"][0].path)
+}
+
+func TestGetHashValues(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	assert.Empty(t, resolver.GetHashValues([]string{"my_key"}))
+
+	_, err := resolver.Resolve([]byte("api_key: ENC[my_key]\ntoken: ENC[my_token]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	// sha256("my_key_value") and sha256("my_token_value"); unknown handles are omitted
+	assert.Equal(t, map[string]string{
+		"my_key":   "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
+		"my_token": "bacafcb4c9e997043341bc9bd26d9b17c80bf4c00e4c964b7808ea488fe06c9d",
+	}, resolver.GetHashValues([]string{"my_key", "my_token", "unknown"}))
+}

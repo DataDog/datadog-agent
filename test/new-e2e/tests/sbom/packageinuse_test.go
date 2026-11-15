@@ -248,6 +248,8 @@ type usageOnlyKubeadmSuite struct {
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			// TODO: Mirror kubeadm/runtime packages, Flannel, and their images internally.
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
@@ -981,9 +983,13 @@ func startHostShell(t *testing.T, env *environments.Kubernetes) string {
 			HostPID:          true,
 			ImagePullSecrets: agent.Spec.ImagePullSecrets,
 			Containers: []corev1.Container{{
-				Name:            hostShellContainer,
-				Image:           agent.Spec.Containers[0].Image,
-				Command:         []string{"sleep", "infinity"},
+				Name:    hostShellContainer,
+				Image:   agent.Spec.Containers[0].Image,
+				Command: []string{"sleep", "infinity"},
+				// Prevent jemalloc workers from making nsenter multithreaded.
+				Env: []corev1.EnvVar{
+					{Name: "MALLOC_CONF", Value: "background_thread:false"},
+				},
 				SecurityContext: &corev1.SecurityContext{Privileged: &privileged},
 			}},
 			RestartPolicy: corev1.RestartPolicyNever,

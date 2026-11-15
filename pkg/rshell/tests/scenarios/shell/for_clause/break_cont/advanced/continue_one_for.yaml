@@ -1,0 +1,17 @@
+description: Continue skips the rest of the loop body.
+input:
+  script: |+
+    for i in 1 2 3; do
+        echo in $i
+        continue 1
+        echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 2
+    in 3
+    done 0
+  stderr: ""
+  exit_code: 0
