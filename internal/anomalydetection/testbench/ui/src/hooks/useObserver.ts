@@ -224,6 +224,15 @@ export function useObserver(): [ObserverState, ObserverActions] {
     }
   }, [reconcile]);
 
+  const requestedScenario = useRef(new URLSearchParams(window.location.search).get('scenario') || import.meta.env.VITE_SCENARIO);
+  useEffect(() => {
+    const requested = requestedScenario.current;
+    if (requested && (connectionState === 'connected' || connectionState === 'ready') && scenarios.some(s => s.name === requested)) {
+      requestedScenario.current = null;
+      if (activeScenario !== requested) void loadScenario(requested);
+    }
+  }, [connectionState, scenarios, activeScenario, loadScenario]);
+
   const refresh = useCallback(async () => {
     await fetchScenarioData();
   }, [fetchScenarioData]);

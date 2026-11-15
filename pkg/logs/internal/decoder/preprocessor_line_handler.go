@@ -44,7 +44,7 @@ func (h *preprocessorLineHandler) flush() {
 }
 
 // buildAutoMultilineLabeler constructs a Labeler configured from global settings and any
-// per-source overrides. It is shared by both aggregating and detecting preprocessor modes.
+// per-source overrides.
 func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) preprocessor.Labeler {
 	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil

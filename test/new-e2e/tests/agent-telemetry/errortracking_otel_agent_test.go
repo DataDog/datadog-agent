@@ -113,6 +113,8 @@ func TestErrorTrackingOTelAgentSuite(t *testing.T) {
 	e2e.Run(t, &errorTrackingOTelAgentSuite{},
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkind.WithInternetAccess(),
 				scenkind.WithAgentOptions(
 					kubernetesagentparams.WithOTelAgent(),
 					kubernetesagentparams.WithOTelConfig(errorTrackingOTelCollectorConfig),
@@ -191,6 +193,8 @@ func (s *errorTrackingOTelAgentSuite) TestPayloadShape() {
 func (s *errorTrackingOTelAgentSuite) TestDisabledByDefault() {
 	s.UpdateEnv(provkind.Provisioner(
 		provkind.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkind.WithInternetAccess(),
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithOTelAgent(),
 				kubernetesagentparams.WithOTelConfig(errorTrackingOTelCollectorConfig),

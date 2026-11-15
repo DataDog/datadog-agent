@@ -1,0 +1,11 @@
+description: |
+  A variable redirect target cannot be resolved at validation time, so it is
+  checked at run time against the expanded value. TARGET=/dev/null therefore
+  works, matching bash.
+input:
+  script: |+
+    TARGET=/dev/null; echo hello > $TARGET
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

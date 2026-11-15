@@ -1,0 +1,19 @@
+description: sort --human-numeric-sort long-form flag matches -h.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        2G
+        500M
+        20K
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort --human-numeric-sort file.txt
+expect:
+  stdout: |+
+    20K
+    500M
+    2G
+  stderr: |+
+  exit_code: 0

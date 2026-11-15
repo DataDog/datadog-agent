@@ -39,3 +39,15 @@ func (mt *MetricWithTimestamp) flush(_ float64) ([]*Serie, error) {
 func (mt *MetricWithTimestamp) isStateful() bool {
 	return false
 }
+
+// Each point carries its own timestamp, so flushing doesn't change it.
+func (mt *MetricWithTimestamp) isDecomposable() bool {
+	return true
+}
+
+func (mt *MetricWithTimestamp) metricType() MetricType {
+	if mt.apiType == APIGaugeType {
+		return GaugeWithTimestampType
+	}
+	return CountWithTimestampType
+}

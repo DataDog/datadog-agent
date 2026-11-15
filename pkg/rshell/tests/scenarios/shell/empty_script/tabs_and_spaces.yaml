@@ -1,0 +1,7 @@
+description: Script with mixed tabs and spaces exits cleanly.
+input:
+  script: "  \t  \t\t  \n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

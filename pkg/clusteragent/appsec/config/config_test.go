@@ -469,3 +469,21 @@ func TestProcessorString(t *testing.T) {
 		})
 	}
 }
+
+func TestIsManagedByDatadog(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{name: "managed-by label", labels: map[string]string{"app.kubernetes.io/managed-by": ManagedByLabelValue}, want: true},
+		{name: "component label only (created before the managed-by label)", labels: map[string]string{"app.kubernetes.io/component": "datadog-appsec-injector"}, want: true},
+		{name: "other component", labels: map[string]string{"app.kubernetes.io/component": "something-else"}, want: false},
+		{name: "other manager", labels: map[string]string{"app.kubernetes.io/managed-by": "helm"}, want: false},
+		{name: "no labels", labels: nil, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsManagedByDatadog(tc.labels))
+		})
+	}
+}

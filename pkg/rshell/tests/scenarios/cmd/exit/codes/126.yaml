@@ -1,0 +1,8 @@
+description: Exit with code 126 returns the cannot-execute code.
+input:
+  script: |+
+    exit 126
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 126

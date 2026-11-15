@@ -10,10 +10,16 @@ package mount
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestMountResolver(t *testing.T) {
@@ -447,6 +453,114 @@ func TestMountLoop(t *testing.T) {
 	parentPath, _, _, err := mr.getMountPath(3, 1)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
+}
+
+func TestIterateNamespacePreservesPivotedContainerMounts(t *testing.T) {
+	const (
+		containerNs  = uint32(4026532200)
+		containerPid = uint32(42)
+		clonedNs     = uint32(4026532201)
+		clonedPid    = uint32(43)
+	)
+
+	fakeProc := t.TempDir()
+	origProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() {
+		kernel.ProcFSRoot = origProcFSRoot
+	})
+
+	writeFakeProcPid := func(t *testing.T, pid uint32, nsIno uint32, mountInfo string) {
+		t.Helper()
+		pidDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(pid), 10))
+		require.NoError(t, os.MkdirAll(filepath.Join(pidDir, "ns"), 0o755))
+		require.NoError(t, os.Symlink(fmt.Sprintf("mnt:[%d]", nsIno), filepath.Join(pidDir, "ns", "mnt")))
+		require.NoError(t, os.WriteFile(filepath.Join(pidDir, "mountinfo"), []byte(mountInfo), 0o644))
+	}
+
+	writeFakeProcPid(t, containerPid, containerNs, ""+
+		"700 699 0:45 / / rw,relatime - overlay overlay rw\n"+
+		"701 700 0:30 /@/tmp/test-dir /tmp/test-dir rw,relatime - btrfs /dev/sda1 rw,subvol=/@/tmp/test-dir\n")
+
+	mr, err := NewResolver(nil, nil, ResolverOpts{UseProcFS: true})
+	require.NoError(t, err)
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:        700,
+		NamespaceInode: containerNs,
+		FSType:         "overlay",
+		MountPointStr:  "/",
+		Path:           "/",
+		RootStr:        "/",
+		Origin:         model.MountOriginPivotRoot,
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:        701,
+		NamespaceInode: containerNs,
+		ParentPathKey:  model.PathKey{MountID: 700},
+		FSType:         "btrfs",
+		MountPointStr:  "/tmp/test-dir",
+		RootStr:        "/test-dir",
+		Origin:         model.MountOriginEvent,
+	}))
+
+	var visited []*model.Mount
+	mr.IterateNamespace(containerNs, containerPid, func(m *model.Mount) {
+		visited = append(visited, m)
+	})
+	assert.Len(t, visited, 2)
+
+	rootPath, _, origin, err := mr.ResolveMountRoot(701, containerPid)
+	require.NoError(t, err)
+	assert.Equal(t, "/test-dir", rootPath)
+	assert.Equal(t, model.MountOriginEvent, origin)
+
+	writeFakeProcPid(t, clonedPid, clonedNs, ""+
+		"499 1 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n"+
+		"500 499 0:25 / /dev/shm rw,relatime - tmpfs tmpfs rw\n"+
+		"600 500 0:26 / /dev/shm rw,relatime - tmpfs tmpfs rw\n")
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:        600,
+		NamespaceInode: clonedNs,
+		ParentPathKey:  model.PathKey{MountID: 500},
+		FSType:         "tmpfs",
+		MountPointStr:  "/",
+		RootStr:        "/",
+		Origin:         model.MountOriginEvent,
+	}))
+
+	visited = nil
+	mr.IterateNamespace(clonedNs, clonedPid, func(m *model.Mount) {
+		visited = append(visited, m)
+	})
+	assert.Len(t, visited, 3)
+}
+
+func TestGetPidProcfsZombieLeaderFallback(t *testing.T) {
+	const (
+		zombieLeaderPid = uint32(100)
+		workerTid       = uint32(101)
+		expectedNs      = uint32(4026532351)
+	)
+
+	fakeProc := t.TempDir()
+	leaderTaskDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(zombieLeaderPid), 10), "task", strconv.FormatUint(uint64(zombieLeaderPid), 10))
+	require.NoError(t, os.MkdirAll(leaderTaskDir, 0o755))
+
+	workerTaskDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(zombieLeaderPid), 10), "task", strconv.FormatUint(uint64(workerTid), 10))
+	require.NoError(t, os.MkdirAll(filepath.Join(workerTaskDir, "ns"), 0o755))
+	require.NoError(t, os.Symlink(fmt.Sprintf("mnt:[%d]", expectedNs), filepath.Join(workerTaskDir, "ns", "mnt")))
+	require.NoError(t, os.WriteFile(filepath.Join(workerTaskDir, "mountinfo"), []byte("800 799 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n"), 0o644))
+
+	var mounts []*model.Mount
+	err := GetPidProcfs(fakeProc, zombieLeaderPid, func(m *model.Mount) {
+		mounts = append(mounts, m)
+	})
+	require.NoError(t, err)
+	require.Len(t, mounts, 1)
+	assert.Equal(t, uint32(800), mounts[0].MountID)
+	assert.Equal(t, expectedNs, mounts[0].NamespaceInode)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {

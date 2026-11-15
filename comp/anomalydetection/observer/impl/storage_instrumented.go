@@ -118,6 +118,21 @@ func (c *callHasher) mixSeries(series *observerdef.Series) int {
 
 // --- StorageReader interface ---
 
+func (c *callHasher) mixSeriesSelection(filter observerdef.SeriesFilter) {
+	if filter.MetricKind == nil {
+		c.mixUint64(0)
+	} else {
+		c.mixUint64(1)
+		c.mixUint64(uint64(*filter.MetricKind))
+	}
+	if filter.MetricType == nil {
+		c.mixUint64(0)
+	} else {
+		c.mixUint64(1)
+		c.mixInt64(int64(*filter.MetricType))
+	}
+}
+
 func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	s.readCount++
 	result := s.inner.ListSeries(filter)
@@ -135,6 +150,7 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	ch := newCallHasher()
 	ch.mixString("ListSeries")
 	ch.mixString(filter.Namespace)
+	ch.mixSeriesSelection(filter)
 	ch.mixInt64(int64(len(result)))
 	for _, h := range perSeries {
 		ch.mixUint64(h)
@@ -170,6 +186,7 @@ func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter
 	ch := newCallHasher()
 	ch.mixString("ListSeriesRefsInto")
 	ch.mixString(filter.Namespace)
+	ch.mixSeriesSelection(filter)
 	ch.mixInt64(int64(len(perSeries)))
 	for _, h := range perSeries {
 		ch.mixUint64(h)

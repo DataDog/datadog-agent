@@ -14,13 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testHoltResidualDetector returns a detector configured for the
-// single-aggregation tests below. Default Aggregations includes Count;
-// pinning to Average keeps anomaly counts deterministic.
+// testHoltResidualDetector constructs the default detector.
 func testHoltResidualDetector() *HoltResidualDetector {
-	d := NewHoltResidualDetector()
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return d
+	return NewHoltResidualDetector(DefaultHoltResidualConfig())
 }
 
 func newDetectorTestStorage() *timeSeriesStorage {
@@ -57,7 +53,7 @@ func TestHoltResidual_Constant_NoFire(t *testing.T) {
 
 	addConstant(t, storage, "metric", 500, 1, 7.0)
 
-	result := d.Detect(storage, 500)
+	result := d.Detect(storage, 500, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, result.Anomalies, "constant input must not trigger Holt residual")
 }
 
@@ -73,7 +69,7 @@ func TestHoltResidual_PureRamp_NoFire(t *testing.T) {
 
 	addRamp(t, storage, "metric", 500, 1, 0.0, 0.05)
 
-	result := d.Detect(storage, 500)
+	result := d.Detect(storage, 500, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, result.Anomalies, "noise-free ramp must not fire — Holt should track the trend")
 }
 
@@ -98,7 +94,7 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 		storage.Add("ns", "metric", v, ts, nil)
 	}
 
-	result := d.Detect(storage, 500)
+	result := d.Detect(storage, 500, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.Len(t, result.Anomalies, 1, "exactly one fire expected for a 2-point spike on a clean ramp")
 
 	a := result.Anomalies[0]
@@ -134,7 +130,7 @@ func TestHoltResidual_RampWithGaussianNoise_AtMostOne(t *testing.T) {
 		storage.Add("ns", "metric", v, ts, nil)
 	}
 
-	result := d.Detect(storage, 500)
+	result := d.Detect(storage, 500, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.LessOrEqual(t, len(result.Anomalies), 1, "Gaussian noise must not produce more than one false fire")
 }
 
@@ -153,14 +149,14 @@ func TestHoltResidual_StepChange_FiresAndAdapts(t *testing.T) {
 	addConstant(t, storage, "metric", 199, 1, 0.0)
 	addConstant(t, storage, "metric", 100, stepStart, stepValue)
 
-	result := d.Detect(storage, 299)
+	result := d.Detect(storage, 299, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, result.Anomalies, "step change must fire at least once")
 	require.Len(t, result.Anomalies, 1, "refractory should suppress the second fire on a single step")
 
 	a := result.Anomalies[0]
 	// Fire must land within ConfirmM points of the step.
 	assert.GreaterOrEqual(t, a.Timestamp, stepStart, "fire must come on or after the step")
-	assert.LessOrEqual(t, a.Timestamp, stepStart+int64(d.ConfirmM-1), "fire must come within ConfirmM points of the step")
+	assert.LessOrEqual(t, a.Timestamp, stepStart+int64(d.config.ConfirmM-1), "fire must come within ConfirmM points of the step")
 
 	// After running the full advance, the smoother must have tracked the
 	// new regime — well past 1/α points the level should be close to the
@@ -177,7 +173,7 @@ func TestHoltResidual_StepChange_FiresAndAdapts(t *testing.T) {
 // again. Both halves run on a single fresh detector to avoid coupling.
 func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 	t.Run("configured_window_is_not_consumed_by_firing_point", func(t *testing.T) {
-		d := &HoltResidualDetector{
+		d := NewHoltResidualDetector(HoltResidualConfig{
 			Alpha:           0.01,
 			Beta:            0.01,
 			ResidualWindow:  4,
@@ -185,14 +181,12 @@ func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 			ConfirmM:        1,
 			MinDeviationMAD: 0,
 			Refractory:      1,
-			Aggregations:    []observer.Aggregate{observer.AggregateAverage},
-			series:          make(map[holtStateKey]*holtSeriesState),
-		}
+		})
 		storage := newDetectorTestStorage()
 		addConstant(t, storage, "metric", 28, 1, 0)
 		addConstant(t, storage, "metric", 2, 29, 100)
 
-		result := d.Detect(storage, 30)
+		result := d.Detect(storage, 30, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 		require.Len(t, result.Anomalies, 1, "Refractory=1 must suppress the point immediately after a fire")
 		assert.Equal(t, int64(29), result.Anomalies[0].Timestamp)
 	})
@@ -212,7 +206,7 @@ func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 		// Trailing baseline so the cursor reaches the spike.
 		addConstant(t, storage, "metric", 50, 108, 0.0)
 
-		result := d.Detect(storage, 158)
+		result := d.Detect(storage, 158, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 		require.Len(t, result.Anomalies, 1, "refractory must suppress the second spike when 5 points apart")
 		assert.Equal(t, int64(101), result.Anomalies[0].Timestamp)
 	})
@@ -229,7 +223,7 @@ func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 		addConstant(t, storage, "metric", 2, 126, 20.0)
 		addConstant(t, storage, "metric", 50, 128, 0.0)
 
-		result := d.Detect(storage, 178)
+		result := d.Detect(storage, 178, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 		require.Len(t, result.Anomalies, 2, "two spikes 25 points apart must both fire")
 		assert.Equal(t, int64(101), result.Anomalies[0].Timestamp)
 		assert.Equal(t, int64(127), result.Anomalies[1].Timestamp)
@@ -244,7 +238,7 @@ func TestHoltResidual_RemoveSeries(t *testing.T) {
 	storage := newDetectorTestStorage()
 
 	addConstant(t, storage, "metric", 100, 1, 1.0)
-	d.Detect(storage, 100)
+	d.Detect(storage, 100, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, d.series, "Detect should have populated per-series state")
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -262,7 +256,7 @@ func TestHoltResidual_Reset(t *testing.T) {
 	storage := newDetectorTestStorage()
 
 	addConstant(t, storage, "metric", 100, 1, 1.0)
-	d.Detect(storage, 100)
+	d.Detect(storage, 100, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.NotEmpty(t, d.series, "should have state after detection")
 
 	d.Reset()
@@ -270,41 +264,35 @@ func TestHoltResidual_Reset(t *testing.T) {
 	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
-// TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a
-// zero-valued struct so reflective construction (and any caller that
-// bypasses NewHoltResidualDetector) still produces a usable detector.
+// TestHoltResidual_DefaultsApplied verifies constructor normalization.
 func TestHoltResidual_DefaultsApplied(t *testing.T) {
-	d := &HoltResidualDetector{}
+	d := NewHoltResidualDetector(HoltResidualConfig{})
 	storage := newDetectorTestStorage()
 
-	_ = d.Detect(storage, 1)
+	_ = d.Detect(storage, 1, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
-	assert.Equal(t, 0.2, d.Alpha)
-	assert.Equal(t, 0.05, d.Beta)
-	assert.Equal(t, 24, d.WarmupPoints)
-	assert.Equal(t, 60, d.ResidualWindow)
-	assert.Equal(t, 4.5, d.ZThreshold)
-	assert.Equal(t, 2, d.ConfirmM)
-	assert.Equal(t, 3.0, d.MinDeviationMAD)
-	assert.Equal(t, 20, d.Refractory)
+	assert.Equal(t, 0.2, d.config.Alpha)
+	assert.Equal(t, 0.05, d.config.Beta)
+	assert.Equal(t, 24, d.config.WarmupPoints)
+	assert.Equal(t, 60, d.config.ResidualWindow)
+	assert.Equal(t, 4.5, d.config.ZThreshold)
+	assert.Equal(t, 2, d.config.ConfirmM)
+	assert.Equal(t, 3.0, d.config.MinDeviationMAD)
+	assert.Equal(t, 20, d.config.Refractory)
 	assert.NotNil(t, d.series)
-	assert.ElementsMatch(t,
-		[]observer.Aggregate{observer.AggregateAverage, observer.AggregateCount},
-		d.Aggregations,
-	)
 }
 
 // TestHoltResidual_Name pins the catalog identifier so the catalog test
 // stays in sync with the detector identifier.
 func TestHoltResidual_Name(t *testing.T) {
-	assert.Equal(t, "holt_residual", NewHoltResidualDetector().Name())
+	assert.Equal(t, "holt_residual", NewHoltResidualDetector(DefaultHoltResidualConfig()).Name())
 }
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
 // observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
-	d := NewHoltResidualDetector()
+	d := NewHoltResidualDetector(DefaultHoltResidualConfig())
 	var _ observer.Detector = d
 	var _ observer.SeriesRemover = d
 }
@@ -328,13 +316,13 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 		values[ts-1] = v
 		batchStorage.Add("ns", "metric", v, ts, nil)
 	}
-	batchResult := batch.Detect(batchStorage, end)
+	batchResult := batch.Detect(batchStorage, end, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	var incrementalAnomalies []observer.Anomaly
 	for i, v := range values {
 		ts := int64(i + 1)
 		incrementalStorage.Add("ns", "metric", v, ts, nil)
-		result := incremental.Detect(incrementalStorage, ts)
+		result := incremental.Detect(incrementalStorage, ts, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 		incrementalAnomalies = append(incrementalAnomalies, result.Anomalies...)
 	}
 
@@ -347,13 +335,14 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 // sees no strictly-new bucket must not move lastProcessedTime past late points
 // that still fall inside the dataTime range.
 func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := DefaultHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -370,13 +359,13 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 	require.Len(t, series.Points, 1)
 	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
 
-	d.Detect(storage, 20)
+	d.Detect(storage, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	state = d.series[key]
 	require.True(t, state.warmedUp)
 	require.Equal(t, int64(10), state.lastProcessedTime, "merge replay must not advance to dataTime")
 
 	storage.Add("ns", "metric", 50.0, 15, nil)
-	d.Detect(storage, 20)
+	d.Detect(storage, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	state = d.series[key]
 	require.Len(t, state.resWin, 1)
 	assert.Equal(t, int64(15), state.lastProcessedTime)
@@ -384,13 +373,14 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 }
 
 func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := DefaultHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -402,7 +392,7 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 	require.Equal(t, int64(10), state.lastProcessedTime)
 
 	storage.Add("ns", "metric", 5.0, 5, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	state = d.series[key]
 	require.NotNil(t, state)
@@ -413,13 +403,14 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 }
 
 func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := DefaultHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
-	d.Detect(storage, 10)
+	d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, metas, 1)
@@ -432,7 +423,7 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 
 	storage.Add("ns", "metric", 30.0, 10, nil)
 	storage.Add("ns", "metric", 40.0, 11, nil)
-	d.Detect(storage, 11)
+	d.Detect(storage, 11, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	state = d.series[key]
 	require.NotNil(t, state)
@@ -443,15 +434,16 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 }
 
 func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := DefaultHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
 		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
 	}
-	d.Detect(storage, 3)
+	d.Detect(storage, 3, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
 	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
@@ -460,7 +452,7 @@ func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T)
 	require.Equal(t, 3, state.lastProcessedCount)
 
 	storage.Add("ns", "metric", 4, 4, nil)
-	d.Detect(storage, 4)
+	d.Detect(storage, 4, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.Same(t, state, d.series[key])
 	assert.Equal(t, int64(4), state.lastProcessedTime)
@@ -468,22 +460,23 @@ func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T)
 }
 
 func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 3
-	d.ResidualWindow = 4
+	dCfg := DefaultHoltResidualConfig()
+	dCfg.WarmupPoints = 3
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
 		storage.Add("ns", "metric", float64(timestamp), timestamp, nil)
 	}
-	d.Detect(storage, 3)
+	d.Detect(storage, 3, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	key := holtStateKey{ref: 0, agg: observer.AggregateAverage}
 	state := d.series[key]
 	require.NotNil(t, state)
 
 	storage.cfg.PointRetentionSecs = 1
 	storage.Add("ns", "metric", 4, 4, nil)
-	d.Detect(storage, 4)
+	d.Detect(storage, 4, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.Same(t, state, d.series[key])
 	require.Equal(t, int64(4), state.lastProcessedTime)
 }
@@ -494,7 +487,8 @@ func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
 // next ready-window breach should only set the first confirmation count, not
 // fire immediately.
 func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
-	d := &HoltResidualDetector{
+	// Isolate confirmation from the effect-size and refractory gates.
+	d := &HoltResidualDetector{config: HoltResidualConfig{
 		Alpha:           0.01,
 		Beta:            0.01,
 		ResidualWindow:  4,
@@ -502,7 +496,7 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 		ConfirmM:        2,
 		MinDeviationMAD: 0,
 		Refractory:      0,
-	}
+	}}
 	state := &holtSeriesState{
 		warmedUp: true,
 		resWin:   []float64{0, 0, 0},
@@ -530,4 +524,16 @@ func anomalyTimestamps(anomalies []observer.Anomaly) []int64 {
 		timestamps[i] = anomaly.Timestamp
 	}
 	return timestamps
+}
+
+func TestHoltResidualConfig(t *testing.T) {
+	require.Equal(t, DefaultHoltResidualConfig(), NewHoltResidualDetector(HoltResidualConfig{}).config)
+	cfg := DefaultHoltResidualConfig()
+	cfg.WarmupPoints, cfg.ResidualWindow = 5, 10
+	d := NewHoltResidualDetector(cfg)
+	want := cfg
+	cfg.WarmupPoints = 100
+	require.Equal(t, want, d.config, "constructor owns its configuration")
+	d.Reset()
+	require.Equal(t, want, d.config, "reset preserves configuration")
 }

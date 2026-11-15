@@ -1,0 +1,31 @@
+description: find -P -newer with symlink ref uses symlink mtime, not target mtime.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/target.txt
+      content: "target"
+      chmod: 0644
+      mod_time: "2020-01-01T00:00:00Z"
+    - path: dir/ref_link
+      symlink: target.txt
+    - path: dir/old.txt
+      content: "old"
+      chmod: 0644
+      mod_time: "2019-01-01T00:00:00Z"
+    - path: dir/mid.txt
+      content: "mid"
+      chmod: 0644
+      mod_time: "2023-06-01T00:00:00Z"
+    - path: dir/new.txt
+      content: "new"
+      chmod: 0644
+      mod_time: "2030-01-01T00:00:00Z"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -newer dir/ref_link -type f
+expect:
+  stdout: |+
+    dir/new.txt
+  stderr: ""
+  exit_code: 0

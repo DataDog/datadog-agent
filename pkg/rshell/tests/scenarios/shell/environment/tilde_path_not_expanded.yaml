@@ -1,0 +1,11 @@
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+description: Tilde with path ~/dir is blocked at validation.
+input:
+  script: |+
+    echo ~/mydir
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tilde expansion is not supported"
+  exit_code: 2

@@ -1,0 +1,15 @@
+description: cd a && cd b enters a then b on success.
+setup:
+  files:
+    - path: a/b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a && cd b
+    pwd
+expect:
+  stdout_contains: ["/a/b"]
+  stdout_contains_windows: ["\\a\\b"]
+  stderr: ""
+  exit_code: 0

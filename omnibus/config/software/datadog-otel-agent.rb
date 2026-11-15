@@ -50,10 +50,6 @@ build do
 
     env = with_standard_compiler_flags(env)
 
-    if fips_mode?
-      add_msgo_to_env(env)
-    end
-
     if windows_target?
       conf_dir = File.join(install_dir, 'etc', 'datadog-agent')
       binary_name = 'otel-agent.exe'

@@ -8,7 +8,7 @@ go_library(
         "filter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [

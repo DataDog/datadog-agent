@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    APM: Spans whose ``_sample_rate`` is NaN, or so small that its inverse is
+    infinite, now count once in APM stats and in trace sampler throughput,
+    like other ``_sample_rate`` values outside (0, 1]. Previously they produced
+    incorrect hit and duration counts. Stats counts outside the ``uint64``
+    range are now clamped to it instead of converting to an
+    architecture-dependent value.

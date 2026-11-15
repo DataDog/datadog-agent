@@ -1,0 +1,13 @@
+description: Negation applied to a range address.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\nline5\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2,4!d' input.txt
+expect:
+  stdout: "line2\nline3\nline4\n"
+  stderr: ""
+  exit_code: 0

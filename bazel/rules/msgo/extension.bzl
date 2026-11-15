@@ -76,6 +76,8 @@ def _impl(module_ctx):
         version = version,
         urls = ["{}"],  # `sdks` holds the manifest's full archive URLs
         experiments = ["ms_nocgo_opensslcrypto"],  # because Linux's OpenSSL backend otherwise needs cgo (Go < 1.27)
+        patch_strip = 1,
+        patches = [Label("telemetry-off-by-default.patch")],  # microsoft/go#2566, microsoft/azurelinux#19611
     )
     _msgo_toolchains(
         name = "msgo_toolchains",

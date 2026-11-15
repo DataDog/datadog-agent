@@ -1,0 +1,11 @@
+description: Negation works correctly in if condition.
+input:
+  script: |+
+    if ! false; then
+      echo "negated false is true"
+    fi
+expect:
+  stdout: |+
+    negated false is true
+  stderr: ""
+  exit_code: 0

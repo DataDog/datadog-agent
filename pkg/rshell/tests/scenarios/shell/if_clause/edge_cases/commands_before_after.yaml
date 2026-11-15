@@ -1,0 +1,13 @@
+description: Commands before and after if statement execute normally.
+input:
+  script: |+
+    echo before
+    if true; then echo inside; fi
+    echo after
+expect:
+  stdout: |+
+    before
+    inside
+    after
+  stderr: ""
+  exit_code: 0

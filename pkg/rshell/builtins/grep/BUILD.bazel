@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "grep",
+    srcs = ["grep.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/grep",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "grep_test",
+    srcs = [
+        "builtin_grep_pentest_test.go",
+        "grep_bench_test.go",
+        "grep_test.go",
+        "grep_vuln_hunt_test.go",
+    ],
+    deps = [
+        ":grep",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

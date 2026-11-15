@@ -1,0 +1,11 @@
+description: Brace group with newline-separated commands.
+input:
+  script: |+
+    {
+    echo foo
+    }
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

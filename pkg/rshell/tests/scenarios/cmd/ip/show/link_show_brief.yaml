@@ -1,0 +1,11 @@
+# ip --brief link show - brief link output: verify compact tabular format.
+# Uses no dev filter so it works cross-platform (lo on Linux, lo0 on macOS).
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip --brief link show outputs compact tabular link information"
+input:
+  script: |+
+    ip --brief link show
+expect:
+  stdout_contains: ["UNKNOWN", "LOOPBACK"]
+  exit_code: 0
+skip_assert_against_bash: true

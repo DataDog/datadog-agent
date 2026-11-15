@@ -127,12 +127,15 @@ func (e *envoyGatewaySidecarPattern) MutatePod(pod *corev1.Pod, _ string, _ dyna
 
 	// The Gateway informer honors the appsec.datadoghq.com/enabled=false opt-out, but in sidecar
 	// mode resources are created here (Added is a no-op), so re-check the owning Gateway's opt-out
-	// label before mutating. Fail open: if the Gateway cannot be read, proceed with injection.
+	// label before mutating. Skip pods whose owning Gateway does not exist. Fail open: if the Gateway
+	// cannot be read, proceed with injection.
 	if gw, err := e.client.Resource(gatewayGVR).Namespace(gwNamespace).Get(context.TODO(), gwName, metav1.GetOptions{}); err == nil {
 		if gw.GetLabels()[appsecEnabledLabel] == "false" {
 			return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonGatewayOptOut}
 		}
-	} else if !k8serrors.IsNotFound(err) {
+	} else if k8serrors.IsNotFound(err) {
+		return appsecconfig.MutationSkipped, &appsecconfig.MutationSkippedReason{Reason: appsecconfig.SkipReasonGatewayNotFound}
+	} else {
 		e.logger.Warnf("Could not read Envoy Gateway %s/%s to check appsec opt-out, proceeding with injection: %v", gwNamespace, gwName, err)
 	}
 

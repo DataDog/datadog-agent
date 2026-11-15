@@ -78,6 +78,7 @@
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
+      - E2E_MSI_TEST: TestNPMInstallWithNetworkEnabledProperty
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
       - E2E_MSI_TEST: TestUpgradeFromV6
 
@@ -299,6 +300,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalRead$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestApplicationMonitoringGlobalReadAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestStalePromotedBackupIsNotRestored$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRollbackRemovesOnlyExperimentConfig$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestFailedConfigWriteRollsBack$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackageInstallOnly$"
@@ -341,3 +345,4 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInjectorStats/TestDefaultSkipListCounter$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$"
+      - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptEnablesNetworkMonitoring$"

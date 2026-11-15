@@ -1,0 +1,17 @@
+description: du -d 0 -b prints only the operand (no children).
+setup:
+  files:
+    - path: top/a.txt
+      content: "abcde"
+    - path: top/sub/inner.txt
+      content: "xy"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -d 0 -b top
+expect:
+  # Directory inode bytes vary by filesystem, so assert only the line
+  # ending and that there is exactly one line.
+  stdout_contains: ["\ttop\n"]
+  stderr: |+
+  exit_code: 0

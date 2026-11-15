@@ -31,6 +31,7 @@ type translatorConfig struct {
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
 	GaugeInterval                        bool
+	SummaryCumulativeToDelta             bool
 
 	originProduct OriginProduct
 
@@ -260,6 +261,16 @@ func WithInferDeltaInterval() TranslatorOption {
 func WithGaugeInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.GaugeInterval = true
+		return nil
+	}
+}
+
+// WithSummaryCumulativeToDelta makes the minimal translator send Summary count and sum
+// as deltas (Datadog counts), like the default translator. It keeps a cache, so it only
+// works with a long-lived translator.
+func WithSummaryCumulativeToDelta() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.SummaryCumulativeToDelta = true
 		return nil
 	}
 }

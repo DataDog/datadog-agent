@@ -1,0 +1,13 @@
+description: cat -n numbers all output lines.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -n file.txt
+expect:
+  stdout: "     1\talpha\n     2\tbeta\n     3\tgamma\n"
+  stderr: ""
+  exit_code: 0

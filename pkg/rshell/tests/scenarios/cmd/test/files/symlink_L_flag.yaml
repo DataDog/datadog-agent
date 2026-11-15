@@ -1,0 +1,15 @@
+description: test -L returns true for a symbolic link.
+setup:
+  files:
+    - path: target.txt
+      content: "hello"
+    - path: link.txt
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    if [ -L link.txt ]; then echo yes; else echo no; fi
+expect:
+  stdout: "yes\n"
+  stderr: ""
+  exit_code: 0

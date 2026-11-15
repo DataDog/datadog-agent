@@ -112,7 +112,7 @@ type dynamicAnomalyDetector struct {
 
 func (d *dynamicAnomalyDetector) Name() string { return "dynamic_anomaly_detector" }
 func (*dynamicAnomalyDetector) Ready() bool    { return true }
-func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{
 			{
@@ -157,4 +157,15 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			{Name: "metric.b", Value: 1, Tags: tagset.CompositeTagsFromSlice(tags)},
 		},
 	}
+}
+
+// mustNewEngine builds an engine for tests, panicking if construction fails.
+// Production code returns errors from newEngine instead of panicking; tests may
+// not, which keeps call sites free of repeated error checks.
+func mustNewEngine(cfg engineConfig) *engine {
+	e, err := newEngine(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("newEngine: %v", err))
+	}
+	return e
 }
