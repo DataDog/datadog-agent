@@ -1,0 +1,11 @@
+description: pwd inside a command substitution captures the working directory.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    here=$(pwd)
+    if [ -n "$here" ]; then echo nonempty; else echo empty; fi
+expect:
+  stdout: |+
+    nonempty
+  stderr: ""
+  exit_code: 0

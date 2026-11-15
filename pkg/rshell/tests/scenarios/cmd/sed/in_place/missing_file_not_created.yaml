@@ -1,0 +1,15 @@
+description: sed -i fails on a missing file rather than creating it.
+# skip: rshell builtin error format differs from the reference implementation
+# (includes Go "openat" prefix)
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i 's/a/b/' missing.txt; echo "exit=$?"
+    ls
+expect:
+  stdout: |+
+    exit=1
+  stderr_contains: ["missing.txt", "no such file or directory"]
+  exit_code: 0

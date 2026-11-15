@@ -35,14 +35,23 @@ go_library(
         "tokens.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/tokenizer",
-    visibility = ["//visibility:public"],
+    # Only these packages may import the tokenizer. Each one tokenizes every
+    # log line it handles, so the performance tests must cover it (doc.go).
+    # Adding one? Also add its calls and window to consumers in
+    # consumer_benchmark_test.go, in the same change.
+    visibility = [
+        "//comp/anomalydetection/observer/impl/logsignature:__pkg__",
+        "//pkg/logs/internal/decoder/preprocessor:__pkg__",
+    ],
 )
 
 dd_agent_go_test(
     name = "tokenizer_test",
     srcs = [
         "borrowed_tokens_test.go",
+        "consumer_benchmark_test.go",
         "example_test.go",
+        "perf_contract_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
         "tokens_test.go",

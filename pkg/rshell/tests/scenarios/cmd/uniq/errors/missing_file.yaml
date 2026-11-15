@@ -1,0 +1,10 @@
+# Test missing file error
+description: uniq reports error for nonexistent file.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains: ["uniq:"]
+  exit_code: 1

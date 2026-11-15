@@ -15,7 +15,6 @@ import (
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
-	IsDeterministicFor(field Field) bool
 	GetField() string
 	IsStatic() bool
 }
@@ -29,9 +28,6 @@ type BoolEvaluator struct {
 	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
-
 	// track bitmask related value
 	originField Field
 }
@@ -42,11 +38,6 @@ func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 		return b.EvalFnc(ctx)
 	}
 	return b.Value
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (b *BoolEvaluator) IsDeterministicFor(field Field) bool {
-	return b.isDeterministic || (b.Field != "" && b.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -79,9 +70,6 @@ type IntEvaluator struct {
 	isDuration                bool
 	isFromArithmeticOperation bool
 
-	// used during compilation of partial
-	isDeterministic bool
-
 	// track bitmask related value
 	originField Field
 }
@@ -92,11 +80,6 @@ func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 		return i.EvalFnc(ctx)
 	}
 	return i.Value
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (i *IntEvaluator) IsDeterministicFor(field Field) bool {
-	return i.isDeterministic || (i.Field != "" && i.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -128,9 +111,6 @@ type StringEvaluator struct {
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 	Offset        int           // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
-
 	// track bitmask related value
 	originField Field
 }
@@ -141,11 +121,6 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 		return s.EvalFnc(ctx)
 	}
 	return s.Value
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *StringEvaluator) IsDeterministicFor(field Field) bool {
-	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -193,9 +168,6 @@ type StringArrayEvaluator struct {
 	StringCmpOpts StringCmpOpts // only Field evaluator can set this value
 	Offset        int           // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
-
 	// track bitmask related value
 	originField Field
 }
@@ -206,11 +178,6 @@ func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 		return s.EvalFnc(ctx)
 	}
 	return s.Values
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *StringArrayEvaluator) IsDeterministicFor(field Field) bool {
-	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -252,11 +219,6 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 	return s.Values
 }
 
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *StringValuesEvaluator) IsDeterministicFor(_ Field) bool {
-	return false
-}
-
 // GetField returns field name used by this evaluator
 func (s *StringValuesEvaluator) GetField() string {
 	return ""
@@ -277,25 +239,30 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 	return s.Values.SetFieldValues(values...)
 }
 
-// AppendMembers add members to the evaluator
-func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
+// AppendMembers add members to the evaluator, literals of strings, patterns or
+// regexps
+func (s *StringValuesEvaluator) AppendMembers(members ...*ast.Literal) {
 	for _, member := range members {
 		var value FieldValue
-		if member.Pattern != nil {
+		switch member.Value.Kind() {
+		case ast.Pattern:
 			value = FieldValue{
-				Value: *member.Pattern,
+				Value: ast.StringVal(member.Value),
 				Type:  PatternValueType,
 			}
-		} else if member.Regexp != nil {
+		case ast.Regexp:
 			value = FieldValue{
-				Value: *member.Regexp,
+				Value: ast.StringVal(member.Value),
 				Type:  RegexpValueType,
 			}
-		} else {
+		case ast.String:
 			value = FieldValue{
-				Value: *member.String,
+				Value: ast.StringVal(member.Value),
 				Type:  ScalarValueType,
 			}
+		default:
+			// not a member of an array of strings
+			continue
 		}
 		s.Values.AppendFieldValue(value)
 	}
@@ -310,8 +277,6 @@ type IntArrayEvaluator struct {
 	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -320,11 +285,6 @@ func (i *IntArrayEvaluator) Eval(ctx *Context) interface{} {
 		return i.EvalFnc(ctx)
 	}
 	return i.Values
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (i *IntArrayEvaluator) IsDeterministicFor(field Field) bool {
-	return i.isDeterministic || (i.Field != "" && i.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -356,9 +316,6 @@ type BoolArrayEvaluator struct {
 	OpOverrides []*OpOverrides
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
-
 	// track bitmask related value
 	originField Field
 }
@@ -369,11 +326,6 @@ func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
 		return b.EvalFnc(ctx)
 	}
 	return b.Values
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (b *BoolArrayEvaluator) IsDeterministicFor(field Field) bool {
-	return b.isDeterministic || (b.Field != "" && b.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -409,18 +361,11 @@ type CIDREvaluator struct {
 	ValueType   FieldValueType
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
 func (s *CIDREvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *CIDREvaluator) IsDeterministicFor(field Field) bool {
-	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator
@@ -450,11 +395,6 @@ func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
 	return s.Value
 }
 
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *CIDRValuesEvaluator) IsDeterministicFor(_ Field) bool {
-	return false
-}
-
 // GetField returns field name used by this evaluator
 func (s *CIDRValuesEvaluator) GetField() string {
 	return ""
@@ -480,8 +420,6 @@ type CIDRArrayEvaluator struct {
 	ValueType   FieldValueType
 	Offset      int // position in the expression
 
-	// used during compilation of partial
-	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation
@@ -490,11 +428,6 @@ func (s *CIDRArrayEvaluator) Eval(ctx *Context) interface{} {
 		return s.EvalFnc(ctx)
 	}
 	return s.Value
-}
-
-// IsDeterministicFor returns whether the evaluator is partial
-func (s *CIDRArrayEvaluator) IsDeterministicFor(field Field) bool {
-	return s.isDeterministic || (s.Field != "" && s.Field == field)
 }
 
 // GetField returns field name used by this evaluator

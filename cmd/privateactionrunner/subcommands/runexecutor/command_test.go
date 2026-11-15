@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
@@ -65,7 +66,7 @@ private_action_runner:
 		ipcCertFile:    filepath.Join(dir, "launch.pem"),
 	}
 	cfg := fxutil.Test[config.Component](t,
-		config.Module(), secretsnoop.Module(), delegatedauthnoop.Module(),
+		config.Module(), schemanoopfx.Module(), secretsnoop.Module(), delegatedauthnoop.Module(),
 		fx.Supply(params.configParams()),
 	)
 	require.Equal(t, params.executorSocket, cfg.GetString(par.ExecutorSocketPath))

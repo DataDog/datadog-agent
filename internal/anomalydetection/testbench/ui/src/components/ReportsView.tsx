@@ -9,6 +9,7 @@ import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } 
 import { TagFilterGroups } from './TagFilterGroups';
 
 interface ReportsViewProps {
+  onInspectEpisode?: (start: number, end: number) => void;
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
@@ -88,13 +89,23 @@ function ReportsTimelineChart({
     return [min * 1000 - pad, max * 1000 + pad];
   }, [timeRange, scenarioStart, scenarioEnd, reports]);
 
+  const [chartWidth, setChartWidth] = useState(0);
+  const hasDomain = xDomainMs != null;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => setChartWidth(container.clientWidth));
+    observer.observe(container);
+    setChartWidth(container.clientWidth);
+    return () => observer.disconnect();
+  }, [hasDomain]);
+
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !xDomainMs) return;
     if (isBrushingRef.current) return;
 
     const m = CHART_MARGIN;
-    const container = containerRef.current;
-    const width = container.clientWidth;
+    const width = chartWidth;
     const innerWidth = width - m.left - m.right;
     const innerHeight = CHART_HEIGHT - m.top - m.bottom;
 
@@ -293,6 +304,7 @@ function ReportsTimelineChart({
     g.append('g').attr('class', 'brush').call(brush);
     g.select('.brush .selection').attr('fill', 'rgba(168, 85, 247, 0.2)').attr('stroke', '#a855f7').attr('stroke-width', 1);
   }, [
+    chartWidth,
     reports,
     scenarioStart,
     scenarioEnd,
@@ -485,7 +497,7 @@ function StatsLabel({ stats }: { stats: Record<string, unknown> }) {
   );
 }
 
-export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers }: ReportsViewProps) {
+export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onInspectEpisode }: ReportsViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const correlatorStats = state.correlatorStats;
@@ -497,6 +509,12 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
   );
 
   const [tagFilterInput, setTagFilterInput] = useState('');
+  const [onlyFalsePositives, setOnlyFalsePositives] = useState(true);
+  const noFaultEvaluation = state.status?.noFaultEvaluation;
+  const falsePositiveKeys = useMemo(
+    () => new Set((noFaultEvaluation?.episodes ?? []).map(e => `${e.pattern}\u0001${e.period_start}`)),
+    [noFaultEvaluation]
+  );
   const [hoveredReportIndex, setHoveredReportIndex] = useState<number | null>(null);
   /** Row selected from timeline click (highlight + scroll); keyed by reportStableKey, not list index. */
   const [timelineFocusedKey, setTimelineFocusedKey] = useState<string | null>(null);
@@ -565,9 +583,11 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
 
   const filteredReports = useMemo(() => {
     const filter = parseTagFilter(tagFilterInput);
-    if (filter.include.size === 0 && filter.exclude.size === 0) return allReports;
-    return allReports.filter((r) => matchesTagFilter(r.tags ?? [], filter));
-  }, [allReports, tagFilterInput]);
+    return allReports.filter((r) =>
+      (!noFaultEvaluation || !onlyFalsePositives || falsePositiveKeys.has(reportStableKey(r))) &&
+      matchesTagFilter(r.tags ?? [], filter)
+    );
+  }, [allReports, tagFilterInput, noFaultEvaluation, onlyFalsePositives, falsePositiveKeys]);
 
   const sortedReports = useMemo(
     () => [...filteredReports].sort((a, b) => a.firstSeen - b.firstSeen),
@@ -666,6 +686,12 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
 
         <div className="p-4">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Summary</h2>
+          {noFaultEvaluation && (
+            <label className="flex gap-2 text-xs text-slate-300 mb-3">
+              <input type="checkbox" checked={onlyFalsePositives} onChange={e => setOnlyFalsePositives(e.target.checked)} />
+              Counted false positives only
+            </label>
+          )}
           <div className="text-sm text-slate-300">
             {sortedReports.length} report{sortedReports.length !== 1 ? 's' : ''}
             {sortedReports.length !== allReports.length ? ` (${allReports.length} total)` : ''}
@@ -769,6 +795,12 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                               </div>
                             </div>
                           </button>
+                          {onInspectEpisode && (
+                            <button type="button" className="self-center mr-3 text-xs text-purple-300 hover:underline"
+                              onClick={() => onInspectEpisode(rep.firstSeen, rep.lastUpdated)}>
+                              View metrics
+                            </button>
+                          )}
                           <button
                             type="button"
                             disabled={isSending || isSent}

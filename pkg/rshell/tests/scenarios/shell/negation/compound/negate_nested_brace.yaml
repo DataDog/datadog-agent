@@ -1,0 +1,8 @@
+description: Negation of nested brace groups inverts the exit code of the innermost last command.
+input:
+  script: |+
+    ! { { true; }; }
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

@@ -1,0 +1,9 @@
+description: Failed pipe followed by || executes the fallback command.
+input:
+  script: |+
+    echo abc | false || echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

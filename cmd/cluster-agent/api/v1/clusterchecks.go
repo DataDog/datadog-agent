@@ -9,6 +9,7 @@ package v1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -107,6 +108,10 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 		}
 
 		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks(requestData.Force)
+		if errors.Is(err, cctypes.ErrRebalanceInProgress) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

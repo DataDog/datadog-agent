@@ -27,6 +27,17 @@ dd_agent_go_test(
         "testdata/config/system_probe_config.yaml",
         "testdata/config/system_probe_config_fallback.yaml",
         "testdata/config/system_probe_config_privileged_logs.yaml",
+        "testdata/provision/node/instrumented/package.json",
+        "testdata/provision/node/instrumented/package-lock.json",
+        "testdata/provision/node/instrumented/server.js",
+        "testdata/provision/node/json-server/db.json",
+        "testdata/provision/node/not_instrumented/package.json",
+        "testdata/provision/node/not_instrumented/package-lock.json",
+        "testdata/provision/node/not_instrumented/server.js",
+        "testdata/provision/provision.sh",
+        "testdata/provision/python/__init__.py",
+        "testdata/provision/python/instrumented.py",
+        "testdata/provision/python/server.py",
     ] + select({
         "@rules_go//go/platform:android": [
             "testdata/compose/docker-compose.fake-haproxy.yaml.tmpl",

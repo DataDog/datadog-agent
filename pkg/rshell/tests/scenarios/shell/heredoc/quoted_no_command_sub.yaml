@@ -1,0 +1,11 @@
+description: Heredoc with quoted delimiter does not expand command substitutions.
+input:
+  script: |+
+    cat <<'EOF'
+    result is $(echo hello)
+    EOF
+expect:
+  stdout: |+
+    result is $(echo hello)
+  stderr: ""
+  exit_code: 0

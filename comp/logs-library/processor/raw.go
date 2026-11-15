@@ -8,7 +8,6 @@ package processor
 import (
 	"fmt"
 	"regexp"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -47,15 +46,7 @@ func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 		extraContent = append(extraContent, ' ')
 
 		// Timestamp
-		ts := msg.ServerlessExtra.Timestamp
-		if ts.IsZero() {
-			ts = time.Now().UTC()
-			if msg.ParsingExtra.Timestamp != "" && r.useContainerTimestamp {
-				if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
-					ts = logTime
-				}
-			}
-		}
+		ts := msg.LogTimestamp(r.useContainerTimestamp)
 
 		extraContent = ts.UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')

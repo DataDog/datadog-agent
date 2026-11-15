@@ -1,0 +1,16 @@
+description: Shrinking a variable frees space in the total storage cap, allowing subsequent assignments.
+skip_assert_against_bash: true  # intentional divergence: bash has no variable storage limit
+input:
+  script: |+
+    A=x
+    A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A
+    A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A;A=$A$A
+    B=$A
+    A=
+    C=$B
+    echo OK
+expect:
+  stdout: |+
+    OK
+  stderr: ""
+  exit_code: 0

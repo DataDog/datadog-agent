@@ -1,0 +1,20 @@
+description: jq parses options after an implicit negative filter and preserves an explicit terminator.
+input:
+  script: |+
+    jq -nc '-$x' --argjson x 2
+    jq -nc '-1' --argjson x not-json --help >/dev/null 2>&1
+    echo "invalid-before-help:$?"
+    if jq -nc '-1' --help 2>/dev/null | grep -q -- '--argjson'; then
+      echo help-after-filter
+    else
+      echo missing-help
+    fi
+    jq -nc '-1' -- --help
+expect:
+  stdout: |+
+    -2
+    invalid-before-help:2
+    help-after-filter
+    -1
+  stderr: |+
+  exit_code: 0

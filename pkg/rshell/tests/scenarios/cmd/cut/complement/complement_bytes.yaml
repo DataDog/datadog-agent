@@ -1,0 +1,14 @@
+description: Cut with --complement on bytes excludes the specified byte positions.
+setup:
+  files:
+    - path: input.txt
+      content: "123456\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut --complement -b3,4-4,5,2- input.txt
+expect:
+  stdout: "1\n"
+  stderr: ""
+  exit_code: 0

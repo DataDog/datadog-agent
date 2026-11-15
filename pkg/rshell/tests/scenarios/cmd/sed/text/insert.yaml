@@ -1,0 +1,13 @@
+description: The i command inserts text before the current line.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2i inserted' input.txt
+expect:
+  stdout: "line1\ninserted\nline2\n"
+  stderr: ""
+  exit_code: 0

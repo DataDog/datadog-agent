@@ -1,0 +1,11 @@
+description: stat -f retains its filesystem-status capability when dispatched by find -exec.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -maxdepth 0 -exec stat -f {} \;
+expect:
+  stdout_contains:
+    - "  File: \".\"\n"
+    - "Block size:"
+  stderr: |+
+  exit_code: 0

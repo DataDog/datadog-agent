@@ -1,0 +1,8 @@
+description: Echo -ne combines no-newline and escape interpretation.
+input:
+  script: |+
+    echo -ne 'hello\nworld'
+expect:
+  stdout: "hello\nworld"
+  stderr: ""
+  exit_code: 0

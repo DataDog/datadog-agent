@@ -3,6 +3,7 @@ load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_flex//flex:flex.bzl", "flex")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
@@ -35,15 +36,9 @@ license(
 
 ship_source_offer(name = "ship_source_offer")
 
-genrule(
-    name = "cil_lexer_src",
-    srcs = ["cil/src/cil_lexer.l"],
-    outs = ["cil_lexer.c"],
-    cmd = "M4=$(M4) $(FLEX) --outfile=$@ $<",
-    toolchains = [
-        "@rules_flex//flex:current_flex_toolchain",
-        "@rules_m4//m4:current_m4_toolchain",
-    ],
+flex(
+    name = "cil_scan",
+    src = "cil/src/cil_lexer.l",
 )
 
 cc_library(
@@ -53,7 +48,7 @@ cc_library(
         "src/*.h",
         "cil/src/*.c",
         "cil/src/*.h",
-    ]) + [":cil_lexer_src"],
+    ]) + [":cil_scan"],
     hdrs = glob([
         "include/sepol/**/*.h",
         "cil/include/cil/*.h",

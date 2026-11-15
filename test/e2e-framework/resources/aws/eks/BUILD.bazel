@@ -1,8 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "eks",
     srcs = [
+        "egress.go",
         "eniConfig.go",
         "nodeGroups.go",
         "nodesVersion.go",
@@ -21,6 +23,17 @@ go_library(
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/iam",
         "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "eks_test",
+    srcs = ["egress_test.go"],
+    embed = [":eks"],
+    tags = ["go_link:enormous"],
+    deps = [
+        "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/ec2",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

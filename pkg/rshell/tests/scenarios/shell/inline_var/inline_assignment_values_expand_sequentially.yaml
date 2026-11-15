@@ -1,0 +1,13 @@
+description: Later inline assignment values can reference earlier assignments on the same command.
+input:
+  script: |+
+    A=:
+    A=, IFS=$A read -r first second <<EOF
+    left,right
+    EOF
+    printf "[%s][%s]\n" "$first" "$second"
+expect:
+  stdout: |+
+    [left][right]
+  stderr: |+
+  exit_code: 0

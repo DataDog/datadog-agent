@@ -30,7 +30,7 @@ type probeCheck struct {
 // written once and run on every distro and environment where it applies (probesFor).
 // The names double as the OpenSCAP probe coverage: file, textfilecontent54 (sshd,
 // accounts, kernel_module), rpminfo/dpkginfo (package), sysctl, systemdunitproperty
-// (service), partition, and the SCE engine (ufw, nftables).
+// (service), partition, and the SCE engine (ufw).
 var probeChecks = []probeCheck{
 	{name: "file", build: fileCheck},
 	{name: "sshd", build: sshdCheck},
@@ -40,13 +40,12 @@ var probeChecks = []probeCheck{
 	{name: "sysctl", hostOnly: true, build: sysctlCheck},
 	{name: "service", hostOnly: true, build: serviceCheck},
 	{name: "ufw", hostOnly: true, families: []family{debian}, build: ufwCheck},
-	{name: "nftables", hostOnly: true, families: []family{debian}, build: nftablesCheck},
 	{name: "kernel_module", hostOnly: true, build: kernelModuleCheck},
 }
 
 // probesFor returns the probes to exercise on d in the given environment. A nil
 // onlyProbes runs every applicable check; a non-nil one restricts to those names, for
-// distros whose content evaluates only a subset (see distroAmazonLinux2023).
+// distros where some probes cannot set up their states (see distroAmazonLinux2023).
 func probesFor(d distro, onHost bool) []probe {
 	var ps []probe
 	for _, c := range probeChecks {
@@ -140,16 +139,6 @@ func ufwCheck(distro) probe {
 		"sudo ufw allow 22/tcp && sudo ufw --force enable"}
 }
 
-// nftablesCheck exercises the SCE engine via set_nftables_table, whose script lists the
-// nftables tables over netlink, which needs CAP_NET_ADMIN. Host-only: the script sees
-// the agent's network namespace. Only the Ubuntu benchmarks carry the rule. The fix adds
-// an empty inet table, which filters nothing.
-func nftablesCheck(distro) probe {
-	return probe{"nftables", rulePrefix + "set_nftables_table",
-		"sudo nft delete table inet cspm_e2e 2>/dev/null || true",
-		"sudo nft add table inet cspm_e2e"}
-}
-
 // partitionCheck exercises the partition probe via a separate /tmp. Host-only: it reads
 // the live mount table. The fix mounts a tmpfs /tmp with nosuid, nodev and noexec, as
 // the benchmark expects. OpenSCAP writes the SCE scripts to /tmp, so the probes after
@@ -160,11 +149,13 @@ func partitionCheck(distro) probe {
 		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev,noexec 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
 }
 
-// kernelModuleCheck exercises the textfilecontent54 probe via the cramfs modprobe
-// blacklist. Host-only: the rule also depends on the module not being loaded.
+// kernelModuleCheck exercises the textfilecontent54 probe via the usb-storage modprobe
+// configuration. Host-only: the rule also depends on the module not being loaded. The
+// rule passes a module that no installed kernel ships, as the CIS audit does, so the
+// probe needs one the test kernels carry: usb-storage, where RHEL 9 and 10 lack cramfs.
 func kernelModuleCheck(distro) probe {
-	const f = "/etc/modprobe.d/cramfs.conf"
-	return probe{"kernel_module", rulePrefix + "kernel_module_cramfs_disabled",
-		"sudo rm -f " + f + " && sudo modprobe cramfs 2>/dev/null || true",
-		"sudo modprobe -r cramfs 2>/dev/null; printf 'install cramfs /bin/false\\nblacklist cramfs\\n' | sudo tee " + f}
+	const f = "/etc/modprobe.d/usb-storage.conf"
+	return probe{"kernel_module", rulePrefix + "kernel_module_usb-storage_disabled",
+		"sudo rm -f " + f + " && sudo modprobe usb-storage 2>/dev/null || true",
+		"sudo modprobe -r usb-storage 2>/dev/null; printf 'install usb-storage /bin/false\\nblacklist usb-storage\\n' | sudo tee " + f}
 }

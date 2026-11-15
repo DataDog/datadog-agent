@@ -1,0 +1,13 @@
+description: cut -b with range beyond line length outputs available bytes.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -b 1-100 input.txt
+expect:
+  stdout: "abc\n"
+  stderr: ""
+  exit_code: 0

@@ -1,5 +1,7 @@
 modules:
   ./comp/core:
   ./pkg/util/log:
+  ./pkg/util/snapshot:
+    workspace_path: ./pkg/util/snapshot_local
   ./test/integration:
   ./ignored/module: ignored

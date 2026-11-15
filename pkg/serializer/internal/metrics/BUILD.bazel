@@ -5,6 +5,7 @@ go_library(
     name = "metrics",
     srcs = [
         "docs.go",
+        "endpoint_filter.go",
         "events.go",
         "iterable_series.go",
         "iterable_series_v3.go",
@@ -26,8 +27,10 @@ go_library(
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/serializer/metricscompression/def",
+        "//pkg/config/utils",
         "//pkg/metrics",
         "//pkg/metrics/event",
+        "//pkg/metrics/metricname",
         "//pkg/metrics/servicecheck",
         "//pkg/serializer/internal/stream",
         "//pkg/serializer/marshaler",
@@ -44,6 +47,7 @@ go_library(
 dd_agent_go_test(
     name = "metrics_test",
     srcs = [
+        "endpoint_filter_test.go",
         "events_test.go",
         "iterable_series_test.go",
         "iterable_series_v3_histogram_test.go",

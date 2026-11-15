@@ -95,6 +95,8 @@
           echo "Extracting DDOT FIPS ${DDOT_FIPS_INPUT_FILE} -> ${DDOT_FIPS_EXTENSION_DIR}"
           tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=2 -C "${DDOT_FIPS_EXTENSION_DIR}" opt/
           tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=1 -C "${DDOT_FIPS_EXTENSION_DIR}/etc" etc/
+          # DDOT runs from ext/ddot/embedded/bin and uses its Agent package's FIPS libraries.
+          patchelf --force-rpath --set-rpath '$ORIGIN/../../../../embedded/lib' "${DDOT_FIPS_EXTENSION_DIR}/embedded/bin/otel-agent"
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"

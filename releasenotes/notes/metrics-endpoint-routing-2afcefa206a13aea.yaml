@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Route subsets of metrics to primary or additional endpoints using
+    ``experimental.metrics_endpoint_routing.metric_allowlist`` and
+    ``experimental.metrics_endpoint_routing.metric_prefix_allowlist``.
+    Supports check and DogStatsD metrics, including distributions.
+    Requires ``use_v2_api.series`` to be enabled.
+    Endpoints without a policy retain ordinary delivery. Policy changes
+    require a restart.

@@ -1,0 +1,13 @@
+description: Case-insensitive substitution flag matches regardless of case.
+setup:
+  files:
+    - path: input.txt
+      content: "Hello HELLO hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/world/I' input.txt
+expect:
+  stdout: "world HELLO hello\n"
+  stderr: ""
+  exit_code: 0

@@ -14,7 +14,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
+func windowsFlareProviders() []*flaretypes.FlareFiller {
 	return nil
 }
 

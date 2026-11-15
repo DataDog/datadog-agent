@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "df",
+    srcs = ["df.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/df",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/diskstats",
+    ],
+)
+
+dd_agent_go_test(
+    name = "df_test",
+    srcs = [
+        "builtin_df_pentest_test.go",
+        "df_fuzz_test.go",
+        "df_gnu_compat_test.go",
+        "df_internal_test.go",
+        "df_test.go",
+        "df_unix_test.go",
+        "df_windows_test.go",
+    ],
+    embed = [":df"],
+    deps = [
+        "//pkg/rshell/builtins/internal/diskstats",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/internal/interpoption",
+        "//pkg/rshell/interp",
+        "@cc_mvdan_sh_v3//syntax",
+        "@com_github_spf13_pflag//:pflag",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

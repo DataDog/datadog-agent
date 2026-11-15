@@ -7,11 +7,13 @@ package autodiscoveryimpl
 
 import (
 	"reflect"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 type dummyService struct {
@@ -95,4 +97,27 @@ func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
 // GetImageName does nothing
 func (s *dummyService) GetImageName() string {
 	return ""
+}
+
+// configChangeRecorder observes received change publications.
+type configChangeRecorder struct {
+	mu          sync.Mutex
+	changes     []integration.ConfigChanges
+	lastChanges integration.ConfigChanges
+}
+
+func (r *configChangeRecorder) record(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastChanges = changes
+	if len(changes.Schedule)+len(changes.Unschedule) == 0 {
+		return
+	}
+	r.changes = append(r.changes, changes)
+}
+
+func (r *configChangeRecorder) last() integration.ConfigChanges {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastChanges
 }
