@@ -1,0 +1,10 @@
+# "ip addr show dev" with no interface name should fail with exit 1.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "'ip addr show dev' without an interface name exits 1"
+input:
+  script: |+
+    ip addr show dev
+expect:
+  stderr: "ip: 'dev' requires an interface name argument\n"
+  exit_code: 1
+skip_assert_against_bash: true

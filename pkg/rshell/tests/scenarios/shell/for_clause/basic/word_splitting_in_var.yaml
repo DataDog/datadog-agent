@@ -1,0 +1,14 @@
+description: For loop performs word splitting on unquoted variable expansion.
+input:
+  script: |+
+    ITEMS="one two three"
+    for i in $ITEMS; do
+      echo "$i"
+    done
+expect:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

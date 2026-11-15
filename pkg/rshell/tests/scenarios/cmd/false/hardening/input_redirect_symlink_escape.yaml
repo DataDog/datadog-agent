@@ -1,0 +1,20 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: The false builtin cannot hide an input redirect through a symlink escaping allowed paths.
+setup:
+  files:
+    - path: secret/data.txt
+      content: "secret\n"
+    - path: allowed/escape_link
+      symlink: ../secret/data.txt
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    false < allowed/escape_link || echo blocked
+    echo after
+expect:
+  stdout: |+
+    blocked
+    after
+  stderr_contains: ["path escapes from parent"]
+  exit_code: 0

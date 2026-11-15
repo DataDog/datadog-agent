@@ -720,7 +720,9 @@ impl DaemonHandle {
         socket_path: &Path,
         extra_env: &[(&str, &str)],
     ) -> Self {
-        let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
+        // Read at run time: some envs (e.g. AIX) drop names with '-' at compile time.
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgrd").expect("CARGO_BIN_EXE_dd-procmgrd not set");
 
         let mut cmd = Command::new(bin);
         cmd.env("DD_PM_CONFIG_DIR", config_dir)
@@ -1168,7 +1170,9 @@ impl CliRunner {
 
     /// Run a dd-procmgr command and capture output.
     fn run(&self, args: &[&str]) -> CliOutput {
-        let bin = env!("CARGO_BIN_EXE_dd-procmgr");
+        // Read at run time: some envs (e.g. AIX) drop names with '-' at compile time.
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgr").expect("CARGO_BIN_EXE_dd-procmgr not set");
         let output = Command::new(bin)
             .arg("--socket")
             .arg(&self.socket_path)
@@ -1192,6 +1196,7 @@ pub struct TestEnv {
     _dir: tempfile::TempDir,
     config_dir: PathBuf,
     socket_path: PathBuf,
+    daemon_env: Vec<(String, String)>,
     daemon: Option<DaemonHandle>,
 }
 
@@ -1215,8 +1220,18 @@ impl TestEnv {
             _dir: dir,
             config_dir,
             socket_path,
+            daemon_env: Vec::new(),
             daemon: None,
         }
+    }
+
+    pub fn with_daemon_env(mut self, extra_env: &[(&str, &str)]) -> Self {
+        self.daemon_env.extend(
+            extra_env
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string())),
+        );
+        self
     }
 
     pub fn with_config(self, name: &str, yaml: &str) -> Self {
@@ -1266,12 +1281,21 @@ impl TestEnv {
         &self.config_dir
     }
 
+    pub fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+
     pub fn start(self) -> Self {
         self.start_with_timeout(default_start_timeout())
     }
 
     pub fn start_with_timeout(mut self, timeout: Duration) -> Self {
-        let daemon = DaemonHandle::start(&self.config_dir, &self.socket_path);
+        let extra_env: Vec<(&str, &str)> = self
+            .daemon_env
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let daemon = DaemonHandle::start_with_env(&self.config_dir, &self.socket_path, &extra_env);
         self.daemon = Some(daemon);
         self.wait_until_ready(timeout)
             .unwrap_or_else(|e| panic!("daemon did not become ready within {timeout:?}: {e}"));

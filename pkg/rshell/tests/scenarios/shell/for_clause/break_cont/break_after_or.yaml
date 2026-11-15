@@ -1,0 +1,13 @@
+description: Break after || exits the loop when the left side fails.
+input:
+  script: |+
+    for i in 1; do
+    false || break
+    echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Negating false produces exit code 0.
+input:
+  script: |+
+    ! false
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

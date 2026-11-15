@@ -1,0 +1,15 @@
+description: $(<file) strips trailing newlines from file content.
+setup:
+  files:
+    - path: trailing.txt
+      content: "hello\n\n\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    x=$(<trailing.txt)
+    echo "[$x]"
+expect:
+  stdout: |+
+    [hello]
+  stderr: ""
+  exit_code: 0

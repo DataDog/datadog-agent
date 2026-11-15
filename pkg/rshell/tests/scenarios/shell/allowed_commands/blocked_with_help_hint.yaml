@@ -1,0 +1,15 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+description: When help is in the allowed list, blocked commands print the help hint.
+skip_assert_against_bash: true
+input:
+  allowed_commands:
+    - rshell:echo
+    - rshell:help
+  script: |+
+    cat /dev/null
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: cat: command not allowed
+    Run 'help' to see allowed commands.
+  exit_code: 127

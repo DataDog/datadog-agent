@@ -1,0 +1,13 @@
+description: The l command prints the pattern space unambiguously with $ at end.
+setup:
+  files:
+    - path: input.txt
+      content: "hello\tworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 'l' input.txt
+expect:
+  stdout: "hello\\tworld$\n"
+  stderr: ""
+  exit_code: 0

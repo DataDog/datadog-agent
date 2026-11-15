@@ -1,0 +1,11 @@
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+description: Tilde in the middle of a word is not tilde expansion and should be allowed.
+input:
+  script: |+
+    echo foo~bar
+expect:
+  stdout: |+
+    foo~bar
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: tail with multiple nonexistent files reports errors for each and exits 1.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail nofile1.txt nofile2.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "tail:"
+  exit_code: 1

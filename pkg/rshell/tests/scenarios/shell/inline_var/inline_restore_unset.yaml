@@ -1,0 +1,11 @@
+description: Inline assignment of an unset variable restores it to unset after the command.
+input:
+  script: |+
+    A=hello echo test
+    echo "[$A]"
+expect:
+  stdout: |+
+    test
+    []
+  stderr: ""
+  exit_code: 0

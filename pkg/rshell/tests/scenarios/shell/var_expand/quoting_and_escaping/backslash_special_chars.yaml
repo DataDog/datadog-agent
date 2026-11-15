@@ -1,0 +1,9 @@
+description: Backslash escapes special characters in unquoted context.
+input:
+  script: |+
+    echo \&\(\)
+expect:
+  stdout: |+
+    &()
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: jq rejects malformed UTF-8 outside strings after preserving prior results.
+input:
+  script: |+
+    printf '"before"\n\377\n"after"\n' | jq -c '.'
+expect:
+  stdout: |+
+    "before"
+  stderr_contains: ["parse error"]
+  exit_code: 5

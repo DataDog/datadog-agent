@@ -11,7 +11,7 @@ require (
 require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 )
 
@@ -45,6 +45,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/schema/def => ../../../comp/core/schema/def
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl => ../../../comp/core/schema/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
@@ -111,6 +113,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model
@@ -141,6 +144,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags
+	github.com/DataDog/datadog-agent/pkg/rshell => ../../../pkg/rshell
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer

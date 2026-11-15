@@ -33,6 +33,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/helminformers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -406,19 +407,24 @@ func (cb *CollectorBundle) Initialize() {
 		if _, found := cb.startedInformers[store]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			cb.startedInformers[store] = struct{}{}
+			shared := helminformers.Owns(informer)
 
 			// add event handlers for terminated resources
 			if collector.Metadata().SupportsTerminatedResourceCollection {
-				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+				if reg, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 					DeleteFunc: cb.terminatedResourceHandler(collector),
 				}); err != nil {
 					log.Warnf("Failed to add delete event handler for %s: %s", collectorFullName, err)
+				} else if shared {
+					cb.removeHandlerOnStop(informer, reg)
 				}
 			}
 
 			if collector.Metadata().Name == utilTypes.CrdName {
-				if _, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
+				if reg, err := informer.AddEventHandler(cb.crdChangeHandler()); err != nil {
 					log.Warnf("Failed to add CRD change handler, custom resources added later will not be collected until the check restarts: %s", err)
+				} else if shared {
+					cb.removeHandlerOnStop(informer, reg)
 				}
 			}
 
@@ -426,7 +432,10 @@ func (cb *CollectorBundle) Initialize() {
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 
-			go informer.Run(cb.stopCh)
+			// shared informers are run by the registry that owns them
+			if !shared {
+				go informer.Run(cb.stopCh)
+			}
 		}
 	}
 
@@ -437,6 +446,16 @@ func (cb *CollectorBundle) Initialize() {
 			cb.skipCollector(informerName, err)
 		}
 	}
+}
+
+// removeHandlerOnStop removes a handler from a shared informer, which outlives the check, once the check stops.
+func (cb *CollectorBundle) removeHandlerOnStop(informer cache.SharedInformer, reg cache.ResourceEventHandlerRegistration) {
+	go func() {
+		<-cb.stopCh
+		if err := informer.RemoveEventHandler(reg); err != nil {
+			log.Debugf("Failed to remove event handler: %s", err)
+		}
+	}()
 }
 
 func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
@@ -655,6 +674,11 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 	terminatedPodCollector := cb.getTerminatedPodCollector()
 	if terminatedPodCollector != nil {
 		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
+	}
+
+	// add Helm release ConfigMap collector
+	if helmReleaseConfigMapCollector := cb.getHelmReleaseConfigMapCollector(); helmReleaseConfigMapCollector != nil {
+		builtinCollectors = append(builtinCollectors, helmReleaseConfigMapCollector)
 	}
 
 	// add builtin collectors and check if they are already activated
@@ -886,6 +910,31 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		if terminatedPodCollector.Metadata().IsStable {
 			return terminatedPodCollector
 		}
+	}
+	return nil
+}
+
+// getHelmReleaseConfigMapCollector returns the Helm release ConfigMap collector if the ConfigMap collector is present and
+// the Helm release ConfigMap collector is stable, which its setting controls.
+func (cb *CollectorBundle) getHelmReleaseConfigMapCollector() collectors.K8sCollector {
+	hasConfigMapCollector := false
+	for _, collector := range cb.collectors {
+		if collector.Metadata().Name == utilTypes.ConfigMapName {
+			hasConfigMapCollector = true
+			break
+		}
+	}
+	if !hasConfigMapCollector {
+		return nil
+	}
+
+	collector, err := cb.collectorDiscovery.VerifyForInventory(utilTypes.HelmReleaseConfigMapName, "", cb.inventory)
+	if err != nil {
+		log.Warnf("Unable to add the Helm release ConfigMap collector: %s", err)
+		return nil
+	}
+	if collector.Metadata().IsStable {
+		return collector
 	}
 	return nil
 }

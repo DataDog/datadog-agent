@@ -32,6 +32,7 @@ dd_agent_go_test(
         "http_retry_test.go",
         "keys_test.go",
         "limitedwriter_test.go",
+        "response_parser_test.go",
         "stringops_test.go",
     ],
     embed = [":util"],

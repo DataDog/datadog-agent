@@ -1,0 +1,14 @@
+description: Cut merges ranges where later ranges are subsumed by an unbounded range.
+setup:
+  files:
+    - path: input.txt
+      content: "123456\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut --output-delimiter=: -b2-,3,4-4,5 input.txt
+expect:
+  stdout: "23456\n"
+  stderr: ""
+  exit_code: 0

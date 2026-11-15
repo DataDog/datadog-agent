@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "blacklister.go",
         "replacer.go",
+        "tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/filters",
     visibility = ["//visibility:public"],

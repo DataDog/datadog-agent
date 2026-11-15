@@ -82,8 +82,49 @@ func newFixture(t *testing.T) *fixture {
 		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "on-failure"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}}
-	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: func(s State) { f.state = s }}
+	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: newStateEmitter(func(s State) {
+		f.state = s
+	}, newStateLogger(false))}
 	return f
+}
+
+func TestStateEmissionPublishesObservationsAndReportsTransitions(t *testing.T) {
+	previousStatus := Status()
+	t.Cleanup(func() {
+		status.Lock()
+		defer status.Unlock()
+		status.value = previousStatus
+	})
+	var reported, logged, expected []State
+	emit := newStateEmitter(func(s State) {
+		require.Equal(t, &s, Status(), "publish before reporting")
+		reported = append(reported, s)
+	}, func(s State) {
+		require.Equal(t, &s, Status(), "publish before logging")
+		logged = append(logged, s)
+	})
+	for _, step := range []struct {
+		state      State
+		transition bool
+	}{
+		{State{}, true}, // Even the initial zero value is an observation.
+		{State{}, false},
+		{State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCUnchecked, NextCheck: "first"}, true},
+		{State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCUnchecked, NextCheck: "first"}, false},
+		{State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCUnchecked, NextCheck: "later"}, false},
+		{State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCOrgDisabled}, true},
+		{State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonRCOrgDisabled}, true},
+		{State{State: phonehomedef.StateWaiting, Reason: phonehomedef.ReasonRCUnchecked}, true},
+		{State{State: phonehomedef.StateHandedOff, Reason: phonehomedef.ReasonSupervisorStartAcknowledged}, true},
+	} {
+		emit(step.state)
+		if step.transition {
+			expected = append(expected, step.state)
+		}
+		require.Equal(t, &step.state, Status(), "every observation refreshes status, including NextCheck")
+		require.Equal(t, expected, reported)
+		require.Equal(t, expected, logged)
+	}
 }
 
 // This uses the production RC-only source, not an injected PAR-scope grant.

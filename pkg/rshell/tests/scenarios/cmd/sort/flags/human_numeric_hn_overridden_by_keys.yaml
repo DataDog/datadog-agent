@@ -1,0 +1,22 @@
+description: |+
+  sort -h -n is accepted when every -k spec carries its own ordering option,
+  matching GNU sort's deferred -dn-style validation. Each key overrides the
+  globals so the incompatibility never matters.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1G
+        20K
+        500M
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h -n -k1,1h file.txt
+expect:
+  stdout: |+
+    20K
+    500M
+    1G
+  stderr: |+
+  exit_code: 0

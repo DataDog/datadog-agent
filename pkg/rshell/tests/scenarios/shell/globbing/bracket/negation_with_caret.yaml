@@ -1,0 +1,18 @@
+description: Bracket negation using caret (^) as alternative to exclamation mark.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo [^a].txt
+expect:
+  stdout: |+
+    b.txt c.txt
+  stderr: ""
+  exit_code: 0

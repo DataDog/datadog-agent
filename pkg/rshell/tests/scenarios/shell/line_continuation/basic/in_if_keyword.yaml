@@ -1,0 +1,14 @@
+description: Line continuation works across if/then/fi keywords.
+input:
+  script: |+
+    i\
+    f true; t\
+    h\
+    e\
+    n echo ok; f\
+    i
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

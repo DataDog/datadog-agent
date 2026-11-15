@@ -1,0 +1,13 @@
+description: A long && chain of five commands succeeds when all succeed.
+input:
+  script: |+
+    echo one && echo two && echo three && echo four && echo five
+expect:
+  stdout: |+
+    one
+    two
+    three
+    four
+    five
+  stderr: ""
+  exit_code: 0

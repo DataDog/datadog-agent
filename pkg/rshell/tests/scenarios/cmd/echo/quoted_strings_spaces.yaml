@@ -1,0 +1,9 @@
+description: Echo with quoted strings preserving spaces.
+input:
+  script: |+
+    echo 1 22 '3  3' "4  4"
+expect:
+  stdout: |+
+    1 22 3  3 4  4
+  stderr: ""
+  exit_code: 0

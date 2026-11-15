@@ -24,7 +24,8 @@ type DebugView interface {
 	// Reset clears all engine state, resets storage, and reconfigures components.
 	// storageCfg is forwarded to the engine so callers control retention policy
 	// (e.g. testbench passes StorageConfig{PointRetentionSecs: 0} for unbounded replay storage).
-	Reset(settings ComponentSettings, storageCfg StorageConfig)
+	// It returns an error if the new component set is invalid.
+	Reset(settings ComponentSettings, storageCfg StorageConfig) error
 	// GetReplayProgress returns lock-free replay progress counters.
 	GetReplayProgress() ReplayProgress
 	// SetReplayPhase updates the replay phase string for progress reporting.
@@ -36,8 +37,9 @@ type DebugView interface {
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
 	// ReplayStoredData resets analysis state (preserving extractor context)
 	// then replays all data currently in storage through the scheduler in
-	// chronological order. Call after Flush().
-	ReplayStoredData()
+	// chronological order. Call after Flush(). It returns an error if the
+	// analysis state cannot be reset.
+	ReplayStoredData() error
 	// StorageReader returns a read-only view of the engine's time-series storage.
 	// Used by the testbench to compute windowed log rates in change messages.
 	StorageReader() observerdef.StorageReader

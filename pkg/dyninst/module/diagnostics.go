@@ -113,7 +113,7 @@ func (m *diagnosticsManager) enqueue(
 
 // retain the diagnostics for the given runtime ID for the given probes. All
 // other diagnostic tracking for the runtime ID for other probes are removed.
-func (m *diagnosticsManager) retain(runtimeID procRuntimeID, probes []ir.ProbeDefinition) {
+func (m *diagnosticsManager) retain(runtimeID procRuntimeID, probes []ir.ProbeIDer) {
 	m.received.retain(runtimeID.runtimeID, probes)
 	m.installed.retain(runtimeID.runtimeID, probes)
 	m.emitted.retain(runtimeID.runtimeID, probes)
@@ -188,7 +188,7 @@ func (di diagnosticItem) less(other diagnosticItem) bool {
 
 // Retain retains the probes for the given runtime ID. All other probes for the
 // runtime ID are removed.
-func (e *diagnosticTracker) retain(runtimeID string, probes []ir.ProbeDefinition) {
+func (e *diagnosticTracker) retain(runtimeID string, probes []ir.ProbeIDer) {
 	slices.SortFunc(probes, ir.CompareProbeIDs)
 	e.mu.Lock()
 	defer e.mu.Unlock()

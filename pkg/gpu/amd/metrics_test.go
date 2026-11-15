@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -230,4 +231,52 @@ func TestReadMetricsReportsPermissionErrors(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrPermission)
 	assert.False(t, m.GPUBusyPercent.Valid)
 	assert.Equal(t, valid(12), m.MemoryBusyPercent)
+}
+
+func TestReadMetricsSuspendedDeviceIsIdle(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err           error
+		runtimeStatus string
+		want          Reading
+		wantErr       bool
+	}{
+		"runtime-suspended":  {err: syscall.EPERM, runtimeStatus: "suspended\n", want: valid(0)},
+		"EPERM while active": {err: syscall.EPERM, runtimeStatus: "active\n", wantErr: true}, // e.g. a GPU reset
+		"EPERM, no status":   {err: syscall.EPERM, wantErr: true},
+		"permission denied":  {err: syscall.EACCES, runtimeStatus: "suspended\n", wantErr: true},
+		"unsupported":        {err: syscall.EOPNOTSUPP},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+			fs.AddCard("card0", devDir)
+			if tc.runtimeStatus != "" {
+				fs.WriteFiles(filepath.Join(devDir, "power"), map[string]string{"runtime_status": tc.runtimeStatus})
+			}
+			readActivityFile = func(path string) ([]byte, error) {
+				return nil, &os.PathError{Op: "read", Path: path, Err: tc.err}
+			}
+			t.Cleanup(func() { readActivityFile = os.ReadFile })
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr {
+				assert.ErrorIs(t, err, tc.err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, m.GPUBusyPercent)
+			assert.Equal(t, tc.want, m.MemoryBusyPercent)
+		})
+	}
+}
+
+func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	attrs := MI300XAttributes("")
+	attrs["current_link_width"] = "0\n"
+	attrs["max_link_width"] = "0\n"
+	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs))
+	m, err := discoverSingle(t, fs).ReadMetrics()
+	require.NoError(t, err)
+	assert.False(t, m.PCIeLinkWidth.Valid)
+	assert.False(t, m.PCIeMaxLinkWidth.Valid)
 }

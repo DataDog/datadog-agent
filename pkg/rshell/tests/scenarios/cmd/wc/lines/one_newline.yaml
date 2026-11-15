@@ -1,0 +1,13 @@
+description: wc -l counts 1 for a single newline-terminated line.
+setup:
+  files:
+    - path: file.txt
+      content: "x y\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l file.txt
+expect:
+  stdout: "1 file.txt\n"
+  stderr: ""
+  exit_code: 0

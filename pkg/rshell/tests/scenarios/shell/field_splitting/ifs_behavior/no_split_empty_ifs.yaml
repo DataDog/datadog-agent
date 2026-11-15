@@ -1,0 +1,11 @@
+description: Empty IFS prevents all field splitting.
+input:
+  script: |+
+    a="one two three"
+    IFS=
+    echo $a
+expect:
+  stdout: |+
+    one two three
+  stderr: ""
+  exit_code: 0

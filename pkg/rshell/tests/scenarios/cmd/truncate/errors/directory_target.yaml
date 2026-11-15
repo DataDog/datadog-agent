@@ -1,0 +1,16 @@
+# Derived from uutils test_truncate.rs::test_truncate_on_dir.
+description: Passing a directory as a FILE operand fails with exit 1.
+setup:
+  files:
+    - path: subdir/placeholder
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 0 subdir
+expect:
+  stdout: |+
+  stderr_contains: ["subdir"]
+  exit_code: 1
+skip_assert_against_bash: true
