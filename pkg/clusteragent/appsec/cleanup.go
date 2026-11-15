@@ -40,25 +40,22 @@ func Cleanup(ctx context.Context, logger log.Component, datadogConfig config.Com
 	leaderNotifChange, isLeader := leaderSub()
 
 	go func() {
-		if !waitForCleanupLeadership(ctx, leaderNotifChange, isLeader) {
-			return
+		// Wait to become leader
+		for !isLeader() {
+			select {
+			case <-leaderNotifChange:
+			case <-ctx.Done():
+				return
+			}
 		}
 
+		if ctx.Err() != nil {
+			return
+		}
 		for _, pattern := range cleanupInjector.patterns {
 			cleanupPattern(ctx, logger, apiClient.DynamicCl, pattern)
 		}
 	}()
-}
-
-func waitForCleanupLeadership(ctx context.Context, changes <-chan struct{}, isLeader func() bool) bool {
-	for !isLeader() {
-		select {
-		case <-changes:
-		case <-ctx.Done():
-			return false
-		}
-	}
-	return ctx.Err() == nil
 }
 
 func cleanupPattern(ctx context.Context, logger log.Component, client dynamic.Interface, pattern appsecconfig.InjectionPattern) {
