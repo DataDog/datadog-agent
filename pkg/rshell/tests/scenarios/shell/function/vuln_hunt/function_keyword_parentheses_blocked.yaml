@@ -1,0 +1,11 @@
+# skip: function declarations are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The function keyword plus parentheses parser variant is rejected as a function declaration.
+input:
+  script: |+
+    function f() { { echo pwned; }; }
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

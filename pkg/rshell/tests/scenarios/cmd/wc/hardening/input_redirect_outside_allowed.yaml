@@ -1,0 +1,19 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: wc input redirection must use AllowedPaths and not read outside the sandbox.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "allowed words\n"
+    - path: secret/data.txt
+      content: "secret words\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    wc < secret/data.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

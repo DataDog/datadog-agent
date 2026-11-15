@@ -14,9 +14,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/util/ddot",
         "//pkg/util/hostname/validate",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/kubernetes/nodename",
         "//pkg/util/log",
     ],
 )
@@ -36,6 +39,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
         "@com_github_stretchr_testify//assert",

@@ -1,0 +1,23 @@
+description: "-prune below -mindepth threshold is never evaluated, so directory is descended into."
+setup:
+  files:
+    - path: dir/skip/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/skip/sub/b.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/keep/c.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -mindepth 2 -name skip -prune -o -type f -print
+expect:
+  stdout_unordered: |+
+    dir/keep/c.txt
+    dir/skip/a.txt
+    dir/skip/sub/b.txt
+  stderr: ""
+  exit_code: 0

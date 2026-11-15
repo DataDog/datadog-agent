@@ -1,0 +1,16 @@
+# Per RULES.md: file access must be sandboxed via AllowedPaths
+description: sort is blocked from reading files outside the allowed paths sandbox.
+# skip: sandbox path restrictions are an rshell-specific feature
+skip_assert_against_bash: true  # intentional sandbox restriction; bash/sort can read /etc/passwd freely
+setup:
+  files:
+    - path: local.txt
+      content: "local\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort /etc/passwd
+expect:
+  stdout: ""
+  stderr_contains: ["sort:"]
+  exit_code: 1

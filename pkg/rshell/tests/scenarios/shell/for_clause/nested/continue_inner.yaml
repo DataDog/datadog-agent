@@ -1,0 +1,16 @@
+description: Continue in inner nested loop only continues the inner loop.
+input:
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        continue
+        echo "skipped"
+      done
+      echo "outer $i"
+    done
+expect:
+  stdout: |+
+    outer a
+    outer b
+  stderr: ""
+  exit_code: 0

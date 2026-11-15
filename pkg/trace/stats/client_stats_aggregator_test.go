@@ -256,6 +256,33 @@ func TestAggregatorFlushTime(t *testing.T) {
 	assert.Len(a.buckets, 0)
 }
 
+// TestAggregatorForceFlush pins that ForceFlush writes the open bucket, which a
+// timed flush holds back, and that the aggregator keeps aggregating afterwards.
+func TestAggregatorForceFlush(t *testing.T) {
+	a := newTestAggregator()
+	defer a.Stop()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	now := time.Now()
+	testPayload := getTestStatsWithStart(t, now, false)
+	a.add(now, deepCopy(testPayload))
+	a.flushOnTime(now)
+	require.Empty(t, msw.Reset(), "precondition: a timed flush holds back the open bucket")
+
+	a.ForceFlush()
+
+	payloads := msw.Reset()
+	require.NotEmpty(t, payloads, "ForceFlush must write the open bucket")
+	asserEqualPayloads(t, testPayload, payloads[0].Stats[0])
+	assert.Empty(t, a.buckets)
+
+	a.In <- getTestStatsWithStart(t, now, false)
+	assert.Eventually(t, func() bool {
+		a.ForceFlush()
+		return len(msw.Reset()) > 0
+	}, time.Second, 10*time.Millisecond, "the aggregator must keep aggregating after ForceFlush")
+}
+
 func TestMergeMany(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 10; i++ {

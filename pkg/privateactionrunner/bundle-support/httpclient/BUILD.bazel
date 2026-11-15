@@ -19,7 +19,10 @@ go_library(
 
 dd_agent_go_test(
     name = "httpclient_test",
-    srcs = ["http_helper_test.go"],
+    srcs = [
+        "http_helper_test.go",
+        "httpclient_test.go",
+    ],
     embed = [":httpclient"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

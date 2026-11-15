@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The AppSec proxy injector no longer deletes or overwrites an EnvoyFilter,
+    EnvoyExtensionPolicy, Backend, ReferenceGrant or ingress-nginx ConfigMap that
+    shares its reserved name but was not created by the Datadog Cluster Agent, and no
+    longer injects the Envoy Gateway sidecar into proxy pods whose owning ``Gateway``
+    does not exist.

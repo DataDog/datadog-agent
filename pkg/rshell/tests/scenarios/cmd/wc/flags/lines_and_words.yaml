@@ -1,0 +1,13 @@
+description: wc -lw shows lines and words without byte count.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\nfoo bar\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -lw input.txt
+expect:
+  stdout: " 2  4 input.txt\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    Network Path looks up the host's public IP with ``checkip.amazonaws.com``,
+    then ``whatismyip.akamai.com`` and ``icanhazip.com``. ``ipinfo.io`` and
+    ``api.ipify.org`` are no longer used. If you restrict outbound traffic,
+    allow one of these three hosts or turn off the lookup: set
+    ``network_path.collector.disable_source_public_ip_collection: true`` for
+    Dynamic Tests (basic, standard and NetFlow), and
+    ``disable_source_public_ip_collection: true`` in the ``network_path``
+    check configuration for Scheduled Tests.

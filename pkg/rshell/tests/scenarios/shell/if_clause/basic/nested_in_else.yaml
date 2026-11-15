@@ -1,0 +1,11 @@
+description: If statement nested inside else branch.
+input:
+  script: |+
+    if false; then echo 1; else
+      if true; then echo 2; fi
+    fi
+expect:
+  stdout: |+
+    2
+  stderr: ""
+  exit_code: 0

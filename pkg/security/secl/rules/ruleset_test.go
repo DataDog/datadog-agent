@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
@@ -74,10 +74,10 @@ func newFakeEvent() eval.Event {
 func newRuleSet() *RuleSet {
 	ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
 
-	ruleOpts.WithSupportedDiscarders(map[eval.Field]bool{
-		"open.file.path":  true,
-		"mkdir.file.path": true,
-		"process.uid":     true,
+	ruleOpts.WithSupportedDiscarders(map[eval.Field][]eval.Field{
+		"open.file.path":  {"open.file.path", "open.file.name"},
+		"mkdir.file.path": {"mkdir.file.path", "mkdir.file.name"},
+		"process.uid":     {"process.uid"},
 	})
 
 	return NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
@@ -164,6 +164,70 @@ func TestRuleSetDiscarders(t *testing.T) {
 
 	if !reflect.DeepEqual(expected, handler.filters) {
 		t.Fatalf("unable to find expected discarders, expected: `%v`, got: `%v`", expected, handler.filters)
+	}
+}
+
+func TestRuleSetDiscardersWithName(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		expr        string
+		path        string
+		isDiscarder bool
+	}{
+		{"name and-ed with the path", `open.file.path =~ "/etc/*" && open.file.name == "passwd"`, "/etc/shadow", true},
+		{"name and-ed with the path, matching", `open.file.path =~ "/etc/*" && open.file.name == "passwd"`, "/etc/passwd", false},
+		{"name alone", `open.file.name == "core_pattern" && process.uid == 0`, "/tmp/core", true},
+		{"name alone, matching", `open.file.name == "core_pattern" && process.uid == 0`, "/proc/sys/kernel/core_pattern", false},
+		{"name or-ed with the path", `open.file.path == "/etc/passwd" || open.file.name == "shadow"`, "/tmp/passwd", true},
+		{"name or-ed with the path, matching", `open.file.path == "/etc/passwd" || open.file.name == "shadow"`, "/tmp/shadow", false},
+		{"name compared to another field", `open.file.name == process.file.name`, "/tmp/sh", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rs := newRuleSet()
+			AddTestRuleExpr(t, rs, test.expr)
+			rules := rs.GetBucket("open").GetRules()
+
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			fields := []eval.Field{"open.file.path", "open.file.name"}
+			values := []string{test.path, test.path[strings.LastIndex(test.path, "/")+1:]}
+			for i, field := range fields {
+				if err := event.SetFieldValue(field, values[i]); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if isDiscarder != test.isDiscarder {
+				t.Errorf("expected discarder %v for the event, got %v", test.isDiscarder, isDiscarder)
+			}
+		})
+	}
+}
+
+// The approvers are computed with the name of the file unknown: the value of a
+// path approver is a pattern, not the path of a file.
+func TestRuleSetApproversWithName(t *testing.T) {
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd" || (open.file.path =~ "/var/log/*" && open.file.name == "auth.log")`)
+
+	caps := FieldCapabilities{
+		{
+			Field:       "open.file.path",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+		},
+	}
+
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", caps)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values := approvers["open.file.path"]; len(values) != 2 {
+		t.Fatalf("expected the 2 paths as approvers, got %+v", values)
 	}
 }
 
@@ -1083,7 +1147,7 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 
 func TestGetRuleEventType(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
@@ -1114,7 +1178,7 @@ func TestGetRuleEventType(t *testing.T) {
 	})
 
 	t.Run("ko", func(t *testing.T) {
-		pc := ast.NewParsingContext(false)
+		pc := parser.NewParsingContext(false)
 		rule, err := eval.NewRule("aaa", `open.file.name == "test" && unlink.file.name == "123"`, pc, &eval.Opts{})
 		if err != nil {
 			t.Fatal(err)
@@ -1128,4 +1192,17 @@ func TestGetRuleEventType(t *testing.T) {
 			t.Fatalf("shouldn't get an event type: %s", err)
 		}
 	})
+}
+
+func TestMacroConflictsWithConstant(t *testing.T) {
+	rs := newRuleSet()
+
+	for _, def := range []*MacroDefinition{
+		{ID: "O_RDONLY", Expression: `open.flags == 1`},
+		{ID: "O_RDONLY", Values: []string{"a"}},
+	} {
+		if _, err := rs.AddMacro(&PolicyMacro{Def: def}); err == nil || !strings.Contains(err.Error(), "conflicts with constant") {
+			t.Errorf("expected a conflict with a constant, got %v", err)
+		}
+	}
 }

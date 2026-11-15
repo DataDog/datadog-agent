@@ -73,21 +73,3 @@ func GetHostname(ctx context.Context) (string, error) {
 	}
 	return du.GetHostname(ctx)
 }
-
-// Config is an exported configuration object that is used when
-// initializing the DockerUtil.
-type Config struct {
-	// CacheDuration is the amount of time we will cache the active docker
-	// containers and cgroups. The actual raw metrics (e.g. MemRSS) will _not_
-	// be cached but will be re-calculated on all calls to AllContainers.
-	CacheDuration time.Duration
-	// CollectNetwork enables network stats collection. This requires at least
-	// one call to container.Inspect for new containers and reads from the
-	// procfs for stats.
-	CollectNetwork bool
-	// Whitelist is a slice of filter strings in the form of key:regex where key
-	// is either 'image' or 'name' and regex is a valid regular expression.
-	Whitelist []string
-	// Blacklist is the same as whitelist but for exclusion.
-	Blacklist []string
-}

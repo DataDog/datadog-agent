@@ -1,0 +1,17 @@
+description: find -mmin +0 matches files older than 0 minutes (any non-zero age).
+skip_assert_against_bash: true  # timing-sensitive — file age depends on test execution speed
+setup:
+  files:
+    - path: dir/recent.txt
+      content: "just created"
+      chmod: 0644
+      mod_time: "2020-01-01T00:00:00Z"  # explicit past time to avoid timing flakes
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -mmin +0
+expect:
+  stdout: |+
+    dir/recent.txt
+  stderr: ""
+  exit_code: 0

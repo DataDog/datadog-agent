@@ -1,0 +1,13 @@
+description: The H and G commands append between pattern and hold space.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 'H; ${g;p}' input.txt
+expect:
+  stdout: "\naaa\nbbb\nccc\n"
+  stderr: ""
+  exit_code: 0

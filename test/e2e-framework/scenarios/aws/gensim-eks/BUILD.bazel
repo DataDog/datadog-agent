@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gensim-eks",
@@ -26,5 +27,15 @@ go_library(
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/rbac/v1:rbac",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
+    ],
+)
+
+dd_agent_go_test(
+    name = "gensim-eks_test",
+    srcs = ["run_test.go"],
+    embed = [":gensim-eks"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

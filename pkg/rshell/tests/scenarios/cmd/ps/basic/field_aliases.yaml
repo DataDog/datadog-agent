@@ -1,0 +1,11 @@
+description: ps -o %cpu,%mem accepts the procps %cpu/%mem alias spellings as equivalent to pcpu/pmem, resolving to the same %CPU/%MEM header columns.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -o pid,%cpu,pcpu,%mem,pmem
+expect:
+  stdout_contains:
+    - "PID"
+    - "%CPU"
+    - "%MEM"
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Continue before || operator prevents subsequent commands in the iteration.
+input:
+  script: |+
+    for i in 1; do continue || echo not reached; echo not reached 2; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -19,7 +19,7 @@ package_name_variables(
 # This is everything in the distro. All the things that were explicit
 # in datadog-agent-dependencies.rb should show up here. Paths already
 # include the "/opt/datadog-agent" prefix, so pkg_mac_pkg's
-# install_location is "/", same as the deb/rpm whole_distro_tar below.
+# install_location is "/", same as the deb/rpm packages.
 pkg_filegroup(
     name = "agent_components",
     srcs = [

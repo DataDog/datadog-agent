@@ -384,6 +384,29 @@ func (m *Message) GetTimestampUnixMilli() int64 {
 	return m.IngestionTimestamp / 1000000
 }
 
+// LogTimestamp returns the timestamp the log is sent with, taking the first of:
+//   - ServerlessExtra.Timestamp, when set;
+//   - ParsingExtra.Timestamp, when useContainerTimestamp is set and it parses
+//     as RFC3339Nano;
+//   - IngestionTimestamp, when positive, in UTC;
+//   - the current time, in UTC.
+//
+// Callers must pass logs_config.use_container_timestamp.
+func (m *MessageMetadata) LogTimestamp(useContainerTimestamp bool) time.Time {
+	if !m.ServerlessExtra.Timestamp.IsZero() {
+		return m.ServerlessExtra.Timestamp
+	}
+	if m.ParsingExtra.Timestamp != "" && useContainerTimestamp {
+		if logTime, err := time.Parse(time.RFC3339Nano, m.ParsingExtra.Timestamp); err == nil {
+			return logTime
+		}
+	}
+	if m.IngestionTimestamp > 0 {
+		return time.Unix(0, m.IngestionTimestamp).UTC()
+	}
+	return time.Now().UTC()
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.

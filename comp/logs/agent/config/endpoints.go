@@ -75,6 +75,10 @@ type Endpoint struct {
 	// additionalEndpointIdentity binds credential updates to the original endpoint route.
 	additionalEndpointIdentity      [sha256.Size]byte
 	additionalEndpointIdentityValid bool
+	// isObsPipelineWorker is true for an Observability Pipelines Worker endpoint, which intake routing never touches.
+	isObsPipelineWorker bool
+	// routedFrom is the configured host of an endpoint whose host was replaced by intake routing, or "".
+	routedFrom string
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -367,7 +371,7 @@ func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
 // back. It is false once a runtime config change has disabled the endpoint until restart, and for
 // directives in settings that nothing writes back: no key will ever arrive for those.
 func (e *Endpoint) AwaitsDelegatedAuthKey() bool {
-	if e.credential == nil || e.configSettingPath != model.DelaLogsEndpointsKey {
+	if e.credential == nil || !model.IsDelaListEndpointsKey(e.configSettingPath) {
 		return false
 	}
 	credential := e.credential.Load()
@@ -426,6 +430,9 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	status := fmt.Sprintf("%sSending %s logs in %s to %s on port %d (API Key: %s)", prefix, compression, protocol, host, port, redactedAPIKey)
 	if pathPrefix != EmptyPathPrefix {
 		status = fmt.Sprintf("%s and path prefix \"%s\"", status, pathPrefix)
+	}
+	if e.routedFrom != "" {
+		status = fmt.Sprintf("%s (intake routing; default host: %s)", status, e.routedFrom)
 	}
 	return status
 }

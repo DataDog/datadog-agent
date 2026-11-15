@@ -93,6 +93,16 @@ func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error
 	return args.Error(0)
 }
 
+func (m *mockCoreAgentUptane) EmbeddedRootVersions() (uptane.TUFVersions, error) {
+	args := m.Called()
+	return args.Get(0).(uptane.TUFVersions), args.Error(1)
+}
+
+func (m *mockCoreAgentUptane) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error {
+	args := m.Called(response)
+	return args.Error(0)
+}
+
 func (m *mockUptane) State() (uptane.State, error) {
 	args := m.Called()
 	return args.Get(0).(uptane.State), args.Error(1)
@@ -588,6 +598,54 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+}
+
+func TestValidateRequestClientTypes(t *testing.T) {
+	tcs := []struct {
+		name      string
+		isTracer  bool
+		isAgent   bool
+		isUpdater bool
+		wantError string
+	}{
+		{name: "tracer", isTracer: true},
+		{name: "agent", isAgent: true},
+		{name: "updater", isUpdater: true},
+		{name: "no client type", wantError: "agents only support remote config updates from tracer or agent or updater at this time"},
+		{name: "tracer and agent", isTracer: true, isAgent: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "tracer and updater", isTracer: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "agent and updater", isAgent: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "all client types", isTracer: true, isAgent: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &pbgo.Client{
+				Id:        "test_client",
+				State:     &pbgo.ClientState{RootVersion: 1},
+				IsTracer:  tc.isTracer,
+				IsAgent:   tc.isAgent,
+				IsUpdater: tc.isUpdater,
+			}
+			if tc.isTracer {
+				client.ClientTracer = &pbgo.ClientTracer{RuntimeId: "test_runtime", Language: "go"}
+			}
+			if tc.isAgent {
+				client.ClientAgent = &pbgo.ClientAgent{}
+			}
+			if tc.isUpdater {
+				client.ClientUpdater = &pbgo.ClientUpdater{}
+			}
+
+			err := validateRequest(&pbgo.ClientGetConfigsRequest{Client: client})
+			if tc.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Equal(t, tc.wantError, status.Convert(err).Message())
+		})
+	}
 }
 
 func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) {

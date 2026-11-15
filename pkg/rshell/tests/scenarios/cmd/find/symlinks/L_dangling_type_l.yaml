@@ -1,0 +1,20 @@
+description: find -L -type l matches only dangling symlinks (stat fails, lstat shows symlink).
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/target.txt
+      content: "hello"
+      chmod: 0644
+    - path: dir/valid_link.txt
+      symlink: target.txt
+    - path: dir/dangling.txt
+      symlink: nonexistent
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -maxdepth 1 -type l
+expect:
+  stdout: |+
+    dir/dangling.txt
+  stderr: ""
+  exit_code: 0

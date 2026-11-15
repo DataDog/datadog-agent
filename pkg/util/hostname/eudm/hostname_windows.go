@@ -7,13 +7,11 @@ package eudm
 
 import (
 	"os"
-
-	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
 
 var osHostname = os.Hostname
 
 // deviceName uses the OS hostname, which on Windows is the configured computer name.
-func deviceName(_ *systeminfo.SystemInfo) (string, error) {
+func deviceName() (string, error) {
 	return osHostname()
 }

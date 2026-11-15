@@ -1,0 +1,8 @@
+description: Cut reads from stdin when dash is given as the file argument.
+input:
+  script: |+
+    echo "a:b:c" | cut -d: -f1 -
+expect:
+  stdout: "a\n"
+  stderr: ""
+  exit_code: 0

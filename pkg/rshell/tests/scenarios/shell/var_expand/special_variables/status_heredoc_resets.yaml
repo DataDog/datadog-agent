@@ -1,0 +1,14 @@
+description: A heredoc fed to cat resets $? to 0 even after a failed command.
+input:
+  script: |+
+    false
+    cat <<EOF
+    data
+    EOF
+    echo $?
+expect:
+  stdout: |+
+    data
+    0
+  stderr: ""
+  exit_code: 0

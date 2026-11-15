@@ -186,7 +186,7 @@ func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPCli
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterChecks(writer, "", client) //nolint:errcheck
+	GetClusterChecks(writer, ClusterChecksOptions{Verbose: true}, client) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("clusterchecks.log", b.Bytes())

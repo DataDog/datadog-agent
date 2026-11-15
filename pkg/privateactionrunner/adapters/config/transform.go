@@ -36,9 +36,14 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if metricsClient == nil {
 		metricsClient = &statsd.NoOpClient{}
 	}
-	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
-	ddHost := getDatadogHost(mainEndpoint)
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	ddSite := par.Site(config)
+	apiBaseURL, err := par.APIBaseURL(config, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	if par.ShouldWarnAboutRCOverride(config) {
+		log.Warn("PAR is enabled with remote_configuration.rc_dd_url set but private_action_runner.par_dd_url unset; the RC override does not change PAR routing. Set private_action_runner.par_dd_url explicitly if PAR requires custom routing.")
+	}
 	encodedPrivateKey := config.GetString(par.PrivateKey)
 	urn := config.GetString(par.URN)
 
@@ -112,8 +117,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
 		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
-		DDHost:                             ddHost,
-		DDApiHost:                          "api." + ddSite,
+		APIBaseURL:                         apiBaseURL,
 		Modes:                              []modes.Mode{modes.ModePull},
 		OrgId:                              orgID,
 		PrivateKey:                         privateKey,
@@ -133,8 +137,7 @@ func kubernetesAllowedCustomResources(config config.Component) []string {
 	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
 }
 
-func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
-	allowlist := make(map[string]sets.Set[string])
+func makeActionsAllowlist(config config.Component) ActionsAllowlist {
 	actionFqns := config.GetStringSlice(par.ActionsAllowlist)
 
 	if config.GetBool(par.DefaultActionsEnabled) {
@@ -153,6 +156,12 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
+	return NewActionsAllowlist(actionFqns)
+}
+
+// NewActionsAllowlist parses action FQNs and adds inherited actions without adding defaults.
+func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
+	allowlist := make(ActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -162,8 +171,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
 
-	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
-	for bundleID, actionsSet := range bundleInheritedActions {
+	for bundleID, actionsSet := range GetBundleInheritedAllowedActions(allowlist) {
 		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
@@ -252,14 +260,6 @@ func warnNonDirectoryPaths(paths []string) {
 	}
 }
 
-// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
-// It removes the "https://" prefix and any trailing "." from the endpoint URL.
-func getDatadogHost(endpoint string) string {
-	host := strings.TrimSuffix(endpoint, ".")
-	host = strings.TrimPrefix(host, "https://")
-	return host
-}
-
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
@@ -270,7 +270,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 
 		matched := false
 		for bundleID, actionsSet := range actionsAllowlist {
-			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+			if actionsSet.Len() > 0 && (bundleID == prefix || strings.HasPrefix(bundleID, prefix+".")) {
 				matched = true
 				break
 			}

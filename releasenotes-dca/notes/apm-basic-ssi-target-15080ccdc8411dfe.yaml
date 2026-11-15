@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add an APM Basic target to Single Step Instrumentation, disabled by default. When
+    ``apm_config.instrumentation.apm_basic.enabled`` is set to ``true``, the admission
+    controller injects the C tracer (dd-trace-c) into pods labeled
+    ``admission.datadoghq.com/apm-basic.enabled: "true"`` so they report RED metrics
+    without sending traces. The tracer version is configured with
+    ``apm_config.instrumentation.apm_basic.tracer_versions``.

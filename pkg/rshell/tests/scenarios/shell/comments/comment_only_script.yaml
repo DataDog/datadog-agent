@@ -1,0 +1,7 @@
+description: Comment without any command is ignored.
+input:
+  script: "#\n\n# foo\n\n#\tbar\n #\n\t#\n\n##foo\n###\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -182,7 +182,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 	namespace := i.config.IstioNamespace
 	name := obj.GetName()
 	i.logger.Debugf("Processing deleted gatewayclass for istio: %s", name)
-	_, err = i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
+	filter, err := i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		i.logger.Debug("Envoy Filter already deleted")
 		return nil
@@ -190,6 +190,11 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	if err != nil {
 		return fmt.Errorf("could not check if Envoy Filter was already deleted: %w", err)
+	}
+
+	if !appsecconfig.IsManagedByDatadog(filter.GetLabels()) {
+		i.logger.Warnf("Not deleting EnvoyFilter %s/%s: it was not created by the Datadog Cluster Agent", namespace, envoyFilterName)
+		return nil
 	}
 
 	err = i.client.Resource(filterGVR).
