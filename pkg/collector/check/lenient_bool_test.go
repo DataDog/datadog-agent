@@ -12,10 +12,7 @@ import (
 )
 
 func TestToLenientBool(t *testing.T) {
-	// The spellings and their case variants are the ones go.yaml.in/yaml/v2
-	// resolved to booleans, which yaml v3 only keeps when unmarshaling into
-	// typed bool fields. Generic map reads need this helper to keep the same
-	// behavior for unquoted spellings in verbatim YAML configs.
+	// The spellings and case variants go.yaml.in/yaml/v2 resolved to booleans.
 	for _, value := range []interface{}{
 		true,
 		"true", "True", "TRUE",
@@ -40,10 +37,7 @@ func TestToLenientBool(t *testing.T) {
 		assert.False(t, b, "expected %v to be false", value)
 	}
 
-	// String booleans are accepted too: fleet data shows customers writing
-	// them on disk check options (quoted YAML or JSON strings, e.g. in
-	// container and Kubernetes annotations), and the boolean intent is
-	// clear. Only non-boolean values are rejected.
+	// Only non-boolean values are rejected.
 	for _, value := range []interface{}{
 		nil,
 		"maybe", "enabled", "0", "1", "o", "offish", "yEs",

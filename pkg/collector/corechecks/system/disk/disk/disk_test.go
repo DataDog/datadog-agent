@@ -291,12 +291,7 @@ func TestDiskCheckTags(t *testing.T) {
 }
 
 func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
-	// The disk check moved from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v3 but
-	// keeps accepting unquoted YAML 1.1 boolean spellings on its boolean
-	// options (fleet data shows customers relying on e.g. `use_mount: yes`
-	// in verbatim autodiscovery configs). Values that are not boolean
-	// spellings keep their default, as before the migration; the
-	// false-direction coverage lives in TestToLenientBool.
+	// Boolean options keep accepting YAML 1.1 spellings and string booleans; other values keep their default.
 	diskCheck := new(Check)
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: yes\nall_partitions: on\ntag_by_filesystem: true\n")))
 	assert.True(t, diskCheck.cfg.useMount)
@@ -308,10 +303,7 @@ func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: true\n")))
 	assert.True(t, diskCheck.cfg.useMount)
 
-	// String booleans and quoted spellings now also apply (both were left
-	// as strings and ignored by the yaml v2 generic map reads): fleet data
-	// shows customers writing them on disk options, e.g. as JSON strings
-	// in container and Kubernetes annotations, with clear boolean intent.
+	// String booleans and quoted spellings also apply (ignored by the yaml v2 generic map reads).
 	diskCheck = new(Check)
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("use_mount: 'yes'\n")))
 	assert.True(t, diskCheck.cfg.useMount)
@@ -327,9 +319,7 @@ func TestDiskInstanceConfigureBooleanOptions(t *testing.T) {
 }
 
 func TestDiskInstanceConfigureDeviceTagRe(t *testing.T) {
-	// yaml v3 decodes string-keyed nested maps as map[string]interface{},
-	// which the device_tag_re parsing accepts on top of
-	// map[interface{}]interface{}.
+	// yaml v3 decodes string-keyed nested maps as map[string]interface{}.
 	diskCheck := new(Check)
 	require.NoError(t, diskCheck.instanceConfigure(integration.Data("device_tag_re:\n  '/dev/sda': 'tag1,tag2'\n")))
 	require.Len(t, diskCheck.cfg.deviceTagRe, 1)

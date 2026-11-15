@@ -17,12 +17,7 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// TestConfigureYAML11BooleanSpellings pins the typed-bool compatibility of
-// go.yaml.in/yaml/v3, which the check relies on: yaml v3 still resolves the
-// YAML 1.1 boolean spellings (yes/no/on/off/y/n) when unmarshaling into
-// typed bool fields, so the disk check's boolean options keep accepting
-// them, and keep doing so across any future yaml version bump. Fleet data
-// shows customers relying on e.g. `use_mount: yes`.
+// yaml v3 still resolves YAML 1.1 booleans in typed bool fields, so these options keep accepting them.
 func TestConfigureYAML11BooleanSpellings(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
@@ -43,8 +38,7 @@ func TestConfigureYAML11BooleanSpellings(t *testing.T) {
 	// TagByLabel defaults to true, so this pins the false direction
 	assert.False(t, c.instanceConfig.TagByLabel)
 
-	// String "true"/"false" are not boolean spellings: the typed
-	// unmarshaling rejects them, like it did with yaml v3.
+	// The typed unmarshaling rejects string "true", like the disk v1 map read accepts it.
 	c = newCheck()
 	require.Error(t, c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash,
 		integration.Data("use_mount: \"true\"\n"),
@@ -56,8 +50,7 @@ func TestConfigureYAML11BooleanSpellings(t *testing.T) {
 		integration.Data(""), "test", ""))
 	assert.True(t, c.instanceConfig.UseMount)
 
-	// Values that are not boolean spellings are rejected by the typed
-	// unmarshaling, so the check configuration fails to load.
+	// Non-boolean values fail the configuration load.
 	c = newCheck()
 	require.Error(t, c.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash,
 		integration.Data("use_mount: maybe\n"),
