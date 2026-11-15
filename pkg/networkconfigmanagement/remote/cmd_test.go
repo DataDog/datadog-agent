@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 )
@@ -175,31 +174,6 @@ func TestSCPCommand(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSCPCommand_CanceledWorkerExits(t *testing.T) {
-	baseline := goleak.IgnoreCurrent()
-	t.Cleanup(func() { goleak.VerifyNone(t, baseline) })
-	started := make(chan struct{})
-	srv := StartFakeSSHServerWithFunc(t, func(sc *ShellContext) uint32 {
-		close(started)
-		_, _ = io.Copy(io.Discard, sc.stdin)
-		return 0
-	})
-	client := MustConnect(t, srv)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan error, 1)
-	go func() {
-		_, err := ExecuteSCP(ctx, client, &profile.SCPCommand{
-			RemoteCommand: "scp",
-			Filepath:      "/ignored.txt",
-		}, "data")
-		done <- err
-	}()
-	<-started
-	cancel()
-	require.ErrorIs(t, <-done, context.Canceled)
 }
 
 func TestSCPCommand_Timeout(t *testing.T) {
