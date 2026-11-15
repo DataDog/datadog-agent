@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"sync"
 	"testing"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -19,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func requireCounterMetricValueBySource(t *testing.T, source string, want float64, telemetryComp telemetry.Component) {
+func requireCounterMetricValueBySource(t testing.TB, source string, want float64, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -43,10 +44,15 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 		}
 	}
 
+	// Some variants create unused series only on use; absent is equivalent to zero.
+	if want == 0 {
+		return
+	}
+
 	t.Fatalf("counter %q with source=%q not found", metricName, source)
 }
 
-func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
+func requireNoCounterMetricForNameBySource(t testing.TB, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
 	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
@@ -495,10 +501,11 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	require.NoError(t, err)
 
 	storage := newTimeSeriesStorage()
-	eng := newEngine(engineConfig{storage: storage})
+	eng := mustNewEngine(engineConfig{storage: storage})
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
 	}
@@ -509,7 +516,7 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -550,7 +557,7 @@ func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		metricFilter: filter,
 	}
 
@@ -583,8 +590,9 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -596,7 +604,8 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 
@@ -635,8 +644,9 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 			telComp := telemetryimpl.NewMock(t)
 
 			obs := &observerImpl{
-				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-				obsCh:                make(chan observation, len(tc.metricNames)),
+				engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+				metricsCh:            make(chan observation, len(tc.metricNames)),
+				logsCh:               make(chan observation, len(tc.metricNames)),
 				telemetry:            newObserverTelemetry(telComp),
 				ingestMetricsEnabled: true,
 				metricFilter:         filter,
@@ -648,7 +658,8 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 				close(done)
 			}()
 			t.Cleanup(func() {
-				close(obs.obsCh)
+				close(obs.metricsCh)
+				close(obs.logsCh)
 				<-done
 			})
 
@@ -657,6 +668,7 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 				testObserveMetric(h, &metricObs{name: metricName})
 			}
 			obs.Flush()
+			publishFilteredMetricsForTest(h)
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 			requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
@@ -675,7 +687,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:       mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -697,8 +709,9 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         defaultFilter,
@@ -710,7 +723,7 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -771,7 +784,7 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -813,7 +826,7 @@ func TestNamePrefixFilterCountsFilteredMetrics(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -856,8 +869,9 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -869,7 +883,7 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -912,8 +926,9 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
-		obsCh:                make(chan observation, 16),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -925,7 +940,7 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -1020,8 +1035,9 @@ func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
 	t.Cleanup(telComp.Reset)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1056,8 +1072,9 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
-		obsCh:                make(chan observation, 1),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1083,7 +1100,8 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 	obs.Flush()
@@ -1098,6 +1116,42 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
+func TestFilteredMetricTelemetryFlushDrainsIdleTail(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	obs := &observerImpl{
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		metricsCh:            make(chan observation, 1),
+		logsCh:               make(chan observation, 1),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         &metricsFilterRules{},
+	}
+	obs.handleFunc = obs.innerHandle
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.metricsCh)
+		close(obs.logsCh)
+		<-done
+	})
+
+	h, ok := obs.GetHandle("dogstatsd").(*handle)
+	require.True(t, ok)
+	h.recordFilteredMetric("dogstatsd")
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+
+	// A second rejection inside the interval stays pending until flush.
+	h.recordFilteredMetric("dogstatsd")
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+
+	obs.Flush()
+	requireCounterMetricValueBySource(t, "dogstatsd", 2.0, telComp)
 }
 
 func TestParseAllowedMetricTypes(t *testing.T) {
@@ -1173,7 +1227,7 @@ anomaly_detection:
 	telComp := telemetryimpl.NewMock(t)
 	storage := newTimeSeriesStorage()
 	connErrExtractor := &ConnectionErrorExtractor{}
-	eng := newEngine(engineConfig{
+	eng := mustNewEngine(engineConfig{
 		storage:      storage,
 		metricFilter: filter,
 		extractors: []observerdef.LogMetricsExtractor{
@@ -1185,7 +1239,8 @@ anomaly_detection:
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 32),
+		metricsCh:            make(chan observation, 32),
+		logsCh:               make(chan observation, 32),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: true,
 		metricFilter:         filter,
@@ -1198,7 +1253,8 @@ anomaly_detection:
 		close(done)
 	}()
 	t.Cleanup(func() {
-		close(obs.obsCh)
+		close(obs.metricsCh)
+		close(obs.logsCh)
 		<-done
 	})
 
@@ -1266,4 +1322,167 @@ anomaly_detection:
 	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
+func newFilteredMetricHandle(t *testing.T, source string, telemetryComp telemetry.Component) *handle {
+	t.Helper()
+
+	return &handle{
+		source:    source,
+		telemetry: newObserverTelemetry(telemetryComp),
+	}
+}
+
+func publishFilteredMetricsForTest(h observerdef.Handle) {
+	if producer, ok := h.(*handle); ok {
+		producer.publishFilteredMetricsIfDue(
+			time.Since(filteredMetricEpoch).Nanoseconds() +
+				int64(filteredMetricPublishInterval) + 1,
+		)
+	}
+}
+
+func TestHandleFilteredMetricPublishesFirstRejectionImmediately(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.recordFilteredMetric("kubelet")
+
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+}
+
+func TestHandleFilteredMetricPublicationAtIntervalBoundary(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.pendingFilteredSource.Store(1)
+	h.pendingFilteredAgent.Store(1)
+	h.publishFilteredMetricsIfDue(1)
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+
+	// The interval is half-open: one second after the first claim is due.
+	h.pendingFilteredSource.Store(2)
+	h.publishFilteredMetricsIfDue(1 + int64(filteredMetricPublishInterval))
+	requireCounterMetricValueBySource(t, "kubelet", 3.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+}
+
+func TestHandleFilteredMetricRepeatedPublicationDoesNotDoubleCount(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	h.pendingFilteredSource.Store(1)
+	h.pendingFilteredAgent.Store(2)
+	h.publishFilteredMetricsIfDue(1)
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "kubelet", 1.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 2.0, telComp)
+}
+
+func TestHandleFilteredMetricArbitrarySourceAndAgentSourceRemainSeparate(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "kubelet", telComp)
+
+	for i := 0; i < 5; i++ {
+		h.recordFilteredMetric("kubelet")
+	}
+	for i := 0; i < 3; i++ {
+		h.recordFilteredMetric(observerdef.AgentNamespace)
+	}
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "kubelet", 5.0, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 3.0, telComp)
+}
+
+func TestHandleFilteredMetricIdleTailRemainsPending(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	h.recordFilteredMetric("check")
+	requireCounterMetricValueBySource(t, "check", 1.0, telComp)
+
+	// Simulate an idle producer tail that remains pending until the next call.
+	h.pendingFilteredSource.Store(2)
+	requireCounterMetricValueBySource(t, "check", 1.0, telComp)
+	publishFilteredMetricsForTest(h)
+	requireCounterMetricValueBySource(t, "check", 3.0, telComp)
+}
+
+func TestHandleFilteredMetricFirstAgentRejectionLeavesSourceAtZero(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
+	requireCounterMetricValueBySource(t, "check", 0.0, telComp)
+}
+
+func TestHandleFilteredMetricWithoutRejectionCreatesNoCounters(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	newFilteredMetricHandle(t, "check", telComp)
+
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "check", telComp)
+	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, observerdef.AgentNamespace, telComp)
+}
+
+func TestHandleFilteredMetricAgentNamespaceHandleUsesOneSeries(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, observerdef.AgentNamespace, telComp)
+
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+	h.recordFilteredMetric(observerdef.AgentNamespace)
+	publishFilteredMetricsForTest(h)
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	metricName := "observer__" + telemetryFilteredMetrics
+	var sources []string
+	for _, family := range metricFamilies {
+		if family.GetName() != metricName {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "source" {
+					sources = append(sources, label.GetValue())
+				}
+			}
+		}
+	}
+	require.Equal(t, []string{observerdef.AgentNamespace}, sources)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 2.0, telComp)
+}
+
+func TestHandleFilteredMetricConcurrentMixedSourcesLosesNoIncrements(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	h := newFilteredMetricHandle(t, "check", telComp)
+
+	const goroutines = 8
+	const perGoroutine = 100
+	publishAt := time.Since(filteredMetricEpoch).Nanoseconds() + 1
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				h.recordFilteredMetric("check")
+				h.recordFilteredMetric(observerdef.AgentNamespace)
+				// Concurrent publication may claim counts; forced publication retains the rest.
+				h.publishFilteredMetricsIfDue(
+					publishAt + int64(i)*int64(filteredMetricPublishInterval),
+				)
+			}
+		}()
+	}
+	wg.Wait()
+	h.lastFilteredPublish.Store(0)
+	publishFilteredMetricsForTest(h)
+
+	requireCounterMetricValueBySource(t, "check", goroutines*perGoroutine, telComp)
+	requireCounterMetricValueBySource(t, observerdef.AgentNamespace, goroutines*perGoroutine, telComp)
 }

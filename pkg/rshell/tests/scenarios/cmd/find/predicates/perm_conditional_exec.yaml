@@ -1,0 +1,19 @@
+description: "-perm with conditional execute (X) matches correctly."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/f555
+      content: ""
+      chmod: 0555
+    - path: dir/f444
+      content: ""
+      chmod: 0444
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm u=rwx,a=rX | sort
+expect:
+  stdout: "dir/f555\n"
+  stdout_windows: ""
+  stderr: ""
+  exit_code: 0

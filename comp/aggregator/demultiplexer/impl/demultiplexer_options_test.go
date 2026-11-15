@@ -114,3 +114,11 @@ func TestCreateAgentDemultiplexerOptionsStoresClientDropDetector(t *testing.T) {
 
 	require.Equal(t, detector, options.FinalDogStatsDSerieFlushListener)
 }
+
+func TestNewComponentRejectsInvalidEndpointRouting(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"experimental.metrics_endpoint_routing.metric_allowlist": map[string][]string{"https://typo.example": {"keep"}},
+	})
+	_, err := NewComponent(Dependencies{Config: cfg})
+	require.ErrorContains(t, err, "matches neither")
+}

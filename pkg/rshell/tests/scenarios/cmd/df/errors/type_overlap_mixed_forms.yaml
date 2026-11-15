@@ -1,0 +1,11 @@
+description: df detects type-overlap even when the same TYPE is named via different flag spellings (`-t apfs` plus `--exclude-type=apfs`). The check uses the parsed string-set, so flag form does not matter. Matches GNU df's wording byte-for-byte.
+input:
+  script: |+
+    df -t apfs --exclude-type=apfs; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "both selected and excluded"
+  exit_code: 0

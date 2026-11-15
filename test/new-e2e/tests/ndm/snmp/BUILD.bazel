@@ -22,6 +22,7 @@ dd_agent_go_test(
         "snmp_vm_test.go",
     ],
     data = [
+        "compose-vm/snmpCompose.yaml",
         "compose/data/apc_ups.snmprec",
         "compose/data/args_list.txt",
         "compose/data/arista.snmprec",

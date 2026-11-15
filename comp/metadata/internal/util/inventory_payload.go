@@ -48,13 +48,14 @@
 //		}
 //	}
 //
-// func (cp *customPayload) getPayload() marshaler.JSONMarshaler { ... }
+// func (cp *customPayload) getPayload() marshaler.TypedJSONMarshaler { ... }
 package util
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -79,7 +80,7 @@ var (
 )
 
 // PayloadGetter is the callback to generate a new payload exposed by each inventory payload to InventoryPayload utils
-type PayloadGetter func() marshaler.JSONMarshaler
+type PayloadGetter func() marshaler.TypedJSONMarshaler
 
 // InventoryPayload offers helpers for all inventory payloads providing all the common part to create a new payload.
 // InventoryPayload will handle the common configuration as well as refresh rates and flare. This type is meant to be
@@ -97,8 +98,7 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // instance_config) must pre-scrub those strings with scrubber.ScrubYamlString before storing them,
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
-	m        sync.Mutex
-	notReady bool // guarded by m; the zero value is ready
+	m sync.Mutex
 
 	conf          config.Component
 	log           log.Component
@@ -113,6 +113,14 @@ type InventoryPayload struct {
 	MaxInterval   time.Duration
 	forceRefresh  atomic.Bool
 	FlareFileName string
+}
+
+// SetFirstRunDelay sets a provider-specific startup delay. Providers without a
+// host-registration dependency can use zero to report immediately after startup.
+func (i *InventoryPayload) SetFirstRunDelay(delay time.Duration) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.firstRunDelay = delay
 }
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
@@ -182,18 +190,17 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 // invnetory is enabled or not).
 func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	if i.Enabled {
-		return runnerdef.NewProvider(i.collect)
+		return runnerdef.NewProvider(i.Collect)
 	}
 	return runnerdef.NewProvider(nil)
 }
 
-// collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
+// Collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
 // interval to be called.
-func (i *InventoryPayload) collect(_ context.Context) time.Duration {
+func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.notReady {
-		i.log.Debugf("inventory metadata is not ready, skipping submission")
+	if !i.Enabled {
 		return i.MinInterval
 	}
 	if i.serializer == nil {
@@ -231,45 +238,30 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	return i.MinInterval
 }
 
-// SetReady controls payload generation without changing whether inventory is enabled.
-// SetReady(false) waits for any in-flight generation and enqueue to finish.
-func (i *InventoryPayload) SetReady(ready bool) {
-	i.m.Lock()
-	defer i.m.Unlock()
-	i.notReady = !ready
-}
-
 // Submit synchronously builds a payload and enqueues it for submission now,
-// ignoring the first-run delay and the min/max interval gating that collect()
+// ignoring the first-run delay and the min/max interval gating that Collect()
 // applies. SendMetadata only enqueues a transaction (the HTTP POST is async and
-// drained at shutdown), so this does not wait for delivery. Nothing is built or
-// enqueued while not ready.
-func (i *InventoryPayload) Submit() {
+// drained at shutdown), so a nil error does not mean the payload was delivered.
+func (i *InventoryPayload) Submit() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if !i.Enabled {
-		i.log.Debugf("inventory metadata is disabled, skipping submission")
-		return
-	}
-	if i.notReady {
-		i.log.Debugf("inventory metadata is not ready, skipping submission")
-		return
+		return errors.New("inventory metadata is disabled")
 	}
 	if i.serializer == nil {
-		i.log.Tracef("serializer is nil, skipping submission")
-		return
+		return errors.New("inventory serializer is nil")
 	}
 
 	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 	p := i.getPayload()
 	if p == nil {
-		i.log.Debugf("inventory payload is nil, skipping submission")
-		return
+		return errors.New("inventory payload is nil")
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
-		i.log.Errorf("unable to submit inventories payload, %s", err)
+		return fmt.Errorf("unable to submit inventories payload: %w", err)
 	}
+	return nil
 }
 
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
@@ -300,9 +292,6 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.notReady {
-		return nil, errors.New("inventory metadata is not ready")
-	}
 
 	return json.MarshalIndent(i.getPayload(), "", "  ")
 }

@@ -13,15 +13,16 @@ import (
 
 // validateUniqueExtractorNames rejects duplicate runtime extractor names since
 // they are used as namespaces in storage and context lookup.
-func validateUniqueExtractorNames(extractors []observer.LogMetricsExtractor) {
+func validateUniqueExtractorNames(extractors []observer.LogMetricsExtractor) error {
 	seen := make(map[string]struct{}, len(extractors))
 	for _, ext := range extractors {
 		name := ext.Name()
 		if _, ok := seen[name]; ok {
-			panic(fmt.Sprintf("duplicate log extractor name: %q", name))
+			return fmt.Errorf("duplicate log extractor name: %q", name)
 		}
 		seen[name] = struct{}{}
 	}
+	return nil
 }
 
 // truncate shortens s to maxLen, appending "..." if truncated.

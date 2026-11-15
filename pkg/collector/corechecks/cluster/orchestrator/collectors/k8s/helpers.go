@@ -61,18 +61,26 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 
 	// Create fake informer factories
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second)
-	metadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	secretMetadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	configMapMetadataInformerFactory := metadatainformer.NewFilteredSharedInformerFactory(metadataClient, 300*time.Second, metav1.NamespaceAll,
+		func(opts *metav1.ListOptions) {
+			opts.LabelSelector = NonHelmReleaseLabelSelector
+		})
 
 	// Create OrchestratorInformerFactory with fake informers
 	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
-		InformerFactory:         informerFactory,
-		MetadataInformerFactory: metadataInformerFactory,
+		InformerFactory: informerFactory,
 	}
+	orchestratorInformerFactory.ConfigMapMetadataInformerFactory = configMapMetadataInformerFactory
+	orchestratorInformerFactory.SecretMetadataInformerFactory = secretMetadataInformerFactory
 
-	apiClient := &apiserver.APIClient{Cl: client}
+	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
 
 	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
 	orchestratorCfg.KubeClusterName = "test-cluster"
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 
 	runCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
@@ -82,6 +90,7 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 		ClusterID:   "test-cluster",
 		Config:      orchestratorCfg,
 		MsgGroupRef: atomic.NewInt32(0),
+		StopCh:      stopCh,
 	}
 
 	// Run additional setup if provided
@@ -93,10 +102,9 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	collector.Init(runCfg)
 
 	// Start the informer factories
-	stopCh := make(chan struct{})
-	defer close(stopCh)
 	informerFactory.Start(stopCh)
-	metadataInformerFactory.Start(stopCh)
+	secretMetadataInformerFactory.Start(stopCh)
+	configMapMetadataInformerFactory.Start(stopCh)
 
 	// Wait for the informer to sync
 	if k8sCollector, ok := collector.(collectors.K8sCollector); ok {

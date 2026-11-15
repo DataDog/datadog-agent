@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-19-codex / errors.
+# Pins that unknown-command diagnostics are written to the current stderr fd,
+# so 2>&1 duplicates them into stdout instead of leaking to original stderr.
+skip_assert_against_bash: true
+description: A cmd-not-found diagnostic follows 2>&1 into stdout.
+input:
+  script: |+
+    no_such_cmd_xyz 2>&1
+expect:
+  stdout: |+
+    rshell: no_such_cmd_xyz: unknown command
+    Run 'help' to see available commands.
+  stderr: ""
+  exit_code: 127

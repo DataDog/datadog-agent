@@ -1,0 +1,16 @@
+description: vmstat -S M scales memory columns by 2^20 bytes instead of the default 1024.
+# skip: vmstat is not present in debian:bookworm-slim, and output reflects
+# live host state.
+skip_assert_against_bash: true
+# skip: vmstat is not supported on Windows (see AGENTS.md); this scenario
+# requires real output, which only exists on Linux/macOS.
+skip_windows: true
+input:
+  script: |+
+    vmstat -S M > /dev/null; echo "code:$?"
+    vmstat --unit=m > /dev/null; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:0"
+  stderr: |+
+  exit_code: 0

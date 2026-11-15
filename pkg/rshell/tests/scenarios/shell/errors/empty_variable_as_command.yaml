@@ -1,0 +1,11 @@
+# skip: empty variable as command behavior is shell-specific
+skip_assert_against_bash: true
+description: Empty variable expanded as command produces no error.
+input:
+  script: |+
+    x=""
+    $x
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

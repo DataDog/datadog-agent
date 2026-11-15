@@ -83,6 +83,10 @@ jobs:
         fetch-depth: 1000
         fetch-tags: true
 
+    - name: Disable ADMS on GitHub-hosted runners
+      # The workspace override is also visible inside the devcontainer.
+      run: printf '\ncommon --downloader_config=\n' >> user.bazelrc
+
     - name: Setup Node.js
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
 

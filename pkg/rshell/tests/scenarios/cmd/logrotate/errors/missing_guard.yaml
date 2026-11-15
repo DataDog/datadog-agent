@@ -1,0 +1,17 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate requires either --size or --force.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate app.log
+expect:
+  stdout: |+
+  stderr: |+
+    logrotate: you must specify --size or --force
+  exit_code: 1

@@ -1,0 +1,28 @@
+description: awk range patterns include records from the start match through the end match.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        ignore
+        start
+        middle
+        end
+        tail
+        start end
+        after
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '/start/,/end/ { print NR ":" $0 }' input.txt
+    awk 'NR == 1,
+    NR == 2 { print NR ":" $0 }' input.txt
+expect:
+  stdout: |+
+    2:start
+    3:middle
+    4:end
+    6:start end
+    1:ignore
+    2:start
+  stderr: |+
+  exit_code: 0

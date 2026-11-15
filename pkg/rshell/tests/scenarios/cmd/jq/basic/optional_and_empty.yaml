@@ -1,0 +1,9 @@
+description: jq optional access and empty omit missing values from a constructor.
+input:
+  script: |+
+    printf '%s\n' '{"items":[{"v":1},{},{"v":3}]}' | jq -c '[.items[] | (.v? // empty)]'
+expect:
+  stdout: |+
+    [1,3]
+  stderr: |+
+  exit_code: 0

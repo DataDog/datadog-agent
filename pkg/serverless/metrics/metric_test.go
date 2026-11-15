@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -59,7 +60,7 @@ func TestConstructionDoesNotBlock(t *testing.T) {
 		t.Skip("known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	deps := metricstest.New(t, nooptagger.NewComponent())
 	metricAgent := &ServerlessMetricAgent{Demux: deps.Demux}
 	assert.NotNil(t, metricAgent.Demux)
@@ -113,7 +114,7 @@ func TestStopDrainsBeforeFlush(t *testing.T) {
 
 func testStopDrainsBeforeFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	// Gate Stop()'s per-worker sample drain (and the incomplete-bucket flush),
 	// the same way serverless-init does via preloadEarly.
 	mockConfig.SetInTest("dogstatsd_flush_incomplete_buckets", true)
@@ -163,7 +164,7 @@ type wrappedDemux struct {
 
 func TestStopDrainsThroughWrappedDemux(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	mockConfig.SetInTest("dogstatsd_flush_incomplete_buckets", true)
 
 	cf := newCountingForwarder()
@@ -211,7 +212,7 @@ func TestShutdownCascadeFlushesLateSample(t *testing.T) {
 		t.Skip("known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	// Enable the flush-on-stop gate the cascade relies on, mirroring the
 	// override cmd/serverless-init sets in preloadEarly.
 	mockConfig.SetInTest("dogstatsd_flush_incomplete_buckets", true)
@@ -242,7 +243,7 @@ func TestShutdownCascadeFlushesLateSample(t *testing.T) {
 // test covers.
 func TestFlushAllDeliversOpenBucketSample(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 
 	cf := newCountingForwarder()
 
@@ -281,7 +282,7 @@ func TestFlushAllDeliversOpenBucketSample(t *testing.T) {
 // from the still-open bucket.
 func TestFlushSkipsOpenBucket(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t))
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 
 	cf := newCountingForwarder()
 

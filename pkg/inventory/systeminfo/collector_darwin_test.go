@@ -8,11 +8,31 @@
 package systeminfo
 
 import (
+	"context"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestLocalHostNameIntegration exercises the real SystemConfiguration bridge on
+// the test Mac and compares it with macOS's command-line configuration reader.
+func TestLocalHostNameIntegration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "/usr/sbin/scutil", "--get", "LocalHostName").CombinedOutput()
+	require.NoError(t, err, "reading this Mac's LocalHostName: %s", output)
+	want := strings.TrimSuffix(string(output), "\n")
+	require.NotEmpty(t, want, "the test Mac must have a configured LocalHostName")
+
+	got, err := LocalHostName()
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	t.Logf("SystemConfiguration LocalHostName matches scutil: %q", got)
+}
 
 func TestCollect(t *testing.T) {
 	info, err := Collect()

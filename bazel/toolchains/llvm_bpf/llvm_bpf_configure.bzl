@@ -13,8 +13,10 @@ def _get_url(s3_base, url_prefix, clang_version, arch, build_version):
     return "{}/{}-{}.{}.{}".format(s3_base, url_prefix, clang_version, arch, build_version)
 
 def _download_llvm_bpf_impl(rctx):
-    downloaded = {}
     clang_version = rctx.attr.clang_version
+    binary_attrs = ""
+    install_target = ""
+    exec_compatible_with = ""
 
     if "linux" in rctx.os.name:
         arch = rctx.os.arch
@@ -25,6 +27,7 @@ def _download_llvm_bpf_impl(rctx):
         else:
             fail("Unsupported architecture for LLVM BPF toolchain: " + arch)
 
+        downloaded = {}
         sha256s = rctx.attr.sha256s
         for binary, url_prefix in _BINARIES.items():
             url = _get_url(rctx.attr.s3_base_url, url_prefix, clang_version, arch, rctx.attr.clang_build_version)
@@ -46,9 +49,17 @@ def _download_llvm_bpf_impl(rctx):
                 fail("Failed to download {} from {}".format(binary, url))
             downloaded[binary] = output
 
-    binary_attrs = ""
-    install_target = ""
-    if downloaded:
+        # Stay in this block: buildifier treats arch as uninitialized if it
+        # is read after the Linux-only assignment.
+        cpu_constraint = {
+            "amd64": "@platforms//cpu:x86_64",
+            "arm64": "@platforms//cpu:arm64",
+        }[arch]
+        exec_compatible_with = """    exec_compatible_with = [
+        "@platforms//os:linux",
+        "{cpu}",
+    ],
+""".format(cpu = cpu_constraint)
         binary_attrs = """    clang_bpf = "{clang}",
     llc_bpf = "{llc}",
     llvm_strip = "{strip}",""".format(
@@ -88,13 +99,14 @@ llvm_bpf_toolchain(
 
 toolchain(
     name = "llvm_bpf_toolchain",
-    target_compatible_with = ["@platforms//os:linux"],
+{exec_compatible_with}    target_compatible_with = ["@platforms//os:linux"],
     toolchain = ":llvm_bpf_impl",
     toolchain_type = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type",
     visibility = ["//visibility:public"],
 )
 {install_target}""".format(
         binary_attrs = binary_attrs,
+        exec_compatible_with = exec_compatible_with,
         version = clang_version,
         install_target = install_target,
     ))
@@ -115,7 +127,7 @@ _configure = tag_class(
     attrs = {
         "s3_base_url": attr.string(default = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"),
         "clang_version": attr.string(default = "12.0.1"),
-        "clang_build_version": attr.string(default = "v60409452-ee70de70"),
+        "clang_build_version": attr.string(default = "v150220922-61ce1181"),
         "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
         "verbose": attr.bool(default = False),
     },
@@ -125,7 +137,7 @@ def _llvm_bpf_extension_impl(ctx):
     cfg = ctx.modules[0].tags.configure[0] if ctx.modules[0].tags.configure else struct(
         s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
         clang_version = "12.0.1",
-        clang_build_version = "v60409452-ee70de70",
+        clang_build_version = "v150220922-61ce1181",
         sha256s = {},
         verbose = False,
     )

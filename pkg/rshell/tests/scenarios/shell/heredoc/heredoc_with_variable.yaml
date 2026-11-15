@@ -1,0 +1,11 @@
+description: Unquoted heredoc expands variables.
+input:
+  script: |+
+    X=hello
+    cat <<EOF
+    value is $X
+    EOF
+expect:
+  stdout: "value is hello\n"
+  stderr: ""
+  exit_code: 0

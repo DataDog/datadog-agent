@@ -22,8 +22,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
@@ -85,7 +85,7 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
-	parsingContext   *ast.ParsingContext
+	parsingContext   *parser.ParsingContext
 
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
@@ -329,6 +329,10 @@ func (rs *RuleSet) AddMacro(pMacro *PolicyMacro) (*eval.Macro, error) {
 		return nil, nil
 	}
 
+	if _, found := rs.evalOpts.Constants[pMacro.Def.ID]; found {
+		return nil, &ErrMacroLoad{Macro: pMacro, Err: fmt.Errorf("macro '%s' conflicts with constant", pMacro.Def.ID)}
+	}
+
 	var macro *eval.Macro
 
 	switch {
@@ -375,7 +379,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 
 	errFieldNotFound := &eval.ErrFieldNotFound{}
 
-	for field := range rs.opts.SupportedDiscarders {
+	for field, fields := range rs.opts.SupportedDiscarders {
 		eventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			return nil, err
@@ -386,7 +390,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 			continue
 		}
 
-		_, rule, err := rs.IsDiscarder(ctx, field, bucket.GetRules())
+		_, rule, err := rs.IsDiscarder(ctx, fields, bucket.GetRules())
 		if err != nil {
 			if errors.As(err, &errFieldNotFound) {
 				report.Invalid = append(report.Invalid, DiscarderInvalidReport{
@@ -825,7 +829,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					rs.fieldEvaluators[field] = evaluator
 				}
 			} else if expression := action.Def.Set.Expression; expression != "" {
-				astRule, err := rs.parsingContext.ParseExpression(expression)
+				astExpr, err := rs.parsingContext.BuildExpression(expression)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
 				}
@@ -835,9 +839,9 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				state := eval.NewState(rs.model, "", rs.evalOpts.MacroStore)
+				state := eval.NewState(rs.model)
 
-				evaluator, _, err := eval.NodeToEvaluator(astRule, rs.evalOpts, state)
+				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
@@ -1036,8 +1040,8 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	return values
 }
 
-// IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, *Rule, error) {
+// IsDiscarder partially evaluates an Event against a set of fields
+func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*Rule) (bool, *Rule, error) {
 	var isDiscarder bool
 
 	for _, rule := range rules {
@@ -1046,7 +1050,7 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 			continue
 		}
 
-		isTrue, err := rule.PartialEval(ctx, field)
+		isTrue, err := rule.PartialEval(ctx, fields...)
 		if err != nil || isTrue {
 			return false, rule, err
 		}
@@ -1256,11 +1260,12 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			}
 		}
 
-		if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+		fields, exists := rs.opts.SupportedDiscarders[field]
+		if !exists {
 			continue
 		}
 
-		if isDiscarder, _, _ := rs.IsDiscarder(ctx, field, bucket.rules); isDiscarder {
+		if isDiscarder, _, _ := rs.IsDiscarder(ctx, fields, bucket.rules); isDiscarder {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
@@ -1280,7 +1285,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 				break
 			}
 
-			if isDiscarder, _, _ := rs.IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+			if isDiscarder, _, _ := rs.IsDiscarder(dctx, []eval.Field{entry.Field}, bucket.rules); !isDiscarder {
 				isMultiDiscarder = false
 				break
 			}
@@ -1492,7 +1497,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
-		parsingContext:   ast.NewParsingContext(opts.RuleCacheEnabled),
+		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),
 	}
 }
 

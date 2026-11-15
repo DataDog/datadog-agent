@@ -1,0 +1,12 @@
+# Remediation mode alone does not bypass the exact unit/action allowlist.
+skip_assert_against_bash: true
+description: systemctl reload requires an exact reload grant
+input:
+  mode: remediation
+  script: |+
+    systemctl reload api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: system service "api.service" is not allowed for action "reload"
+  exit_code: 1

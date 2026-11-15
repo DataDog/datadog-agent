@@ -29,6 +29,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -43,10 +44,11 @@ var platformDockerLogsBasePath string
 
 func fileTestSetup(t *testing.T) {
 	tmp := t.TempDir()
-	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin string
+	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldECSJSONFileLogsBasePath string
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
 	oldDockerLogsBasePathNix, dockerLogsBasePathNix = dockerLogsBasePathNix, filepath.Join(tmp, "docker-nix")
 	oldDockerLogsBasePathWin, dockerLogsBasePathWin = dockerLogsBasePathWin, filepath.Join(tmp, "docker-win")
+	oldECSJSONFileLogsBasePath, ecsJSONFileLogsBasePath = ecsJSONFileLogsBasePath, filepath.Join(tmp, "ecs-json-file")
 
 	switch runtime.GOOS {
 	case "windows":
@@ -59,7 +61,24 @@ func fileTestSetup(t *testing.T) {
 		podLogsBasePath = oldPodLogsBasePath
 		dockerLogsBasePathNix = oldDockerLogsBasePathNix
 		dockerLogsBasePathWin = oldDockerLogsBasePathWin
+		ecsJSONFileLogsBasePath = oldECSJSONFileLogsBasePath
 	})
+}
+
+// ecsManagedInstancesDaemonModeSetup makes the agent look like an ECS Managed
+// Instances daemon. IsECSManagedInstancesDaemonMode reads both the cached
+// feature and the raw AWS_EXECUTION_ENV variable, so both must be set.
+func ecsManagedInstancesDaemonModeSetup(t *testing.T) *factory {
+	t.Helper()
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	configmock.New(t)
+
+	return &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
 }
 
 func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOptions {
@@ -491,6 +510,189 @@ func TestDockerOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "file", child.Config.Type)
 	require.Equal(t, p, child.Config.Path)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances(t *testing.T) {
+	fileTestSetup(t)
+	// IsECSManagedInstancesDaemonMode consults both the cached env.Feature (set
+	// here via SetFeatures) and, through IsECSSidecarMode, the raw
+	// AWS_EXECUTION_ENV var directly - both must agree for the daemon-mode check
+	// to pass.
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(ecsJSONFileLogsBasePath, "abc", "*-json.log"), p)
+}
+
+func TestMakeFileSource_ecsManagedInstances_fileNotCreatedYet(t *testing.T) {
+	fileTestSetup(t)
+	tf := ecsManagedInstancesDaemonModeSetup(t)
+
+	// The log driver creates the file after the agent first sees the container,
+	// so the source must be created even though nothing exists on disk yet.
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, "abc", child.Config.Identifier)
+	require.Equal(t, filepath.Join(ecsJSONFileLogsBasePath, "abc", "*-json.log"), child.Config.Path)
+	require.True(t, config.ContainsWildcard(child.Config.Path))
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+}
+
+func TestMakeFileSource_ecsManagedInstances_matchesActiveFileOnly(t *testing.T) {
+	fileTestSetup(t)
+	tf := ecsManagedInstancesDaemonModeSetup(t)
+
+	dir := filepath.Join(ecsJSONFileLogsBasePath, "abc")
+	require.NoError(t, os.MkdirAll(dir, 0o777))
+	for _, name := range []string{"abc-json.log", "abc-json.log.1", "abc-json.log.2.gz"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0o666))
+	}
+
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+
+	matches, err := filepath.Glob(child.Config.Path)
+	require.NoError(t, err)
+	require.Equal(t, []string{filepath.Join(dir, "abc-json.log")}, matches)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances_dockerPathOverrideTakesPrecedence(t *testing.T) {
+	fileTestSetup(t)
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+
+	tmp := t.TempDir()
+	mockConfig := configmock.New(t)
+	customPath := filepath.Join(tmp, "custom", "path")
+	mockConfig.SetInTest("logs_config.docker_path_override", customPath)
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(customPath, "containers", "abc", "abc-json.log"), p)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances_sidecarModeNotScoped(t *testing.T) {
+	fileTestSetup(t)
+	// Sidecar mode has no host-wide log visibility and should not resolve to the
+	// daemon-only json-file path - it must fall through to the normal
+	// docker-data-root-relative path instead.
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("ecs_deployment_mode", "sidecar")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(platformDockerLogsBasePath, "containers", "abc", "abc-json.log"), p)
+	require.NotContains(t, p, ecsJSONFileLogsBasePath)
+}
+
+func TestMakeFileSource_containerd_notSupportedOutsideManagedInstances(t *testing.T) {
+	fileTestSetup(t)
+	configmock.New(t)
+
+	// A docker-format file exists where a docker source would find it, but a
+	// containerd source must still be rejected: only ECS Managed Instances
+	// daemons read containerd containers' logs from files.
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.Nil(t, child)
+	require.EqualError(t, err, "file tailing is not supported for source type containerd")
+}
+
+func TestMakeFileSource_containerd_notSupportedInManagedInstancesSidecarMode(t *testing.T) {
+	fileTestSetup(t)
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("ecs_deployment_mode", "sidecar")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.Nil(t, child)
+	require.EqualError(t, err, "file tailing is not supported for source type containerd")
+}
+
+func TestMakeFileSource_docker_accessCheckStillAppliesToWildcardOverride(t *testing.T) {
+	fileTestSetup(t)
+
+	// Skipping the access check is specific to the ECS Managed Instances path:
+	// any other path, even one that contains wildcard characters, is still
+	// checked so an unreadable file falls back to the socket tailer.
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.docker_path_override", filepath.Join(t.TempDir(), "wild*card"))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "docker",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.Nil(t, child)
+	require.Error(t, err)
 }
 
 func TestMakeK8sSource(t *testing.T) {

@@ -8,6 +8,8 @@
 package util
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
+
+func TestParseKubeletPods_OwnerAPIGroup(t *testing.T) {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	for _, tt := range []struct {
+		apiVersion string
+		wantGroup  string
+	}{
+		{apiVersion: "kubeai.org/v1", wantGroup: "kubeai.org"},
+		{apiVersion: "apps/v1", wantGroup: "apps"},
+		{apiVersion: "v1"},
+		{apiVersion: ""},
+		{apiVersion: "kubeai.org/v1/invalid"},
+	} {
+		t.Run(tt.apiVersion, func(t *testing.T) {
+			var pod kubelet.Pod
+			require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf(`{
+				"metadata": {
+					"name": "model-pod", "namespace": "inference", "uid": "pod-uid",
+					"ownerReferences": [{"apiVersion": %q, "kind": "Model", "name": "my-model", "uid": "model-uid", "controller": true}]
+				}
+			}`, tt.apiVersion)), &pod))
+
+			events := ParseKubeletPods([]*kubelet.Pod{&pod}, false, store)
+			require.Len(t, events, 1)
+			entity, ok := events[0].Entity.(*workloadmeta.KubernetesPod)
+			require.True(t, ok)
+			assert.Equal(t, []workloadmeta.KubernetesPodOwner{{
+				Kind: "Model", Name: "my-model", ID: "model-uid", Group: tt.wantGroup, Controller: pointer.Ptr(true),
+			}}, entity.Owners)
+		})
+	}
+}
 
 // TestParseKubeletPods_ImageFromContainerSpec tests that the image from the container spec is used
 func TestParseKubeletPods_ImageFromContainerSpec(t *testing.T) {

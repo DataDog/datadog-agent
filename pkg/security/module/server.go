@@ -24,6 +24,7 @@ import (
 	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -359,6 +360,21 @@ func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendin
 	return nil
 }
 
+// newSecurityEventMessage builds the message for a rule or custom event. It always carries this
+// system-probe's hostname: when the message is relayed through another process (for instance a
+// host system-probe receiving events from a micro VM over vsock), the relay only falls back to its
+// own hostname for messages that have none, which would attribute this host's events to the relay.
+func (a *APIServer) newSecurityEventMessage(ruleID string, data []byte, service string, tags []string, timestamp time.Time) *api.SecurityEventMessage {
+	return &api.SecurityEventMessage{
+		RuleID:    ruleID,
+		Data:      data,
+		Service:   service,
+		Tags:      tags,
+		Timestamp: timestamppb.New(timestamp),
+		Hostname:  a.hostname,
+	}
+}
+
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	// look for the service tag if we don't have one yet
 	if len(msg.Service) == 0 {
@@ -445,14 +461,7 @@ func (a *APIServer) start(ctx context.Context) {
 
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
-				m := &api.SecurityEventMessage{
-					RuleID:    msg.ruleID,
-					Data:      data,
-					Service:   msg.service,
-					Tags:      msg.tags,
-					Timestamp: timestamppb.New(msg.timestamp),
-					Hostname:  a.hostname,
-				}
+				m := a.newSecurityEventMessage(msg.ruleID, data, msg.service, msg.tags, msg.timestamp)
 				a.updateMsgService(m)
 
 				if err := a.statsdClient.Distribution(metrics.MetricEventServerRetriesBeforeSend, float64(msg.retry), []string{}, 1.0); err != nil {
@@ -611,14 +620,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		// for custom events, we can use the current time as timestamp
 		timestamp := time.Now()
 
-		m := &api.SecurityEventMessage{
-			RuleID:         groupRuleID,
-			OriginalRuleID: originalRuleID,
-			Data:           data,
-			Service:        service,
-			Tags:           tags,
-			Timestamp:      timestamppb.New(timestamp),
-		}
+		m := a.newSecurityEventMessage(groupRuleID, data, service, tags, timestamp)
+		m.OriginalRuleID = originalRuleID
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
 		a.updateMsgTrack(m)
@@ -912,7 +915,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, stopChan chan struct{}, secretsComp secrets.Component, filterStore workloadfilter.Component, ipcComp ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	var containerFilter workloadfilter.FilterBundle
@@ -945,7 +948,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	if !cfg.SendPayloadsFromSystemProbe && (cfg.EventGRPCServer == "security-agent" || cfg.EventGRPCServer == "system-probe") {
 		seclog.Infof("setting up runtime security agent api client")
 
-		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg)
+		securityAgentAPIClient, err := NewSecurityAgentAPIClient(cfg, ipcComp)
 		if err != nil {
 			return nil, err
 		}

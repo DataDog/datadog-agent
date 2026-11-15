@@ -1,0 +1,14 @@
+description: Cut with -s skips lines that do not contain the delimiter.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -s -d: -f2,3 input.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

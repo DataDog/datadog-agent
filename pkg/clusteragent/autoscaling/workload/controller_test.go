@@ -394,6 +394,78 @@ func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
 	f.RunControllerSync(true, "default/dpa-0")
 }
 
+// TestRemoteVersionDifferentThanKubernetes verifies that when the internal store holds a
+// different RemoteVersion than the K8s CRD, the controller pushes the spec update to Kubernetes.
+func TestRemoteVersionDifferentThanKubernetes(t *testing.T) {
+	testTime := time.Now()
+	f := newFixture(t, testTime)
+
+	// K8s object has a high RemoteVersion from a previous RC config
+	k8sSpec := datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		Owner:         datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		RemoteVersion: pointer.Ptr[uint64](1000),
+	}
+	dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, testTime, k8sSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+	f.InformerObjects = []*unstructured.Unstructured{dpa}
+	f.Objects = []runtime.Object{dpaTyped}
+
+	// Internal store has a lower RemoteVersion (new/recreated RC config)
+	internalSpec := datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		Owner:         datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		RemoteVersion: pointer.Ptr[uint64](1),
+	}
+	dpaInternal := model.FakePodAutoscalerInternal{
+		Namespace:         "default",
+		Name:              "dpa-0",
+		Spec:              &internalSpec,
+		Generation:        1,
+		CreationTimestamp: testTime,
+	}
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
+
+	// The update reactor returns the object with an incremented generation
+	f.FakeClientCustomHook = func(client *fake.FakeDynamicClient) {
+		client.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			if action.GetSubresource() != "" {
+				return false, nil, nil
+			}
+			updateAction := action.(k8stesting.UpdateAction)
+			obj := updateAction.GetObject().(*unstructured.Unstructured)
+			ret = obj.DeepCopy()
+			ret.(*unstructured.Unstructured).SetGeneration(2)
+			return true, ret, nil
+		})
+	}
+
+	// Expect a spec update despite the lower RemoteVersion
+	expectedUpdate := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta: podAutoscalerMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         "default",
+			Name:              "dpa-0",
+			Generation:        1,
+			UID:               dpaTyped.UID,
+			CreationTimestamp: metav1.NewTime(testTime),
+		},
+		Spec: internalSpec,
+	}
+	f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
+	f.RunControllerSync(true, "default/dpa-0")
+}
+
 func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 	tests := []struct {
 		name      string

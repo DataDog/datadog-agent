@@ -1,0 +1,19 @@
+---
+enhancements:
+  - |
+    SBOM scans with the ``languages`` analyzer run up to five times faster on
+    a cold disk: they skip the files of OS packages, read files and
+    directories ahead of the analyzers, and open each file once.
+fixes:
+  - |
+    Fixed SBOM scans with the ``languages`` analyzer adding packages,
+    licenses, and dependencies from the Maven, Gradle, Go, Conan, Conda, pip,
+    Dart, and NuGet caches of the host running the Agent, and from the Maven
+    POMs in its working directory.
+  - |
+    Fixed SBOM scans reading ``package.json`` files outside the scanned
+    filesystem through a yarn workspace pattern that starts with ``../``.
+  - |
+    Fixed the Agent crashing during an SBOM scan of an executable named
+    ``java`` whose ELF headers give a read-only data section larger than the
+    available memory.

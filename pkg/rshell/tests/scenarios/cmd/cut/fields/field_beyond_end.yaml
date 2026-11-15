@@ -1,0 +1,14 @@
+description: Cut outputs empty line when requested field is beyond the number of fields.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f4 input.txt
+expect:
+  stdout: "\n"
+  stderr: ""
+  exit_code: 0

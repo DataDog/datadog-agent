@@ -34,7 +34,17 @@ pub fn prepare(_path: &Path) -> Result<()> {
 
 pub fn set_permissions(_path: &Path) {}
 
-pub fn cleanup(_path: &Path) {}
+/// Named pipes leave nothing on disk, so there is no ownership to track.
+pub struct BoundSocket;
+
+pub fn cleanup(_path: &Path, _bound: BoundSocket) {}
+
+/// Matches the Unix `serve` return.
+pub struct SocketCleanup;
+
+impl SocketCleanup {
+    pub async fn wait(self) {}
+}
 
 #[derive(Clone)]
 pub struct PipeCallerAuth {
@@ -152,7 +162,10 @@ impl AsyncWrite for NamedPipeIo {
     }
 }
 
-pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
+pub async fn serve<F>(
+    router: tonic::transport::server::Router,
+    shutdown: F,
+) -> Result<SocketCleanup>
 where
     F: Future<Output = ()>,
 {
@@ -194,7 +207,7 @@ where
     }
 
     info!("gRPC server stopped");
-    Ok(())
+    Ok(SocketCleanup)
 }
 
 /// Hands connected pipe instances to the gRPC server until it stops taking them.

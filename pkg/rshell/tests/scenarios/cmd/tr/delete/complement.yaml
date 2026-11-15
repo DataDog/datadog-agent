@@ -1,0 +1,10 @@
+description: tr -d -c deletes all bytes NOT in set1.
+input:
+  script: |+
+    cat <<'EOF' | tr -d -c 0-9
+    Phone: 01234 567890
+    EOF
+expect:
+  stdout: "01234567890"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,18 @@
+description: Same loop variable name reused across multiple for loops takes value from last loop.
+input:
+  script: |+
+    for i in a b; do echo $i; done
+    echo "after first: $i"
+    for i in x y z; do echo $i; done
+    echo "after second: $i"
+expect:
+  stdout: |+
+    a
+    b
+    after first: b
+    x
+    y
+    z
+    after second: z
+  stderr: ""
+  exit_code: 0

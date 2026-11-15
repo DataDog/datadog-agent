@@ -4,7 +4,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
-from tasks.flavor import AgentFlavor
+from tasks.flavor import AgentFlavor, FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import REPO_PATH
 from tasks.libs.common.go import go_build
@@ -21,6 +21,7 @@ def build(
     install_path=None,
     go_mod="readonly",
     enable_bazel=False,
+    fips_backend=FipsBackend.none,
 ):
     """Build the loader binary.
 
@@ -30,6 +31,8 @@ def build(
     if enable_bazel:
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
         build_binary_with_bazel("//cmd/loader:loader", bin_path=BIN_PATH)
         return
 
@@ -43,6 +46,7 @@ def build(
         gcflags=gcflags,
         env=env,
         bin_path=BIN_PATH,
+        fips_backend=fips_backend,
         mod=go_mod,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )

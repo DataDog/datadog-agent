@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a system-probe crash when reading DNS packets from the AF_PACKET ring
+    buffer. The TPACKET_V3 reader could read a block header before the kernel
+    had handed the block over; on a newly created ring the header could still
+    be zero, causing the reader to walk past the end of the block and crash.
+    Corrupted frames are now detected and skipped instead.

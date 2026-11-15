@@ -26,11 +26,24 @@
 // preemptible, which needs it hidden; the resolver then has to find it in
 // .symtab, the dynamic symbol table no longer carrying it.
 #ifdef OTEL_TLS_HIDDEN
+// Keeps otel_thread_ctx_v1 off offset 0 of the TLS block: aarch64 then gives
+// it a symbol-less TLSDESC whose addend already holds its offset, which the
+// resolver must not add a second time. Initialized so that it sits in .tdata,
+// ahead of .tbss, and exported so that --gc-sections keeps it unreferenced.
+__thread long otel_tls_ahead[8] = {1};
+
 __attribute__((visibility("hidden")))
 #else
 __attribute__((visibility("default")))
 #endif
 __thread struct otel_thread_ctx_record *otel_thread_ctx_v1 = NULL;
+
+#ifdef OTEL_TLS_BIG
+// Far more TLS than glibc keeps spare for objects loaded after startup, so a
+// dlopen of this object gets dynamic TLS. Exported so that --gc-sections keeps
+// it unreferenced.
+__thread char otel_tls_big[128 * 1024];
+#endif
 
 // otel_record_mode selects what a command leaves in otel_thread_ctx_v1 before
 // making its syscall.

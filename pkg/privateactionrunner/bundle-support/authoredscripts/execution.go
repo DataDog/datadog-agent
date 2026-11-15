@@ -12,9 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/scriptprocess"
 )
 
 const (
@@ -24,18 +23,8 @@ const (
 
 var errOutputLimitExceeded = errors.New("authored-script output limit exceeded")
 
-type commandController interface {
-	cancel() error
-	terminate() error
-}
-
 // Result contains the observable result of an authored-script execution.
-type Result struct {
-	ExitCode int
-	Stdout   string
-	Stderr   string
-	Duration time.Duration
-}
+type Result = scriptprocess.Result
 
 // ExecuteCommand runs an authored-script command with bounded output and process cleanup.
 func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
@@ -51,75 +40,14 @@ func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
 }
 
 func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Result, error) {
-	if cmd == nil {
-		return Result{}, errors.New("authored-script command is required")
-	}
-	if outputLimit <= 0 {
-		return Result{}, errors.New("authored-script output limit must be positive")
-	}
-
-	configureCommand(cmd)
-
-	stdout, stderr := util.NewLimitedStdoutStderrWritersPair(outputLimit)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-
-	start := time.Now()
-	controller, err := startCommand(cmd)
-	if err != nil {
-		result := Result{ExitCode: -1, Duration: time.Since(start)}
-		if errors.Is(err, os.ErrPermission) {
-			return result, executionDeniedError(err)
-		}
-		return result, err
-	}
-
-	waitCh := make(chan error, 1)
-	go func() {
-		waitCh <- cmd.Wait()
-	}()
-
-	var cancellationErr error
-	var runErr error
-	select {
-	case runErr = <-waitCh:
-	case <-ctx.Done():
-		cancellationErr = controller.cancel()
-		runErr = <-waitCh
-	case <-stdout.LimitReachedSignal():
-		cancellationErr = controller.cancel()
-		runErr = <-waitCh
-	}
-
-	terminationErr := controller.terminate()
-	result := Result{
-		ExitCode: -1,
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		Duration: time.Since(start),
-	}
-	if cmd.ProcessState != nil {
-		result.ExitCode = cmd.ProcessState.ExitCode()
-	}
-	if stdout.LimitReached() || stderr.LimitReached() {
+	result, err := scriptprocess.Run(ctx, cmd, outputLimit)
+	if errors.Is(err, scriptprocess.ErrOutputLimitExceeded) {
 		return result, fmt.Errorf("authored-script output exceeded %d bytes: %w", outputLimit, errOutputLimitExceeded)
 	}
-	if cancellationErr != nil {
-		if runErr != nil {
-			return result, errors.Join(runErr, fmt.Errorf("could not cancel authored-script command: %w", cancellationErr))
-		}
-		return result, fmt.Errorf("could not cancel authored-script command: %w", cancellationErr)
+	if startErr, ok := errors.AsType[*scriptprocess.StartError](err); ok && errors.Is(startErr, os.ErrPermission) {
+		return result, executionDeniedError(startErr.Err)
 	}
-	if runErr != nil && terminationErr != nil {
-		return result, errors.Join(runErr, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr))
-	}
-	if runErr != nil {
-		return result, runErr
-	}
-	if terminationErr != nil {
-		return result, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr)
-	}
-	return result, nil
+	return result, err
 }
 
 func formatExecutionError(ctx context.Context, result Result, err error) error {

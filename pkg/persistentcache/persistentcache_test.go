@@ -8,6 +8,8 @@ package persistentcache
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -28,6 +30,78 @@ func TestWritePersistentCache(t *testing.T) {
 	value, err = Read("myotherkey")
 	assert.Equal(t, "", value)
 	assert.Nil(t, err)
+}
+
+func TestWriteAtomicPersistentCache(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	runDir := filepath.Join(testDir, "run")
+	mockConfig.SetInTest("run_path", runDir)
+
+	// Subsequent writes replace the value without leaving temporary files.
+	key := "my:key"
+	require.NoError(t, WriteAtomic(key, "first"))
+	require.NoError(t, WriteAtomic(key, "second"))
+	value, err := Read(key)
+	require.NoError(t, err)
+	assert.Equal(t, "second", value)
+	files, err := os.ReadDir(filepath.Join(runDir, "my"))
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "key", files[0].Name())
+}
+
+func TestReplaceFile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source")
+	target := filepath.Join(dir, "target")
+	require.NoError(t, os.WriteFile(target, []byte("old"), 0600))
+	require.NoError(t, os.WriteFile(source, []byte("new"), 0600))
+
+	require.NoError(t, replaceFile(source, target))
+	content, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, "new", string(content))
+	_, err = os.Stat(source)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	require.Error(t, replaceFile(source, target))
+}
+
+func TestWriteAtomicPersistentCacheCleansUpAfterFailedReplacement(t *testing.T) {
+	runDir := filepath.Join(t.TempDir(), "run")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", runDir)
+	require.NoError(t, os.MkdirAll(filepath.Join(runDir, "blocked"), 0700))
+
+	require.Error(t, WriteAtomic("blocked", "value"))
+	files, err := os.ReadDir(runDir)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "blocked", files[0].Name())
+}
+
+func TestWriteAtomicPersistentCacheWindowsLongPath(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows path handling")
+	}
+	runDir := t.TempDir()
+	for len(runDir) < 260 {
+		runDir = filepath.Join(runDir, strings.Repeat("a", 32))
+		require.NoError(t, os.Mkdir(runDir, 0700))
+	}
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", runDir)
+	key := "my:key"
+	path, err := GetFileForKey(key)
+	require.NoError(t, err)
+	require.Greater(t, len(path), 260)
+
+	require.NoError(t, WriteAtomic(key, "old"))
+	require.NoError(t, WriteAtomic(key, "new"))
+	value, err := Read(key)
+	require.NoError(t, err)
+	assert.Equal(t, "new", value)
 }
 
 func TestWritePersistentCacheColons(t *testing.T) {

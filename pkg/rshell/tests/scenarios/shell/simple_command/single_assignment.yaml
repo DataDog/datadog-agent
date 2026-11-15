@@ -1,0 +1,13 @@
+description: Single variable assignment.
+input:
+  script: |+
+    a=
+    echo "$a"
+    a=value
+    echo "$a"
+expect:
+  stdout: |+
+
+    value
+  stderr: ""
+  exit_code: 0

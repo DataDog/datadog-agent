@@ -221,6 +221,8 @@ func minimalTranslatorFromConfig(
 	if err != nil {
 		return nil, err
 	}
+	// cumulativetodelta does not convert summaries, so the translator does it.
+	options = append(options, metrics.WithSummaryCumulativeToDelta())
 	logger := set.Logger.With(zap.String("component", "metrics translator"))
 	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
 }

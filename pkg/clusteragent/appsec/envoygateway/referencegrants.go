@@ -16,6 +16,7 @@ import (
 	gwapiv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -110,6 +111,9 @@ func (g *grantManager) AddNamespaceToGrant(ctx context.Context, namespace string
 				return nil
 			}
 		}
+		if !appsecconfig.IsManagedByDatadog(grant.GetLabels()) {
+			return fmt.Errorf("ReferenceGrant %s/%s was not created by the Datadog Cluster Agent and does not list namespace %s", g.namespace, referenceGrantName, namespace)
+		}
 	}
 
 	jsonPatch := []map[string]any{{
@@ -159,6 +163,11 @@ func (g *grantManager) RemoveNamespaceToGrant(ctx context.Context, namespace str
 		Get(ctx, referenceGrantName, metav1.GetOptions{})
 	if err != nil {
 		return err
+	}
+
+	if !appsecconfig.IsManagedByDatadog(unstructuredGrant.GetLabels()) {
+		g.logger.Warnf("Not updating ReferenceGrant %s/%s: it was not created by the Datadog Cluster Agent", g.namespace, referenceGrantName)
+		return nil
 	}
 
 	var grant gwapiv1beta1.ReferenceGrant

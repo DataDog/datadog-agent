@@ -12,7 +12,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
 
 _USE_RELATIVE_RPATHS = select({
@@ -52,7 +52,7 @@ pkg_filegroup(
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
             ":cws_instrumentation_binary",
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
@@ -163,112 +163,76 @@ pkg_install(
     srcs = [":conf_dir_files"],
 )
 
-rewrite_rpath(
-    name = "agent_binary_rpath",
-    destination = "{install_dir}/bin/agent",
-    inputs = ["//cmd/agent"],
-    use_relative_rpaths = _USE_RELATIVE_RPATHS,
-)
-
-pkg_files(
+agent_binary_for_package(
     name = "agent_binary",
-    srcs = [":agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = "bin/agent",
-)
-
-rewrite_rpath(
-    name = "process_agent_binary_rpath",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
-    inputs = ["//cmd/process-agent"],
+    target = "//cmd/agent",
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "process_agent_binary",
-    srcs = [":process_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
-)
-
-pkg_files(
-    name = "privateactionrunner_binary",
-    srcs = [
-        "//cmd/privateactionrunner",
-    ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-)
-
-pkg_files(
-    name = "trace_agent_binary",
-    srcs = ["//cmd/trace-agent"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-)
-
-pkg_files(
-    name = "secret_generic_connector_binary",
-    srcs = ["//cmd/secret-generic-connector"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = select({
-        "@platforms//os:windows": "bin/agent",
-        "//conditions:default": "embedded/bin",
-    }),
-)
-
-rewrite_rpath(
-    name = "security_agent_binary_rpath",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
-    inputs = ["//cmd/security-agent"],
+    target = "//cmd/process-agent",
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
-    name = "security_agent_binary",
-    srcs = [":security_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+agent_binary_for_package(
+    name = "privateactionrunner_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/privateactionrunner",
+)
+
+agent_binary_for_package(
+    name = "trace_agent_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/trace-agent",
+)
+
+agent_binary_for_package(
+    name = "secret_generic_connector_binary",
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = "//cmd/secret-generic-connector",
 )
 
-pkg_files(
+agent_binary_for_package(
+    name = "security_agent_binary",
+    patch_rpath = True,
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/security-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
+agent_binary_for_package(
     name = "cws_instrumentation_binary",
-    srcs = ["//cmd/cws-instrumentation"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    target = "//cmd/cws-instrumentation",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "systray_binary",
-    srcs = ["//cmd/systray"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+    target = "//cmd/systray",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "installer_binary",
-    srcs = ["//cmd/installer"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "",
         "//conditions:default": "embedded/bin",
     }),
-    renames = select({
-        "@platforms//os:windows": {"//cmd/installer": "datadog-installer.exe"},
-        "//conditions:default": {},
-    }),
+    target = "//cmd/installer",
 )
 
 pkg_files(
@@ -310,4 +274,67 @@ pkg_install(
     name = "install_system_probe",
     srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "system_probe_ebpf_objects",
+    srcs = [
+        "//pkg/ebpf:prebuilt_objects",
+        "//pkg/ebpf/c:COPYING",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf",
+)
+
+pkg_files(
+    name = "system_probe_co_re_objects",
+    srcs = ["//pkg/ebpf:co_re_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/co-re",
+)
+
+pkg_files(
+    name = "system_probe_runtime_sources",
+    srcs = ["//pkg/ebpf:runtime_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/runtime",
+)
+
+# clang-bpf only. llc-bpf stays a toolchain file.
+pkg_files(
+    name = "system_probe_llvm_bpf",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "744"),
+    prefix = "embedded/bin",
+)
+
+# Not wired into :all_files or Omnibus. FIPS omits the binary.
+pkg_filegroup(
+    name = "system_probe_install_dir_files",
+    srcs = [
+        ":system_probe_co_re_objects",
+        ":system_probe_ebpf_objects",
+        ":system_probe_llvm_bpf",
+        ":system_probe_runtime_sources",
+    ] + select({
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":system_probe_binary"],
+    }),
+)
+
+pkg_install(
+    name = "install_system_probe_install_dir",
+    srcs = [":system_probe_install_dir_files"],
+    destdir_flag = "//:install_dir",
+    target_compatible_with = ["@platforms//os:linux"],
 )

@@ -1,0 +1,14 @@
+description: du -b reports apparent size in bytes for a single file.
+setup:
+  files:
+    - path: file.txt
+      content: "12345"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -b file.txt
+expect:
+  stdout: |+
+    5	file.txt
+  stderr: |+
+  exit_code: 0
