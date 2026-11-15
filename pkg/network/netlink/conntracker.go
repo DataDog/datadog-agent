@@ -129,24 +129,20 @@ func isNetlinkConntrackSupported() bool {
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
+	var (
+		err         error
+		conntracker Conntracker
+	)
+
 	if !isNetlinkConntrackSupported() {
 		return nil, ErrNotPermitted
 	}
 
-	return initializeConntracker(config.ConntrackInitTimeout, func() (Conntracker, error) {
-		return newConntrackerOnce(config, telemetrycomp)
-	})
-}
-
-func initializeConntracker(timeout time.Duration, initialize func() (Conntracker, error)) (Conntracker, error) {
-	var (
-		conntracker Conntracker
-		err         error
-	)
 	done := make(chan struct{})
 	abandoned := make(chan struct{})
+
 	go func() {
-		conntracker, err = initialize()
+		conntracker, err = newConntrackerOnce(config, telemetrycomp)
 		select {
 		case done <- struct{}{}:
 			// The caller received ownership of the tracker.
@@ -160,9 +156,9 @@ func initializeConntracker(timeout time.Duration, initialize func() (Conntracker
 	select {
 	case <-done:
 		return conntracker, err
-	case <-time.After(timeout):
+	case <-time.After(config.ConntrackInitTimeout):
 		close(abandoned)
-		return nil, fmt.Errorf("could not initialize conntrack after: %s", timeout)
+		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
 	}
 }
 
