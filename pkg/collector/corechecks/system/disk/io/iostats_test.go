@@ -7,6 +7,7 @@
 package io
 
 import (
+	"fmt"
 	"regexp"
 	"runtime"
 	"testing"
@@ -237,7 +238,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 }
 
 func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
-	// lowercase_device_tag keeps accepting YAML 1.1 spellings and string booleans; the field is preset to true so the false direction is observable.
+	// lowercase_device_tag keeps accepting the YAML 1.1 spellings yes/no/on/off; the field is preset to true so the false direction is observable.
 	ioCheck := new(IOCheck)
 	mock := mocksender.NewMockSender(t, ioCheck.ID())
 	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: yes\n"), "test", "provider"))
@@ -249,16 +250,13 @@ func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
 	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: off\n"), "test", "provider"))
 	assert.False(t, ioCheck.lowercaseDeviceTag)
 
-	// String booleans also apply; values that are not boolean spellings keep the previous value with a warning.
-	ioCheck = new(IOCheck)
-	ioCheck.lowercaseDeviceTag = true
-	mock = mocksender.NewMockSender(t, ioCheck.ID())
-	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: \"false\"\n"), "test", "provider"))
-	assert.False(t, ioCheck.lowercaseDeviceTag)
-
-	ioCheck = new(IOCheck)
-	ioCheck.lowercaseDeviceTag = true
-	mock = mocksender.NewMockSender(t, ioCheck.ID())
-	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: maybe\n"), "test", "provider"))
-	assert.True(t, ioCheck.lowercaseDeviceTag)
+	// Case variants, single letters and string booleans are not accepted:
+	// they keep the previous value with a warning.
+	for _, value := range []string{"Yes", "y", "\"false\"", "maybe"} {
+		ioCheck = new(IOCheck)
+		ioCheck.lowercaseDeviceTag = true
+		mock = mocksender.NewMockSender(t, ioCheck.ID())
+		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", value)), "test", "provider"))
+		assert.True(t, ioCheck.lowercaseDeviceTag, "expected %s to be ignored", value)
+	}
 }

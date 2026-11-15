@@ -5,26 +5,20 @@
 
 package check
 
-// ToLenientBool converts a scalar from a generically parsed YAML map into a
-// boolean, accepting real booleans, the true/false strings and the YAML 1.1
-// spellings (yes/no/on/off/y/n) that yaml v2 resolved but v3 leaves as
+// YAMLToBool converts a scalar read from a generically parsed YAML map into a
+// boolean, accepting real booleans and the lowercase YAML 1.1 spellings
+// yes/no/on/off that yaml v2 resolved to booleans but yaml v3 leaves as
 // strings. Only use it for options documented as booleans. ok is false when
 // the value is not an accepted spelling (including nil).
-func ToLenientBool(value interface{}) (b bool, ok bool) {
+func YAMLToBool(value interface{}) (b bool, ok bool) {
 	switch v := value.(type) {
 	case bool:
 		return v, true
 	case string:
 		switch v {
-		case "true", "True", "TRUE",
-			"yes", "Yes", "YES",
-			"on", "On", "ON",
-			"y", "Y":
+		case "yes", "on":
 			return true, true
-		case "false", "False", "FALSE",
-			"no", "No", "NO",
-			"off", "Off", "OFF",
-			"n", "N":
+		case "no", "off":
 			return false, true
 		}
 	}
