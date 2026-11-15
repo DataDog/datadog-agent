@@ -481,6 +481,7 @@ func (p *EBPFLessProbe) Init() error {
 // Stop the probe
 func (p *EBPFLessProbe) Stop() {
 	p.server.GracefulStop()
+	// Reject new clients before closing existing ones.
 	p.cancelFnc()
 
 	p.Lock()
@@ -551,6 +552,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 	}
 
 	p.Lock()
+	// A late client could miss shutdown's close loop and block in Read.
 	if p.ctx.Err() != nil {
 		p.Unlock()
 		conn.Close()
