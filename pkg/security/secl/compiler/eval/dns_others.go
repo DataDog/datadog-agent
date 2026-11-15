@@ -8,8 +8,8 @@
 // Package eval holds eval related files
 package eval
 
-import "github.com/alecthomas/participle/v2/lexer"
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 
-func evaluatorFromRootDomainHandler(_ string, pos lexer.Position, _ *State) (interface{}, lexer.Position, error) {
+func evaluatorFromRootDomainHandler(_ string, pos ast.Position, _ *State) (interface{}, ast.Position, error) {
 	return nil, pos, NewError(pos, "handler not implemented for this platform")
 }

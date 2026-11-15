@@ -1,0 +1,13 @@
+description: uniq -w 0 treats all lines as identical.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\nabcd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -w 0 input.txt
+expect:
+  stdout: "abc\n"
+  stderr: ""
+  exit_code: 0

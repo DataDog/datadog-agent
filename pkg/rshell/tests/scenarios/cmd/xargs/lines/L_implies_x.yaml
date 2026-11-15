@@ -1,0 +1,8 @@
+description: xargs -L treats each input line as an indivisible batch (GNU implies -x); when the batch can't fit -s, exit 1 instead of silently splitting.
+input:
+  script: |+
+    printf 'a b c' | xargs -L1 -s 8 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

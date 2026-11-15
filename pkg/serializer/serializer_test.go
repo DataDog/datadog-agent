@@ -8,7 +8,11 @@
 package serializer
 
 import (
+	"bytes"
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -35,8 +40,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -129,6 +136,10 @@ type testPayload struct {
 
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
+
 func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
 
 func (p *testPayload) MarshalSplitCompress(_ *marshaler.BufferContext) (transaction.BytesPayloads, error) {
@@ -163,6 +174,10 @@ func (p *testPayload) DescribeItem(_ int) string { return "description" }
 type testErrorPayload struct{}
 
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, errors.New("some error") }
+
+func (p *testErrorPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
 
 func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, errors.New("some error") }
 
@@ -493,14 +508,16 @@ func TestSendMetadata(t *testing.T) {
 			compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			expectedHeaders := s.jsonExtraHeadersWithCompression.Clone()
+			expectedHeaders.Set("DD-Payload-Type", "agent_metadata")
+			f.On("SubmitMetadata", jsonPayloads, expectedHeaders).Return(nil).Times(1)
 
 			payload := &testPayload{compressor: compressor}
 			err := s.SendMetadata(payload)
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(errors.New("some error")).Times(1)
+			f.On("SubmitMetadata", jsonPayloads, expectedHeaders).Return(errors.New("some error")).Times(1)
 			err = s.SendMetadata(payload)
 			require.NotNil(t, err)
 			f.AssertExpectations(t)
@@ -510,6 +527,94 @@ func TestSendMetadata(t *testing.T) {
 			require.NotNil(t, err)
 		})
 	}
+}
+
+type typedTestPayload struct {
+	testPayload
+	payloadType marshaler.MetadataPayloadType
+}
+
+func (p *typedTestPayload) PayloadType() marshaler.MetadataPayloadType { return p.payloadType }
+
+func TestSendMetadataPayloadTypeHeader(t *testing.T) {
+	tests := []struct {
+		name   string
+		submit string
+		send   func(s *Serializer, m marshaler.JSONMarshaler) error
+		typ    marshaler.MetadataPayloadType
+		// want is the literal header value intake expects, so that a typo in a constant fails the test
+		want string
+	}{
+		{"metadata", "SubmitMetadata", (*Serializer).SendMetadata, marshaler.MetadataPayloadTypeCheck, "check_metadata"},
+		{"host", "SubmitHostMetadata", (*Serializer).SendHostMetadata, marshaler.MetadataPayloadTypeHostV5, "host_v5"},
+		{"agentchecks", "SubmitAgentChecksMetadata", (*Serializer).SendAgentchecksMetadata, marshaler.MetadataPayloadTypeAgentChecks, "agent_checks"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			f := &forwarder.MockedForwarder{}
+			compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+			f.On(tc.submit, mock.Anything, mock.MatchedBy(func(h http.Header) bool {
+				return h.Get("DD-Payload-Type") == tc.want
+			})).Return(nil).Times(1)
+
+			payload := &typedTestPayload{testPayload: testPayload{compressor: compressor}, payloadType: tc.typ}
+			require.NoError(t, tc.send(s, payload))
+			f.AssertExpectations(t)
+			// the shared headers must not be mutated
+			assert.Empty(t, s.jsonExtraHeadersWithCompression.Get("DD-Payload-Type"))
+		})
+	}
+}
+
+// untypedTestPayload does not implement marshaler.TypedJSONMarshaler, like payloads built outside this repository.
+type untypedTestPayload struct{}
+
+func (p *untypedTestPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
+
+func TestSendMetadataWithoutPayloadType(t *testing.T) {
+	mockConfig := configmock.New(t)
+	f := &forwarder.MockedForwarder{}
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+
+	f.On("SubmitMetadata", mock.Anything, mock.MatchedBy(func(h http.Header) bool {
+		_, ok := h[http.CanonicalHeaderKey("DD-Payload-Type")]
+		return !ok
+	})).Return(nil).Times(1)
+
+	require.NoError(t, s.SendMetadata(&untypedTestPayload{}))
+	f.AssertExpectations(t)
+}
+
+func TestSendMetadataDoesNotLogPayload(t *testing.T) {
+	var logs bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, pkglog.DebugStr)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		logger.Close()
+	})
+
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, pkglog.NewWrapper(2), "testhost")
+	f.On("SubmitMetadata", mock.Anything, mock.Anything).Return(nil).Times(1)
+
+	payload := rawJSONPayload(`{"agent_metadata":{"enc_info":{"handles":["my_key"],"hash_secret_id":{"my_key":"234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa"}}}}`)
+	require.NoError(t, s.SendMetadata(payload))
+	f.AssertExpectations(t)
+	logger.Flush()
+
+	assert.Contains(t, logs.String(), "Sending metadata payload")
+	assert.NotContains(t, logs.String(), "enc_info")
+	assert.NotContains(t, logs.String(), "my_key")
+	assert.NotContains(t, logs.String(), "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa")
 }
 
 func TestSendProcessesMetadata(t *testing.T) {
@@ -589,9 +694,49 @@ func TestSendWithDisabledKind(t *testing.T) {
 			f.AssertNotCalled(t, "SubmitSketchSeries")
 
 			// We never disable metadata
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			f.On("SubmitMetadata", jsonPayloads, mock.Anything).Return(nil).Times(1)
 			s.SendMetadata(payload)
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
 	}
+}
+
+type rawJSONPayload []byte
+
+func (p rawJSONPayload) MarshalJSON() ([]byte, error) { return p, nil }
+
+func (p rawJSONPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
+
+func TestSendMetadataTooBig(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("serializer_compressor_kind", compression.ZstdKind)
+
+	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+	s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+	dropMetrics := newMetadataDropMetrics(telemetryimpl.NewMock(t))
+	s.metadataDropMetrics = dropMetrics
+
+	// random bytes don't compress, so the payload exceeds the 2MiB compressed limit
+	raw := make([]byte, 3<<20)
+	_, err := cryptorand.Read(raw)
+	require.NoError(t, err)
+	payload, err := json.Marshal(base64.StdEncoding.EncodeToString(raw))
+	require.NoError(t, err)
+
+	err = s.SendMetadata(rawJSONPayload(payload))
+	require.ErrorContains(t, err, "metadata payload was too big to send")
+	f.AssertNotCalled(t, "SubmitMetadata", mock.Anything, mock.Anything)
+
+	assert.Equal(t, float64(1), dropMetrics.payloads.WithValues(split.CompressedLimit.String()).Get())
+	assert.Zero(t, dropMetrics.payloads.WithValues(split.UncompressedLimit.String()).Get())
+
+	compressed := dropMetrics.bytes.WithValues("compressed").Get()
+	assert.Equal(t, uint64(1), compressed.Count)
+	assert.Greater(t, compressed.Sum, float64(2<<20))
+	uncompressed := dropMetrics.bytes.WithValues("uncompressed").Get()
+	assert.Equal(t, uint64(1), uncompressed.Count)
+	assert.Equal(t, float64(len(payload)), uncompressed.Sum)
 }

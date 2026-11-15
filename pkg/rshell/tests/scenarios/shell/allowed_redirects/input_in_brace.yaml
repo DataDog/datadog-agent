@@ -1,0 +1,13 @@
+description: Input redirection works inside a brace group.
+setup:
+  files:
+    - path: data.txt
+      content: "from brace"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    { cat < data.txt; }
+expect:
+  stdout: "from brace"
+  stderr: ""
+  exit_code: 0

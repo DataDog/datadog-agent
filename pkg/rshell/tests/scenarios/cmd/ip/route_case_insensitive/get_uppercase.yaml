@@ -1,0 +1,12 @@
+# ip route GET (uppercase) is rejected — subcommand parsing is case-sensitive,
+# matching real iproute2 behavior.
+description: ip route uppercase subcommand (GET) is rejected (case-sensitive, matches iproute2).
+skip_assert_against_bash: true # ip is a rshell builtin; bash does not have it
+input:
+  script: |+
+    ip route GET
+expect:
+  stdout: |+
+  stderr: |+
+    Command "GET" is unknown, try "ip route help".
+  exit_code: 255

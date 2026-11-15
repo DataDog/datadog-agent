@@ -1,0 +1,11 @@
+# Scenario runners do not grant systemd capabilities by default.
+skip_assert_against_bash: true
+description: journalctl enforces the shared systemd allowlist
+input:
+  script: |+
+    journalctl -u api.service
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: system service "api.service" is not allowed for action "read"
+  exit_code: 1

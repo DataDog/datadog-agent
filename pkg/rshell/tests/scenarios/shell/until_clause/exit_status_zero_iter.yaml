@@ -1,0 +1,12 @@
+description: An until loop that runs zero iterations exits 0.
+input:
+  script: |+
+    until true; do
+      false
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

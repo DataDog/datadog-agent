@@ -78,6 +78,8 @@ func standaloneOTelAgentProvisioner(deployFn func(config.Env, *kubernetes.Provid
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)
@@ -142,22 +144,68 @@ func podReadRule() *rbacv1.PolicyRuleArgs {
 //
 // The otel-agent opts in to nodefilter through the environment, while
 // TestDogtelTagParity covers the equivalent
-// extensions.dogtel.use_kubelet_collector key.
+// extensions.dogtel.use_kubelet_collector key. It gets no DD_HOSTNAME, so that
+// it resolves its hostname as a deployment set up for the upstream collector
+// would have it: from the node name the fixture passes through the downward API
+// and the cluster name in OTEL_RESOURCE_ATTRIBUTES.
 func TestDogtelNodefilter(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelNodefilterTestSuite{dogtelStandaloneTestSuite{workloadmetaCollector: "nodefilter"}},
 		e2e.WithProvisioner(dogtelStandaloneProvisioner(
 			otelstandalone.WithClusterRoleRules(podReadRule()),
-			otelstandalone.WithExtraEnvVars(&pulumicorev1.EnvVarArgs{
-				Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
-				Value: pulumi.String("false"),
-			}),
+			otelstandalone.WithoutDefaultHostname(),
+			otelstandalone.WithExtraEnvVars(
+				&pulumicorev1.EnvVarArgs{
+					Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
+					Value: pulumi.String("false"),
+				},
+				&pulumicorev1.EnvVarArgs{
+					Name:  pulumi.String("OTEL_RESOURCE_ATTRIBUTES"),
+					Value: pulumi.String("k8s.cluster.name=" + dogtelNodefilterClusterName),
+				},
+			),
 		)),
 		e2e.WithCoverageRequired(map[string]bool{
 			"agent":      false,
 			"otel-agent": true,
 		}),
 	)
+}
+
+// dogtelNodefilterClusterName is the cluster name TestDogtelNodefilter gives
+// the otel-agent in OTEL_RESOURCE_ATTRIBUTES. It matches the k8s.cluster.name
+// that dogtel-standalone.yml sets on Kubernetes objects.
+const dogtelNodefilterClusterName = "dogtel-standalone-e2e"
+
+// TestDogtelHostnameWithoutKubelet checks that, without DD_HOSTNAME nor
+// kubelet access, the otel-agent names its host <node>-<cluster>, from the node
+// name it reads from the environment and the cluster name in
+// OTEL_RESOURCE_ATTRIBUTES. It looks at otel.ddot_collector.metrics.running,
+// which carries the agent's own hostname, unlike the telemetry it forwards,
+// whose hostname comes from that telemetry's k8s.node.name.
+func (s *dogtelNodefilterTestSuite) TestDogtelHostnameWithoutKubelet() {
+	appLabel := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
+	})
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), res.Items, "no otel-agent pod found with app label %q", appLabel)
+	want := res.Items[0].Spec.NodeName + "-" + dogtelNodefilterClusterName
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("otel.ddot_collector.metrics.running")
+		require.NoError(c, err)
+		require.NotEmpty(c, metrics, "expected otel.ddot_collector.metrics.running from standalone otel-agent")
+		var hosts []string
+		for _, metric := range metrics {
+			for _, resource := range metric.Resources {
+				if resource.Type == "host" {
+					hosts = append(hosts, resource.Name)
+				}
+			}
+		}
+		assert.Contains(c, hosts, want)
+	}, 5*time.Minute, 10*time.Second, "otel.ddot_collector.metrics.running not reported under hostname %q", want)
 }
 
 // TestDogtelNoKubeletAccess checks that the otel-agent's ServiceAccount can
@@ -305,6 +353,8 @@ func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(coreAgentNamespace),

@@ -1,0 +1,8 @@
+description: Exit with code 2 returns the common usage error code.
+input:
+  script: |+
+    exit 2
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 2

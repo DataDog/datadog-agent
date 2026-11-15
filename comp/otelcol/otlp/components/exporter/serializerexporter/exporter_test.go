@@ -695,6 +695,50 @@ func TestGaugeIntervalOptionFromFeatureGate(t *testing.T) {
 	}
 }
 
+func TestSummaryCountSumAreDeltas(t *testing.T) {
+	newSummary := func(count uint64, sum float64, ts pcommon.Timestamp) pmetric.Metrics {
+		md := pmetric.NewMetrics()
+		m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+		m.SetName("test.summary")
+		dp := m.SetEmptySummary().DataPoints().AppendEmpty()
+		dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+		dp.SetTimestamp(ts)
+		dp.SetCount(count)
+		dp.SetSum(sum)
+		return md
+	}
+	for _, lossless := range []bool{false, true} {
+		t.Run(fmt.Sprintf("lossless=%t", lossless), func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+			set := componenttest.NewNopTelemetrySettings()
+			attributesTranslator, err := attributes.NewTranslator(set)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-host", nil })
+			buildTranslator := translatorFromConfig
+			if lossless {
+				buildTranslator = minimalTranslatorFromConfig
+			}
+			tr, err := buildTranslator(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			// The first point only primes the cache.
+			_, err = tr.MapMetrics(t.Context(), newSummary(10, 100, pcommon.Timestamp(60e9)), &serializerConsumer{hosts: make(map[string]struct{})}, nil)
+			require.NoError(t, err)
+			consumer := &serializerConsumer{hosts: make(map[string]struct{})}
+			_, err = tr.MapMetrics(t.Context(), newSummary(15, 150, pcommon.Timestamp(120e9)), consumer, nil)
+			require.NoError(t, err)
+
+			got := map[string]float64{}
+			for _, s := range consumer.series {
+				assert.Equal(t, metrics.APICountType, s.MType, s.Name)
+				require.Len(t, s.Points, 1)
+				got[s.Name] = s.Points[0].Value
+			}
+			assert.Equal(t, map[string]float64{"test.summary.count": 5, "test.summary.sum": 50}, got)
+		})
+	}
+}
+
 func TestMetricPrefix(t *testing.T) {
 	testMetricPrefixWithFeatureGates(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
 	testMetricPrefixWithFeatureGates(t, false, "system.memory.usage", "otel.system.memory.usage")

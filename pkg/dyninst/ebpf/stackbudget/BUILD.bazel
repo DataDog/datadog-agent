@@ -12,18 +12,24 @@ go_library(
 dd_agent_go_test(
     name = "stackbudget_test",
     srcs = ["stackbudget_test.go"],
-    data = [
-        "//pkg/dyninst/ebpf:dyninst_event.aarch64",
-        "//pkg/dyninst/ebpf:dyninst_event.x86_64",
-        "//pkg/dyninst/ebpf:dyninst_event-debug.aarch64",
-        "//pkg/dyninst/ebpf:dyninst_event-debug.x86_64",
-    ],
+    data = select({
+        "@platforms//os:linux": [
+            "//pkg/dyninst/ebpf:dyninst_event.aarch64",
+            "//pkg/dyninst/ebpf:dyninst_event.x86_64",
+            "//pkg/dyninst/ebpf:dyninst_event-debug.aarch64",
+            "//pkg/dyninst/ebpf:dyninst_event-debug.x86_64",
+        ],
+        "//conditions:default": [],  # for dyninst_event-independent tests, e.g. TestInvalidateStackPointers
+    }),
     embed = [":stackbudget"],
-    env = {
-        "DYNINST_EBPF_OBJ_ARM64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.aarch64)",
-        "DYNINST_EBPF_OBJ_ARM64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.aarch64)",
-        "DYNINST_EBPF_OBJ_X86_64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.x86_64)",
-        "DYNINST_EBPF_OBJ_X86_64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.x86_64)",
-    },
+    env = select({
+        "@platforms//os:linux": {
+            "DYNINST_EBPF_OBJ_ARM64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.aarch64)",
+            "DYNINST_EBPF_OBJ_ARM64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.aarch64)",
+            "DYNINST_EBPF_OBJ_X86_64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.x86_64)",
+            "DYNINST_EBPF_OBJ_X86_64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.x86_64)",
+        },
+        "//conditions:default": {},
+    }),
     deps = ["//pkg/util/safeelf"],
 )

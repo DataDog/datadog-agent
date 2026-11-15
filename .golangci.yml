@@ -415,6 +415,8 @@ linters:
           msg: use pkg/config/mock instead for tests or the config component
         - pattern: RevertFinishedBackToBuilder
           msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
+        - pattern: ^.*\.SetSensitive$
+          msg: "SetSensitive must only be called by the code generated from the config schema: set `sensitive: true` on the setting in pkg/config/schema/yaml instead."
       analyze-types: true
 
   exclusions:
@@ -444,6 +446,10 @@ linters:
       text: '`context` is unused'
     - path: (.+)\.go$
       text: '`id` is unused'
+    # SetSensitive is called by the code generated from the config schema and tested in nodetreemodel
+    - path: pkg/config/(setup/generatedsettings(_local)?|nodetreemodel)/
+      linters: [forbidigo]
+      text: SetSensitive
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:

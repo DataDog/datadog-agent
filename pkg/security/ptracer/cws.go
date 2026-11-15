@@ -24,6 +24,7 @@ import (
 	"github.com/cenkalti/backoff/v7"
 	"github.com/vmihailenco/msgpack/v5"
 
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
@@ -45,15 +46,16 @@ var (
 
 // Opts defines ptracer options
 type Opts struct {
-	Creds            Creds
-	Verbose          bool
-	Debug            bool
-	Async            bool
-	StatsDisabled    bool
-	ProcScanDisabled bool
-	ScanProcEvery    time.Duration
-	SeccompDisabled  bool
-	AttachedCb       func()
+	Creds               Creds
+	Verbose             bool
+	Debug               bool
+	Async               bool
+	StatsDisabled       bool
+	ProcScanDisabled    bool
+	ScanProcEvery       time.Duration
+	SeccompDisabled     bool
+	SpanContextDisabled bool
+	AttachedCb          func()
 
 	// internal
 	mode ebpfless.Mode
@@ -84,6 +86,7 @@ type CWSPtracerCtx struct {
 	processContextReader func(processIdentity) (*ebpfless.SyscallMsg, error)
 	helloMsg             *ebpfless.Message
 	processCache         *ProcessCache
+	otelTarget           *otelthreadctx.Target
 	traceesReported      []int
 	stopSignalForwarder  func()
 }
@@ -348,6 +351,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 	ctx.msgDataChan = make(chan []byte, 100000)
 
 	ctx.processCache = NewProcessCache()
+	ctx.otelTarget = otelthreadctx.NewTarget(otelProcRoot)
 
 	ctx.helloMsg = &ebpfless.Message{
 		Type: ebpfless.MessageTypeHello,

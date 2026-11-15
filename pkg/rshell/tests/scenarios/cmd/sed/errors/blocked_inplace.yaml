@@ -1,0 +1,14 @@
+description: The -i flag is refused outside remediation mode.
+# skip: -i is a remediation-mode-only capability in rshell (see
+# tests/scenarios/cmd/sed/in_place/ for the remediation-mode-enabled
+# behaviour), not an unconditionally blocked flag as in GNU sed's absence
+# of a sandbox concept.
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "test" | sed -i 's/test/replaced/'
+expect:
+  stdout: ""
+  stderr: |+
+    sed: -i: in-place editing requires remediation mode
+  exit_code: 1

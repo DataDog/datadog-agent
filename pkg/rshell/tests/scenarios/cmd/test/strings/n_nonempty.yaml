@@ -1,0 +1,8 @@
+description: "test -n on a non-empty string returns true"
+input:
+  script: |+
+    test -n "any-string"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,23 @@
+description: Break 0 in a nested loop unwinds every enclosing loop, not just the innermost one.
+input:
+  script: |+
+    for i in 1 2; do
+      echo outer $i
+      for j in 1 2; do
+        echo inner $i $j
+        break 0
+        echo unreached $i $j
+      done
+      echo after-inner $i
+    done
+    echo done
+expect:
+  stdout: |+
+    outer 1
+    inner 1 1
+    done
+  stderr_contains:
+    - "break"
+    - "0"
+    - "loop count out of range"
+  exit_code: 0

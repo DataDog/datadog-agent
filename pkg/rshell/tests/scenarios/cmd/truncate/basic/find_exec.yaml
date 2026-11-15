@@ -1,0 +1,19 @@
+# Tests the child CallContext dispatch path (find -exec), which is a separate
+# CallContext construction from the main dispatch in runner_exec.go.
+description: truncate invoked via find -exec works in remediation mode.
+setup:
+  files:
+    - path: big.log
+      content: "lots of log data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    find . -name "*.log" -exec truncate -s 0 {} \;
+    wc -c < big.log
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

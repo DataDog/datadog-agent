@@ -191,7 +191,11 @@ namespace Datadog.CustomActions
 
         private void ConfigureRegistryPermissions()
         {
-            // Necessary to allow the ddagentuser to read the registry
+            // Replace explicit rules on the installation key, including old Agent-account
+            // grants (current or previous account), while leaving inheritance enabled.
+            // Inherited rules from the parent remain; this does not revoke access granted
+            // through the parent or a group. Crash-report checkpoints are written to
+            // the Agent's persistent file cache instead of this registry subtree.
             var key = _registryServices.CreateRegistryKey(Registries.LocalMachine,
                 Constants.DatadogAgentRegistryKey);
             if (key != null)
@@ -206,12 +210,8 @@ namespace Datadog.CustomActions
                     new SecurityIdentifier("BA"),
                     RegistryRights.FullControl,
                     AccessControlType.Allow));
-                // Give ddagentuser full access, important so it can read settings
-                // TODO: Switch to readonly
-                registrySecurity.AddAccessRule(new RegistryAccessRule(
-                    _ddAgentUserSID,
-                    RegistryRights.FullControl,
-                    AccessControlType.Allow));
+                // false leaves inheritance enabled; preserveInheritance (true) is ignored
+                // in this case by ObjectSecurity.SetAccessRuleProtection.
                 registrySecurity.SetAccessRuleProtection(false, true);
                 key.SetAccessControl(registrySecurity);
             }

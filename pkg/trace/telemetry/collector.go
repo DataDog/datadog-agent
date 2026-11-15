@@ -108,6 +108,11 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 
 	var endpoints []config.Endpoint
 	for _, endpoint := range cfg.TelemetryConfig.Endpoints {
+		if endpoint.HasPendingDelegatedAuth {
+			// A pending delegated-auth endpoint has no key yet; skip it rather than send
+			// with an empty one.
+			continue
+		}
 		u, err := url.Parse(endpoint.Host)
 		if err != nil {
 			continue

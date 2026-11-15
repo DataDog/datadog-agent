@@ -27,6 +27,7 @@ go_library(
         "replicaset.go",
         "role.go",
         "rolebinding.go",
+        "secret.go",
         "service.go",
         "serviceaccount.go",
         "statefulset.go",

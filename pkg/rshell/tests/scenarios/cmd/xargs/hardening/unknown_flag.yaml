@@ -1,0 +1,8 @@
+description: xargs rejects unknown flags with exit code 1.
+input:
+  script: |+
+    xargs --not-a-flag
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

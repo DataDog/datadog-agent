@@ -1,0 +1,13 @@
+description: head -n 1 outputs only the first line of a multi-line file.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 1 file.txt
+expect:
+  stdout: "alpha\n"
+  stderr: ""
+  exit_code: 0

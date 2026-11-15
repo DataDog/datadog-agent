@@ -1,0 +1,11 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Negating an unknown command (exit 127) produces exit code 0.
+input:
+  script: |+
+    ! nonexistent_command_xyz
+expect:
+  stdout: ""
+  stderr_contains:
+    - "unknown command"
+  exit_code: 0

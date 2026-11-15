@@ -3,12 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import cast
+from unittest.mock import MagicMock, patch
 
 from invoke.context import Context, MockContext
 
-from tasks.kernel_matrix_testing.setup import _topological_sort_requirements
+from tasks.kernel_matrix_testing.setup import _topological_sort_requirements, check_requirements
 from tasks.kernel_matrix_testing.setup.common import Pulumi
-from tasks.kernel_matrix_testing.setup.requirement import Requirement
+from tasks.kernel_matrix_testing.setup.requirement import Requirement, RequirementState
 from tasks.kernel_matrix_testing.setup.utils import _patch_config_lines, ensure_options_in_config
 from tasks.libs.common.status import Status
 
@@ -126,7 +127,7 @@ intopt = 4
             temp_file.write(self.options_file_content.encode("utf-8"))
             temp_file.close()
 
-            ctx = MockContextWithTempFile(re.compile(rf"sudo mv ([^ ]+) {temp_file.name}"))
+            ctx = MockContextWithTempFile(re.compile(rf"sudo -n mv ([^ ]+) {temp_file.name}"))
 
             incorrect_options = ensure_options_in_config(
                 cast(Context, ctx), Path(temp_file.name), self.options, change=True, write_with_sudo=True
@@ -169,3 +170,22 @@ class TestTopologicalSortRequirements(unittest.TestCase):
         dependentIndex = result.index(reqs[0])
 
         self.assertGreater(dependentIndex, baseIndex)
+
+
+class TestCheckRequirementsSudoRefresh(unittest.TestCase):
+    @patch("tasks.kernel_matrix_testing.setup.ensure_sudo_privileges")
+    @patch("tasks.kernel_matrix_testing.setup.is_root", return_value=False)
+    @patch("tasks.kernel_matrix_testing.setup.authenticate_sudo")
+    def test_refreshes_sudo_before_each_requirement(self, auth, *_):
+        calls: list[str] = []
+        auth.side_effect = lambda: calls.append("auth")
+
+        class Req(Requirement):
+            def check(self, ctx, fix):
+                calls.append("check")
+                return RequirementState(Status.OK, "ok")
+
+        ctx = MagicMock()
+        ctx.config = {"run": {"hide": False}}
+        self.assertFalse(check_requirements(ctx, [Req(), Req()], fix=True, echo=False))
+        self.assertEqual(calls, ["auth", "auth", "check", "auth", "check"])

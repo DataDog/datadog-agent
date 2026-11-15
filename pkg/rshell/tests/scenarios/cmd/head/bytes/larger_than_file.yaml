@@ -1,0 +1,13 @@
+description: head -c N larger than file outputs the entire file without error.
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c 9999 file.txt
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

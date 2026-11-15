@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"testing"
@@ -512,6 +513,39 @@ func TestConcentratorStatsTotals(t *testing.T) {
 		assert.Equal(topLevelHits, uint64(len(spans)), "Wrong value for total top level hits %d", topLevelHits)
 		assert.Equal(errors, uint64(0), "Wrong value for total errors %d", errors)
 	})
+}
+
+// TestConcentratorSampleRateWeight checks that a valid _sample_rate scales the
+// counts and an invalid one counts the span once.
+func TestConcentratorSampleRateWeight(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		rate     float64
+		wantHits uint64
+	}{
+		{"half", 0.5, 2},
+		{"NaN", math.NaN(), 1},
+		{"subnormal", math.SmallestNonzeroFloat64, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Now()
+			c := NewTestConcentrator(now)
+			span := testSpan(now, 1, 0, 50, 0, "A1", "resource1", 0, nil)
+			span.Metrics = map[string]float64{"_sample_rate": tc.rate}
+			spans := []*pb.Span{span}
+			traceutil.ComputeTopLevel(spans)
+			c.addNow(toProcessedTrace(spans, "none", "", "", "", "", ""), infraTags{})
+
+			stats := c.flushNow(now.UnixNano(), true)
+			require.Len(t, stats.Stats, 1)
+			require.Len(t, stats.Stats[0].Stats, 1)
+			require.Len(t, stats.Stats[0].Stats[0].Stats, 1)
+			got := stats.Stats[0].Stats[0].Stats[0]
+			assert.Equal(t, tc.wantHits, got.Hits)
+			assert.Equal(t, tc.wantHits, got.TopLevelHits)
+			assert.Equal(t, 50*tc.wantHits, got.Duration)
+		})
+	}
 }
 
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.

@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
@@ -33,9 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -50,6 +54,8 @@ const (
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
+
+var datadogMetricGVR = datadoghq.GroupVersion.WithResource("datadogmetrics")
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
@@ -529,10 +535,10 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "--verbose"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
-		suite.Contains(stdout, "agents reporting ===")
+		suite.Contains(stdout, "agent(s) reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
@@ -1983,7 +1989,30 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 		}()
 
+		dynamicClient, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+		suite.Require().NoError(err)
+		datadogMetrics := dynamicClient.Resource(datadogMetricGVR).Namespace(namespace)
+
+		// An authentication error doesn't recover during the test, so stop waiting when there is one.
+		var authError string
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			// Checked on every poll, not once before because the Cluster Agent only reports the error after its first
+			// query of the DatadogMetric, which can come after this subtest starts.
+			ddmError, err := datadogMetricError(suite.T().Context(), datadogMetrics, deployment)
+			if err != nil {
+				ddmError = fmt.Sprintf("failed to get the DatadogMetric: %v", err)
+			}
+			if isDatadogAPIAuthError(ddmError) {
+				authError = ddmError
+				return
+			}
+			// Explain a failed poll with the error of the DatadogMetric, if any.
+			reportDatadogMetricError := func() {
+				if ddmError != "" {
+					c.Errorf("Error of DatadogMetric %s/%s: %s", namespace, deployment, ddmError)
+				}
+			}
+
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
@@ -1993,6 +2022,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			)
 			require.NoErrorf(c, err, "Failed to query fake intake")
 			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
+				reportDatadogMetricError()
 				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
 				return
 			}
@@ -2021,8 +2051,11 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					prevValue = point.Value
 				}
 			}
-			assert.Truef(c, scaled, "No scale up or scale down detected")
+			if !assert.Truef(c, scaled, "No scale up or scale down detected") {
+				reportDatadogMetricError()
+			}
 		}, 7*time.Minute, 10*time.Second, "Failed to witness scale up or scale down of %s.%s", namespace, deployment)
+		suite.Require().Emptyf(authError, "The Cluster Agent can't query the metric of DatadogMetric %s/%s, check the Datadog API and app keys (E2E_API_KEY/E2E_APP_KEY)", namespace, deployment)
 	})
 }
 
@@ -2083,4 +2116,30 @@ func (suite *k8sSuite) combineTags(tags []string, sourceCodeIntegrationTags []st
 
 func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
 	return suite.combineTags(tags, suite.envSpecificClusterTags)
+}
+
+// datadogMetricError returns the error that the Cluster Agent reported in the status of a
+// DatadogMetric, or "" if there is none.
+func datadogMetricError(ctx context.Context, datadogMetrics dynamic.ResourceInterface, name string) (string, error) {
+	ddm, err := datadogMetrics.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	conditions, _, err := unstructured.NestedSlice(ddm.Object, "status", "conditions")
+	if err != nil {
+		return "", err
+	}
+	for _, c := range conditions {
+		condition, ok := c.(map[string]any)
+		if ok && condition["type"] == string(datadoghq.DatadogMetricConditionTypeError) && condition["status"] == "True" {
+			message, _ := condition["message"].(string)
+			return message, nil
+		}
+	}
+	return "", nil
+}
+
+// isDatadogAPIAuthError reports whether a DatadogMetric error comes from the Datadog API rejecting the keys
+func isDatadogAPIAuthError(ddmError string) bool {
+	return strings.Contains(ddmError, "403 Forbidden")
 }

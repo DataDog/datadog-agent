@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"slices"
 	"sort"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -1016,7 +1018,9 @@ func TestAgentIgnoreResources(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentIgnoreResources(tt.agentIgnore))
+			agentConf := config.New()
+			agentConf.Ignore["resource"] = tt.agentIgnore
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
 			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
 			cfg.Traces.IgnoreResources = tt.connectorIgnore
 			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
@@ -1036,6 +1040,64 @@ func TestAgentIgnoreResources(t *testing.T) {
 			}
 			assert.ElementsMatch(t, tt.wantStatsResources, resources)
 			assert.Equal(t, before, marshalTraces(t, tt.traces), "input traces must not be modified")
+		})
+	}
+}
+
+// TestAgentFilterTags covers how apm_config.filter_tags and apm_config.filter_tags_regex fit in ConsumeTraces;
+// see root_filter_test.go for the root filter itself.
+func TestAgentFilterTags(t *testing.T) {
+	probeAttrs := map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "http.useragent": "kube-probe/1.30"}
+	for _, tt := range []struct {
+		name               string
+		rejectTags         []*config.Tag
+		rejectTagsRegex    []*config.TagRegex
+		wantStatsResources []string
+	}{
+		{
+			name:               "rejected root tag drops the trace with its children",
+			rejectTags:         []*config.Tag{{K: "http.useragent", V: "kube-probe/1.30"}},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name:               "rejected root tag regex drops the trace with its children",
+			rejectTagsRegex:    []*config.TagRegex{{K: "http.useragent", V: regexp.MustCompile("^kube-probe/")}},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name:               "no agent filter_tags keeps every trace",
+			wantStatsResources: []string{"GET /healthcheck", "SELECT ?", "GET /users"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, probeAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			})
+			// container tags are moved out of a copy of the resource, the input resource must stay as is
+			traces.ResourceSpans().At(0).Resource().Attributes().PutStr("datadog.container.tag.team", "payments")
+			agentConf := config.New()
+			agentConf.RejectTags, agentConf.RejectTagsRegex = tt.rejectTags, tt.rejectTagsRegex
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			before := marshalTraces(t, traces)
+
+			require.NoError(t, connector.ConsumeTraces(t.Context(), traces))
+
+			var resources []string
+			for _, csp := range connector.concentrator.Flush(true).Stats {
+				for _, b := range csp.Stats {
+					for _, s := range b.Stats {
+						resources = append(resources, s.Resource)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tt.wantStatsResources, resources)
+			assert.Equal(t, before, marshalTraces(t, traces), "input traces must not be modified")
 		})
 	}
 }

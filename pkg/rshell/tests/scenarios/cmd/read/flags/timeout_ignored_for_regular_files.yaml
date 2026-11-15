@@ -1,0 +1,23 @@
+description: |+
+  Bash explicitly documents that `-t TIMEOUT` has no effect when stdin
+  is a regular file: regular-file reads don't block, so a timeout is
+  meaningless. `read -t 0.001 X < file` must return rc=0 with the
+  full line assigned to X — not a 142 timeout with a partial value.
+  Verified against bash 5.3.
+setup:
+  files:
+    - path: line.txt
+      content: |
+        hello world from a regular file
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read -t 0.001 X < line.txt
+    echo "rc=$?"
+    echo "X=$X"
+expect:
+  stdout: |+
+    rc=0
+    X=hello world from a regular file
+  stderr: ""
+  exit_code: 0

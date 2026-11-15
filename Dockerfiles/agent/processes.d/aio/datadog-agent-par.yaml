@@ -1,0 +1,20 @@
+# Monolith Private Action Runner. In split mode it exits on its own. FIPS keeps it, since split is unsupported there.
+description: Datadog Private Action Runner
+command: /opt/datadog-agent/embedded/bin/privateactionrunner
+args:
+  - run
+  - --cfgpath=/etc/datadog-agent/datadog.yaml
+auto_start: true
+condition_path_exists: /opt/datadog-agent/embedded/bin/privateactionrunner
+condition_config_any:
+  - path: /etc/datadog-agent/datadog.yaml
+    keys:
+      - private_action_runner.enabled
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: inherit
+stderr: inherit
+env:
+  PATH: /opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

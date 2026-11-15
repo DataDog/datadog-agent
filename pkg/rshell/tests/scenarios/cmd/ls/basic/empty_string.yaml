@@ -1,0 +1,11 @@
+description: ls with an empty string operand prints an error and exits 1.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls ""
+expect:
+  stdout: ""
+  stderr: "ls: cannot access '': No such file or directory\n"
+  exit_code: 1

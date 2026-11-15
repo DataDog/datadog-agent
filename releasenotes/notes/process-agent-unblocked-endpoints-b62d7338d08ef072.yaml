@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Process collection and real-time updates continue reaching healthy endpoints
+    when another configured process endpoint is slow or unreachable. Connections
+    submissions retain their ordered delivery.

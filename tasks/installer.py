@@ -13,7 +13,7 @@ from invoke import task
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
@@ -39,7 +39,7 @@ def build(
     go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     enable_bazel=False,
 ):
     """
@@ -59,9 +59,9 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --output-bin.")
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=INSTALLER_BIN)
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
@@ -80,7 +80,7 @@ def build(
         build="installer",
         build_include=build_include,
         build_exclude=build_exclude,
-        flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base,
+        flavor=fips_backend.agent_flavor(),
     )
 
     installer_bin = INSTALLER_BIN
@@ -89,7 +89,7 @@ def build(
 
     if no_cgo:
         env["CGO_ENABLED"] = "0"
-        if fips_mode and install_path:
+        if fips_backend == FipsBackend.msgo and install_path:
             rpath = [f"{install_path}/embedded/lib"]  # OpenSSL is dlopen'ed from there at runtime
             package_path = PurePosixPath(install_path).parent
             if package_path.parent.name == "datadog-packages":
@@ -113,6 +113,7 @@ def build(
         bin_path=installer_bin,
         check_deadcode=getenv("DEPLOY_AGENT") == "true",
         env=env,
+        fips_backend=fips_backend,
     )
 
 

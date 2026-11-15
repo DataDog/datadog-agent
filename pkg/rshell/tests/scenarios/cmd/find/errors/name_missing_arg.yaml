@@ -1,0 +1,14 @@
+description: find -name with no pattern produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -name
+expect:
+  stderr_contains: ["missing argument for -name"]
+  exit_code: 1
