@@ -1,0 +1,13 @@
+description: The n command prints current line and reads the next into pattern space.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\nline4\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'n; s/line/LINE/' input.txt
+expect:
+  stdout: "line1\nLINE2\nline3\nLINE4\n"
+  stderr: ""
+  exit_code: 0

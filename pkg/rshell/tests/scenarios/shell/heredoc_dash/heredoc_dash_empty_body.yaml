@@ -1,0 +1,7 @@
+description: Heredoc-dash with tab-indented delimiter and empty body produces no output.
+input:
+  script: "cat <<-EOF\n\tEOF\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

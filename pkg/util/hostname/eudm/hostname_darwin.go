@@ -7,7 +7,9 @@ package eudm
 
 import "github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 
-// deviceName uses the configured Computer Name, which network changes do not affect.
-func deviceName(info *systeminfo.SystemInfo) (string, error) {
-	return info.ComputerName, nil
+var localHostName = systeminfo.LocalHostName
+
+// deviceName preserves Apple's normalization and any Bonjour conflict suffix.
+func deviceName() (string, error) {
+	return localHostName()
 }

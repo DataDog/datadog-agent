@@ -147,17 +147,30 @@ func (d *tlsDebugger) GetTracedPrograms(moduleName string) []TracedProgram {
 	return all
 }
 
-// GetAllBlockedPathIDs returns a list of BlockedProcess blocked process for each `FileRegistry` instance.
+// GetAllBlockedPathIDs returns the blocked paths aggregated by program type.
 func (d *tlsDebugger) GetAllBlockedPathIDs(moduleName string) []BlockedProcess {
-	all := make([]BlockedProcess, 0, len(d.registries))
-
-	// Iterate over each `FileRegistry` instance:
-	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
+	d.mux.Lock()
+	programTypes := make([]string, 0, len(d.registries[moduleName]))
+	seenProgramTypes := make(map[string]struct{})
 	for _, registry := range d.registries[moduleName] {
-		blockedPathIdentifiers := d.GetBlockedPathIDsWithSamplePath(moduleName, registry.telemetry.programName)
+		programType := registry.telemetry.programName
+		if _, seen := seenProgramTypes[programType]; seen {
+			continue
+		}
+		seenProgramTypes[programType] = struct{}{}
+		programTypes = append(programTypes, programType)
+	}
+	d.mux.Unlock()
+
+	all := make([]BlockedProcess, 0, len(programTypes))
+
+	// Iterate over each program type:
+	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
+	for _, programType := range programTypes {
+		blockedPathIdentifiers := d.GetBlockedPathIDsWithSamplePath(moduleName, programType)
 		if len(blockedPathIdentifiers) > 0 {
 			all = append(all, BlockedProcess{
-				ProgramType:     registry.telemetry.programName,
+				ProgramType:     programType,
 				PathIdentifiers: blockedPathIdentifiers,
 			})
 		}
@@ -172,18 +185,27 @@ func (d *tlsDebugger) GetBlockedPathIDs(moduleName, programType string) []PathId
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
+	var blockedPathIdentifiers []PathIdentifier
+	seen := make(map[PathIdentifier]struct{})
 	for _, registry := range d.registries[moduleName] {
 		if registry.telemetry.programName != programType {
 			continue
 		}
 
-		registry.m.Lock()
-		defer registry.m.Unlock()
-
-		return registry.blocklistByID.Keys()
+		registry.m.RLock()
+		if registry.blocklistByID != nil {
+			for _, pathIdentifier := range registry.blocklistByID.Keys() {
+				if _, ok := seen[pathIdentifier]; ok {
+					continue
+				}
+				seen[pathIdentifier] = struct{}{}
+				blockedPathIdentifiers = append(blockedPathIdentifiers, pathIdentifier)
+			}
+		}
+		registry.m.RUnlock()
 	}
 
-	return nil
+	return blockedPathIdentifiers
 }
 
 // ClearBlocked clears the list of blocked paths for all registries.
@@ -204,29 +226,34 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(moduleName, programType st
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
+	var blockedIDsWithSampleFile []PathIdentifierWithSamplePath
+	seen := make(map[PathIdentifier]struct{})
 	for _, registry := range d.registries[moduleName] {
 		if registry.telemetry.programName != programType {
 			continue
 		}
 
-		registry.m.Lock()
-		defer registry.m.Unlock()
-
-		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
-		for _, pathIdentifier := range registry.blocklistByID.Keys() {
-			entry, ok := registry.blocklistByID.Get(pathIdentifier)
-			if ok {
+		registry.m.RLock()
+		if registry.blocklistByID != nil {
+			for _, pathIdentifier := range registry.blocklistByID.Keys() {
+				if _, ok := seen[pathIdentifier]; ok {
+					continue
+				}
+				entry, ok := registry.blocklistByID.Peek(pathIdentifier)
+				if !ok {
+					continue
+				}
+				seen[pathIdentifier] = struct{}{}
 				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
 					PathIdentifier: pathIdentifier,
 					SamplePath:     entry.Path,
 					Reason:         entry.Reason})
 			}
 		}
-
-		return blockedIDsWithSampleFile
+		registry.m.RUnlock()
 	}
 
-	return nil
+	return blockedIDsWithSampleFile
 }
 
 // AddAttacher adds an attacher to the debugger.

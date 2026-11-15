@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,13 +31,15 @@ const (
 	// with delta temporality and base2 exponential aggregation, see
 	// apps/rest-services/golang/calendar in DataDog/opentelemetry-examples.
 	calendarHistogram = "calendar-rest-go.task.duration"
+	// Prometheus summary from the core Agent's telemetry, scraped by config/native-histograms.yml.
+	agentSummary = "go_gc_duration_seconds"
 )
 
 type nativeHistogramsTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-//go:embed config/minimal.yml
+//go:embed config/native-histograms.yml
 var nativeHistogramsConfig string
 
 var nativeHistogramsParams = utils.IAParams{
@@ -74,6 +77,8 @@ agents:
 	e2e.Run(t, &nativeHistogramsTestSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(values),
 					kubernetesagentparams.WithOTelAgent(),
@@ -146,4 +151,19 @@ func (s *nativeHistogramsTestSuite) TestOTLPMetrics() {
 // are cumulative, which the translator selected by the gate drops unless converted to delta.
 func (s *nativeHistogramsTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
+}
+
+// TestSummaryCountSumAreCounts checks that summary .count and .sum are sent as counts of the
+// change since the previous point. cumulativetodelta does not convert summaries.
+func (s *nativeHistogramsTestSuite) TestSummaryCountSumAreCounts() {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		for _, name := range []string{agentSummary + ".count", agentSummary + ".sum"} {
+			series, err := s.Env().FakeIntake.Client().FilterMetrics(name)
+			require.NoError(c, err)
+			require.NotEmpty(c, series, "no %s received yet", name)
+			for _, m := range series {
+				assert.Equal(c, metricspb.MetricPayload_COUNT, m.Type, name)
+			}
+		}
+	}, 5*time.Minute, 10*time.Second)
 }

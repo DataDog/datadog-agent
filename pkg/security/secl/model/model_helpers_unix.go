@@ -182,6 +182,15 @@ func (p *Process) IsNotKworker() bool {
 	return !p.IsKworker
 }
 
+// GetInitialMntNS returns the mount namespace the process had at fork or exec, unlike MntNS
+// which follows its later unshare and setns calls
+func (p *Process) GetInitialMntNS() uint32 {
+	if p.InitialMntNS != 0 {
+		return p.InitialMntNS
+	}
+	return p.MntNS
+}
+
 // GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
 func (p *Process) GetProcessArgv() ([]string, bool) {
 	if p.ArgsEntry == nil {

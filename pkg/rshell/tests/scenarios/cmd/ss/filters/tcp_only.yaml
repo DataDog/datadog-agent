@@ -1,0 +1,13 @@
+description: ss -t is accepted and runs end-to-end against a live /proc/net, producing a valid header. Filter correctness (that -t actually drops non-TCP entries) is unit-tested against synthetic socketEntry values in ss_helpers_test.go, since live socket state isn't controllable in a scenario.
+skip_assert_against_bash: true
+input:
+  # /proc/net is required on Linux; on macOS/Windows ss uses sysctl/iphlpapi.
+  allowed_paths: ["/proc/net"]
+  script: |+
+    ss -tan
+expect:
+  stdout_contains:
+    - "Netid"
+    - "State"
+  stderr: |+
+  exit_code: 0

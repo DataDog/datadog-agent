@@ -79,6 +79,7 @@ func NewRunCaptureHandler(uploader pcapuploader.Component, hostname hostnameinte
 
 // RunCaptureInputs holds the inputs for the runCapture action.
 type RunCaptureInputs struct {
+	TimeoutSeconds int32 `json:"timeout,omitempty"`
 	// CaptureID identifies the uploaded pcap. Action results expire, so the
 	// caller should supply it to find the capture afterwards; when empty a
 	// random ID is generated.
@@ -119,6 +120,11 @@ func (h *RunCaptureHandler) Run(
 	inputs, err := types.ExtractInputs[RunCaptureInputs](task)
 	if err != nil {
 		return nil, err
+	}
+	if inputs.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(inputs.TimeoutSeconds)*time.Second)
+		defer cancel()
 	}
 
 	// An empty bpfFilter is valid and captures everything.

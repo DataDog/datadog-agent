@@ -1,0 +1,16 @@
+description: find treats a single '-' as a path operand, not an expression token.
+setup:
+  files:
+    - path: "-/file.txt"
+      content: "inside dash dir"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find "-" -maxdepth 0
+    find "-" -type f
+expect:
+  stdout: |+
+    -
+    -/file.txt
+  stderr: ""
+  exit_code: 0

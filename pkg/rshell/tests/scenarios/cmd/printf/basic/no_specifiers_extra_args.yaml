@@ -1,0 +1,7 @@
+description: Format with no specifiers prints once ignoring extra args.
+input:
+  script: |+
+    printf "hello\n" extra args here
+expect:
+  stdout: "hello\n"
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Both stdout and stderr can be redirected to /dev/null.
+input:
+  script: |+
+    echo "hidden" >/dev/null 2>/dev/null
+    echo "visible"
+expect:
+  stdout: |+
+    visible
+  stderr: ""
+  exit_code: 0

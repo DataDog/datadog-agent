@@ -178,34 +178,48 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
+			observeSubscriptionQueue("cont", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceRuntime)
 		case eventBundle, ok := <-contCreateEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-create", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceAll)
 		case eventBundle, ok := <-contNodeOrchestratorDeleteEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("cont-node-orchestrator-delete", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-podEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("pod", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
 			}
+			observeSubscriptionQueue("task", eventBundle)
 			c.processor.processEvents(eventBundle, workloadmeta.SourceNodeOrchestrator)
 		case <-c.stopCh:
 			return nil
 		}
+	}
+}
+
+// observeSubscriptionQueue records the size of the received bundle and the
+// time it waited in the subscription channel.
+func observeSubscriptionQueue(channel string, bundle workloadmeta.EventBundle) {
+	bundleSize.Observe(float64(len(bundle.Events)), channel)
+	if !bundle.EnqueuedAt.IsZero() {
+		queueLatency.Observe(time.Since(bundle.EnqueuedAt).Seconds(), channel)
 	}
 }
 

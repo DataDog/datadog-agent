@@ -1,0 +1,12 @@
+description: "\\b in s/// pattern is a word boundary, not a backspace."
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/\bworld\b/EARTH/' input.txt
+expect:
+  stdout: "hello EARTH\n"
+  exit_code: 0

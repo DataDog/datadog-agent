@@ -1,0 +1,20 @@
+description: In remediation mode with only read-only AllowedPaths, help says no read-write root is configured so remediation commands cannot write. Uses stdout_contains because the absolute paths resolve to the scenario tempdir.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: read-only/input.txt
+      content: |+
+        ro
+input:
+  mode: "remediation"
+  allowed_paths: ["read-only:ro"]
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "Allowed paths:"
+    - "Read-only:"
+    - "read-only"
+    - "(no read-write path configured — remediation commands cannot modify any file)"
+  stderr: |+
+  exit_code: 0

@@ -8,16 +8,12 @@
 #include "helpers/raw_syscalls.h"
 #include "helpers/span.h"
 #include "helpers/span_fill.h"
+#include "helpers/syscall_usage.h"
 #include "helpers/syscalls.h"
 
-SEC("tracepoint/raw_syscalls/sys_enter")
-int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
+static __attribute__((always_inline)) void monitor_syscall(struct _tracepoint_raw_syscalls_sys_enter *args, u32 pid) {
     struct syscall_monitor_entry_t zero = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
     u64 now = bpf_ktime_get_ns();
-
-    send_signal(pid);
 
     // syscall_monitor_event_t lives in a per-CPU map rather than on the stack.
     // We're reusing the SPAN_FILL per-CPU map instead of using another one, but we're
@@ -25,7 +21,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     // the span context is not useful here
     struct syscall_monitor_event_t *event = SPAN_FILL_EVENT(struct syscall_monitor_event_t, EVENT_SYSCALLS);
     if (!event) {
-        return 0;
+        return;
     }
 
     struct proc_cache_t *proc_cache_entry = fill_process_context(&event->process);
@@ -48,7 +44,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                 struct syscall_monitor_entry_t *entry = fetch_sycall_monitor_entry(&zero, pid, now, SYSCALL_MONITOR_TYPE_DRIFT);
                 if (entry == NULL) {
                     // should never happen
-                    return 0;
+                    return;
                 }
                 drift_active = 1;
                 // is the current syscall in the profile ?
@@ -68,7 +64,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
             struct syscall_monitor_entry_t *entry = fetch_sycall_monitor_entry(&zero, pid, now, SYSCALL_MONITOR_TYPE_DUMP);
             if (entry == NULL) {
                 // should never happen
-                return 0;
+                return;
             }
             dump_active = 1;
             // insert the current syscall in the map
@@ -103,40 +99,91 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
             syscall_monitor_post_syscall(args, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
         }
     }
+}
 
-    // Workload profiles v2 syscall sampler: sample every cgroup unless userspace excluded it
-    // (host/systemd). Gated up front so we skip the per-syscall map lookups when disabled.
-    if (is_event_sampling_syscalls_enabled()) {
-        // Key must live on the stack (event is a per-CPU map value).
-        u64 cgroup_ino = event->cgroup.path_key.ino;
-        if (!event->process.is_kworker && bpf_map_lookup_elem(&excluded_cgroups, &cgroup_ino) == NULL) {
-            // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
-            // seeds them into profiles so a KILL-default seccomp profile stays valid.
-            struct syscall_table_key_t ignore_key = {
-                .id = args->id,
-                .syscall_key = SAMPLING_IGNORED_SYSCALL_KEY,
-            };
-            struct pid_cache_t *pid_entry = is_syscall(&ignore_key) ? NULL : get_pid_cache(pid);
-            if (pid_entry != NULL) {
-                u64 sample_cookie = 0;
-                u32 refresh_needed = 0;
-                enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
-                if (state == SAMPLED) {
-                    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-                    event->event_reason = SYSCALL_MONITOR_REASON_SAMPLE;
-                    __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
-                    event->syscall_id = args->id;
-                    event->sample_cookie = sample_cookie;
-                    fill_span_context(&event->span, &event->go_labels);
-                    send_event_ptr(args, EVENT_SYSCALLS, event);
-                } else if (refresh_needed) {
-                    struct sample_refresh_event_t ev = {};
-                    ev.cookie = sample_cookie;
-                    send_event(args, EVENT_SAMPLE_REFRESH, ev);
-                }
-            }
+SEC("tracepoint/raw_syscalls/sys_enter")
+int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    // handle kill action
+    if (is_raw_syscall_kill_enabled() || is_syscall_monitor_enabled()) {
+        send_signal(pid);
+    }
+
+    if (is_syscall_monitor_enabled()) {
+        monitor_syscall(args, pid);
+    }
+
+    return 0;
+}
+
+// Workload profiles v2 syscall sampler. It runs on every syscall of the host and only records the
+// syscall in the process bitmap: syscall_usage_ticker and the exec/exit hooks send the events.
+SEC("tracepoint/raw_syscalls/sys_enter")
+int sys_enter_syscall_usage(struct _tracepoint_raw_syscalls_sys_enter *args) {
+    record_syscall_usage(bpf_get_current_pid_tgid() >> 32, args->id);
+    return 0;
+}
+
+struct syscall_usage_ticker_ctx_t {
+    struct bpf_perf_event_data *ctx;
+    u64 now;
+    u64 refresh_period;
+    u64 max_events;
+    // lives in a map: a counter on the stack makes the verifier unroll the callback on 6.7+ kernels
+    u64 *sent;
+};
+
+static long for_each_syscall_usage_cb(struct bpf_map *map, const void *key, void *value, void *callback_ctx) {
+    struct syscall_usage_ticker_ctx_t *ticker_ctx = (struct syscall_usage_ticker_ctx_t *)callback_ctx;
+    struct syscall_usage_t *usage = (struct syscall_usage_t *)value;
+
+    // an entry created on another CPU after the ticker read the time
+    if (usage->excluded || ticker_ctx->now < usage->last_sent) {
+        return 0;
+    }
+
+    u64 elapsed = ticker_ctx->now - usage->last_sent;
+    if ((usage->new_syscalls && elapsed >= SYSCALL_USAGE_NEW_SYSCALL_FLUSH_DELAY) ||
+        (ticker_ctx->refresh_period > 0 && elapsed >= ticker_ctx->refresh_period)) {
+        *ticker_ctx->sent += send_syscall_usage_event(ticker_ctx->ctx, *(u32 *)key, usage, SYSCALL_MONITOR_REASON_PERIOD, SYSCALL_USAGE_EVENT_TICKER_SLOT);
+        if (ticker_ctx->max_events > 0 && *ticker_ctx->sent >= ticker_ctx->max_events) {
+            // the entries left are still due on the next tick, and keep their syscalls until then
+            return 1;
         }
     }
+
+    return 0;
+}
+
+SEC("perf_event/cpu_clock")
+int syscall_usage_ticker(struct bpf_perf_event_data *ctx) {
+    // we want a single core to trigger syscall usage events
+    if (bpf_get_smp_processor_id() > 0) {
+        return 0;
+    }
+
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
+    u64 max_events = 0;
+    LOAD_CONSTANT("syscall_usage_max_events_per_tick", max_events);
+
+    u32 key = 0;
+    u64 *sent = bpf_map_lookup_elem(&syscall_usage_ticker_sent, &key);
+    if (sent == NULL) {
+        return 0;
+    }
+    *sent = 0;
+
+    struct syscall_usage_ticker_ctx_t ticker_ctx = {
+        .ctx = ctx,
+        .now = bpf_ktime_get_ns(),
+        .refresh_period = sample_refresh_period_ns,
+        .max_events = max_events,
+        .sent = sent,
+    };
+
+    bpf_for_each_map_elem(&syscall_usage, &for_each_syscall_usage_cb, &ticker_ctx, 0);
 
     return 0;
 }

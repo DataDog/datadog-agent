@@ -205,7 +205,9 @@ else
     rm -rf "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
-    ./configure --prefix="$EMBEDDED"
+    # zlib's configure probes the compiler with a bare "$CC -c" (no CFLAGS), which fails under
+    # OBJECT_MODE=64 (64-bit assembler vs gcc's default 32-bit dialect), so bake in -maix64.
+    CC="$CC -maix64" ./configure --prefix="$EMBEDDED"
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
     lib_cache_save zlib "$ZLIB_VERSION" "$_pre"

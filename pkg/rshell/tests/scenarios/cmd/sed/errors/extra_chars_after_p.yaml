@@ -1,0 +1,13 @@
+description: Extra characters after zero-arg command p are rejected.
+setup:
+  files:
+    - path: input.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'pp' input.txt
+expect:
+  stdout: ""
+  stderr_contains: ["extra characters after command"]
+  exit_code: 1

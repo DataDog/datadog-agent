@@ -1,0 +1,16 @@
+diff --git a/extensions.bzl b/extensions.bzl
+index 928f62d..aa3b2a1 100644
+--- a/extensions.bzl
++++ b/extensions.bzl
+@@ -525,10 +525,7 @@ def _extension_impl(module_ctx):
+                 sha256 = payload.get("sha256")
+                 if not sha256:
+                     fail("WinSDK payload for '{}' is missing sha256".format(id))
+-                raw_filename = payload["fileName"]
+-                filename = raw_filename
+-                if raw_filename.startswith("Installers\\"):
+-                    filename = raw_filename[len("Installers\\"):]
++                filename = payload["fileName"].replace("\\", "/").removeprefix("Installers/")
+                 if filename.endswith(".msi"):
+                     for required_msi_file in required_msi_files:
+                         if filename.endswith(required_msi_file):

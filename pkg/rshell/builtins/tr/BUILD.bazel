@@ -1,0 +1,79 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "tr",
+    srcs = ["tr.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/tr",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "tr_test",
+    srcs = [
+        "builtin_tr_pentest_test.go",
+        "tr_bench_test.go",
+        "tr_gnu_compat_test.go",
+        "tr_test.go",
+        "tr_unix_vuln_hunt_test.go",
+    ],
+    deps = [
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/rshell/internal/interpoption",
+            "@cc_mvdan_sh_v3//syntax",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

@@ -39,6 +39,7 @@ go_library(
         "//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "//pkg/jmxfetch",
         "//pkg/serializer",
+        "//pkg/serializer/marshaler",
         "//pkg/status/collector",
         "//pkg/status/jmx",
         "//pkg/util/fxutil",

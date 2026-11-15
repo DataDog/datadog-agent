@@ -8,6 +8,7 @@
 package cgroups
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,4 +71,45 @@ func TestReaderV1(t *testing.T) {
 	}
 
 	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV1{})))
+}
+
+func TestReaderV1CgroupVanishesDuringWalk(t *testing.T) {
+	fakeFsPath := t.TempDir()
+	const (
+		id1 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40"
+		id2 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41"
+		id3 = "2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42"
+	)
+	cgroupRoot := filepath.Join(fakeFsPath, defaultBaseController)
+	// filepath.WalkDir visits entries in lexical order: "a.slice", then "b.slice", then "c.slice".
+	paths := []string{
+		"a.slice/docker-" + id1 + ".scope",
+		"b.slice/session-13.scope/docker-" + id2 + ".scope",
+		"c.slice/docker-" + id3 + ".scope",
+	}
+	for _, p := range paths {
+		require.NoError(t, os.MkdirAll(filepath.Join(cgroupRoot, p), 0o750))
+	}
+
+	fakeMountPoints := map[string]string{defaultBaseController: cgroupRoot}
+	// "b.slice" is listed when reading the root, but removed before the walk descends into it.
+	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, vanishingDirFilter(t, "a.slice", filepath.Join(cgroupRoot, "b.slice")), "")
+	require.NoError(t, err)
+	r.pidMapper = nil
+
+	cgroups, err := r.parseCgroups()
+	require.NoError(t, err)
+	assert.Len(t, cgroups, 2)
+	assert.Contains(t, cgroups, id1)
+	assert.Contains(t, cgroups, id3)
+}
+
+func TestReaderV1MissingRoot(t *testing.T) {
+	fakeMountPoints := map[string]string{defaultBaseController: filepath.Join(t.TempDir(), "does-not-exist")}
+	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter, "")
+	require.NoError(t, err)
+	r.pidMapper = nil
+
+	_, err = r.parseCgroups()
+	assert.ErrorIs(t, err, fs.ErrNotExist)
 }

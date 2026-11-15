@@ -82,7 +82,6 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
-		flaretypes.NewFiller(getWindowsData),
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
@@ -105,6 +104,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		))
 	}
 
+	providers = append(providers, windowsFlareProviders()...)
 	return providers
 }
 

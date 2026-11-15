@@ -1,0 +1,13 @@
+description: Sed h and G commands to duplicate first line at end.
+setup:
+  files:
+    - path: input.txt
+      content: "first\nsecond\nthird\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '1h; ${G;p}' input.txt
+expect:
+  stdout: "third\nfirst\n"
+  stderr: ""
+  exit_code: 0

@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 )
 
 // TestReadMappedFilesManyLibraries checks that a process loading hundreds of
@@ -29,11 +31,11 @@ func TestReadMappedFilesManyLibraries(t *testing.T) {
 	}
 	maps.WriteString("7ffd00000000-7ffd00002000 r-xp 00000000 00:00 0 [vdso]\n")
 
-	got, err := readMappedFiles(strings.NewReader(maps.String()), MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
+	got, err := readMappedFiles(strings.NewReader(maps.String()), MaxMmapedFilesPerProcess, procmaps.FilterExecutableRegularFiles)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 
-	got, err = readMappedFiles(strings.NewReader(maps.String()), 10, FilterExecutableRegularFiles)
+	got, err = readMappedFiles(strings.NewReader(maps.String()), 10, procmaps.FilterExecutableRegularFiles)
 	require.NoError(t, err)
 	assert.Equal(t, want[:10], got)
 }

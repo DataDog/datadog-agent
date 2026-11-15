@@ -1,0 +1,10 @@
+# Write operations (addr add, addr del, addr flush) must be rejected with exit 1.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip addr add is blocked (write operation)"
+input:
+  script: |+
+    ip addr add 10.0.0.1/24 dev lo
+expect:
+  stderr: "ip: 'ip addr add' is not supported (write operations are blocked for safety)\n"
+  exit_code: 1
+skip_assert_against_bash: true

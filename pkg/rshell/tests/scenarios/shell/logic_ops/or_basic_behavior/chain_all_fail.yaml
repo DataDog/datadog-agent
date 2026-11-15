@@ -1,0 +1,8 @@
+description: In a || chain, when all commands fail the exit code is from the last.
+input:
+  script: |+
+    false || false || false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

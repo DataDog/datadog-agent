@@ -1,0 +1,241 @@
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+# tls/k5tls.so: TLS for HTTPS KDC proxy (MS-KKDCP) connections.
+krb5_shared_library(
+    name = "k5tls",
+    srcs = glob(["tls/k5tls/*.c"]),
+    dynamic_deps = [
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:krb5support_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+        "@openssl//:libssl_shared_pkg",
+    ],
+    plugin_dir = "krb5/plugins/tls",
+    exports = "tls/k5tls/k5tls.exports",
+    deps = [
+        "//:include",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:krb5support_lib",
+        "@openssl//:openssl_shared",
+    ],
+)
+
+# preauth/pkinit.so: certificate based (PKINIT) pre-authentication.
+krb5_shared_library(
+    name = "pkinit",
+    srcs = glob(["preauth/pkinit/*.h"]) + [
+        "preauth/pkinit/pkinit_accessor.c",
+        "preauth/pkinit/pkinit_clnt.c",
+        "preauth/pkinit/pkinit_constants.c",
+        "preauth/pkinit/pkinit_crypto_openssl.c",
+        "preauth/pkinit/pkinit_identity.c",
+        "preauth/pkinit/pkinit_lib.c",
+        "preauth/pkinit/pkinit_matching.c",
+        "preauth/pkinit/pkinit_profile.c",
+        "preauth/pkinit/pkinit_srv.c",
+    ],
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+    ],
+    linkopts = ["-ldl"],
+    plugin_dir = "krb5/plugins/preauth",
+    exports = "preauth/pkinit/pkinit.exports",
+    deps = [
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+        "@openssl//:libcrypto_shared",
+    ],
+)
+
+# preauth/otp.so: KDC side OTP pre-authentication (the client side is built into libkrb5).
+krb5_shared_library(
+    name = "otp",
+    srcs = glob([
+        "preauth/otp/*.c",
+        "preauth/otp/*.h",
+    ]),
+    dynamic_deps = [
+        "//src/lib:krad_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+        "//src/util:verto_pkg",
+    ],
+    plugin_dir = "krb5/plugins/preauth",
+    exports = "preauth/otp/otp.exports",
+    deps = [
+        "//:include",
+        "//src/lib:krad_lib",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+        "//src/util:verto_lib",
+    ],
+)
+
+# preauth/spake.so: SPAKE pre-authentication.
+krb5_shared_library(
+    name = "spake",
+    srcs = glob(["preauth/spake/*.h"]) + [
+        "preauth/spake/edwards25519.c",
+        "preauth/spake/groups.c",
+        "preauth/spake/iana.c",
+        "preauth/spake/openssl.c",
+        "preauth/spake/spake_client.c",
+        "preauth/spake/spake_kdc.c",
+        "preauth/spake/util.c",
+    ],
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+    ],
+    plugin_dir = "krb5/plugins/preauth",
+    exports = "preauth/spake/spake.exports",
+    deps = [
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+        "@openssl//:libcrypto_shared",
+    ],
+)
+
+# preauth/test.so: upstream's test pre-authentication module.
+krb5_shared_library(
+    name = "preauth_test",
+    srcs = glob([
+        "preauth/test/*.c",
+        "preauth/test/*.h",
+    ]),
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    file_name = "test",
+    plugin_dir = "krb5/plugins/preauth",
+    exports = "preauth/test/test.exports",
+    deps = [
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+copy_file(
+    name = "libdb2_db_h",
+    src = "kdb/db2/libdb2/include/db.hin",
+    out = "kdb/db2/libdb2/include/db.h",
+)
+
+copy_file(
+    name = "libdb2_db_config_h",
+    src = "kdb/db2/libdb2/include/db-config.hin",
+    out = "kdb/db2/libdb2/include/db-config.h",
+)
+
+cc_library(
+    name = "libdb2_h",
+    hdrs = glob(["kdb/db2/libdb2/include/*.h"]) + [
+        ":libdb2_db_config_h",
+        ":libdb2_db_h",
+    ],
+    includes = ["kdb/db2/libdb2/include"],
+)
+
+cc_library(
+    name = "libdb2_private_h",
+    hdrs = glob([
+        "kdb/db2/libdb2/btree/*.h",
+        "kdb/db2/libdb2/hash/*.h",
+        "kdb/db2/libdb2/mpool/*.h",
+        "kdb/db2/libdb2/recno/*.h",
+    ]),
+    includes = ["kdb/db2/libdb2/mpool"],
+)
+
+# Berkeley DB 1.85 fork (kdb/db2/libdb2), linked statically into the db2 plugin.
+cc_library(
+    name = "libdb2",
+    srcs = glob([
+        "kdb/db2/libdb2/btree/*.c",
+        "kdb/db2/libdb2/db/*.c",
+        "kdb/db2/libdb2/hash/*.c",
+        "kdb/db2/libdb2/mpool/*.c",
+        "kdb/db2/libdb2/recno/*.c",
+    ]),
+    copts = KRB5_COPTS,
+    implementation_deps = [":libdb2_private_h"],
+    local_defines = KRB5_LOCAL_DEFINES,
+    deps = [
+        ":libdb2_h",
+        "//:include",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+# kdb/db2.so: KDC database backend.
+krb5_shared_library(
+    name = "db2",
+    srcs = glob([
+        "kdb/db2/*.c",
+        "kdb/db2/*.h",
+    ]),
+    dynamic_deps = [
+        "//src/lib:gssrpc_pkg",
+        "//src/lib:kadm5srv_mit_pkg",
+        "//src/lib:kdb5_pkg",
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/gssapi:gssapi_krb5_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    implementation_deps = ["//src/lib:kdb_private_h"],
+    local_defines = ["PLUGIN"],
+    plugin_dir = "krb5/plugins/kdb",
+    static_deps = [":libdb2"],
+    exports = "kdb/db2/db2.exports",
+    deps = [
+        ":libdb2",
+        ":libdb2_h",
+        "//:gssrpc_h",
+        "//:include",
+        "//src/lib:gssrpc_lib",
+        "//src/lib:kadm5_h",
+        "//src/lib:kadm5srv_mit_lib",
+        "//src/lib:kdb5_lib",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/gssapi:gssapi_krb5_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)

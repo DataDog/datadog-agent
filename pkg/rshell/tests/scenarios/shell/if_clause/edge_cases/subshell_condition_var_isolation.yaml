@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-18-initial-audit / if_clause.
+# A variable assigned inside a subshell used as the if-condition does not
+# leak into the parent (i.e. into the if-body). Confirms execIfChain
+# (interp/runner_exec.go:831-865) treats the Cond stmts list as ordinary
+# statements — the subshell isolation enforced by the (...) Cmd applies
+# unchanged, even though the subshell sits in the condition slot.
+description: Subshell variable assignment in the if-condition does not leak into the if-body.
+input:
+  script: |+
+    if ( SECRET=leaked ); then
+      echo "body sees=[$SECRET]"
+    fi
+expect:
+  stdout: |+
+    body sees=[]
+  stderr: ""
+  exit_code: 0

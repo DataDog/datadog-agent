@@ -37,6 +37,7 @@ import (
 
 const (
 	apiKeyConfigKey          = "api_key"
+	appKeyConfigKey          = "app_key"
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
 )
 
@@ -91,6 +92,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		log.Debugf("OnUpdate: %s", setting)
+		if setting == appKeyConfigKey {
+			// The AI Guard proxy reads this key per request, so a rotated application key takes
+			// effect without a restart. Whether the route is registered at all is still decided
+			// at startup, so a key added to a running Agent needs one.
+			if newAppKey, ok := newValue.(string); ok {
+				c.UpdateApplicationKey(pkgconfigutils.SanitizeAPIKey(newAppKey))
+			}
+			return
+		}
 		if setting != apiKeyConfigKey {
 			return
 		}

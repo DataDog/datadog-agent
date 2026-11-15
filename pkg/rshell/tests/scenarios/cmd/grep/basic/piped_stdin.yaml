@@ -1,0 +1,9 @@
+description: grep reads from stdin when piped.
+input:
+  script: |+
+    echo "hello world" | grep hello
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

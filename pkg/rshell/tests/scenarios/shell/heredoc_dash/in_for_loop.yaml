@@ -1,0 +1,9 @@
+description: Heredoc-dash can be used inside a for loop.
+input:
+  script: "for i in 1 2; do\ncat <<-EOF\n\titem:$i\nEOF\ndone\n"
+expect:
+  stdout: |+
+    item:1
+    item:2
+  stderr: ""
+  exit_code: 0

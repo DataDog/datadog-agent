@@ -1,0 +1,23 @@
+description: ls sorts entries alphabetically by default.
+setup:
+  files:
+    - path: cherry.txt
+      content: "c"
+      chmod: 0644
+    - path: apple.txt
+      content: "a"
+      chmod: 0644
+    - path: banana.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls
+expect:
+  stdout: |+
+    apple.txt
+    banana.txt
+    cherry.txt
+  stderr: ""
+  exit_code: 0

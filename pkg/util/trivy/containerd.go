@@ -89,7 +89,7 @@ func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 }
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go `ContainerdImage`
-func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*image, func(), error) {
+func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, scanOptions sbom.ScanOptions) (*image, func(), error) {
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 	cleanup := func() {}
 
@@ -110,7 +110,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img), imgMeta, scanOptions),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil
@@ -213,6 +213,13 @@ type fakeContainerdContainer struct {
 	*image
 }
 
+// ConfigFile returns the config file built from the image config. The direct
+// scan tolerates a history that disagrees with the diff IDs, for which
+// image.ConfigFile exports the whole image.
+func (c *fakeContainerdContainer) ConfigFile() (*v1.ConfigFile, error) {
+	return c.image.inspectConfigFile()
+}
+
 func (c *fakeContainerdContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
 	return c.fakeContainer.LayerByDiffID(hash)
 }
@@ -247,7 +254,7 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		return nil, fmt.Errorf("%w: image %s is a nydus image", sbom.ErrScanNotSupported, imgMeta.ID)
 	}
 
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img, scanOptions)
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -331,7 +338,7 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("%w: image %s: %v", sbom.ErrScanNotSupported, imgMeta.ID, err)
 	}
 
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
+	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img, scanOptions)
 	if cleanup != nil {
 		defer cleanup()
 	}

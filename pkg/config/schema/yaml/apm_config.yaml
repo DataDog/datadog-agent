@@ -702,6 +702,9 @@ properties:
        * pattern - string - The pattern to match the desired content to replace
        * repl - string - what to inline if the pattern is matched
 
+      The env of a span cannot be replaced, as it is used for sampling and stats:
+      rules named "env" are ignored, and "*" rules skip the span env.
+
       See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
     example: |2-
 
@@ -822,6 +825,7 @@ properties:
     env_parser: comma_then_space_separated
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -866,6 +870,33 @@ properties:
     tags:
     - template_section:TraceAgent
     properties:
+      apm_basic:
+        node_type: section
+        type: object
+        description: |-
+          Configure APM Basic, which injects dd-trace-c into opted-in workloads to report RED metrics
+          without sending traces. Workloads opt in with the admission.datadoghq.com/apm-basic.enabled label.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_ENABLED
+            description: Set to true to inject dd-trace-c into workloads opted into APM Basic.
+          tracer_versions:
+            node_type: setting
+            type: object
+            default:
+              c: '0'
+            env_vars:
+            - DD_APM_INSTRUMENTATION_APM_BASIC_TRACER_VERSIONS
+            additionalProperties:
+              type: string
+            env_parser: json
+            description: |-
+              Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+              Defaults to the latest major version 0 of the C tracer.
       enabled:
         node_type: setting
         type: boolean
@@ -1097,6 +1128,7 @@ properties:
     - DD_APM_DEBUG_V1_PAYLOADS
   debugger_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1107,6 +1139,7 @@ properties:
       type: array
   debugger_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1119,6 +1152,7 @@ properties:
     - DD_APM_DEBUGGER_DD_URL
   debugger_diagnostics_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1129,6 +1163,7 @@ properties:
       type: array
   debugger_diagnostics_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1255,6 +1290,7 @@ properties:
     - DD_APM_MODE
   profiling_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1343,6 +1379,7 @@ properties:
         default: 0
   symdb_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1353,6 +1390,7 @@ properties:
       type: array
   symdb_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1375,6 +1413,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         env_vars:

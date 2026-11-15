@@ -1,0 +1,10 @@
+description: Backslash handling in unquoted heredoc-dash content after tab stripping.
+input:
+  script: "cat <<-END\n\t\\a\n\t\\$foo\n\t\\\\\nEND\n"
+expect:
+  stdout: |+
+    \a
+    $foo
+    \
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Unset variable in double quotes expands to empty string preserving argument.
+input:
+  script: |+
+    printf '[%s]\n' "$UNSET_VAR"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0
