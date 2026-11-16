@@ -149,9 +149,7 @@ func isConnectionError(err error) bool {
 	case *network.OracleError:
 		return cause.Bad() || shouldResetOracleSession(cause.ErrCode)
 	case interface{ Code() int }:
-		// ODPI-C preserves the underlying Oracle code for call timeouts.
-		code := cause.Code()
-		return godror.IsBadConn(err) || shouldResetOracleSession(code) || code == 3156 || code == 12161
+		return godror.IsBadConn(err) || shouldResetOracleSession(cause.Code())
 	}
 	// Neither of these errors has an exported type or sentinel in the pinned APIs.
 	return strings.HasPrefix(err.Error(), "TTC error:") || err.Error() == "sql: database is closed"
@@ -159,9 +157,14 @@ func isConnectionError(err error) bool {
 
 func shouldResetOracleSession(code int) bool {
 	switch code {
-	case 1000, 1013: // Cursor exhaustion or operation cancellation.
-		return true
-	case 3106, 6413, 12514: // Preserve protocol, unopened-connection and listener recovery.
+	// 1000: go-ora/godror cursor exhaustion.
+	// 1013: go-ora/godror operation cancellation.
+	// 3106: go-ora fatal two-task communication protocol error; godror.IsBadConn also covers it.
+	// 3156: godror OCI call timeout, preserved by ODPI-C.
+	// 6413: go-ora/godror connection not open.
+	// 12161: godror partial data received; ODPI-C can report this after a call timeout.
+	// 12514: go-ora/godror listener does not know the requested service.
+	case 1000, 1013, 3106, 3156, 6413, 12161, 12514:
 		return true
 	default:
 		return false
