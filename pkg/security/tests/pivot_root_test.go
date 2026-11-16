@@ -26,6 +26,10 @@ import (
 func TestPivotRoot(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("pivot_root test cannot run in Docker environment")
 	}
@@ -97,11 +101,12 @@ func TestPivotRoot(t *testing.T) {
 				return false
 			}
 
-			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
-			if err == nil && mount != nil {
-				t.Logf("pivot_root event: mount_id=%d path=%q fstype=%s",
-					event.Mount.MountID, mount.Path, event.Mount.FSType)
+			if p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
+				mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
+				if err == nil && mount != nil {
+					t.Logf("pivot_root event: mount_id=%d path=%q fstype=%s",
+						event.Mount.MountID, mount.Path, event.Mount.FSType)
+				}
 			}
 
 			assert.NotEqual(t, uint32(0), event.Mount.MountID, "mount ID should be non-zero")
