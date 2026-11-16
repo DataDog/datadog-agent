@@ -511,13 +511,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	var grpcPort int
 	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {
-		switch {
-		case configcheck.IsTraceInternalReceiverEnabled(datadog):
-			grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		switch err := configcheck.ValidateDataPlaneProxy(datadog); {
+		case err != nil:
+			log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
 		case configcheck.IsDataPlaneOnlyEnabled(datadog):
 			log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
 		default:
-			log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, configcheck.ValidateDataPlaneProxy(datadog))
+			grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
 		}
 	}
 
