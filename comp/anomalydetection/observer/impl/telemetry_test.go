@@ -55,6 +55,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
 	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
+	tel.recordGatedDetections("stable_pipeline:scanmw", "stable", "relative_change", 2)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 3)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
@@ -69,6 +70,8 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogsInputRateLimiterDropped, map[string]string{"source": "internal", "priority": "high"}).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryKindEmissions, map[string]string{"detector": "bocpd", "kind": "unset", "severity": "medium"}).GetCounter().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryGatedDetections,
+		map[string]string{"detector": "stable_pipeline:scanmw", "kind": "stable", "gate": "relative_change"}).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonCapacity}).GetCounter().GetValue())
 	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonSeries}).GetCounter().GetValue())
@@ -372,4 +375,42 @@ func TestMetricWorkflowMutedEmissionTelemetry(t *testing.T) {
 			require.Empty(t, e.drainEmissionCounts(), "baseline qualification and noisy-metric muting must suppress telemetry")
 		})
 	}
+}
+func TestMetricPipelineGatedTelemetry(t *testing.T) {
+	comp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(comp)
+	inner := &stableStubDetector{name: "scanmw", ready: true, anomalies: []observer.Anomaly{
+		stableEvidenceAnomaly(100, 103), // below threshold
+		stableEvidenceAnomaly(100, 110), // accepted
+	}}
+	stable, err := newStablePipeline(inner, DefaultStablePipelineConfig())
+	require.NoError(t, err)
+	registration := pipelineRegistration{
+		kind:         observer.STABLE,
+		metricType:   metrics.GaugeType,
+		detector:     stable,
+		aggregations: []observer.Aggregate{observer.AggregateAverage},
+	}
+	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	require.NoError(t, err)
+	e := mustNewEngine(engineConfig{
+		storage:                    newDetectorTestStorage(),
+		detectors:                  []detectorRegistration{{detector: p}},
+		trackDetectorOutputHistory: true,
+	})
+
+	result := p.Detect(nil, 1, observer.DetectionFilter{})
+	require.Len(t, result.Anomalies, 1)
+
+	e.publishMetricKindTelemetry(tel)
+	labels := map[string]string{"detector": "stable_pipeline:scanmw", "kind": "stable", "gate": "relative_change"}
+	require.Equal(t, 1.0, observerMetric(t, comp, telemetryGatedDetections, labels).GetCounter().GetValue())
+
+	before, err := comp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	e.publishMetricKindTelemetry(tel)
+	after, err := comp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	require.Empty(t, stable.drainGatedRejections(), "drain must clear pending rejections")
+	require.Len(t, before, len(after), "an idle drain must not publish new gated samples")
 }

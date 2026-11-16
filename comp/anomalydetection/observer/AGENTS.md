@@ -151,6 +151,18 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+With log time buckets enabled, completed log-count intervals are logical points:
+storage keeps nonzero counts and compact interval spans, generating zeros during
+reads. Point counts, bounded tail reads, range reads, and write generations must
+all describe those same logical points. Each completed zero advances the revision
+even after retention stops the point count growing. Keep discovery, bucket
+alignment, idle-TTL gaps, and reactivation boundaries; never fill arbitrary gaps.
+Trim spans and numeric values together under the logical point and time limits.
+This representation uses existing data-time advances; it does not add idle ticks.
+`ComponentSettings.LogCountBuckets` optionally overrides buckets on replay reset;
+nil preserves the current bucket setting. The testbench JSON exposes this as
+the top-level `log_time_buckets` object, outside component hyperparameters.
+
 ### Bounded series admission
 
 Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,
@@ -210,6 +222,13 @@ After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
+The stable registration runs a `StablePipeline`: ScanMW plus a relative-change
+gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
+5%, `0` disables it). The gate mutes candidates whose medians differ by less
+than the threshold without touching ScanMW state. `detections.gated` counts
+these mutes; kind emission counters stay downstream of dedup.
+Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
+bands) and gain one level when detector confidence is High or XHigh.
 The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
 mean detector call durations every second. Timings identify inner detectors and
 registration kinds, excluding pipeline overhead; legacy calls use `unset`.
