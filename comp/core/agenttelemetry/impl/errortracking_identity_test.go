@@ -41,5 +41,7 @@ func TestBuildIdentityTags(t *testing.T) {
 // here; the tag values are covered by TestBuildIdentityTags.
 func TestEnrichErrorLog_CarriesIdentityTags(t *testing.T) {
 	out := enrichErrorLog(errortracking.ErrorLog{})
-	assert.True(t, strings.HasSuffix(out.Tags, identityTags()))
+	// Contains, not HasSuffix: other steps append tags (for example the team
+	// tag) after the identity tags for events that have Go frames.
+	assert.True(t, strings.Contains(out.Tags, identityTags()))
 }
