@@ -813,7 +813,6 @@ func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			instanceConfig := fmt.Sprintf(`
 tegrastats_path: %q
-use_sudo: true
 `, tt.path)
 
 			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test", names.File)
@@ -848,42 +847,23 @@ func TestRunCommand(t *testing.T) {
 }
 
 func TestJetsonCheckRequiresFileProvider(t *testing.T) {
-	const customPath = "/opt/nvidia/bin/tegrastats"
-
 	tests := []struct {
-		name        string
-		instance    string
-		provider    string
-		wantErr     string
-		wantPath    string
-		wantUseSudo bool
+		name     string
+		instance string
+		provider string
+		wantErr  string
 	}{
 		{
-			name:     "file provider default path",
+			name:     "file provider",
 			provider: names.File,
-			wantPath: defaultTegraStatsPath,
-		},
-		{
-			name:        "file provider custom path and sudo",
-			instance:    "tegrastats_path: " + customPath + "\nuse_sudo: true\n",
-			provider:    names.File,
-			wantPath:    customPath,
-			wantUseSudo: true,
 		},
 		{
 			name:     "pod annotation provider",
-			instance: "tegrastats_path: /tmp/payload\n",
-			provider: names.KubeContainer,
-			wantErr:  "only accepts configuration from local files",
-		},
-		{
-			name:     "pod annotation provider with no overrides",
 			provider: names.KubeContainer,
 			wantErr:  "only accepts configuration from local files",
 		},
 		{
 			name:     "empty provider",
-			instance: "tegrastats_path: " + customPath + "\n",
 			provider: "",
 			wantErr:  "only accepts configuration from local files",
 		},
@@ -913,7 +893,7 @@ func TestJetsonCheckRequiresFileProvider(t *testing.T) {
 			// expectations set here, so this case also proves the provider gate runs before
 			// CommonConfigure: a rejected config must not touch the sender.
 			name:     "untrusted provider with common options does not touch the sender",
-			instance: "tegrastats_path: /tmp/payload\ntags:\n  - tenant:evil\nempty_default_hostname: true\n",
+			instance: "tags:\n  - tenant:evil\nempty_default_hostname: true\n",
 			provider: names.KubeContainer,
 			wantErr:  "only accepts configuration from local files",
 		},
@@ -927,12 +907,10 @@ func TestJetsonCheckRequiresFileProvider(t *testing.T) {
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				assert.Empty(t, tegraCheck.tegraStatsPath)
-				assert.False(t, tegraCheck.useSudo)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantPath, tegraCheck.tegraStatsPath)
-			assert.Equal(t, tt.wantUseSudo, tegraCheck.useSudo)
+			assert.Equal(t, defaultTegraStatsPath, tegraCheck.tegraStatsPath)
 		})
 	}
 }
@@ -942,7 +920,7 @@ func TestJetsonCheckRejectsPodAnnotationInstance(t *testing.T) {
 	// the attacker-chosen path. The mock sender has no expectations set, so the test also
 	// proves the rejection happens before CommonConfigure can mutate the shared sender.
 	annotations := map[string]string{
-		"ad.datadoghq.com/app.checks": `{"jetson":{"instances":[{"tegrastats_path":"/tmp/payload","use_sudo":true,"tags":["tenant:evil"],"empty_default_hostname":true}]}}`,
+		"ad.datadoghq.com/app.checks": `{"jetson":{"instances":[{"tegrastats_path":"/tmp/payload","tags":["tenant:evil"],"empty_default_hostname":true}]}}`,
 	}
 	configs, errs := utils.ExtractTemplatesFromAnnotations("container_id://deadbeef", annotations, "app", false)
 	require.Empty(t, errs)
@@ -962,5 +940,4 @@ func TestJetsonCheckRejectsPodAnnotationInstance(t *testing.T) {
 	)
 	require.ErrorContains(t, err, "only accepts configuration from local files")
 	assert.Empty(t, tegraCheck.tegraStatsPath)
-	assert.False(t, tegraCheck.useSudo)
 }
