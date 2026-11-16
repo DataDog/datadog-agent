@@ -51,14 +51,14 @@ func Compress(dst, src []byte) ([]byte, error) {
 type WriterOption func(*writerOptions)
 
 type writerOptions struct {
-	windowSize      int
+	windowLogSize   *int
 	lowerEncoderMem bool
 }
 
-// WithWindowSize sets the pure-Go history window in bytes, overriding
-// ZSTD_NOCGO_WINDOW. It must be a power of two between 1 KiB and 512 MiB.
-func WithWindowSize(size int) WriterOption {
-	return func(o *writerOptions) { o.windowSize = size }
+// WithWindowLogSize sets the pure-Go history window to 1 << logSize bytes,
+// overriding ZSTD_NOCGO_WINDOW. The encoder validates the resulting window size.
+func WithWindowLogSize(logSize int) WriterOption {
+	return func(o *writerOptions) { o.windowLogSize = &logSize }
 }
 
 // WithLowerEncoderMem controls the pure-Go encoder's memory-saving mode.

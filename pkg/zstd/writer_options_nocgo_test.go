@@ -21,10 +21,20 @@ func TestWriterOptions(t *testing.T) {
 		w.Close()
 		t.Fatal("invalid window accepted")
 	}
+	for _, logSize := range []int{-1, 0, 9, 30, 63, 64} {
+		w, err := NewWriterLevelWithOptions(io.Discard, BestSpeed, WithWindowLogSize(logSize))
+		if err == nil {
+			w.Close()
+			t.Fatalf("invalid window log %d accepted", logSize)
+		}
+		if logSize < 0 && err.Error() != "window log size must be non-negative: -1" {
+			t.Fatalf("unexpected negative window log error: %v", err)
+		}
+	}
 	for _, data := range [][]byte{nil, bytes.Repeat([]byte("symbols"), 200000)} {
 		var compressed bytes.Buffer
 		w, err := NewWriterLevelWithOptions(&compressed, BestSpeed,
-			WithWindowSize(3), WithWindowSize(1<<20), WithLowerEncoderMem(false))
+			WithWindowLogSize(-1), WithWindowLogSize(20), WithLowerEncoderMem(false))
 		if err != nil {
 			t.Fatal(err)
 		}
