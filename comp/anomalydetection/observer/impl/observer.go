@@ -1179,6 +1179,12 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
 		return err
 	}
+	if settings.LogCountBuckets != nil {
+		o.engine.logCounts = nil
+		if settings.LogCountBuckets.Enabled {
+			o.engine.logCounts = newMaterializedLogCountBucketizer(*settings.LogCountBuckets)
+		}
+	}
 	o.publishSeriesCount()
 	return nil
 }

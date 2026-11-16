@@ -151,6 +151,18 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+With log time buckets enabled, completed log-count intervals are logical points:
+storage keeps nonzero counts and compact interval spans, generating zeros during
+reads. Point counts, bounded tail reads, range reads, and write generations must
+all describe those same logical points. Each completed zero advances the revision
+even after retention stops the point count growing. Keep discovery, bucket
+alignment, idle-TTL gaps, and reactivation boundaries; never fill arbitrary gaps.
+Trim spans and numeric values together under the logical point and time limits.
+This representation uses existing data-time advances; it does not add idle ticks.
+`ComponentSettings.LogCountBuckets` optionally overrides buckets on replay reset;
+nil preserves the current bucket setting. The testbench JSON exposes this as
+the top-level `log_time_buckets` object, outside component hyperparameters.
+
 ### Bounded series admission
 
 Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,

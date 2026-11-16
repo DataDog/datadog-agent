@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	crdfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +36,7 @@ import (
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/helminformers"
 )
 
 // createMockAPIClient creates a mock APIClient with fake Kubernetes and dynamic clients
@@ -1297,6 +1299,62 @@ func TestCollectorBundleInitialize(t *testing.T) {
 
 	require.Equal(t, expectedInitializedCollectors, cb.initializedCollectors)
 	require.Equal(t, expectedStartedInformers, cb.startedInformers)
+}
+
+// The Helm release informer is shared with other checks and outlives the
+// orchestrator check: a canceled check must not keep handling its events.
+func TestCollectorBundleDetachesFromSharedInformer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cm := &corev1.ConfigMap{ObjectMeta: v1.ObjectMeta{
+			Name:      "sh.helm.release.v1.app.v1",
+			Namespace: "default",
+			Labels:    map[string]string{"owner": "helm"},
+		}}
+		client := k8sfake.NewClientset(cm)
+		apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
+		stopCh := make(chan struct{})
+		runCfg := &collectors.CollectorRunConfig{
+			Config: &orchcfg.OrchestratorConfig{MaxPerMessage: 10},
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   apiClient,
+				OrchestratorInformerFactory: getOrchestratorInformerFactory(apiClient),
+			},
+			StopCh: stopCh,
+		}
+		terminated := NewTerminatedResourceBundle(nil, runCfg, nil)
+		terminated.Enable()
+		cb := CollectorBundle{
+			collectors:               []collectors.K8sCollector{k8s.NewHelmReleaseConfigMapCollector()},
+			extraSyncTimeout:         defaultExtraSyncTimeout,
+			initializedCollectors:    map[string]struct{}{},
+			runCfg:                   runCfg,
+			startedInformers:         map[cache.Store]struct{}{},
+			stopCh:                   stopCh,
+			terminatedResourceBundle: terminated,
+		}
+
+		// Another check, e.g. the Helm check, holds the informer.
+		shared, release := helminformers.Acquire(client, helminformers.ConfigMaps)
+		deletes := 0
+		_, err := shared.AddEventHandler(cache.ResourceEventHandlerFuncs{DeleteFunc: func(interface{}) { deletes++ }})
+		require.NoError(t, err)
+
+		cb.Initialize()
+		require.Same(t, shared, cb.collectors[0].Informer())
+
+		// Cancel the orchestrator check.
+		close(stopCh)
+		synctest.Wait()
+		require.False(t, shared.IsStopped(), "the informer must keep running for its other holder")
+
+		require.NoError(t, client.CoreV1().ConfigMaps("default").Delete(context.Background(), cm.Name, v1.DeleteOptions{}))
+		synctest.Wait()
+		require.Equal(t, 1, deletes, "the other holder still gets events")
+		terminated.withLock(func() { assert.Empty(t, terminated.terminatedResources) })
+
+		release()
+		synctest.Wait()
+	})
 }
 
 func TestCollectorBundleRefreshDiscoveryAfterCRDChange(t *testing.T) {

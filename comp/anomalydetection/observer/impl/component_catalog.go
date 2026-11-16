@@ -91,6 +91,10 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// LogCountBuckets optionally overrides log time buckets for replay. Nil
+	// preserves the current setting across DebugView resets.
+	LogCountBuckets *LogCountBucketConfig
+
 	// UseMetricPipeline selects the kind-routed metric workflow. Zero keeps the
 	// previous configured detector workflow.
 	UseMetricPipeline bool
