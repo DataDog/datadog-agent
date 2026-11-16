@@ -29,8 +29,9 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
 
 - **Adding a construct to the language** means touching the three packages: a
   token in `token.go` and `scanner.go` if it needs one, a parsing function at the
-  right precedence level in `parser.go`, a node type in `ast` with its `copy`
-  and `editChildren` methods and its case in `Sprint`, and a case in `compile.go`.
+  right precedence level in `parser.go`, a node type in `ast` with its `copy`,
+  `editChildren` and `doChildren` methods and its case in `Sprint`, and a case
+  in `compile.go`.
 - **The parser looks one token ahead and never backtracks.** A new construct
   should be recognizable from its first token, or from the token following an
   operand for a postfix one (a call, an index).

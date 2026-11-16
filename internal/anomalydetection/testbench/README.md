@@ -36,7 +36,8 @@ dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --confi
 
 The workflows are mutually exclusive. The pipeline owns its detector defaults;
 legacy detector toggles and parameters do not configure it. Baseline and scorer
-settings apply in both modes. The UI does not switch workflows.
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). The UI does not switch workflows.
 
 Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
 `eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
@@ -348,6 +349,15 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 - `"enabled"` is optional — omit to use the catalog default.
 - Hyperparameter fields are optional — omitted fields keep their default values.
+
+An optional top-level `log_time_buckets` object enables regular log-count inputs
+for replay. For example, add `"log_time_buckets": {"enabled": true}` beside
+`components` to use five-second buckets, a 300-second idle TTL, and 600-second
+retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
+`retention_seconds`; an explicit zero idle TTL is supported. When omitted, replay
+preserves the current bucket setting, initially configured by the Agent and
+disabled by default.
+This setting changes detector inputs; keep it identical across binary comparisons.
 
 ### Example
 

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "pdhutil",
@@ -21,6 +22,20 @@ go_library(
             "//pkg/util/log",
             "@org_golang_x_sys//windows",
             "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "pdhutil_test",
+    srcs = ["pdhhelper_test.go"],
+    embed = [":pdhutil"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

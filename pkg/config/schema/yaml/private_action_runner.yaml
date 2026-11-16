@@ -119,7 +119,9 @@ properties:
         description: |-
           Named credentials with a required value field supporting ENC[...] secrets.
           allowed_actions accepts case-sensitive action names or wildcards such as
-          com.datadoghq.mongodb.*. allowed_http_domains limits use to HTTP actions
+          com.datadoghq.mongodb.*. Connection tests and other supporting actions are
+          inferred from allowed integrations, as with the runner's actions_allowlist.
+          allowed_http_domains limits use to HTTP actions
           whose initial destination matches a case-insensitive hostname, IP address,
           or *.example.com subdomain pattern (excluding the parent domain).
           Omitted restriction lists are unrestricted; empty lists deny all; null is invalid.

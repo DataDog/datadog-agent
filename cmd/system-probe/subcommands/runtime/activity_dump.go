@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -71,6 +73,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -93,6 +96,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -145,6 +149,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -443,8 +448,8 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
-func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, activityDumpArgs *activityDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -561,8 +566,8 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 	return nil
 }
 
-func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -609,8 +614,8 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 	}, nil
 }
 
-func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, activityDumpArgs *activityDumpCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
