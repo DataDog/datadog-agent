@@ -4,6 +4,7 @@ dd_agent_go_test(
     name = "agent-telemetry_test",
     srcs = [
         "errortracking_cluster_agent_test.go",
+        "errortracking_identity_test.go",
         "errortracking_otel_agent_test.go",
         "errortracking_test.go",
     ],
@@ -39,6 +40,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
+        "//test/new-e2e/tests/agent-telemetry/newerrors",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "newerrors",
+    srcs = ["newerrors.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-telemetry/newerrors",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "newerrors_test",
+    srcs = ["newerrors_test.go"],
+    embed = [":newerrors"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
