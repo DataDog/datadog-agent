@@ -68,19 +68,30 @@ type atel struct {
 	// drains the channel on each tick and on shutdown, dispatching via
 	// sender.sendLogsBatch.
 	//
-	// errortrackingEnabled gates allocation of errLogsCh and registration
-	// of the flush job on the composed gate (IsAgentTelemetryEnabled &&
-	// agent_telemetry.errortracking.enabled), so deployments that don't
-	// opt in pay zero overhead (no buffer, no scheduled job).
-	errortrackingEnabled bool
-	errLogsCh            chan errortracking.ErrorLog
+	// errLogsCh is allocated only while errortracking is on, so deployments
+	// that don't opt in pay no buffer. It is switched at runtime by
+	// setErrortracking, which serializes with start and stop on
+	// errortrackingMu and guards the fields below it.
+	errLogsCh            atomic.Pointer[chan errortracking.ErrorLog]
+	errLogsBufferSize    int
 	errLogsDropped       *atomic.Uint64
 	errLogsFlushInterval time.Duration
 	errLogsStartupJitter time.Duration
 	shutdownDrainTimeout time.Duration
+	// errLogsFlushFailures counts consecutive failed errortracking flushes,
+	// the health signal of the errortracking remote flag.
+	errLogsFlushFailures atomic.Uint32
+
+	errortrackingMu  sync.Mutex
+	errortrackingJob bool
+	started          bool
+	stopped          bool
 
 	// flag gates profiles carrying a `remote_flag`; nil means every gated profile is off.
 	flag *remoteFlagHandler
+
+	// errortrackingFlag turns errortracking on and off at runtime.
+	errortrackingFlag *errortrackingFlagHandler
 
 	// flushFailures counts consecutive flushSession failures, the health signal for remote flags.
 	flushFailures *atomic.Uint32
@@ -196,15 +207,10 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
-	// Only allocate the errortracking channel (and later spawn the flush
-	// goroutine in start) when the errortracking feature is enabled.
-	// Otherwise leave errLogsCh nil; SubmitErrorLog is then a no-op
-	// (see the errLogsCh==nil guard there) and we avoid the buffer +
-	// idle goroutine for deployments that don't opt in.
-	//
-	// Gate composes with IsAgentTelemetryEnabled so gov/FIPS sites
-	// (parent agent_telemetry is excluded for them) automatically opt
-	// out without needing a separate exclusion list.
+	// Errortracking starts on only when the local configuration enables it;
+	// the remote flag can switch it later (see setErrortracking). The gate
+	// composes with IsAgentTelemetryEnabled so gov/FIPS sites (parent
+	// agent_telemetry is excluded for them) automatically opt out.
 	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
 
 	bufferSize := getNonNegativeErrortrackingInt(
@@ -226,11 +232,6 @@ func createAtel(
 		defaultErrortrackingStartupJitterSeconds,
 	)
 
-	var errLogsCh chan errortracking.ErrorLog
-	if errortrackingEnabled {
-		errLogsCh = make(chan errortracking.ErrorLog, bufferSize)
-	}
-
 	// Final-drain context budget — bounded so a hung intake cannot
 	// block agent shutdown. See atel.stop for usage.
 	shutdownDrainTimeoutSeconds := getNonNegativeErrortrackingInt(
@@ -240,7 +241,7 @@ func createAtel(
 		defaultErrortrackingShutdownDrainTimeoutSecs,
 	)
 
-	return &atel{
+	a := &atel{
 		enabled: true,
 		cfgComp: cfgComp,
 		logComp: logComp,
@@ -261,13 +262,16 @@ func createAtel(
 
 		flushFailures: atomic.NewUint32(0),
 
-		errortrackingEnabled: errortrackingEnabled,
-		errLogsCh:            errLogsCh,
+		errLogsBufferSize:    bufferSize,
 		errLogsDropped:       atomic.NewUint64(0),
 		errLogsFlushInterval: time.Duration(flushIntervalSeconds) * time.Second,
 		errLogsStartupJitter: time.Duration(startupJitterSeconds) * time.Second,
 		shutdownDrainTimeout: time.Duration(shutdownDrainTimeoutSeconds) * time.Second,
 	}
+	if errortrackingEnabled {
+		a.allocErrortrackingQueueLocked()
+	}
+	return a
 }
 
 func getNonNegativeErrortrackingInt(cfgComp config.Component, logComp log.Component, key string, defaultValue int) int {
@@ -296,6 +300,13 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Config, a.setErrortracking, a.isErrortrackingHealthy)
+
+	// Register synchronously, not on start, so errors logged while the
+	// component graph is still being built are not dropped.
+	if a.errLogsCh.Load() != nil {
+		a.publishErrortracking()
+	}
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
@@ -312,7 +323,7 @@ func NewComponent(deps Requires) Provides {
 	return Provides{
 		Comp:       a,
 		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
-		Subscriber: a.flag,
+		Subscriber: remoteFlagSubscriber{a.flag, a.errortrackingFlag},
 	}
 }
 
@@ -763,14 +774,15 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 	if !a.enabled {
 		return
 	}
-	if a.errLogsCh == nil {
-		// errortracking feature flag disabled: no channel allocated and
-		// no flush goroutine running. Calling this should be a no-op
-		// rather than a nil-channel send (which would block forever).
+	ch := a.errLogsCh.Load()
+	if ch == nil {
+		// Errortracking is off: no channel allocated. Calling this should
+		// be a no-op rather than a nil-channel send (which would block
+		// forever).
 		return
 	}
 	select {
-	case a.errLogsCh <- log:
+	case *ch <- log:
 	default:
 		a.errLogsDropped.Add(1)
 	}
@@ -781,8 +793,7 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 // The drain is bounded to len(errLogsCh) at flush start: items that
 // arrive after the snapshot are left for the next tick, preventing a
 // hot error stream from holding the flush job indefinitely.
-// A no-op when errortracking is disabled (errLogsCh == nil) or the
-// channel is empty.
+// A no-op when errortracking is off (no channel) or the channel is empty.
 //
 // Called from two places:
 //  1. The runner-scheduled job tick (via job.Run when profiles==nil),
@@ -799,20 +810,24 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 // a producer with no retry expectation; retrying at flush time would
 // block subsequent ticks and require additional buffering complexity.
 func (a *atel) flushErrortracking(ctx context.Context) {
-	if a.errLogsCh == nil {
-		return
+	if ch := a.errLogsCh.Load(); ch != nil {
+		a.flushErrortrackingQueue(ctx, *ch)
 	}
+}
+
+// flushErrortrackingQueue drains up to the current depth of ch and sends it.
+func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortracking.ErrorLog) {
 	// Snapshot the current queue depth so a hot producer cannot extend
 	// this batch indefinitely: items arriving after the snapshot wait for
-	// the next tick rather than growing errLogs beyond cap(errLogsCh).
-	n := len(a.errLogsCh)
+	// the next tick rather than growing errLogs beyond cap(ch).
+	n := len(ch)
 	if n == 0 {
 		return
 	}
 	errLogs := make([]errortracking.ErrorLog, 0, n)
 	for range n {
 		select {
-		case l := <-a.errLogsCh:
+		case l := <-ch:
 			errLogs = append(errLogs, l)
 		default:
 			// Channel drained before snapshot count — harmless, stop early.
@@ -826,9 +841,114 @@ func (a *atel) flushErrortracking(ctx context.Context) {
 	for i, l := range errLogs {
 		logs[i] = enrichErrorLog(l)
 	}
-	if err := a.sender.sendLogsBatch(ctx, logs); err != nil {
+	err := a.sender.sendLogsBatch(ctx, logs)
+	if err != nil {
+		a.errLogsFlushFailures.Inc()
 		a.logComp.Debugf("errortracking flush failed (%d logs): %v", len(errLogs), err)
+		return
 	}
+	a.errLogsFlushFailures.Store(0)
+}
+
+// isErrortrackingHealthy is the health probe of the errortracking remote
+// flag: consecutive failed flushes make it unhealthy. It is independent from
+// isHealthy so one feature's failures never switch off the other.
+func (a *atel) isErrortrackingHealthy() bool {
+	return a.enabled && a.errLogsFlushFailures.Load() < maxConsecutiveFlushFailures
+}
+
+// allocErrortrackingQueueLocked allocates the bounded queue; the caller holds
+// errortrackingMu or has exclusive access to a.
+func (a *atel) allocErrortrackingQueueLocked() {
+	ch := make(chan errortracking.ErrorLog, a.errLogsBufferSize)
+	a.errLogsCh.Store(&ch)
+}
+
+// publishErrortracking routes the logger's error records to this component.
+// The bouncer is created here so each activation starts with an empty window.
+func (a *atel) publishErrortracking() {
+	bouncerWindow := time.Duration(a.cfgComp.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
+	pkglogsetup.RegisterErrortrackingBouncer(errortracking.NewBouncer(bouncerWindow, 0))
+	pkglogsetup.RegisterErrortrackingSubmitter(a.SubmitErrorLog)
+}
+
+// unpublishErrortracking stops routing the logger's error records.
+func unpublishErrortracking() {
+	pkglogsetup.RegisterErrortrackingSubmitter(nil)
+	pkglogsetup.RegisterErrortrackingBouncer(nil)
+}
+
+// setErrortracking switches errortracking on or off at runtime. It is a no-op
+// when the component is disabled or stopped, or when the state is unchanged.
+//
+// Switching on allocates the queue, resets the health signal, schedules the
+// flush job (once, it stays scheduled and idles while off) and routes the
+// logger's records here. Switching off stops routing first, then flushes what
+// is already buffered the way stop does, then releases the queue. Records a
+// producer submitted concurrently with the switch may be dropped. Errors
+// logged before the remote flag first arrives are not captured.
+func (a *atel) setErrortracking(on bool) {
+	a.errortrackingMu.Lock()
+	if !a.enabled || a.stopped || (a.errLogsCh.Load() != nil) == on {
+		a.errortrackingMu.Unlock()
+		return
+	}
+
+	if on {
+		defer a.errortrackingMu.Unlock()
+		a.errLogsFlushFailures.Store(0)
+		a.allocErrortrackingQueueLocked()
+		a.addErrortrackingJobLocked()
+		a.publishErrortracking()
+		return
+	}
+
+	unpublishErrortracking()
+	ch := a.errLogsCh.Swap(nil)
+	a.errortrackingMu.Unlock()
+
+	if ch != nil {
+		a.drainErrortracking(*ch)
+	}
+}
+
+// drainErrortracking sends what ch holds, bounded by the shutdown drain
+// timeout and independent from the lifecycle context.
+func (a *atel) drainErrortracking(ch chan errortracking.ErrorLog) {
+	ctx, cancel := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+	defer cancel()
+	a.flushErrortrackingQueue(ctx, ch)
+}
+
+// addErrortrackingJobLocked schedules the errortracking flush on the runner
+// once the runner is started. The caller holds errortrackingMu.
+func (a *atel) addErrortrackingJobLocked() {
+	if !a.started || a.errortrackingJob {
+		return
+	}
+	a.errortrackingJob = true
+
+	flushPeriodSec := uint(a.errLogsFlushInterval / time.Second)
+	if flushPeriodSec == 0 {
+		// Guard against a zero flush interval from misconfiguration; Period:0
+		// would schedule a degenerate job. Default is 60 s; floor at 5 s.
+		a.logComp.Warnf("agent_telemetry.errortracking.flush_interval_seconds resolved to 0; clamping to 5 s")
+		flushPeriodSec = 5
+	}
+	var startAfterSec uint
+	if a.errLogsStartupJitter > 0 {
+		// The configured value is the MAX random jitter; the actual
+		// per-startup delay is a uniform pick in [0, max).
+		startAfterSec = uint(time.Duration(rand.Int63n(int64(a.errLogsStartupJitter))) / time.Second)
+	}
+	a.runner.addJob(job{
+		a: a,
+		schedule: Schedule{
+			Period:     flushPeriodSec,
+			Iterations: 0,
+			StartAfter: startAfterSec,
+		},
+	})
 }
 
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
@@ -872,34 +992,14 @@ func (a *atel) start() error {
 		})
 	}
 
-	// Register the errortracking flush as a runner job when the feature
-	// is enabled. The runner's cron-based scheduling replaces the
-	// previous custom ticker + WaitGroup goroutine; in-flight cron jobs
-	// are awaited via runner.stop() in atel.stop. profiles==nil is the
-	// discriminator the job's Run dispatches on.
-	if a.errortrackingEnabled {
-		flushPeriodSec := uint(a.errLogsFlushInterval / time.Second)
-		if flushPeriodSec == 0 {
-			// Guard against a zero flush interval from misconfiguration; Period:0
-			// would schedule a degenerate job. Default is 60 s; floor at 5 s.
-			a.logComp.Warnf("agent_telemetry.errortracking.flush_interval_seconds resolved to 0; clamping to 5 s")
-			flushPeriodSec = 5
-		}
-		var startAfterSec uint
-		if a.errLogsStartupJitter > 0 {
-			// rand.Int63n panics on n<=0; the > 0 guard above protects.
-			// The configured value is the MAX random jitter; the actual
-			// per-startup delay is a uniform pick in [0, max).
-			startAfterSec = uint(time.Duration(rand.Int63n(int64(a.errLogsStartupJitter))) / time.Second)
-		}
-		a.runner.addJob(job{
-			a: a,
-			schedule: Schedule{
-				Period:     flushPeriodSec,
-				Iterations: 0,
-				StartAfter: startAfterSec,
-			},
-		})
+	// The errortracking flush is a runner job too, scheduled when the
+	// feature is on at start or the first time it is switched on. profiles==nil
+	// is the discriminator the job's Run dispatches on.
+	a.errortrackingMu.Lock()
+	defer a.errortrackingMu.Unlock()
+	a.started = true
+	if a.errLogsCh.Load() != nil {
+		a.addErrortrackingJobLocked()
 	}
 
 	return nil
@@ -921,8 +1021,10 @@ func (a *atel) start() error {
 //     context + shutdownDrainTimeout, so records buffered between the
 //     last tick and the slot-clear are still sent.
 func (a *atel) stop() error {
-	pkglogsetup.RegisterErrortrackingSubmitter(nil)
-	pkglogsetup.RegisterErrortrackingBouncer(nil)
+	a.errortrackingMu.Lock()
+	a.stopped = true
+	unpublishErrortracking()
+	a.errortrackingMu.Unlock()
 
 	if a.startupSpan != nil {
 		a.startupSpan.Finish(nil)
@@ -941,10 +1043,8 @@ func (a *atel) stop() error {
 	// Final errortracking drain. Uses a fresh background-derived ctx
 	// because a.cancelCtx is already done; the bounded timeout caps the
 	// budget so a hung intake cannot block shutdown.
-	if a.errortrackingEnabled {
-		shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
-		a.flushErrortracking(shutdownCtx)
-		cancelDrain()
+	if ch := a.errLogsCh.Load(); ch != nil {
+		a.drainErrortracking(*ch)
 	}
 
 	a.logComp.Info("Agent telemetry is stopped")

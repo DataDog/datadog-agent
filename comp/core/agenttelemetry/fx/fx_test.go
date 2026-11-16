@@ -52,4 +52,5 @@ func TestModuleProvidesRemoteFlagSubscriber(t *testing.T) {
 		names = append(names, h.FlagName())
 	}
 	assert.Contains(t, names, pkgremoteflags.FlagName("troubleshooting_coat_bundle"))
+	assert.Contains(t, names, pkgremoteflags.FlagName("agent_errortracking"))
 }
