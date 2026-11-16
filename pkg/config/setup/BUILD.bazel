@@ -69,6 +69,7 @@ dd_agent_go_test(
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/mock",
+        "//comp/core/schema/impl",
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",

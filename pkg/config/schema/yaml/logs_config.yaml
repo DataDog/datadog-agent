@@ -774,9 +774,19 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Logs Agent performance profile, one of high-concurrency, high-throughput,
-      max-throughput or low-latency. Explicitly set logs_config settings take precedence.
-      Empty, off, none or default disables it.
+    visibility: public
+    description: |-
+      A pre-tuned bundle of Logs Agent performance settings. Leave empty to keep the default settings.
+
+      Choices are `high-concurrency`, `high-throughput`, `max-throughput` and `low-latency`.
+      Any `logs_config` setting configured explicitly takes precedence over the profile.
+    enum:
+    - ''
+    - high-concurrency
+    - high-throughput
+    - max-throughput
+    - low-latency
+    - null
   run_path:
     node_type: setting
     type: string

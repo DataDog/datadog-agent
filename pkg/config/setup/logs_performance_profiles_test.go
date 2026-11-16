@@ -15,20 +15,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	schemaimpl "github.com/DataDog/datadog-agent/comp/core/schema/impl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+func mustFindProfile(t *testing.T, name string) logsPerformanceProfile {
+	t.Helper()
+	p, ok := findLogsPerformanceProfile(name)
+	require.Truef(t, ok, "profile %q not found", name)
+	return p
+}
 
 // throughputLadder lists profiles that must each contain the previous one's settings.
 var throughputLadder = []string{"high-concurrency", "high-throughput", "max-throughput"}
 
 func TestThroughputLadderIsMonotonicSuperset(t *testing.T) {
 	for i := 1; i < len(throughputLadder); i++ {
-		lower := logsPerformanceProfiles[throughputLadder[i-1]].settings
-		higher := logsPerformanceProfiles[throughputLadder[i]].settings
-		require.NotEmpty(t, lower)
-		require.NotEmpty(t, higher)
-		for key, lowerVal := range lower {
-			higherVal, ok := higher[key]
+		lower := mustFindProfile(t, throughputLadder[i-1])
+		higher := mustFindProfile(t, throughputLadder[i])
+		require.NotEmpty(t, lower.settings)
+		require.NotEmpty(t, higher.settings)
+		for _, s := range lower.settings {
+			key, lowerVal := s.key, s.value
+			higherVal, ok := higher.value(key)
 			assert.Truef(t, ok, "%q must carry %q from %q (monotonic ladder)",
 				throughputLadder[i], key, throughputLadder[i-1])
 			assert.EqualValuesf(t, lowerVal, higherVal,
@@ -87,22 +96,22 @@ logs_config:
 
 	ApplyLogsPerformanceProfile(cfg)
 
-	profile := logsPerformanceProfiles["high-throughput"]
+	profile := mustFindProfile(t, "high-throughput")
 	require.NotEmpty(t, profile.settings, "high-throughput must define settings")
-	for key, want := range profile.settings {
-		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key),
-			"profile must set %s to its profile value", key)
+	for _, s := range profile.settings {
+		assert.EqualValues(t, resolveProfileValue(s.value), cfg.Get(s.key),
+			"profile must set %s to its profile value", s.key)
 	}
 }
 
-func TestLogsPerformanceProfileNameIsNormalized(t *testing.T) {
+func TestLogsPerformanceProfileNameIsExact(t *testing.T) {
 	cfg := confFromYAML(t, `
 logs_config:
-  profile: " High-Throughput "
+  profile: High-Throughput
 `)
 	ApplyLogsPerformanceProfile(cfg)
 
-	assert.Equal(t, 200, cfg.GetInt("logs_config.message_channel_size"))
+	assert.Equal(t, 100, cfg.GetInt("logs_config.message_channel_size"))
 }
 
 func TestLogsPerformanceProfileUnknownNameIsNoOp(t *testing.T) {
@@ -150,10 +159,10 @@ logs_config:
 func TestLogsPerformanceProfileCatalogKeysAreKnown(t *testing.T) {
 	cfg := confFromYAML(t, ``)
 
-	for name, profile := range logsPerformanceProfiles {
-		require.NotEmpty(t, profile.settings, "profile %q must define settings", name)
-		for key := range profile.settings {
-			assert.Truef(t, cfg.IsKnown(key), "profile %q references unknown config key %q", name, key)
+	for _, profile := range logsPerformanceProfiles {
+		require.NotEmpty(t, profile.settings, "profile %q must define settings", profile.name)
+		for _, s := range profile.settings {
+			assert.Truef(t, cfg.IsKnown(s.key), "profile %q references unknown config key %q", profile.name, s.key)
 		}
 	}
 }
@@ -174,10 +183,9 @@ func TestLogsPerformanceProfileEnvVarsRemainBound(t *testing.T) {
 		"DD_LOGS_CONFIG_PROFILE must still feed logs_config.profile")
 
 	ApplyLogsPerformanceProfile(cfg)
-	profile := logsPerformanceProfiles["high-throughput"]
-	for key, want := range profile.settings {
-		assert.EqualValues(t, resolveProfileSettingValue(want), cfg.Get(key),
-			"env-var-selected profile must apply %s", key)
+	for _, s := range mustFindProfile(t, "high-throughput").settings {
+		assert.EqualValues(t, resolveProfileValue(s.value), cfg.Get(s.key),
+			"env-var-selected profile must apply %s", s.key)
 	}
 }
 
@@ -228,6 +236,51 @@ logs_config:
 		"a fleet-policy knob override must take precedence over the profile")
 	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"),
 		"the profile must still fill in keys fleet policy did not override")
+}
+
+func TestLogsPerformanceProfileFleetSwitchClearsPreviousProfile(t *testing.T) {
+	cfg := confFromYAML(t, `
+logs_config:
+  profile: high-throughput
+`)
+	ApplyLogsPerformanceProfile(cfg)
+	require.Equal(t, 200, cfg.GetInt("logs_config.message_channel_size"))
+
+	cfg.Set("logs_config.profile", "low-latency", pkgconfigmodel.SourceFleetPolicies)
+	ApplyLogsPerformanceProfile(cfg)
+
+	assert.Equal(t, 100, cfg.GetInt("logs_config.message_channel_size"))
+	assert.Equal(t, 4, cfg.GetInt("logs_config.pipelines"))
+	assert.Equal(t, 1.0, cfg.GetFloat64("logs_config.batch_wait"))
+}
+
+func TestLogsPerformanceProfileOffWritesNothing(t *testing.T) {
+	cfg := confFromYAML(t, ``)
+
+	ApplyLogsPerformanceProfile(cfg)
+
+	for _, key := range logsProfileKeys() {
+		for _, vs := range cfg.GetAllSources(key) {
+			if vs.Source == pkgconfigmodel.SourceConfigPostInit {
+				assert.Nilf(t, vs.Value, "%s must have no post-init value", key)
+			}
+		}
+	}
+}
+
+func TestLogsPerformanceProfileSchemaEnumMatchesCatalog(t *testing.T) {
+	validator := schemaimpl.NewComponent().Comp
+	validate := func(profile string) []*pkgconfigmodel.Violation {
+		violations, err := validator.ValidateYAML([]byte("logs_config:\n  profile: '"+profile+"'\n"), pkgconfigmodel.CoreSchema)
+		require.NoError(t, err)
+		return violations
+	}
+
+	assert.Empty(t, validate(""))
+	for _, p := range logsPerformanceProfiles {
+		assert.Emptyf(t, validate(p.name), "schema enum must accept profile %q", p.name)
+	}
+	assert.NotEmpty(t, validate("High-Throughput"))
 }
 
 type batchWaitViolationValidator struct{}
