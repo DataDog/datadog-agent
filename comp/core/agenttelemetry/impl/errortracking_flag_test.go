@@ -16,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -27,28 +28,16 @@ const (
 	errortrackingLocalFalse = "agent_telemetry:\n  enabled: true\n  errortracking:\n    enabled: false\n"
 )
 
-// errortrackingFlagEvent is something the Remote Flags client can tell the
-// handler.
-type errortrackingFlagEvent string
+// setErrortrackingKey writes the key the way the Remote Flags client does,
+// under the Remote Config source.
+func setErrortrackingKey(a *atel, on bool) {
+	a.cfgComp.Set(errortrackingEnabledKey, on, pkgconfigmodel.SourceRC)
+}
 
-const (
-	flagTrue      errortrackingFlagEvent = "OnChange(true)"
-	flagFalse     errortrackingFlagEvent = "OnChange(false)"
-	flagAbsent    errortrackingFlagEvent = "OnNoConfig"
-	flagRecovered errortrackingFlagEvent = "SafeRecover"
-)
-
-func (e errortrackingFlagEvent) deliver(h pkgremoteflags.FlagHandler) {
-	switch e {
-	case flagTrue:
-		_ = h.OnChange(true)
-	case flagFalse:
-		_ = h.OnChange(false)
-	case flagAbsent:
-		h.OnNoConfig()
-	case flagRecovered:
-		h.SafeRecover(errors.New("unhealthy"), true)
-	}
+// unsetErrortrackingKey gives the key back the way the Remote Flags client does
+// when the flag is removed or recovered.
+func unsetErrortrackingKey(a *atel) {
+	a.cfgComp.UnsetForSource(errortrackingEnabledKey, pkgconfigmodel.SourceRC)
 }
 
 // cleanupErrortrackingSlots clears the package-global logger slots a toggle
@@ -81,7 +70,8 @@ func newErrortrackingFlagTestAtel(t *testing.T, yaml string, sndr sender) (*atel
 	runner := &runnerMock{}
 	a := getTestAtel(t, nil, yaml, sndr, nil, stoppableRunner{runner})
 	require.True(t, a.enabled)
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.logComp, a.isErrortrackingHealthy)
+	a.cfgComp.OnUpdate(a.onConfigUpdate)
 	require.NoError(t, a.start())
 	t.Cleanup(a.cancel)
 	return a, runner
@@ -97,67 +87,33 @@ func countErrortrackingJobs(runner *runnerMock) int {
 	return n
 }
 
-// TestErrortrackingFlagHandler_Precedence covers the truth table of the local
-// setting against the flag. override_local never reaches the handler: the
-// backend does not send it and the handler has no way to read it.
-func TestErrortrackingFlagHandler_Precedence(t *testing.T) {
-	tests := []struct {
-		name   string
-		local  string
-		events []errortrackingFlagEvent
-		want   bool
-	}{
-		{name: "unset, flag true", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue}, want: true},
-		{name: "unset, flag false", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagFalse}, want: false},
-		{name: "unset, flag true then false", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue, flagFalse}, want: false},
-		{name: "unset, flag true then absent", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue, flagAbsent}, want: false},
-		{name: "unset, flag true then recovered", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue, flagRecovered}, want: false},
-		{name: "unset, flag true, false, true", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue, flagFalse, flagTrue}, want: true},
-		{name: "unset, flag absent from the start", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagAbsent}, want: false},
-
-		{name: "local true, flag true", local: errortrackingLocalTrue, events: []errortrackingFlagEvent{flagTrue}, want: true},
-		// A local true is never switched off by the flag, an absent flag or a recovery.
-		{name: "local true, flag false", local: errortrackingLocalTrue, events: []errortrackingFlagEvent{flagFalse}, want: true},
-		{name: "local true, flag absent", local: errortrackingLocalTrue, events: []errortrackingFlagEvent{flagAbsent}, want: true},
-		{name: "local true, flag recovered", local: errortrackingLocalTrue, events: []errortrackingFlagEvent{flagTrue, flagRecovered}, want: true},
-
-		// A local false wins over everything the flag says.
-		{name: "local false, flag true", local: errortrackingLocalFalse, events: []errortrackingFlagEvent{flagTrue}, want: false},
-		{name: "local false, flag false", local: errortrackingLocalFalse, events: []errortrackingFlagEvent{flagFalse}, want: false},
-		{name: "local false, flag absent", local: errortrackingLocalFalse, events: []errortrackingFlagEvent{flagAbsent}, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.NewFromYAML(t, tt.local)
-			var applied []bool
-			h := newErrortrackingFlagHandler(cfg, makeLogMock(t), func(on bool) { applied = append(applied, on) }, func() bool { return true })
-
-			for _, e := range tt.events {
-				e.deliver(h)
-			}
-
-			require.NotEmpty(t, applied)
-			assert.Equal(t, tt.want, applied[len(applied)-1])
-		})
-	}
-}
-
-func TestErrortrackingFlagHandler_Identity(t *testing.T) {
+// The handler only binds the flag to the key and reports health; the Remote
+// Flags client does the rest.
+func TestErrortrackingFlagHandler_Binding(t *testing.T) {
 	healthy := true
-	h := newErrortrackingFlagHandler(configmock.NewFromYAML(t, errortrackingLocalUnset), makeLogMock(t), func(bool) {}, func() bool { return healthy })
+	h := newErrortrackingFlagHandler(makeLogMock(t), func() bool { return healthy })
 
 	assert.Equal(t, pkgremoteflags.FlagName("agent_errortracking"), h.FlagName())
+	assert.Equal(t, "agent_telemetry.errortracking.enabled", h.ConfigurationField())
+	assert.NoError(t, h.OnChange(true))
+	assert.NoError(t, h.OnChange(false))
+	assert.NotPanics(t, func() {
+		h.OnNoConfig()
+		h.SafeRecover(errors.New("unhealthy"), true)
+	})
 	assert.True(t, h.IsHealthy())
 	healthy = false
 	assert.False(t, h.IsHealthy())
+
+	var binder pkgremoteflags.ConfigurationBinder = h
+	assert.Equal(t, errortrackingEnabledKey, binder.ConfigurationField())
 }
 
 // The subscriber carries the errortracking handler next to the existing one,
 // and the existing one keeps its flag and behavior.
 func TestRemoteFlagSubscriber_BothHandlers(t *testing.T) {
 	a := getRemoteFlagTestAtel(t, &senderMock{})
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.logComp, a.isErrortrackingHealthy)
 
 	handlers := remoteFlagSubscriber{a.flag, a.errortrackingFlag}.Handlers()
 
@@ -180,7 +136,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	assert.Empty(t, sndr.capturedLogs())
 
 	// On: the queue exists, the flush job is scheduled once.
-	_ = a.errortrackingFlag.OnChange(true)
+	setErrortrackingKey(a, true)
 	require.NotNil(t, testQueue(a))
 	assert.Equal(t, 1, countErrortrackingJobs(runner))
 	a.SubmitErrorLog(errorLog("while on"))
@@ -190,7 +146,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	// Off: what is buffered is flushed, the queue is released, later
 	// submissions are dropped.
 	a.SubmitErrorLog(errorLog("buffered when switched off"))
-	_ = a.errortrackingFlag.OnChange(false)
+	setErrortrackingKey(a, false)
 	a.errortrackingDrains.Wait()
 	assert.Len(t, sndr.capturedLogs(), 2)
 	assert.Nil(t, testQueue(a))
@@ -199,7 +155,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	assert.Len(t, sndr.capturedLogs(), 2)
 
 	// On again: a new queue, and no second flush job.
-	_ = a.errortrackingFlag.OnChange(true)
+	setErrortrackingKey(a, true)
 	require.NotNil(t, testQueue(a))
 	assert.Equal(t, 1, countErrortrackingJobs(runner))
 	a.SubmitErrorLog(errorLog("second time on"))
@@ -213,8 +169,8 @@ func TestSetErrortracking_FlushJobIdlesWhileOff(t *testing.T) {
 	sndr := &senderMock{}
 	a, runner := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
 
-	_ = a.errortrackingFlag.OnChange(true)
-	_ = a.errortrackingFlag.OnChange(false)
+	setErrortrackingKey(a, true)
+	setErrortrackingKey(a, false)
 	require.Equal(t, 1, countErrortrackingJobs(runner))
 
 	callsBefore := sndr.sendLogsCalls()
@@ -237,24 +193,31 @@ func TestSetErrortracking_BeforeStart(t *testing.T) {
 	assert.Equal(t, 1, countErrortrackingJobs(runner))
 }
 
-func TestErrortrackingFlag_LocalSettingWinsOnTheComponent(t *testing.T) {
+// The feature follows the key whatever the source that resolves it: the
+// Remote Config source through the flag, or a local setting.
+func TestErrortracking_FollowsTheKey(t *testing.T) {
 	tests := []struct {
 		name      string
 		local     string
-		events    []errortrackingFlagEvent
+		change    func(a *atel)
 		wantQueue bool
 	}{
-		{name: "local true survives flag false", local: errortrackingLocalTrue, events: []errortrackingFlagEvent{flagFalse, flagAbsent, flagRecovered}, wantQueue: true},
-		{name: "local false ignores flag true", local: errortrackingLocalFalse, events: []errortrackingFlagEvent{flagTrue}, wantQueue: false},
-		{name: "local unset follows flag true", local: errortrackingLocalUnset, events: []errortrackingFlagEvent{flagTrue}, wantQueue: true},
+		{name: "unset, flag true", local: errortrackingLocalUnset, change: func(a *atel) { setErrortrackingKey(a, true) }, wantQueue: true},
+		{name: "unset, flag false", local: errortrackingLocalUnset, change: func(a *atel) { setErrortrackingKey(a, false) }, wantQueue: false},
+		{name: "unset, flag true then removed", local: errortrackingLocalUnset, change: func(a *atel) { setErrortrackingKey(a, true); unsetErrortrackingKey(a) }, wantQueue: false},
+		{name: "local true, key given back", local: errortrackingLocalTrue, change: func(a *atel) { unsetErrortrackingKey(a) }, wantQueue: true},
+		{name: "local false, key given back", local: errortrackingLocalFalse, change: func(a *atel) { unsetErrortrackingKey(a) }, wantQueue: false},
+		// The client never writes over a local value, so a change on another
+		// key or source changes nothing here.
+		{name: "other key", local: errortrackingLocalUnset, change: func(a *atel) { a.cfgComp.Set("agent_telemetry.errortracking.buffer_size", 10, pkgconfigmodel.SourceRC) }, wantQueue: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sndr := &senderMock{}
 			a, _ := newErrortrackingFlagTestAtel(t, tt.local, sndr)
-			for _, e := range tt.events {
-				e.deliver(a.errortrackingFlag)
-			}
+
+			tt.change(a)
+			a.errortrackingDrains.Wait()
 
 			assert.Equal(t, tt.wantQueue, testQueue(a) != nil)
 			a.SubmitErrorLog(errorLog("x"))
@@ -268,15 +231,44 @@ func TestErrortrackingFlag_LocalSettingWinsOnTheComponent(t *testing.T) {
 	}
 }
 
+// The key read at construction is the startup state, and the first notification
+// does not reschedule what is already running.
+func TestErrortracking_StartupStateFromTheKey(t *testing.T) {
+	sndr := &senderMock{}
+	a, runner := newErrortrackingFlagTestAtel(t, errortrackingLocalTrue, sndr)
+
+	require.NotNil(t, testQueue(a))
+	assert.Equal(t, 1, countErrortrackingJobs(runner))
+
+	setErrortrackingKey(a, true)
+	assert.Equal(t, 1, countErrortrackingJobs(runner))
+	assert.NotNil(t, testQueue(a))
+}
+
+// A key that is already true when the component is wired is picked up by the
+// sync that follows the callback registration.
+func TestErrortracking_SyncPicksUpKeyChangedBeforeWiring(t *testing.T) {
+	cleanupErrortrackingSlots(t)
+	a := getTestAtel(t, nil, errortrackingLocalUnset, &senderMock{}, nil, stoppableRunner{&runnerMock{}})
+	require.Nil(t, testQueue(a))
+	setErrortrackingKey(a, true)
+
+	a.cfgComp.OnUpdate(a.onConfigUpdate)
+	a.syncErrortracking()
+
+	assert.NotNil(t, testQueue(a))
+}
+
 // Agent telemetry being off (or excluded) keeps errortracking off whatever
-// the flag says.
-func TestSetErrortracking_AgentTelemetryDisabled(t *testing.T) {
+// the key says, and the feature reports unhealthy so the client recovers the
+// flag and gives the key back.
+func TestErrortracking_AgentTelemetryDisabled(t *testing.T) {
 	cleanupErrortrackingSlots(t)
 	cfg := configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n")
 	a := createAtel(cfg, makeLogMock(t), makeTelMock(t), &senderMock{}, &runnerMock{})
-	h := newErrortrackingFlagHandler(cfg, makeLogMock(t), a.setErrortracking, a.isErrortrackingHealthy)
+	h := newErrortrackingFlagHandler(makeLogMock(t), a.isErrortrackingHealthy)
 
-	_ = h.OnChange(true)
+	a.setErrortracking(true)
 
 	assert.Nil(t, testQueue(a))
 	assert.False(t, h.IsHealthy())
@@ -286,7 +278,7 @@ func TestSetErrortracking_AfterStop(t *testing.T) {
 	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, &senderMock{})
 	require.NoError(t, a.stop())
 
-	_ = a.errortrackingFlag.OnChange(true)
+	setErrortrackingKey(a, true)
 
 	assert.Nil(t, testQueue(a))
 }
@@ -295,7 +287,7 @@ func TestSetErrortracking_AfterStop(t *testing.T) {
 func TestStop_FlushesWhatTheFlagEnabled(t *testing.T) {
 	sndr := &senderMock{}
 	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
-	_ = a.errortrackingFlag.OnChange(true)
+	setErrortrackingKey(a, true)
 	a.SubmitErrorLog(errorLog("last words"))
 
 	require.NoError(t, a.stop())
@@ -325,7 +317,7 @@ func TestErrortrackingHealthIsIndependent(t *testing.T) {
 	sndr := &logFailingSender{senderMock: &senderMock{}}
 	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	_ = a.errortrackingFlag.OnChange(true)
+	setErrortrackingKey(a, true)
 	require.True(t, a.errortrackingFlag.IsHealthy())
 
 	sndr.fail.Store(true)
@@ -350,8 +342,8 @@ func TestErrortrackingHealthIsIndependent(t *testing.T) {
 		a.flushErrortracking(context.Background())
 	}
 	require.False(t, a.errortrackingFlag.IsHealthy())
-	a.errortrackingFlag.SafeRecover(nil, true)
-	_ = a.errortrackingFlag.OnChange(true)
+	unsetErrortrackingKey(a)
+	setErrortrackingKey(a, true)
 	assert.True(t, a.errortrackingFlag.IsHealthy())
 }
 
@@ -360,17 +352,18 @@ func TestErrortrackingFlag_TroubleshootingUnaffected(t *testing.T) {
 	sndr := &senderMock{}
 	a := getRemoteFlagTestAtel(t, sndr)
 	cleanupErrortrackingSlots(t)
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.logComp, a.isErrortrackingHealthy)
+	a.cfgComp.OnUpdate(a.onConfigUpdate)
 
 	require.NoError(t, a.flag.OnChange(true))
 	assert.Nil(t, testQueue(a), "the troubleshooting flag must not turn errortracking on")
 	assert.Contains(t, collectMetricNames(t, a, sndr), "gatedgroup.gatedmetric")
 
-	require.NoError(t, a.errortrackingFlag.OnChange(true))
+	setErrortrackingKey(a, true)
 	assert.NotNil(t, testQueue(a))
 	assert.Contains(t, collectMetricNames(t, a, sndr), "gatedgroup.gatedmetric")
 
-	a.errortrackingFlag.OnNoConfig()
+	unsetErrortrackingKey(a)
 	assert.Nil(t, testQueue(a))
 	assert.True(t, a.flag.enabled.Load(), "the troubleshooting flag keeps its own state")
 }
@@ -403,7 +396,7 @@ func TestSetErrortracking_ConcurrentToggleAndSubmit(t *testing.T) {
 		go func() {
 			defer togglers.Done()
 			for i := 0; i < 50; i++ {
-				_ = a.errortrackingFlag.OnChange(i%2 == 0)
+				setErrortrackingKey(a, i%2 == 0)
 				a.flushErrortracking(context.Background())
 			}
 		}()
@@ -412,8 +405,12 @@ func TestSetErrortracking_ConcurrentToggleAndSubmit(t *testing.T) {
 	close(stop)
 	producers.Wait()
 
+	// Whatever the interleaving, the feature ends up where the key says.
+	a.errortrackingDrains.Wait()
+	assert.Equal(t, a.cfgComp.GetBool(errortrackingEnabledKey), testQueue(a) != nil)
+
 	assert.NotPanics(t, func() {
-		a.errortrackingFlag.OnNoConfig()
+		unsetErrortrackingKey(a)
 		require.NoError(t, a.stop())
 	})
 	assert.Nil(t, testQueue(a))
@@ -446,12 +443,12 @@ func (s *gatedSender) sendLogsBatch(ctx context.Context, logs []Log) error {
 func TestSetErrortracking_OffDoesNotWaitForTheFlush(t *testing.T) {
 	sndr := newGatedSender(nil)
 	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
-	a.setErrortracking(true)
+	setErrortrackingKey(a, true)
 	a.SubmitErrorLog(errorLog("buffered"))
 
 	returned := make(chan struct{})
 	go func() {
-		a.errortrackingFlag.OnNoConfig()
+		unsetErrortrackingKey(a)
 		close(returned)
 	}()
 	<-sndr.entered // the release of the queue is now blocked in the sender

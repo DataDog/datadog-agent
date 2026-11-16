@@ -83,6 +83,9 @@ type atel struct {
 	errLogsFlushFailures atomic.Uint32
 
 	errortrackingMu sync.Mutex
+	// errortrackingSyncMu serializes the reaction to configuration changes,
+	// which reads the key and applies it.
+	errortrackingSyncMu sync.Mutex
 	// errortrackingDrains tracks the flushes of queues released by a switch
 	// off, which stop waits for.
 	errortrackingDrains sync.WaitGroup
@@ -210,8 +213,8 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
-	// Errortracking starts on only when the local configuration enables it;
-	// the remote flag can switch it later (see setErrortracking). The gate
+	// Errortracking starts on when the configuration enables it; later changes
+	// of the key, such as the remote flag, switch it (see setErrortracking). The gate
 	// composes with IsAgentTelemetryEnabled so gov/FIPS sites (parent
 	// agent_telemetry is excluded for them) automatically opt out.
 	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
@@ -303,7 +306,7 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Config, deps.Log, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Log, a.isErrortrackingHealthy)
 
 	// Register synchronously, not on start, so errors logged while the
 	// component graph is still being built are not dropped.
@@ -313,6 +316,11 @@ func NewComponent(deps Requires) Provides {
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
+		// Errortracking follows its configuration key after startup: the remote
+		// flag drives it through the Remote Config source. The sync covers a
+		// change between createAtel reading the key and the callback existing.
+		deps.Config.OnUpdate(a.onConfigUpdate)
+		a.syncErrortracking()
 		deps.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()
