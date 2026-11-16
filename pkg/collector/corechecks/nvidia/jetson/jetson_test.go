@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
@@ -35,7 +37,7 @@ const (
 func TestNano(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -89,7 +91,7 @@ func TestNano(t *testing.T) {
 func TestTX1(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -142,7 +144,7 @@ func TestTX1(t *testing.T) {
 func TestTX2(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -205,7 +207,7 @@ func TestTX2(t *testing.T) {
 func TestAgxXavier(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock.On("Gauge", "nvidia.jetson.mem.used", 721.0*mb, "", []string(nil)).Return().Times(1)
@@ -272,7 +274,7 @@ func TestAgxXavier(t *testing.T) {
 func TestXavierNx(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock.On("Gauge", "nvidia.jetson.mem.used", 4412.0*mb, "", []string(nil)).Return().Times(1)
@@ -326,7 +328,7 @@ func TestXavierNx(t *testing.T) {
 func TestVoltageUnits(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -399,7 +401,7 @@ func TestVoltageUnits(t *testing.T) {
 func TestR36(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	// RAM 29114/30697MB (lfb 3x4MB)    SWAP 4915/15348MB (cached 1MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 29114.0*mb, "", []string(nil)).Return().Once()
@@ -476,7 +478,7 @@ func TestR36(t *testing.T) {
 func TestOrin(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	// RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 2448.0*mb, "", []string(nil)).Return().Once()
@@ -547,7 +549,7 @@ func TestOrin(t *testing.T) {
 func TestThor(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	// RAM 3429/125773MB (lfb 12x4MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 3429.0*mb, "", []string(nil)).Return().Once()
@@ -624,7 +626,7 @@ func TestThor(t *testing.T) {
 func TestThorNoGpuFields(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	// RAM 9038/125772MB (lfb 62x4MB)
 	mock.On("Gauge", "nvidia.jetson.mem.used", 9038.0*mb, "", []string(nil)).Return().Once()
@@ -712,7 +714,7 @@ func TestVoltageMetricSenderNoFields(t *testing.T) {
 func TestJetsonAgxOrinNoVoltageFields(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
 	mock := mocksender.NewMockSender(t, tegraCheck.ID())
-	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", names.File)
 
 	// Reported in AGENT-16649: on a Jetson AGX Orin Dev Kit running Jetson Linux
 	// R36.4.4, tegrastats output has no VDD_* power rail fields at all. Previously
@@ -811,10 +813,9 @@ func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			instanceConfig := fmt.Sprintf(`
 tegrastats_path: %q
-use_sudo: true
 `, tt.path)
 
-			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test", "provider")
+			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test", names.File)
 			if tt.hasInvalidChars {
 				assert.ErrorContains(t, err, "tegrastats_path contains invalid characters")
 			} else if !tt.isAbsolute {
@@ -843,4 +844,89 @@ func TestRunCommand(t *testing.T) {
 			assert.Equal(t, tt.expectedOutput, string(out))
 		})
 	}
+}
+
+func TestJetsonCheckRequiresFileProvider(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		wantErr  string
+	}{
+		{
+			name:     "file provider",
+			provider: names.File,
+		},
+		{
+			name:     "pod annotation provider",
+			provider: names.KubeContainer,
+			wantErr:  "only accepts configuration from local files",
+		},
+		{
+			name:     "empty provider",
+			provider: "",
+			wantErr:  "only accepts configuration from local files",
+		},
+		{
+			name:     "container provider",
+			provider: names.Container,
+			wantErr:  "only accepts configuration from local files",
+		},
+		{
+			name:     "cluster checks provider",
+			provider: names.ClusterChecks,
+			wantErr:  "only accepts configuration from local files",
+		},
+		{
+			name:     "endpoints checks provider",
+			provider: names.EndpointsChecks,
+			wantErr:  "only accepts configuration from local files",
+		},
+		{
+			name:     "kubernetes provider",
+			provider: names.Kubernetes,
+			wantErr:  "only accepts configuration from local files",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tegraCheck := newCheck().(*JetsonCheck)
+			mock := mocksender.NewMockSender(t, tegraCheck.ID())
+			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", tt.provider)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				assert.Empty(t, tegraCheck.tegraStatsPath)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, defaultTegraStatsPath, tegraCheck.tegraStatsPath)
+		})
+	}
+}
+
+func TestJetsonCheckRejectsPodAnnotationInstance(t *testing.T) {
+	// The instance carries common options (tags, empty_default_hostname) in addition to
+	// the attacker-chosen path. The mock sender has no expectations set, so the test also
+	// proves the rejection happens before CommonConfigure can mutate the shared sender.
+	annotations := map[string]string{
+		"ad.datadoghq.com/app.checks": `{"jetson":{"instances":[{"tegrastats_path":"/tmp/payload","tags":["tenant:evil"],"empty_default_hostname":true}]}}`,
+	}
+	configs, errs := utils.ExtractTemplatesFromAnnotations("container_id://deadbeef", annotations, "app", false)
+	require.Empty(t, errs)
+	require.Len(t, configs, 1)
+	require.Equal(t, CheckName, configs[0].Name)
+	require.Len(t, configs[0].Instances, 1)
+
+	tegraCheck := newCheck().(*JetsonCheck)
+	mock := mocksender.NewMockSender(t, tegraCheck.ID())
+	err := tegraCheck.Configure(
+		mock.GetSenderManager(),
+		integration.FakeConfigHash,
+		configs[0].Instances[0],
+		configs[0].InitConfig,
+		"container:container_id://deadbeef[0]",
+		names.KubeContainer,
+	)
+	require.ErrorContains(t, err, "only accepts configuration from local files")
+	assert.Empty(t, tegraCheck.tegraStatsPath)
 }
