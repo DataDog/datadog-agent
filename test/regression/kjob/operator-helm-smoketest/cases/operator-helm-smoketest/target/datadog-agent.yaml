@@ -1,0 +1,10 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog
+spec:
+  global:
+    credentials:
+      apiKey: "00000000000000000000000000000000"
+    endpoint:
+      url: "{{blackhole.intake}}"
