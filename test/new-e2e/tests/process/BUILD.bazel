@@ -42,7 +42,7 @@ go_library(
     ],
 )
 
-# gazelle:exclude payloads_test.go
+# gazelle:exclude testing_test.go
 dd_agent_go_test(
     name = "process_test",
     srcs = [
@@ -52,7 +52,6 @@ dd_agent_go_test(
         "infra_mode_test.go",
         "k8s_test.go",
         "linux_test.go",
-        "testing_test.go",
         "windows_test.go",
     ],
     data = [
@@ -105,12 +104,12 @@ dd_agent_go_test(
     ],
 )
 
-# Test payload selection without importing cloud provisioning dependencies.
+# Test helpers without importing cloud provisioning dependencies.
 dd_agent_go_test(
-    name = "payloads_test",
+    name = "testing_test",
     srcs = [
-        "payloads_test.go",
         "testing.go",
+        "testing_test.go",
     ],
     embedsrcs = glob([
         "compose/*.yaml",
