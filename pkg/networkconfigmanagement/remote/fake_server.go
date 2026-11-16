@@ -87,12 +87,20 @@ type ShellContext struct {
 	stdout, stderr io.Writer
 }
 
+// NewShellContext returns the context for a session in the given mode. An
+// interactive shell runs on a terminal, which has no separate error stream,
+// so in shell mode stderr goes to stdout; this also keeps an error message in
+// order with the prompt that follows it.
 func NewShellContext(mode string, ch ssh.Channel) *ShellContext {
+	stderr := ch.Stderr()
+	if mode == modeShell {
+		stderr = ch
+	}
 	return &ShellContext{
 		mode:   mode,
 		stdin:  bufio.NewReader(ch),
 		stdout: ch,
-		stderr: ch.Stderr(),
+		stderr: stderr,
 	}
 }
 
@@ -110,6 +118,42 @@ func StaticSession(f ShellFunc) SessionFactory {
 	return func(*ShellContext) ShellFunc { return f }
 }
 
+// FakeASA returns a SessionFactory for a Cisco ASA whose pager is on at the
+// start of every session, paging running-config output after pagerLines
+// lines until "terminal pager 0" turns it off.
+func FakeASA(runningConfig string, pagerLines int) SessionFactory {
+	return func(*ShellContext) ShellFunc {
+		pagerEnabled := true
+		return func(command string, shell *ShellContext) uint32 {
+			switch strings.TrimSpace(command) {
+			case "":
+				return 0
+			case "terminal pager 0":
+				pagerEnabled = false
+				return 0
+			case "more system:running-config":
+				out := runningConfig
+				if pagerEnabled {
+					out = paginate(out, pagerLines)
+				}
+				_, _ = io.WriteString(shell.stdout, out)
+				return 0
+			default:
+				_, _ = fmt.Fprintf(shell.stderr, "ERROR: %% Invalid input detected at '^' marker.\n")
+				return 1
+			}
+		}
+	}
+}
+
+func paginate(s string, lines int) string {
+	parts := strings.SplitAfter(s, "\n")
+	if lines <= 0 || len(parts) <= lines {
+		return s
+	}
+	return strings.Join(parts[:lines], "") + "<--- More --->"
+}
+
 // FakeSSHServer is an in-process SSH server backed by a map of canned
 // command -> response replies. It is intended for tests that exercise the
 // real SSHClient against a server without depending on system sshd or Docker.
@@ -123,6 +167,11 @@ type FakeSSHServer struct {
 	hostKey    ssh.Signer
 	newSession SessionFactory
 	onRequest  func(reqType string) // optional; called before each session request is handled
+
+	banner    string
+	prompt    string
+	echo      bool
+	eagerEcho bool
 
 	expectedUser     string
 	expectedPassword string
@@ -152,6 +201,30 @@ func WithRequestHook(f func(reqType string)) FakeServerOption {
 	return func(s *FakeSSHServer) {
 		s.onRequest = f
 	}
+}
+
+// WithBanner sets text written once when an interactive shell starts.
+func WithBanner(banner string) FakeServerOption {
+	return func(s *FakeSSHServer) { s.banner = banner }
+}
+
+// WithPrompt sets the prompt written when an interactive shell starts and
+// after each command, e.g. "fw01# ".
+func WithPrompt(prompt string) FakeServerOption {
+	return func(s *FakeSSHServer) { s.prompt = prompt }
+}
+
+// WithEcho echoes each line read in an interactive shell back to the client
+// before running it, as a device's terminal does.
+func WithEcho() FakeServerOption {
+	return func(s *FakeSSHServer) { s.echo = true }
+}
+
+// WithEagerEcho echoes each line as soon as it is read rather than after the
+// previous command finishes, as real devices do. A client that writes several
+// lines up front then sees their echoes above the output they belong to.
+func WithEagerEcho() FakeServerOption {
+	return func(s *FakeSSHServer) { s.echo, s.eagerEcho = true, true }
 }
 
 // StartFakeSSHServer launches an in-process SSH server on 127.0.0.1 with a
@@ -284,24 +357,7 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 
 		case "shell":
 			_ = req.Reply(true, nil)
-			shell := NewShellContext(modeShell, ch)
-			run := s.newSession(shell)
-			var exitStatus uint32
-			for {
-				line, err := shell.stdin.ReadString('\n')
-				if line == "" && err != nil {
-					break // client closed stdin
-				}
-				command := strings.TrimRight(line, "\r\n")
-				if command != "" {
-					s.recordCommand(command)
-				}
-				exitStatus = run(command, shell)
-				if err != nil {
-					break
-				}
-			}
-			sendExitStatus(ch, exitStatus)
+			s.runShell(ch)
 			return
 
 		case "pty-req", "env", "window-change":
@@ -315,6 +371,53 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			}
 		}
 	}
+}
+
+// runShell reads commands a line at a time and runs each against the same
+// session's ShellFunc, so state set by one is visible to the next.
+func (s *FakeSSHServer) runShell(ch ssh.Channel) {
+	shell := NewShellContext(modeShell, ch)
+	_, _ = io.WriteString(ch, s.banner)
+	run := s.newSession(shell)
+	_, _ = io.WriteString(ch, s.prompt)
+
+	done := make(chan struct{})
+	defer close(done)
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		for {
+			line, err := shell.stdin.ReadString('\n')
+			if line == "" && err != nil {
+				return // client closed stdin
+			}
+			command := strings.TrimRight(line, "\r\n")
+			if command != "" {
+				s.recordCommand(command)
+			}
+			if s.eagerEcho {
+				_, _ = io.WriteString(ch, command+"\n")
+			}
+			select {
+			case lines <- command:
+			case <-done:
+				return
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	var exitStatus uint32
+	for command := range lines {
+		if s.echo && !s.eagerEcho {
+			_, _ = io.WriteString(ch, command+"\n")
+		}
+		exitStatus = run(command, shell)
+		_, _ = io.WriteString(ch, s.prompt)
+	}
+	sendExitStatus(ch, exitStatus)
 }
 
 func (s *FakeSSHServer) recordCommand(command string) {

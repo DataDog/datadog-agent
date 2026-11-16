@@ -7,7 +7,6 @@ package types
 
 import (
 	"errors"
-	"fmt"
 )
 
 // CommandResult records a command that was run and the resulting output.
@@ -18,13 +17,10 @@ type CommandResult struct {
 }
 
 // FormattedError returns nil if there was no error, and otherwise returns an
-// error containing .Error and, if it was nonempty, .Output.
+// error containing .Error.
 func (c *CommandResult) FormattedError() error {
 	if c.Error == "" {
 		return nil
-	}
-	if c.Output != "" {
-		return fmt.Errorf("%v: %q", c.Error, c.Output)
 	}
 	return errors.New(c.Error)
 }
