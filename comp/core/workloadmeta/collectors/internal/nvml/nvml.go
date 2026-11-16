@@ -33,7 +33,6 @@ import (
 	gpucontainers "github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,9 +68,6 @@ type collector struct {
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
 	// lost GPUs keep the attributes that can no longer be queried from NVML.
 	lastPublishedGPUs map[string]*workloadmeta.GPU
-	// pciDevicesRoots are the sysfs PCI device directories used to read the
-	// NUMA node when NVML doesn't report it, in order of preference.
-	pciDevicesRoots []string
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -185,12 +181,9 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.BoardSerial = info.BoardSerial
 	}
 
-	numaNode, err := physicalDevice.GetNumaNodeId()
-	if err != nil {
-		// Not supported on all drivers (e.g. GB200 on R580); sysfs has it for every PCI device.
-		numaNode, err = pciNUMANode(c.pciDevicesRoots, gpuDeviceInfo.PCIBusID)
-	}
-	if err == nil && numaNode >= 0 {
+	// Cached at device construction, from NVML or the sysfs fallback.
+	if info.NUMANode != nil {
+		numaNode := *info.NUMANode
 		gpuDeviceInfo.NUMANode = &numaNode
 	}
 
@@ -219,30 +212,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Infof("vGPU device %s does not support queries for max clock info", gpuDeviceInfo.EntityID.ID)
 		}
 	}
-}
-
-// pciNUMANode reads the NUMA node of a PCI device from sysfs. It returns -1
-// when the kernel doesn't know it.
-func pciNUMANode(roots []string, pciBusID string) (int, error) {
-	// sysfs pads the PCI domain to at least 4 digits, while NVML may pad it to 8.
-	// Only drop leading zeros: domains above 0xffff keep all their digits.
-	address := strings.ToLower(pciBusID)
-	if domain, rest, ok := strings.Cut(address, ":"); ok {
-		if value, err := strconv.ParseUint(domain, 16, 32); err == nil {
-			address = fmt.Sprintf("%04x:%s", value, rest)
-		}
-	}
-
-	lastErr := errors.New("no sysfs PCI devices directory")
-	for _, root := range roots {
-		content, err := os.ReadFile(filepath.Join(root, address, "numa_node"))
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		return strconv.Atoi(strings.TrimSpace(string(content)))
-	}
-	return -1, lastErr
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -298,9 +267,6 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		gpuMonitoringEnabled:    true,
 		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
 		fetchNodeLabels:         fetchNodeLabels,
-		// The host sysfs is often only partly mounted in containers, but the PCI
-		// devices tree isn't namespaced, so the container's own /sys works too.
-		pciDevicesRoots: []string{kernel.HostSys("bus", "pci", "devices"), "/sys/bus/pci/devices"},
 	}
 
 	if config != nil {

@@ -58,6 +58,10 @@ type SafeDevice interface {
 	GetAttributes() (nvml.DeviceAttributes, error)
 	// GetBAR1MemoryInfo returns BAR1 memory information of the device
 	GetBAR1MemoryInfo() (nvml.BAR1Memory, error)
+	// GetBoardPartNumber returns the board part number of the device
+	GetBoardPartNumber() (string, error)
+	// GetC2cModeInfo returns whether the device reaches its host over NVLink-C2C
+	GetC2cModeInfo() (nvml.C2cModeInfo_v1, error)
 	// GetClockInfo returns the current clock speed for the given clock type
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
@@ -148,8 +152,10 @@ type SafeDevice interface {
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetCurrPcieLinkGeneration returns the current PCIe generation
 	GetCurrPcieLinkGeneration() (int, error)
-	// GetMaxPcieLinkGeneration returns the max PCIe generation
+	// GetMaxPcieLinkGeneration returns the max PCIe generation supported by the device and the system together
 	GetMaxPcieLinkGeneration() (int, error)
+	// GetGpuMaxPcieLinkGeneration returns the max PCIe generation supported by the device itself
+	GetGpuMaxPcieLinkGeneration() (int, error)
 	// GetCurrPcieLinkWidth returns the current PCIe link width
 	GetCurrPcieLinkWidth() (int, error)
 	// GetMaxPcieLinkWidth returns the max PCIe link width
@@ -231,8 +237,25 @@ type DeviceInfo struct {
 	SlotNumber             uint8
 	TrayIndex              uint8
 	ModuleID               uint8
+	// HostID is the NVML node index within the slot containing the GPU.
+	HostID uint8
 	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
 	PCIBusID string
+	// PCIDeviceID and PCISubsystemID combine the PCI device ID (high 16 bits)
+	// and vendor ID (low 16 bits). Zero when unknown.
+	PCIDeviceID    uint32
+	PCISubsystemID uint32
+	// BoardPartNumber is empty when unknown.
+	BoardPartNumber string
+	// BAR1TotalBytes is the BAR1 aperture size. Zero when unknown.
+	BAR1TotalBytes uint64
+	// NUMANode is the host NUMA node closest to the device. Nil when unknown.
+	NUMANode *int
+	// PCIePath lists the upstream bridges from the device toward its root
+	// port, excluding the device. Nil when unknown.
+	PCIePath []string
+	// HostLink holds the maximum capabilities of the GPU-to-host link.
+	HostLink HostLinkInfo
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
@@ -566,10 +589,12 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		}
 	} else {
 		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
+		d.PCIDeviceID, d.PCISubsystemID = pciInfo.PciDeviceId, pciInfo.PciSubSystemId
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
 	d.fillStaticAttributes(dev)
+	d.fillTopologyAttributes(dev)
 
 	return nil
 }
@@ -588,7 +613,7 @@ func (d *DeviceInfo) fillStaticAttributes(dev SafeDevice) {
 	if platform, err := dev.GetPlatformInfo(); err == nil {
 		d.FabricGUID = gpuutil.PlatformFabricGUID(platform)
 		d.ChassisSerial = gpuutil.PlatformChassisSerial(platform)
-		d.SlotNumber, d.TrayIndex, d.ModuleID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId
+		d.SlotNumber, d.TrayIndex, d.ModuleID, d.HostID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId, platform.HostId
 	} else if !IsUnsupported(err) {
 		singleton.logDeviceWarning(d.UUID, "cannot get platform info: %v", err)
 	}

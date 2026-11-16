@@ -342,6 +342,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			}
 			return 4, nvml.SUCCESS
 		},
+		GetGpuMaxPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGChildOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 4, nvml.SUCCESS
+		},
+		GetBoardPartNumberFunc: func() (string, nvml.Return) {
+			return "", nvml.ERROR_NOT_SUPPORTED
+		},
 		GetCurrPcieLinkWidthFunc: func() (int, nvml.Return) {
 			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
