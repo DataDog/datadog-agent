@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"go.etcd.io/etcd/client/v2"
+	"go.etcd.io/etcd/client/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
