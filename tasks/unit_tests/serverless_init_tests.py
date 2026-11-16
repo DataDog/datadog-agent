@@ -120,7 +120,8 @@ class TestGit(unittest.TestCase):
             self.assertEqual(list_commits(ctx, 'p', 's'), [Commit('aaa', 'fix a (#1)'), Commit('bbb', 'feat: b')])
         self.assertEqual(
             ctx.run.call_args.args[0],
-            'git log --pretty=oneline --no-merges --reverse p..s -- cmd/serverless-init pkg/serverless comp/metadata/serverlessinit',
+            'git log --pretty=oneline --no-merges --reverse p..s'
+            " -- cmd/serverless-init pkg/serverless comp/metadata/serverlessinit 'releasenotes/notes/*serverless-init*.yaml'",
         )
 
     def test_added_notes(self):

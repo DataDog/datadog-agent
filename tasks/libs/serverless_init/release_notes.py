@@ -2,7 +2,10 @@
 
 serverless-init has no release notes of its own: contributors add reno notes to `releasenotes/notes/`
 like for any other change, and the section of a release is built from the notes added by the commits
-that changed serverless-init between two release tags.
+that changed serverless-init between two release tags. We detect that a commit changed serverless-init
+by checking if it touches one of its paths or adds a reno note with `serverless-init` in its filename.
+The second rule lets
+a change outside of those paths (a shared library, for example) opt in.
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from tasks.libs.common.utils import join_command
 # can also ship in the image, so the output of the task still has to be reviewed.
 SERVERLESS_INIT_PATHS = ('cmd/serverless-init', 'pkg/serverless', 'comp/metadata/serverlessinit')
 RENO_NOTES_PATHSPEC = 'releasenotes/notes/*.yaml'
+# A reno note named like this is relevant to serverless-init wherever the change it describes lives
+SERVERLESS_INIT_NOTES_PATHSPEC = 'releasenotes/notes/*serverless-init*.yaml'
 DEPENDENCY_ONLY_ENTRY = 'Dependency updates only'
 # Printed when commits changed serverless-init but none of them has a reno note, so that an unreviewed
 # section cannot be mistaken for a complete one
@@ -98,8 +103,9 @@ def ref_exists(ctx, ref: str) -> bool:
 def list_commits(ctx, prev: str, sha: str) -> list[Commit]:
     """Lists the commits between `prev` and `sha` that changed serverless-init, oldest first"""
     # `--pretty=oneline` prints `<full sha> <subject>`. A `--format` string would need `%`, which cmd.exe expands
+    pathspecs = [*SERVERLESS_INIT_PATHS, SERVERLESS_INIT_NOTES_PATHSPEC]
     command = join_command(
-        ['git', 'log', '--pretty=oneline', '--no-merges', '--reverse', f'{prev}..{sha}', '--', *SERVERLESS_INIT_PATHS]
+        ['git', 'log', '--pretty=oneline', '--no-merges', '--reverse', f'{prev}..{sha}', '--', *pathspecs]
     )
     res = ctx.run(command, hide=True, encoding='utf-8')
     commits = []

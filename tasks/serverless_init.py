@@ -34,7 +34,8 @@ from tasks.libs.serverless_init.release_notes import (
 def release_notes(ctx, prev, sha, version=None):
     """
     Generate the CHANGELOG-SERVERLESS-INIT.md section of a release, from the reno notes added by the
-    commits that changed serverless-init between `prev` and `sha`.
+    commits that changed serverless-init between `prev` and `sha`: the commits touching its paths, and
+    any commit touching a reno note with `serverless-init` in its filename.
 
     The section is printed on stdout, the commits without a reno note on stderr.
     Review it before adding it to CHANGELOG-SERVERLESS-INIT.md: changes outside of
