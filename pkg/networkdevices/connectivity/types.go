@@ -89,19 +89,16 @@ type TargetGroup struct {
 	TargetIPs     []string `json:"targetIPs"`
 }
 
-// Request is one connectivity check. Exactly one of Targets and TargetGroups is
-// set (not nil): Targets tries every target with every credential, TargetGroups
-// tries each group's targets only with its own credentials.
+// Request is one connectivity check. When TargetGroups is set, it replaces
+// Targets and each group's targets are tried only with that group's credentials.
 type Request struct {
-	Targets     []string         `json:"targets"`
-	Checks      []string         `json:"checks"`
-	PingOptions *PingOptions     `json:"pingOptions,omitempty"`
-	SNMPOptions *SNMPOptions     `json:"snmpOptions,omitempty"`
-	Workers     int              `json:"workers,omitempty"`
-	Credentials []SNMPCredential `json:"credentials,omitempty"`
-	// TargetGroups has no omitempty, like Targets, so that an empty list is
-	// still set and is rejected rather than read as unset.
-	TargetGroups []TargetGroup `json:"targetGroups"`
+	Targets      []string         `json:"targets"`
+	Checks       []string         `json:"checks"`
+	PingOptions  *PingOptions     `json:"pingOptions,omitempty"`
+	SNMPOptions  *SNMPOptions     `json:"snmpOptions,omitempty"`
+	Workers      int              `json:"workers,omitempty"`
+	Credentials  []SNMPCredential `json:"credentials,omitempty"`
+	TargetGroups []TargetGroup    `json:"targetGroups,omitempty"`
 }
 
 type Result struct {
