@@ -173,6 +173,12 @@ class TestJsonSchemaDuration(unittest.TestCase):
 
 def _schema_patterns():
     """Yield (setting path, pattern) for every ``pattern`` in the published Agent JSON schemas."""
+    for setting, node in _schema_nodes_with_pattern():
+        yield setting, node["pattern"]
+
+
+def _schema_nodes_with_pattern():
+    """Yield (setting path, schema node) for every node with a ``pattern`` in the published Agent JSON schemas."""
     from tasks.schema.generate import JSON_SCHEMA_ENTRY_POINTS
     from tasks.schema.merge_schema import resolve_schema
     from tasks.schema.produce_byproduct import json_schema
@@ -180,7 +186,7 @@ def _schema_patterns():
     def walk(node, path):
         if isinstance(node, dict):
             if isinstance(node.get("pattern"), str):
-                yield path, node["pattern"]
+                yield path, node
             for key, value in node.items():
                 if key not in ("default", "enum", "const", "examples"):
                     yield from walk(value, f"{path}/{key}")
@@ -241,12 +247,27 @@ class TestSchemaPatterns(unittest.TestCase):
             "https://proxy.example.com:443/logs",
             "localhost:8080",
         ]
-        invalid = ["", "ftp://x.com", "https://x.com/?q=1", "https://user@x.com", "https://"]
+        # An empty value means "unset" for all three: the Agent then builds the endpoint from `site`
+        # (GetMainEndpoint in pkg/config/utils/endpoints.go for dd_url and apm_dd_url,
+        # LogsConfigKeys.logsDDURL in comp/logs/agent/config/config_keys.go for logs_dd_url). It is
+        # also the default of logs_dd_url and apm_dd_url.
+        valid.append("")
+        invalid = ["ftp://x.com", "https://x.com/?q=1", "https://user@x.com", "https://"]
         for setting, pattern in patterns.items():
             for value in valid:
                 self.assertRegex(value, re.compile(pattern), setting)
             for value in invalid:
                 self.assertNotRegex(value, re.compile(pattern), setting)
+
+    def test_defaults_match_their_pattern(self):
+        """A default must be a valid value of its own setting, or IDEs flag the default config as invalid."""
+        import re
+
+        nodes = list(_schema_nodes_with_pattern())
+        self.assertTrue(nodes)
+        for setting, node in nodes:
+            if isinstance(node.get("default"), str):
+                self.assertRegex(node["default"], re.compile(node["pattern"]), setting)
 
 
 if __name__ == "__main__":
