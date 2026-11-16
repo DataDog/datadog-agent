@@ -42,6 +42,8 @@ go_library(
     ],
 )
 
+# Keep helper unit tests out of the manual E2E target. Gazelle does not manage
+# testing_test's deps; update them when testing.go or testing_test.go imports change.
 # gazelle:exclude testing_test.go
 dd_agent_go_test(
     name = "process_test",
