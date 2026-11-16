@@ -3,6 +3,7 @@ $id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/sch
 title: System Probe configuration schema
 description: The schema to validate the system-probe.yaml configuration for the DataDog
   Agent
+type: object
 properties:
   system_probe_config:
     node_type: section

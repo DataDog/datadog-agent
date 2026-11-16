@@ -3,6 +3,7 @@ $id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/sch
 title: DataDog Agent configuration schema
 description: The schema to validate the datadog.yaml configuration for the DataDog
   Agent
+type: object
 properties:
   api_key:
     node_type: setting
