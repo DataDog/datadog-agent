@@ -85,6 +85,8 @@ In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below t
 
 The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.
 
+The report and the end of the log also link to the dashboard [E2e tests — containers — benchmarkeks](https://dddev.datadoghq.com/dashboard/bkx-svx-pjc) of dddev, set to the cluster and the time of the run. Its graphs of the Agents have a curve per `image_tag`, that is per version, as long as the images of the two versions have different tags: a version keeps its curve across the swaps, which only move it to the node pools of the other installation. The links of the metrics in the report split them by `image_tag` too. Green and orange markers show the start and the end of each phase: the test posts them to dddev as events, whose text tells which images each installation runs.
+
 ## Run it locally
 
 Follow the [one-time E2E setup](../index.md#one-time-setup) first. Because the test reads the metrics of the Agents back from dddev, your E2E configuration needs a dddev API key, and the test needs a dddev application key, set as for an [EKS cluster of manual QA](../../manual-qa/aws-eks.md#prerequisites).

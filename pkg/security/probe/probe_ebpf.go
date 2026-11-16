@@ -457,7 +457,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires kernel 5.19 or later (or 5.17.13+ / 5.18.2+), setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -4148,6 +4148,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructLive, "struct signal_struct", "live")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructGroupExitCode, "struct signal_struct", "group_exit_code")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructFlags, "struct signal_struct", "flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field

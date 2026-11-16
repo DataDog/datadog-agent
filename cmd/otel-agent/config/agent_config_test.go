@@ -769,7 +769,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
 
 	assert.Equal(t, "http://proxy.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
@@ -805,7 +805,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOnly() {
 
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
@@ -820,7 +820,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 	// ProxyURL from config should take precedence over environment variables
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
@@ -832,7 +832,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	// ProxyURL from OTLP config should override proxy.http and proxy.https from datadog config
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 // TestLogsEnabledViaEnvironmentVariable is a regression test for the issue where

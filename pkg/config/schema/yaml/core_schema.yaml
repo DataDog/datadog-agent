@@ -5886,6 +5886,16 @@ properties:
         node_type: section
         type: object
         properties:
+          stable:
+            node_type: section
+            type: object
+            properties:
+              min_relative_change:
+                node_type: setting
+                type: number
+                default: 0.05
+                comment: Minimum relative change between pre/post medians required for
+                  stable-series ScanMW anomalies. 0 disables the gate.
           enabled:
             node_type: setting
             type: boolean
