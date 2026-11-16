@@ -189,6 +189,7 @@ build do
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/skb-parse-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/runtime/skb-parse-test.c"
 
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")

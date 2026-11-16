@@ -1,4 +1,7 @@
 #include "ktypes.h"
+#ifndef COMPILE_CORE
+#include "kconfig.h"
+#endif
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "map-defs.h"

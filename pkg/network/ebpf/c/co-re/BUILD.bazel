@@ -30,3 +30,6 @@ ebpf_prog(
         "//pkg/network/ebpf/c:ebpf_c_network",
     ],
 )
+
+# Also runtime-compiled by //pkg/ebpf/bytecode:skb-parse-test.
+exports_files(["skb-parse-test.c"])

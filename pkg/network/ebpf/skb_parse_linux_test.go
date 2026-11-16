@@ -21,6 +21,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -36,34 +38,48 @@ type skbParseFrame struct {
 }
 
 // TestReadConnTupleSKBEquivalence runs read_conn_tuple_skb_bulk, read_conn_tuple_skb_fields, and
-// read_conn_tuple_skb over a frame matrix at every truncation length and requires identical outputs.
-// It covers the CO-RE build only; the runtime-compiled build is not exercised.
+// read_conn_tuple_skb over a frame matrix at every truncation length and requires identical outputs,
+// against both the CO-RE and the runtime-compiled build of the test program.
 func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	// Socket filters can't call bpf_skb_load_bytes before 4.11, the classification minimum.
 	if kv := kernel.MustHostVersion(); kv < kernel.VersionCode(4, 11, 0) {
 		t.Skipf("socket filters can't use bpf_skb_load_bytes on kernel %s", kv)
 	}
 
-	var prog *ebpf.Program
-	var seedMap, outMap *ebpf.Map
-	err := ddebpf.LoadCOREAsset("skb-parse-test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
-		spec, err := ebpf.LoadCollectionSpecFromReader(bc)
-		if err != nil {
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		var coll *ebpf.Collection
+		err := ddebpf.LoadCOREAsset("skb-parse-test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
+			spec, err := ebpf.LoadCollectionSpecFromReader(bc)
+			if err != nil {
+				return err
+			}
+			coll, err = ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
+				Programs: ebpf.ProgramOptions{KernelTypes: opts.VerifierOptions.Programs.KernelTypes},
+			})
 			return err
-		}
-		coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{KernelTypes: opts.VerifierOptions.Programs.KernelTypes},
 		})
-		if err != nil {
-			return err
-		}
+		require.NoError(t, err)
 		t.Cleanup(coll.Close)
-		prog = coll.Programs["socket__skb_parse_test"]
-		seedMap = coll.Maps["skb_parse_test_seed"]
-		outMap = coll.Maps["skb_parse_test_out"]
-		return nil
+		testReadConnTupleSKBEquivalence(t, coll)
 	})
-	require.NoError(t, err)
+
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		buf, err := runtime.SkbParseTest.Compile(ddebpf.NewConfig(), []string{"-g"})
+		require.NoError(t, err)
+		t.Cleanup(func() { buf.Close() })
+		spec, err := ebpf.LoadCollectionSpecFromReader(buf)
+		require.NoError(t, err)
+		coll, err := ebpf.NewCollection(spec)
+		require.NoError(t, err)
+		t.Cleanup(coll.Close)
+		testReadConnTupleSKBEquivalence(t, coll)
+	})
+}
+
+func testReadConnTupleSKBEquivalence(t *testing.T, coll *ebpf.Collection) {
+	prog := coll.Programs["socket__skb_parse_test"]
+	seedMap := coll.Maps["skb_parse_test_seed"]
+	outMap := coll.Maps["skb_parse_test_out"]
 	require.NotNil(t, prog)
 
 	// Older kernels can't test-run socket filters; any other error still fails below.
@@ -111,7 +127,7 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	// Sanity check the harness offsets on one frame: an IPv4 TCP frame parses to its source port.
 	require.NoError(t, seedMap.Put(&key, seeds[0]))
 	in := append(make([]byte, 14), frames[0].data...)
-	_, err = prog.Run(&ebpf.RunOptions{Data: in})
+	_, err := prog.Run(&ebpf.RunOptions{Data: in})
 	require.NoError(t, err)
 	out := make([]byte, outMap.ValueSize())
 	require.NoError(t, outMap.Lookup(&key, &out))
