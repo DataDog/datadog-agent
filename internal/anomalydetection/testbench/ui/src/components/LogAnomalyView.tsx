@@ -1,5 +1,6 @@
+import { ScenarioSelector } from './ScenarioSelector';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import type { ScenarioInfo, LogAnomaly } from '../api/client';
+import type { LogAnomaly } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 
 interface LogAnomalyViewProps {
@@ -252,7 +253,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
   }, [filteredAnomalies]);
 
   return (
-    <div className="flex-1 flex">
+    <div className="flex-1 flex min-w-0">
       {/* Sidebar */}
       <aside
         className="bg-slate-800 border-r border-slate-700 flex flex-col"
@@ -263,6 +264,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
+          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {/* Detector filter */}
@@ -342,7 +344,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
         {state.error && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
             <div className="text-red-400">{state.error}</div>
@@ -419,52 +421,6 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function ScenarioSelector({
-  scenarios,
-  activeScenario,
-  onLoadScenario,
-}: {
-  scenarios: ScenarioInfo[];
-  activeScenario: string | null;
-  onLoadScenario: (name: string) => Promise<void>;
-}) {
-  return (
-    <div className="p-4 border-b border-slate-700">
-      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-        Scenarios
-      </h2>
-      <div className="space-y-1">
-        {scenarios.length === 0 ? (
-          <div className="text-sm text-slate-500">No scenarios found</div>
-        ) : (
-          scenarios.map((scenario) => (
-            <button
-              key={scenario.name}
-              onClick={() => onLoadScenario(scenario.name)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                activeScenario === scenario.name
-                  ? 'bg-purple-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <div className="font-medium">{scenario.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {[
-                  scenario.hasParquet && 'parquet',
-                  scenario.hasLogs && 'logs',
-                  scenario.hasEvents && 'events',
-                ]
-                  .filter(Boolean)
-                  .join(', ') || 'empty'}
-              </div>
-            </button>
-          ))
-        )}
-      </div>
     </div>
   );
 }

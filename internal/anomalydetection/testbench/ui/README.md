@@ -43,34 +43,61 @@ internal/anomalydetection/testbench/bench/
 
 ## Running
 
-**Terminal 1** — Go server (auto-rebuild on changes):
+Build and launch the backend and UI through the repository task:
+
 ```bash
-cd internal/anomalydetection/testbench
-watchexec -r -e go -- go run . -scenarios-dir=../../scenarios
+dda inv anomalydetection.launch-testbench --build
 ```
 
-**Terminal 2** — UI dev server:
+Use `--local --scenarios-dir /path/to/recordings` for existing recordings.
+Open `http://127.0.0.1:5173` in your browser.
+
+## UI controls
+
+- The shared scenario picker leaves room for each view’s controls. **Reload** reruns
+  the active recording. “Recorded” describes execution metadata, not detection accuracy.
+- Metric inspection starts with the five recorded metric groups with the most hits
+  from enabled detectors. Ranking counts raw detector hits; it does not identify a
+  fault’s cause or use the EWMA scorer’s rolling-window count.
+- **Inspect window** selects the full recording, Baseline, Disruption, Cooldown,
+  or a dragged custom interval. Healthy controls offer their evaluation window.
+  The rankings and hit counts update automatically; unavailable phases are disabled.
+- **Drag a metric chart** to inspect a custom interval. Its purple band shows the
+  inspected time while the chart keeps the surrounding context. **Zoom to window**
+  zooms explicitly; **Show recording context** restores the full recording.
+  In other tabs, dragging still zooms. Middle-drag or cmd-drag pans a zoomed chart.
+- **Pin metric**, sidebar checkboxes, and bulk pin actions keep comparison metrics
+  across reranking. Pins reserve slots; up to five additional ranked metrics appear
+  initially. **Show more metrics** expands to a total of 50 including pins and
+  disappears at capacity. Expansion persists across window changes. **Show fewer**
+  restores five ranked metrics; **Show only pinned** hides automatic results.
+- Metric-name search filters the pin list. Red **!** means detector hits in the
+  inspected interval, not a loading or configuration error. Aggregation and metric
+  type filters remain available. Tagged-series legends are searchable and scrollable.
+- Anomaly lists start collapsed. Chart markers, including keyboard Enter/Space,
+  open the matching details. With a separate inspection interval, list captions
+  distinguish anomalies in the chart from those in the inspected window.
+- Detector selections show **Updating…** until results refresh. Metric requests
+  reuse cached data, fetch only displayed aggregations, and cancel obsolete work.
+  Failed downloads offer **Retry metrics**.
+- The scorer retains **Detection time** and **Change-point time** views. Bars show
+  average active inputs per scorer second, separately from new detector hits.
+  Input weights and episode severity have distinct legends. Configuration is read only.
+  Severity intervals follow the selected time range, including severity carried in
+  from before that range. Recording totals and First High remain explicitly scoped
+  to the recording and current timing mode.
+- Scorer contributors open the exact metric aggregation and tag set when uniquely
+  identifiable, or source-filtered logs around onset. Ambiguous metric descriptors
+  show **Series unavailable**. Temporary source focus preserves saved pins.
+  **Back to scorer event** restores the previous time range and expanded event;
+  **Resume metric inspection** returns to the previous recording context.
+
+## Validation
+
 ```bash
-cd internal/anomalydetection/testbench/ui
-npm install
-npm run dev
+npm run build
+npm run test
 ```
 
-Open `http://localhost:5173` in your browser.
-
-## UI Controls
-
-- Scenarios start with no metric groups selected. Select groups from the sidebar
-  to load their charts, or click **Show up to 50 most anomalous metrics** to select
-  recorded metric groups ranked by detections from enabled detectors. The button
-  disappears when all of those groups are selected.
-  Charts appear as each group loads, and expanding reuses already fetched series.
-  Manual sidebar selection remains available. Ties are sorted by metric name;
-  telemetry and log-derived virtual groups are excluded from this shortcut.
-- **Drag** on chart to zoom time range
-- **Middle-drag** to pan when zoomed
-- **Shift+click** correlations to multi-select
-- **Resize** sidebar by dragging right edge
-- **Anomaly count** below each metric expands or collapses its anomaly list.
-  Lists start collapsed; clicking a chart marker opens the matching details.
-- Tree buttons: Expand / Collapse / Focus (hide unselected)
+The regression tests use Node’s native TypeScript support (Node 22.18 or later).
+UI interactions are validated separately with Playwright against local recordings.

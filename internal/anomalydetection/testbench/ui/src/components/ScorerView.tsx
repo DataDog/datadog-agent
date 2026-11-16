@@ -1,48 +1,17 @@
-import { useState, useMemo, useCallback } from 'react';
+import { ScenarioSelector } from './ScenarioSelector';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { visibleSeverityEvents } from '../scorerDisplay';
+import { resolveMetricContributor, contributorLogTags, onsetWindow } from '../investigation';
+import type { SourceInspectionActions } from '../investigation';
 import { AnomalyScoreTimeline } from './AnomalyScoreTimeline';
 import type { ScorerTimeMode } from './AnomalyScoreTimeline';
 import { BaselineTimelineWidget } from './BaselineView';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
-import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly, ScorerReport, ScorerInput, MetricName, SeriesID } from '../api/client';
+import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly, ScorerReport, ScorerInput, MetricName, SeriesID, SeriesInfo } from '../api/client';
 
 // ── ScenarioSelector (reused pattern) ───────────────────────────────────────
 
-function ScenarioSelector({ scenarios, activeScenario, onLoadScenario }: {
-  scenarios: { name: string; hasParquet: boolean; hasLogs: boolean; hasEvents: boolean }[];
-  activeScenario: string | null;
-  onLoadScenario: (name: string) => Promise<void>;
-}) {
-  return (
-    <div className="p-4 border-b border-slate-700">
-      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Scenarios</h2>
-      <div className="space-y-1">
-        {scenarios.length === 0 ? (
-          <div className="text-sm text-slate-500">No scenarios found</div>
-        ) : (
-          scenarios.map((s) => (
-            <button
-              key={s.name}
-              onClick={() => onLoadScenario(s.name)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                activeScenario === s.name
-                  ? 'bg-purple-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <div className="font-medium">{s.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {[s.hasParquet && 'parquet', s.hasLogs && 'logs', s.hasEvents && 'events']
-                  .filter(Boolean)
-                  .join(', ') || 'empty'}
-              </div>
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +34,7 @@ function formatDuration(secs: number) {
 
 interface EventWindow {
   event: SeverityEvent;
+  startSec: number;
   endSec: number;
   anomalies: Anomaly[];
   logAnomalies: LogAnomaly[];
@@ -75,16 +45,20 @@ function buildEventWindows(
   lastSec: number,
   allAnomalies: Anomaly[],
   allLogAnomalies: LogAnomaly[],
+  range?: TimeRange | null,
+  mode: ScorerTimeMode = 'detection',
 ): EventWindow[] {
+  const inputTime = (input: Anomaly | LogAnomaly) => mode === 'detection' ? input.scoringSecond ?? input.timestamp : input.timestamp;
   return events.map((ev, i) => {
-    const end = i + 1 < events.length ? events[i + 1].timestamp - 1 : lastSec;
+    const end = Math.min(i + 1 < events.length ? events[i + 1].timestamp - 1 : lastSec, range?.end ?? lastSec);
+    const start = Math.max(ev.timestamp, range?.start ?? ev.timestamp);
     const anomalies = allAnomalies.filter(
-      (a) => (a.scoringSecond ?? a.timestamp) >= ev.timestamp && (a.scoringSecond ?? a.timestamp) <= end,
+      (a) => inputTime(a) >= start && inputTime(a) <= end,
     );
     const logAnomalies = allLogAnomalies.filter(
-      (a) => (a.scoringSecond ?? a.timestamp) >= ev.timestamp && (a.scoringSecond ?? a.timestamp) <= end,
+      (a) => inputTime(a) >= start && inputTime(a) <= end,
     );
-    return { event: ev, endSec: end, anomalies, logAnomalies };
+    return { event: ev, startSec: start, endSec: end, anomalies, logAnomalies };
   });
 }
 
@@ -115,7 +89,7 @@ function scorerInputToLogAnomaly(input: ScorerInput): LogAnomaly {
   };
 }
 
-function AnomalyRow({ anomaly }: { anomaly: Anomaly }) {
+function AnomalyRow({ anomaly, series, onInspectSeries }: { anomaly: Anomaly; series?: SeriesInfo } & SourceInspectionActions) {
   return (
     <div className="flex items-start gap-2 py-1 border-t border-slate-700/50 first:border-0">
       <div className="min-w-0 flex-1">
@@ -135,11 +109,12 @@ function AnomalyRow({ anomaly }: { anomaly: Anomaly }) {
           {anomaly.source}
         </div>
       </div>
+      {series && onInspectSeries && <button type="button" className="shrink-0 text-xs text-purple-300 hover:underline" onClick={() => onInspectSeries(series, onsetWindow(anomaly.timestamp))}>View metric →</button>}
     </div>
   );
 }
 
-function LogAnomalyRow({ anomaly }: { anomaly: LogAnomaly }) {
+function LogAnomalyRow({ anomaly, onInspectLogs }: { anomaly: LogAnomaly } & SourceInspectionActions) {
   return (
     <div className="flex items-start gap-2 py-1 border-t border-slate-700/50 first:border-0">
       <div className="min-w-0 flex-1">
@@ -162,22 +137,26 @@ function LogAnomalyRow({ anomaly }: { anomaly: LogAnomaly }) {
           <div className="text-[10px] text-slate-500 truncate mt-0.5">{anomaly.description}</div>
         )}
       </div>
+      {onInspectLogs && <button type="button" className="shrink-0 text-xs text-purple-300 hover:underline" onClick={() => onInspectLogs(onsetWindow(anomaly.timestamp), (anomaly.tags ?? []).filter(tag => /^(host|service|container_name):/.test(tag)).join(' '))}>View logs →</button>}
     </div>
   );
 }
 
 type AnomalyFilter = 'all' | 'metrics' | 'logs';
 
-function EventRow({ window: w, filter, report, onHover }: {
+function EventRow({ window: w, filter, report, onHover, expanded, onToggle, series, onInspectSeries, onInspectLogs }: {
   window: EventWindow;
   filter: AnomalyFilter;
   report?: ScorerReport;
   onHover?: (ev: SeverityEvent | null) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const { event, endSec, anomalies, logAnomalies } = w;
+  expanded: boolean;
+  onToggle: () => void;
+  series: SeriesInfo[];
+} & SourceInspectionActions) {
+  const [visibleLimit, setVisibleLimit] = useState(50);
+  const { event, startSec, endSec, anomalies, logAnomalies } = w;
   const isUp = event.to_level > event.from_level;
-  const duration = endSec - event.timestamp;
+  const duration = Math.max(0, endSec - startSec + 1);
   const fromColor = SEVERITY_LEVEL_COLORS[event.from_level];
   const toColor = SEVERITY_LEVEL_COLORS[event.to_level];
 
@@ -188,14 +167,16 @@ function EventRow({ window: w, filter, report, onHover }: {
 
   return (
     <div
+      data-event-timestamp={event.timestamp}
       className="border-b border-slate-700/60 last:border-0"
       onMouseEnter={() => onHover?.(event)}
       onMouseLeave={() => onHover?.(null)}
     >
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-700/40 transition-colors"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="w-full text-left px-4 py-2.5 flex flex-wrap items-center gap-3 hover:bg-slate-700/40 transition-colors"
       >
         <span className="text-slate-500 w-4 flex-shrink-0 text-xs select-none">
           {expanded ? '▼' : '▶'}
@@ -216,7 +197,7 @@ function EventRow({ window: w, filter, report, onHover }: {
 
         {/* Timestamp + duration */}
         <span className="text-xs text-slate-300 font-mono flex-shrink-0">{formatTs(event.timestamp)}</span>
-        <span className="text-[10px] text-slate-500 flex-shrink-0">for {formatDuration(duration)}</span>
+        <span className="text-[10px] text-slate-500 flex-shrink-0">{startSec > event.timestamp ? 'Continues into selection · ' : ''}for {formatDuration(duration)} in view</span>
 
         {/* Anomaly count */}
         <span className="ml-auto text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
@@ -231,19 +212,27 @@ function EventRow({ window: w, filter, report, onHover }: {
         <div className="px-4 pb-3 ml-7">
           {report && (
             <div className="mb-3 bg-slate-900/40 rounded p-2">
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Top contributions</div>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Top contributors when High began</div>
+              <p className="mb-2 text-xs text-slate-400">Captured at episode onset. Log text is a representative example or pattern; its embedded timestamp may differ.</p>
               {report.contributors.length === 0 ? (
                 <div className="text-xs text-slate-500">No storage-backed contributors</div>
               ) : (
                 <ol className="space-y-1 text-xs text-slate-300 list-decimal list-inside">
-                  {report.contributors.map((contributor, index) => (
-                    <li key={`${contributor.name}-${index}`} className="flex min-w-0 items-baseline gap-1">
-                      <span className="shrink-0 text-cyan-300">{Math.round(contributor.share * 100)}% —</span>
-                      <span className="min-w-0 max-w-[36rem] truncate font-mono text-slate-200" title={contributor.name}>
-                        {contributor.name}
-                      </span>
-                    </li>
-                  ))}
+                  {report.contributors.map((contributor, index) => {
+                    const metric = resolveMetricContributor(contributor.name, series);
+                    const isLog = contributor.name.startsWith('log: ');
+                    const label = isLog ? contributor.name.slice(5).split(' — {')[0] : contributor.name.split('{')[0];
+                    return <li key={`${contributor.name}-${index}`} className="flex min-w-0 items-start gap-2">
+                      <span className="shrink-0 text-cyan-300">{Math.round(contributor.share * 100)}%</span>
+                      <details className="min-w-0 flex-1 font-mono text-slate-200">
+                        <summary className="cursor-pointer break-words" title={contributor.name}>{label}</summary>
+                        <p className="mt-1 break-all text-slate-400">{contributor.name}</p>
+                      </details>
+                      {metric && onInspectSeries && <button type="button" className="shrink-0 text-purple-300 hover:underline" onClick={() => onInspectSeries(metric, onsetWindow(event.timestamp))}>View metric →</button>}
+                      {isLog && onInspectLogs && <button type="button" className="shrink-0 text-purple-300 hover:underline" onClick={() => onInspectLogs(onsetWindow(event.timestamp), contributorLogTags(contributor.name))}>View logs →</button>}
+                      {!metric && !isLog && <span className="shrink-0 text-slate-500" title="The descriptor does not uniquely identify a current tagged series.">Series unavailable</span>}
+                    </li>;
+                  })}
                 </ol>
               )}
             </div>
@@ -254,12 +243,15 @@ function EventRow({ window: w, filter, report, onHover }: {
             </p>
           ) : (
             <div className="bg-slate-900/40 rounded p-2">
-              {visibleMetrics.map((a, i) => (
-                <AnomalyRow key={`m-${i}`} anomaly={a} />
+              {visibleMetrics.slice(0, visibleLimit).map((a, i) => (
+                <AnomalyRow key={`m-${i}`} anomaly={a} series={series.find(candidate => candidate.id === a.sourceSeriesId)} onInspectSeries={onInspectSeries} />
               ))}
-              {visibleLogs.map((a, i) => (
-                <LogAnomalyRow key={`l-${i}`} anomaly={a} />
+              {visibleLogs.slice(0, Math.max(0, visibleLimit - visibleMetrics.length)).map((a, i) => (
+                <LogAnomalyRow key={`l-${i}`} anomaly={a} onInspectLogs={onInspectLogs} />
               ))}
+              {visibleCount > visibleLimit && (
+                <button type="button" className="mt-2 text-xs text-purple-300 hover:underline" onClick={() => setVisibleLimit(limit => limit + 50)}>Show {Math.min(50, visibleCount - visibleLimit)} more detections</button>
+              )}
             </div>
           )}
         </div>
@@ -275,7 +267,8 @@ interface TimeRange {
   end: number;
 }
 
-interface ScorerViewProps {
+interface ScorerViewProps extends SourceInspectionActions {
+  isActive?: boolean;
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
@@ -284,7 +277,17 @@ interface ScorerViewProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
 }
 
-export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRange, onTimeRangeChange }: ScorerViewProps) {
+export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRange, onTimeRangeChange, onInspectSeries, onInspectLogs, isActive = true }: ScorerViewProps) {
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const viewRef = useRef<HTMLDivElement>(null);
+  const returnEventRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isActive || returnEventRef.current === null) return;
+    const timestamp = returnEventRef.current;
+    returnEventRef.current = null;
+    const frame = requestAnimationFrame(() => viewRef.current?.querySelector(`[data-event-timestamp="${timestamp}"]`)?.scrollIntoView({ block: 'nearest' }));
+    return () => cancelAnimationFrame(frame);
+  }, [isActive]);
   const [scoreState, setScoreState] = useState<ScoreState | null>(null);
   const [timeMode, setTimeMode] = useState<ScorerTimeMode>('detection');
   const [anomalyFilter, setAnomalyFilter] = useState<AnomalyFilter>('all');
@@ -313,32 +316,40 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
     const buckets = scoreState.buckets ?? [];
     const lastSec = buckets.length > 0 ? buckets[buckets.length - 1].second : 0;
     return buildEventWindows(
-      scoreState.events,
+      visibleSeverityEvents(scoreState.events, timeRange),
       lastSec,
       metricAnomalies,
       logAnomalies,
-    );
-  }, [scoreState, metricAnomalies, logAnomalies]);
+      timeRange,
+      timeMode,
+    ).filter(window => window.endSec >= window.startSec);
+  }, [scoreState, metricAnomalies, logAnomalies, timeRange, timeMode]);
 
   const ewmaPeak = useMemo(() =>
     (scoreState?.buckets ?? []).reduce((m, b) => Math.max(m, b.ewma), 0),
     [scoreState],
   );
 
+  const disruption = state.status?.episodeInfo?.disruption;
+  const disruptionStart = Date.parse(disruption?.start ?? '') / 1000;
+  const disruptionEnd = Date.parse(disruption?.end ?? '') / 1000;
+  const firstHigh = (scoreState?.events ?? []).find(event => event.to_level === 2 && event.from_level < 2 && event.timestamp >= disruptionStart && event.timestamp <= disruptionEnd);
+
   const reportsByTimestamp = useMemo(() => new Map(
     (scoreState?.reports ?? []).map((report) => [report.timestamp, report]),
   ), [scoreState]);
 
   return (
-    <div className="flex-1 flex">
+    <div ref={viewRef} className="flex-1 flex min-w-0">
       <aside
-        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto shrink-0"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector
           scenarios={state.scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
+          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {scoreState?.available === false && (
@@ -350,9 +361,12 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
         {scoreState && scoreState.available !== false && (
           <div className="p-4 border-b border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Summary
+              Recording summary
             </h2>
             <div className="space-y-1 text-xs text-slate-300">
+              <div className="flex justify-between"><span className="text-slate-500">Metric detections</span><span>{state.anomalies.length}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Log detections</span><span>{state.logAnomalies.length}</span></div>
+              {Number.isFinite(disruptionStart) && <div className="flex justify-between gap-2"><span className="text-slate-500">First High in disruption</span><span>{firstHigh ? `+${formatDuration(Math.round(firstHigh.timestamp - disruptionStart))}` : 'Not detected'}</span></div>}
               <div className="flex justify-between">
                 <span className="text-slate-500">Buckets</span>
                 <span>{(scoreState.buckets ?? []).length}s</span>
@@ -395,7 +409,7 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
         )}
       </aside>
 
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
           {/* Timeline widget */}
           <div className="p-4 shrink-0">
@@ -415,16 +429,16 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
           {state.connectionState === 'ready' && (
             <div className="px-4 pb-6">
               <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-700 flex items-center gap-2">
+                <div className="px-4 py-2 border-b border-slate-700 flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-slate-300">
                     Severity events
                   </span>
                   {scoreState && (
                     <span className="text-xs text-slate-500">
-                      · {(scoreState.events ?? []).length} transition{(scoreState.events ?? []).length !== 1 ? 's' : ''}
+                      · {eventWindows.length} severity interval{eventWindows.length !== 1 ? 's' : ''} in view
                       {' · '}
                       {timeMode === 'detection' ? 'grouped by scoring second' : 'grouped by change-point time'}
-                      · click to expand
+                      {' · click to expand'}
                     </span>
                   )}
                   <div className="ml-auto flex gap-1">
@@ -450,13 +464,23 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
                       ? 'Load a scenario to see severity events'
                       : scoreState?.available === false
                       ? 'Scorer unavailable for this run'
-                      : 'No severity transitions detected'}
+                      : 'No severity intervals in the selected time range'}
                   </div>
                 ) : (
                   <div>
-                    {eventWindows.map((w, i) => (
+                    {eventWindows.map((w) => (
                       <EventRow
-                        key={i}
+                        key={`${state.activeScenario}:${timeMode}:${w.event.timestamp}`}
+                        expanded={expandedEvents.has(`${state.activeScenario}:${timeMode}:${w.event.timestamp}`)}
+                        onToggle={() => setExpandedEvents(current => {
+                          const next = new Set(current);
+                          const key = `${state.activeScenario}:${timeMode}:${w.event.timestamp}`;
+                          if (next.has(key)) next.delete(key); else next.add(key);
+                          return next;
+                        })}
+                        series={state.series}
+                        onInspectSeries={(series, range) => { returnEventRef.current = w.event.timestamp; onInspectSeries?.(series, range); }}
+                        onInspectLogs={(range, tags) => { returnEventRef.current = w.event.timestamp; onInspectLogs?.(range, tags); }}
                         window={w}
                         filter={anomalyFilter}
                         report={w.event.to_level === 2 && w.event.to_level > w.event.from_level

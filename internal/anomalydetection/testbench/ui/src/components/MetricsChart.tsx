@@ -1,5 +1,6 @@
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useState, Fragment } from 'react';
 import * as d3 from 'd3';
+import { inWindow } from '../investigation';
 import type { Point, AnomalyMarker, SeriesID } from '../api/client';
 import type { CorrelationRange, TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 
@@ -88,6 +89,8 @@ interface MetricsChartProps {
   onMarkerClick?: (markerId: string) => void;
   isTelemetry?: boolean;
   phaseMarkers?: PhaseMarker[];
+  inspectionRange?: TimeRange | null;
+  onInspectRange?: (range: TimeRange) => void;
 }
 
 interface HoveredMetric {
@@ -119,9 +122,14 @@ export function MetricsChart({
   onMarkerClick,
   isTelemetry = false,
   phaseMarkers = [],
+  inspectionRange,
+  onInspectRange,
 }: MetricsChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
+  const [chartWidth, setChartWidth] = useState(0);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
+  const [legendSearch, setLegendSearch] = useState('');
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<SeriesID | null>(null);
   const [hoveredMetric, setHoveredMetric] = useState<HoveredMetric | null>(null);
   const setHoveredMetricRef = useRef(setHoveredMetric);
@@ -196,9 +204,15 @@ export function MetricsChart({
     });
   };
 
+  const hitSeries = useMemo(() => new Set((anomalies ?? []).filter(anomaly =>
+    enabledDetectors.has(anomaly.detectorComponent ?? anomaly.detectorName) && inWindow(anomaly.timestamp, inspectionRange ?? timeRange)
+  ).map(anomaly => anomaly.sourceSeriesId)), [anomalies, enabledDetectors, inspectionRange, timeRange]);
+
   // Stable callback ref for brush
   const onTimeRangeChangeRef = useRef(onTimeRangeChange);
   onTimeRangeChangeRef.current = onTimeRangeChange;
+  const onInspectRangeRef = useRef(onInspectRange);
+  onInspectRangeRef.current = onInspectRange;
 
   useEffect(() => {
     const variantMode = !!(orderedSeriesVariants && orderedSeriesVariants.length > 0);
@@ -274,6 +288,17 @@ export function MetricsChart({
       .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
       .range([innerHeight, 0]);
 
+    if (inspectionRange) {
+      const x1 = Math.max(0, Math.min(innerWidth, xScale(inspectionRange.start * 1000)));
+      const x2 = Math.max(0, Math.min(innerWidth, xScale(inspectionRange.end * 1000)));
+      if (x2 > x1) g.append('rect')
+        .attr('class', 'inspection-window').attr('role', 'img').attr('aria-label', 'Inspected window')
+        .attr('data-start', inspectionRange.start).attr('data-end', inspectionRange.end)
+        .attr('x', x1).attr('y', 0).attr('width', x2 - x1).attr('height', innerHeight)
+        .attr('fill', '#a855f7').attr('fill-opacity', 0.12)
+        .attr('stroke', '#c084fc').attr('stroke-dasharray', '4,3').attr('pointer-events', 'none');
+    }
+
     // Draw correlation ranges as subtle background shading
     correlationRanges.forEach((range) => {
       const color = getCorrelationColor(range.id);
@@ -303,6 +328,8 @@ export function MetricsChart({
 
     type MarkerRenderDatum = {
       markerId: string;
+      timestamp: number;
+      detectorName: string;
       x: number;
       y: number;
       color: { fill: string; stroke: string };
@@ -316,9 +343,7 @@ export function MetricsChart({
     anomaliesByTimestamp.forEach((anomaliesAtTime, timestamp) => {
       const x = xScale(timestamp * 1000);
 
-      const numAnomalies = anomaliesAtTime.length;
-
-      anomaliesAtTime.forEach((anomaly, idx) => {
+      anomaliesAtTime.forEach((anomaly) => {
         let dataPoint: Point | undefined;
         if (useVariantData && visibleOrderedSeriesVariants && anomaly.sourceSeriesId) {
           const match = visibleOrderedSeriesVariants.find((s) => s.seriesId === anomaly.sourceSeriesId);
@@ -331,11 +356,12 @@ export function MetricsChart({
 
         const baseY = yScale(dataPoint.value);
         const color = getDetectorColorStable(anomaly.detectorName);
-        const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
         const markerId = getAnomalyMarkerId(anomaly);
         markerData.push({
           markerId,
-          x: x + xOffset,
+          timestamp,
+          detectorName: anomaly.detectorName,
+          x,
           y: baseY,
           color,
           selected: markerId === highlightedMarkerId,
@@ -385,7 +411,7 @@ export function MetricsChart({
       .call(
         d3
           .axisBottom(xScale)
-          .ticks(6)
+          .ticks(Math.max(2, Math.floor(innerWidth / 90)))
           .tickFormat((d) => d3.timeFormat('%H:%M:%S')(d as Date))
       )
       .attr('color', '#64748b')
@@ -394,7 +420,7 @@ export function MetricsChart({
 
     // Y axis
     g.append('g')
-      .call(d3.axisLeft(yScale).ticks(5))
+      .call(d3.axisLeft(yScale).ticks(5).tickFormat(value => d3.format('.3~s')(Number(value))))
       .attr('color', '#64748b')
       .selectAll('text')
       .attr('fill', '#94a3b8');
@@ -406,9 +432,15 @@ export function MetricsChart({
       .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ''));
 
     // Phase marker lines (dotted vertical lines for episode phases)
-    phaseMarkers.forEach((marker) => {
+    const labelRowEnds: number[] = [];
+    [...phaseMarkers].sort((a, b) => a.timestamp - b.timestamp).forEach((marker) => {
       const x = xScale(marker.timestamp * 1000);
-      if (x < -20 || x > innerWidth + 20) return;
+      if (x < 0 || x > innerWidth) return;
+      const labelWidth = marker.label.length * 5.4 + 6;
+      const labelX = Math.max(0, Math.min(x + 3, innerWidth - labelWidth));
+      let row = labelRowEnds.findIndex(end => end <= labelX);
+      if (row < 0) row = labelRowEnds.length;
+      labelRowEnds[row] = labelX + labelWidth;
       g.append('line')
         .attr('x1', x).attr('x2', x)
         .attr('y1', 0).attr('y2', innerHeight)
@@ -418,8 +450,8 @@ export function MetricsChart({
         .attr('opacity', 0.75)
         .attr('pointer-events', 'none');
       g.append('text')
-        .attr('x', x + 3)
-        .attr('y', 10)
+        .attr('x', labelX)
+        .attr('y', 10 + row * 11)
         .attr('fill', marker.color)
         .attr('font-size', '9px')
         .attr('font-family', 'monospace')
@@ -454,9 +486,9 @@ export function MetricsChart({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         g.select('.brush').call(brush.move as any, null);
 
-        // Call the callback to set global time range
-        if (onTimeRangeChangeRef.current && end > start) {
-          onTimeRangeChangeRef.current({ start, end });
+        if (end > start) {
+          if (onInspectRangeRef.current) onInspectRangeRef.current({ start, end });
+          else onTimeRangeChangeRef.current?.({ start, end });
         }
       });
 
@@ -513,6 +545,9 @@ export function MetricsChart({
       .data(markerData)
       .enter()
       .append('circle')
+      .attr('role', 'button')
+      .attr('tabindex', 0)
+      .attr('aria-label', d => `${d.detectorName} anomaly at ${new Date(d.timestamp * 1000).toLocaleTimeString()}`)
       .attr('cx', (d) => d.x)
       .attr('cy', (d) => d.y)
       .attr('r', (d) => (d.selected ? 6 : 4))
@@ -540,6 +575,12 @@ export function MetricsChart({
       })
       .on('click', (_event, d) => {
         if (onMarkerClick) onMarkerClick(d.markerId);
+      })
+      .on('keydown', (event: KeyboardEvent, d) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onMarkerClick?.(d.markerId);
+        }
       });
 
     // Add mouse handlers on the brush overlay rect so they fire regardless of brush state
@@ -670,21 +711,21 @@ export function MetricsChart({
     onMarkerHover,
     onMarkerClick,
     phaseMarkers,
+    inspectionRange,
+    chartWidth,
   ]);
 
-  // Handle resize
+  const hasPoints = points.length > 0;
   useEffect(() => {
-    const handleResize = () => {
-      // Trigger re-render by updating a dummy state
-      if (svgRef.current && containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        d3.select(svgRef.current).attr('width', width);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width);
+      if (width > 0) setChartWidth(width);
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [hasPoints]);
 
   // Handle middle-click or cmd+left-click panning
   useEffect(() => {
@@ -791,13 +832,14 @@ export function MetricsChart({
   return (
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex justify-between items-center mb-2 gap-2">
-        <div className="text-sm text-slate-300 font-mono truncate flex items-center gap-1.5">
+        <div className="text-sm text-slate-300 font-mono min-w-0 flex items-center gap-1.5">
           {isTelemetry && (
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex-shrink-0" title="Telemetry metric">T</span>
           )}
-          {name}
+          <span className="min-w-0 break-words" title={name}>{name.split('.').map((part, index) => <Fragment key={index}>{index > 0 && '.'}<wbr />{part}</Fragment>)}</span>
         </div>
         <div className="flex gap-2 items-center flex-shrink-0">
+          <button type="button" aria-label={`Copy metric name ${name}`} title="Copy full metric name" className="text-xs text-slate-400 hover:text-purple-300" onClick={() => { void navigator.clipboard.writeText(name).then(() => setCopyState('copied')).catch(() => setCopyState('error')); }} onBlur={() => setCopyState('idle')}>{copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy'}</button>
           {/* Detector legend - only show if there are anomalies */}
           {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.detectorName))).map((detector) => {
             const color = getDetectorColorStable(detector);
@@ -889,6 +931,7 @@ export function MetricsChart({
       {orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
         <div className="mt-2 flex items-center gap-1">
           <button
+            aria-expanded={showSeriesLegend}
             onClick={() => setShowSeriesLegend(!showSeriesLegend)}
             className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-400 hover:bg-slate-600 flex items-center gap-1"
           >
@@ -909,11 +952,18 @@ export function MetricsChart({
           >
             None
           </button>
+          <button type="button" className="text-xs text-purple-300 hover:underline" title="Show series with detector hits in the inspected window" onClick={() => {
+            orderedSeriesVariants.forEach(series => {
+              if (series.seriesId && isSeriesVisible(series.seriesId) !== hitSeries.has(series.seriesId)) onToggleSeriesVisibility?.(series.seriesId);
+            });
+          }}>Series with hits</button>
         </div>
       )}
       {showSeriesLegend && orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
-        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] flex flex-wrap gap-0">
-          {orderedSeriesVariants.map((series, idx) => (
+        <div className="mt-2 p-2 bg-slate-900/50 rounded space-y-2">
+          <input type="search" aria-label={`Search tagged series for ${name}`} value={legendSearch} onChange={e => setLegendSearch(e.target.value)} placeholder="Search tags, host, or bucket bound…" className="w-full text-xs rounded bg-slate-800 border border-slate-600 p-2 text-slate-200 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
+          <div className="max-h-48 overflow-y-auto flex flex-col gap-1 text-xs" aria-label="Tagged series">
+          {orderedSeriesVariants.map((series, idx) => ({ series, idx })).filter(({ series }) => series.label.toLowerCase().includes(legendSearch.toLowerCase())).map(({ series, idx }) => (
             <button
               key={`${series.seriesId ?? series.label}-${idx}`}
               type="button"
@@ -921,6 +971,8 @@ export function MetricsChart({
                 series.seriesId ? 'hover:bg-slate-800/70' : 'cursor-not-allowed opacity-60'
               }`}
               disabled={!series.seriesId}
+              aria-pressed={isSeriesVisible(series.seriesId)}
+              title={series.label}
               onClick={() => {
                 if (series.seriesId && onToggleSeriesVisibility) {
                   onToggleSeriesVisibility(series.seriesId);
@@ -941,8 +993,11 @@ export function MetricsChart({
               >
                 {series.label}
               </span>
+              {hitSeries.has(series.seriesId) && <span className="ml-auto text-red-300 shrink-0">hit</span>}
             </button>
           ))}
+          </div>
+          {!orderedSeriesVariants.some(series => series.label.toLowerCase().includes(legendSearch.toLowerCase())) && <p className="text-xs text-slate-400">No tagged series match.</p>}
         </div>
       )}
     </div>

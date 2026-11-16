@@ -1,7 +1,8 @@
+import { ScenarioSelector } from './ScenarioSelector';
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import * as d3 from 'd3';
 import { api } from '../api/client';
-import type { ScenarioInfo, LogAnomaly, LogEntry, LogsSummary, LogPattern, SeriesData } from '../api/client';
+import type { LogAnomaly, LogEntry, LogsSummary, LogPattern, SeriesData } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
@@ -21,6 +22,9 @@ interface LogViewProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   phaseMarkers?: PhaseMarker[];
   onJumpToSeries?: (groupKey: string) => void;
+  requestedLogTags?: { tags: string } | null;
+  onRequestedLogTagsConsumed?: () => void;
+  onBackToScorer?: () => void;
   requestedPatternFilter?: string | null;
   onRequestedPatternFilterConsumed?: () => void;
 }
@@ -906,7 +910,7 @@ function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHover
 
 const LOG_PAGE_SIZE = 50;
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed, requestedLogTags, onRequestedLogTagsConsumed, onBackToScorer }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
@@ -952,6 +956,20 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [telemetryLogsPage, setTelemetryLogsPage] = useState<LogEntry[]>([]);
   const [telemetryLogsTotal, setTelemetryLogsTotal] = useState(0);
   const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(state.logsSummary);
+
+  useEffect(() => {
+    if (!requestedLogTags) return;
+    // Apply source filters after the destination tab has been shown.
+    const frame = requestAnimationFrame(() => {
+      setTagFilterInput(requestedLogTags.tags);
+      setActivePatternFilter(null);
+      setSelectedPatternHash(null);
+      setLogPage(1);
+      setLogsExpanded(true);
+      onRequestedLogTagsConsumed?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedLogTags, onRequestedLogTagsConsumed]);
 
   // Apply a pattern filter requested from an external tab (e.g. MetricsView "↗ View in logs" button).
   // Also expand the pattern section, open the detail row, and scroll it into view.
@@ -1111,16 +1129,17 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   }, [sortedAnomalies, timeRange]);
 
   return (
-    <div className="flex-1 flex">
+    <div className="flex-1 flex min-w-0">
       {/* Sidebar */}
       <aside
-        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto shrink-0"
         style={{ width: sidebarWidth }}
       >
         <ScenarioSelector
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
+          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {/* Log Detectors */}
@@ -1263,7 +1282,9 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
+        {onBackToScorer && <button type="button" className="mb-3 self-start text-xs text-purple-300 hover:underline" onClick={onBackToScorer}>← Back to scorer event</button>}
+
         {state.error && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
             <div className="text-red-400">{state.error}</div>
@@ -1739,52 +1760,6 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-function ScenarioSelector({
-  scenarios,
-  activeScenario,
-  onLoadScenario,
-}: {
-  scenarios: ScenarioInfo[];
-  activeScenario: string | null;
-  onLoadScenario: (name: string) => Promise<void>;
-}) {
-  return (
-    <div className="p-4 border-b border-slate-700">
-      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-        Scenarios
-      </h2>
-      <div className="space-y-1">
-        {scenarios.length === 0 ? (
-          <div className="text-sm text-slate-500">No scenarios found</div>
-        ) : (
-          scenarios.map((scenario) => (
-            <button
-              key={scenario.name}
-              onClick={() => onLoadScenario(scenario.name)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                activeScenario === scenario.name
-                  ? 'bg-purple-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <div className="font-medium">{scenario.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {[
-                  scenario.hasParquet && 'parquet',
-                  scenario.hasLogs && 'logs',
-                  scenario.hasEvents && 'events',
-                ]
-                  .filter(Boolean)
-                  .join(', ') || 'empty'}
-              </div>
-            </button>
-          ))
-        )}
-      </div>
     </div>
   );
 }
