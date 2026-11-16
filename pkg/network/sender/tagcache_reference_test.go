@@ -54,15 +54,7 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 	}
 
 	// Build remote service resolver for intra-host connection enrichment.
-	for _, c := range conns.Conns {
-		// USM supports TCP only; skip UDP connections.
-		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
-			if _, exists := listeners[key]; !exists {
-				listeners[key] = int32(c.Pid)
-			}
-		}
-	}
+	addConnectionListeners(listeners, conns.Conns)
 	remoteServiceResolver := &serviceResolver{
 		GetServiceContext: func(pid int32) []string {
 			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
@@ -207,19 +199,24 @@ func (d *directSender) addTagsReference(builder *model.ConnectionBuilder, nc net
 
 	tagsStr := tagsSet.Subset(tagIndexes)
 	if nc.Pid > 0 {
+		reattributed := nc.NetNSOriginalContainerID != nil
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
-			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			if !reattributed {
+				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			}
 			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
-		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
-		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
-			log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
-		} else {
-			tagsStr = append(tagsStr, processTags...)
+		if !reattributed {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
+			if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
+				log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
+			} else {
+				tagsStr = append(tagsStr, processTags...)
+			}
 		}
 	}
 	if len(tagsStr) > 0 {
