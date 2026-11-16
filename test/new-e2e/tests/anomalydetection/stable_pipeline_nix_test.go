@@ -70,7 +70,7 @@ func (s *stablePipelineSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	stopStablePipelineSender(s)
 	_, err := s.Env().RemoteHost.Execute(
-		fmt.Sprintf("sudo rm -f %s %s /tmp/anomalydetection-stable-e2e-sender.sh",
+		fmt.Sprintf("sudo rm -f %s %s",
 			stablePipelineControlFile, stablePipelineTraceFile),
 	)
 	require.NoError(s.T(), err, "remove stable pipeline state")
