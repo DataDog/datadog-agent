@@ -1197,14 +1197,18 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
-        // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
-        // thus we except it to have a valid path and method. If the End of Stream came from a response, we except it to
-        // be after seeing a request, thus it should have a path and method as well.
-        if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
+        // TLS uprobes can observe the response before the request when the two sides are
+        // processed concurrently. A finalized status code proves this is a response-side
+        // partial stream, so keep it until the request arrives. Otherwise, missing request
+        // fields at EOS indicate a malformed stream that should not remain in the map.
+        if ((!current_stream->path.finalized || !current_stream->request_method.finalized) &&
+            !current_stream->status_code.finalized) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            continue;
         }
+
+        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
