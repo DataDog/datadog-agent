@@ -14,7 +14,7 @@ import (
 )
 
 const resolveInput = `{"integration":"postgres","target":{"host":"db","port":5432,"dbname":"orders"},"resolveOnly":true}`
-const executeInput = `{"integration":"postgres","target":{"database_instance":"orders"},"resolveOnly":false,"query":"select secret_value","includeSchema":false,"timeout":3000,"resultDelivery":{"crawlId":"7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c","taskId":"d25e7f9f-6883-4462-b31e-b449f70c0894","uploadId":"upload-1","baseUrl":"https://dd.datadoghq.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":16777216,"maxResultBytes":107374182400,"maxRowBytes":16777216,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":1280,"timeoutMs":3000000}}}`
+const executeInput = `{"integration":"postgres","target":{"database_instance":"orders"},"resolveOnly":false,"query":"select secret_value","includeSchema":false,"timeout":3000,"resultDelivery":{"crawlId":"7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c","taskId":"d25e7f9f-6883-4462-b31e-b449f70c0894","uploadId":"upload-1","limits":{"maxFileBytes":16777216,"maxResultBytes":107374182400,"maxRowBytes":16777216,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":1280,"timeoutMs":3000000}}}`
 
 func changeInput(t *testing.T, original string, change func(map[string]interface{})) []byte {
 	t.Helper()
@@ -45,7 +45,7 @@ func TestENABLE03(t *testing.T) {
 					}
 					container[field] = "do-not-forward"
 				})
-				_, err := Parse(raw, "datadoghq.com")
+				_, err := Parse(raw)
 				require.Error(t, err)
 			}
 		})
@@ -54,18 +54,18 @@ func TestENABLE03(t *testing.T) {
 
 // INPUT-01
 func TestINPUT01(t *testing.T) {
-	_, err := Parse([]byte(resolveInput), "datadoghq.com")
+	_, err := Parse([]byte(resolveInput))
 	require.NoError(t, err)
 	for _, field := range []string{"query", "includeSchema", "resultDelivery", "timeout"} {
 		for _, value := range []interface{}{nil, "", false, map[string]interface{}{}} {
 			raw := changeInput(t, resolveInput, func(input map[string]interface{}) { input[field] = value })
-			_, err := Parse(raw, "datadoghq.com")
+			_, err := Parse(raw)
 			require.ErrorContains(t, err, field)
 		}
 	}
 	for _, value := range []interface{}{nil, "true", 1} {
 		raw := changeInput(t, resolveInput, func(input map[string]interface{}) { input["resolveOnly"] = value })
-		_, err := Parse(raw, "datadoghq.com")
+		_, err := Parse(raw)
 		require.ErrorContains(t, err, "resolveOnly")
 	}
 }
@@ -77,7 +77,7 @@ func TestINPUT02(t *testing.T) {
 		valid bool
 	}{{" PoStGrEs_2 ", true}, {"", false}, {" ", false}, {"post-gres", false}, {"post.gres", false}, {"pöstgres", false}, {"postgres\npassword", false}} {
 		raw := changeInput(t, resolveInput, func(input map[string]interface{}) { input["integration"] = tc.value })
-		req, err := Parse(raw, "datadoghq.com")
+		req, err := Parse(raw)
 		if tc.valid {
 			require.NoError(t, err)
 			require.Equal(t, "postgres_2", req.Integration)
@@ -105,7 +105,7 @@ func TestINPUT03(t *testing.T) {
 		{`{"host":"db","port":5432,"dbname":"orders","extra":0}`, false}, {`null`, false}, {`[]`, false},
 	} {
 		raw := changeInput(t, resolveInput, func(input map[string]interface{}) { input["target"] = json.RawMessage(tc.target) })
-		req, err := Parse(raw, "datadoghq.com")
+		req, err := Parse(raw)
 		if tc.valid {
 			require.NoError(t, err)
 			if req.Target.Host != "" {
@@ -138,7 +138,7 @@ func TestINPUT04(t *testing.T) {
 		{"unknown delivery", func(i map[string]interface{}) { i["resultDelivery"].(map[string]interface{})["artifactVersion"] = "v1" }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := Parse(changeInput(t, executeInput, tc.change), "datadoghq.com")
+			req, err := Parse(changeInput(t, executeInput, tc.change))
 			if tc.valid {
 				require.NoError(t, err)
 				require.Equal(t, "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", req.ResultDelivery.CrawlID)
@@ -159,7 +159,7 @@ func TestINPUT04(t *testing.T) {
 					delete(delivery, "crawlId")
 				}
 			})
-			_, err := Parse(raw, "datadoghq.com")
+			_, err := Parse(raw)
 			require.ErrorContains(t, err, "resultDelivery contains an unknown field")
 		})
 	}
@@ -168,7 +168,7 @@ func TestINPUT04(t *testing.T) {
 			raw := changeInput(t, executeInput, func(input map[string]interface{}) {
 				input["resultDelivery"].(map[string]interface{})["limits"].(map[string]interface{})[field] = value
 			})
-			_, err := Parse(raw, "datadoghq.com")
+			_, err := Parse(raw)
 			if field != "unknown" && value == json.Number("999999999999999999999999999999999999") {
 				require.NoError(t, err)
 			} else {
@@ -178,39 +178,30 @@ func TestINPUT04(t *testing.T) {
 		raw := changeInput(t, executeInput, func(input map[string]interface{}) {
 			delete(input["resultDelivery"].(map[string]interface{})["limits"].(map[string]interface{}), field)
 		})
-		_, err := Parse(raw, "datadoghq.com")
+		_, err := Parse(raw)
 		if field != "unknown" {
 			require.Error(t, err)
 		}
 	}
 }
 
-// INPUT-05
+// INPUT-05: a remote caller cannot select a destination, even on the Agent site.
 func TestINPUT05(t *testing.T) {
-	for _, tc := range []struct {
-		address, site string
-		valid         bool
-	}{
-		{"https://DD.DATADOGHQ.COM/path", "datadoghq.com", true}, {"https://datadoghq.com:443/path", "DATADOGHQ.COM", true},
-		{"HTTPS://datadoghq.com:0443/path", "datadoghq.com", true},
-		{"https://datadoghq.com:/path", "datadoghq.com", false},
-		{"http://datadoghq.com/path", "datadoghq.com", false}, {"https://datadoghq.com.evil/path", "datadoghq.com", false},
-		{"https://evildatadoghq.com/path", "datadoghq.com", false}, {"https://evil.com/datadoghq.com", "datadoghq.com", false},
-		{"https://u:p@datadoghq.com/path", "datadoghq.com", false}, {"https://datadoghq.com:444/path", "datadoghq.com", false},
-		{"https://datadoghq.com/path?x=1", "datadoghq.com", false}, {"https://datadoghq.com/path?", "datadoghq.com", false},
-		{"https://datadoghq.com/path#x", "datadoghq.com", false}, {"https://datadoghq.com/path#", "datadoghq.com", false},
-		{"https://datadoghq.com/pa th", "datadoghq.com", false}, {"https://datadoghq.com/pa\nth", "datadoghq.com", false},
-		{"https://datadoghq.com/pa\\th", "datadoghq.com", false}, {"https://datadoghq.com/path", "", false},
-		{"/path", "datadoghq.com", false}, {"https://datadoghq.com/path", "datadoghq.eu", false},
-	} {
+	for _, value := range []interface{}{nil, "", "https://dd.datadoghq.com/api/unstable/its-agent-intake", "https://evil.example/upload", "https://dd.datad0g.com/api/unstable/its-agent-intake"} {
 		raw := changeInput(t, executeInput, func(input map[string]interface{}) {
-			input["resultDelivery"].(map[string]interface{})["baseUrl"] = tc.address
+			input["resultDelivery"].(map[string]interface{})["baseUrl"] = value
 		})
-		_, err := Parse(raw, tc.site)
-		if tc.valid {
-			require.NoError(t, err)
-		} else {
-			require.ErrorContains(t, err, "baseUrl")
+		_, err := Parse(raw)
+		require.ErrorContains(t, err, "resultDelivery contains an unknown field")
+	}
+}
+
+func TestRejectRemoteModesAndDestinations(t *testing.T) {
+	for _, original := range []string{resolveInput, executeInput} {
+		for _, field := range []string{"mode", "operation", "baseUrl", "uploadUrl", "site"} {
+			raw := changeInput(t, original, func(input map[string]interface{}) { input[field] = "remote-selected" })
+			_, err := Parse(raw)
+			require.ErrorContains(t, err, "input contains an unknown field")
 		}
 	}
 }

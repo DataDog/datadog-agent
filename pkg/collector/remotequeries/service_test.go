@@ -343,10 +343,85 @@ func TestRUN01(t *testing.T) {
 	delete(expected, "resolveOnly")
 	delete(expected, "timeout")
 	expected["operation"] = "execute"
+	expected["resultDelivery"].(map[string]interface{})["baseUrl"] = "https://api.datadoghq.com/api/unstable/its-agent-intake"
 	expected["traceContext"] = trace
 	raw, err := json.Marshal(expected)
 	require.NoError(t, err)
 	require.JSONEq(t, string(raw), got)
+}
+
+func TestAgentOwnedUploadEndpoint(t *testing.T) {
+	for _, tc := range []struct{ site, baseURL string }{
+		{"datadoghq.com", "https://api.datadoghq.com"},
+		{"datad0g.com", "https://api.datad0g.com"},
+		{"datadoghq.eu", "https://api.datadoghq.eu"},
+		{"datad0g.eu", "https://api.datad0g.eu"},
+		{"us3.datadoghq.com", "https://api.us3.datadoghq.com"},
+		{"us5.datadoghq.com", "https://api.us5.datadoghq.com"},
+		{"ap1.datadoghq.com", "https://api.ap1.datadoghq.com"},
+		{"ap2.datadoghq.com", "https://api.ap2.datadoghq.com"},
+		{"uk1.datadoghq.com", "https://api.uk1.datadoghq.com"},
+		{"us7.datadoghq.com", "https://api.us7.datadoghq.com"},
+		{"us8.datadoghq.com", "https://api.us8.datadoghq.com"},
+		{"ddog-gov.com", "https://api.ddog-gov.com"},
+		{"us2.ddog-gov.com", "https://api.us2.ddog-gov.com"},
+		{" DATADOGHQ.COM. ", "https://api.datadoghq.com"},
+	} {
+		t.Run(tc.site, func(t *testing.T) {
+			c := newQueryCheck("candidate")
+			var got string
+			c.execute = func(_ context.Context, input string) (string, error) {
+				got = input
+				return `{"status":"SUCCEEDED"}`, nil
+			}
+			f := newIPC(t, c)
+			f.conf.SetInTest("site", tc.site)
+			f.conf.SetInTest("dd_url", "https://unrelated.example")
+			require.Equal(t, "SUCCEEDED", callIPC(t, f, executeInput).Status)
+			var payload struct {
+				Delivery struct {
+					BaseURL string `json:"baseUrl"`
+				} `json:"resultDelivery"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(got), &payload))
+			require.Equal(t, tc.baseURL+"/api/unstable/its-agent-intake", payload.Delivery.BaseURL)
+		})
+	}
+}
+
+func TestUploadEndpointFailsClosed(t *testing.T) {
+	for _, site := range []string{"", "evil.example", "datadoghq.com.evil.example", "https://datadoghq.com", "datadoghq.com/path", "dd.datad0g.com", "datadoghq.com:443"} {
+		t.Run(site, func(t *testing.T) {
+			c := newQueryCheck("candidate")
+			f := newIPC(t, c)
+			f.conf.SetInTest("site", site)
+			answer := callIPC(t, f, executeInput)
+			require.Equal(t, "FAILED", answer.Status)
+			require.Equal(t, "integration_unavailable", answer.Error.Code)
+			require.Zero(t, c.resolves.Load())
+			require.Zero(t, c.executes.Load())
+			// Resolution needs no upload destination and remains available.
+			require.Equal(t, "matched", callIPC(t, f, resolveInput).Status)
+		})
+	}
+}
+
+func TestRejectUploadOverrideBeforeCallingChecks(t *testing.T) {
+	c := newQueryCheck("candidate")
+	f := newIPC(t, c)
+	for _, input := range []string{resolveInput, executeInput} {
+		for _, field := range []string{"baseUrl", "mode"} {
+			raw := changeInput(t, input, func(request map[string]interface{}) { request[field] = "remote-selected" })
+			answer := callIPC(t, f, string(raw))
+			require.NotNil(t, answer.Error)
+		}
+	}
+	raw := changeInput(t, executeInput, func(request map[string]interface{}) {
+		request["resultDelivery"].(map[string]interface{})["baseUrl"] = "https://api.datadoghq.com/api/unstable/its-agent-intake"
+	})
+	require.Equal(t, "invalid_request", callIPC(t, f, string(raw)).Error.Code)
+	require.Zero(t, c.resolves.Load())
+	require.Zero(t, c.executes.Load())
 }
 
 // RUN-04: deadline/caller cancellation discards the answer and signals the crawl ID.

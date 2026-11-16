@@ -103,7 +103,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	integration, crawlID, taskID, uploadID = requestIdentity(fields["input"])
 	var validationErr error
-	req, validationErr = Parse(fields["input"], s.Config.GetString("site"))
+	req, validationErr = Parse(fields["input"])
 	allowed := parconfig.NewActionsAllowlist(s.Config.GetStringSlice("private_action_runner.actions_allowlist")).IsActionAllowed("com.datadoghq.remoteaction.queries", "execute")
 	if !s.Config.GetBool("remote_queries.enabled") || !allowed {
 		code := "disabled"
@@ -156,13 +156,35 @@ func requestIdentity(raw []byte) (integration, crawlID, taskID, uploadID string)
 	return
 }
 
+// integrationDelivery is the Python bridge contract, not an action input.
+// Only the core Agent can add the destination to the validated remote session.
+// Embedding preserves the integration-facing JSON without a runtime change.
+type integrationDelivery struct {
+	*Delivery
+	BaseURL string `json:"baseUrl"`
+}
+
 type integrationRequest struct {
-	Operation      string        `json:"operation"`
-	Target         Target        `json:"target"`
-	Query          string        `json:"query,omitempty"`
-	IncludeSchema  *bool         `json:"includeSchema,omitempty"`
-	ResultDelivery *Delivery     `json:"resultDelivery,omitempty"`
-	TraceContext   *TraceContext `json:"traceContext,omitempty"`
+	Operation      string               `json:"operation"`
+	Target         Target               `json:"target"`
+	Query          string               `json:"query,omitempty"`
+	IncludeSchema  *bool                `json:"includeSchema,omitempty"`
+	ResultDelivery *integrationDelivery `json:"resultDelivery,omitempty"`
+	TraceContext   *TraceContext        `json:"traceContext,omitempty"`
+}
+
+// uploadBaseURL resolves only the locally configured site. Unlike generic Agent
+// endpoints, it must not honor dd_url, a remote input, or an unknown-site fallback.
+func uploadBaseURL(site string) (string, error) {
+	site = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(site), "."))
+	switch site {
+	case "datadoghq.com", "datad0g.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com",
+		"ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com",
+		"us7.datadoghq.com", "us8.datadoghq.com", "ddog-gov.com", "us2.ddog-gov.com", "datad0g.eu":
+		return "https://api." + site + "/api/unstable/its-agent-intake", nil
+	default:
+		return "", errors.New("remote query upload endpoint is unavailable for the Agent site")
+	}
 }
 
 type callResult struct {
@@ -289,6 +311,14 @@ func ParseActionAnswer(raw []byte, resolve bool) (Answer, error) {
 }
 
 func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
+	var delivery *integrationDelivery
+	if !req.ResolveOnly {
+		baseURL, err := uploadBaseURL(s.Config.GetString("site"))
+		if err != nil {
+			return failure(false, "integration_unavailable", err.Error())
+		}
+		delivery = &integrationDelivery{Delivery: req.ResultDelivery, BaseURL: baseURL}
+	}
 	var candidates []check.Check
 	for _, c := range s.Checks() {
 		if strings.EqualFold(c.String(), req.Integration) {
@@ -353,7 +383,7 @@ func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
 	if ctx.Err() != nil {
 		return failure(false, "cancelled", "caller ended before execution")
 	}
-	executeInput, _ := json.Marshal(integrationRequest{Operation: "execute", Target: req.Target, Query: req.Query, IncludeSchema: &req.IncludeSchema, ResultDelivery: req.ResultDelivery, TraceContext: req.TraceContext})
+	executeInput, _ := json.Marshal(integrationRequest{Operation: "execute", Target: req.Target, Query: req.Query, IncludeSchema: &req.IncludeSchema, ResultDelivery: delivery, TraceContext: req.TraceContext})
 	answer := make(chan callResult, 1)
 	go func() { answer <- invoke(ctx, querier, string(executeInput), false) }()
 	select {

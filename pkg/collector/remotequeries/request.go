@@ -12,11 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 var (
@@ -45,12 +43,12 @@ type Limits struct {
 	TimeoutMs      json.Number `json:"timeoutMs"`
 }
 
-// Delivery identifies the upload session; it never contains a credential.
+// Delivery is the remote action's upload session contract. The destination and
+// credentials are owned by the Agent, never supplied by the remote caller.
 type Delivery struct {
 	CrawlID  string `json:"crawlId"`
 	TaskID   string `json:"taskId"`
 	UploadID string `json:"uploadId"`
-	BaseURL  string `json:"baseUrl"`
 	Limits   Limits `json:"limits"`
 }
 
@@ -142,7 +140,7 @@ func stringField(fields map[string]json.RawMessage, key, path string) (string, e
 }
 
 // Parse validates the action input before any check is called.
-func Parse(data []byte, site string) (Request, error) {
+func Parse(data []byte) (Request, error) {
 	var req Request
 	// Recover the kind even when another input field is invalid.
 	var kind struct {
@@ -187,7 +185,7 @@ func Parse(data []byte, site string) (Request, error) {
 	if raw, exists := fields["timeout"]; exists && !positiveInteger.Match(raw) {
 		return req, errors.New("timeout must be a positive integer in seconds")
 	}
-	req.ResultDelivery, err = parseDelivery(fields["resultDelivery"], site)
+	req.ResultDelivery, err = parseDelivery(fields["resultDelivery"])
 	return req, err
 }
 
@@ -224,8 +222,8 @@ func parseTarget(raw []byte) (Target, error) {
 	return target, nil
 }
 
-func parseDelivery(raw []byte, site string) (*Delivery, error) {
-	fields, err := object(raw, "resultDelivery", "crawlId", "taskId", "uploadId", "baseUrl", "limits")
+func parseDelivery(raw []byte) (*Delivery, error) {
+	fields, err := object(raw, "resultDelivery", "crawlId", "taskId", "uploadId", "limits")
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +231,7 @@ func parseDelivery(raw []byte, site string) (*Delivery, error) {
 	for _, pair := range []struct {
 		key  string
 		dest *string
-	}{{"crawlId", &d.CrawlID}, {"taskId", &d.TaskID}, {"uploadId", &d.UploadID}, {"baseUrl", &d.BaseURL}} {
+	}{{"crawlId", &d.CrawlID}, {"taskId", &d.TaskID}, {"uploadId", &d.UploadID}} {
 		*pair.dest, err = stringField(fields, pair.key, "resultDelivery."+pair.key)
 		if err != nil {
 			return nil, err
@@ -248,9 +246,6 @@ func parseDelivery(raw []byte, site string) (*Delivery, error) {
 	if !uploadPattern.MatchString(d.UploadID) {
 		return nil, errors.New("resultDelivery.uploadId contains an invalid character")
 	}
-	if !validBaseURL(d.BaseURL, site) {
-		return nil, errors.New("resultDelivery.baseUrl must be an HTTPS address on the Agent site")
-	}
 	limits, err := object(fields["limits"], "resultDelivery.limits", "maxFileBytes", "maxResultBytes", "maxRowBytes", "maxColumns", "maxSchemaBytes", "maxPages", "timeoutMs")
 	if err != nil {
 		return nil, err
@@ -264,26 +259,4 @@ func parseDelivery(raw []byte, site string) (*Delivery, error) {
 		return nil, errors.New("resultDelivery.limits is malformed")
 	}
 	return d, nil
-}
-
-func validBaseURL(address, site string) bool {
-	if site == "" || strings.ContainsAny(address, `\`) || strings.IndexFunc(address, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
-		return false
-	}
-	u, err := url.Parse(address)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(address, "#") || u.Opaque != "" {
-		return false
-	}
-	if strings.HasSuffix(u.Host, ":") {
-		return false
-	}
-	if port := u.Port(); port != "" {
-		number, err := strconv.ParseUint(port, 10, 16)
-		if err != nil || number != 443 {
-			return false
-		}
-	}
-	host := strings.ToLower(u.Hostname())
-	site = strings.ToLower(site)
-	return host == site || strings.HasSuffix(host, "."+site)
 }

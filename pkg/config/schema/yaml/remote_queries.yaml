@@ -15,5 +15,7 @@ properties:
     visibility: public
     description: |-
       Enables remote queries over the authenticated local Agent IPC channel.
+      The Agent derives the upload destination from its local site setting;
+      remote callers cannot supply an upload URL or credentials.
       The Private Action Runner must also allow
       com.datadoghq.remoteaction.queries.execute in its actions_allowlist.
