@@ -9,6 +9,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -17,8 +18,12 @@ import (
 	apievents "github.com/containerd/containerd/api/events"
 	containerd "github.com/containerd/containerd/v2/client"
 	containerdcontainers "github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/content"
 	containerdevents "github.com/containerd/containerd/v2/core/events"
+	"github.com/containerd/containerd/v2/core/images"
 	"github.com/gogo/protobuf/types"
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -112,6 +117,7 @@ type streamTestHarness struct {
 	collector    *collector
 	eventService *fakeEventService
 	store        *notifyingStore
+	listImages   func(namespace string) ([]containerd.Image, error)
 }
 
 func newStreamTestHarness(t *testing.T) *streamTestHarness {
@@ -156,7 +162,10 @@ func (h *streamTestHarness) newClient() (cutil.ContainerdItf, error) {
 		MockContainers: func(string) ([]containerd.Container, error) {
 			return nil, nil
 		},
-		MockListImages: func(string) ([]containerd.Image, error) {
+		MockListImages: func(namespace string) ([]containerd.Image, error) {
+			if h.listImages != nil {
+				return h.listImages(namespace)
+			}
 			return nil, nil
 		},
 		MockContainerWithCtx: func(_ context.Context, _, _ string) (containerd.Container, error) {
@@ -387,6 +396,91 @@ func TestResyncUnsetsEntitiesDeletedWhileStreamWasDown(t *testing.T) {
 	assert.False(t, found)
 	_, hasSBOM := h.collector.imageSBOMs[staleImageID]
 	assert.False(t, hasSBOM)
+
+	cancel()
+	select {
+	case <-streamDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the collector did not stop after context cancellation")
+	}
+}
+
+// errorContentStore fails every blob read, to model a containerd content
+// store that cannot be read during a resync.
+type errorContentStore struct {
+	content.Store
+}
+
+func (errorContentStore) ReaderAt(context.Context, ocispec.Descriptor) (content.ReaderAt, error) {
+	return nil, errors.New("content store is not readable")
+}
+
+// TestResyncKeepsImageWhenMetadataReadFails is a regression test: during a
+// resync, containerd can list an image but fail to read its metadata, for
+// example when the content store is temporarily unavailable. The collector
+// must keep the image instead of treating it as deleted.
+func TestResyncKeepsImageWhenMetadataReadFails(t *testing.T) {
+	h := newStreamTestHarness(t)
+	h.cfg.SetInTest("container_image.enabled", true)
+
+	const namespace = "default"
+	const staleContainerID = "stale-container"
+	const imageName = "registry.example/app:1"
+	const imageID = "sha256:stale-image"
+
+	// The daemon restarts listing an image whose metadata cannot be read.
+	cl, err := containerd.New("", containerd.WithServices(containerd.WithContentStore(errorContentStore{})))
+	require.NoError(t, err)
+	unreadableImage := containerd.NewImage(cl, images.Image{
+		Name: imageName,
+		Target: ocispec.Descriptor{
+			MediaType: ocispec.MediaTypeImageManifest,
+			Digest:    digest.FromString("unreadable-manifest"),
+			Size:      64,
+		},
+	})
+	h.listImages = func(string) ([]containerd.Image, error) {
+		return []containerd.Image{unreadableImage}, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, h.collector.subscribeAndResync(ctx))
+
+	streamDone := make(chan struct{})
+	go func() {
+		h.collector.stream(ctx)
+		close(streamDone)
+	}()
+
+	// The image and a container were published before the outage.
+	h.collector.knownImages.addReference(imageName, imageID)
+	h.collector.imageSBOMs[imageID] = &workloadmeta.CompressedSBOM{}
+	h.store.setContainers(&workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: staleContainerID},
+		EntityMeta: workloadmeta.EntityMeta{Namespace: namespace},
+		Runtime:    workloadmeta.ContainerRuntimeContainerd,
+	})
+
+	// The daemon restarts: the resync lists the image but cannot read its
+	// metadata.
+	firstSubscription := h.eventService.subscription(0)
+	firstSubscription.errs <- io.EOF
+	close(firstSubscription.errs)
+
+	// The stale container is unset, which proves the resync's cleanup ran.
+	// The image, whose presence could not be verified, must be kept.
+	require.Eventually(t, func() bool {
+		return storeWasNotifiedWithUnset(h.store.notifiedEvents(), workloadmeta.KindContainer, staleContainerID)
+	}, 5*time.Second, 10*time.Millisecond)
+
+	assert.False(t, storeWasNotifiedWithUnset(h.store.notifiedEvents(), workloadmeta.KindContainerImageMetadata, imageID))
+
+	_, found := h.collector.knownImages.getImageID(imageName)
+	assert.True(t, found)
+	_, hasSBOM := h.collector.imageSBOMs[imageID]
+	assert.True(t, hasSBOM)
 
 	cancel()
 	select {

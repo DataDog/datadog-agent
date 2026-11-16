@@ -492,6 +492,16 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil, true)
 		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
+			// The image is listed by containerd but its metadata could not be
+			// read, for example because of a transient content store failure.
+			// Its presence is uncertain, so preserve it: only entities that are
+			// verified as absent must be unset on resync.
+			c.handleImagesMut.Lock()
+			imageID, found := c.knownImages.getImageID(image.Name())
+			c.handleImagesMut.Unlock()
+			if found {
+				snapshot.imageIDs[imageID] = struct{}{}
+			}
 			continue
 		}
 		//Image is referenced by several different names but has only one entity id (= manifest.Config.Digest).
