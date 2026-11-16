@@ -11,7 +11,7 @@
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
 #       - device_modes: [physical|mig|mig_parent|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode; a MIG parent supports the fields a physical GPU does. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
-#   - support (optional): mode-specific capabilities and additional unsupported_fields entries
+#   - support (optional): mode-specific capabilities and additional unsupported_fields entries, for the modes the architecture supports (a mode in unsupported_device_modes cannot have a support entry)
 #   - unsupported_device_modes: [mig|mig_parent|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 nvlink_generations:
   1: # NVLink 1.0
@@ -95,7 +95,7 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, mig_parent, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
@@ -120,7 +120,7 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, mig_parent, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
@@ -145,7 +145,7 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, mig_parent, vgpu]
+      - device_modes: [vgpu]
         capabilities:
           nvlink: 0
         unsupported_fields: []
@@ -220,7 +220,7 @@ architectures:
     support:
       - device_modes: [physical]
         unsupported_fields: []
-      - device_modes: [mig, mig_parent, vgpu]
+      - device_modes: [vgpu]
         unsupported_fields: []
     unsupported_device_modes:
       - mig
