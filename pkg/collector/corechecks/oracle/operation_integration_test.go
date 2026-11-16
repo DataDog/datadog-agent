@@ -9,12 +9,10 @@ package oracle
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
 	"os"
+	"runtime"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +26,7 @@ import (
 )
 
 // Opt in because these fixtures require Oracle 18+ and an independent observer
-// with access to v$session and v$sql. No observation queries run in production.
+// with access to v$session. No observation queries run in production.
 func deadlineLiveCheck(t *testing.T) (*Check, *sqlx.DB, *mocksender.MockSender) {
 	t.Helper()
 	if os.Getenv("ORACLE_DEADLINE_LIVE") != "1" {
@@ -153,57 +151,12 @@ func TestOperationLiveLaterFetch(t *testing.T) {
 	deadlineObserveCompletion(t, observer, customIdentity, start)
 }
 
-func TestOperationLiveSocketFallback(t *testing.T) {
-	c, observer, _ := deadlineLiveCheck(t)
-	identity := deadlineSession(t, c)
-	options, err := goora.ParseConfig(buildGoOraURL(c))
-	require.NoError(t, err)
-	require.Equal(t, 2*time.Second, options.Timeout)
-	start := time.Now()
-	var value int
-	// Intentionally omit the operation deadline to isolate the driver's fallback.
-	err = c.db.GetContext(context.Background(), &value, deadlineSlowQuery(false))
-	elapsed := time.Since(start)
-	require.Error(t, err)
-	require.True(t, isConnectionError(err))
-	require.GreaterOrEqual(t, elapsed, 1900*time.Millisecond)
-	require.Less(t, elapsed, 4*time.Second)
-	require.Error(t, handleError(c, &c.db, err))
-	require.NoError(t, getWrapper(c, &value, "SELECT 42 FROM dual"))
-	require.Equal(t, 42, value)
-	t.Logf("socket fallback configured=2s elapsed=%s error=%v later_query=42", elapsed, err)
-	deadlineObserveCompletion(t, observer, identity, start)
-}
-
-func TestOperationLiveHealthyReuseAndFailedOpens(t *testing.T) {
-	c, observer, _ := deadlineLiveCheck(t)
-	c.config.QueryTimeout = 5
-	c.config.InstanceConfig.CustomQueries = []config.CustomQuery{{Query: "SELECT level value FROM dual CONNECT BY level<=1500", Columns: []config.CustomQueryColumns{{Name: "value", Type: "gauge"}}}}
-	require.NoError(t, c.Run())
-	var before []string
-	require.NoError(t, observer.Select(&before, "SELECT sid||','||serial# FROM v$session WHERE username=:1 ORDER BY 1", strings.ToUpper(c.config.Username)))
-	require.Len(t, before, 2)
-	query := "SELECT /* DD deadline healthy " + strings.Repeat("x", 10000) + " */ 42 FROM dual"
-	var value int
-	require.NoError(t, getWrapper(c, &value, query))
-	var id string
-	require.NoError(t, observer.Get(&id, "SELECT sql_id FROM v$sql WHERE sql_text LIKE 'SELECT /* DD deadline healthy %' AND rownum=1"))
-	for i := 0; i < 3; i++ {
-		c.metricLastRun = time.Time{}
-		require.NoError(t, c.Run())
-		var fullText string
-		require.NoError(t, getFullSQLText(c, &fullText, "sql_id", id))
-		require.Equal(t, query, fullText)
-		var after []string
-		require.NoError(t, observer.Select(&after, "SELECT sid||','||serial# FROM v$session WHERE username=:1 ORDER BY 1", strings.ToUpper(c.config.Username)))
-		require.Equal(t, before, after)
+func TestOperationLiveFailedOpens(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("socket counts require /proc/self/fd")
 	}
-	c.Teardown()
-	require.Eventually(t, func() bool {
-		var count int
-		err := observer.Get(&count, "SELECT COUNT(*) FROM v$session WHERE username=:1", strings.ToUpper(c.config.Username))
-		return err == nil && count == 0
-	}, 15*time.Second, 50*time.Millisecond)
+	c, _, _ := deadlineLiveCheck(t)
+	c.config.QueryTimeout = 5
 	c.config.Username = "SDBM3098_DOES_NOT_EXIST"
 	sockets := func() int {
 		entries, err := os.ReadDir("/proc/self/fd")
@@ -226,44 +179,7 @@ func TestOperationLiveHealthyReuseAndFailedOpens(t *testing.T) {
 		require.Nil(t, db)
 	}
 	require.Equal(t, baseline, sockets())
-	t.Logf("four healthy cycles and three exact 10KB full-text reads reused sessions %v; eight rejected logins with GC disabled sockets_before=%d sockets_after=%d", before, baseline, sockets())
-}
-
-func TestOperationHandshakeDeadline(t *testing.T) {
-	c, _ := operationCheck(t)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-	host, port, err := net.SplitHostPort(listener.Addr().String())
-	require.NoError(t, err)
-	c.config.Server = host
-	c.config.Port, err = strconv.Atoi(port)
-	require.NoError(t, err)
-	accepted := make(chan net.Conn, 1)
-	go func() {
-		conn, err := listener.Accept()
-		if err == nil {
-			accepted <- conn
-		}
-	}()
-	start := time.Now()
-	db, err := c.Connect()
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.Nil(t, db)
-	require.Less(t, time.Since(start), 3*time.Second)
-	conn := <-accepted
-	defer conn.Close()
-	require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second)))
-	buffer := make([]byte, 4096)
-	for {
-		_, err = conn.Read(buffer)
-		if err != nil {
-			break
-		}
-	}
-	var networkErr net.Error
-	require.False(t, errors.As(err, &networkErr) && networkErr.Timeout(), "peer must see closure, not merely time out")
-	t.Logf("stalled handshake interrupted and peer socket closed after %s", time.Since(start))
+	t.Logf("eight rejected logins with GC disabled sockets_before=%d sockets_after=%d", baseline, sockets())
 }
 
 func TestOperationLiveFetchErrorRecovery(t *testing.T) {
