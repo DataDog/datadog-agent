@@ -42,8 +42,6 @@ go_library(
     ],
 )
 
-# Keep helper unit tests out of the manual E2E target. Gazelle does not manage
-# testing_test's deps; update them when testing.go or testing_test.go imports change.
 # gazelle:exclude testing_test.go
 dd_agent_go_test(
     name = "process_test",
@@ -106,21 +104,12 @@ dd_agent_go_test(
     ],
 )
 
-# Test helpers without importing cloud provisioning dependencies.
 dd_agent_go_test(
     name = "testing_test",
-    srcs = [
-        "testing.go",
-        "testing_test.go",
-    ],
-    embedsrcs = glob([
-        "compose/*.yaml",
-        "config/*.yaml",
-    ]),
+    srcs = ["testing_test.go"],
+    embed = [":process"],
     deps = [
-        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
-        "//test/fakeintake/client",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
