@@ -32,6 +32,7 @@ import (
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	logs "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -179,6 +180,18 @@ func LogMessageWithStack(message *C.char, logLevel C.int, stack *C.char, excType
 		}
 	}
 	LogMessage(message, logLevel)
+}
+
+// LogStackEnabled tells rtloader whether the stack of error messages is
+// wanted, that is whether error tracking is collecting. It is checked before
+// every capture because collection can be switched at runtime.
+//
+//export LogStackEnabled
+func LogStackEnabled() C.int {
+	if logs.ErrortrackingEnabled() {
+		return 1
+	}
+	return 0
 }
 
 // SetExternalTags adds a set of tags for a given hostname to the External Host

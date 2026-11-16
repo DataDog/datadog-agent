@@ -17,6 +17,7 @@ dd_agent_go_test(
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-python.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/ntp_error.yaml",
         "testdata/tcp_check_error.yaml",
     ],
     embedsrcs = [
@@ -31,6 +32,7 @@ dd_agent_go_test(
         "testdata/errortracking-python.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/ntp_error.yaml",
         "testdata/tcp_check_error.yaml",
     ],
     tags = ["manual"],

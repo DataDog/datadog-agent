@@ -70,10 +70,11 @@ void initCgoFree(rtloader_t *rtloader) {
 
 void LogMessage(char *, int);
 void LogMessageWithStack(char *, int, char *, char *);
+int LogStackEnabled(void);
 
 void initLogger(rtloader_t *rtloader) {
 	set_log_cb(rtloader, LogMessage);
-	set_log_with_stack_cb(rtloader, LogMessageWithStack);
+	set_log_with_stack_cb(rtloader, LogMessageWithStack, LogStackEnabled);
 }
 
 //

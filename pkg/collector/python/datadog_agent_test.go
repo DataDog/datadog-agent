@@ -50,3 +50,7 @@ func TestReportIssue(t *testing.T) {
 func TestLogMessageWithStackBridge(t *testing.T) {
 	testLogMessageWithStack(t)
 }
+
+func TestLogStackEnabled(t *testing.T) {
+	testLogStackEnabled(t)
+}

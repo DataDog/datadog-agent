@@ -1,0 +1,8 @@
+# The ntp check is implemented in Go. An unresolvable server makes its run fail,
+# which exercises the Go core path (CheckLogger.Error) deterministically.
+init_config:
+instances:
+  - hosts:
+      - errortracking-e2e.invalid
+    timeout: 1
+    min_collection_interval: 1

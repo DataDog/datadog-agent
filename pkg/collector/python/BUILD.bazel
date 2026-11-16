@@ -47,6 +47,7 @@ go_library(
         "//conditions:default": ["//rtloader:rtloader_dynamic"],
     }),
     cgo = True,
+    embedsrcs = ["shipped_integrations.txt"],
     clinkopts = select({
         "@rules_go//go/platform:aix": [
             "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
@@ -163,6 +164,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/log/errortracking",
+        "//pkg/util/log/setup",
         "//pkg/util/log/slog",
         "//pkg/util/option",
         "//pkg/util/retry",

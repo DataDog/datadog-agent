@@ -49,6 +49,9 @@ var errorCheckConfig string
 //go:embed testdata/error_check.py
 var errorCheckPy string
 
+//go:embed testdata/ntp_error.yaml
+var ntpErrorConfig string
+
 // processAgentSubmissionErrorMessage is logged by submitProcessLikePayload
 // when the connections check's submission to the connection-refused testdata
 // endpoint times out rather than failing fast (security-group-blocked port).
@@ -82,6 +85,7 @@ func errorTrackingAgentOptions(agentConfig string) []agentparams.Option {
 		agentparams.WithSystemProbeConfig(errorTrackingSystemProbeConfig),
 		agentparams.WithSecurityAgentConfig(errorTrackingSecurityAgentConfig),
 		agentparams.WithIntegration("error_check.d", errorCheckConfig),
+		agentparams.WithIntegration("ntp.d", ntpErrorConfig),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/error_check.py", errorCheckPy, true),
 	}
 }
@@ -240,6 +244,7 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 			}
 		}
 		assert.NotEmpty(c, pythonLogs, "no core-agent Python-path error logs received yet")
+		assert.NotEmpty(c, coreLogs, "no core-agent Go-core error logs received yet")
 		assert.NotEmpty(c, processLogs, "no process-agent error logs received yet")
 		assert.NotEmpty(c, securityLogs, "no security-agent error logs received yet")
 		assert.NotEmpty(c, traceLogs, "no trace-agent error logs received yet")

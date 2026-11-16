@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	logs "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	logslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -255,7 +256,7 @@ func testLogMessageWithStack(t *testing.T) {
 
 	mu.Lock()
 	require.Len(t, logs, 1)
-	assert.Equal(t, "redis.exceptions.ConnectionError", logs[0].ErrorKind)
+	assert.Equal(t, "<external>.ConnectionError", logs[0].ErrorKind)
 	assert.Equal(t, "redisdb", logs[0].Integration)
 	assert.True(t, strings.HasPrefix(logs[0].Stack, "datadog_checks.redisdb.redisdb.check\n\tdatadog_checks/redisdb/redisdb.py:42"))
 	logs = nil
@@ -269,4 +270,17 @@ func testLogMessageWithStack(t *testing.T) {
 	require.Len(t, logs, 1)
 	assert.Empty(t, logs[0].Stack)
 	assert.NotZero(t, logs[0].PCsLen)
+}
+
+func testLogStackEnabled(t *testing.T) {
+	t.Cleanup(func() { logs.RegisterErrortrackingSubmitter(nil) })
+
+	logs.RegisterErrortrackingSubmitter(nil)
+	assert.Equal(t, C.int(0), LogStackEnabled(), "no submitter registered: the stack is not wanted")
+
+	logs.RegisterErrortrackingSubmitter(func(errortracking.ErrorLog) {})
+	assert.Equal(t, C.int(1), LogStackEnabled())
+
+	logs.RegisterErrortrackingSubmitter(nil)
+	assert.Equal(t, C.int(0), LogStackEnabled(), "unregistering takes effect immediately")
 }

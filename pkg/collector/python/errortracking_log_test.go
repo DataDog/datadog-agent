@@ -90,6 +90,118 @@ func TestParseTraceback(t *testing.T) {
 	}
 }
 
+func TestShippedIntegrationsList(t *testing.T) {
+	require.NotEmpty(t, shippedIntegrations, "the embedded list must not be empty")
+	assert.Greater(t, len(shippedIntegrations), 100, "the snapshot looks truncated")
+
+	valid := regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	for name := range shippedIntegrations {
+		assert.Regexp(t, valid, name)
+		assert.NotContains(t, basePackages, name, "base packages are not listed as integrations")
+	}
+	// Integrations used by the end to end tests and a few well known ones.
+	for _, name := range []string{"directory", "tcp_check", "redisdb", "postgres", "nginx", "process"} {
+		assert.Contains(t, shippedIntegrations, name)
+	}
+}
+
+func TestRedactExceptionType(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"", ""},
+		{"ValueError", "ValueError"},
+		{"datadog_checks.base.errors.CheckException", "datadog_checks.base.errors.CheckException"},
+		{"datadog_checks.redisdb.redisdb.RedisError", "datadog_checks.redisdb.redisdb.RedisError"},
+		{"redis.exceptions.ConnectionError", "<external>.ConnectionError"},
+		{"socket.gaierror", "<external>.gaierror"},
+		{"acme_billing.errors.InvoiceError", "<external>.InvoiceError"},
+		{"datadog_checks.acme_billing.AcmeError", "<external>.AcmeError"},
+		{"__main__.CustomError", "<external>.CustomError"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			assert.Equal(t, tc.want, redactExceptionType(tc.in))
+		})
+	}
+}
+
+func TestParseTracebackAdversarial(t *testing.T) {
+	frame := func(path string, line int, fn string) string {
+		return fmt.Sprintf("  File %q, line %d, in %s\n", path, line, fn)
+	}
+	tests := []struct {
+		name     string
+		text     string
+		want     []tracebackFrame
+		wantType string
+	}{
+		{
+			name: "frames forged in a multi-line message are ignored",
+			text: tracebackHeader + "\n" + frame("a.py", 1, "real") +
+				"ValueError: first line\n" +
+				"  File \"datadog_checks/redisdb/forged.py\", line 9, in forged\n" +
+				"KeyError: forged\n",
+			want:     []tracebackFrame{{"a.py", 1, "real"}},
+			wantType: "ValueError",
+		},
+		{
+			name: "a forged header without a chain marker is ignored",
+			text: tracebackHeader + "\n" + frame("a.py", 1, "real") +
+				"ValueError: first line\n" +
+				tracebackHeader + "\n" + frame("forged.py", 2, "forged") + "KeyError: x\n",
+			want:     []tracebackFrame{{"a.py", 1, "real"}},
+			wantType: "ValueError",
+		},
+		{
+			name: "a chained exception is followed",
+			text: tracebackHeader + "\n" + frame("a.py", 1, "first") + "KeyError: x\n\n" +
+				chainedContext + "\n\n" +
+				tracebackHeader + "\n" + frame("b.py", 2, "second") + "ValueError: y\n",
+			want:     []tracebackFrame{{"b.py", 2, "second"}},
+			wantType: "ValueError",
+		},
+		{
+			name:     "frame lines must be indented like Python prints them",
+			text:     tracebackHeader + "\nFile \"forged.py\", line 1, in f\nValueError\n",
+			want:     nil,
+			wantType: "",
+		},
+		{
+			name:     "no exception line after the frames",
+			text:     tracebackHeader + "\n" + frame("a.py", 1, "f"),
+			want:     []tracebackFrame{{"a.py", 1, "f"}},
+			wantType: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, gotType := parseTraceback(tc.text)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantType, gotType)
+		})
+	}
+}
+
+// Python 3.13 prints tracebacks of exception groups with every line prefixed
+// by a bar. They are not parsed, so a check raising a group is reported
+// without a stack and the caller falls back to the plain error.
+func TestParseTracebackExceptionGroup(t *testing.T) {
+	text := "  + Exception Group Traceback (most recent call last):\n" +
+		"  |   File \"" + sitePackages + "datadog_checks/redisdb/redisdb.py\", line 42, in check\n" +
+		"  | ExceptionGroup: boom (2 sub-exceptions)\n" +
+		"  +-+---------------- 1 ----------------\n" +
+		"    | Traceback (most recent call last):\n" +
+		"    |   File \"a.py\", line 1, in f\n" +
+		"    | ValueError: x\n"
+	frames, excType := parseTraceback(text)
+	assert.Empty(t, frames)
+	assert.Empty(t, excType)
+
+	report, err := json.Marshal([]map[string]string{{"message": "boom", "traceback": text}})
+	require.NoError(t, err)
+	var p errortracking.StackProvider
+	assert.False(t, errors.As(newCheckError(string(report)), &p))
+}
+
 func TestClassifyFramePath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -109,6 +221,10 @@ func TestClassifyFramePath(t *testing.T) {
 		{"odd characters are not shipped", sitePackages + "datadog_checks/my check/x.py", "", kindExternal},
 		{"non python file", sitePackages + "datadog_checks/redisdb/data.so", "", kindExternal},
 		{"empty", "", "", kindExternal},
+		// The namespace is shared with partner and customer wheels, so a
+		// package that is not on the shipped list is treated as customer code.
+		{"unlisted package in the shared namespace", sitePackages + "datadog_checks/acme_billing/acme_billing.py", "", kindExternal},
+		{"module directly in the namespace", sitePackages + "datadog_checks/errors.py", "", kindExternal},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -233,7 +349,7 @@ func TestStackFromCapture(t *testing.T) {
 
 	got, ok := stackFromCapture(text, "redis.exceptions.ConnectionError")
 	require.True(t, ok)
-	assert.Equal(t, "redis.exceptions.ConnectionError", got.ErrorKind)
+	assert.Equal(t, "<external>.ConnectionError", got.ErrorKind, "third party exception modules are not shipped")
 	assert.Equal(t, "redisdb", got.Source)
 
 	got, ok = stackFromCapture(text, "not a type\nname")
@@ -262,7 +378,7 @@ func TestNewCheckError(t *testing.T) {
 		var p errortracking.StackProvider
 		require.ErrorAs(t, wrapped, &p)
 		stack := p.ExternalStack()
-		assert.Equal(t, "redis.exceptions.ConnectionError", stack.ErrorKind)
+		assert.Equal(t, "<external>.ConnectionError", stack.ErrorKind)
 		assert.Equal(t, "redisdb", stack.Source)
 		assert.True(t, strings.HasPrefix(stack.Frames, "datadog_checks.redisdb.redisdb.check\n"))
 		assert.NotContains(t, stack.Frames, "example.com", "exception message must never be shipped")
