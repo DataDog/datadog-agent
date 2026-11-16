@@ -270,8 +270,9 @@ func (s *errortrackingFlagSuite) remoteConfigLayerHasKey() (bool, error) {
 }
 
 // requireRemoteConfigSource waits until the key is (or is no longer) provided
-// by the Remote Config source. Only payloads sent after the change count, so a
-// stale payload cannot settle the wait.
+// by the Remote Config source. The flush does not clear the metadata payloads
+// fakeintake keeps, so the latest one by timestamp is used and the retry loop
+// absorbs a stale payload.
 func (s *errortrackingFlagSuite) requireRemoteConfigSource(want bool, msg string) {
 	s.T().Helper()
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {

@@ -8,6 +8,7 @@ package remoteflags
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -284,4 +285,55 @@ func TestBinding_LateSubscriberKeepsBinding(t *testing.T) {
 	_, source, ok := setter.lastUnset()
 	require.True(t, ok)
 	assert.Equal(t, model.SourceRC, source)
+}
+
+// A recovery is not undone by the next update carrying the same value. A new
+// value, or the flag going away and coming back, applies it again.
+func TestBinding_RecoveredFlagStaysRecoveredUntilItChanges(t *testing.T) {
+	client := NewClient().WithHealthCheckInterval(10 * time.Millisecond)
+	setter := newFakeConfigSetter()
+	client.WithConfigSetter(setter)
+	h := newBoundHandler(testFlag1, boundField)
+	var fail atomic.Bool
+	fail.Store(true)
+	h.onChangeFn = func(v FlagValue) error {
+		h.onChangeCh <- v
+		if fail.Load() {
+			return errors.New("cannot start")
+		}
+		return nil
+	}
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+	waitChan(t, h.onChangeCh)
+	waitChan(t, h.recoverCh)
+	require.Equal(t, model.SourceDefault, setter.GetSource(boundField))
+	sets := setter.setCount()
+
+	// Same value again: still recovered, not mirrored, not notified.
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, sets, setter.setCount())
+	assert.Equal(t, model.SourceDefault, setter.GetSource(boundField))
+	assert.Empty(t, h.onChangeCh)
+
+	// The value changes: applied again, and monitored again.
+	fail.Store(false)
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
+	assert.False(t, bool(waitChan(t, h.onChangeCh)))
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+	assert.Equal(t, model.SourceRC, setter.GetSource(boundField))
+
+	// Recover again, then remove and re-add the flag: applied again.
+	h.healthy.Store(false)
+	waitChan(t, h.recoverCh)
+	h.healthy.Store(true)
+	require.Equal(t, model.SourceDefault, setter.GetSource(boundField))
+	sendUpdate(client, Flag{Name: string(testFlag2), Enabled: true})
+	waitChan(t, h.noConfigCh)
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
+	assert.Equal(t, model.SourceRC, setter.GetSource(boundField))
 }

@@ -171,12 +171,19 @@ type subscription struct {
 // Client is the Remote Flags client that manages flag subscriptions
 // and integrates with the Remote Config system.
 type Client struct {
-	mu                  sync.Mutex
-	subscriptions       map[FlagName][]*subscription
-	currentValues       map[FlagName]FlagValue
-	lastVersions        map[FlagName]int
-	boundFields         map[FlagName]string // configuration key a handler binds a flag to
-	mirroredFields      map[FlagName]string // key currently written under SourceRC for a flag
+	mu            sync.Mutex
+	subscriptions map[FlagName][]*subscription
+	currentValues map[FlagName]FlagValue
+	lastVersions  map[FlagName]int
+	boundFields   map[FlagName]string // configuration key a handler binds a flag to
+	// mirroredFields is the key written under SourceRC for a flag. The client
+	// assumes it is the only producer of the Remote Config source for that key,
+	// so removal and recovery unset the whole layer entry.
+	mirroredFields map[FlagName]string
+	// recovered holds the value a flag had when its handler was recovered. The
+	// flag stays recovered, neither mirrored nor notified, until its value
+	// changes or it disappears, so the next update cannot undo the recovery.
+	recovered           map[FlagName]FlagValue
 	configSetter        ConfigSetter
 	healthCheckInterval time.Duration
 	ctx                 context.Context
@@ -192,6 +199,7 @@ func NewClient() *Client {
 		lastVersions:        make(map[FlagName]int),
 		boundFields:         make(map[FlagName]string),
 		mirroredFields:      make(map[FlagName]string),
+		recovered:           make(map[FlagName]FlagValue),
 		healthCheckInterval: DefaultHealthCheckInterval,
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -269,7 +277,11 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 	}
 
 	// If we already have cached a value for this flag,
-	// invoke the callback immediately via notifyChange
+	// invoke the callback immediately via notifyChange. The key of a late
+	// binding is not mirrored here: a handler must be subscribed before the
+	// first update to have its key driven (the component subscribes all
+	// handlers at construction); the binding only makes its recovery give the
+	// key back.
 	if enabled, exists := c.currentValues[flag]; exists {
 		c.notifyChange(Flag{Name: string(flag), Enabled: enabled, ConfigurationField: c.boundFields[flag]})
 	}
@@ -313,6 +325,14 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 					continue
 				}
 				c.lastVersions[flagName] = flag.Version
+			}
+
+			// A flag recovered at this value stays recovered until it changes.
+			if recoveredValue, ok := c.recovered[flagName]; ok {
+				if recoveredValue == flag.Enabled {
+					continue
+				}
+				delete(c.recovered, flagName)
 			}
 
 			// A handler-bound field stands in for the configuration_field the
@@ -365,6 +385,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			// Remove from currentValues so that when it comes back, it will trigger a notification
 			// even if the value is the same as before
 			delete(c.currentValues, flagName)
+			delete(c.recovered, flagName)
 			// Give the mirrored configuration field back to the lower layers.
 			if field, mirrored := c.mirroredFields[flagName]; mirrored {
 				c.configSetter.UnsetForSource(field, model.SourceRC)
@@ -412,7 +433,18 @@ func (c *Client) notifyChange(flag Flag) {
 // recoverFlag rolls back a flag's effect on pkg/config (when applicable) and
 // then invokes the handler's SafeRecover. The Unset happens first so the handler
 // observes the reverted configuration when it runs.
+//
+// A recovered flag stays recovered at that value (see Client.recovered), unless
+// the flag already moved on.
 func (c *Client) recoverFlag(sub *subscription, flag Flag, err error) {
+	c.mu.Lock()
+	name := FlagName(flag.Name)
+	if current, ok := c.currentValues[name]; ok && current == flag.Enabled {
+		c.recovered[name] = flag.Enabled
+	}
+	delete(c.mirroredFields, name)
+	c.mu.Unlock()
+
 	if flag.ConfigurationField != "" && c.configSetter != nil {
 		c.configSetter.UnsetForSource(flag.ConfigurationField, model.SourceRC)
 	}

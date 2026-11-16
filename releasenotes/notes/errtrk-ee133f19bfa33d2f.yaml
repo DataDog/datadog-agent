@@ -11,7 +11,8 @@ features:
     Agent error log forwarding can now be turned on and off without restarting
     the Agent, through a remote flag. The flag sets
     ``agent_telemetry.errortracking.enabled`` with the remote configuration
-    source, shown by ``agent config``, and the feature follows that setting. A value set locally in the configuration file or the environment
+    source, shown by ``agent config``, and the feature follows that setting.
+    A value set locally in the configuration file or the environment
     always takes precedence, whether true or false. When the flag is removed or
     the feature cannot start, the setting goes back to the local or default
     value. Errors logged before the flag reaches the Agent, a few seconds after
