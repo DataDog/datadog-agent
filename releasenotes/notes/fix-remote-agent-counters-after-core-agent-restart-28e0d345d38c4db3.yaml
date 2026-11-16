@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix the Agent Telemetry report, and the Agent's own telemetry endpoint,
+    containing the whole lifetime count of the counters reported by a remote
+    agent such as the Agent Data Plane after the Core Agent restarts while the
+    remote agent keeps running. These counters now start from zero when the
+    Core Agent starts, like the Core Agent's own counters, and keep increasing
+    when the remote agent restarts.

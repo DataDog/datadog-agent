@@ -286,11 +286,6 @@ func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Comp
 }
 
 func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
-	// Take the baseline scrape of new remote agents quickly.
-	previousDelay := telemetryBaselineInitialDelay
-	telemetryBaselineInitialDelay = 10 * time.Millisecond
-	t.Cleanup(func() { telemetryBaselineInitialDelay = previousDelay })
-
 	lc := compdef.NewTestLifecycle(t)
 	telemetry := telemetryimpl.NewMock(t)
 	ipc := ipcmock.New(t)
@@ -302,7 +297,14 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 		Secrets:   secretsmock.New(t),
 	}
 
-	return NewComponent(reqs), lc, telemetry, ipc
+	provides := NewComponent(reqs)
+	// Take the baseline scrape of new remote agents quickly. This is safe to do after construction: the baseline
+	// goroutine is only started by RegisterRemoteAgent, which no caller reaches before this function returns.
+	if registry, ok := provides.Comp.(*remoteAgentRegistry); ok {
+		registry.telemetryBaselineDelay = 10 * time.Millisecond
+	}
+
+	return provides, lc, telemetry, ipc
 }
 
 //
@@ -314,19 +316,24 @@ type testRemoteAgentServer struct {
 	remoteagent.RegistrationData
 
 	// Mock values
-	statusMain    map[string]string
-	statusNamed   map[string]map[string]string
-	flareFiles    map[string][]byte
-	promText      string
-	telemetryErr  error
-	responseDelay time.Duration
-	ConfigEvents  chan *pb.ConfigEvent
+	statusMain   map[string]string
+	statusNamed  map[string]map[string]string
+	flareFiles   map[string][]byte
+	telemetryErr error
+	// telemetryBlock, when set, holds GetTelemetry until it is closed. Set it with withTelemetryBlock.
+	telemetryBlock chan struct{}
+	responseDelay  time.Duration
+	ConfigEvents   chan *pb.ConfigEvent
+
+	// promText is the telemetry served by GetTelemetry. It is guarded by sessionMu, like the session ID fields:
+	// tests change it while the server is serving. Use setPromText and getPromText.
+	promText string
 
 	// session ID behavior
 	registeredSessionID string // session ID received during registration
 	overrideSessionID   bool   // if true, send the overrideSessionID instead of the correct session ID
 	fakeSessionID       string // if overrideSessionID is true, send this instead of the correct session ID
-	// sessionMu guards the session ID fields: tests can change them while the server is serving.
+	// sessionMu guards the session ID fields and promText: tests can change them while the server is serving.
 	sessionMu sync.Mutex
 	// telemetryCalls counts the GetTelemetry RPCs the server has served.
 	telemetryCalls atomic.Int64
@@ -370,18 +377,43 @@ func (t *testRemoteAgentServer) UnaryEcho(_ context.Context, req *echo.EchoReque
 
 func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pb.GetTelemetryRequest) (*pb.GetTelemetryResponse, error) {
 	t.telemetryCalls.Add(1)
+	if t.telemetryBlock != nil {
+		<-t.telemetryBlock
+	}
 	if t.telemetryErr != nil {
 		return nil, t.telemetryErr
 	}
 	return &pb.GetTelemetryResponse{
 		Payload: &pb.GetTelemetryResponse_PromText{
-			PromText: t.promText,
+			PromText: t.getPromText(),
 		},
 	}, nil
 }
 
 func (t *testRemoteAgentServer) Stop() {
 	t.server.Stop()
+}
+
+func (t *testRemoteAgentServer) setPromText(text string) {
+	t.sessionMu.Lock()
+	defer t.sessionMu.Unlock()
+	t.promText = text
+}
+
+func (t *testRemoteAgentServer) getPromText() string {
+	t.sessionMu.Lock()
+	defer t.sessionMu.Unlock()
+	return t.promText
+}
+
+// sessionIDForResponse is the session ID the server puts in its response headers.
+func (t *testRemoteAgentServer) sessionIDForResponse() string {
+	t.sessionMu.Lock()
+	defer t.sessionMu.Unlock()
+	if t.overrideSessionID {
+		return t.fakeSessionID
+	}
+	return t.registeredSessionID
 }
 
 func (t *testRemoteAgentServer) setRegisteredSessionID(sessionID string) {
@@ -417,10 +449,16 @@ func withStatusProvider(statusMain map[string]string, statusNamed map[string]map
 }
 func withTelemetryProvider(promText string) func(*grpc.Server, *testRemoteAgentServer) {
 	return func(s *grpc.Server, tras *testRemoteAgentServer) {
-		tras.promText = promText
+		tras.setPromText(promText)
 		pb.RegisterTelemetryProviderServer(s, tras)
 		// Add telemetry service to the registration data
 		tras.RegistrationData.Services = append(tras.RegistrationData.Services, "datadog.remoteagent.telemetry.v1.TelemetryProvider")
+	}
+}
+
+func withTelemetryBlock(block chan struct{}) func(*grpc.Server, *testRemoteAgentServer) {
+	return func(_ *grpc.Server, tras *testRemoteAgentServer) {
+		tras.telemetryBlock = block
 	}
 }
 
@@ -471,11 +509,7 @@ func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener ne
 
 	// Create session ID interceptor that adds session_id to response metadata
 	sessionIDInterceptor := func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		sessionID := testServer.registeredSessionID
-		if testServer.overrideSessionID {
-			sessionID = testServer.fakeSessionID
-		}
-		grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID}))
+		grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": testServer.sessionIDForResponse()}))
 		return handler(ctx, req)
 	}
 
@@ -539,10 +573,10 @@ func buildAndRegisterRemoteAgent(t *testing.T, ipcComp ipc.Component, registryCo
 	// The registry takes the first telemetry scrape of a process as its baseline, so what the process reported
 	// before is not counted. Most tests want the telemetry they configured to count in full, which is what happens
 	// to series that show up after the baseline: register with empty telemetry and serve the real one afterwards.
-	telemetryText := testServer.promText
+	telemetryText := testServer.getPromText()
 	hasTelemetry := slices.Contains(testServer.RegistrationData.Services, TelemetryServiceName)
 	if hasTelemetry {
-		testServer.promText = ""
+		testServer.setPromText("")
 	}
 
 	sessionID, _, err := registryComp.RegisterRemoteAgent(&testServer.RegistrationData)
@@ -551,7 +585,7 @@ func buildAndRegisterRemoteAgent(t *testing.T, ipcComp ipc.Component, registryCo
 	testServer.setRegisteredSessionID(sessionID)
 	if hasTelemetry {
 		waitForTelemetryBaseline(t, registryComp, sessionID)
-		testServer.promText = telemetryText
+		testServer.setPromText(telemetryText)
 	}
 	return testServer
 }

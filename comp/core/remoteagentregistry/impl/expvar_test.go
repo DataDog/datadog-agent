@@ -206,7 +206,7 @@ func TestRemoteExpvarGaugeUsesLatestValueAndIsRemovedOnDeregistration(t *testing
 	assert.Empty(t, component.expvarCache.counters)
 	assert.Len(t, component.expvarCache.gauges, 1)
 
-	agent.promText = "# TYPE transactions__retry_queue_size gauge\ntransactions__retry_queue_size{domain=\"metrics\"} 2\n"
+	agent.setPromText("# TYPE transactions__retry_queue_size gauge\ntransactions__retry_queue_size{domain=\"metrics\"} 2\n")
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(2), values["agent-data-plane"]["forwarder_retry_queue_size"], "gauges should use the latest value, not accumulate")
@@ -237,11 +237,11 @@ func TestRemoteExpvarCounterRemainsMonotonicAfterResetAndFailure(t *testing.T) {
 	}
 
 	// A second read inside the cache window reuses the same remote snapshot.
-	agent.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 11\n"
+	agent.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 11\n")
 	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(10), values["agent-data-plane"]["dogstatsd_udp_packets"])
 
-	agent.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 3\n"
+	agent.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 3\n")
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues(t.Context())
 	assert.Equal(t, int64(13), values["agent-data-plane"]["dogstatsd_udp_packets"])
@@ -301,7 +301,7 @@ func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing
 
 	second := register("process-a", "10")
 	assert.Equal(t, int64(10), read(), "do not count an unchanged raw value twice")
-	second.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 12\n"
+	second.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 12\n")
 	assert.Equal(t, int64(12), read())
 
 	// PID 1 is reused before the old registration disappears. The new process's
@@ -333,7 +333,7 @@ func TestRemoteExpvarProcessInstanceSurvivesReregistrationAndPIDReuse(t *testing
 	assert.Equal(t, int64(32), read(), "retire the old generation exactly once after the grace period")
 	assert.Len(t, component.expvarCache.counters, 1)
 	assert.Equal(t, int64(12), component.expvarCache.retiredTotals["agent-data-plane"]["dogstatsd_udp_packets"])
-	third.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 21\n"
+	third.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 21\n")
 	assert.Equal(t, int64(33), read())
 }
 
@@ -355,12 +355,12 @@ func TestRemoteExpvarPrefersNewestSessionForOneProcess(t *testing.T) {
 
 	// Both sessions are still valid for the same process. A stale response from
 	// the older session must not be mistaken for a counter reset.
-	oldSession.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 20\n"
+	oldSession.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 20\n")
 	newSession := register("12")
 	component.expvarCache.values = nil
 	assert.Equal(t, int64(12), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"])
 	assert.Len(t, component.expvarCache.counters, 1)
-	newSession.promText = "# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 13\n"
+	newSession.setPromText("# TYPE dogstatsd__udp_packets counter\ndogstatsd__udp_packets{state=\"ok\"} 13\n")
 	component.expvarCache.values = nil
 	assert.Equal(t, int64(13), component.getRemoteExpvarValues(t.Context())["agent-data-plane"]["dogstatsd_udp_packets"])
 }
@@ -377,7 +377,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 
 	registeredAgents := component.GetRegisteredAgents()
 	require.Len(t, registeredAgents, 1)
-	series, parsed := expvarSeriesFromPromText(agent.promText)
+	series, parsed := expvarSeriesFromPromText(agent.getPromText())
 	require.True(t, parsed)
 	require.Len(t, series, 1)
 	counterKey := remoteSeriesKey{
@@ -400,7 +400,7 @@ func TestRemoteExpvarOriginStateExpiresAfterIdle(t *testing.T) {
 
 	// Once the origin-labeled series disappears, its completed total is compacted and the
 	// per-series state is evicted.
-	agent.promText = ""
+	agent.setPromText("")
 	state.lastSeen = time.Now().Add(-remoteExpvarOriginIdleTTL - time.Second)
 	component.expvarCache.values = nil
 	values = component.getRemoteExpvarValues(t.Context())

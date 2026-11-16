@@ -40,15 +40,17 @@ const (
 	// remoteTelemetryExpireInterval is how often the state is checked for expiry. The TTL is far longer than the
 	// interval between scrapes, so there is no need to check on every one.
 	remoteTelemetryExpireInterval = time.Minute
+	// telemetryBaselineInitialDelay is the wait before the first baseline scrape of a new remote agent. Tests shorten
+	// it per registry through telemetryBaselineDelay.
+	telemetryBaselineInitialDelay = 200 * time.Millisecond
 )
 
 var (
 	// The registry scrapes a process once right after registration to establish its baseline. The remote agent can
 	// only answer once it has learned its session ID, which happens right after registration returns, so the scrape
 	// is delayed and retried with a capped backoff. If every attempt fails, the first regular scrape is the baseline.
-	telemetryBaselineInitialDelay = 200 * time.Millisecond
-	telemetryBaselineMaxDelay     = 2 * time.Second
-	telemetryBaselineAttempts     = 8
+	telemetryBaselineMaxDelay = 2 * time.Second
+	telemetryBaselineAttempts = 8
 )
 
 // exposedSeriesKey identifies a series as seen by consumers of the Core Agent's telemetry: it is independent of the
@@ -228,6 +230,11 @@ func (r *remoteTelemetryAccumulator) observe(identity string, observed []observe
 		series := r.series[s.key]
 		switch {
 		case series == nil:
+			// A series that was dropped after TTL of silence comes back here, also when the process that reports it
+			// never restarted: it is counted in full, including what was accounted before it went away. This is
+			// accepted: a counter only goes missing for that long when it was deleted and recreated, which restarts it
+			// from zero, and keeping the state of every silent series of a live process would leave nothing bounding
+			// the memory used by series with changing labels.
 			series = &remoteSeries{owner: identity, last: s.value, labelNames: s.labelNames, labelValues: s.labelValues}
 			if baselining {
 				series.total = s.value.zeroLike()
@@ -422,7 +429,6 @@ func encodeLabels(names, values []string) string {
 
 // telemetryScrape is the result of querying one remote agent's telemetry.
 type telemetryScrape struct {
-	agent    remoteagentregistry.RegisteredAgent
 	identity string
 	parsed   parsedTelemetry
 	ok       bool
@@ -462,13 +468,13 @@ func (ra *remoteAgentRegistry) scrapeAndObserve(agentFilter func(remoteagentregi
 		promText, isPromText := resp.Payload.(*pb.GetTelemetryResponse_PromText)
 		if !isPromText {
 			// Nothing to report, but the process answered.
-			return telemetryScrape{agent: details, identity: remoteAgentIdentity(details), ok: true}
+			return telemetryScrape{identity: remoteAgentIdentity(details), ok: true}
 		}
 		parsed, parsedOK := parsePromText(promText.PromText, details.SanitizedDisplayName, ra.telemetry.CanonicalMetricHelp)
 		if !parsedOK {
 			return telemetryScrape{}
 		}
-		return telemetryScrape{agent: details, identity: remoteAgentIdentity(details), parsed: parsed, ok: true}
+		return telemetryScrape{identity: remoteAgentIdentity(details), parsed: parsed, ok: true}
 	}
 
 	scrapes := callAgentsForServiceFiltered(ra.ctx, ra, TelemetryServiceName, agentFilter, client, processor)
@@ -549,10 +555,14 @@ func (ra *remoteAgentRegistry) primeTelemetryBaseline(sessionID string) {
 // Failing is expected here: the remote agent can't answer until it knows its session ID. So unlike regular scrapes,
 // this one doesn't count failures as errors, doesn't mark the agent unhealthy over a session ID that doesn't match
 // yet, logs at debug level, and doesn't wait for the connection to become ready, which would hold up other scrapes.
+//
+// The RPC runs without scrapeMu, so a remote agent that accepts the connection but never answers can't stall the
+// regular scrapes. scrapeMu is only taken to apply the result. If a regular scrape already set the baseline in the
+// meantime, the result is dropped. Otherwise it is applied before any regular scrape of the process can start its RPC,
+// because regular scrapes hold scrapeMu from their RPC to their observation, so readings are still applied in the
+// order they were taken.
 func (ra *remoteAgentRegistry) primeTelemetryBaselineOnce(sessionID string) bool {
 	r := ra.telemetryAccumulator
-	r.scrapeMu.Lock()
-	defer r.scrapeMu.Unlock()
 
 	ra.agentMapMu.Lock()
 	client, found := ra.agentMap[sessionID]
@@ -587,6 +597,12 @@ func (ra *remoteAgentRegistry) primeTelemetryBaselineOnce(sessionID string) bool
 			return false
 		}
 		series = parsed.series
+	}
+
+	r.scrapeMu.Lock()
+	defer r.scrapeMu.Unlock()
+	if r.isBaselined(identity) {
+		return true
 	}
 	// A newer registration may have arrived during the RPC. Keep registration and baseline application atomic.
 	ra.agentMapMu.Lock()

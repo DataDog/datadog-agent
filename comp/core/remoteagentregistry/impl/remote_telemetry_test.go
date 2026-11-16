@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -306,10 +307,10 @@ func TestTelemetryCoreAgentRestartDoesNotReportRemoteLifetimeCounters(t *testing
 	// What the Core Agent reports is what was counted since it first saw the process.
 	assert.Equal(t, 0.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 
-	server.promText = counterText("adp_counter", 1_000_050)
+	server.setPromText(counterText("adp_counter", 1_000_050))
 	assert.Equal(t, 50.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 
-	server.promText = counterText("adp_counter", 1_000_100)
+	server.setPromText(counterText("adp_counter", 1_000_100))
 	assert.Equal(t, 100.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 }
 
@@ -319,12 +320,12 @@ func TestTelemetryReRegistrationOfSameProcessKeepsCounting(t *testing.T) {
 	defer lc.Stop(context.Background())
 
 	server := registerTelemetryAgent(t, ipcComp, provides.Comp, "adp-process", counterText("adp_counter", 500))
-	server.promText = counterText("adp_counter", 530)
+	server.setPromText(counterText("adp_counter", 530))
 	assert.Equal(t, 30.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 
 	// The remote agent registers again with a new session, as it does when a refresh fails. It is the same process,
 	// so what it counted while it was not registered is still counted.
-	server.promText = counterText("adp_counter", 541)
+	server.setPromText(counterText("adp_counter", 541))
 	sessionID, _, err := provides.Comp.RegisterRemoteAgent(&server.RegistrationData)
 	require.NoError(t, err)
 	server.setRegisteredSessionID(sessionID)
@@ -339,7 +340,7 @@ func TestTelemetryRemoteAgentRestartKeepsCountersMonotonic(t *testing.T) {
 	defer lc.Stop(context.Background())
 
 	old := registerTelemetryAgent(t, ipcComp, provides.Comp, "first-process", counterText("adp_counter", 500))
-	old.promText = counterText("adp_counter", 530)
+	old.setPromText(counterText("adp_counter", 530))
 	assert.Equal(t, 30.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 
 	// The remote agent restarts: a new process with small counters. The old process is gone but still registered
@@ -350,7 +351,7 @@ func TestTelemetryRemoteAgentRestartKeepsCountersMonotonic(t *testing.T) {
 
 	// The new process counts past what the old one had reached, which a plain comparison with the last total could
 	// not tell from continued counting.
-	restarted.promText = counterText("adp_counter", 900)
+	restarted.setPromText(counterText("adp_counter", 900))
 	assert.Equal(t, 30.0+896, gatheredCounter(t, telemetryComp, "adp_counter"))
 }
 
@@ -360,7 +361,7 @@ func TestTelemetrySeriesAppearingLaterCountInFull(t *testing.T) {
 	defer lc.Stop(context.Background())
 
 	server := registerTelemetryAgent(t, ipcComp, provides.Comp, "adp-process", counterText("adp_counter", 10))
-	server.promText = counterText("adp_counter", 10) + counterText("adp_errors", 3)
+	server.setPromText(counterText("adp_counter", 10) + counterText("adp_errors", 3))
 
 	assert.Equal(t, 0.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 	assert.Equal(t, 3.0, gatheredCounter(t, telemetryComp, "adp_errors"))
@@ -394,14 +395,14 @@ adp_latency_count %d
 	server := registerTelemetryAgent(t, ipcComp, provides.Comp, "adp-process", histogramText(90, 100, 100, 50))
 	assert.Equal(t, uint64(0), gatherHistogram().GetSampleCount())
 
-	server.promText = histogramText(95, 110, 110, 56)
+	server.setPromText(histogramText(95, 110, 110, 56))
 	h := gatherHistogram()
 	assert.Equal(t, uint64(10), h.GetSampleCount())
 	assert.Equal(t, 6.0, h.GetSampleSum())
 	assert.Equal(t, uint64(5), h.GetBucket()[0].GetCumulativeCount())
 
 	// A reset must not wrap around.
-	server.promText = histogramText(1, 2, 2, 1)
+	server.setPromText(histogramText(1, 2, 2, 1))
 	h = gatherHistogram()
 	assert.Equal(t, uint64(12), h.GetSampleCount())
 	assert.Equal(t, uint64(6), h.GetBucket()[0].GetCumulativeCount())
@@ -424,7 +425,7 @@ func TestTelemetryGaugesAreNotRebased(t *testing.T) {
 	}
 	assert.True(t, found)
 
-	server.promText = "# TYPE adp_gauge gauge\nadp_gauge 2\n"
+	server.setPromText("# TYPE adp_gauge gauge\nadp_gauge 2\n")
 	families, err = telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range families {
@@ -437,6 +438,41 @@ func TestTelemetryGaugesAreNotRebased(t *testing.T) {
 // TestTelemetryBaselineScrapeToleratesRemoteAgentNotKnowingItsSessionYet covers the window right after registration,
 // in which a remote agent may answer with a session ID that isn't the registered one yet. That is expected, so it must
 // not get the agent deregistered or show up as an error, and the baseline is taken once the agent gets it right.
+// A remote agent that never answers the baseline scrape must not hold up the regular scrapes.
+func TestTelemetryBaselineScrapeDoesNotBlockRegularScrapes(t *testing.T) {
+	provides, lc, _, _, ipcComp := buildComponent(t)
+	require.NoError(t, lc.Start(context.Background()))
+	defer lc.Stop(context.Background())
+	registry := provides.Comp.(*remoteAgentRegistry)
+
+	block := make(chan struct{})
+	var unblock sync.Once
+	release := func() { unblock.Do(func() { close(block) }) }
+	defer release()
+	server := buildRemoteAgent(t, ipcComp, "agent_data_plane", "Agent Data Plane", "123",
+		withTelemetryProvider(counterText("adp_counter", 1_000)),
+		withTelemetryBlock(block),
+	)
+	sessionID, _, err := registry.RegisterRemoteAgent(&server.RegistrationData)
+	require.NoError(t, err)
+	server.setRegisteredSessionID(sessionID)
+
+	// The baseline scrape is in flight, waiting for an answer.
+	require.Eventually(t, func() bool { return server.telemetryCalls.Load() >= 1 }, 10*time.Second, 5*time.Millisecond)
+	acquired := make(chan struct{})
+	go func() {
+		registry.telemetryAccumulator.scrapeMu.Lock()
+		registry.telemetryAccumulator.scrapeMu.Unlock() //nolint:staticcheck // only checking that the lock is free
+		close(acquired)
+	}()
+	select {
+	case <-acquired:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "a baseline scrape waiting for the remote agent must not hold scrapeMu")
+	}
+	release()
+}
+
 func TestTelemetryBaselineScrapeToleratesRemoteAgentNotKnowingItsSessionYet(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	require.NoError(t, lc.Start(context.Background()))
@@ -477,7 +513,7 @@ func TestTelemetryBaselineScrapeToleratesRemoteAgentNotKnowingItsSessionYet(t *t
 		assert.NotContains(t, family.GetName(), "action_error", "baseline attempts must not be counted as errors")
 	}
 
-	server.promText = counterText("adp_counter", 1_040)
+	server.setPromText(counterText("adp_counter", 1_040))
 	assert.Equal(t, 40.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 }
 
@@ -492,8 +528,8 @@ func TestTelemetryOnlyTheNewestRegistrationOfANameIsScraped(t *testing.T) {
 	// The old process is still registered, and still answers with its own numbers.
 	restarted := registerTelemetryAgent(t, ipcComp, provides.Comp, "second-process", counterText("adp_counter", 7))
 
-	old.promText = counterText("adp_counter", 105)
-	restarted.promText = counterText("adp_counter", 9)
+	old.setPromText(counterText("adp_counter", 105))
+	restarted.setPromText(counterText("adp_counter", 9))
 
 	assert.Equal(t, 2.0, gatheredCounter(t, telemetryComp, "adp_counter"))
 }
