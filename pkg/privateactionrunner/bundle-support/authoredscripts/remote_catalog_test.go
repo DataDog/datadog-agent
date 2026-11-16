@@ -170,10 +170,10 @@ func TestRemoteCatalogSelectsLatestCompatiblePackage(t *testing.T) {
 			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
 			requireCatalogReady(t, catalog)
 
-			descriptor, err := catalog.Lookup(testExecutionFQN)
+			descriptor, err := catalog.Lookup(testCatalogFQN)
 			require.NoError(t, err)
 			require.Equal(t, Descriptor{
-				FQN:     testExecutionFQN,
+				FQN:     testCatalogFQN,
 				Package: tt.want.Name,
 				Version: tt.want.Version,
 				URL:     tt.want.URL,
@@ -249,7 +249,7 @@ func TestRemoteCatalogRejectsAmbiguousSnapshotWithoutReplacing(t *testing.T) {
 
 			status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{olderLatest}})
 			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
-			before, err := catalog.Lookup(testExecutionFQN)
+			before, err := catalog.Lookup(testCatalogFQN)
 			require.NoError(t, err)
 
 			// An otherwise valid package must not be added by a rejected snapshot.
@@ -257,7 +257,7 @@ func TestRemoteCatalogRejectsAmbiguousSnapshotWithoutReplacing(t *testing.T) {
 			status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: packages})
 			require.Equal(t, state.ApplyStateError, status.State)
 			require.NotEmpty(t, status.Error)
-			after, err := catalog.Lookup(testExecutionFQN)
+			after, err := catalog.Lookup(testCatalogFQN)
 			require.NoError(t, err)
 			require.Equal(t, before, after)
 			_, err = catalog.Lookup(other.Name)
