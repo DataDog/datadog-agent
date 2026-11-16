@@ -178,7 +178,7 @@ type integrationRequest struct {
 func uploadBaseURL(site string) (string, error) {
 	site = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(site), "."))
 	switch site {
-	case "datadoghq.com", "datad0g.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com",
+	case "datadoghq.com", "datad0g.com", "datadoghq.eu", "us3.datadoghq.com", "us3.datad0g.com", "us5.datadoghq.com",
 		"ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com",
 		"us7.datadoghq.com", "us8.datadoghq.com", "ddog-gov.com", "us2.ddog-gov.com", "datad0g.eu":
 		return "https://api." + site + "/api/unstable/its-agent-intake", nil

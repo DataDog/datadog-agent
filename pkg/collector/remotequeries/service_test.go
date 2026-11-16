@@ -357,6 +357,7 @@ func TestAgentOwnedUploadEndpoint(t *testing.T) {
 		{"datadoghq.eu", "https://api.datadoghq.eu"},
 		{"datad0g.eu", "https://api.datad0g.eu"},
 		{"us3.datadoghq.com", "https://api.us3.datadoghq.com"},
+		{"us3.datad0g.com", "https://api.us3.datad0g.com"},
 		{"us5.datadoghq.com", "https://api.us5.datadoghq.com"},
 		{"ap1.datadoghq.com", "https://api.ap1.datadoghq.com"},
 		{"ap2.datadoghq.com", "https://api.ap2.datadoghq.com"},
