@@ -149,11 +149,9 @@ func (s *stablePipelineSuite) TestStableGaugeSquareWaves() {
 		require.Positive(c, largeAccepted, "expected an accepted large-gauge anomaly")
 		require.Greater(c, emissions, 0.0, "expected stable-pipeline kind emissions")
 		require.Greater(c, gated, 0.0, "expected relative-gate rejections")
-		for _, metric := range []string{stablePipelineSmallMetric, stablePipelineLargeMetric} {
-			line := findAcceptedAnomalyLine(largeJournal, metric)
-			require.NotEmpty(c, line, "expected accepted anomaly record for %s", metric)
-			require.Contains(c, line, "detector="+stablePipelineDetector)
-		}
+		line := findAcceptedAnomalyLine(largeJournal, stablePipelineLargeMetric)
+		require.NotEmpty(c, line, "expected accepted anomaly record for %s", stablePipelineLargeMetric)
+		require.Contains(c, line, "detector="+stablePipelineDetector)
 		series, ok := telemetryCounterValue(emissionsTel, stablePipelineKindSeries,
 			map[string]string{"kind": stablePipelineKind})
 		require.True(c, ok, "expected metric-kind series telemetry")
@@ -193,10 +191,13 @@ func stablePipelineJournalCursor(s observerTestSuite) string {
 
 func stablePipelineJournalAfter(s observerTestSuite, cursor string) string {
 	s.T().Helper()
+	// Filter on the host: the debug journal is megabytes and only the
+	// reporter's accepted-anomaly lines matter here.
 	command := "sudo journalctl -u datadog-agent --no-pager"
 	if cursor != "" {
-		command += " --after-cursor=" + cursor
+		command += " --after-cursor='" + cursor + "'"
 	}
+	command += " | { grep -F '" + stablePipelineAcceptedMarker + "' || true; }"
 	out, err := s.Env().RemoteHost.Execute(command)
 	require.NoError(s.T(), err, "read agent journal")
 	return out

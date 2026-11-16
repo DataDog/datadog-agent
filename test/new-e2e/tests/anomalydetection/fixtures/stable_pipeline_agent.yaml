@@ -1,7 +1,7 @@
 log_level: debug
 anomaly_detection:
-  use_metric_pipeline: true
   metric_pipeline:
+    enabled: true
     stable:
       min_relative_change: 0.05
   anomaly_scorer:
