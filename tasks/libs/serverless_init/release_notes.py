@@ -4,8 +4,7 @@ serverless-init has no release notes of its own: contributors add reno notes to 
 like for any other change, and the section of a release is built from the notes added by the commits
 that changed serverless-init between two release tags. We detect that a commit changed serverless-init
 by checking if it touches one of its paths or adds a reno note with `serverless-init` in its filename.
-The second rule lets
-a change outside of those paths (a shared library, for example) opt in.
+The second rule lets a change outside of those paths (a shared library, for example) opt in.
 """
 
 from __future__ import annotations
