@@ -862,7 +862,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
+	Containers                 []OrchestratorContainer // Pod spec order. Containers that have not started have an empty ID and no Container entity.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -2849,25 +2849,25 @@ type KubeCapabilities struct {
 
 var _ Entity = &KubeCapabilities{}
 
-// GetID returns the CRD entity ID
+// GetID returns the KubeCapabilities entity ID
 func (kc KubeCapabilities) GetID() EntityID {
 	return kc.EntityID
 }
 
-// Merge allows the merge of 2 CRD entities
+// Merge allows the merge of 2 KubeCapabilities entities
 func (kc *KubeCapabilities) Merge(e Entity) error {
-	otherCrd, ok := e.(*KubeCapabilities)
+	otherKc, ok := e.(*KubeCapabilities)
 	if !ok {
-		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+		return fmt.Errorf("cannot merge KubeCapabilities type with other type: %T", e)
 	}
 
-	return merge(kc, otherCrd)
+	return merge(kc, otherKc)
 }
 
-// DeepCopy returns a deep copy of the given CRD entity
+// DeepCopy returns a deep copy of the given KubeCapabilities entity
 func (kc KubeCapabilities) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
-	return copyCrd
+	cp := deepcopy.Copy(kc).(KubeCapabilities)
+	return &cp
 }
 
 func (kc KubeCapabilities) String(verbose bool) string {

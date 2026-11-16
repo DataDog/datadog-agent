@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 exports_files([
     "fixtures/datadog-agent.yaml",
@@ -17,5 +18,33 @@ go_library(
     deps = [
         "//test/fakeintake/client/flare",
         "@com_github_stretchr_testify//assert",
+    ],
+)
+
+dd_agent_go_test(
+    name = "flare_test",
+    srcs = [
+        "flare_common_test.go",
+        "flare_nix_test.go",
+        "flare_win_test.go",
+    ],
+    embed = [":flare"],
+    embedsrcs = [
+        "fixtures/datadog-agent.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/client/flare",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

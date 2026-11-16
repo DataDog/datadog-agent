@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from subprocess import list2cmdline
 from types import SimpleNamespace
 
@@ -501,6 +501,13 @@ def get_version_ldflags(ctx, install_path=None):
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
+        elif sys.platform == 'darwin':
+            # Fleet Automation health-checks the host against this value. Only the OCI layout,
+            # <root>/datadog-packages/<product>/<version>, carries the version in the install path;
+            # the .dmg is built into a staging directory such as $TMPDIR/datadog-agent-build/bin,
+            # whose last component is not a version, so keep the default there.
+            if PurePosixPath(install_path).parent.parent.name == "datadog-packages":
+                package_version = PurePosixPath(install_path).name
         else:
             install_dir = os.path.basename(install_path)
             if install_dir != "datadog-agent":
@@ -588,6 +595,14 @@ def set_gitconfig_in_ci(ctx):
     if running_in_ci():
         set_git_config(ctx, 'user.name', 'github-actions[bot]')
         set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
+
+
+DEFAULT_GITLAB_PROJECT_URL = "https://gitlab.ddbuild.io/DataDog/datadog-agent"
+
+
+def gitlab_project_url() -> str:
+    """URL of the GitLab project running this job, so links also work from mirrors of the repository."""
+    return os.environ.get("CI_PROJECT_URL") or DEFAULT_GITLAB_PROJECT_URL
 
 
 @contextmanager

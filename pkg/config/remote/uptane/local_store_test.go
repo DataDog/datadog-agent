@@ -11,24 +11,23 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 )
 
 func getTestTransactionalStore(t *testing.T) *transactionalStore {
 	dir := t.TempDir()
-	db, err := bbolt.Open(dir+"/remote-config.db", 0600, &bbolt.Options{})
+	// Build the store like the agent does (openCacheDB writes the metadata
+	// bucket): some code paths, like the DC switch recovery, read the DB
+	// metadata and close/recreate the underlying bolt DB.
+	ts, err := newTransactionalStore(&Metadata{Path: dir + "/remote-config.db"})
 	if err != nil {
 		panic(err)
 	}
 	t.Cleanup(func() {
-		db.Close()
+		ts.Close()
 	})
-	return &transactionalStore{
-		db:         db,
-		cachedData: make(map[string]dbBucket),
-	}
+	return ts
 }
 
 func TestLocalStore(t *testing.T) {

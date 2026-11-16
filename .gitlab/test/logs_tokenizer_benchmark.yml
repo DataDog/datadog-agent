@@ -1,0 +1,80 @@
+---
+# Tells you whether this change made the shared log tokenizer (pkg/logs/tokenizer) slower. It runs
+# `dda inv logs-tokenizer.bench-compare` on the merge base and on this commit, alternating on the same runner.
+# This job only writes the verdict to verdict.json; logs_tokenizer_benchmark_check decides whether
+# a regression blocks.
+#
+# On the scheduled main pipeline both sides are the same commit => the run measures how noisy this
+# runner is. The results go to Datadog as datadog.agent.benchmark.*{package:pkg/logs/tokenizer}, to
+# chart the tokenizer's speed over time. To measure the noise on a branch, run the job with
+# LOGS_TOKENIZER_BENCH_BASE=HEAD.
+logs_tokenizer_benchmark:
+  stage: benchmarks
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.on_scheduled_main]
+    - !reference [.on_logs_tokenizer_changes_or_manual]
+  needs: ["go_tools_deps"]
+  interruptible: true
+  timeout: 30m
+  retry: !reference [.retry_only_infra_failure, retry]
+  # The job only fails (exit 2) when the comparison can't run, for example when the base doesn't
+  # have an API the benchmarks call. That should warn you, not block the merge.
+  allow_failure: true
+  variables:
+    GIT_DEPTH: 0  # Full history: logs-tokenizer.bench-compare compares against git merge-base
+    GIT_STRATEGY: "clone" # needed because this job uses `git merge-base`
+    # Setting the request equal to the limit gives the pod guaranteed CPUs => it isn't throttled
+    # halfway through a run. The benchmarks themselves run on one core (-test.cpu 1).
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_LIMIT: 4
+    KUBERNETES_MEMORY_REQUEST: 4Gi
+    KUBERNETES_MEMORY_LIMIT: 4Gi
+  before_script:
+    - !reference [.retrieve_linux_go_tools_deps]  # benchstat
+  script:
+    - mkdir -p artifacts
+    # With no base to compare against, exit 2 like logs-tokenizer.bench-compare does. git's own exit 1 would look
+    # like a regression.
+    - git fetch origin "+refs/heads/$COMPARE_TO_BRANCH:refs/remotes/origin/$COMPARE_TO_BRANCH" || exit 2
+    - BASE="${LOGS_TOKENIZER_BENCH_BASE:-$(git merge-base HEAD "origin/$COMPARE_TO_BRANCH")}" || exit 2
+    - |
+      SEND_METRICS=""
+      # Only on the scheduled main pipeline. This is how .if_scheduled_main detects it: Conductor
+      # sets DDR_WORKFLOW_ID.
+      if [ -n "${DDR_WORKFLOW_ID:-}" ] && [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit 2; export DD_API_KEY
+        SEND_METRICS="--send-metrics"
+      fi
+    - status=0
+    - dda inv -- logs-tokenizer.bench-compare --targets=pkg/logs/tokenizer --bench='^BenchmarkConsumer' --bench-files=consumer_benchmark_test.go --base="$BASE" --report=artifacts/report.md --verdict-file=artifacts/verdict.json $SEND_METRICS || status=$?
+    - if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then exit "$status"; fi
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    expire_in: 2 weeks
+
+# Posts the result as a PR comment, and fails on a regression unless the PR has the
+# performance/ignore-performance-regression label. For now it only reports (allow_failure). Once
+# runs of the code against itself show this runner gives no false regressions, remove
+# allow_failure => a regression blocks the merge.
+logs_tokenizer_benchmark_check:
+  stage: benchmarks
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  extends: .dd_octo_sts
+  rules:
+    - !reference [.except_light_pipeline]
+    - if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"  # scheduled main pipeline: no pull request
+      when: never
+    - when: on_success
+  needs: ["logs_tokenizer_benchmark"]
+  interruptible: true
+  allow_failure: true
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
+  script:
+    - dda inv -- -e github.pr-commenter --title="Logs tokenizer benchmarks" --body-file=artifacts/report.md
+    - dda inv -- logs-tokenizer.bench-check-verdict --verdict-file=artifacts/verdict.json

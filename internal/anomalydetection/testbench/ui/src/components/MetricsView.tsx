@@ -11,7 +11,6 @@ import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 import { TagFilterGroups } from './TagFilterGroups';
 
-const INITIAL_METRIC_GROUPS = 5;
 const MAX_METRIC_GROUPS = 50;
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum'] as const;
@@ -104,7 +103,6 @@ export function MetricsView({
   const [selectedMetricTypes, setSelectedMetricTypes] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const seriesDataCacheRef = useRef(new Map<string, SeriesData>());
-  const autoSelectedScenarioRef = useRef<string | null>(null);
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
@@ -206,7 +204,8 @@ export function MetricsView({
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const allSeries = state.series ?? [];
-  const allAnomalies = state.anomalies ?? [];
+  const allAnomalies = useMemo(() => state.anomalies ?? [], [state.anomalies]);
+  const useMetricPipeline = state.status?.serverConfig?.useMetricPipeline === true;
 
   const detectorComponents = useMemo(
     () => components.filter((c) => c.category === 'detector'),
@@ -220,8 +219,17 @@ export function MetricsView({
   );
 
   const anomalies = useMemo(
-    () => allAnomalies.filter((a) => enabledDetectors.has(getDetectorComponent(a))),
-    [allAnomalies, enabledDetectors]
+    () => useMetricPipeline
+      ? allAnomalies
+      : allAnomalies.filter((a) => enabledDetectors.has(getDetectorComponent(a))),
+    [allAnomalies, enabledDetectors, useMetricPipeline]
+  );
+
+  const visibleDetectors = useMemo(
+    () => useMetricPipeline
+      ? new Set(allAnomalies.map(getDetectorComponent))
+      : enabledDetectors,
+    [allAnomalies, enabledDetectors, useMetricPipeline]
   );
 
   // Map comp.name (detectorComponent) → detectorName used by the timeline for coloring
@@ -387,7 +395,6 @@ export function MetricsView({
     setSelectedGroups(new Set());
     setGroupSeriesData(new Map());
     seriesDataCacheRef.current = new Map();
-    autoSelectedScenarioRef.current = null;
     setSelectionScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [
@@ -395,14 +402,6 @@ export function MetricsView({
     selectionScenario,
     onTimeRangeChange,
   ]);
-
-  useEffect(() => {
-    if (!state.activeScenario || selectionScenario !== state.activeScenario ||
-        state.connectionState !== 'ready' || topAnomalousGroupKeys.length === 0 ||
-        autoSelectedScenarioRef.current === state.activeScenario) return;
-    autoSelectedScenarioRef.current = state.activeScenario;
-    setSelectedGroups(new Set(topAnomalousGroupKeys.slice(0, INITIAL_METRIC_GROUPS)));
-  }, [state.activeScenario, state.connectionState, selectionScenario, topAnomalousGroupKeys]);
 
   const canShowMoreMetrics = topAnomalousGroupKeys.some((key) => !selectedGroups.has(key));
 
@@ -486,7 +485,7 @@ export function MetricsView({
 
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Detectors
+            {useMetricPipeline ? 'metrics pipeline' : 'legacy pipeline'}
           </h2>
           <div className="space-y-1">
             {detectorComponents.map((comp) => {
@@ -875,7 +874,7 @@ export function MetricsView({
                           anomalyMarkers={anomalyMarkers}
                           anomalies={seriesAnomalies}
                           correlationRanges={[]}
-                          enabledDetectors={enabledDetectors}
+                          enabledDetectors={visibleDetectors}
                           timeRange={timeRange}
                           onTimeRangeChange={onTimeRangeChange}
                           smoothLines={smoothLines}
@@ -986,7 +985,7 @@ export function MetricsView({
                               anomalyMarkers={anomalyMarkers}
                               anomalies={seriesAnomalies}
                               correlationRanges={[]}
-                              enabledDetectors={enabledDetectors}
+                              enabledDetectors={visibleDetectors}
                               timeRange={timeRange}
                               onTimeRangeChange={onTimeRangeChange}
                               smoothLines={smoothLines}
@@ -1056,7 +1055,7 @@ export function MetricsView({
                               anomalyMarkers={anomalyMarkers}
                               anomalies={seriesAnomalies}
                               correlationRanges={[]}
-                              enabledDetectors={enabledDetectors}
+                              enabledDetectors={visibleDetectors}
                               timeRange={timeRange}
                               onTimeRangeChange={onTimeRangeChange}
                               smoothLines={smoothLines}

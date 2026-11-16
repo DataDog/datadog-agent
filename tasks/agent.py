@@ -27,6 +27,7 @@ from tasks.gointegrationtest import (
     containerized_integration_tests,
 )
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -104,7 +105,7 @@ def build(
                 rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
                 rtloader_install(ctx)
             else:
-                bazel_embedded = rtloader_install_with_bazel(ctx)
+                bazel_embedded = rtloader_install_with_bazel(ctx, fips_backend=flavor.fips_backend())
                 embedded_path = bazel_embedded
                 python_home_3 = bazel_embedded
 
@@ -178,7 +179,7 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=flavor.fips_backend())
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
@@ -188,6 +189,7 @@ def build(
                 "cmd/agent/windows_resources/agent.rc",
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
+                fips_backend=flavor.fips_backend(),
             )
 
     if not agent_bin:
@@ -195,11 +197,16 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    schema_compress(ctx)
+    schema_compress(ctx, fips_backend=flavor.fips_backend())
 
     with gitlab_section("Build agent", collapsed=True):
         if enable_bazel:
-            build_binary_with_bazel(f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
+            build_binary_with_bazel(
+                f"//cmd/{flavor_cmd}",
+                bin_path=agent_bin,
+                embedded_path=embedded_path,
+                fips_backend=flavor.fips_backend(),
+            )
         else:
             go_build(
                 ctx,
@@ -466,10 +473,12 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
+    nosys_so_dest = build_nosys_so(arch, build_context)
+
     if tag is None:
         tag = AGENT_TAG
 
-    common_build_opts = f"-t {tag} -f {dockerfile_path}"
+    common_build_opts = f"-t {tag} -f {dockerfile_path} --build-context artifacts={build_context}"
 
     # Build with the testing target
     if not skip_tests:
@@ -481,6 +490,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         ctx.run(f"docker push {tag}")
 
     ctx.run(f"rm {build_context}/{deb_glob}")
+    ctx.run(f"rm -f {nosys_so_dest}")
 
 
 @task(
@@ -564,9 +574,6 @@ def hacky_dev_image_build(
             # TODO: this is the last usage of this flag, we should remove it once this
             # task has been deprecated long enough
             legacy_rtloader_cmake=True,
-        )
-        ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
     copy_checks_d = ""
