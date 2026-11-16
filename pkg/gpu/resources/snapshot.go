@@ -9,6 +9,7 @@ package resources
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -49,7 +50,63 @@ func Snapshot(devices []safenvml.Device) []Device {
 			d.FabricCliqueID = &clique
 			d.NVLinkDomain = fmt.Sprintf("%s:%d", info.FabricClusterUUID, clique)
 		}
+		fillPlacement(&d, info)
 		result = append(result, d)
 	}
 	return result
+}
+
+// fillPlacement copies the cached PCI, NUMA, placement and host-link facts.
+func fillPlacement(d *Device, info *safenvml.DeviceInfo) {
+	d.BoardPartNumber = info.BoardPartNumber
+	d.BAR1TotalBytes = info.BAR1TotalBytes
+	d.NVLinkLinkCount = info.NVLinkLinkCount
+	if info.PCIDeviceID != 0 {
+		d.PCIDeviceID = fmt.Sprintf("%08x", info.PCIDeviceID)
+	}
+	if info.PCISubsystemID != 0 {
+		d.PCISubsystemID = fmt.Sprintf("%08x", info.PCISubsystemID)
+	}
+	if len(info.PCIePath) > 0 {
+		d.PCIePath = slices.Clone(info.PCIePath)
+	}
+	if info.NUMANode != nil {
+		node := *info.NUMANode
+		d.NUMANode = &node
+	}
+	// Like the matching metric tags, placement is only known with an
+	// identified chassis: without one, NVML reports zero or 255 placeholders.
+	if d.ChassisSerial != "" {
+		slot, tray, module := info.SlotNumber, info.TrayIndex, info.ModuleID
+		d.SlotNumber, d.TrayIndex, d.ModuleID = &slot, &tray, &module
+		d.Platform = &Platform{HostID: info.HostID}
+	}
+	d.HostLink = hostLink(info.HostLink)
+}
+
+func hostLink(info safenvml.HostLinkInfo) *HostLink {
+	link := HostLink{
+		PCIeMaxGeneration:    info.PCIeMaxGeneration,
+		PCIeGPUMaxGeneration: info.PCIeGPUMaxGeneration,
+		PCIeMaxWidth:         info.PCIeMaxWidth,
+	}
+	if info.PCIeMaxGeneration > 0 && info.PCIeMaxWidth > 0 {
+		// Same computation as the gpu.pci.link.speed.max metric.
+		if bandwidth, err := gpuutil.PCIeLinkBytesPerSecond(info.PCIeMaxGeneration, info.PCIeMaxWidth); err == nil {
+			link.PCIeMaxBandwidthBytesPerSecond = int64(bandwidth)
+		}
+	}
+	if info.C2CEnabled != nil {
+		link.Protocol = "pcie"
+		if *info.C2CEnabled {
+			link.Protocol = "nvlink_c2c"
+			link.C2CLinkCount = info.C2CLinkCount
+			// NVML reports megabytes per second; the schema uses megabits.
+			link.C2CMaxBandwidthMbps = int64(info.C2CMaxBandwidthMBps) * 8
+		}
+	}
+	if link == (HostLink{}) {
+		return nil
+	}
+	return &link
 }
