@@ -430,10 +430,18 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 
 	var allSeries []seriesInfo
 	extractorNs := api.tb.extractorNamespaces()
+	// MaxTimestamp scans storage, so compute it once for the entire catalog.
+	maxTimestamp := sv.MaxTimestamp()
 
 	for _, ns := range storage.listNamespaces() {
 		metas := storage.listSeriesForNamespace(ns)
 		for _, m := range metas {
+			// Aggregations share the same buckets. Count them once per series,
+			// rather than materializing the points for every aggregation.
+			pointCount := 0
+			if s := sv.GetSeriesRange(m.Ref, 0, maxTimestamp, observerdef.AggregateCount); s != nil {
+				pointCount = len(s.Points)
+			}
 			var aggs []observerdef.Aggregate
 			if m.Namespace == "telemetry" {
 				aggs = []observerdef.Aggregate{observerdef.AggregateSum}
@@ -453,13 +461,6 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 				nameWithAgg := m.Name + ":" + aggStr
 				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggStr
 				_, virtual := extractorNs[m.Namespace]
-
-				// Estimate point count from series data.
-				s := sv.GetSeriesRange(m.Ref, 0, sv.MaxTimestamp(), agg)
-				pointCount := 0
-				if s != nil {
-					pointCount = len(s.Points)
-				}
 
 				allSeries = append(allSeries, seriesInfo{
 					ID:          compactID,
