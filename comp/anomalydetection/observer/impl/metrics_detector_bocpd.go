@@ -113,10 +113,10 @@ func DefaultBOCPDConfig() BOCPDConfig {
 type BOCPDDetector struct {
 	config BOCPDConfig
 	ready  bool
-	// medianEvidence opt-in level-change evidence using detector-local scratch.
-	medianEvidence    bool
-	evidencePoints    []observer.Point
-	evidenceWorkspace scanDetectorWorkspace
+	// stablePipelineEnabled opt-in level-change evidence using detector-local scratch.
+	stablePipelineEnabled bool
+	stableScratch         []observer.Point
+	stableWorkspace       stableDetectorWorkspace
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
@@ -135,7 +135,7 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 }
 
 // newBOCPDDetector creates a detector, optionally with median evidence.
-func newBOCPDDetector(config BOCPDConfig, medianEvidence bool) *BOCPDDetector {
+func newBOCPDDetector(config BOCPDConfig, stablePipelineEnabled bool) *BOCPDDetector {
 	defaults := DefaultBOCPDConfig()
 	// Warmup needs at least 2 points for Bessel's correction (n-1 denominator).
 	if config.WarmupPoints < 2 {
@@ -170,9 +170,9 @@ func newBOCPDDetector(config BOCPDConfig, medianEvidence bool) *BOCPDDetector {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
 	return &BOCPDDetector{
-		config:         config,
-		medianEvidence: medianEvidence,
-		series:         make(map[bocpdStateKey]*bocpdSeriesState),
+		config:                config,
+		stablePipelineEnabled: stablePipelineEnabled,
+		series:                make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
 
@@ -236,7 +236,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, f
 			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				anomaly := b.processPoint(state, p, series, agg, visibleCount >= b.config.WarmupPoints)
 				if anomaly != nil {
-					if b.medianEvidence {
+					if b.stablePipelineEnabled {
 						b.attachMedianEvidence(storage, state, anomaly, ref, agg)
 					}
 					allAnomalies = append(allAnomalies, *anomaly)
@@ -282,17 +282,17 @@ func (b *BOCPDDetector) attachMedianEvidence(
 		anomaly.Timestamp,
 		b.config.MaxRunLength,
 		agg,
-		b.evidencePoints,
+		b.stableScratch,
 	)
-	b.evidencePoints = points
-	if len(b.evidencePoints) <= postCount {
+	b.stableScratch = points
+	if len(b.stableScratch) <= postCount {
 		return
 	}
 
-	values := b.evidenceWorkspace.valuesFromPoints(b.evidencePoints)
+	values := b.stableWorkspace.valuesFromPoints(b.stableScratch)
 	postStart := len(values) - postCount
-	before := b.evidenceWorkspace.median(values[:postStart])
-	after := b.evidenceWorkspace.median(values[postStart:])
+	before := b.stableWorkspace.median(values[:postStart])
+	after := b.stableWorkspace.median(values[postStart:])
 	if math.IsNaN(before) || math.IsInf(before, 0) ||
 		math.IsNaN(after) || math.IsInf(after, 0) {
 		return
