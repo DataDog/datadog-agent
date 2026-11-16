@@ -75,7 +75,10 @@ filegroup(
 pkg_files(
     name = "integrations_runtime_files",
     srcs = [":integrations_runtime"],
-    attributes = pkg_attributes(mode = "0644"),
+    attributes = pkg_attributes(
+        mode = "0644",
+        rpm_own_tree_dirs = True,
+    ),
     prefix = embedded_dir,
     renames = {
         ":integrations_runtime": REMOVE_BASE_DIRECTORY,
