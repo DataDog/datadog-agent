@@ -216,10 +216,10 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		obfuscateRedisArgsStep(args, 0, 2)
 
 	case "CONFIG":
-		// Obfuscate 2nd argument to SET sub-command.
-		// • CONFIG SET parameter value
+		// Obfuscate every value of the SET sub-command.
+		// • CONFIG SET parameter value [parameter value ...]
 		if strings.ToUpper(args[0]) == "SET" {
-			obfuscateRedisArgN(args, 2)
+			obfuscateRedisArgsStep(args, 1, 2)
 		}
 
 	case "BITFIELD":

@@ -446,6 +446,18 @@ func TestRedisObfuscator(t *testing.T) {
 			"ZADD key XX LT score ?",
 		},
 		{
+			"CONFIG SET maxmemory 1gb requirepass s3cret",
+			"CONFIG SET maxmemory ? requirepass ?",
+		},
+		{
+			"config set p1 v1 p2 v2 p3 v3",
+			"config set p1 ? p2 ? p3 ?",
+		},
+		{
+			"CONFIG SET p1 v1 p2",
+			"CONFIG SET p1 ? p2",
+		},
+		{
 			`
 CONFIG command
 SET k v
