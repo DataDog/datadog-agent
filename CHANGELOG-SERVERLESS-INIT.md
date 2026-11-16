@@ -93,7 +93,7 @@
 ## 1.9.11
 [Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.9.11)
 
-* Add back arm64 builds for supporting local development. Note that Serverless Init is only officially supported for Azure/GCP serverless workloads -- for other workloads, please use the main [Datadog Agent](https://hub.docker.com/repository/docker/datadog/agent/general).
+* Add back arm64 builds for supporting local development. Note that Serverless Init is only officially supported for Azure/GCP serverless workloads -- for other workloads, please use the main [Datadog Agent](https://hub.docker.com/r/datadog/agent).
 * Improvements to trace stats for Cloud Run Jobs related to shutdowns.
 
 ## 1.9.10
