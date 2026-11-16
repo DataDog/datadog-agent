@@ -11,5 +11,4 @@ fixes:
     With the ``datadog.serializerexporter.NativeOTelHistograms`` feature gate on, DDOT now
     drops histogram data points that have a bucket holding more than 2,147,483,647
     observations, as the OTLP metrics intake does. This includes the zero bucket of
-    exponential histograms. DDOT logs a warning the first time it drops a point of a given
-    metric.
+    exponential histograms. DDOT logs a rate-limited warning when it drops such a point.

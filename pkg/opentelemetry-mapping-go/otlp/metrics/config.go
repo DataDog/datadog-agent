@@ -32,7 +32,6 @@ type translatorConfig struct {
 	InferDeltaInterval                   bool
 	GaugeInterval                        bool
 	SummaryCumulativeToDelta             bool
-	MaxBucketCount                       uint64
 
 	originProduct OriginProduct
 
@@ -272,16 +271,6 @@ func WithGaugeInterval() TranslatorOption {
 func WithSummaryCumulativeToDelta() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.SummaryCumulativeToDelta = true
-		return nil
-	}
-}
-
-// WithMaxBucketCount makes the minimal translator drop histogram data points that have a
-// bucket, the exponential zero bucket included, holding more than limit observations.
-// 0 means no limit. It removes the points from the input metrics, which must be mutable.
-func WithMaxBucketCount(limit uint64) TranslatorOption {
-	return func(t *translatorConfig) error {
-		t.MaxBucketCount = limit
 		return nil
 	}
 }

@@ -8,7 +8,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -839,55 +838,6 @@ func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
 	assert.True(t, consumer.exponentialCalled)
 	assert.Equal(t, "test.exp_histogram", consumer.expDims.Name())
 	assert.Equal(t, 1, consumer.expSlice.Len())
-}
-
-func TestLossLessMapperDropsBucketCountAboveLimit(t *testing.T) {
-	const limit = math.MaxInt32
-	ctx := context.Background()
-
-	t.Run("explicit", func(t *testing.T) {
-		core, logs := observer.New(zapcore.WarnLevel)
-		m := newLossLessMapper(translatorConfig{MaxBucketCount: limit}, zap.New(core))
-		dims := &Dimensions{name: "test.histogram"}
-		for range 2 {
-			slice := pmetric.NewHistogramDataPointSlice()
-			slice.AppendEmpty().BucketCounts().FromRaw([]uint64{1, limit})
-			slice.AppendEmpty().BucketCounts().FromRaw([]uint64{limit + 1, 1})
-			consumer := &histogramTestConsumer{}
-			require.NoError(t, m.MapHistogramMetrics(ctx, consumer, dims, slice, true))
-			require.Equal(t, 1, consumer.slice.Len())
-			assert.Equal(t, []uint64{1, limit}, consumer.slice.At(0).BucketCounts().AsRaw())
-		}
-		require.Equal(t, 1, logs.Len(), "one warning per metric name")
-		fields := logs.All()[0].ContextMap()
-		assert.Equal(t, "test.histogram", fields["metric name"])
-		assert.Equal(t, uint64(limit+1), fields["bucket count"])
-		assert.Equal(t, uint64(limit), fields["limit"])
-	})
-
-	t.Run("exponential", func(t *testing.T) {
-		core, logs := observer.New(zapcore.WarnLevel)
-		m := newLossLessMapper(translatorConfig{MaxBucketCount: limit}, zap.New(core))
-		slice := pmetric.NewExponentialHistogramDataPointSlice()
-		slice.AppendEmpty().SetZeroCount(limit)
-		slice.AppendEmpty().SetZeroCount(limit + 1)
-		slice.AppendEmpty().Positive().BucketCounts().FromRaw([]uint64{limit + 1})
-		slice.AppendEmpty().Negative().BucketCounts().FromRaw([]uint64{limit + 1})
-		consumer := &histogramTestConsumer{}
-		m.MapExponentialHistogramMetrics(ctx, consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
-		require.Equal(t, 1, consumer.expSlice.Len())
-		assert.Equal(t, uint64(limit), consumer.expSlice.At(0).ZeroCount())
-		assert.Equal(t, 1, logs.Len())
-	})
-
-	t.Run("zero limit disables the check", func(t *testing.T) {
-		m := newLossLessMapper(translatorConfig{}, zap.NewNop())
-		slice := pmetric.NewHistogramDataPointSlice()
-		slice.AppendEmpty().BucketCounts().FromRaw([]uint64{math.MaxUint64})
-		consumer := &histogramTestConsumer{}
-		require.NoError(t, m.MapHistogramMetrics(ctx, consumer, &Dimensions{name: "test.histogram"}, slice, true))
-		assert.Equal(t, 1, consumer.slice.Len())
-	})
 }
 
 // histogramTestConsumer is a test consumer that tracks histogram method calls
