@@ -113,6 +113,10 @@ func DefaultBOCPDConfig() BOCPDConfig {
 type BOCPDDetector struct {
 	config BOCPDConfig
 	ready  bool
+	// medianEvidence opt-in level-change evidence using detector-local scratch.
+	medianEvidence    bool
+	evidencePoints    []observer.Point
+	evidenceWorkspace scanDetectorWorkspace
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
@@ -127,6 +131,11 @@ type BOCPDDetector struct {
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
 // Zero-valued fields are filled from DefaultBOCPDConfig().
 func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
+	return newBOCPDDetector(config, false)
+}
+
+// newBOCPDDetector creates a detector, optionally with median evidence.
+func newBOCPDDetector(config BOCPDConfig, medianEvidence bool) *BOCPDDetector {
 	defaults := DefaultBOCPDConfig()
 	// Warmup needs at least 2 points for Bessel's correction (n-1 denominator).
 	if config.WarmupPoints < 2 {
@@ -161,8 +170,9 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
 	return &BOCPDDetector{
-		config: config,
-		series: make(map[bocpdStateKey]*bocpdSeriesState),
+		config:         config,
+		medianEvidence: medianEvidence,
+		series:         make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
 
@@ -226,6 +236,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, f
 			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				anomaly := b.processPoint(state, p, series, agg, visibleCount >= b.config.WarmupPoints)
 				if anomaly != nil {
+					if b.medianEvidence {
+						b.attachMedianEvidence(storage, state, anomaly, ref, agg)
+					}
 					allAnomalies = append(allAnomalies, *anomaly)
 				}
 				state.lastProcessedTime = p.Timestamp
@@ -241,6 +254,64 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, f
 	}
 
 	return observer.DetectionResult{Anomalies: allAnomalies}
+}
+
+// attachMedianEvidence adds pre/post medians from retained history at alert onset.
+func (b *BOCPDDetector) attachMedianEvidence(
+	storage observer.StorageReader,
+	state *bocpdSeriesState,
+	anomaly *observer.Anomaly,
+	ref observer.SeriesRef,
+	agg observer.Aggregate,
+) {
+	debug := anomaly.DebugInfo
+	if debug == nil || state == nil {
+		return
+	}
+	postCount := 1
+	if debug.BOCPDTrigger == observer.BOCPDTriggerShortRunMass {
+		postCount = b.shortRunPostCount(state)
+	}
+	if postCount <= 0 {
+		return
+	}
+
+	_, points := collectLastPoints(
+		storage,
+		ref,
+		anomaly.Timestamp,
+		b.config.MaxRunLength,
+		agg,
+		b.evidencePoints,
+	)
+	b.evidencePoints = points
+	if len(b.evidencePoints) <= postCount {
+		return
+	}
+
+	values := b.evidenceWorkspace.valuesFromPoints(b.evidencePoints)
+	postStart := len(values) - postCount
+	before := b.evidenceWorkspace.median(values[:postStart])
+	after := b.evidenceWorkspace.median(values[postStart:])
+	if math.IsNaN(before) || math.IsInf(before, 0) ||
+		math.IsNaN(after) || math.IsInf(after, 0) {
+		return
+	}
+	anomaly.LevelChange = &observer.LevelChangeEvidence{
+		BeforeMedian: before,
+		AfterMedian:  after,
+	}
+}
+
+// shortRunPostCount converts the most probable short-run index to sample count.
+func (b *BOCPDDetector) shortRunPostCount(state *bocpdSeriesState) int {
+	bestIdx := 0
+	for idx := 1; idx <= min(b.config.ShortRunLength, len(state.runProbs)-1); idx++ {
+		if state.runProbs[idx] > state.runProbs[bestIdx] {
+			bestIdx = idx
+		}
+	}
+	return bestIdx + 1
 }
 
 // Reset clears all per-series state for replay/reanalysis.
