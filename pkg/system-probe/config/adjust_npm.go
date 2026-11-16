@@ -108,13 +108,6 @@ func adjustNetwork(cfg model.Config) {
 		cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
 	}
 
-	// if npm connection rollups are enabled, but usm rollups are not,
-	// then disable npm rollups as well
-	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
-		log.Warn("disabling NPM connection rollups since USM connection rollups are not enabled")
-		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
-	}
-
 	if ebpflessEnabled {
 		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
 		disableConfig(cfg, netNS("enable_protocol_classification"), notSupportedEbpfless)
