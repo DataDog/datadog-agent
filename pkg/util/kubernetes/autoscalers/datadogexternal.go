@@ -164,7 +164,8 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 
 		// As we batch queries to Datadog API, all returned series return the same number of points, aligned to the smallest rollup value.
 		// This means that a lot of points can be `nil`.
-		// What we want is to find the two most recent points that are not `nil` and use the penultimate one if present, otherwise the last one.
+		// Prefer the penultimate non-null point to avoid an incomplete latest bucket.
+		// For sparse series, the latest point can already be settled while the previous one is stale.
 		var matchedPoint *datadog.DataPoint
 		for i := len(serie.Points) - 1; i >= 0; i-- {
 			if serie.Points[i][value] == nil {
@@ -174,8 +175,20 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 			if matchedPoint == nil {
 				matchedPoint = &serie.Points[i]
 			} else {
-				// Penuultimate point found, we can stop here.
-				matchedPoint = &serie.Points[i]
+				// Keep a settled latest point across a gap instead of selecting an
+				// arbitrarily old observation. Wait for its bucket to close plus
+				// one interval for ingestion, and preserve its original timestamp
+				// so the retriever still applies the configured maximum age.
+				settledSparsePoint := false
+				if serie.Interval != nil && *serie.Interval > 0 {
+					intervalMillis := float64(*serie.Interval) * 1000
+					latestTimestamp := *(*matchedPoint)[timestamp]
+					settledSparsePoint = latestTimestamp-*serie.Points[i][timestamp] > intervalMillis &&
+						float64(currentTime.UnixMilli())-latestTimestamp >= 2*intervalMillis
+				}
+				if !settledSparsePoint {
+					matchedPoint = &serie.Points[i]
+				}
 				break
 			}
 		}
@@ -187,7 +200,7 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 				errString += fmt.Sprintf(" (interval was %d)", *serie.Interval)
 			}
 
-			resultPoint.Error = NewProcessingError(errString)
+			resultPoint.Error = NewNoDataError(errString)
 			processedMetrics[matchedQuery] = resultPoint
 			continue
 		}
@@ -210,7 +223,7 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
 				Timestamp: currentTimeUnix,
-				Error:     NewProcessingError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
+				Error:     NewNoDataError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
 			}
 		}
 	}
