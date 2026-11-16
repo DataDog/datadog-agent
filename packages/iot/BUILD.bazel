@@ -72,7 +72,7 @@ pkg_filegroup(
         ":everything",
         ":example_config",
         "//cmd/agent/dist/conf.d:iot_files",
-        "//packages/common:log_dir",
+        "//packages:log_dir",
     ],
 )
 

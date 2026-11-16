@@ -81,7 +81,7 @@ pkg_filegroup(
         ":config_example_files",
         ":systemd_service_gen",
         ":upstart_debian_files",
-        "//packages/common:log_dir",
+        "//packages:log_dir",
     ],
 )
 
@@ -96,7 +96,7 @@ pkg_filegroup(
         ":config_example_files",
         ":systemd_service_gen",
         ":upstart_redhat_files",
-        "//packages/common:log_dir",
+        "//packages:log_dir",
     ],
 )
 
