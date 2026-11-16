@@ -1023,6 +1023,40 @@ func TestResolve(t *testing.T) {
 	}
 }
 
+// Check configs commonly template these Agent env vars, so they must never be marked sensitive.
+func TestResolveNonSensitiveAgentEnvVars(t *testing.T) {
+	envVars := []string{
+		"DD_APM_RECEIVER_PORT",
+		"DD_CLUSTER_NAME",
+		"DD_DOGSTATSD_PORT",
+		"DD_ENV",
+		"DD_HOSTNAME",
+		"DD_KUBE_RESOURCES_NAMESPACE",
+		"DD_KUBERNETES_KUBELET_HOST",
+		"DD_KUBERNETES_KUBELET_NODENAME",
+		"DD_SITE",
+		"DD_TAGS",
+	}
+
+	mockconfig.New(t)
+	svc := &dummyService{ID: "a5901276aed1", ADIdentifiers: []string{"redis"}}
+
+	for _, envVar := range envVars {
+		t.Run(envVar, func(t *testing.T) {
+			t.Setenv(envVar, "test_value")
+			tpl := integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_" + envVar + "%%")},
+			}
+
+			cfg, err := Resolve(tpl, svc)
+			assert.NoError(t, err)
+			assert.Equal(t, []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")}, cfg.Instances)
+		})
+	}
+}
+
 func newFakeContainerPorts() []workloadmeta.ContainerPort {
 	return []workloadmeta.ContainerPort{
 		{Port: 1, Name: "foo"},
