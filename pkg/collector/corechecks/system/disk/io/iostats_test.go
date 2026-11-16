@@ -238,31 +238,33 @@ func TestIOCheckBlacklist(t *testing.T) {
 }
 
 func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
-	// lowercase_device_tag keeps accepting the YAML 1.1 spellings yes/no/on/off; the field is preset to true so the false direction is observable.
-	ioCheck := new(IOCheck)
-	mock := mocksender.NewMockSender(t, ioCheck.ID())
-	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: yes\n"), "test", "provider"))
-	assert.True(t, ioCheck.lowercaseDeviceTag)
+	// The typed bool field keeps accepting the YAML 1.1 spellings that the
+	// yaml v2 generic map resolved, including case variants and single
+	// letters, and now also their quoted forms.
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{
+		{"true", true},
+		{"false", false},
+		{"yes", true},
+		{"no", false},
+		{"on", true},
+		{"off", false},
+		{"Yes", true},
+		{"y", true},
+		{`"yes"`, true},
+	} {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", tc.value)), "test", "provider"))
+		assert.Equal(t, tc.want, ioCheck.lowercaseDeviceTag, "expected %s to be %v", tc.value, tc.want)
+	}
 
-	ioCheck = new(IOCheck)
-	ioCheck.lowercaseDeviceTag = true
-	mock = mocksender.NewMockSender(t, ioCheck.ID())
-	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: off\n"), "test", "provider"))
-	assert.False(t, ioCheck.lowercaseDeviceTag)
-
-	// String booleans also apply.
-	ioCheck = new(IOCheck)
-	mock = mocksender.NewMockSender(t, ioCheck.ID())
-	require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data("lowercase_device_tag: \"true\"\n"), "test", "provider"))
-	assert.True(t, ioCheck.lowercaseDeviceTag)
-
-	// Case variants, single letters and other values keep the previous
-	// value with a warning.
-	for _, value := range []string{"Yes", "y", "\"True\"", "maybe"} {
-		ioCheck = new(IOCheck)
-		ioCheck.lowercaseDeviceTag = true
-		mock = mocksender.NewMockSender(t, ioCheck.ID())
-		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", value)), "test", "provider"))
-		assert.True(t, ioCheck.lowercaseDeviceTag, "expected %s to be ignored", value)
+	// Quoted string booleans and non-boolean values fail the configuration.
+	for _, value := range []string{`"true"`, `"false"`, "maybe"} {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.Error(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", value)), "test", "provider"), "expected %s to be rejected", value)
 	}
 }
