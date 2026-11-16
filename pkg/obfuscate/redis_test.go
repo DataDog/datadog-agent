@@ -562,6 +562,34 @@ func TestRedisObfuscator(t *testing.T) {
 			"PUBLISH channel",
 		},
 		{
+			"XADD stream * field value",
+			"XADD stream * field ?",
+		},
+		{
+			"XADD stream 1526919030474-0 f1 v1 f2 v2",
+			"XADD stream 1526919030474-0 f1 ? f2 ?",
+		},
+		{
+			"xadd stream nomkstream maxlen ~ 1000 limit 100 * field value",
+			"xadd stream nomkstream maxlen ~ 1000 limit 100 * field ?",
+		},
+		{
+			"XADD stream MINID 1526919030474 * field value",
+			"XADD stream MINID 1526919030474 * field ?",
+		},
+		{
+			"XADD stream MAXLEN = 10 * f1 v1 f2 v2",
+			"XADD stream MAXLEN = 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD stream *",
+			"XADD stream *",
+		},
+		{
+			"XADD stream MAXLEN",
+			"XADD stream MAXLEN",
+		},
+		{
 			`
 CONFIG command
 SET k v

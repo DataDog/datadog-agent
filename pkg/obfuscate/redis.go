@@ -239,6 +239,30 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • HMSET key field value [field value ...]
 		obfuscateRedisArgsStep(args, 1, 2)
 
+	case "XADD":
+		// Every 2nd argument after the entry ID, skipping potential optional ones.
+		// • XADD key [NOMKSTREAM] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
+		i := 1
+	xaddOptions:
+		for i < len(args) {
+			switch strings.ToUpper(args[i]) {
+			case "NOMKSTREAM":
+				i++
+			case "MAXLEN", "MINID":
+				i++
+				if i < len(args) && (args[i] == "=" || args[i] == "~") {
+					i++
+				}
+				i++ // threshold
+			case "LIMIT":
+				i += 2
+			default:
+				break xaddOptions
+			}
+		}
+		// args[i] is the entry ID
+		obfuscateRedisArgsStep(args, i+1, 2)
+
 	case "MSET", "MSETNX":
 		// Every 2nd argument starting from command.
 		// • MSET key value [key value ...]
