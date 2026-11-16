@@ -13,6 +13,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -40,6 +41,13 @@ import (
 type metadata map[string]interface{}
 type checksMetadata map[string][]metadata
 
+// maxLogsMetadataEntriesPerSource bounds the number of logs_metadata entries
+// sent for a single logs source name. Some source names, such as
+// container_collect_all, get one entry per container, so a leak of logs
+// sources (or a host running a very large number of containers) can otherwise
+// grow the payload past the intake limit.
+const maxLogsMetadataEntriesPerSource = 1000
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Hostname      string                `json:"hostname"`
@@ -48,6 +56,9 @@ type Payload struct {
 	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
 	FilesMetadata metadata              `json:"files_metadata"`
 	UUID          string                `json:"uuid"`
+	// LogsMetadataTruncated maps a logs source name to the number of its
+	// entries dropped from LogsMetadata because of the per-name cap.
+	LogsMetadataTruncated map[string]int `json:"logs_metadata_truncated,omitempty"`
 }
 
 // PayloadType implements marshaler.TypedJSONMarshaler
@@ -79,6 +90,9 @@ type inventorychecksImpl struct {
 	coll     option.Option[collector.Component]
 	sources  option.Option[*sources.LogSources]
 	hostname string
+
+	// maxLogsMetadataEntries is maxLogsMetadataEntriesPerSource, overridable in tests.
+	maxLogsMetadataEntries int
 }
 
 // Requires defines the component dependencies.
@@ -109,6 +123,8 @@ func NewComponent(deps Requires) Provides {
 		sources:  option.None[*sources.LogSources](),
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
+
+		maxLogsMetadataEntries: maxLogsMetadataEntriesPerSource,
 	}
 	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
@@ -254,6 +270,8 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		}
 	}
 
+	logsMetadataTruncated := ic.capLogsMetadata(logsMetadata)
+
 	jmxMetadata := ic.getJMXChecksMetadata(withConfigs)
 	for checkName, checks := range jmxMetadata {
 		if _, ok := payloadData[checkName]; !ok {
@@ -275,7 +293,44 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		LogsMetadata:  logsMetadata,
 		FilesMetadata: filesMetadata,
 		UUID:          uuid.GetUUID(),
+
+		LogsMetadataTruncated: logsMetadataTruncated,
 	}
+}
+
+// capLogsMetadata keeps at most ic.maxLogsMetadataEntries entries per logs
+// source name, preferring the entries whose source is not in error, and
+// returns the number of dropped entries per source name (nil if none).
+func (ic *inventorychecksImpl) capLogsMetadata(logsMetadata map[string][]metadata) map[string]int {
+	var truncated map[string]int
+	for name, entries := range logsMetadata {
+		if len(entries) <= ic.maxLogsMetadataEntries {
+			continue
+		}
+		slices.SortStableFunc(entries, func(a, b metadata) int {
+			return boolToInt(isErrorEntry(a)) - boolToInt(isErrorEntry(b))
+		})
+		logsMetadata[name] = entries[:ic.maxLogsMetadataEntries]
+
+		if truncated == nil {
+			truncated = map[string]int{}
+		}
+		truncated[name] = len(entries) - ic.maxLogsMetadataEntries
+		ic.log.Warnf("inventory checks metadata: %d logs sources named %q, only reporting %d of them", len(entries), name, ic.maxLogsMetadataEntries)
+	}
+	return truncated
+}
+
+func isErrorEntry(m metadata) bool {
+	state, _ := m["state"].(map[string]string)
+	return state["status"] == "error"
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
