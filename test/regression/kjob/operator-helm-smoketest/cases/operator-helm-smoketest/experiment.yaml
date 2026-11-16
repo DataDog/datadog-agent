@@ -1,0 +1,23 @@
+runner: eks
+runtime_config:
+  kwok: false
+helm:
+  - release_name: datadog-operator
+    repository: https://helm.datadoghq.com
+    chart: datadog-operator
+    version: "2.29.0"
+    values_files:
+      - helm/operator-values.yaml
+readiness:
+  - apiVersion: apps/v1
+    kind: DaemonSet
+    name: datadog-agent
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: datadog-cluster-agent
+blackhole:
+  - id: intake
+    http:
+      binding_addr: "0.0.0.0:9091"
+      status: 200
+      response_delay_millis: 0
