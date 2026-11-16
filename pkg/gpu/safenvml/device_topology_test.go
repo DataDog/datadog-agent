@@ -50,7 +50,7 @@ func hgxB200Device(d *testutil.MockDevice) {
 	d.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) { panic("current PCIe width is a metric") }
 }
 
-func TestDeviceCachesTopologyFromSysfsFallback(t *testing.T) {
+func TestDeviceCachesTopologyFromSysfs(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(hgxB200Device)))
 	WithMockNVML(t, mockNvml)
 	sysRoot := t.TempDir()
@@ -66,16 +66,18 @@ func TestDeviceCachesTopologyFromSysfsFallback(t *testing.T) {
 	require.Equal(t, uint64(256<<30), device.BAR1TotalBytes)
 	require.Equal(t, uint8(1), device.HostID)
 	require.Equal(t, uint8(7), device.ModuleID)
-	require.NotNil(t, device.NUMANode, "NVML reports NOT_SUPPORTED; sysfs must fill in")
+	require.NotNil(t, device.NUMANode)
 	require.Equal(t, 0, *device.NUMANode, "node 0 is valid")
 	require.Equal(t, []string{"0000:8b:01.0", "0000:8a:00.0", "0000:89:00.0"}, device.PCIePath)
 	require.Equal(t, HostLinkInfo{PCIeMaxGeneration: 5, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16}, device.HostLink,
 		"the C2C mode symbol is missing, so the host-link protocol stays unknown")
 }
 
-func TestDevicePrefersNVMLNUMANode(t *testing.T) {
+func TestDeviceIgnoresNVMLNUMANode(t *testing.T) {
+	// NVML may report the GPU's own memory node on platforms where GPUs are NUMA
+	// nodes; the host node always comes from sysfs.
 	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
-		d.GetNumaNodeIdFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
+		d.GetNumaNodeIdFunc = func() (int, nvml.Return) { panic("the NUMA node must come from sysfs") }
 	})))
 	WithMockNVML(t, mockNvml)
 	sysRoot := t.TempDir()
@@ -84,7 +86,7 @@ func TestDevicePrefersNVMLNUMANode(t *testing.T) {
 
 	device, err := NewPhysicalDevice(mockNvml.Device(0))
 	require.NoError(t, err)
-	require.Equal(t, 1, *device.NUMANode)
+	require.Equal(t, 0, *device.NUMANode)
 	require.Equal(t, []string{}, device.PCIePath, "a GPU on the root complex has an empty path")
 }
 

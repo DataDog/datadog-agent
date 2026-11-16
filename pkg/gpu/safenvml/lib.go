@@ -90,7 +90,6 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetMigMode"),
 		toNativeName("GetNvLinkState"),
 		toNativeName("GetNvLinkVersion"),
-		toNativeName("GetNumaNodeId"),
 		toNativeName("GetNvLinkErrorCounter"),
 		toNativeName("GetNumFans"),
 		toNativeName("GetPciInfo"),
