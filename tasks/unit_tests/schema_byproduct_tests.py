@@ -270,5 +270,59 @@ class TestSchemaPatterns(unittest.TestCase):
                 self.assertRegex(node["default"], re.compile(node["pattern"]), setting)
 
 
+class TestJsonSchemaId(unittest.TestCase):
+    PREFIX = "https://raw.githubusercontent.com/DataDog/schema/main/agent/"
+
+    def test_latest_id(self):
+        from tasks.schema.generate import json_schema_id
+
+        self.assertEqual(json_schema_id("datadog"), self.PREFIX + "datadog.schema.json")
+        self.assertEqual(json_schema_id("system-probe"), self.PREFIX + "system-probe.schema.json")
+
+    def test_versioned_id(self):
+        from tasks.schema.generate import json_schema_id
+
+        for version in ("7.85.1", "v7.85.1"):
+            self.assertEqual(json_schema_id("datadog", version), self.PREFIX + "v7.85.1/datadog.schema.json")
+
+    def test_invalid_versions_are_rejected(self):
+        from tasks.schema.generate import json_schema_id
+
+        for version in ("", "7.85", "7.85.0-rc.1", "7.85.1-devel", "main", "../7.85.1", "7.85.1/x"):
+            with self.assertRaises(ValueError, msg=version):
+                json_schema_id("datadog", version)
+
+    def test_schema_id_replaces_source_id_and_keeps_header_first(self):
+        from tasks.schema.produce_byproduct import _with_schema_id
+
+        doc = {"$schema": "s", "$id": "old", "title": "t", "properties": {}}
+        result = _with_schema_id(doc, "new")
+        self.assertEqual(list(result), ["$schema", "$id", "title", "properties"])
+        self.assertEqual(result["$id"], "new")
+        result = _with_schema_id({"$schema": "s", "properties": {}}, "new")
+        self.assertEqual(list(result), ["$schema", "$id", "properties"])
+
+    def test_produce_jsonschema_writes_published_ids(self):
+        import json
+        import os
+        import tempfile
+
+        from invoke import Context
+        from invoke.exceptions import Exit
+
+        from tasks.schema.generate import produce_jsonschema
+
+        with tempfile.TemporaryDirectory() as out:
+            produce_jsonschema(Context(), out, version="7.85.1")
+            for name in ("datadog", "system-probe"):
+                with open(os.path.join(out, f"{name}.json"), encoding="utf-8") as f:
+                    schema = json.load(f)
+                self.assertEqual(schema["$id"], f"{self.PREFIX}v7.85.1/{name}.schema.json")
+                self.assertEqual(list(schema)[:2], ["$schema", "$id"])
+                self.assertEqual(schema["type"], "object")
+            with self.assertRaises(Exit):
+                produce_jsonschema(Context(), out, version="7.85.0-rc.1")
+
+
 if __name__ == "__main__":
     unittest.main()

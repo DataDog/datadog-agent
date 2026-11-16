@@ -317,17 +317,39 @@ def _dump(document, fmt, f):
         yaml.dump(document, f, sort_keys=False)
 
 
-def produce_byproduct(output, in_path, out_path):
+def _with_schema_id(document, schema_id):
+    """Return a copy of ``document`` whose ``$id`` is ``schema_id``.
+
+    Keeps the key order: ``$id`` replaces the existing one in place, or is added
+    right after ``$schema`` (at the top otherwise), so the header stays first.
+    """
+    if "$id" in document:
+        return {key: (schema_id if key == "$id" else value) for key, value in document.items()}
+    result = {}
+    if "$schema" in document:
+        result["$schema"] = document["$schema"]
+    result["$id"] = schema_id
+    result.update((key, value) for key, value in document.items() if key != "$schema")
+    return result
+
+
+def produce_byproduct(output, in_path, out_path, schema_id=None):
     """Read the schema at ``in_path``, derive the named ``output`` byproduct and
     write it to ``out_path`` in that output's serialization format.
 
     Inlines every ``$ref`` so the result is a single self-contained file holding
     the top schema and all its sub-sections. A no-op for schemas with no refs
     (e.g. an already-merged file, or system-probe).
+
+    ``schema_id``, when set, replaces the ``$id`` of the output: the source
+    schema's ``$id`` is the location of its YAML file in the datadog-agent
+    repository, which is wrong for a byproduct published elsewhere.
     """
     _processor, fmt = _processor_for(output)
     document = resolve_schema(in_path)
     processed = process_schema(document, output)
+    if schema_id is not None:
+        processed = _with_schema_id(processed, schema_id)
     with open(out_path, "w", encoding="utf-8") as f:
         _dump(processed, fmt, f)
 
