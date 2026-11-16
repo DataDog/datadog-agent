@@ -474,6 +474,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"GEOADD key NX CH",
 		},
 		{
+			"GEORADIUSBYMEMBER_RO key member 10 km WITHDIST",
+			"GEORADIUSBYMEMBER_RO key ? 10 km WITHDIST",
+		},
+		{
+			"georadiusbymember_ro key member 10 km",
+			"georadiusbymember_ro key ? 10 km",
+		},
+		{
 			`
 CONFIG command
 SET k v
