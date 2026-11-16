@@ -227,6 +227,11 @@
         "enabled": false
       },
       {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["org.bouncycastle:*-fips"],
+        "groupName": "bouncycastle-fips"
+      },
+      {
         "matchManagers": ["bundler"],
         "matchDepNames": ["omnibus"],
         "enabled": false

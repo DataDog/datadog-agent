@@ -320,6 +320,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		return settings
 	}
 	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.stable.min_relative_change") {
+		settings.StablePipeline = &StablePipelineConfig{
+			MinRelativeChange: cfg.GetFloat64("anomaly_detection.metric_pipeline.stable.min_relative_change"),
+		}
+	}
 	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
 		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
 		settings.MetricPipelineAnomalyCutoff = &cutoff
@@ -1173,6 +1178,12 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	o.metricFilter.muted.Store(nil)
 	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
 		return err
+	}
+	if settings.LogCountBuckets != nil {
+		o.engine.logCounts = nil
+		if settings.LogCountBuckets.Enabled {
+			o.engine.logCounts = newMaterializedLogCountBucketizer(*settings.LogCountBuckets)
+		}
 	}
 	o.publishSeriesCount()
 	return nil
