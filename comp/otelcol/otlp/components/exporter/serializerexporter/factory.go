@@ -23,6 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -229,6 +230,22 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) (*ExporterConfig
 	return cfg, nil
 }
 
+// warnIgnoredHistogramOptions warns about histogram settings that native OTel histograms do not apply.
+func warnIgnoredHistogramOptions(logger *zap.Logger, cfg datadogconfig.HistogramConfig) {
+	var ignored []string
+	if cfg.Mode == datadogconfig.HistogramModeCounters || cfg.Mode == datadogconfig.HistogramModeNoBuckets {
+		ignored = append(ignored, "metrics::histograms::mode="+string(cfg.Mode))
+	}
+	if cfg.SendAggregations {
+		ignored = append(ignored, "metrics::histograms::send_aggregation_metrics")
+	}
+	if len(ignored) > 0 {
+		logger.Warn(fmt.Sprintf("Ignoring %s: with feature gate %s, OTel histograms are sent as native histograms; "+
+			"query the count, sum, min and max of the histogram metric instead",
+			strings.Join(ignored, ", "), nativeOTelHistogramsGate.ID()))
+	}
+}
+
 // createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
 	cfg, err := checkAndCastConfig(c, params.Logger)
@@ -280,6 +297,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
 		}
 		newTranslator = minimalTranslatorFromConfig
+		warnIgnoredHistogramOptions(params.Logger, cfg.Metrics.Metrics.HistConfig)
 	}
 	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
 	if err != nil {
