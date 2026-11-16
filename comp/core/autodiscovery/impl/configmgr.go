@@ -315,10 +315,12 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	// Services matching any removed template. They are reconciled once, after
 	// every template of the batch is removed: reconciling a service against a
 	// partially removed batch can schedule a config that a later removal of
-	// the same batch unschedules. Subscribers apply all unschedules before
-	// all schedules, so such a config would stay scheduled downstream while
-	// the config manager no longer tracks it (e.g. container_collect_all
-	// briefly replacing a removed annotation logs config, AGENTRUN-1588).
+	// the same batch unschedules (e.g. container_collect_all replacing an
+	// annotation logs config that was just removed, until its own template is
+	// removed too). The scheduler controller lets a schedule in a batch
+	// override an unschedule of the same config, so that config would stay
+	// scheduled while the config manager no longer tracks it, and never
+	// unschedules it.
 	matchingServices := map[string]struct{}{}
 	for _, config := range configs {
 		digest := config.Digest()

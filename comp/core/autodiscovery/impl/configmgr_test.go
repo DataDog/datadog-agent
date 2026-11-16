@@ -803,14 +803,14 @@ type notReadyService struct {
 
 func (notReadyService) IsReady() bool { return false }
 
-// Regression test for AGENTRUN-1588: removing, in a single batch, a pod's
-// annotation logs template and its container_collect_all template must not
-// leave a container_collect_all config scheduled downstream.
+// Removing, in a single batch, a pod's annotation logs template and its
+// container_collect_all template must not leave a container_collect_all config
+// scheduled downstream.
 func TestDelConfigsBatchDoesNotLeakContainerCollectAll(t *testing.T) {
 	for _, annotationFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("annotationFirst=%v", annotationFirst), func(t *testing.T) {
-			// downstream view, applied like AutoConfig.applyChanges/schedulers:
-			// all unschedules first, then all schedules.
+			// downstream view, applied like the scheduler controller: a
+			// schedule in a batch overrides an unschedule of the same config.
 			downstream := map[string]integration.Config{}
 			publish := func(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
 				for _, c := range changes.Unschedule {
