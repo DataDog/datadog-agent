@@ -145,7 +145,7 @@ func TestArtifactResolverFollowsRemoteCatalogSelection(t *testing.T) {
 		t.Run(step.name, func(t *testing.T) {
 			status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: step.packages})
 			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
-			descriptor, err := catalog.Lookup(testExecutionFQN)
+			descriptor, err := catalog.Lookup(testCatalogFQN)
 			require.NoError(t, err)
 			require.Equal(t, step.want.Version, descriptor.Version)
 			require.Equal(t, step.want.URL, descriptor.URL)
