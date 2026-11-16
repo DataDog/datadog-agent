@@ -12,39 +12,61 @@ use crate::procfs;
 /// Maximum length of a comm name in /proc/<pid>/comm (excluding newline).
 const MAX_COMM_LEN: usize = 15;
 
-/// Infrastructure processes and command-line helpers, matched against the
-/// kernel comm name (not the generated service name). Executable names longer
-/// than MAX_COMM_LEN must use the kernel's truncated name.
+/// Infrastructure daemons and CLI helpers also hold listening sockets and log
+/// files, sometimes inherited from an application. Exclude these known names
+/// so those resources do not cause discovery to report additional services.
+///
+/// Entries are exact, case-sensitive /proc/<pid>/comm names, limited to
+/// MAX_COMM_LEN bytes. Keep them specific: "agent", "cron", and "dash" are
+/// also used by applications.
 static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
-    b"ModemManager",
-    b"NetworkManager",
-    b"accounts-daemon",
-    b"amazon-ssm-agen",
-    b"atd",
-    b"auditd",
-    b"bash",
-    b"cat",
-    b"chronyd",
-    b"cilium-agent",
-    b"conmon",
+    // Host services and management agents.
+    b"ModemManager", // Mobile broadband modem management.
+    b"NetworkManager", // Host network configuration.
+    b"accounts-daemon", // OS user-account management.
+    b"amazon-ssm-agen", // AWS Systems Manager agent, truncated to 15 bytes.
+    b"atd", // Scheduler for one-off jobs submitted with `at`.
+    b"auditd", // Linux audit event collection.
+    b"chronyd", // NTP clock synchronization.
+    b"crond", // Cron job scheduler.
+    b"dbus-broker", // D-Bus inter-process message bus.
+    b"dbus-daemon", // D-Bus inter-process message bus.
+    b"dhclient", // DHCP client.
+    b"do-agent", // DigitalOcean host metrics collection.
+    b"droplet-agent", // DigitalOcean Droplet Console access.
+    b"irqbalance", // Distributes hardware interrupts across CPUs.
+    b"polkitd", // Authorization for privileged OS operations.
+    b"ssm-agent-worke", // AWS Systems Manager worker, truncated to 15 bytes.
+    b"systemd",
+    b"udisksd", // Disk and storage device management.
+    b"unattended-upgr", // Automatic package updates (unattended-upgrades).
+
+    // SSSD integrates the host with directory-based identity/authentication.
+    b"sssd",
+    b"sssd_be", // Directory backend.
+    b"sssd_nss", // User/group lookup.
+    b"sssd_pac", // Kerberos authorization data.
+    b"sssd_pam", // PAM authentication.
+    b"sssd_ssh", // SSH public-key lookup.
+
+    // Container and Kubernetes infrastructure.
+    b"cilium-agent", // Cilium container networking.
+    b"conmon", // Podman/CRI-O container monitor; holds container log FDs.
     b"containerd",
-    b"crond",
-    b"dbus-broker",
-    b"dbus-daemon",
-    b"dhclient",
-    b"do-agent",
     b"dockerd",
-    b"droplet-agent",
-    b"grep",
-    b"irqbalance",
     b"kubelet",
-    b"livenessprobe",
-    b"local-volume-pr",
-    b"polkitd",
+    b"livenessprobe", // Kubernetes CSI storage-driver health probe.
+    b"local-volume-pr", // Kubernetes local-volume-provisioner, truncated.
+
+    // Datadog subprocesses expose their own ports and write Agent log files.
     b"process-agent",
     b"security-agent",
-    b"sh",
-    b"sleep",
+    b"system-probe",
+    b"system-probe-li", // system-probe-lite, truncated to 15 bytes.
+    b"trace-agent",
+
+    // SSH daemons and session helpers use several distinct executable names.
+    // Generated service names can drop suffixes such as .pam; match comm here.
     b"sshd",
     b"sshd-auth",
     b"sshd-bd",
@@ -54,22 +76,18 @@ static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
     b"sshd.pam",
     b"sshd2",
     b"sshd_sftp",
-    b"ssm-agent-worke",
-    b"sssd",
-    b"sssd_be",
-    b"sssd_nss",
-    b"sssd_pac",
-    b"sssd_pam",
-    b"sssd_ssh",
+
+    // Shells and CLI helpers can inherit service sockets or keep redirected log
+    // files open. Those resources qualify them for discovery even when another
+    // process runs the application, producing services for wrappers/helpers.
+    b"bash",
+    b"cat",
+    b"grep",
+    b"sh",
+    b"sleep",
     b"sudo",
-    b"system-probe",
-    b"system-probe-li",
-    b"systemd",
     b"tail",
     b"tee",
-    b"trace-agent",
-    b"udisksd",
-    b"unattended-upgr",
     b"zsh",
 };
 
@@ -190,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_helpers_require_exact_match() {
-        // These names can identify applications rather than OS helpers.
+        // Applications can share a helper's prefix or use an ambiguous name.
         for comm in [
             b"agent\n".as_slice(),
             b"cron\n",
