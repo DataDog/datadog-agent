@@ -364,9 +364,9 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
-			domainConcurrency := concurrency
+			domainConcurrency := concurrency.newDomain(domain)
 			if resolver.IsLocal() {
-				domainConcurrency = localConcurrencyPolicyFromConfig(config, log)
+				domainConcurrency = newLocalConcurrencyDomainFromConfig(config, log)
 			}
 			fwd := newDomainForwarder(
 				config,
@@ -782,10 +782,11 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 
 		txn.CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 			internalResults <- defaultforwarderdef.Response{
-				Domain:     transaction.Domain,
-				Body:       body,
-				StatusCode: statusCode,
-				Err:        err,
+				Domain:      transaction.Domain,
+				APIKeyIndex: transaction.APIKeyIndex,
+				Body:        body,
+				StatusCode:  statusCode,
+				Err:         err,
 			}
 		}
 	}

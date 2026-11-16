@@ -52,6 +52,7 @@ go_library(
     ],
 )
 
+# gazelle:exclude installer_test.go
 dd_agent_go_test(
     name = "windows_test",
     srcs = [
@@ -79,7 +80,6 @@ dd_agent_go_test(
         "install_exe_test.go",
         "installer_install_test.go",
         "installer_rollback_test.go",
-        "installer_test.go",
         "persisting_extensions_test.go",
     ],
     data = [
@@ -123,5 +123,16 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "installer_test",
+    srcs = ["installer_test.go"],
+    embed = [":windows"],
+    deps = [
+        "//test/new-e2e/tests/installer/windows/consts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

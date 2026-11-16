@@ -140,6 +140,16 @@ func NewCoreAgentClientWithRecreatedTransactionalStore(dbMetadata *Metadata, org
 	return newCoreAgentClient(transactionalStore, orgUUIDProvider, options...)
 }
 
+// resetTUFState rebuilds the remote stores and the go-tuf clients from the
+// local stores and the target store, dropping any metadata buffered from the
+// last response.
+func (c *CoreAgentClient) resetTUFState() {
+	c.configRemoteStore = newRemoteStoreConfig(c.targetStore)
+	c.directorRemoteStore = newRemoteStoreDirector(c.targetStore)
+	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
+	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+}
+
 // Update updates the uptane client and rollbacks in case of error
 func (c *CoreAgentClient) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
@@ -152,10 +162,7 @@ func (c *CoreAgentClient) Update(response *pbgo.LatestConfigsResponse) error {
 
 	err := c.update(response)
 	if err != nil {
-		c.configRemoteStore = newRemoteStoreConfig(c.targetStore)
-		c.directorRemoteStore = newRemoteStoreDirector(c.targetStore)
-		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
-		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+		c.resetTUFState()
 		return err
 	}
 	return c.transactionalStore.commit()
@@ -345,7 +352,7 @@ func (c *Client) verify() error {
 	if err != nil {
 		return err
 	}
-	err = c.verifyUptane()
+	err = c.verifyUptane(c.configTUFClient, c.directorTUFClient)
 	if err != nil {
 		return err
 	}
@@ -430,8 +437,12 @@ func (c *Client) verifyOrg() error {
 	return nil
 }
 
-func (c *Client) verifyUptane() error {
-	directorTargets, err := c.directorTUFClient.Targets()
+// verifyUptane runs the Uptane full-image verification checks (director vs
+// config targets comparison, hash and download checks) against the given go-tuf
+// clients. It is called with the client's own repositories, and with temporary
+// in-memory repositories during the DC switch recovery.
+func (c *Client) verifyUptane(configTUFClient *client.Client, directorTUFClient *client.Client) error {
+	directorTargets, err := directorTUFClient.Targets()
 	if err != nil {
 		return err
 	}
@@ -445,7 +456,7 @@ func (c *Client) verifyUptane() error {
 		targetPaths = append(targetPaths, targetPath)
 		targetPathsDestinations[targetPath] = &bufferDestination{}
 	}
-	configTargetMetas, err := c.configTUFClient.TargetBatch(targetPaths)
+	configTargetMetas, err := configTUFClient.TargetBatch(targetPaths)
 	if err != nil {
 		if client.IsNotFound(err) {
 			return fmt.Errorf("failed to find target in config repository: %w", err)
@@ -476,11 +487,11 @@ func (c *Client) verifyUptane() error {
 		}
 	}
 	// Check that the files are valid in the context of the TUF repository (path in targets, hash matching)
-	err = c.configTUFClient.DownloadBatch(targetPathsDestinations)
+	err = configTUFClient.DownloadBatch(targetPathsDestinations)
 	if err != nil {
 		return err
 	}
-	err = c.directorTUFClient.DownloadBatch(targetPathsDestinations)
+	err = directorTUFClient.DownloadBatch(targetPathsDestinations)
 	if err != nil {
 		return err
 	}

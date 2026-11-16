@@ -1,0 +1,10 @@
+  Cluster Name: {{ if .clusterName }}{{ .clusterName }}{{ else }}unknown{{ end }}
+  Cluster ID: {{ if .clusterID }}{{ .clusterID }}{{ else }}unknown{{ end }}
+{{- if .distribution }}
+  Distribution: {{ .distribution }}
+{{- end }}
+  Server Version: {{ if .version.detected }}{{ .version.detected }}{{ else }}unknown{{ end }}
+{{- if .version.warning }}
+
+  WARNING: {{ .version.warning }}
+{{- end }}

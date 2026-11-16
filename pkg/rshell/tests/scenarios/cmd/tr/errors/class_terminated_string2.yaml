@@ -1,0 +1,8 @@
+description: tr rejects STRING2 ending with character class when STRING1 is longer.
+input:
+  script: |+
+    tr '[:lower:]x' '[:upper:]'
+expect:
+  stdout: ""
+  stderr: "tr: when translating with string1 longer than string2,\nthe latter string must not end with a character class\n"
+  exit_code: 1

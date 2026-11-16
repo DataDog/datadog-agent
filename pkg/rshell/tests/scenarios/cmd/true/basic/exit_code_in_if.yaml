@@ -1,0 +1,8 @@
+description: true as if condition takes the then branch.
+input:
+  script: |+
+    if true; then echo yes; else echo no; fi
+expect:
+  stdout: "yes\n"
+  stderr: ""
+  exit_code: 0

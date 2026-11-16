@@ -152,13 +152,11 @@ func RunDDTraceSpanTest(filePath, execTarget string, startSpan, forkExec bool) e
 	}
 	defer unix.Close(fd)
 
-	// Start dd-trace-go with:
-	// - WithTestDefaults: uses a dummy transport (no real agent needed)
-	// - WithProfilerCodeHotspots: enables "span id" and "local root span id" pprof labels
-	// - WithService: set a service name
 	tracer.Start(
 		tracer.WithTestDefaults(nil),
 		tracer.WithProfilerCodeHotspots(true),
+		// dd-trace-go only sets the "trace id" pprof label while AppSec runs
+		tracer.WithAppSecEnabled(true),
 		tracer.WithService("ddtrace-test"),
 		tracer.WithLogStartup(false),
 	)
@@ -166,18 +164,14 @@ func RunDDTraceSpanTest(filePath, execTarget string, startSpan, forkExec bool) e
 
 	var span *tracer.Span
 	if startSpan {
-		// dd-trace-go will automatically set pprof labels "span id" and
-		// "local root span id" on the current goroutine.
 		var ctx context.Context
 		span, ctx = tracer.StartSpanFromContext(context.Background(), "test.operation")
 		_ = ctx
 
-		// Print the span ID and local root span ID so the test can parse
-		// and verify them.
-		spanID := span.Context().SpanID()
-		localRootSpanID := span.Root().Context().SpanID()
-		fmt.Printf("ddtrace_span_id=%d\n", spanID)
-		fmt.Printf("ddtrace_local_root_span_id=%d\n", localRootSpanID)
+		spanCtx := span.Context()
+		fmt.Printf("ddtrace_span_id=%d\n", spanCtx.SpanID())
+		fmt.Printf("ddtrace_trace_id_hi=%d\n", spanCtx.TraceIDUpper())
+		fmt.Printf("ddtrace_trace_id_lo=%d\n", spanCtx.TraceIDLower())
 
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()

@@ -1,0 +1,19 @@
+description: grep -c prints a count of matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+        foo baz
+        qux
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c foo file.txt
+expect:
+  stdout: |+
+    2
+  stderr: ""
+  exit_code: 0

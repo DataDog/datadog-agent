@@ -1,0 +1,10 @@
+description: help <cmd> for a command without a static Help string dispatches to the command's own --help (help.go's dynamic capture-and-invoke branch).
+skip_assert_against_bash: true
+input:
+  script: |+
+    help ls
+expect:
+  stdout_contains:
+    - "Usage: ls [OPTION]... [FILE]..."
+  stderr: |+
+  exit_code: 0

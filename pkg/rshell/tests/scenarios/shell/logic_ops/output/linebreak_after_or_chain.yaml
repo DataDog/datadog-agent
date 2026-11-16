@@ -1,0 +1,11 @@
+description: Linebreak after || continues the list.
+input:
+  script: |+
+    false ||
+     false ||
+     echo foo
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

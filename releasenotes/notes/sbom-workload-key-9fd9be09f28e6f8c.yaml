@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe shares the package index of a container
+    with the other containers of the same image ID alone. Two images sharing a
+    name and a mutable tag on a host shared the index of the first scanned.

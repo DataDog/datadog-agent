@@ -211,6 +211,37 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "Kueue alone",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: false,
+		},
+		{
+			name: "Kueue with cluster checks",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+				"cluster_checks.enabled":      true,
+			},
+			expected: true,
+		},
+		{
+			name: "Kueue with cluster checks and Workloads per node disabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled":            true,
+				"cluster_agent.kueue.workloads_per_node": false,
+				"cluster_checks.enabled":                 true,
+			},
+			expected: false,
+		},
+		{
+			name: "KAI Scheduler",
+			cfg: map[string]interface{}{
+				"cluster_agent.kai_scheduler.enabled": true,
+			},
+			expected: true,
+		},
+		{
 			name: "workload autoscaling alone is not a startup-time requirement",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled": true,

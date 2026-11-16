@@ -1,0 +1,21 @@
+# vuln-hunt 2026-05-19-codex / tr.
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: tr input redirection through a symlink must not escape AllowedPaths.
+setup:
+  files:
+    - path: allowed/link.txt
+      symlink: ../secret/data.txt
+    - path: secret/data.txt
+      content: |+
+        secret
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    tr '' '' < allowed/link.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["path escapes"]
+  exit_code: 0

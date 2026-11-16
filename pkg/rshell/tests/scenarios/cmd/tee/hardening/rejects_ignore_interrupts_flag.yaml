@@ -1,0 +1,16 @@
+# -i/--ignore-interrupts is deliberately out of scope: rshell builtins do
+# not receive process signals the way a forked tee(1) would (see the "Out of
+# scope" section of the package doc comment in builtins/tee/tee.go).
+description: -i/--ignore-interrupts is rejected as an unknown flag.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    tee -i out.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: invalid option -- 'i'
+    Try 'tee --help' for more information.
+  exit_code: 1
+skip_assert_against_bash: true

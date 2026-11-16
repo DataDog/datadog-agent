@@ -1,0 +1,23 @@
+description: -newer with dangling symlink ref succeeds under -L (falls back to lstat).
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/old.txt
+      content: "old"
+      chmod: 0644
+      mod_time: "2020-01-01T00:00:00Z"
+    - path: dir/ref_link
+      symlink: nonexistent_target
+    - path: dir/new.txt
+      content: "new"
+      chmod: 0644
+      mod_time: "2030-01-01T00:00:00Z"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir -newer dir/ref_link -type f
+expect:
+  stdout: |+
+    dir/new.txt
+  stderr: ""
+  exit_code: 0

@@ -77,6 +77,11 @@ build do
             Dir.glob(File.join(emb3, "**", "*.chm")).each do |chm|
                 delete chm
             end
+
+            # Build-time-only files: C headers, Cython declarations, static libraries (~1.1 MiB)
+            delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
+            delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
+            delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -205,7 +210,8 @@ build do
               # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}#{rpath_args}", cwd: Dir.pwd
               if preserve_installer_rpath
-                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{install_dir}/embedded/lib'"
+                expected_rpath = "#{install_dir}/embedded/lib:#{File.dirname(install_dir)}/stable/embedded/lib"
+                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{expected_rpath}'"
               end
             end
         end

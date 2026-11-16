@@ -18,27 +18,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
+// UnsupportedTypeError is the error UnmarshalProbe returns for probe types
+// that are not supported.
+type UnsupportedTypeError struct {
+	Type Type
+}
+
+// Error implements error.
+func (e *UnsupportedTypeError) Error() string {
+	return fmt.Sprintf("probe type %s is not supported", e.Type)
+}
+
 // UnmarshalProbe unmarshals a Probe from a JSON byte slice.
+//
+// The errors it returns are meant to be shown to users as the reason a probe
+// was rejected.
 func UnmarshalProbe(data []byte) (Probe, error) {
 	type config struct {
-		ID                 string          `json:"id"`
 		Type               Type            `json:"type"`
 		CaptureSnapshot    bool            `json:"captureSnapshot"`
 		CaptureExpressions json.RawMessage `json:"captureExpressions"`
 	}
 	var c config
 	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, fmt.Errorf("UnmarshalProbe: failed to parse json: %w", err)
+		return nil, fmt.Errorf("failed to parse probe definition: %w", err)
 	}
 	var v Probe
 	switch c.Type {
 	case TypeDefault,
 		TypeLegacyServiceConfig,
-		TypeServiceConfig,
-		TypeSpanDecorationProbe:
-		return nil, fmt.Errorf(
-			"UnmarshalProbe: unexpected config.Type: %s", c.Type,
-		)
+		TypeServiceConfig:
+		return nil, fmt.Errorf("unexpected config type: %s", c.Type)
+	case TypeSpanDecorationProbe, TypeTriggerProbe:
+		return nil, &UnsupportedTypeError{Type: c.Type}
 	case TypeLogProbe:
 		if c.CaptureSnapshot {
 			v = new(SnapshotProbe)
@@ -51,17 +63,17 @@ func UnmarshalProbe(data []byte) (Probe, error) {
 		v = new(MetricProbe)
 	case TypeSpanProbe:
 		v = new(SpanProbe)
+	default:
+		return nil, &UnsupportedTypeError{Type: c.Type}
 	}
 	if err := json.Unmarshal(data, v); err != nil {
-		return nil, fmt.Errorf(
-			"UnmarshalProbe: id: %s, type: %s: failed to parse json: %w",
-			c.ID, c.Type, err,
-		)
+		return nil, fmt.Errorf("failed to parse %s definition: %w", c.Type, err)
 	}
 	return v, nil
 }
 
-// Validate can be used to validate a probe before it is used.
+// Validate can be used to validate a probe before it is used. Like those of
+// UnmarshalProbe, its errors are meant to be shown to users.
 func Validate(p Probe) error {
 	return p.validate()
 }
@@ -333,16 +345,9 @@ type LogProbe struct {
 }
 
 func (l *LogProbe) validate() error {
-	if err := validateWhere(l.Where); err != nil {
-		return err
-	}
-	if l.Template == "" {
-		return errors.New("template must be set")
-	}
-	if len(l.Segments) == 0 {
-		return errors.New("segments must be set")
-	}
-	return nil
+	// A probe without a template is valid, and logs an empty message, as in
+	// other tracers.
+	return validateWhere(l.Where)
 }
 
 // GetThrottleConfig returns the throttle configuration of the probe.
@@ -541,8 +546,11 @@ func (c *irCaptureConfig) GetMaxReferenceDepth() uint32 {
 	if c == nil || c.MaxReferenceDepth == nil {
 		return math.MaxUint32
 	}
-	if *c.MaxReferenceDepth == 0 {
-		panic("maxReferenceDepth is 0")
+	// At depth 0 no pointers are followed, which matches most other tracers:
+	// they capture the top-level values but nothing they reference. Negative
+	// depths are treated like 0, rather than wrapping around to huge ones.
+	if *c.MaxReferenceDepth <= 0 {
+		return 0
 	}
 	return uint32(*c.MaxReferenceDepth)
 }
@@ -625,9 +633,9 @@ func validateWhere(where *Where) error {
 	if where == nil {
 		return errors.New("where is required")
 	}
-	if where.Signature != "" {
-		return errors.New("signature is not supported")
-	}
+	// The signature is ignored rather than rejected: Go has no overloading, so
+	// the method name alone identifies the function, and the UI sets a
+	// signature on Go method probes anyway.
 	if where.MethodName == "" {
 		return errors.New("methodName must be set for probes")
 	}

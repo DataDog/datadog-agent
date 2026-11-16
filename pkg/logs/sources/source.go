@@ -52,6 +52,9 @@ type LogSource struct {
 	BytesRead        atomic.Int64
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilterState is read on every message, so it's cached behind an atomic
+	// pointer rather than lock.
+	tagFilterState atomic.Pointer[tagFilterState]
 }
 
 // NewLogSource creates a new log source.
@@ -170,6 +173,26 @@ func (s *LogSource) GetInfoStatus() map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.info.Rendered()
+}
+
+type tagFilterState struct {
+	filter TagFilter
+}
+
+// TagFilter returns the tag filter currently cached for this source, without
+// resolving it, and whether resolution has happened.
+func (s *LogSource) TagFilter() (TagFilter, bool) {
+	state := s.tagFilterState.Load()
+	if state == nil {
+		return nil, false
+	}
+	return state.filter, true
+}
+
+// SetTagFilterIfUnset caches f if this source has not already been resolved.
+// It returns true only to the caller that installs the filter.
+func (s *LogSource) SetTagFilterIfUnset(f TagFilter) bool {
+	return s.tagFilterState.CompareAndSwap(nil, &tagFilterState{filter: f})
 }
 
 // HideFromStatus hides the source from the status output

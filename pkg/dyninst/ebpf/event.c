@@ -12,6 +12,7 @@
 #include "walk_stack.h"
 #include "scratch.h"
 #include "throttler.h"
+#include "coordinated_sample.h"
 
 char _license[] SEC("license") = "GPL";
 
@@ -200,7 +201,13 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
-  global_ctx.stack_walk->regs = *regs;
+  // Copy only the user-visible registers. The verifier limits context reads
+  // to the running kernel's struct pt_regs, which can be smaller than the one
+  // in our headers: Linux 6.18 dropped lockdep_hardirqs and exit_rcu from the
+  // arm64 struct, so copying the whole struct gets the program rejected.
+  // bpf_user_pt_regs_t is struct user_pt_regs on arm64, which struct pt_regs
+  // starts with, and struct pt_regs itself on x86.
+  global_ctx.stack_walk->regs = *(const bpf_user_pt_regs_t*)regs;
   global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
   LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
       header->event_pairing_expectation, header->goid, header->stack_byte_depth,
@@ -292,7 +299,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     return;
   }
   if (params->throttle_mode == THROTTLE_AFTER_COND_CHECK &&
-      should_throttle(params->throttler_idx, start_ns)) {
+      should_drop_event(params, start_ns)) {
     if (params->kind == EVENT_KIND_RETURN) {
       // Return throttled after condition passed — send signal to discard buffered entry.
       scratch_buf_set_len(global_ctx.buf, sizeof(di_event_header_t));
@@ -493,7 +500,18 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   }
   __sync_fetch_and_add(&stats->hit_cnt, 1);
 
-  if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
+  // Find the trace this hit belongs to once, before any capture work; both
+  // throttle points read it back through should_drop_event. When irgen found
+  // no context in scope there is nothing to walk, so skip the whole thing.
+  if (params->ctx_loc_kind != CTX_LOC_NONE) {
+    coord_copy_regs(regs);
+    coord_extract_trace_id(params);
+  } else {
+    coord_clear_trace_id();
+  }
+
+  if (params->throttle_mode == THROTTLE_AT_START &&
+      should_drop_event(params, start_ns)) {
     __sync_fetch_and_add(&stats->throttled_cnt, 1);
   } else {
     probe_run(start_ns, params, regs);

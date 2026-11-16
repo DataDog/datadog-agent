@@ -132,14 +132,41 @@ runtime_security_config:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: false
+{{if .EnableSecurityProfile}}
+    cgroup_differentiate_args: {{ .WorkloadProfileDifferentiateArgs }}
+{{if gt .WorkloadProfilePersistencePeriod 0}}
+    dump_duration: {{ .WorkloadProfilePersistencePeriod }}
+{{end}}
+{{if .WorkloadProfileStorageDir}}
+    local_storage:
+      output_directory: {{ .WorkloadProfileStorageDir }}
+{{end}}
+{{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
     v2:
       enabled: true
 {{if .EnableSecurityProfile}}
+      profile_reporting_delay:
+        time_based: {{ not .ProfileReportingWaitPersistence }}
+        duration: 0s
+      profiling_startup_delay: {{ .ProfilingStartupDelay }}
+{{if gt .SecurityProfileSampleRefreshPeriod 0}}
+      sample_refresh_period: {{ .SecurityProfileSampleRefreshPeriod }}
+{{end}}
+{{if .WorkloadProfileEventTypes}}
+      event_types: {{range .WorkloadProfileEventTypes}}
+      - {{. -}}
+      {{- end}}
+{{end}}
     node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
     anomaly_detection:
       enabled: {{ .EnableAnomalyDetection }}
+{{end}}
+{{if .EventSamplingOpenRateUnlimited}}
+  event_sampling:
+    open:
+      rate: 0
 {{end}}
 
   self_test:
@@ -750,6 +777,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	statsdClient := statsdclient.NewStatsdClient()
 
+	// the IPC component is only needed for TCP sockets
+	grpcServer, err := grpcutils.NewServer("unix", "/tmp/runtime-security.sock", nil)
+	if err != nil {
+		return nil, err
+	}
+
 	testMod = &testModule{
 		secconfig:     secconfig,
 		opts:          opts,
@@ -759,7 +792,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
-		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
+		grpcServer:    grpcServer,
 	}
 
 	emopts := eventmonitor.Opts{
@@ -803,7 +836,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity, ipcComp)
 		if err != nil {
 			return nil, err
 		}

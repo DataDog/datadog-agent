@@ -58,7 +58,6 @@ type fakeObserverComponent struct {
 }
 
 func (f *fakeObserverComponent) GetHandle(string) observerdef.Handle { return nil }
-func (f *fakeObserverComponent) RecordSamplerDropped(string, string) {}
 func (f *fakeObserverComponent) DumpMetrics(string) error            { return nil }
 func (f *fakeObserverComponent) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
 	if f.err != nil {

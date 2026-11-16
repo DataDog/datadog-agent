@@ -29,7 +29,27 @@ const (
 
 	// Must stay in sync with DNS_PORTS_MAX in pkg/network/ebpf/c/prebuilt/dns.c.
 	DNSPortsMax = 8
+
+	// DarwinConnectionTracerEbpfless selects the existing packet-owned tracer.
+	DarwinConnectionTracerEbpfless = "ebpfless"
+	// DarwinConnectionTracerNStat selects NStat without packet enrichment.
+	DarwinConnectionTracerNStat = "nstat"
+	// DarwinConnectionTracerNStatPcap selects the full composite backend.
+	DarwinConnectionTracerNStatPcap = "nstat-pcap"
+	// DarwinConnectionTracerAuto tries the composite backend before falling back.
+	DarwinConnectionTracerAuto = "auto"
+
+	darwinPacketSnaplenMin        = 512
+	darwinPacketSnaplenMax        = 65535
+	darwinPacketSnaplenDefault    = 8192
+	darwinPacketBufferSizeMin     = 64 * 1024
+	darwinPacketBufferSizeMax     = 256 * 1024 * 1024
+	darwinPacketBufferSizeDefault = 16 * 1024 * 1024
 )
+
+// defaultNetNSContainerAttributionPorts is Istio ambient's HBONE port, the schema default for
+// network_config.netns_container_attribution_ports
+var defaultNetNSContainerAttributionPorts = []int{15008}
 
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
@@ -190,6 +210,25 @@ type Config struct {
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
 
+	// EnableNetNSContainerAttribution attributes a socket to the container that owns its network
+	// namespace, rather than the container of its owning process, when the owner is a proxy that
+	// creates sockets inside other pods (for example Istio ambient's ztunnel). Requires EnableProcessEventMonitoring.
+	EnableNetNSContainerAttribution bool
+
+	// NetNSContainerAttributionOwnerImages lists the short image names of the owning containers
+	// whose sockets may be reattributed.
+	NetNSContainerAttributionOwnerImages []string
+
+	// NetNSContainerAttributionIgnoredContainers lists container names of helpers (for example
+	// vault-agent or cloud-sql-proxy) that don't count toward a pod's containers when choosing the
+	// reattribution target, because any traffic they carry belongs to the pod's application.
+	NetNSContainerAttributionIgnoredContainers []string
+
+	// NetNSContainerAttributionPorts limits reattribution to sockets with one of these local or remote ports, the
+	// mesh tunnel (Istio ambient's HBONE, 15008). A proxy's other legs inside the pod, such as capturing the app's
+	// outbound traffic or delivering inbound traffic to it, duplicate the app's own sockets and stay on the proxy.
+	NetNSContainerAttributionPorts []int
+
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
@@ -206,8 +245,22 @@ type Config struct {
 	// EnableEbpfless enables the use of network tracing without eBPF using packet capture.
 	EnableEbpfless bool
 
+	// DarwinConnectionTracerBackend selects the macOS connection backend.
+	DarwinConnectionTracerBackend string
+	// DarwinConnectionTracerPacketEnabled enables non-owning packet enrichment.
+	DarwinConnectionTracerPacketEnabled bool
+	// DarwinConnectionTracerPacketSnaplen bounds packet prefix capture.
+	DarwinConnectionTracerPacketSnaplen int
+	// DarwinConnectionTracerPacketBufferSize bounds each libpcap ring.
+	DarwinConnectionTracerPacketBufferSize int
+
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
+
+	// AllowKprobeFallback indicates whether we are allowed to fall back to the kprobe tracer
+	// if the fentry tracer is enabled but fails to load (default true). It has no effect when
+	// EnableFentry is false, since the kprobe tracer is then loaded directly.
+	AllowKprobeFallback bool
 
 	// EnableCORETracer enables the CO-RE version of the tracer
 	EnableCORETracer bool
@@ -302,12 +355,22 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 
+		EnableNetNSContainerAttribution:            cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_netns_container_attribution")),
+		NetNSContainerAttributionOwnerImages:       cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_owner_images")),
+		NetNSContainerAttributionIgnoredContainers: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_ignored_containers")),
+
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
-		EnableCORETracer: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
-		EnableEbpfless:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
-		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
-		EnableSKTracer:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
+		EnableCORETracer:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
+		EnableEbpfless:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		AllowKprobeFallback: cfg.GetBool(sysconfig.FullKeyPath(netNS, "allow_kprobe_fallback")),
+		EnableSKTracer:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
+
+		DarwinConnectionTracerBackend:          cfg.GetString(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_backend")),
+		DarwinConnectionTracerPacketEnabled:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_enabled")),
+		DarwinConnectionTracerPacketSnaplen:    cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_snaplen")),
+		DarwinConnectionTracerPacketBufferSize: cfg.GetInt(sysconfig.FullKeyPath(netNS, "darwin_connection_tracer_packet_buffer_size")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
@@ -316,6 +379,7 @@ func New() *Config {
 
 		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
 	}
+	c.normalizeDarwinConnectionTracerConfig()
 
 	if !c.CollectTCPv4Conns {
 		log.Info("network tracer TCPv4 tracing disabled")
@@ -331,6 +395,26 @@ func New() *Config {
 	}
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
+	}
+
+	tunnelPortsKey := sysconfig.FullKeyPath(netNS, "netns_container_attribution_ports")
+	if err := structure.UnmarshalKey(cfg, tunnelPortsKey, &c.NetNSContainerAttributionPorts); err != nil {
+		log.Warnf("failed to parse %s: %v", tunnelPortsKey, err)
+		c.NetNSContainerAttributionPorts = nil
+	}
+	c.NetNSContainerAttributionPorts = slices.DeleteFunc(c.NetNSContainerAttributionPorts, func(port int) bool {
+		if port < 1 || port > 65535 {
+			log.Warnf("CNM detected and removed invalid port %d from %s (must be 1-65535)", port, tunnelPortsKey)
+			return true
+		}
+		return false
+	})
+	// an empty list would leave nothing to reattribute, so a broken setting falls back to the mesh tunnel's port
+	if len(c.NetNSContainerAttributionPorts) == 0 {
+		if c.EnableNetNSContainerAttribution {
+			log.Warnf("%s has no valid ports, using the default %v", tunnelPortsKey, defaultNetNSContainerAttributionPorts)
+		}
+		c.NetNSContainerAttributionPorts = slices.Clone(defaultNetNSContainerAttributionPorts)
 	}
 
 	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {
@@ -372,6 +456,28 @@ func New() *Config {
 	}
 
 	return c
+}
+
+func (c *Config) normalizeDarwinConnectionTracerConfig() {
+	c.DarwinConnectionTracerPacketSnaplen = boundedDarwinInt(
+		c.DarwinConnectionTracerPacketSnaplen,
+		darwinPacketSnaplenMin,
+		darwinPacketSnaplenMax,
+		darwinPacketSnaplenDefault,
+	)
+	c.DarwinConnectionTracerPacketBufferSize = boundedDarwinInt(
+		c.DarwinConnectionTracerPacketBufferSize,
+		darwinPacketBufferSizeMin,
+		darwinPacketBufferSizeMax,
+		darwinPacketBufferSizeDefault,
+	)
+}
+
+func boundedDarwinInt(value, minimum, maximum, fallback int) int {
+	if value < minimum || value > maximum {
+		return fallback
+	}
+	return value
 }
 
 // FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled

@@ -1,0 +1,14 @@
+description: tr correctly translates NUL bytes (\x00) to a printable character without truncating or corrupting surrounding bytes.
+setup:
+  files:
+    - path: file.txt
+      content: "a\x00b\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tr '\000' 'X' < file.txt
+expect:
+  stdout: "aXb\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: grep exits 1 when no lines match.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        bar
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep xyz file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

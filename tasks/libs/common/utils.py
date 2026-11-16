@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path, PurePosixPath
-from subprocess import check_output, list2cmdline
+from subprocess import list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -204,18 +204,8 @@ def get_bazel_python_home(rtloader_lib):
     return None
 
 
-def get_embedded_path(ctx):
-    base = os.path.dirname(os.path.abspath(__file__))
-    task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
-    git_repo_root = get_root()
-    gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
-
-    for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
-        test_embedded_path = os.path.join(root_candidate, "dev")
-        if os.path.exists(test_embedded_path):
-            return test_embedded_path
-
-    return None
+def get_embedded_path():
+    return get_repo_root() / "dev"
 
 
 def get_repo_root():
@@ -303,7 +293,7 @@ def get_build_flags(
     headless_mode=False,
     arch: Arch | None = None,
     include_python: bool = False,
-    platform: str | None = None,
+    target_platform: str | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -313,7 +303,7 @@ def get_build_flags(
     """
     if arch is None:
         arch = Arch.from_str(os.getenv("GOARCH") or "local")
-    target_platform = _resolve_target_platform(platform)
+    target_platform = _resolve_target_platform(target_platform)
 
     gcflags = ""
     ldflags = get_version_ldflags(ctx, install_path=install_path)
@@ -328,9 +318,7 @@ def get_build_flags(
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
-        embedded_path = get_embedded_path(ctx)
-        if embedded_path is None:
-            raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+        embedded_path = get_embedded_path()
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
     if not python_home_3:
@@ -471,6 +459,9 @@ def get_build_flags(
             ldflags += "-w "
             # Ignore multiple definition errors
             ldflags += "-extldflags=-Wl,--allow-multiple-definition "
+    # Bazel's Go SDK follows the 64-bit kernel, so pin the armhf image's 32-bit userland, with cgo
+    elif platform.machine() == "aarch64" and platform.architecture()[0] == "32bit":
+        env |= {"CGO_ENABLED": "1", "GOARCH": "arm"}
 
     return ldflags, gcflags, env
 
@@ -511,47 +502,19 @@ def get_version_ldflags(ctx, install_path=None):
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
         elif sys.platform == 'darwin':
-            # Restricted to macOS: this PR only implements macOS Fleet config, and must not
-            # change version-stamping behavior on any other platform, so the fix below is
-            # scoped to darwin rather than applied to the shared branch below.
+            # Fleet Automation health-checks the host against this value. Only the OCI layout,
+            # <root>/datadog-packages/<product>/<version>, carries the version in the install path;
+            # the .dmg is built into a staging directory such as $TMPDIR/datadog-agent-build/bin,
+            # whose last component is not a version, so keep the default there.
             if PurePosixPath(install_path).parent.parent.name == "datadog-packages":
-                # Only the OCI/fleet-managed layout encodes the package version in the install
-                # path, as <root>/datadog-packages/<product>/<version>. Every other layout has
-                # no version to recover there, so taking the last component would stamp a
-                # directory name: a build-time staging directory such as the macOS DMG's
-                # $TMPDIR/datadog-agent-build/bin yields "bin".
-                # Fleet Automation health-checks the host against this value, so a wrong one
-                # makes every config deployment to that host fail before any config is pushed.
                 package_version = PurePosixPath(install_path).name
-            # else: not an OCI-shaped path (e.g. the DMG staging directory above), so leave
-            # package_version at its PACKAGE_VERSION/version default instead of stamping it.
         else:
-            # Pre-existing behavior, unchanged by this PR: stamps the install path's last
-            # component whenever it isn't "datadog-agent", which mis-stamps a product name for
-            # non-agent deb/rpm installs (e.g. /opt/datadog-installer, /opt/datadog-dogstatsd)
-            # instead of leaving package_version at its PACKAGE_VERSION/version default. This
-            # is the same bug the darwin branch above fixes; left alone here because fixing
-            # Linux/Windows version-stamping is out of scope for a macOS-only change.
             install_dir = os.path.basename(install_path)
             if install_dir != "datadog-agent":
                 package_version = install_dir
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
-
-
-def get_go_version():
-    """
-    Get the version of Go used
-    """
-    return check_output(['go', 'version']).decode('utf-8').strip()
-
-
-def get_root():
-    """
-    Get the root of the Go project
-    """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
 
 
 @contextmanager
@@ -632,6 +595,14 @@ def set_gitconfig_in_ci(ctx):
     if running_in_ci():
         set_git_config(ctx, 'user.name', 'github-actions[bot]')
         set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
+
+
+DEFAULT_GITLAB_PROJECT_URL = "https://gitlab.ddbuild.io/DataDog/datadog-agent"
+
+
+def gitlab_project_url() -> str:
+    """URL of the GitLab project running this job, so links also work from mirrors of the repository."""
+    return os.environ.get("CI_PROJECT_URL") or DEFAULT_GITLAB_PROJECT_URL
 
 
 @contextmanager

@@ -534,7 +534,18 @@ func sourceTagSets(srcs []string, pkgDir string, configuredTagSets [][]string, d
 	return includeDefault, coalesceRelatedTagSets(tagSets, expressions, baseTags)
 }
 
+// tagSetsForExpression unions the tag sets each platform assignment requires, since a variant
+// builds for a single platform: in `(linux && bpf) || (windows && npm)`, a set covering the linux
+// branch says nothing about the windows one.
 func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string, deriveTagSets bool) [][]string {
+	var out [][]string
+	for _, platform := range platformAssignments(expr) {
+		out = append(out, tagSetsOn(expr, platform, baseTags, configuredTagSets, deriveTagSets)...)
+	}
+	return mergeTagSets(out)
+}
+
+func tagSetsOn(expr constraint.Expr, platform, baseTags map[string]bool, configuredTagSets [][]string, deriveTagSets bool) [][]string {
 	var matches [][]string
 	configuredTags := make(map[string]bool)
 	for _, tagSet := range configuredTagSets {
@@ -543,7 +554,7 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 			configuredTags[tag] = true
 			tagSetTags[tag] = true
 		}
-		if referencesAnyTag(expr, tagSetTags) && canSatisfy(expr, activeTagSet(baseTags, tagSet)) {
+		if referencesAnyTag(expr, tagSetTags) && satisfiesOn(expr, activeTagSet(baseTags, tagSet), platform) {
 			matches = append(matches, normalizeTagSet(tagSet))
 		}
 	}
@@ -554,9 +565,9 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 		return nil
 	}
 	if referencesAnyTag(expr, configuredTags) {
-		return canonicalizedTagSets(expr, baseTags, configuredTagSets)
+		return canonicalizedTagSets(expr, platform, baseTags, configuredTagSets)
 	}
-	return minimalTagSets(expr, baseTags)
+	return minimalTagSets(expr, platform, baseTags)
 }
 
 // canonicalizedTagSets handles constraints that pair a canonical tag with tags
@@ -570,16 +581,16 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 // A constraint that contradicts the grouping — `kubeapiserver && !kubelet`
 // against {cel, clusterchecks, kubeapiserver, kubelet} — survives
 // no such growth and still yields nothing.
-func canonicalizedTagSets(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
+func canonicalizedTagSets(expr constraint.Expr, platform, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
 	var out [][]string
-	for _, minimal := range minimalTagSets(expr, baseTags) {
+	for _, minimal := range minimalTagSets(expr, platform, baseTags) {
 		candidate := minimal
 		for _, tagSet := range configuredTagSets {
 			if stringSetsIntersect(minimal, tagSet) {
 				candidate = normalizeTagSet(append(append([]string(nil), candidate...), tagSet...))
 			}
 		}
-		if canSatisfy(expr, activeTagSet(baseTags, candidate)) {
+		if satisfiesOn(expr, activeTagSet(baseTags, candidate), platform) {
 			out = append(out, candidate)
 		}
 	}
@@ -601,9 +612,9 @@ func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {
 	}
 }
 
-// minimalTagSets returns every tag set that satisfies this expression and does not
+// minimalTagSets returns every tag set that satisfies this expression on this platform and does not
 // contain a smaller tag set that also satisfies this same expression.
-func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
+func minimalTagSets(expr constraint.Expr, platform, baseTags map[string]bool) [][]string {
 	var referenced []string
 	collectAutoTestTags(expr, make(map[string]bool), &referenced)
 	sort.Strings(referenced)
@@ -613,10 +624,10 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 		collectPositiveAutoTestTags(expr, false, make(map[string]bool), &positive)
 		sort.Strings(positive)
 		active := activeTagSet(baseTags, positive)
-		if canSatisfy(expr, active) {
+		if satisfiesOn(expr, active, platform) {
 			return [][]string{normalizeTagSet(positive)}
 		}
-		if canSatisfy(expr, activeTagSet(baseTags, referenced)) {
+		if satisfiesOn(expr, activeTagSet(baseTags, referenced), platform) {
 			return [][]string{normalizeTagSet(referenced)}
 		}
 		return nil
@@ -635,7 +646,7 @@ func minimalTagSets(expr constraint.Expr, baseTags map[string]bool) [][]string {
 				selected = append(selected, tag)
 			}
 		}
-		if canSatisfy(expr, active) {
+		if satisfiesOn(expr, active, platform) {
 			candidates = append(candidates, normalizeTagSet(selected))
 		}
 	}
@@ -807,30 +818,38 @@ func stringSetsIntersect(left, right []string) bool {
 // In practice constraints reference at most a handful of platform tokens, so
 // enumerating 2^N assignments is fast.
 func canSatisfy(expr constraint.Expr, activeTags map[string]bool) bool {
-	platforms := collectPlatformTokens(expr)
-	if len(platforms) == 0 {
-		return expr.Eval(func(t string) bool {
-			return activeTags[t] || goReleaseTags[t]
-		})
-	}
-	for mask := 0; mask < (1 << len(platforms)); mask++ {
-		assign := make(map[string]bool, len(platforms))
-		for i, t := range platforms {
-			if mask&(1<<i) != 0 {
-				assign[t] = true
-			}
-		}
-		ok := expr.Eval(func(t string) bool {
-			if v, present := assign[t]; present {
-				return v
-			}
-			return activeTags[t] || goReleaseTags[t]
-		})
-		if ok {
+	for _, platform := range platformAssignments(expr) {
+		if satisfiesOn(expr, activeTags, platform) {
 			return true
 		}
 	}
 	return false
+}
+
+// satisfiesOn reports whether expr evaluates to true given active tags and an assignment of the
+// platform tokens it references.
+func satisfiesOn(expr constraint.Expr, activeTags, platform map[string]bool) bool {
+	return expr.Eval(func(t string) bool {
+		if v, present := platform[t]; present {
+			return v
+		}
+		return activeTags[t] || goReleaseTags[t]
+	})
+}
+
+// platformAssignments enumerates the 2^N assignments of true/false to the platform tokens expr
+// references.
+func platformAssignments(expr constraint.Expr) []map[string]bool {
+	platforms := collectPlatformTokens(expr)
+	assignments := make([]map[string]bool, 0, 1<<len(platforms))
+	for mask := 0; mask < (1 << len(platforms)); mask++ {
+		assign := make(map[string]bool, len(platforms))
+		for i, t := range platforms {
+			assign[t] = mask&(1<<i) != 0
+		}
+		assignments = append(assignments, assign)
+	}
+	return assignments
 }
 
 // collectPlatformTokens returns the unique platform/arch tokens referenced by

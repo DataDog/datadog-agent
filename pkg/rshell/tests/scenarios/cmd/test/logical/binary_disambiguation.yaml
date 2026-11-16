@@ -1,0 +1,26 @@
+# POSIX 3-arg disambiguation: -a/-o as binary operators when second of 3 tokens
+description: "test treats -a/-o as binary AND/OR when they are the second of 3 arguments"
+input:
+  script: |+
+    test -f -a -d
+    echo "f-a-d: $?"
+    test -f -o -d
+    echo "f-o-d: $?"
+    test "(" -a ")"
+    echo "paren-a: $?"
+    test "!" -a "!"
+    echo "bang-a-bang: $?"
+    test "" -a "x"
+    echo "empty-a-x: $?"
+    test "" -o "x"
+    echo "empty-o-x: $?"
+expect:
+  stdout: |
+    f-a-d: 0
+    f-o-d: 0
+    paren-a: 0
+    bang-a-bang: 0
+    empty-a-x: 1
+    empty-o-x: 0
+  stderr: ""
+  exit_code: 0

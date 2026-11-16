@@ -8,6 +8,7 @@
 package irgen
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 )
@@ -19,6 +20,7 @@ type config struct {
 	additionalTypes          []string
 	skipRuntimeRecoveryProbe bool
 	redaction                *redaction.Config
+	coordinatedSampling      *ir.CoordinatedSampling
 }
 
 var defaultConfig = config{
@@ -73,6 +75,12 @@ func WithSkipRuntimeRecoveryProbe(skip bool) Option {
 // capture expressions that reference one.
 func WithRedaction(cfg *redaction.Config) Option {
 	return optionFunc(func(c *config) { c.redaction = cfg })
+}
+
+// WithCoordinatedSampling sets the coordinated-sampling rate; nil uses the
+// default.
+func WithCoordinatedSampling(cfg *ir.CoordinatedSampling) Option {
+	return optionFunc(func(c *config) { c.coordinatedSampling = cfg })
 }
 
 type optionFunc func(c *config)

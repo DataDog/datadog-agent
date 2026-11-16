@@ -31,6 +31,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -799,7 +800,15 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"EnableSecurityProfile":                   opts.enableSecurityProfile,
 		"EnableSecurityProfileV2":                 true,
 		"SecurityProfileNodeEvictionTimeout":      opts.securityProfileNodeEvictionTimeout,
+		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
+		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
+		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
+		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
+		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
+		"ProfilingStartupDelay":                   opts.profilingStartupDelay,
+		"ProfileReportingWaitPersistence":         opts.profileReportingWaitPersistence,
+		"EventSamplingOpenRateUnlimited":          opts.eventSamplingOpenRateUnlimited,
 		"ErpcDentryResolutionEnabled":             erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":              mapDentryResolutionEnabled,
 		"LogPatterns":                             logPatterns,
@@ -858,7 +867,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	_, err = spconfig.New(sysprobeConfigName, "")
+	_, err = spconfig.New(sysprobeConfigName, "", &schemanoopimpl.SchemaNoop{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
@@ -885,7 +894,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), &schemanoopimpl.SchemaNoop{})
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

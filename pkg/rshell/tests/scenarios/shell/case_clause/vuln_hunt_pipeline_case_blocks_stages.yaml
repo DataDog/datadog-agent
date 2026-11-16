@@ -1,0 +1,11 @@
+# skip: case statements are intentionally blocked in the restricted shell.
+skip_assert_against_bash: true
+description: A blocked case clause in a pipeline must not start neighboring pipeline stages first.
+input:
+  script: |+
+    echo should-not-run >&2 | case x in x) cat;; esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

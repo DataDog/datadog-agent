@@ -518,7 +518,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationMeasured(exec *core
 	injected, err := ci.injectCWSCommandInstrumentation(exec, name, ns, userInfo, apiClient)
 	totalTime := time.Since(start).Seconds()
 	if totalTime > ci.timeout.Seconds() {
-		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, exec.Container, userInfo.Username, totalTime)
+		var container, username string
+		if exec != nil {
+			container = exec.Container
+		}
+		if userInfo != nil {
+			username = userInfo.Username
+		}
+		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, container, username, totalTime)
 	}
 	metrics.CWSResponseDuration.Observe(totalTime, ci.mode.String(), webhookForCommandsName, "total", strconv.FormatBool(err == nil), strconv.FormatBool(injected))
 	return injected, err
@@ -718,7 +725,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
+	return common.MutationResponse(mutatecommon.Mutate(request.Context, request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {

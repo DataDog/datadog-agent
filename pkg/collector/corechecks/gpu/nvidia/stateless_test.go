@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -883,75 +885,30 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 	}
 }
 
-func TestPCIELinkBytesPerSecond(t *testing.T) {
-	// This table was generated from https://en.wikipedia.org/wiki/PCI_Express#Hardware_protocol_summary:~:text=and%20other%20features.-,Comparison%20table,-%5Bedit%5D
-	tests := map[string]struct {
-		gen      int
-		width    int
-		wantErr  bool
-		expected float64
-	}{
-		// PCIe 1.0 — 2.5 GT/s, 8b/10b
-		"gen1 x1":  {gen: 1, width: 1, expected: 0.25e9},
-		"gen1 x2":  {gen: 1, width: 2, expected: 0.5e9},
-		"gen1 x4":  {gen: 1, width: 4, expected: 1e9},
-		"gen1 x8":  {gen: 1, width: 8, expected: 2e9},
-		"gen1 x16": {gen: 1, width: 16, expected: 4e9},
+// fakeNodeSource stands in for the cluster agent.
+type fakeNodeSource struct{}
 
-		// PCIe 2.0 — 5.0 GT/s, 8b/10b
-		"gen2 x1":  {gen: 2, width: 1, expected: 0.5e9},
-		"gen2 x2":  {gen: 2, width: 2, expected: 1e9},
-		"gen2 x4":  {gen: 2, width: 4, expected: 2e9},
-		"gen2 x8":  {gen: 2, width: 8, expected: 4e9},
-		"gen2 x16": {gen: 2, width: 16, expected: 8e9},
+func (fakeNodeSource) NodeUnschedulable() (nodeunschedulable.Result, error) {
+	return nodeunschedulable.Result{Reasons: []string{}}, nil
+}
+func (fakeNodeSource) Probe() error { return nil }
 
-		// PCIe 3.0 — 8.0 GT/s, 128b/130b
-		"gen3 x1":  {gen: 3, width: 1, expected: 0.985e9},
-		"gen3 x2":  {gen: 3, width: 2, expected: 1.969e9},
-		"gen3 x4":  {gen: 3, width: 4, expected: 3.938e9},
-		"gen3 x8":  {gen: 3, width: 8, expected: 7.877e9},
-		"gen3 x16": {gen: 3, width: 16, expected: 15.754e9},
-
-		// PCIe 4.0 — 16.0 GT/s, 128b/130b
-		"gen4 x1":  {gen: 4, width: 1, expected: 1.969e9},
-		"gen4 x2":  {gen: 4, width: 2, expected: 3.938e9},
-		"gen4 x4":  {gen: 4, width: 4, expected: 7.877e9},
-		"gen4 x8":  {gen: 4, width: 8, expected: 15.754e9},
-		"gen4 x16": {gen: 4, width: 16, expected: 31.508e9},
-
-		// PCIe 5.0 — 32.0 GT/s, 128b/130b
-		"gen5 x1":  {gen: 5, width: 1, expected: 3.938e9},
-		"gen5 x2":  {gen: 5, width: 2, expected: 7.877e9},
-		"gen5 x4":  {gen: 5, width: 4, expected: 15.754e9},
-		"gen5 x8":  {gen: 5, width: 8, expected: 31.508e9},
-		"gen5 x16": {gen: 5, width: 16, expected: 63.015e9},
-
-		// PCIe 6.0 — 64.0 GT/s, PAM4 + 242B/256B FLIT
-		"gen6 x1":  {gen: 6, width: 1, expected: 7.563e9},
-		"gen6 x2":  {gen: 6, width: 2, expected: 15.125e9},
-		"gen6 x4":  {gen: 6, width: 4, expected: 30.25e9},
-		"gen6 x8":  {gen: 6, width: 8, expected: 60.5e9},
-		"gen6 x16": {gen: 6, width: 16, expected: 121e9},
-
-		// Error cases
-		"unknown gen 0":  {gen: 0, width: 16, wantErr: true},
-		"unknown gen 7":  {gen: 7, width: 16, wantErr: true},
-		"negative gen":   {gen: -1, width: 16, wantErr: true},
-		"zero width":     {gen: 4, width: 0, wantErr: true},
-		"negative width": {gen: 4, width: -1, wantErr: true},
+// The reasons API is only dropped when no health source can ever exist and the node state is
+// off; a GPU missing from workloadmeta at startup keeps it, so health appears once known.
+func TestUnavailableReasonsAPISupport(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+	wmeta := testutil.GetWorkloadMetaMock(t) // no GPUs yet
+	supported := func(deps *CollectorDependencies) int {
+		apis := createStatelessAPIs(deps)
+		return len(filterSupportedAPIs(device, []apiCallInfo{findAPICallByName(t, apis, "device_unavailable_reasons")}))
 	}
 
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			actual, err := pcieLinkBytesPerSecond(test.gen, test.width)
-			if test.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.InDelta(t, test.expected, actual, 1e6) // tolerate 1 MB/s drift
-		})
-	}
+	env.SetFeatures(t)
+	require.Zero(t, supported(&CollectorDependencies{Workloadmeta: wmeta}))
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta, NodeUnschedulable: nodeunschedulable.NewCache(fakeNodeSource{}, time.Minute)}))
+
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta}))
 }
 
 func TestPCIELinkMetrics(t *testing.T) {
@@ -1211,6 +1168,81 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
 
 	_, _, err := needsRecoverySample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
+func TestFabricHealthToSamples(t *testing.T) {
+	// HealthMask with every field reported as FALSE (healthy) and configuration NONE.
+	const healthyMask = nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION
+
+	tests := []struct {
+		name     string
+		info     nvml.GpuFabricInfo_v3
+		expected map[string]float64 // metric name and fabric_issue tag -> value
+	}{
+		{
+			// As reported by a GB200 NVL72 GPU on driver R580.
+			name:     "registered and healthy",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.SUCCESS), HealthMask: healthyMask, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY},
+			expected: map[string]float64{"fabric.registered": 1, "fabric.health.unhealthy": 0},
+		},
+		{
+			name:     "registration in progress, no health summary on older drivers",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: uint32(nvml.SUCCESS)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name:     "registration failed",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.ERROR_UNKNOWN)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name: "limited capacity with degraded bandwidth and insufficient NVLinks",
+			info: nvml.GpuFabricInfo_v3{
+				State:  nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status: uint32(nvml.SUCCESS),
+				HealthMask: nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+					nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+				HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+			},
+			expected: map[string]float64{
+				"fabric.registered":                                      1,
+				"fabric.health.unhealthy":                                1,
+				"fabric.health.issue|bandwidth_degraded":                 1,
+				"fabric.health.issue|route_unhealthy":                    1,
+				"fabric.health.issue|misconfigured_insufficient_nvlinks": 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := make(map[string]float64)
+			for _, metric := range requireMetrics(t, fabricHealthToSamples(tt.info)) {
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				parts := []string{metric.Name}
+				for _, tag := range metric.Tags() {
+					parts = append(parts, strings.TrimPrefix(tag, "fabric_issue:"))
+				}
+				got[strings.Join(parts, "|")] = metric.Value
+			}
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFabricHealthSampleUnsupported(t *testing.T) {
+	// The default NVML mock does not expose the versioned fabric API, like GPUs without NVLink fabric.
+	device := setupMockDevice(t)
+
+	_, _, err := fabricHealthSample(device)
 	require.Error(t, err)
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }

@@ -685,6 +685,10 @@ func TestSubscribe(t *testing.T) {
 					// deep-equal just the events later
 					bundle.Ch = nil
 
+					// the Store must timestamp bundles when sending them
+					assert.False(t, bundle.EnqueuedAt.IsZero())
+					bundle.EnqueuedAt = time.Time{}
+
 					actual = append(actual, bundle)
 				}
 
@@ -2019,6 +2023,7 @@ func TestReset(t *testing.T) {
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
 					bundle.Ch = nil
+					bundle.EnqueuedAt = time.Time{}
 
 					actualEventsReceived = append(actualEventsReceived, bundle)
 				}

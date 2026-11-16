@@ -17,12 +17,17 @@ const (
 )
 
 func GetAWSPrincipalAssumeRole(e aws.Environment, serviceName []string) (*iam.GetPolicyDocumentResult, error) {
+	return GetAWSPrincipalAssumeRoleWithActions(e, serviceName, []string{"sts:AssumeRole"})
+}
+
+// GetAWSPrincipalAssumeRoleWithActions builds an assume-role trust policy for the given
+// service principals with a custom set of trust actions. EKS Auto Mode, for example,
+// requires "sts:TagSession" in addition to "sts:AssumeRole" on the cluster service role.
+func GetAWSPrincipalAssumeRoleWithActions(e aws.Environment, serviceName []string, actions []string) (*iam.GetPolicyDocumentResult, error) {
 	return iam.GetPolicyDocument(e.Ctx(), &iam.GetPolicyDocumentArgs{
 		Statements: []iam.GetPolicyDocumentStatement{
 			{
-				Actions: []string{
-					"sts:AssumeRole",
-				},
+				Actions: actions,
 				Principals: []iam.GetPolicyDocumentStatementPrincipal{
 					{
 						Type:        "Service",

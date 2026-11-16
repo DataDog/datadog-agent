@@ -1,0 +1,13 @@
+description: sort -r reverses the sort order.
+setup:
+  files:
+    - path: file.txt
+      content: "banana\napple\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -r file.txt
+expect:
+  stdout: "cherry\nbanana\napple\n"
+  stderr: ""
+  exit_code: 0

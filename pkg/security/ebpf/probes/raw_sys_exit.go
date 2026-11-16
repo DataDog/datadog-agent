@@ -18,6 +18,13 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.ExecEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_exec_exit"),
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileChmodEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("handle_sys_chmod_exit"),
@@ -252,6 +259,13 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			Key:           uint32(model.UnshareEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tailCallTracepointFnc("handle_sys_unshare_exit"),
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetNSEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_setns_exit"),
 			},
 		},
 	}

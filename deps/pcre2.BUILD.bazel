@@ -101,6 +101,7 @@ cc_library(
     hdrs = [
         ":pcre2_h_generic",
     ],
+    copts = ["-O2"],
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
@@ -133,6 +134,7 @@ cc_library(
     hdrs = [
         "src/pcre2posix.h",
     ],
+    copts = ["-O2"],
     includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
@@ -254,9 +256,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "pcre2-8_pkg",
+    data = [":headers"],
     dest_dir = "embedded/lib",
     input = ":pcre2-8",
-    installed_files = [":headers"],
     version = "0.16.1",
     visibility = ["//visibility:public"],
 )

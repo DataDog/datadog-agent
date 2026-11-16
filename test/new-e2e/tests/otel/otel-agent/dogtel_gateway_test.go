@@ -116,6 +116,8 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(dogtelGatewayHelmValues),

@@ -1,0 +1,9 @@
+description: Printf outputs a literal percent sign with %%.
+input:
+  script: |+
+    printf "100%%\n"
+expect:
+  stdout: |+
+    100%
+  stderr: ""
+  exit_code: 0

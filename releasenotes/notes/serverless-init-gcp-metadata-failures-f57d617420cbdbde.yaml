@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    serverless-init no longer reports ``unknown`` for GCP metadata values it
+    could not retrieve. Failed lookups, non-``200`` responses, and timed-out
+    requests now omit the corresponding tags.
+  - |
+    The ``gcr.resource_name``, ``gcrfx.resource_name``, and
+    ``gcrj.resource_name`` tags are omitted when a required component
+    (project, region, service, job, or function target) is unavailable,
+    instead of being reported with empty path segments.

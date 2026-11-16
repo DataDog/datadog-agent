@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -423,10 +424,9 @@ func TestGateway_Added_FilterCreationError(t *testing.T) {
 
 // TestGateway_Deleted_CleanupMode tests that cleanupPattern can delete the EnvoyFilter
 // even when multiple native gateways are still present in the cluster.
-// cleanupPattern calls Deleted on live (not yet deleted) resources, so each call sees
-// the others still present. The fix detects this case via a Get of the "deleted" object.
+// cleanupPattern calls Deleted on live (not yet deleted) resources with a cleanup context.
 func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
-	ctx := context.Background()
+	ctx := appsecconfig.WithCleanup(context.Background())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -450,16 +450,6 @@ func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
 
 	pattern := newTestNativeGatewayPattern(client, logger, config)
 
-	// Simulate cleanupPattern: call Deleted for gwA while both gateways still exist
-	// Get(gwA) will return found (not NotFound), so we're in cleanup mode → skip coordination
-	client.PrependReactor("get", "gateways", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		getAction := action.(k8stesting.GetAction)
-		if getAction.GetName() == "gateway-a" {
-			return true, gwA, nil // Still in cluster (cleanup mode)
-		}
-		return false, nil, nil
-	})
-
 	deletedResources := []string{}
 	client.PrependReactor("delete", "*", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		deleteAction := action.(k8stesting.DeleteAction)
@@ -474,49 +464,55 @@ func TestGateway_Deleted_CleanupMode_MultipleGateways(t *testing.T) {
 		"EnvoyFilter should be deleted in cleanup mode even when other gateways still exist")
 }
 
-// TestGateway_Deleted_APIErrorInContextDetection verifies that a transient API error during
-// cleanup-mode detection causes Deleted() to return an error rather than silently entering
-// cleanup mode and prematurely deleting the shared EnvoyFilter.
-func TestGateway_Deleted_APIErrorInContextDetection(t *testing.T) {
-	ctx := context.Background()
-	logger := logmock.New(t)
-	scheme := runtime.NewScheme()
+// TestGateway_Deleted_OptOut verifies the delete event received when a Gateway is labelled
+// appsec.datadoghq.com/enabled=false (it stops matching the informer label selector but still
+// exists): the shared EnvoyFilter is kept while another Gateway still needs it, and removed
+// when only opted-out Gateways remain.
+func TestGateway_Deleted_OptOut(t *testing.T) {
+	optedOut := map[string]string{"appsec.datadoghq.com/enabled": "false"}
+	for _, tc := range []struct {
+		name         string
+		otherLabels  map[string]string
+		withOther    bool
+		filterRemain bool
+	}{
+		{name: "only gateway", filterRemain: false},
+		{name: "other gateway enabled", withOther: true, filterRemain: true},
+		{name: "other gateway opted out", withOther: true, otherLabels: optedOut, filterRemain: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			logger := logmock.New(t)
+			scheme := runtime.NewScheme()
+			client := newFakeDynamicClient(scheme, newTestEnvoyFilter("istio-system"))
 
-	existingFilter := newTestEnvoyFilter("istio-system")
-	client := newFakeDynamicClient(scheme, existingFilter)
+			gwA := newTestIstioGateway("gateway-a", "team-a", map[string]any{"istio": "ingressgateway"})
+			gwA.SetLabels(optedOut)
+			// gateway-a stays in the cluster, as after an opt-out
+			require.NoError(t, client.Tracker().Create(istioGatewayGVR, gwA, gwA.GetNamespace()))
+			if tc.withOther {
+				gwB := newTestIstioGateway("gateway-b", "team-b", map[string]any{"istio": "ingressgateway"})
+				gwB.SetLabels(tc.otherLabels)
+				require.NoError(t, client.Tracker().Create(istioGatewayGVR, gwB, gwB.GetNamespace()))
+			}
 
-	config := appsecconfig.Config{
-		Product: appsecconfig.Product{
-			Processor: appsecconfig.Processor{
-				ServiceName: "appsec-processor",
-				Namespace:   "datadog",
-				Port:        8080,
-			},
-		},
-		Injection: appsecconfig.Injection{
-			IstioNamespace: "istio-system",
-		},
+			config := appsecconfig.Config{
+				Injection: appsecconfig.Injection{
+					IstioNamespace: "istio-system",
+				},
+			}
+			pattern := newTestNativeGatewayPattern(client, logger, config)
+
+			require.NoError(t, pattern.Deleted(ctx, gwA))
+
+			_, err := client.Resource(filterGVR).Namespace("istio-system").Get(ctx, envoyFilterName, metav1.GetOptions{})
+			if tc.filterRemain {
+				require.NoError(t, err, "EnvoyFilter must be kept while an enabled Gateway remains")
+			} else {
+				assert.True(t, k8serrors.IsNotFound(err), "EnvoyFilter must be deleted when only opted-out Gateways remain")
+			}
+		})
 	}
-
-	pattern := newTestNativeGatewayPattern(client, logger, config)
-	gw := newTestIstioGateway("test-gateway", "default", map[string]any{"app": "istio-gateway"})
-
-	// Simulate a transient API error on the context-detection Get call
-	client.PrependReactor("get", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.New("connection reset by peer")
-	})
-
-	deleteCalled := false
-	client.PrependReactor("delete", "*", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		deleteCalled = true
-		return false, nil, nil
-	})
-
-	err := pattern.Deleted(ctx, gw)
-
-	require.Error(t, err, "Should return error when context detection API call fails")
-	assert.Contains(t, err.Error(), "could not determine calling context")
-	assert.False(t, deleteCalled, "Should NOT delete EnvoyFilter when context cannot be determined")
 }
 
 // TestGateway_Deleted_WatchEvent_OtherGatewayExists tests that watch events still respect
@@ -547,11 +543,7 @@ func TestGateway_Deleted_WatchEvent_OtherGatewayExists(t *testing.T) {
 	pattern := newTestNativeGatewayPattern(client, logger, config)
 	gwA := newTestIstioGateway("gateway-a", "default", map[string]any{"app": "gw"})
 
-	// Simulate watch event: Get(gateway-a) returns NotFound (was actually deleted)
-	// List(gateways) returns [gateway-b] (still present)
-	client.PrependReactor("get", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, k8serrors.NewNotFound(schema.GroupResource{Group: "networking.istio.io", Resource: "gateways"}, "gateway-a")
-	})
+	// Watch event: gateway-a was deleted, List(gateways) returns [gateway-b] (still present)
 	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, &unstructured.UnstructuredList{
 			Items: []unstructured.Unstructured{*gwB},

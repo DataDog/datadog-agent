@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logrotate",
+    srcs = ["logrotate.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/logrotate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/internal/flagparser",
+        "//pkg/rshell/builtins/internal/sizeparse",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

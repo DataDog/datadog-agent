@@ -8,7 +8,11 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,4 +99,68 @@ func TestDropCapabilities(t *testing.T) {
 				"permitted before the drop: %#x", before.prm)
 		})
 	}
+}
+
+// churn keeps 4*GOMAXPROCS goroutines yielding until stop is called, so that
+// the runtime moves an unlocked goroutine between threads.
+func churn() (stop func()) {
+	done := make(chan struct{})
+	for range 4 * runtime.GOMAXPROCS(0) {
+		go func() {
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					runtime.Gosched()
+				}
+			}
+		}()
+	}
+	return func() { close(done) }
+}
+
+// noNewPrivs reports the no_new_privs flag of the calling thread.
+func noNewPrivs() (bool, error) {
+	b, err := os.ReadFile("/proc/thread-self/status")
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(b), "\nNoNewPrivs:\t1\n"), nil
+}
+
+// TestExecWithDroppedCapabilitiesLocksThread checks that the capability drop,
+// PR_SET_NO_NEW_PRIVS and the exec happen on one thread. After an exec that
+// fails, the goroutine stays on the thread whose capabilities it dropped,
+// however busy the runtime. The goroutine exits locked, so the runtime
+// discards the thread and the test keeps its capabilities.
+func TestExecWithDroppedCapabilitiesLocksThread(t *testing.T) {
+	stop := churn()
+	defer stop()
+	missing := filepath.Join(t.TempDir(), "oscap-io")
+	var execErr, err error
+	var tids []int
+	var after capSets
+	var nnp bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		execErr = execWithDroppedCapabilities(missing, nil)
+		for range 1000 {
+			tids = append(tids, unix.Gettid())
+			runtime.Gosched()
+		}
+		if after, err = threadCaps(); err != nil {
+			return
+		}
+		nnp, err = noNewPrivs()
+	}()
+	<-done
+	require.Error(t, execErr)
+	require.NoError(t, err)
+	assert.Len(t, slices.Compact(tids), 1, "threads of the goroutine after the exec: %v", slices.Compact(tids))
+	assert.True(t, nnp, "no_new_privs of the thread")
+	const keep = 1<<unix.CAP_DAC_OVERRIDE | 1<<unix.CAP_NET_ADMIN |
+		1<<unix.CAP_NET_RAW | 1<<unix.CAP_SYS_CHROOT
+	assert.Zero(t, after.eff&^keep, "effective set of the thread: %#x", after.eff)
 }

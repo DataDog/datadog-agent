@@ -1,0 +1,13 @@
+description: Substitution with empty replacement string deletes the match.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\nfoo bar baz\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/world//' input.txt
+expect:
+  stdout: "hello \nfoo bar baz\n"
+  stderr: ""
+  exit_code: 0

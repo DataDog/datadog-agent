@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: typeset (DeclClause sibling of declare/readonly) is not supported.
+input:
+  script: |+
+    typeset -r X=5
+expect:
+  stdout: ""
+  stderr: |+
+    typeset is not supported
+  exit_code: 2

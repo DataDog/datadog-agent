@@ -108,6 +108,9 @@ type collector struct {
 	// inconsistencies like trying to set an SBOM for an image that is being
 	// deleted.
 	handleImagesMut sync.Mutex
+	// imageSBOMs maps an image ID to the SBOM last published for the image, so
+	// that an image event republishes the image with it.
+	imageSBOMs map[string]*workloadmeta.CompressedSBOM
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
@@ -125,6 +128,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			catalog:                workloadmeta.NodeAgent,
 			contToExitInfo:         make(map[string]*exitInfo),
 			knownImages:            newKnownImages(),
+			imageSBOMs:             make(map[string]*workloadmeta.CompressedSBOM),
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},

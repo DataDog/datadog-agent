@@ -14,7 +14,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -36,7 +35,7 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 	}
 
 	// Exec system-probe-lite if only the discovery module is enabled
-	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
+	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(sysconfigtypes.DiscoveryModule)
 }
 
 // maybeSPLite checks if system-probe should exec into system-probe-lite,

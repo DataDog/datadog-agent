@@ -337,7 +337,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *
 		tlmAdaptiveSamplerKept.Inc(sourceTag)
 		return msg
 	}
-	if s.config.ProtectImportantLogs && isImportant(raw) {
+	if s.config.ProtectImportantLogs && IsImportant(raw) {
 		tlmAdaptiveSamplerKept.Inc(sourceTag)
 		tlmAdaptiveSamplerProtected.Inc(sourceTag)
 		return msg

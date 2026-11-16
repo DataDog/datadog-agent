@@ -17,6 +17,8 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	"github.com/DataDog/datadog-agent/pkg/util/log/observer"
+	"github.com/DataDog/datadog-agent/pkg/util/log/scrub"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -176,6 +178,8 @@ func buildSlogLogger(
 	}
 
 	var handlerList []stdslog.Handler
+	handlerList = append(handlerList, observer.NewHandler())
+
 	if len(writers) > 0 {
 		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
 	}
@@ -190,7 +194,7 @@ func buildSlogLogger(
 	}
 
 	multiHandler := handlers.NewMulti(handlerList...)
-	asyncHandler := handlers.NewAsync(multiHandler)
+	asyncHandler := handlers.NewAsync(scrub.NewHandler(multiHandler))
 
 	// errortracking branch is a sibling of asyncHandler under the
 	// global level filter. The Handler atomic-loads the current Submitter

@@ -1,0 +1,16 @@
+description: Repeated .. segments attempting deep traversal are blocked.
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/../../../etc/passwd
+expect:
+  stdout: ""
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

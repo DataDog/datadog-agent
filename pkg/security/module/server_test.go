@@ -361,3 +361,23 @@ func TestExtTagsCbNoRetryWhenNotRetryable(t *testing.T) {
 		t.Fatalf("expected skippedRetryCount=0 (not retryable, not a skipped retry), got %d", v)
 	}
 }
+
+// TestNewSecurityEventMessageCarriesHostname guards the hostname on every event message, custom
+// events included: a relay receiving them over the remote event server stamps its own hostname on
+// messages that have none, so an empty one would attribute this host's events to the relay.
+func TestNewSecurityEventMessageCarriesHostname(t *testing.T) {
+	server := &APIServer{hostname: "guest-host"}
+	timestamp := time.Unix(1700000000, 0)
+
+	msg := server.newSecurityEventMessage("ruleset_loaded", []byte(`{}`), "my-service", []string{"tag:value"}, timestamp)
+
+	if msg.Hostname != "guest-host" {
+		t.Fatalf("expected hostname %q, got %q", "guest-host", msg.Hostname)
+	}
+	if msg.RuleID != "ruleset_loaded" || msg.Service != "my-service" || !slices.Equal(msg.Tags, []string{"tag:value"}) {
+		t.Fatalf("unexpected message fields: %+v", msg)
+	}
+	if !msg.Timestamp.AsTime().Equal(timestamp) {
+		t.Fatalf("expected timestamp %v, got %v", timestamp, msg.Timestamp.AsTime())
+	}
+}

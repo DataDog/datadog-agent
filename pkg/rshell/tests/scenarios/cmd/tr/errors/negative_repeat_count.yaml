@@ -1,0 +1,8 @@
+description: tr rejects negative repeat counts in string2.
+input:
+  script: |+
+    tr a '[b*-1]'
+expect:
+  stdout: ""
+  stderr: "tr: invalid repeat count '-1' in [c*n] construct\n"
+  exit_code: 1

@@ -1,0 +1,7 @@
+--- a/go.env
++++ b/go.env
+@@ -12,3 +12,3 @@
+ # See https://github.com/microsoft/go/blob/microsoft/main/eng/doc/Telemetry.md.
+-MS_GOTOOLCHAIN_TELEMETRY_ENABLED=1
++MS_GOTOOLCHAIN_TELEMETRY_ENABLED=0
+ 

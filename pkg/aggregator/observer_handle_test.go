@@ -41,6 +41,7 @@ type recordingHandle struct {
 type recordedCall struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	tags       []string
 	host       string
 	timestamp  int64
@@ -59,6 +60,7 @@ func (h *recordingHandle) observeMetric(v observer.MetricView, contextKey uint64
 	h.calls = append(h.calls, recordedCall{
 		name:       v.GetName(),
 		value:      v.GetValue(),
+		metricType: v.GetMetricType(),
 		tags:       tagsCopy,
 		host:       v.GetHost(),
 		timestamp:  v.GetTimestampUnix(),
@@ -82,8 +84,6 @@ type recordingComponent struct {
 func (c *recordingComponent) GetHandle(_ string) observer.Handle {
 	return c.handle
 }
-
-func (c *recordingComponent) RecordSamplerDropped(_, _ string) {}
 
 func (c *recordingComponent) DumpMetrics(_ string) error {
 	return nil
@@ -120,6 +120,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	require.Len(t, handle.calls, 2)
 	assert.Equal(t, "metric.a", handle.calls[0].name)
 	assert.Equal(t, 1.0, handle.calls[0].value)
+	assert.Equal(t, metrics.GaugeType, handle.calls[0].metricType)
 	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
@@ -127,6 +128,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 
 	assert.Equal(t, "metric.b", handle.calls[1].name)
 	assert.Equal(t, 2.5, handle.calls[1].value)
+	assert.Equal(t, metrics.CountType, handle.calls[1].metricType)
 	assertObservedContextKey(t, handle.calls[1])
 }
 
@@ -151,6 +153,7 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
+	assert.Equal(t, metrics.CounterType, handle.calls[0].metricType)
 	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
 	assertObservedContextKey(t, handle.calls[0])
 }
@@ -177,7 +180,7 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 			name: "check sampler",
 			observe: func(t *testing.T, tagger tagger.Component, sample *metrics.MetricSample, matcher filterlistdef.TagMatcher) recordedCall {
 				t.Helper()
-				sampler := newCheckSampler(10, false, false, 0, false, tags.NewStore(false, "test"), "test-check", tagger)
+				sampler := newCheckSampler(10, false, false, 0, false, true, tags.NewStore(false, "test"), "test-check", tagger)
 				handle := &recordingHandle{}
 				sampler.SetObserverHandle(handle)
 				sampler.addSample(sample, matcher)
@@ -349,7 +352,7 @@ func TestSetObserverReportingEventsGateOn(t *testing.T) {
 // sample fed to CheckSampler.addSample when an observerHandle is wired.
 func TestCheckSamplerObserverHandle(t *testing.T) {
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
 
@@ -379,7 +382,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	handle := &recordingHandle{}
 	cs.SetObserverHandle(handle)
 
@@ -404,7 +407,7 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
 func TestCheckSamplerObserverHandleNil(t *testing.T) {
 	store := tags.NewStore(false, "test")
-	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	cs := newCheckSampler(10, false, false, 0, false, true, store, "test-check", nooptagger.NewComponent())
 	// observerHandle is nil by default
 
 	matcher := filterlist.NewNoopTagMatcher()

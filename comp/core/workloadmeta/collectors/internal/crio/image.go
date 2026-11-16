@@ -93,15 +93,20 @@ func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, n
 	}
 }
 
-// generateUnsetImageEvent generates an unset CollectorEvent for a removed or deleted image.
-func generateUnsetImageEvent(seenID workloadmeta.EntityID) *workloadmeta.CollectorEvent {
-	return &workloadmeta.CollectorEvent{
-		Type:   workloadmeta.EventTypeUnset,
-		Source: workloadmeta.SourceRuntime,
-		Entity: &workloadmeta.ContainerImageMetadata{
-			EntityID: seenID,
-		},
+// generateUnsetImageEvents generates the unset CollectorEvents for a removed or
+// deleted image, under the runtime source and the trivy source of its SBOM.
+func generateUnsetImageEvents(seenID workloadmeta.EntityID) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, 2)
+	for _, source := range []workloadmeta.Source{workloadmeta.SourceRuntime, workloadmeta.SourceTrivy} {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: source,
+			Entity: &workloadmeta.ContainerImageMetadata{
+				EntityID: seenID,
+			},
+		})
 	}
+	return events
 }
 
 // normalizeImageID returns the OCI config digest in sha256: form. CRI-O's image

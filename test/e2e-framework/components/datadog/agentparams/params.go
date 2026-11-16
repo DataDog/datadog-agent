@@ -292,6 +292,7 @@ logs_config.logs_no_ssl: true
 logs_config.force_use_http: true
 process_config.process_dd_url: %[3]s://%[1]s:%[2]d
 apm_config.apm_dd_url: %[3]s://%[1]s:%[2]d
+health_platform.forwarder.dd_url: %[3]s://%[1]s:%[2]d
 database_monitoring.metrics.logs_dd_url: %[1]s:%[2]d
 database_monitoring.metrics.logs_no_ssl: true
 database_monitoring.activity.logs_dd_url: %[1]s:%[2]d
@@ -334,6 +335,8 @@ agent_telemetry.use_compression: false
 compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
 compliance_config.endpoints.logs_no_ssl: true
 compliance_config.endpoints.force_use_http: true
+runtime_security_config.endpoints.logs_dd_url: %[1]s:%[2]d
+runtime_security_config.endpoints.logs_no_ssl: true
 `, hostname, port, scheme)
 		// Set (not append) the shared primary-endpoint slot so a later WithSite
 		// clears this dd_url override and vice-versa.

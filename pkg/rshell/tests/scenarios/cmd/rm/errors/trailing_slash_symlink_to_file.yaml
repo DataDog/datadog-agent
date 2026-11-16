@@ -1,0 +1,17 @@
+description: rm LINK/ where LINK is a symlink to a regular file fails with "Not a directory" instead of removing LINK.
+setup:
+  files:
+    - path: target.txt
+      content: "keep me\n"
+    - path: link.txt
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm link.txt/
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'link.txt/': Not a directory
+  exit_code: 1

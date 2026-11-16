@@ -1975,6 +1975,105 @@ excluded_interface_re: "veth.*"
 	}
 }
 
+func TestIfaceSysMetricsSkipNonInterfaceEntries(t *testing.T) {
+	net := &fakeNetworkStats{}
+	networkCheck := createTestNetworkCheck(net)
+
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "provider")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	mockEthtool := new(MockEthtool)
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	// Mirror the real sysfs layout: each entry under /sys/class/net is a symlink to the
+	// device directory, and the bonding driver adds a regular file named bonding_masters.
+	// MemMapFs cannot represent symlinks, so use a real directory.
+	root := t.TempDir()
+	classNet := filepath.Join(root, "sys", "class", "net")
+	assert.NoError(t, os.MkdirAll(classNet, 0o755))
+	for _, iface := range []string{"eth0", "bond0"} {
+		devDir := filepath.Join(root, "sys", "devices", "virtual", "net", iface)
+		for _, queue := range []string{"tx-0", "rx-0"} {
+			assert.NoError(t, os.MkdirAll(filepath.Join(devDir, "queues", queue), 0o755))
+		}
+		for file, value := range map[string]string{"mtu": "1500", "tx_queue_len": "1000", "carrier": "1"} {
+			assert.NoError(t, os.WriteFile(filepath.Join(devDir, file), []byte(value), 0o644))
+		}
+		assert.NoError(t, os.Symlink(filepath.Join("..", "..", "devices", "virtual", "net", iface), filepath.Join(classNet, iface)))
+	}
+	assert.NoError(t, os.WriteFile(filepath.Join(classNet, "bonding_masters"), []byte("bond0\n"), 0o644))
+
+	// root is removed when the test ends, so don't leave it as the filesystem of later tests.
+	prevFilesystem := filesystem
+	t.Cleanup(func() { filesystem = prevFilesystem })
+	filesystem = afero.NewBasePathFs(afero.NewOsFs(), root)
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	ifaceSysMetrics := []string{"mtu", "tx_queue_len", "up", "num_tx_queues", "num_rx_queues"}
+	for _, metric := range ifaceSysMetrics {
+		mockSender.AssertCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:eth0"})
+		mockSender.AssertCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:bond0"})
+		mockSender.AssertNotCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:bonding_masters"})
+	}
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth0"})
+}
+
+func TestIfaceSysMetricsSkipUnreadableFiles(t *testing.T) {
+	net := &fakeNetworkStats{}
+	networkCheck := createTestNetworkCheck(net)
+
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "provider")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	mockEthtool := new(MockEthtool)
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	// A missing file simulates a read error, such as carrier on a down interface.
+	for iface, files := range map[string]map[string]string{
+		"eth0":           {"mtu": "1500", "tx_queue_len": "1000", "carrier": "1"},
+		"eth_no_carrier": {"mtu": "1500", "tx_queue_len": "1000"},
+		"eth_no_mtu":     {"tx_queue_len": "1000", "carrier": "1"},
+	} {
+		for file, value := range files {
+			err = afero.WriteFile(fs, "/sys/class/net/"+iface+"/"+file, []byte(value), 0644)
+			assert.Nil(t, err)
+		}
+	}
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth0"})
+
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.up", mock.Anything, "", []string{"iface:eth_no_carrier"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.mtu", float64(1500), "", []string{"iface:eth_no_carrier"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.tx_queue_len", float64(1000), "", []string{"iface:eth_no_carrier"})
+
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.iface.mtu", mock.Anything, "", []string{"iface:eth_no_mtu"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.up", float64(1), "", []string{"iface:eth_no_mtu"})
+	mockSender.AssertCalled(t, "Gauge", "system.net.iface.tx_queue_len", float64(1000), "", []string{"iface:eth_no_mtu"})
+}
+
 func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool := new(MockEthtool)
 

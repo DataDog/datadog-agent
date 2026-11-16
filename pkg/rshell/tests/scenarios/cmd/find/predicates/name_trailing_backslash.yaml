@@ -1,0 +1,13 @@
+description: dangling trailing backslash in -name glob is non-matching per GNU fnmatch.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "y"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '\'
+expect:
+  stdout: ""
+  exit_code: 0

@@ -9,41 +9,41 @@ import (
 )
 
 func TestCgoAlignment_CudaEventHeader(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaEventHeader](t)
+	ebpftest.AssertCgoAlignment[CudaEventHeader](t)
 }
 
 func TestCgoAlignment_CudaKernelLaunch(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaKernelLaunch](t)
+	ebpftest.AssertCgoAlignment[CudaKernelLaunch](t)
 }
 
 func TestCgoAlignment_Dim3(t *testing.T) {
-	ebpftest.TestCgoAlignment[Dim3](t)
+	ebpftest.AssertCgoAlignment[Dim3](t)
 }
 
 func TestCgoAlignment_CudaSync(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaSync](t)
+	ebpftest.AssertCgoAlignment[CudaSync](t)
 }
 
 func TestCgoAlignment_CudaMemEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaMemEvent](t)
+	ebpftest.AssertCgoAlignment[CudaMemEvent](t)
 }
 
 func TestCgoAlignment_CudaSetDeviceEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaSetDeviceEvent](t)
+	ebpftest.AssertCgoAlignment[CudaSetDeviceEvent](t)
 }
 
 func TestCgoAlignment_CudaSyncDeviceEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaSyncDeviceEvent](t)
+	ebpftest.AssertCgoAlignment[CudaSyncDeviceEvent](t)
 }
 
 func TestCgoAlignment_CudaVisibleDevicesSetEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaVisibleDevicesSetEvent](t)
+	ebpftest.AssertCgoAlignment[CudaVisibleDevicesSetEvent](t)
 }
 
 func TestCgoAlignment_CudaEventKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaEventKey](t)
+	ebpftest.AssertCgoAlignment[CudaEventKey](t)
 }
 
 func TestCgoAlignment_CudaEventValue(t *testing.T) {
-	ebpftest.TestCgoAlignment[CudaEventValue](t)
+	ebpftest.AssertCgoAlignment[CudaEventValue](t)
 }

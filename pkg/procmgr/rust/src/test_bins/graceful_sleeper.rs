@@ -51,12 +51,12 @@ fn main() {
         },
         _ => std::process::exit(2),
     }
-    ensure_console();
     unsafe {
         if SetConsoleCtrlHandler(Some(on_console_ctrl), 1) == 0 {
             std::process::exit(2);
         }
     }
+    ensure_console();
     while !STOP.load(Ordering::Acquire) {
         thread::sleep(Duration::from_millis(10));
     }

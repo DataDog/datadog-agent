@@ -40,6 +40,7 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_bpf_linux_test.go",
+        "config_darwin_test.go",
         "config_linux_test.go",
         "config_test.go",
         "usm_config_linux_test.go",
@@ -50,6 +51,7 @@ dd_agent_go_test(
     tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
@@ -60,7 +62,16 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
             "@com_github_vishvananda_netns//:netns",
         ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
@@ -72,6 +83,7 @@ dd_agent_go_test(
             "@com_github_vishvananda_netns//:netns",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/system-probe/config",
             "@com_github_stretchr_testify//assert",

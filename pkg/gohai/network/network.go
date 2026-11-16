@@ -7,9 +7,11 @@
 package network
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
@@ -60,6 +62,12 @@ func defaultGetInterfaces() ([]networkInterface, error) {
 // getInterfaces can be replaced in tests for mocking.
 var getInterfaces interfacesProvider = defaultGetInterfaces
 
+// reportMacWithoutAddress reports the MAC of up interfaces without an IP address, such as an
+// unplugged Ethernet adapter on macOS. Windows reports an unplugged adapter as down, so it is
+// skipped before this applies. It is off on other platforms, where container hosts have many
+// address-less veth interfaces.
+var reportMacWithoutAddress = runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+
 // Interface holds information about a specific interface
 type Interface struct {
 	// Name is the name of the interface
@@ -106,31 +114,45 @@ func CollectInfo() (*Info, error) {
 	return info, nil
 }
 
+func (iface Interface) toJSON() (map[string]interface{}, []string) {
+	ifaceJSON := map[string]interface{}{
+		"name": iface.Name,
+		"ipv4": iface.IPv4,
+		"ipv6": iface.IPv6,
+	}
+	warnings := []string{}
+
+	values := map[string]utils.Value[string]{
+		"ipv4-network": iface.IPv4Network,
+		"ipv6-network": iface.IPv6Network,
+		"macaddress":   iface.MacAddress,
+	}
+	for key, value := range values {
+		if val, err := value.Value(); err == nil {
+			ifaceJSON[key] = val
+		} else if !errors.Is(err, ErrAddressNotFound) {
+			warnings = append(warnings, fmt.Sprintf("%s: %s: %v", iface.Name, key, err))
+		}
+	}
+
+	return ifaceJSON, warnings
+}
+
+// MarshalJSON encodes the interface the same way as AsJSON, omitting fields which contain an error.
+// utils.Value has no exported fields, so the default encoding would emit every value as {}.
+func (iface Interface) MarshalJSON() ([]byte, error) {
+	ifaceJSON, _ := iface.toJSON()
+	return json.Marshal(ifaceJSON)
+}
+
 func ifacesToJSON(ifaces []Interface) (interface{}, []string) {
 	ret := make([]interface{}, len(ifaces))
 	warnings := []string{}
 
 	for idx, iface := range ifaces {
-		ifaceJSON := map[string]interface{}{
-			"name": iface.Name,
-			"ipv4": iface.IPv4,
-			"ipv6": iface.IPv6,
-		}
-
-		values := map[string]utils.Value[string]{
-			"ipv4-network": iface.IPv4Network,
-			"ipv6-network": iface.IPv6Network,
-			"macaddress":   iface.MacAddress,
-		}
-		for key, value := range values {
-			if val, err := value.Value(); err == nil {
-				ifaceJSON[key] = val
-			} else if !errors.Is(err, ErrAddressNotFound) {
-				warnings = append(warnings, fmt.Sprintf("%s: %s: %v", iface.Name, key, err))
-			}
-		}
-
+		ifaceJSON, ifaceWarnings := iface.toJSON()
 		ret[idx] = ifaceJSON
+		warnings = append(warnings, ifaceWarnings...)
 	}
 
 	return ret, warnings
@@ -178,11 +200,13 @@ func getMultiNetworkInfo(ifaces []networkInterface) []Interface {
 			// skip this interface but try the next
 			continue
 		}
+		hasAddress := false
 		for _, addr := range addrs {
 			ip, network, _ := net.ParseCIDR(addr.String())
 			if ip == nil || ip.IsLoopback() {
 				continue
 			}
+			hasAddress = true
 			if ip.To4() == nil {
 				_iface.IPv6 = append(_iface.IPv6, ip.String())
 				_iface.IPv6Network = utils.NewValue(network.String())
@@ -190,9 +214,9 @@ func getMultiNetworkInfo(ifaces []networkInterface) []Interface {
 				_iface.IPv4 = append(_iface.IPv4, ip.String())
 				_iface.IPv4Network = utils.NewValue(network.String())
 			}
-			if len(iface.GetHardwareAddr().String()) > 0 {
-				_iface.MacAddress = utils.NewValue(iface.GetHardwareAddr().String())
-			}
+		}
+		if hwAddr := iface.GetHardwareAddr().String(); hwAddr != "" && (hasAddress || reportMacWithoutAddress) {
+			_iface.MacAddress = utils.NewValue(hwAddr)
 		}
 		multiNetworkInfo = append(multiNetworkInfo, _iface)
 	}

@@ -1,0 +1,11 @@
+# When both -4 and -6 are specified, neither filter applies (all families shown).
+# Uses no dev filter so it works cross-platform (lo on Linux, lo0 on macOS).
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip -4 -6 addr show cancels both filters and shows all address families"
+input:
+  script: |+
+    ip -4 -6 addr show
+expect:
+  stdout_contains: ["inet "]
+  exit_code: 0
+skip_assert_against_bash: true

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
@@ -31,7 +32,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
-	for _, batchColumnOids := range batches {
+	for i, batchColumnOids := range batches {
 		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
 		if err != nil {
 			var fetchErr *fetchError
@@ -42,7 +43,11 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 				}
 			}
 
-			return nil, fmt.Errorf("failed to fetch column oids: %s", err.Error())
+			return nil, &columnBatchError{
+				fetchedValues: retValues,
+				unfetchedOIDs: slices.Concat(batches[i:]...),
+				err:           fmt.Errorf("failed to fetch column oids: %s", err.Error()),
+			}
 		}
 
 		for columnOid, instanceOids := range results {

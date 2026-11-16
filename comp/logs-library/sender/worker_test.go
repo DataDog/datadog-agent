@@ -7,6 +7,7 @@ package sender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -283,6 +284,42 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	reliableServer1.Stop()
 	reliableServer2.Stop()
+	worker.stop()
+}
+
+func TestSenderPendingDelegatedAuthDoesNotAckWhilePrimaryRetries(t *testing.T) {
+	cfg := configmock.New(t)
+	input := make(chan *message.Payload, 1)
+	auditor := &testAuditor{output: make(chan *message.Payload, 10)}
+
+	primary := http.NewTestServerWithOptions(500, 1, true, nil, cfg)
+	pending := http.NewDelegatedAuthPendingTestServer(cfg)
+
+	destinationFactory := func(_ string) *client.Destinations {
+		return client.NewDestinations([]client.Destination{primary.Destination, pending.Destination}, nil)
+	}
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker.start()
+
+	input <- &message.Payload{}
+
+	// The primary keeps failing and the other destination has no credential: nothing was sent,
+	// so the auditor must not advance.
+	select {
+	case <-auditor.output:
+		t.Fatal("payload acked although no destination sent it")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	primary.ChangeStatus(200)
+	select {
+	case <-auditor.output:
+	case <-time.After(10 * time.Second):
+		t.Fatal("payload not acked after the primary recovered")
+	}
+
+	primary.Stop()
+	pending.Stop()
 	worker.stop()
 }
 

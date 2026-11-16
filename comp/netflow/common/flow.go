@@ -76,6 +76,9 @@ type Flow struct {
 	// Application id reported by the exporter, resolved into an application at flush time
 	ApplicationID uint64
 
+	// Application name reported by the exporter on the flow itself (e.g. Palo Alto App-ID)
+	ApplicationName string
+
 	// Configured fields
 	AdditionalFields AdditionalFields
 }

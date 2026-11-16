@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The Agent keeps the SBOM of a containerd image when a pull, a tag or a
+    removal changes the names of the image. Since 7.52.0, each such change
+    made the Agent scan the image again, and a scan started by the kubelet
+    image garbage collection could fail with ``parent snapshot ... does not
+    exist``.

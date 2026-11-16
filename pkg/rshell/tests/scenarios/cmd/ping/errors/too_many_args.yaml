@@ -1,0 +1,10 @@
+# ping with more than one positional argument must exit 1.
+description: "ping with two host arguments exits 1"
+input:
+  script: |+
+    ping host1 host2
+expect:
+  stdout: ""
+  stderr: "ping: too many arguments\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

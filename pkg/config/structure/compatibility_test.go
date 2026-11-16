@@ -7,7 +7,6 @@ package structure
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 func constructNtmConfig(content string, dynamicSchema bool, setupFunc func(model.Setup)) model.Config {
-	conf := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
 
 	if dynamicSchema {
 		conf.SetTestOnlyDynamicSchema(true)
