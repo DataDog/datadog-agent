@@ -18,7 +18,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -38,6 +37,7 @@ type skbParseFrame struct {
 
 // TestReadConnTupleSKBEquivalence runs read_conn_tuple_skb_bulk, read_conn_tuple_skb_fields, and
 // read_conn_tuple_skb over a frame matrix at every truncation length and requires identical outputs.
+// It covers the CO-RE build only; the runtime-compiled build is not exercised.
 func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	// Socket filters can't call bpf_skb_load_bytes before 4.11, the classification minimum.
 	if kv := kernel.MustHostVersion(); kv < kernel.VersionCode(4, 11, 0) {
@@ -77,22 +77,18 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	seeds := [][]byte{make([]byte, resSize), bytes.Repeat([]byte{0xa5}, resSize)}
 	frames := skbParseFrames()
 
-	var runs, rejected int
+	var runs int
 	key := uint32(0)
 	for _, f := range frames {
 		for n := 0; n <= len(f.data); n++ {
 			for si, seed := range seeds {
 				require.NoError(t, seedMap.Put(&key, seed))
 				// BPF_PROG_TEST_RUN consumes a 14 byte Ethernet header for socket filters, so the
-				// program sees the bytes after it at offset 0.
+				// program sees the bytes after it at offset 0. Its zero ethertype keeps the kernel
+				// from validating the payload as IPv4 or IPv6, so every truncation length runs.
 				in := append(make([]byte, 14), f.data[:n]...)
-				in[12], in[13] = 0x08, 0x00
 				_, err := prog.Run(&ebpf.RunOptions{Data: in})
-				if testRunRejectsShortIPv4(in, err) {
-					rejected++
-					continue
-				}
-				require.NoError(t, err)
+				require.NoError(t, err, "test-run: %s len=%d", f.name, n)
 				out := make([]byte, outMap.ValueSize())
 				require.NoError(t, outMap.Lookup(&key, &out))
 
@@ -110,7 +106,7 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d frames, %d runs, %d short IPv4 inputs rejected by test-run", len(frames), runs, rejected)
+	t.Logf("%d frames, %d runs", len(frames), runs)
 
 	// Sanity check the harness offsets on one frame: an IPv4 TCP frame parses to its source port.
 	require.NoError(t, seedMap.Put(&key, seeds[0]))
@@ -121,12 +117,6 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	require.NoError(t, outMap.Lookup(&key, &out))
 	require.Equal(t, uint64(1), binary.NativeEndian.Uint64(out[8:16]))
 	require.Equal(t, uint16(40000), binary.NativeEndian.Uint16(out[8+skbParseSport:]))
-}
-
-// testRunRejectsShortIPv4 reports whether err is the EINVAL newer kernels return from
-// BPF_PROG_TEST_RUN for an ETH_P_IP frame without a full IPv4 header: a harness limit, not parser behavior.
-func testRunRejectsShortIPv4(in []byte, err error) bool {
-	return errors.Is(err, unix.EINVAL) && binary.BigEndian.Uint16(in[12:14]) == unix.ETH_P_IP && len(in)-14 < 20
 }
 
 func ethHdr(proto uint16) []byte {

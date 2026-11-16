@@ -187,6 +187,7 @@ build do
             # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/skb-parse-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
 
             # Do not strip eBPF programs
