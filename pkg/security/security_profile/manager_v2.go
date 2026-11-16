@@ -883,6 +883,23 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	}
 }
 
+// profileMetricTags returns the tags shared by per-profile security profile v2 metrics.
+// short_image is the image name without its registry. profile_image_tag is omitted:
+// v2 workload selectors always use "*", so that tag carries no information.
+func profileMetricTags(selector cgroupModel.WorkloadSelector, extra ...string) []string {
+	tags := make([]string, 0, 2+len(extra))
+	tags = append(tags, "profile_image_name:"+selector.Image, "short_image:"+shortImageName(selector.Image))
+	return append(tags, extra...)
+}
+
+// shortImageName is the last path segment of an image name, matching the container short_image tag.
+func shortImageName(imageName string) string {
+	if i := strings.LastIndex(imageName, "/"); i >= 0 && i+1 < len(imageName) {
+		return imageName[i+1:]
+	}
+	return imageName
+}
+
 func (m *ManagerV2) SendStats() error {
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
@@ -906,7 +923,7 @@ func (m *ManagerV2) SendStats() error {
 	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
 		profiles = append(profiles, prof)
-		tags := []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag}
+		tags := profileMetricTags(selector)
 		profileTags = append(profileTags, tags)
 		if prof.IsEnabled() {
 			continue
@@ -1062,11 +1079,7 @@ func (m *ManagerV2) SendStats() error {
 	m.profilesLock.Unlock()
 
 	for _, entry := range ramEntries {
-		tags := []string{
-			"profile_image_name:" + entry.selector.Image,
-			"profile_image_tag:" + entry.selector.Tag,
-			"storage:ram",
-		}
+		tags := profileMetricTags(entry.selector, "storage:ram")
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
@@ -1074,15 +1087,11 @@ func (m *ManagerV2) SendStats() error {
 
 	for selector, size := range m.localStorage.SizesBySelector() {
 		// Skip entries with an unresolved selector: the on-disk file is tracked for cleanup
-		// but emitting metrics with empty image/tag tags pollutes cardinality without adding signal.
+		// but emitting metrics with empty image tags pollutes cardinality without adding signal.
 		if !selector.IsReady() {
 			continue
 		}
-		tags := []string{
-			"profile_image_name:" + selector.Image,
-			"profile_image_tag:" + selector.Tag,
-			"storage:disk",
-		}
+		tags := profileMetricTags(selector, "storage:disk")
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
 			return err
 		}

@@ -641,11 +641,11 @@ var (
 
 	// MetricSecurityProfileV2Profiles is the name of the metric used to report the profiles held by this host.
 	// A gauge of 1 is emitted per profile, so the number of profiles is the sum of the series.
-	// Tags: profile_image_name, profile_image_tag
+	// Tags: profile_image_name, short_image
 	MetricSecurityProfileV2Profiles = newRuntimeMetric(".security_profile_v2.profiles")
 
 	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
-	// Tags: profile_image_name, profile_image_tag
+	// Tags: profile_image_name, short_image
 	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
@@ -699,9 +699,10 @@ var (
 	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
 
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
-	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
-	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
+	// Tags: profile_image_name, short_image, storage (ram|disk).
+	// Note: profile_image_name is used instead of image_name to avoid collision with Datadog's
 	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	// short_image is the image name without its registry.
 	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
