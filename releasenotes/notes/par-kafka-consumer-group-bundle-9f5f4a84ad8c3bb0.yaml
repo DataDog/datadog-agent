@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Private Action Runner: add the ``com.datadoghq.kafka`` bundle with the
+    ``testConnection``, ``describeConsumerGroup``, and
+    ``resetConsumerGroupOffset`` actions. ``describeConsumerGroup`` reports a
+    consumer group's state, members, committed offsets, and lag.
+    ``resetConsumerGroupOffset`` commits a new offset for one partition, for
+    example to skip a record that consumers cannot process. It only acts on
+    existing groups with no active members and on offsets within the
+    partition's current range. Broker addresses and SASL/TLS credentials are
+    resolved on the runner, for example from a credentials file. The actions
+    are not enabled by default and must be added to the runner's actions
+    allowlist.
