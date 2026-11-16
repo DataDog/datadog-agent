@@ -146,11 +146,12 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			args = args[:2]
 		}
 
-	case "APPEND", "GETSET", "LPUSHX", "GEORADIUSBYMEMBER", "GEORADIUSBYMEMBER_RO", "RPUSHX",
+	case "APPEND", "GETSET", "LPOS", "LPUSHX", "GEORADIUSBYMEMBER", "GEORADIUSBYMEMBER_RO", "RPUSHX",
 		"PUBLISH", "SET", "SETNX", "SISMEMBER", "SPUBLISH", "ZRANK", "ZREVRANK", "ZSCORE":
 		// Obfuscate 2nd argument:
 		// • APPEND key value
 		// • GETSET key value
+		// • LPOS key element [RANK rank] [COUNT num-matches] [MAXLEN len]
 		// • LPUSHX key value
 		// • GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
 		// • GEORADIUSBYMEMBER_RO key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC]

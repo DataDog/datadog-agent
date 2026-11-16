@@ -590,6 +590,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"XADD stream MAXLEN",
 		},
 		{
+			"LPOS key element",
+			"LPOS key ?",
+		},
+		{
+			"lpos key element RANK -1 COUNT 2 MAXLEN 100",
+			"lpos key ? RANK -1 COUNT 2 MAXLEN 100",
+		},
+		{
 			`
 CONFIG command
 SET k v
