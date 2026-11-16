@@ -55,7 +55,7 @@ func setDevelopmentTracing(t *testing.T, enabled bool) func() {
 
 func resultDeliveryInputs() map[string]interface{} {
 	return map[string]interface{}{
-		"runId":    testRunID,
+		"crawlId":  testRunID,
 		"taskId":   testTaskID,
 		"uploadId": testUploadID,
 		"limits": map[string]interface{}{
@@ -92,7 +92,7 @@ func finalEvent(sequence uint64, attributes map[string]string) *pb.RemoteQueryEx
 }
 
 func TestExecuteActionRejectsRetiredDeliveryVariantsBeforeRPC(t *testing.T) {
-	for _, variant := range []string{"baseUrl", "empty baseUrl", "null baseUrl", "session_info", "protocol", "scanSensitiveData", "artifactVersion", "unknownLimit"} {
+	for _, variant := range []string{"runId", "baseUrl", "empty baseUrl", "null baseUrl", "session_info", "protocol", "scanSensitiveData", "artifactVersion", "unknownLimit"} {
 		t.Run(variant, func(t *testing.T) {
 			inputs := map[string]interface{}{
 				"integration":    "postgres",
@@ -103,6 +103,9 @@ func TestExecuteActionRejectsRetiredDeliveryVariantsBeforeRPC(t *testing.T) {
 			}
 			delivery := inputs["resultDelivery"].(map[string]interface{})
 			switch variant {
+			case "runId":
+				delete(delivery, "crawlId")
+				delivery[variant] = testRunID
 			case "baseUrl":
 				delivery[variant] = testBaseURL
 			case "empty baseUrl":
@@ -336,7 +339,7 @@ func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
 	}{
 		{name: "missing delivery", resultDelivery: nil},
 		{name: "missing limits", resultDelivery: map[string]interface{}{
-			"runId": testRunID, "taskId": testTaskID,
+			"crawlId": testRunID, "taskId": testTaskID,
 			"uploadId": testUploadID,
 		}},
 	}

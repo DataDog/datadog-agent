@@ -260,7 +260,8 @@ func (i *ExecuteInputs) UnmarshalJSON(data []byte) error {
 }
 
 type ResultDeliveryInputs struct {
-	RunID    string                `json:"runId"`
+	// The AP crawlId is the run identity used by the internal Agent/Python contract.
+	RunID    string                `json:"crawlId"`
 	TaskID   string                `json:"taskId"`
 	UploadID string                `json:"uploadId"`
 	Limits   *DeliveryLimitsInputs `json:"limits"`
