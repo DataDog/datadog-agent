@@ -495,6 +495,15 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 		}
 		defer dockerInstance.stop()
 
+		// Start the second container before any kill: the first container's disarmer entry
+		// expires disarmerPeriod after its last kill, and starting a container can take
+		// longer than that, which would leave the second container alone in the cache.
+		newDockerInstance, err := test.StartADocker()
+		if err != nil {
+			t.Fatalf("failed to start a second Docker instance: %v", err)
+		}
+		defer newDockerInstance.stop()
+
 		// test that we can kill processes within the same container more than once
 		for i := 0; i < 2; i++ {
 			t.Logf("test iteration %d", i)
@@ -503,12 +512,6 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 				_ = cmd.Run()
 			})
 		}
-
-		newDockerInstance, err := test.StartADocker()
-		if err != nil {
-			t.Fatalf("failed to start a second Docker instance: %v", err)
-		}
-		defer newDockerInstance.stop()
 
 		// test that another container disarms the kill action
 		testKillActionDisarmed(t, "kill_action_disarm_container", func(_ context.Context) {
