@@ -91,6 +91,23 @@ type FlagHandler interface {
 	IsHealthy() bool
 }
 
+// ConfigurationBinder is an optional interface a FlagHandler implements to bind
+// its flag to a boolean configuration key. The backend only sends a flag name
+// and a value, so the binding lives agent side: the client mirrors the flag
+// into the key under model.SourceRC, as it does for a payload carrying a
+// configuration_field, and the component only reacts to the key.
+//
+// A bound flag never overrides a local value: an override_local sent in the
+// payload is ignored. Mirroring is skipped when the key already resolves from
+// a user-provided or runtime source (see shouldApplyConfig). Giving the key
+// back (the flag is removed, or the handler recovers) unsets the SourceRC
+// layer, which restores whatever the lower layers say.
+type ConfigurationBinder interface {
+	// ConfigurationField returns the configuration key the flag drives, or an
+	// empty string when the flag is not bound.
+	ConfigurationField() string
+}
+
 // RemoteFlagSubscriber is implemented by components that want to subscribe to remote flags.
 // This allows a single component to subscribe to multiple flags.
 type RemoteFlagSubscriber interface {
@@ -158,6 +175,8 @@ type Client struct {
 	subscriptions       map[FlagName][]*subscription
 	currentValues       map[FlagName]FlagValue
 	lastVersions        map[FlagName]int
+	boundFields         map[FlagName]string // configuration key a handler binds a flag to
+	mirroredFields      map[FlagName]string // key currently written under SourceRC for a flag
 	configSetter        ConfigSetter
 	healthCheckInterval time.Duration
 	ctx                 context.Context
@@ -171,6 +190,8 @@ func NewClient() *Client {
 		subscriptions:       make(map[FlagName][]*subscription),
 		currentValues:       make(map[FlagName]FlagValue),
 		lastVersions:        make(map[FlagName]int),
+		boundFields:         make(map[FlagName]string),
+		mirroredFields:      make(map[FlagName]string),
 		healthCheckInterval: DefaultHealthCheckInterval,
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -241,10 +262,16 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 
 	c.subscriptions[flag] = append(c.subscriptions[flag], sub)
 
+	if binder, ok := handler.(ConfigurationBinder); ok {
+		if field := binder.ConfigurationField(); field != "" {
+			c.boundFields[flag] = field
+		}
+	}
+
 	// If we already have cached a value for this flag,
 	// invoke the callback immediately via notifyChange
 	if enabled, exists := c.currentValues[flag]; exists {
-		c.notifyChange(Flag{Name: string(flag), Enabled: enabled})
+		c.notifyChange(Flag{Name: string(flag), Enabled: enabled, ConfigurationField: c.boundFields[flag]})
 	}
 
 	return nil
@@ -288,6 +315,15 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 				c.lastVersions[flagName] = flag.Version
 			}
 
+			// A handler-bound field stands in for the configuration_field the
+			// backend does not send, and the flag never overrides a local value.
+			if bound := c.boundFields[flagName]; bound != "" {
+				if flag.ConfigurationField == "" {
+					flag.ConfigurationField = bound
+				}
+				flag.OverrideLocal = false
+			}
+
 			// Mirror to pkg/config when a configuration_field is provided. If a
 			// non-overridable source already populates that field and the flag
 			// did not opt in via override_local, drop the flag entirely.
@@ -301,6 +337,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 						continue
 					}
 					c.configSetter.Set(flag.ConfigurationField, bool(flag.Enabled), model.SourceRC)
+					c.mirroredFields[flagName] = flag.ConfigurationField
 				}
 			}
 
@@ -328,6 +365,11 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			// Remove from currentValues so that when it comes back, it will trigger a notification
 			// even if the value is the same as before
 			delete(c.currentValues, flagName)
+			// Give the mirrored configuration field back to the lower layers.
+			if field, mirrored := c.mirroredFields[flagName]; mirrored {
+				c.configSetter.UnsetForSource(field, model.SourceRC)
+				delete(c.mirroredFields, flagName)
+			}
 			// TODO(remy): should we call the no data callback forever if the flags never come back
 			// during this lifecycle of the agent?
 			c.notifyNoConfig(flagName)
