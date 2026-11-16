@@ -778,6 +778,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx-pipeline": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "otlp", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "otlp", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl-pipeline": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "otlp", "requirefips", "serverless", "test", "zlib"],
+    "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl/internal/apikeybridge": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/fx": ["functionaltests", "grpcnotrace", "requirefips", "test"],
