@@ -34,8 +34,7 @@ type Config struct {
 	RShellPrivilegedElevatableCommands []string
 	RShellAllowedCommandsConfigured    bool
 	RShellAllowedPathsConfigured       bool
-	DDHost                             string
-	DDApiHost                          string
+	APIBaseURL                         string
 	Modes                              []modes.Mode
 	OrgId                              int64
 	PrivateKey                         *ecdsa.PrivateKey

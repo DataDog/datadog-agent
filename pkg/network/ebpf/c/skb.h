@@ -78,8 +78,9 @@ static __always_inline u16 sk_buff_transport_header(struct sk_buff *skb) {
     return trans_head;
 }
 
-// returns the data length of the skb or a negative value in case of an error
-static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
+// Expects tup to be zeroed. Returns the data length of the skb or a negative value in case of an error.
+// With tcp_only set, non-TCP packets return 0 before the transport header is read.
+static __always_inline int __sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup, const bool tcp_only) {
     unsigned char *head = sk_buff_head(skb);
     if (!head) {
         log_debug("ERR reading head");
@@ -105,6 +106,9 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         tup->metadata |= CONN_V4;
         switch (iph.protocol) {
             case IPPROTO_UDP:
+                if (tcp_only) {
+                    return 0;
+                }
                 tup->metadata |= CONN_TYPE_UDP;
                 break;
             case IPPROTO_TCP:
@@ -115,8 +119,16 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
                 return 0;
         }
         trans_len = iph.tot_len - (iph.ihl * 4);
-        bpf_probe_read_kernel_with_telemetry(&tup->saddr_l, sizeof(__be32), &iph.saddr);
-        bpf_probe_read_kernel_with_telemetry(&tup->daddr_l, sizeof(__be32), &iph.daddr);
+        // iph is on the stack, so assign directly. Matches a 4-byte copy into the zeroed u64.
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        tup->saddr_l = iph.saddr;
+        tup->daddr_l = iph.daddr;
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        tup->saddr_l = (u64)iph.saddr << 32;
+        tup->daddr_l = (u64)iph.daddr << 32;
+#else
+#error "Fix your compiler's __BYTE_ORDER__?!"
+#endif
     }
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
     else if ((is_tcpv6_enabled() || is_udpv6_enabled()) && iph.version == 6) {
@@ -130,6 +142,9 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         tup->metadata |= CONN_V6;
         switch (ip6h.nexthdr) {
             case IPPROTO_UDP:
+                if (tcp_only) {
+                    return 0;
+                }
                 tup->metadata |= CONN_TYPE_UDP;
                 break;
             case IPPROTO_TCP:
@@ -141,8 +156,21 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         }
 
         trans_len = bpf_ntohs(ip6h.payload_len) - sizeof(struct ipv6hdr);
-        read_in6_addr(&tup->saddr_h, &tup->saddr_l, &ip6h.saddr);
-        read_in6_addr(&tup->daddr_h, &tup->daddr_l, &ip6h.daddr);
+        // Read the fields directly: on CO-RE, &ip6h.saddr becomes a register-offset stack
+        // pointer, which older verifiers (4.4) reject.
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        tup->saddr_h = ((u64)ip6h.saddr.in6_u.u6_addr32[1] << 32) | ip6h.saddr.in6_u.u6_addr32[0];
+        tup->saddr_l = ((u64)ip6h.saddr.in6_u.u6_addr32[3] << 32) | ip6h.saddr.in6_u.u6_addr32[2];
+        tup->daddr_h = ((u64)ip6h.daddr.in6_u.u6_addr32[1] << 32) | ip6h.daddr.in6_u.u6_addr32[0];
+        tup->daddr_l = ((u64)ip6h.daddr.in6_u.u6_addr32[3] << 32) | ip6h.daddr.in6_u.u6_addr32[2];
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        tup->saddr_h = ((u64)ip6h.saddr.in6_u.u6_addr32[0] << 32) | ip6h.saddr.in6_u.u6_addr32[1];
+        tup->saddr_l = ((u64)ip6h.saddr.in6_u.u6_addr32[2] << 32) | ip6h.saddr.in6_u.u6_addr32[3];
+        tup->daddr_h = ((u64)ip6h.daddr.in6_u.u6_addr32[0] << 32) | ip6h.daddr.in6_u.u6_addr32[1];
+        tup->daddr_l = ((u64)ip6h.daddr.in6_u.u6_addr32[2] << 32) | ip6h.daddr.in6_u.u6_addr32[3];
+#else
+#error "Fix your compiler's __BYTE_ORDER__?!"
+#endif
     }
 #endif // !COMPILE_RUNTIME || FEATURE_TCPV6_ENABLED || FEATURE_UDPV6_ENABLED
     else {
@@ -157,7 +185,7 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
     }
 
     int proto = get_proto(tup);
-    if (proto == CONN_TYPE_UDP) {
+    if (!tcp_only && proto == CONN_TYPE_UDP) {
         struct udphdr udph;
         bpf_memset(&udph, 0, sizeof(struct udphdr));
         ret = bpf_probe_read_kernel_with_telemetry(&udph, sizeof(udph), (struct udphdr *)(head + trans_head));
@@ -186,6 +214,15 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
 
     log_debug("ERR unknown connection type");
     return 0;
+}
+
+static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
+    return __sk_buff_to_tuple(skb, tup, false);
+}
+
+// TCP-only variant for callers that drop everything else.
+static __maybe_unused __always_inline int sk_buff_to_tcp_tuple(struct sk_buff *skb, conn_tuple_t *tup) {
+    return __sk_buff_to_tuple(skb, tup, true);
 }
 
 #endif

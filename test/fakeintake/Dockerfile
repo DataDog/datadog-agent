@@ -58,7 +58,7 @@ FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.1
 
 # --timeout (global flag, before the subcommand) bounds each network operation so
 # a slow Alpine CDN fails fast instead of hanging the build. Default is 60s.
-RUN apk --timeout 10 add curl
+RUN apk --timeout 10 add --no-cache ca-certificates curl
 
 COPY --from=build /fakeintake /fakeintake
 

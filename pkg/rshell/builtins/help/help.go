@@ -81,18 +81,12 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 				return builtins.Result{Code: 1}
 			}
 
-			// Use static Help text if available (for commands that don't
-			// handle --help, like echo, true, false).
-			if meta.Help != "" {
-				callCtx.Outf("%s\n", meta.Help)
-				return builtins.Result{}
-			}
-
 			// RemediationOnly builtins must never have their handler invoked
-			// outside remediation mode, even via `help <name> --help`-style
-			// lookup below. This mirrors the dispatch-level gate in interp so
-			// a builtin that forgets its own remediation check cannot still
-			// run its handler (and leak whatever it writes) through help.
+			// outside remediation mode, even via static Help text or the
+			// `help <name> --help`-style lookup below. This mirrors the
+			// dispatch-level gate in interp so a builtin that forgets its own
+			// remediation check cannot still run its handler (and leak
+			// whatever it writes) through help.
 			if meta.RemediationOnly && !callCtx.RemediationMode {
 				msg := meta.RemediationDeniedMessage
 				if msg == "" {
@@ -100,6 +94,13 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 				}
 				callCtx.Errf("%s", msg)
 				return builtins.Result{Code: 1}
+			}
+
+			// Use static Help text if available (for commands that don't
+			// handle --help, like echo, true, false).
+			if meta.Help != "" {
+				callCtx.Outf("%s\n", meta.Help)
+				return builtins.Result{}
 			}
 
 			// Otherwise, invoke the command with --help and capture the output.

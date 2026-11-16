@@ -142,7 +142,7 @@ minutes.
 ## Refresh
 
 After the first answer, the component sends the query of each group again at a regular interval.
-This interval is the refresh interval (6 hours by default). The refresh occurs in the background.
+This interval is the refresh interval (10 minutes by default). The refresh occurs in the background.
 It does not stop or slow the consumer.
 
 | Result of the last query | Next query |
@@ -263,7 +263,7 @@ The backend API is not final. The component uses the `routingClient` interface.
 Query, with the API key of the group. The query has no parameters:
 
 ```
-GET https://api.<site>/api/unstable/agent/intake-routing
+GET https://config.<site>/api/unstable/agent/intake-routing
 DD-API-KEY: <key>
 Accept: application/json
 User-Agent: datadog-agent/<version>
@@ -306,7 +306,7 @@ customers, and they apply only to the full Agent.
 |---|---|---|
 | `intake_routing.enabled` | `false` | |
 | `intake_routing.startup_grace_period` | `1s` | 0s to 30s. A value outside this range is changed, with a warning. |
-| `intake_routing.refresh_interval` | `6h0m0s` | 1m minimum. A smaller value is changed, with a warning. |
+| `intake_routing.refresh_interval` | `10m` | 1m minimum. A smaller value is changed, with a warning. |
 
 ## Telemetry
 
@@ -412,7 +412,7 @@ the logs agent restarts.
 To do an end-to-end test:
 
 1. Run a fake backend that answers the routing path, `/probe`, and `POST /api/v2/logs`.
-2. Send `api.datad0g.com` and an override host such as
+2. Send `config.datad0g.com` and an override host such as
    `acme.agent-http-intake.logs.datad0g.com` to the fake backend (with `/etc/hosts` or a proxy).
 3. Run the Agent with `site: datad0g.com`, `logs_config.force_use_http: true`,
    `skip_ssl_validation: true`, and `intake_routing: {enabled: true, refresh_interval: 1m}`.

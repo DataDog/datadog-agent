@@ -28,6 +28,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-trace"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
@@ -88,6 +89,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		delegatedauthfx.Module(),
 		telemetryfx.Module(),
 		coreconfig.Module(),
+		schemanoopfx.Module(),
 		fx.Provide(func() log.Params {
 			return log.ForDaemon("TRACE", "apm_config.log_file", traceconfigimpl.DefaultLogFilePath())
 		}),

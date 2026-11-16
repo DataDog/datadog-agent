@@ -1,0 +1,57 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+
+package(default_visibility = ["//visibility:public"])
+
+# pthread, dl, m and resolv are still separate libraries before glibc 2.34.
+# crt1.o and libc_nonshared.a come from hermetic-llvm.
+[
+    copy_file(
+        name = lib,
+        src = glob(["*/sysroot/usr/lib/" + src])[0],
+        out = out,
+    )
+    for lib, src, out in [
+        ("crti", "crti.o", "crti.o"),
+        ("crtn", "crtn.o", "crtn.o"),
+        ("libc_real", "libc.a", "libc_real.a"),
+        ("libdl", "libdl.a", "libdl.a"),
+        ("libm", "libm.a", "libm.a"),
+        ("libpthread", "libpthread.a", "libpthread.a"),
+        ("libresolv", "libresolv.a", "libresolv.a"),
+    ]
+]
+
+copy_file(
+    name = "libgcc_eh",
+    src = glob(["lib/gcc/*/*/libgcc_eh.a"])[0],
+    out = "libgcc_eh.a",
+)
+
+# lld reads a non-archive libc.a as a linker script. The static libc.a of
+# glibc < 2.34 calls _init/_fini, which hermetic-llvm's empty crti.o/crtn.o do
+# not define, and _Unwind_*, which rules_go's external link does not get from
+# hermetic-llvm's libunwind. No member of these archives has a .init section,
+# so glibc's crti.o/crtn.o still form a complete _init although they are not
+# the first and last link inputs.
+write_file(
+    name = "libc_script",
+    out = "libc.a",
+    content = ["GROUP ( libc_real.a crti.o crtn.o libgcc_eh.a )"],
+)
+
+copy_to_directory(
+    name = "glibc_static_library_search_directory",
+    srcs = [
+        ":crti",
+        ":crtn",
+        ":libc_real",
+        ":libc_script",
+        ":libdl",
+        ":libgcc_eh",
+        ":libm",
+        ":libpthread",
+        ":libresolv",
+    ],
+)

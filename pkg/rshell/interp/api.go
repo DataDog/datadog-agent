@@ -701,6 +701,7 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) (retErr error) {
 	// per-command telemetry can detect pipe and redirect reassignments
 	// without tripping on the Run-level limitWriter wrap.
 	r.runStdin = r.stdin
+	defer bindStdinToContext(ctx, r.stdin)()
 	r.runStdout = r.stdout
 	r.startTime = time.Now()
 	r.globReadDirCount = &atomic.Int64{}

@@ -161,7 +161,7 @@ func TestProxyWithSecret(t *testing.T) {
 				c.setup(t, config, configPath, resolver)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -184,7 +184,7 @@ func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolut
 		"api_key_3": "resolved_api_key_3",
 	})
 
-	require.NoError(t, LoadDatadog(config, resolver, delegatedauthmock.New(t)))
+	require.NoError(t, LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}))
 
 	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
 

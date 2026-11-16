@@ -60,7 +60,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_args = fips_mode? ? "--fips-mode" : ""
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
   # include embedded path (mostly for `pkg-config` binary)
   #
   # with_embedded_path prepends the embedded path to the PATH from the global environment
@@ -83,9 +83,6 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-  if fips_mode?
-    add_msgo_to_env(env)
-  end
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
@@ -99,7 +96,7 @@ build do
     command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e systray.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
@@ -183,7 +180,7 @@ build do
       copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
       command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
     else
-      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "dda inv -- -e loader.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
       copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
     end
   end
@@ -304,8 +301,11 @@ build do
     else
       copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
-    mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    # On Linux, //packages/agent/linux:license_files_install ships this license.
+    unless linux_target?
+      mkdir "#{install_dir}/LICENSES"
+      copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
   end
 
   if osx_target?

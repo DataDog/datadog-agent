@@ -62,5 +62,5 @@ Then just run `make` to build the project.
 
 Tests are written in Golang using `cgo`, run the testsuite from the root folder:
 ```sh
-make -C test
+dda inv rtloader.test
 ```

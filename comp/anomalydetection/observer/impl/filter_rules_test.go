@@ -501,7 +501,7 @@ func TestObserverAppliesMetricFilterBySource(t *testing.T) {
 	require.NoError(t, err)
 
 	storage := newTimeSeriesStorage()
-	eng := newEngine(engineConfig{storage: storage})
+	eng := mustNewEngine(engineConfig{storage: storage})
 	obs := &observerImpl{
 		engine:               eng,
 		metricsCh:            make(chan observation, 16),
@@ -557,7 +557,7 @@ func TestIngestMetricSyncAppliesMetricFilterBySource(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		metricFilter: filter,
 	}
 
@@ -590,7 +590,7 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		metricsCh:            make(chan observation, 1),
 		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
@@ -644,7 +644,7 @@ func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.
 			telComp := telemetryimpl.NewMock(t)
 
 			obs := &observerImpl{
-				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+				engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 				metricsCh:            make(chan observation, len(tc.metricNames)),
 				logsCh:               make(chan observation, len(tc.metricNames)),
 				telemetry:            newObserverTelemetry(telComp),
@@ -687,7 +687,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:       mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -709,7 +709,7 @@ func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t 
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
 		metricsCh:            make(chan observation, 16),
 		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
@@ -784,7 +784,7 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -826,7 +826,7 @@ func TestNamePrefixFilterCountsFilteredMetrics(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		telemetry:    newObserverTelemetry(telComp),
 		metricFilter: filter,
 	}
@@ -869,7 +869,7 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
 		metricsCh:            make(chan observation, 16),
 		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
@@ -926,7 +926,7 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: storage}),
+		engine:               mustNewEngine(engineConfig{storage: storage}),
 		metricsCh:            make(chan observation, 16),
 		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
@@ -1035,7 +1035,7 @@ func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
 	t.Cleanup(telComp.Reset)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		metricsCh:            make(chan observation, 1),
 		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
@@ -1072,7 +1072,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		metricsCh:            make(chan observation, 1),
 		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
@@ -1121,7 +1121,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 func TestFilteredMetricTelemetryFlushDrainsIdleTail(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 	obs := &observerImpl{
-		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:               mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		metricsCh:            make(chan observation, 1),
 		logsCh:               make(chan observation, 1),
 		telemetry:            newObserverTelemetry(telComp),
@@ -1227,7 +1227,7 @@ anomaly_detection:
 	telComp := telemetryimpl.NewMock(t)
 	storage := newTimeSeriesStorage()
 	connErrExtractor := &ConnectionErrorExtractor{}
-	eng := newEngine(engineConfig{
+	eng := mustNewEngine(engineConfig{
 		storage:      storage,
 		metricFilter: filter,
 		extractors: []observerdef.LogMetricsExtractor{

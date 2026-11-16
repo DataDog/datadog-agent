@@ -469,6 +469,52 @@ type CallContext struct {
 	Systemd *SystemdServices
 }
 
+// WriteGuard wraps a builtin's stdout and remembers the first write error.
+// Builtins print through CallContext.Out/Outf, which have no error return, so
+// without a guard a failed write (ENOSPC, EIO, EFBIG on a redirect target)
+// would be dropped and the command would exit 0 over a truncated file. After
+// the first failure the guard stops touching the destination and keeps
+// returning that error, so builtins that do check their writes stop early and
+// the rest cannot keep writing to a broken target.
+type WriteGuard struct {
+	w   io.Writer
+	err error
+}
+
+// NewWriteGuard returns a WriteGuard that writes to w.
+func NewWriteGuard(w io.Writer) *WriteGuard { return &WriteGuard{w: w} }
+
+// Write implements io.Writer.
+func (g *WriteGuard) Write(p []byte) (int, error) {
+	if g.err != nil {
+		return 0, g.err
+	}
+	n, err := g.w.Write(p)
+	if err != nil {
+		g.err = err
+	}
+	return n, err
+}
+
+// Err returns the first write error, or nil.
+func (g *WriteGuard) Err() error { return g.err }
+
+// WriteErrorMessage formats a recorded write error the way bash reports a
+// failed builtin write: "echo: write error: no space left on device". It
+// returns "" when there is nothing to report: no error, or a broken pipe,
+// which bash's builtins die from silently (SIGPIPE) rather than print.
+func WriteErrorMessage(name string, err error) string {
+	if err == nil || IsBrokenPipe(err) {
+		return ""
+	}
+	var errno syscall.Errno
+	msg := err.Error()
+	if errors.As(err, &errno) {
+		msg = errno.Error()
+	}
+	return name + ": write error: " + msg + "\n"
+}
+
 // Out writes a string to stdout.
 func (c *CallContext) Out(s string) {
 	io.WriteString(c.Stdout, s)

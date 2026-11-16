@@ -116,6 +116,7 @@ function EditableTimestamp({ value, onChange }: { value: number; onChange: (ts: 
 
 const PHASE_STYLES: Record<string, { bg: string; border: string; label: string }> = {
   warmup:     { bg: 'bg-blue-900/40',   border: 'border-blue-500/50',   label: 'Warmup' },
+  evaluation_window: { bg: 'bg-emerald-900/40', border: 'border-emerald-500/50', label: 'Healthy evaluation' },
   baseline:   { bg: 'bg-green-900/40',  border: 'border-green-500/50',  label: 'Baseline' },
   disruption: { bg: 'bg-red-900/40',    border: 'border-red-500/50',    label: 'Disruption' },
   cooldown:   { bg: 'bg-yellow-900/40', border: 'border-yellow-500/50', label: 'Cooldown' },
@@ -132,9 +133,11 @@ function EpisodeInfoPanel({ info, onShowConfig }: { info: EpisodeInfo; onShowCon
 
   const phases: { key: string; phase: typeof info.baseline }[] = [
     { key: 'warmup', phase: info.warmup },
-    { key: 'baseline', phase: info.baseline },
-    { key: 'disruption', phase: info.disruption },
-    { key: 'cooldown', phase: info.cooldown },
+    ...(info.mode === 'healthy-control' ? [{ key: 'evaluation_window', phase: info.evaluation_window }] : [
+      { key: 'baseline', phase: info.baseline },
+      { key: 'disruption', phase: info.disruption },
+      { key: 'cooldown', phase: info.cooldown },
+    ]),
   ].filter(p => p.phase != null);
 
   return (
@@ -143,17 +146,17 @@ function EpisodeInfoPanel({ info, onShowConfig }: { info: EpisodeInfo; onShowCon
         {/* Episode identity */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs font-mono text-slate-400">Episode</span>
-          <span className="text-sm font-semibold text-white">{info.episode}</span>
-          <span className="text-xs text-slate-500">#{info.cycle}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${info.success ? 'bg-green-900/60 text-green-400' : 'bg-red-900/60 text-red-400'}`}>
-            {info.success ? '✓' : '✗'}
+          <span className="text-sm font-semibold text-white">{info.name || info.episode}</span>
+          {info.cycle ? <span className="text-xs text-slate-500">#{info.cycle}</span> : null}
+          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${(info.success || info.status === 'passed') ? 'bg-green-900/60 text-green-400' : 'bg-red-900/60 text-red-400'}`}>
+            {(info.success || info.status === 'passed') ? '✓' : '✗'}
           </span>
         </div>
 
         {/* App name */}
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-xs text-slate-400">App</span>
-          <span className="text-sm text-slate-200">{info.scenario.app_name}</span>
+          <span className="text-sm text-slate-200">{info.scenario.app_name || info.name || '—'}</span>
         </div>
 
         {/* Description (truncated, expandable) */}
@@ -368,15 +371,21 @@ function App() {
     if (episodeInfo) {
       const defs = [
         { key: 'warmup',     label: 'Warmup',     phase: episodeInfo.warmup,     color: '#3b82f6' },
-        { key: 'baseline',   label: 'Baseline',   phase: episodeInfo.baseline,   color: '#22c55e' },
-        { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
-        { key: 'cooldown',   label: 'Cooldown',   phase: episodeInfo.cooldown,   color: '#f59e0b' },
+        ...(episodeInfo.mode === 'healthy-control' ? [{ key: 'evaluation_window', label: 'Healthy evaluation', phase: episodeInfo.evaluation_window, color: '#22c55e' }] : [
+          { key: 'baseline', label: 'Baseline', phase: episodeInfo.baseline, color: '#22c55e' },
+          { key: 'disruption', label: 'Disruption', phase: episodeInfo.disruption, color: '#ef4444' },
+          { key: 'cooldown', label: 'Cooldown', phase: episodeInfo.cooldown, color: '#f59e0b' },
+        ]),
       ];
       for (const { key, label, phase, color } of defs) {
         if (!phase?.start) continue;
         const ts = new Date(phase.start).getTime() / 1000;
         if (!isNaN(ts)) markers.push({ key, label, timestamp: ts, color });
       }
+    }
+    if (episodeInfo?.mode === 'healthy-control' && episodeInfo.evaluation_window?.end) {
+      const end = Date.parse(episodeInfo.evaluation_window.end) / 1000;
+      if (Number.isFinite(end)) markers.push({ key: 'evaluation-end', label: 'Evaluation end', timestamp: end, color: '#22c55e' });
     }
     const windowEndSec = state.status?.baseline?.windowEndSec;
     if (windowEndSec) {
@@ -651,6 +660,19 @@ function App() {
         />
       )}
 
+      {episodeInfo?.mode === 'healthy-control' && (
+        <div className="px-4 py-2 border-b border-slate-700 bg-slate-800 text-sm flex items-center gap-4">
+          <strong>No-fault evaluation</strong>
+          {state.connectionState !== 'ready' ? <span>Waiting for replay to complete…</span> :
+           state.status?.evaluationError ? <span className="text-red-300">{state.status.evaluationError}</span> :
+           state.status?.noFaultEvaluation ? <>
+             <span>False positives: <strong>{state.status.noFaultEvaluation.false_positives}</strong></span>
+             <button className="text-purple-300 hover:underline" onClick={() => setActiveTab('reports')}>Inspect High episodes</button>
+             <span className="text-slate-400">Warmup excluded</span>
+           </> : <span>Evaluation unavailable</span>}
+        </div>
+      )}
+
       <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}
         <div
@@ -704,6 +726,10 @@ function App() {
         </div>
         <div className={`flex-1 flex ${activeTab !== 'reports' ? 'hidden' : ''}`}>
           <ReportsView
+            onInspectEpisode={(start, end) => {
+              commitTimeRange({ start: start - 30, end: Math.max(start + 30, end + 10) });
+              setActiveTab('timeseries');
+            }}
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}

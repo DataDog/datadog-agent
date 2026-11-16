@@ -23,8 +23,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,7 +72,7 @@ func newCollector(cfg config.Component, sysRoot string) *collector {
 // NewCollector returns a CollectorProvider for the AMD GPU collector.
 func NewCollector(cfg config.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: newCollector(cfg, kernel.SysFSRoot()),
+		Collector: newCollector(cfg, sysfsroot.DeviceSysFSRoot()),
 	}, nil
 }
 

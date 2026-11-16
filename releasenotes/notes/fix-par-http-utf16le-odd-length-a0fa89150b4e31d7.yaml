@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The Private Action Runner no longer crashes when an HTTP action decodes
+    an odd-length response body as ``utf16le`` or ``ucs2``. The trailing
+    byte is now ignored.
