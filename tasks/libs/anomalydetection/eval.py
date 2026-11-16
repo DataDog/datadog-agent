@@ -47,6 +47,7 @@ CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 EXTRACTORS = [
     "log_metrics_extractor",
     "connection_error_extractor",
+    "log_pattern_extractor",
 ]
 
 # Fixed anchor subsets used by eval_component to anchor the evaluation at known
@@ -493,6 +494,16 @@ def _sample_component_params(trial, component: str) -> dict:
         "tukey_biweight": sample_tukey_biweight,
         "log_metrics_extractor": lambda: {
             "min_token_match_ratio": trial.suggest_float("log_metrics_extractor.min_token_match_ratio", 0.2, 0.95),
+        },
+        "log_pattern_extractor": lambda: {
+            # "disable_optimizations": trial.suggest_categorical(...),
+            # "min_cluster_size_before_emit": trial.suggest_int(...),
+            # "max_tokenized_string_length": trial.suggest_int(...),
+            # "max_num_tokens": trial.suggest_int(...),
+            # "parse_hex_dump": trial.suggest_categorical(...),
+            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+            # "cluster_time_to_live_sec": trial.suggest_int(...),
+            # "garbage_collection_interval_sec": trial.suggest_int(...),
         },
     }
     fn = space.get(component)

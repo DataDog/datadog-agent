@@ -85,7 +85,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// fast-path: detectors without per-series state must be silently skipped, never
 	// invoked with RemoveSeries (which would panic since they don't implement it),
 	// and never block the eviction broadcast to the stateful detectors that follow.
-	stateless := &statelessTestDetector{name: "stateless"}
+	stateless := &logMetricsStatelessTestDetector{name: "stateless"}
 
 	storage := newTimeSeriesStorage()
 	e := mustNewEngine(engineConfig{
@@ -175,16 +175,16 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	_ = stateless
 }
 
-// statelessTestDetector is a minimal observerdef.Detector that intentionally
+// logMetricsStatelessTestDetector is a minimal observerdef.Detector that intentionally
 // does NOT implement observerdef.SeriesRemover. Used to verify that the
 // engine's eviction fan-out doesn't assume every detector tracks per-series
 // state.
-type statelessTestDetector struct {
+type logMetricsStatelessTestDetector struct {
 	name string
 }
 
-func (s *statelessTestDetector) Name() string { return s.name }
-func (*statelessTestDetector) Ready() bool    { return true }
-func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
+func (s *logMetricsStatelessTestDetector) Name() string { return s.name }
+func (*logMetricsStatelessTestDetector) Ready() bool    { return true }
+func (s *logMetricsStatelessTestDetector) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }

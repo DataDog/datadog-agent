@@ -102,7 +102,7 @@ func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtract
 func (a *LogMetricsExtractor) Reset() {
 	a.patterns.Reset()
 	if a.telemetry != nil {
-		a.telemetry.setLogPatternCount(0)
+		a.telemetry.setLogMetricsPatternCount(0)
 	}
 }
 
@@ -110,7 +110,7 @@ func (a *LogMetricsExtractor) Reset() {
 func (a *LogMetricsExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	a.telemetry = t
 	if t != nil {
-		t.setLogPatternCount(a.patterns.Len())
+		t.setLogMetricsPatternCount(a.patterns.Len())
 	}
 }
 
@@ -146,7 +146,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 
 	pattern, evicted := a.patterns.Match(logMetricsGroup(log), content, log.GetTimestampUnixMilli()/1000)
 	if a.telemetry != nil {
-		a.telemetry.setLogPatternCount(a.patterns.Len())
+		a.telemetry.setLogMetricsPatternCount(a.patterns.Len())
 	}
 	if pattern == nil {
 		return observer.LogMetricsExtractorOutput{EvictedMetricNames: evicted}

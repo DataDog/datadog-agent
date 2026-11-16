@@ -206,12 +206,14 @@ differ when detection is delayed.
 
 ### Extractors
 
-Extractors convert raw observations into timeseries. The log metrics extractor is enabled by default; the connection error extractor is opt-in:
+Extractors convert raw observations into timeseries. The log metrics and log
+pattern extractors are enabled by default; the connection error extractor is opt-in:
 
 | Name | Description |
 |------|-------------|
 | `log_metrics_extractor` | Derives metrics from log patterns and JSON fields |
 | `connection_error_extractor` | Detects connection-error patterns in logs |
+| `log_pattern_extractor` | Clusters log messages into patterns |
 
 ## Examples
 
@@ -427,6 +429,19 @@ JSON numeric extraction is preserved. Representatives remain fixed until evictio
 
 Non-positive bounds and invalid thresholds use bounded defaults. Eviction removes
 the associated storage and detector state through the engine cleanup path.
+
+#### `log_pattern_extractor`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `disable_optimizations` | `false` | When `true`, skips deferred emit and cluster GC: emits on the first matching log per pattern and disables TTL/GC (`min_cluster_size_before_emit`, `cluster_time_to_live_sec`, and `garbage_collection_interval_sec` are forced to zero; other fields still apply). |
+| `min_cluster_size_before_emit` | 5 | Minimum matching logs on a pattern before emitting a metric |
+| `max_tokenized_string_length` | 12500 | Max input length before tokenization (0 = patterns package default) |
+| `max_num_tokens` | 250 | Max tokens per message (0 = patterns package default) |
+| `parse_hex_dump` | `true` | Recognize hex dumps in the tokenizer |
+| `min_token_match_ratio` | 0.5 | Minimum fraction of token positions that must match to merge lines (0 = default 0.5) |
+| `cluster_time_to_live_sec` | 14400 | Clusters with no matching log for this many seconds are removed during GC. `0` disables cluster garbage collection. |
+| `garbage_collection_interval_sec` | 3600 | Minimum seconds between GC passes when cluster TTL is enabled (nonzero `cluster_time_to_live_sec`) |
 
 ## Architecture
 

@@ -291,8 +291,9 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	assert.Equal(t, "second", result.anomalies[0].Context.Source)
 }
 
-func TestEnrichAnomalyWithRealLogMetricsExtractorUsesStoredSeriesTags(t *testing.T) {
-	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
 	e := mustNewEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},
@@ -336,11 +337,11 @@ func TestEnrichAnomalyWithRealLogMetricsExtractorUsesStoredSeriesTags(t *testing
 
 	e.enrichAnomaly(&anomaly)
 	require.NotNil(t, anomaly.Context)
-	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
+	assert.Equal(t, "log_pattern_extractor", anomaly.Context.Source)
 	// Context carries the most-recently-emitted example for the series (SetContext overwrites).
 	// After two source-a logs merge into a wildcard cluster, the example is from the second log.
 	assert.NotEmpty(t, anomaly.Context.Example)
-	assert.NotEmpty(t, anomaly.Context.Pattern)
+	assert.Contains(t, anomaly.Context.Pattern, "*")
 }
 
 func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {

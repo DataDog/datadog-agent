@@ -1559,14 +1559,14 @@ type LogPatternInfo struct {
 	SeriesIDs     []string `json:"seriesIDs"`
 }
 
-// GetLogPatterns returns frequency patterns from the log metrics extractor.
+// GetLogPatterns returns the log patterns detected by the LogPatternExtractor.
 // In bench mode we use StateView to find log pattern series.
 func (tb *Bench) GetLogPatterns() []LogPatternInfo {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
 	sv := tb.debug.StateView()
-	series := sv.ListSeries(observerdef.SeriesFilter{Namespace: "log_metrics_extractor"})
+	series := sv.ListSeries(observerdef.SeriesFilter{Namespace: "log_pattern_extractor"})
 
 	type patternKey struct {
 		hash string
@@ -1574,10 +1574,10 @@ func (tb *Bench) GetLogPatterns() []LogPatternInfo {
 	patterns := make(map[string]*LogPatternInfo)
 
 	for _, m := range series {
-		if !strings.HasPrefix(m.Name, "log.pattern.") || !strings.HasSuffix(m.Name, ".count") {
+		if !strings.Contains(m.Name, ".count") {
 			continue
 		}
-		// Extract the pattern identity from "log.pattern.<id>.count".
+		// Extract hash from metric name "log.log_pattern_extractor.<hash>.count"
 		parts := strings.Split(m.Name, ".")
 		if len(parts) < 3 {
 			continue

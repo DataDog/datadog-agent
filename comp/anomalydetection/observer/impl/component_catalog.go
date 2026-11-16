@@ -222,6 +222,30 @@ func defaultCatalog() *componentCatalog {
 				factory:        func(any) any { return &ConnectionErrorExtractor{} },
 				defaultEnabled: false,
 			},
+			{
+				name:           "log_pattern_extractor",
+				displayName:    "Log Pattern Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogPatternExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
+				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultLogPatternExtractorConfig()
+					if key := prefix + "max_patterns"; reader.IsConfigured(key) {
+						if value := reader.GetInt(key); value > 0 {
+							cfg.MaxPatterns = value
+						}
+					}
+					return cfg
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogPatternExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("log_pattern_extractor: failed to parse JSON config: %w", err)
+					}
+					return cfg, nil
+				},
+			},
 			// ---- Detectors ----
 			{
 				name:           "bocpd",

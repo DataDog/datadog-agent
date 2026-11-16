@@ -27,7 +27,7 @@ function getAggregationType(name: string): AggregationType | null {
 }
 
 function isPatternCounterBaseName(baseName: string): boolean {
-  return /^log\.(?:pattern|log_pattern_extractor)\.[0-9a-f]+\.count$/.test(baseName);
+  return /^log\.log_pattern_extractor\.[0-9a-f]+\.count$/.test(baseName);
 }
 
 function getDetectorComponent(anomaly: { detectorName: string; detectorComponent?: string }): string {
@@ -109,12 +109,10 @@ export function MetricsView({
   const [tagFilterInput, setTagFilterInput] = useState('');
 
   // Parse a pattern metric group key and return its log pattern hash, or null.
-  // Current: "log_metrics_extractor/log.pattern.<id>.count"
-  // Historical: "log_pattern_extractor/log.log_pattern_extractor.<hash>.count"
+  // Current: "log_pattern_extractor/log.log_pattern_extractor.<hash>.count"
+  // Legacy:  "parquet/_virtual.log.log_pattern_extractor.<hash>.count"
   const getPatternHash = (groupKey: string): string | null => {
-    const current = groupKey.match(/^log_metrics_extractor\/log\.pattern\.([0-9a-f]+)\.count$/);
-    if (current) return current[1];
-    const m = groupKey.match(/^log_pattern_extractor\/log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
+    let m = groupKey.match(/^log_pattern_extractor\/log\.log_pattern_extractor\.([0-9a-f]+)\.count$/);
     if (m) return m[1];
     return null;
   };

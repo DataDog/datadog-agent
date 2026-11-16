@@ -44,6 +44,14 @@ class MinimumTrial:
 
 
 class TestAblationConfig(unittest.TestCase):
+    def test_both_log_extractors_have_independent_tuning_parameters(self):
+        for component in ("log_pattern_extractor", "log_metrics_extractor"):
+            with self.subTest(component=component):
+                trial = Mock()
+                trial.suggest_float.return_value = 0.9
+                self.assertEqual(_sample_component_params(trial, component), {"min_token_match_ratio": 0.9})
+                trial.suggest_float.assert_called_once_with(f"{component}.min_token_match_ratio", 0.2, 0.95)
+
     def test_generated_configs_enable_scorer_and_disable_time_cluster(self):
         self.assertEqual(ABLATION_CORRELATORS, ["anomaly_scorer"])
         self.assertEqual(SUPPORTED_CORRELATORS, ["anomaly_scorer", "time_cluster"])
@@ -443,7 +451,7 @@ class TestMetricWorkflow(unittest.TestCase):
             }
             eval_component.body(
                 Mock(),
-                component="log_metrics_extractor",
+                component="log_pattern_extractor",
                 n_subsets=1,
                 n_trials=1,
                 output_dir=root,
