@@ -75,6 +75,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
         priority = priority or "extra",
         recommends = recommends,
         section = section or "utils",
+        vendor = "Datadog <package@datadoghq.com>",
         version = version,
         visibility = visibility,
     )
@@ -99,5 +100,6 @@ dd_pkg_deb = macro(
             doc = "Files to install, compressed with xz into the package's data archive.",
             mandatory = True,
         ),
+        "vendor": None,
     },
 )
