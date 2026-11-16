@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 	"golang.org/x/sys/windows/registry"
 
 	agentcrashdetect "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/def"

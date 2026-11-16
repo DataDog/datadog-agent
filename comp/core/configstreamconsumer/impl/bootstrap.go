@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"

@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"

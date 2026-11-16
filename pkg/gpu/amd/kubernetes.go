@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // ResourcePrefix is the namespace of the Kubernetes extended resources that

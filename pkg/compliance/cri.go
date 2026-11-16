@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/process"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const (

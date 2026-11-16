@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
