@@ -1746,7 +1746,7 @@ kubernetes_node_labels_as_tags:
 	os.WriteFile(configPath, testStringMapConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.one"}, "first")
