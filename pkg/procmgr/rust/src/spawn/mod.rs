@@ -12,6 +12,9 @@ mod stdio;
 
 #[cfg(all(windows, not(test)))]
 pub(crate) use agent_password_logon::{AgentSpawnLogon, resolve_agent_spawn_logon};
+#[cfg(test)]
+pub(crate) use identity::{Grant, RunAs};
+pub(crate) use identity::{RequestedIdentity, translate};
 pub(crate) use profile::SpawnProfile;
 #[cfg(windows)]
 pub(crate) use profile::{DATADOG_AGENT_PROCESS, DATADOG_AGENT_SYSPROBE};
