@@ -36,8 +36,8 @@ SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.ya
 
 # Schema entry points published as pure JSON Schema, keyed by the name of the
 # config file each one validates: the generated files are named after that
-# config file (datadog.json, system-probe.json) since that is what external
-# consumers (e.g. SchemaStore) match against.
+# config file (datadog.schema.json, system-probe.schema.json, see
+# json_schema_file_name) so users can tell which file each one validates.
 JSON_SCHEMA_ENTRY_POINTS = {
     "datadog": CORE_SCHEMA_MAIN_FILE,
     "system-probe": SYSTEM_PROBE_SCHEMA_MAIN_FILE,
@@ -117,6 +117,15 @@ _JSON_SCHEMA_ID_PREFIX = "https://raw.githubusercontent.com/DataDog/schema/main/
 _AGENT_VERSION_RE = re.compile(r"^v?(\d+\.\d+\.\d+)$")
 
 
+def json_schema_file_name(config_name):
+    """Return the file name of the JSON schema for ``config_name``, e.g. ``datadog.schema.json``.
+
+    The same name is used for the generated file and in its published URL (its ``$id``),
+    so the file can be copied as-is into the DataDog/schema repository.
+    """
+    return f"{config_name}.schema.json"
+
+
 def json_schema_id(config_name, version=None):
     """Return the ``$id`` of the published JSON schema for ``config_name``.
 
@@ -124,7 +133,7 @@ def json_schema_id(config_name, version=None):
     file; without one, the URL of the latest copy. Only stable releases are
     published, so pre-release versions (``7.85.0-rc.1``) are rejected.
     """
-    file_name = f"{config_name}.schema.json"
+    file_name = json_schema_file_name(config_name)
     if version is None:
         return f"{_JSON_SCHEMA_ID_PREFIX}{file_name}"
     match = _AGENT_VERSION_RE.match(version)
@@ -151,7 +160,8 @@ def produce_jsonschema(ctx, output_dir, version=None):
 
     The schema entry points are known (core -> datadog.yaml, system-probe ->
     system-probe.yaml), so the task only needs an output directory: it writes
-    one <config-file-name>.json per entry point into it.
+    one <config-file-name>.schema.json per entry point into it (datadog.schema.json,
+    system-probe.schema.json), the name it is published under.
 
     Strips every Agent-specific extension so the result is 100% compatible with
     https://json-schema.org/ and validates with any conforming library. Output
@@ -166,7 +176,7 @@ def produce_jsonschema(ctx, output_dir, version=None):
         raise Exit(str(e), code=1) from e
     os.makedirs(output_dir, exist_ok=True)
     for config_name, top_schema in JSON_SCHEMA_ENTRY_POINTS.items():
-        out_path = os.path.join(output_dir, f"{config_name}.json")
+        out_path = os.path.join(output_dir, json_schema_file_name(config_name))
         produce_byproduct("json_schema", top_schema, out_path, schema_id=schema_ids[config_name])
         print(f"wrote {out_path} ($id: {schema_ids[config_name]})")
 

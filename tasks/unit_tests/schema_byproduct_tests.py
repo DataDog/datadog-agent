@@ -314,14 +314,18 @@ class TestJsonSchemaId(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as out:
             produce_jsonschema(Context(), out, version="7.85.1")
-            for name in ("datadog", "system-probe"):
-                with open(os.path.join(out, f"{name}.json"), encoding="utf-8") as f:
+            self.assertEqual(sorted(os.listdir(out)), ["datadog.schema.json", "system-probe.schema.json"])
+            for file_name in os.listdir(out):
+                with open(os.path.join(out, file_name), encoding="utf-8") as f:
                     schema = json.load(f)
-                self.assertEqual(schema["$id"], f"{self.PREFIX}v7.85.1/{name}.schema.json")
+                # the file can be copied as-is to the URL its $id names
+                self.assertEqual(schema["$id"], f"{self.PREFIX}v7.85.1/{file_name}")
                 self.assertEqual(list(schema)[:2], ["$schema", "$id"])
                 self.assertEqual(schema["type"], "object")
+        with tempfile.TemporaryDirectory() as out:
             with self.assertRaises(Exit):
                 produce_jsonschema(Context(), out, version="7.85.0-rc.1")
+            self.assertEqual(os.listdir(out), [], "nothing must be written for an invalid version")
 
 
 if __name__ == "__main__":

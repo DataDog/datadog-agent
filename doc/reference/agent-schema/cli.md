@@ -93,7 +93,7 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## `schema.produce-jsonschema`
 
-Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.json` for `datadog.yaml` and `system-probe.json` for `system-probe.yaml`.
+Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.schema.json` for `datadog.yaml` and `system-probe.schema.json` for `system-probe.yaml`.
 
 ```bash
 dda inv schema.produce-jsonschema /tmp/agent-schemas --version 7.85.1
@@ -101,14 +101,14 @@ dda inv schema.produce-jsonschema /tmp/agent-schemas --version 7.85.1
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `output_dir` | yes | Directory to write `datadog.json` and `system-probe.json` into. Created if missing. |
+| `output_dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. |
 | `--version` | no | Stable Agent version the schemas are published for (`7.85.1` or `v7.85.1`). Omit it to build the copy published as the latest version. Pre-releases such as `7.85.0-rc.1` are rejected. |
 
 The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also rewrites [`format: duration`](keywords.md#format-duration) into an equivalent `pattern`.
 
-Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository:
+Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository, under the same file name, so the output can be copied there as-is:
 
-| `--version` | `$id` of `datadog.json` |
+| `--version` | `$id` of `datadog.schema.json` |
 | --- | --- |
 | `7.85.1` | `https://raw.githubusercontent.com/DataDog/schema/main/agent/v7.85.1/datadog.schema.json` |
 | omitted | `https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.schema.json` |
