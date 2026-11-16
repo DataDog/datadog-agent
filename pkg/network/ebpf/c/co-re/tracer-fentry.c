@@ -244,6 +244,8 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 // tcp_disconnect zeroes the destination port and source address, so tcp_close
 // can no longer read the tuple. Flush the connection here instead. When called
 // from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+// A still-present tcp_ongoing_connect_pid entry means tcp_close hasn't reported
+// a failure yet, e.g. shutdown() cancelling a SYN_SENT connect.
 SEC("fentry/tcp_disconnect")
 int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
     conn_tuple_t t = {};
@@ -253,7 +255,9 @@ int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
     }
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
+        handle_tcp_failure(sk, &t);
+    }
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);

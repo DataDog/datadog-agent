@@ -3115,6 +3115,60 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}
 }
 
+// shutdown() on a SYN_SENT socket cancels the connect through tcp_disconnect,
+// after which tcp_close can no longer read the tuple.
+func (s *TracerSuite) TestTCPFailureConnectionCanceledByShutdown() {
+	t := s.T()
+	checkSkipFailureConnectionsTests(t)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't hook tcp_disconnect")
+	}
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("Skipping test on kernels < 4.19")
+	}
+
+	setupDropTrafficRule(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	remoteAddr := &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 10000,
+	}
+	addr := syscall.SockaddrInet4{Port: remoteAddr.Port}
+	copy(addr.Addr[:], remoteAddr.IP.To4())
+
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM|syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	f := os.NewFile(uintptr(sfd), "")
+	t.Cleanup(func() { f.Close() })
+
+	err = syscall.Connect(sfd, &addr)
+	require.ErrorIs(t, err, syscall.EINPROGRESS)
+
+	sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	localAddr := &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: sa.(*syscall.SockaddrInet4).Port,
+	}
+
+	require.NoError(t, syscall.Shutdown(sfd, syscall.SHUT_RDWR))
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+
+		conn, _ := findConnection(localAddr, remoteAddr, conns)
+		require.NotNil(collect, conn)
+		assert.Equal(collect, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
+		assert.Equal(collect, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+		assert.Equal(collect, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
+		assert.Equal(collect, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+	}, 3*time.Second, 100*time.Millisecond, "canceled connection not recorded properly")
+}
+
 func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
 	t := s.T()
 	if mode := ebpftest.GetBuildMode(); mode == ebpftest.Ebpfless || mode == ebpftest.SK {
