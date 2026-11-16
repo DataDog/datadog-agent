@@ -278,7 +278,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
-				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
