@@ -168,7 +168,7 @@ group for these.
 | `osx_target?` | `select({"@platforms//os:macos": ...})` |
 | `debian_target?` | *(no constraint yet — use `# TODO: select()` comment)* |
 | `redhat_target?` | *(no constraint yet — use `# TODO: select()` comment)* |
-| `fips_mode?` | `select({"//packages/agent:fips_flavor": ...})` |
+| `fips_mode?` | `select({"//bazel/platforms:fips": ...})` |
 | `heroku_target?` | dedicated package: `//packages/heroku` |
 
 ### Step 7 — Map package scripts

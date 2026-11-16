@@ -639,7 +639,7 @@ func renderAgentValues(agentImage, mode string) (string, error) {
 
 func isStandardNonRecorderRepo(repo string) bool {
 	switch strings.TrimSuffix(repo, "/") {
-	case "datadog/agent", "docker.io/datadog/agent", "gcr.io/datadoghq/agent", "public.ecr.aws/datadog/agent":
+	case "datadog/agent", "docker.io/datadog/agent", "gcr.io/datadoghq/agent", "registry.datadoghq.com/agent", "public.ecr.aws/datadog/agent":
 		return true
 	default:
 		return false

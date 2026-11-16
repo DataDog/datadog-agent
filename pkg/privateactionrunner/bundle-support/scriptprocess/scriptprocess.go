@@ -54,7 +54,9 @@ type commandController interface {
 //
 // The whole process tree is killed when ctx is done or the output limit is
 // reached, and any descendants still running after the process exits are killed
-// as well. cmd.Stdout, cmd.Stderr and cmd.WaitDelay are overwritten.
+// as well. If ctx ends the run, the returned error is non-nil even when the
+// process itself exited successfully. cmd.Stdout, cmd.Stderr and cmd.WaitDelay
+// are overwritten.
 func Run(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Result, error) {
 	if ctx == nil {
 		return Result{}, errors.New("script context is required")
@@ -90,6 +92,10 @@ func Run(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Result, error) 
 	case <-ctx.Done():
 		cancellationErr = controller.cancel()
 		runErr = <-waitCh
+		if runErr == nil {
+			// The script exited cleanly, but descendants held its output until ctx ended the run.
+			runErr = ctx.Err()
+		}
 	case <-stdout.LimitReachedSignal():
 		cancellationErr = controller.cancel()
 		runErr = <-waitCh

@@ -20,15 +20,18 @@ import (
 // new acquisitions until enough tokens have been released. Raising the limit
 // immediately wakes any blocked acquirers.
 //
-// The semaphore also measures how much wall-clock time it spends fully
-// saturated (all tokens in use). This is the signal used to decide whether the
-// concurrency limit should grow: time spent saturated means callers wanted to
-// send but could not, i.e. we are not keeping up at the current limit.
+// The semaphore also measures how much wall-clock time it spends saturated:
+// all tokens in use while at least one caller is blocked waiting for one. This
+// is the signal used to decide whether the concurrency limit should grow: time
+// spent saturated means callers wanted to send but could not, i.e. we are not
+// keeping up at the current limit.
 type resizableSemaphore struct {
 	mu       sync.Mutex
 	cond     *sync.Cond
 	limit    int64
 	inFlight int64
+	// waiting is the number of callers blocked in Acquire.
+	waiting int64
 
 	// saturatedSince is the time saturation began, or the zero value when the
 	// semaphore is not currently saturated.
@@ -63,14 +66,27 @@ func (s *resizableSemaphore) Acquire(ctx context.Context, n int64) error {
 	})
 	defer stop()
 
+	blocked := false
 	for {
 		if err := ctx.Err(); err != nil {
+			if blocked {
+				s.waiting--
+				s.updateSaturation()
+			}
 			return err
 		}
 		if s.inFlight+n <= s.limit {
 			break
 		}
+		if !blocked {
+			blocked = true
+			s.waiting++
+			s.updateSaturation()
+		}
 		s.cond.Wait()
+	}
+	if blocked {
+		s.waiting--
 	}
 	s.inFlight += n
 	s.updateSaturation()
@@ -99,10 +115,10 @@ func (s *resizableSemaphore) SetLimit(limit int64) {
 }
 
 // updateSaturation records the transition into or out of the saturated state
-// (all tokens in use). It must be called under s.mu after any change to
-// inFlight or limit.
+// (all tokens in use and a caller waiting). It must be called under s.mu after
+// any change to inFlight, limit or waiting.
 func (s *resizableSemaphore) updateSaturation() {
-	saturated := s.inFlight >= s.limit
+	saturated := s.waiting > 0 && s.inFlight >= s.limit
 	switch {
 	case saturated && s.saturatedSince.IsZero():
 		s.saturatedSince = time.Now()

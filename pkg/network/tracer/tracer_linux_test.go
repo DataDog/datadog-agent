@@ -39,6 +39,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2317,6 +2318,145 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	require.False(t, ok, "expected connection to not be found")
 }
 
+// acceptedTCPConnPair opens a loopback TCP connection and returns both ends, closed
+// at the end of the test, along with the server and client ports.
+func acceptedTCPConnPair(t *testing.T) (client, server net.Conn, serverPort, clientPort uint16) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+	}()
+	client, err = net.Dial("tcp4", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	select {
+	case server = <-accepted:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "connection not accepted")
+	}
+	t.Cleanup(func() { server.Close() })
+	return client, server, uint16(ln.Addr().(*net.TCPAddr).Port), uint16(client.LocalAddr().(*net.TCPAddr).Port)
+}
+
+// TestTCPAcceptedConnectionOngoingConnectPid checks the tcp_ongoing_connect_pid
+// entry made for an accepted connection: it must be keyed with a zero pid, like
+// tcp_close and tcp_done look it up, hold the accepting process's pid, and be
+// removed when the connection closes. Otherwise tcp_done can't attribute a
+// server-side failure to the accepting process, and the entry lingers until the
+// userspace cleaner's TTL.
+func (s *TracerSuite) TestTCPAcceptedConnectionOngoingConnectPid() {
+	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't use tcp_ongoing_connect_pid")
+	}
+	tr := setupTracer(t, cfg)
+	ongoing, err := tr.GetMap(probes.TCPOngoingConnectPid)
+	require.NoError(t, err)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	type entry struct {
+		key netebpf.SkpConn
+		val netebpf.PidTs
+	}
+	// entries for the accepted socket: local port = server port
+	acceptedEntries := func() ([]entry, error) {
+		var entries []entry
+		var key netebpf.SkpConn
+		var val netebpf.PidTs
+		it := ongoing.Iterate()
+		for it.Next(&key, &val) {
+			if key.Tup.Sport == serverPort && key.Tup.Dport == clientPort {
+				entries = append(entries, entry{key, val})
+			}
+		}
+		return entries, it.Err()
+	}
+
+	entries, err := acceptedEntries()
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "expected one tcp_ongoing_connect_pid entry for the accepted socket")
+	assert.Zero(t, entries[0].key.Tup.Pid, "accepted socket's entry must be keyed with a zero pid")
+	assert.Equal(t, os.Getpid(), int(entries[0].val.Tgid>>32), "accepted socket's entry must hold the accepting process's pid")
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		entries, err := acceptedEntries()
+		require.NoError(ct, err)
+		assert.Empty(ct, entries)
+	}, 3*time.Second, 100*time.Millisecond, "tcp_ongoing_connect_pid entry for the accepted socket wasn't removed on close")
+}
+
+// TestTCPFailureServerSideReset covers an accepted connection that the client
+// resets: the server's socket gets ECONNRESET in tcp_done, which takes the pid
+// from the accept-time tcp_ongoing_connect_pid entry, then the server closes it.
+// The server side must be reported once, as an established connection with one
+// reset, attributed to the accepting process. (On loopback the RST is processed
+// in the test process's context, so the pid check alone can't tell the map's pid
+// from the current one; TestTCPAcceptedConnectionOngoingConnectPid checks the
+// map entry.)
+func (s *TracerSuite) TestTCPFailureServerSideReset() {
+	t := s.T()
+	checkSkipFailureConnectionsTests(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	_, err := client.Write([]byte("ping"))
+	require.NoError(t, err)
+	buf := make([]byte, 4)
+	_, err = io.ReadFull(server, buf)
+	require.NoError(t, err)
+
+	// closing with SO_LINGER 0 sends an RST
+	require.NoError(t, client.(*net.TCPConn).SetLinger(0))
+	require.NoError(t, client.Close())
+	// Reading the reset clears sk_err, so tcp_close no longer sees the failure:
+	// it can only be reported from tcp_done, which is what this test checks.
+	// Without this read the test would pass even if tcp_done missed the reset.
+	require.NoError(t, server.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = server.Read(buf)
+	require.ErrorIs(t, err, syscall.ECONNRESET)
+	require.NoError(t, server.Close())
+
+	isServerSide := func(cs network.ConnectionStats) bool {
+		return cs.Type == network.TCP && cs.SPort == serverPort && cs.DPort == clientPort
+	}
+	var records []network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		found := network.FilterConnections(connections, isServerSide)
+		require.NotEmpty(ct, found)
+		records = found
+	}, 3*time.Second, 100*time.Millisecond, "server side of the connection not reported")
+
+	for _, r := range records {
+		t.Logf("server-side record: %s established=%d closed=%d failures=%v", r, r.Monotonic.TCPEstablished, r.Monotonic.TCPClosed, r.TCPFailures)
+	}
+	require.Len(t, records, 1, "expected the server side to be reported once")
+	r := records[0]
+	assert.Equal(t, uint16(1), r.Monotonic.TCPEstablished, "established")
+	assert.Equal(t, uint32(1), r.TCPFailures[uint16(syscall.ECONNRESET)], "expected 1 connection reset")
+	assert.Equal(t, uint64(4), r.Monotonic.RecvBytes, "received bytes")
+	assert.Equal(t, os.Getpid(), int(r.Pid), "pid")
+
+	// a later poll must not report the server side again
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
+	assert.Empty(t, network.FilterConnections(connections, isServerSide), "server side reported again")
+}
+
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	t := s.T()
 
@@ -2360,6 +2500,182 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 		require.NotNil(collect, conn)
 		require.Equal(collect, network.OUTGOING, conn.Direction)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackUDPReplyIPv4 covers an unconnected AF_INET6 UDP server
+// bound to [::] (IPV6_V6ONLY off) that replies to an IPv4 client with sendto, as
+// a dual-stack DNS server does. Both directions must land on a single IPv4
+// connection: the sent bytes must not be split into a separate IPv6-family record.
+func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// SK keeps one record per socket, labelled with the socket's family, and
+		// counts a dual-stack send in both fexit/udp_sendmsg and fexit/udpv6_sendmsg
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	// Before 4.7 the prebuilt tracer builds the receive tuple from the socket's
+	// bound address rather than the packet, so it drops receives on a socket
+	// bound to the wildcard address. Without UDPv6 collection (prebuilt on
+	// 5.18+), the receive on the AF_INET6 socket isn't traced either. Only the
+	// send side can be checked there.
+	checkRecv := cfg.CollectUDPv6Conns && !(isPrebuilt(cfg) && kv < kv470)
+	tr := setupTracer(t, cfg)
+
+	sfd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+	require.NoError(t, syscall.SetsockoptInt(sfd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(sfd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(sfd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 5}))
+	sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	serverPort := sa.(*syscall.SockaddrInet6).Port
+
+	client, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: serverPort})
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, tracertestutil.SetTestDeadline(client))
+	clientPort := client.LocalAddr().(*net.UDPAddr).Port
+
+	request := []byte("request")
+	_, err = client.Write(request)
+	require.NoError(t, err)
+
+	buf := make([]byte, 64)
+	n, from, err := syscall.Recvfrom(sfd, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(request), n)
+	// the peer is reported as an IPv4-mapped IPv6 address
+	from6, ok := from.(*syscall.SockaddrInet6)
+	require.True(t, ok, "expected an AF_INET6 peer address, got %T", from)
+	require.True(t, netip.AddrFrom16(from6.Addr).Is4In6(), "expected an IPv4-mapped peer address")
+
+	reply := []byte("a longer reply")
+	require.NoError(t, syscall.Sendto(sfd, reply, 0, from6))
+	n, err = client.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(reply), n)
+
+	// A connection is only reported when it has new activity, so accumulate the
+	// server-side records across polls, keeping the latest copy of each.
+	server := map[network.StatCookie]network.ConnectionStats{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == uint16(serverPort) && cs.DPort == uint16(clientPort)
+		}) {
+			server[c.Cookie] = c
+		}
+		var v4 []network.ConnectionStats
+		for _, c := range server {
+			if !assert.Equal(ct, network.AFINET, c.Family, "server connection has the wrong family: %s", c) {
+				continue
+			}
+			v4 = append(v4, c)
+		}
+		require.Len(ct, v4, 1)
+		assert.Equal(ct, "127.0.0.1", v4[0].Source.String())
+		assert.Equal(ct, "127.0.0.1", v4[0].Dest.String())
+		assert.Equal(ct, uint64(len(reply)), v4[0].Monotonic.SentBytes, "sent bytes")
+		if checkRecv {
+			assert.Equal(ct, uint64(len(request)), v4[0].Monotonic.RecvBytes, "received bytes")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
+// resolver when both IPv4 and IPv6 nameservers are configured, sends its
+// queries from one unconnected AF_INET6 UDP socket to the IPv4-mapped address
+// of an IPv4 server. Each query's DNS stats must be attached
+// to an IPv4 connection, including a query that times out and so has no
+// response packet to create the connection from.
+func (s *TracerSuite) TestUnconnectedDualStackDNSClient() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+	tr := setupTracer(t, cfg)
+
+	answering := testdns.GetServerIP(t).To4()
+	// nothing listens on this address, so the query times out
+	silent := net.IPv4(127, 0, 0, 154).To4()
+
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(fd) })
+	require.NoError(t, syscall.SetsockoptInt(fd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 2}))
+	sa, err := syscall.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := uint16(sa.(*syscall.SockaddrInet6).Port)
+
+	mapped := func(ip net.IP) *syscall.SockaddrInet6 {
+		to := &syscall.SockaddrInet6{Port: 53}
+		copy(to.Addr[:], ip.To16())
+		return to
+	}
+	query := func(domain string) []byte {
+		msg := new(dns.Msg)
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		b, err := msg.Pack()
+		require.NoError(t, err)
+		return b
+	}
+
+	require.NoError(t, syscall.Sendto(fd, query("good.com"), 0, mapped(answering)))
+	buf := make([]byte, 512)
+	_, _, err = syscall.Recvfrom(fd, buf, 0)
+	require.NoError(t, err, "no answer from the test DNS server")
+	require.NoError(t, syscall.Sendto(fd, query("golang.org"), 0, mapped(silent)))
+	require.NoError(t, tr.reverseDNS.WaitForDomain("good.com"))
+
+	// DNS stats that don't match a connection in the same poll are discarded,
+	// and an idle UDP connection isn't reported, so re-send on both flows before
+	// each poll to keep both connections in it. Stats are attached once, so sum
+	// them across polls; the unanswered query's timeout shows up on the stats
+	// keeper's next expiry tick after cfg.DNSTimeout.
+	type counts struct{ successes, timeouts uint32 }
+	got := map[string]*counts{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		for _, ip := range []net.IP{answering, silent} {
+			assert.NoError(ct, syscall.Sendto(fd, []byte{0}, 0, mapped(ip)))
+		}
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == clientPort && cs.DPort == 53
+		}) {
+			if !assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c) {
+				continue
+			}
+			dst := c.Dest.String()
+			if got[dst] == nil {
+				got[dst] = &counts{}
+			}
+			for _, byDomain := range c.DNSStats {
+				for _, stats := range byDomain {
+					got[dst].successes += stats.CountByRcode[0]
+					got[dst].timeouts += stats.Timeouts
+				}
+			}
+		}
+		if assert.Contains(ct, got, answering.String()) {
+			assert.Equal(ct, uint32(1), got[answering.String()].successes, "successful responses")
+		}
+		if assert.Contains(ct, got, silent.String()) {
+			assert.Equal(ct, uint32(1), got[silent.String()].timeouts, "timeouts")
+		}
+		// The DNS stats keeper records a timeout on its next expiry tick, up to
+		// about twice cfg.DNSTimeout after the query, so allow for slow VMs.
+	}, 10*time.Second, 200*time.Millisecond)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {

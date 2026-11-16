@@ -569,9 +569,6 @@ def hacky_dev_image_build(
             # task has been deprecated long enough
             legacy_rtloader_cmake=True,
         )
-        ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
-        )
 
     copy_checks_d = ""
     copy_checks_d_final = ""
