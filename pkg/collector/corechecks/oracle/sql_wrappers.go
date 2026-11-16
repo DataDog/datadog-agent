@@ -10,14 +10,18 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
+	"github.com/sijms/go-ora/v2/network"
 )
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
@@ -115,20 +119,53 @@ func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return true
-	}
-	var networkError net.Error
-	if errors.As(err, &networkError) && networkError.Timeout() {
-		return true
-	}
-	connectionErrors := []string{"DPI-1067", "DPI-1080", "ORA-01000", "ORA-01013", "ORA-03106", "ORA-03113", "ORA-03114", "ORA-03135", "TTC error:", "i/o timeout", "ORA-00028", "ORA-01012", "ORA-06413", "ORA-12514", "database is closed", "bad connection", "connection was aborted"}
-	for _, e := range connectionErrors {
-		if strings.Contains(err.Error(), e) {
+	// A cleanup failure must still trigger recovery when the query also failed.
+	switch wrapped := err.(type) {
+	case interface{ Unwrap() []error }:
+		for _, cause := range wrapped.Unwrap() {
+			if isConnectionError(cause) {
+				return true
+			}
+		}
+	case interface{ Unwrap() error }:
+		if isConnectionError(wrapped.Unwrap()) {
 			return true
 		}
 	}
-	return false
+	for _, target := range []error{
+		driver.ErrBadConn, context.DeadlineExceeded, context.Canceled,
+		io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, network.ErrConnReset,
+		syscall.ECONNABORTED, syscall.ECONNRESET, syscall.EPIPE,
+	} {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	switch cause := err.(type) {
+	case *net.OpError:
+		return cause.Timeout() || cause.Op == "read" || cause.Op == "write"
+	case net.Error:
+		return cause.Timeout()
+	case *network.OracleError:
+		return cause.Bad() || shouldResetOracleSession(cause.ErrCode)
+	case interface{ Code() int }:
+		// ODPI-C preserves the underlying Oracle code for call timeouts.
+		code := cause.Code()
+		return godror.IsBadConn(err) || shouldResetOracleSession(code) || code == 3156 || code == 12161
+	}
+	// Neither of these errors has an exported type or sentinel in the pinned APIs.
+	return strings.HasPrefix(err.Error(), "TTC error:") || err.Error() == "sql: database is closed"
+}
+
+func shouldResetOracleSession(code int) bool {
+	switch code {
+	case 1000, 1013: // Cursor exhaustion or operation cancellation.
+		return true
+	case 3106, 6413, 12514: // Preserve protocol, unopened-connection and listener recovery.
+		return true
+	default:
+		return false
+	}
 }
 
 func isConnectionRefused(err error) bool {

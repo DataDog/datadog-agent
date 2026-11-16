@@ -12,9 +12,11 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/jmoiron/sqlx"
 	goora "github.com/sijms/go-ora/v2"
+	"github.com/sijms/go-ora/v2/network"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,16 +112,76 @@ propagate_agent_tags: false
 	return c, sender
 }
 
+type codedOracleError int
+
+func (e codedOracleError) Code() int     { return int(e) }
+func (e codedOracleError) Error() string { return fmt.Sprintf("native Oracle error %d", int(e)) }
+
 func TestRecoveryErrorClassification(t *testing.T) {
-	for _, message := range []string{"DPI-1067: call timeout exceeded", "DPI-1080: connection was closed", "ORA-01000: maximum open cursors exceeded", "ORA-01013: user requested cancel", "ORA-03106: fatal two-task communication protocol error", "ORA-03113", "ORA-03114", "ORA-03135", "TTC error: received code 9 during response reading", "read tcp: i/o timeout", "ORA-00028", "ORA-01012", "ORA-06413", "ORA-12514", "database is closed", "bad connection", "connection was aborted"} {
-		require.True(t, isConnectionError(errors.New(message)), message)
+	for _, code := range []int{28, 1012, 3113, 3114, 3135, 1000, 1013, 3106, 6413, 12514, 1033, 1089} {
+		for _, err := range []error{network.NewOracleError(code), codedOracleError(code)} {
+			require.True(t, isConnectionError(err), "%T code %d", err, code)
+			require.True(t, isConnectionError(fmt.Errorf("query: %w", err)), "%T code %d", err, code)
+		}
 	}
-	require.True(t, isConnectionError(&net.OpError{Op: "read", Err: context.DeadlineExceeded}))
-	for _, err := range []error{context.DeadlineExceeded, context.Canceled, io.EOF, io.ErrUnexpectedEOF} {
-		require.True(t, isConnectionError(errors.Join(errors.New("query"), err)))
+	for _, code := range []codedOracleError{3156, 12161} {
+		require.True(t, isConnectionError(code), "native call timeout code %d", code)
 	}
-	for _, err := range []error{nil, sql.ErrNoRows, errors.New("ORA-00942: table does not exist"), errors.New("ORA-00904: invalid identifier"), errors.New("ordinary SQL error")} {
-		require.False(t, isConnectionError(err))
+	for _, err := range []error{
+		driver.ErrBadConn, context.DeadlineExceeded, context.Canceled, io.EOF, io.ErrUnexpectedEOF,
+		net.ErrClosed, network.ErrConnReset, syscall.ECONNABORTED, syscall.ECONNRESET, syscall.EPIPE,
+		&net.DNSError{IsTimeout: true},
+		&net.OpError{Op: "read", Net: "tcp", Err: syscall.Errno(10053)},
+		&net.OpError{Op: "write", Net: "tcp", Err: errors.New("localized socket failure")},
+		errors.New("TTC error: received code 9 during response reading"),
+		errors.New("sql: database is closed"),
+	} {
+		require.True(t, isConnectionError(err), "%v", err)
+		require.True(t, isConnectionError(fmt.Errorf("query: %w", err)), "%v", err)
+	}
+}
+
+func TestOrdinaryErrorTextDoesNotTriggerRecovery(t *testing.T) {
+	for _, err := range []error{
+		nil, sql.ErrNoRows,
+		network.NewOracleError(904), network.NewOracleError(942), codedOracleError(904), codedOracleError(942),
+		&network.OracleError{ErrCode: 904, ErrMsg: "TTC error: ORA-01000 bad connection in invalid SQL"},
+		&net.OpError{Op: "dial", Err: &net.DNSError{Err: "no such host"}},
+		errors.New("SQL contains ORA-01000, bad connection, i/o timeout and connection was aborted"),
+		errors.New("query references TTC error: and sql: database is closed"),
+	} {
+		require.False(t, isConnectionError(err), "%v", err)
+	}
+}
+
+func TestJoinedCleanupErrorsTriggerRecovery(t *testing.T) {
+	for _, ordinary := range []error{network.NewOracleError(942), codedOracleError(942)} {
+		for _, cleanup := range []error{network.NewOracleError(6413), codedOracleError(3113), io.EOF} {
+			require.True(t, isConnectionError(errors.Join(ordinary, fmt.Errorf("close: %w", cleanup))))
+			require.True(t, isConnectionError(errors.Join(cleanup, ordinary)))
+		}
+	}
+	require.False(t, isConnectionError(errors.Join(codedOracleError(942), network.NewOracleError(904))))
+}
+
+func TestRecoveryDoesNotReplayFailedQuery(t *testing.T) {
+	for _, driverName := range []string{common.GoOra, common.Godror} {
+		t.Run(driverName, func(t *testing.T) {
+			c, _ := operationCheck(t)
+			c.config.Protocol, c.config.Wallet = "TCPS", t.TempDir()
+			var failure error = network.NewOracleError(1000)
+			if driverName == common.Godror {
+				failure = codedOracleError(1000)
+			}
+			calls := 0
+			c.db = operationPool(t, driverName, operationConn{query: func(context.Context, string) (driver.Rows, error) { calls++; return nil, failure }})
+			var value int
+			err := getWrapper(c, &value, "SELECT value FROM dual")
+			require.ErrorIs(t, err, failure)
+			require.NotErrorIs(t, err, driver.ErrBadConn)
+			require.Equal(t, 1, calls)
+			require.Nil(t, c.db)
+		})
 	}
 }
 
@@ -182,7 +245,10 @@ func TestCustomFetchAndCloseErrorsRecover(t *testing.T) {
 		for _, phase := range []string{"fetch", "close", "scan and close"} {
 			t.Run(driverName+"/"+phase, func(t *testing.T) {
 				c, sender := operationCheck(t)
-				recoveryErr := errors.New("ORA-01000: maximum open cursors exceeded")
+				var recoveryErr error = network.NewOracleError(1000)
+				if driverName == common.Godror {
+					recoveryErr = codedOracleError(1000)
+				}
 				rows := &operationRows{}
 				if phase == "fetch" {
 					rows.fetchErr = recoveryErr
@@ -246,7 +312,7 @@ func TestBuiltInPathsUseRecovery(t *testing.T) {
 			c, _ := operationCheck(t)
 			c.config.Protocol, c.config.Wallet = "TCPS", t.TempDir()
 			c.dbVersion = "18.0.0.0.0"
-			failure := errors.New("ORA-01013: operation canceled")
+			failure := network.NewOracleError(1013)
 			var closed atomic.Int32
 			c.db = operationPool(t, common.GoOra, operationConn{
 				query: func(ctx context.Context, _ string) (driver.Rows, error) {

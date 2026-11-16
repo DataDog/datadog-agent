@@ -60,6 +60,7 @@ go_library(
         "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@com_github_sijms_go_ora_v2//:go-ora",
+        "@com_github_sijms_go_ora_v2//network",
     ],
 )
 
@@ -82,6 +83,7 @@ dd_agent_go_test(
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
         "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_sijms_go_ora_v2//:go-ora",
+        "@com_github_sijms_go_ora_v2//network",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
