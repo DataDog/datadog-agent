@@ -134,6 +134,11 @@ type ntmConfig struct {
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
+	// sensitiveKeys are the settings that hold credentials
+	sensitiveKeys map[string]struct{}
+	// sensitiveEnvVars are the env vars bound to sensitiveKeys, computed when the schema is built
+	sensitiveEnvVars map[string]struct{}
+
 	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
 	// sync.Map is used because checkKnownKey writes to this map while callers
@@ -258,9 +263,9 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
-			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
+			_ = log.ErrorfStackDepth(3, "set value for unknown key '%s'", key)
 		} else {
-			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
+			_ = log.ErrorfStackDepth(3, "could not set '%s' unknown key", key)
 			return false
 		}
 	}
@@ -293,9 +298,9 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 				typePair := fmt.Sprintf("%T->%T", newValue, converted)
 				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
 				if isIntWidthConversion && c.setTypeWarnings[typePair] {
-					log.DebugfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.DebugfStackDepth(3, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 				} else {
-					log.WarnfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.WarnfStackDepth(3, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 					if isIntWidthConversion {
 						c.setTypeWarnings[typePair] = true
 					}
@@ -311,7 +316,7 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
+		_ = log.ErrorfStackDepth(3, "could not insert value: %s", err)
 		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
@@ -626,6 +631,25 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
+// SetSensitive marks a setting as holding a credential
+func (c *ntmConfig) SetSensitive(key string) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.isReady() && !c.allowDynamicSchema.Load() {
+		panic("cannot SetSensitive() once the config has been marked as ready for use")
+	}
+	c.sensitiveKeys[strings.ToLower(key)] = struct{}{}
+}
+
+// IsSensitive returns whether the setting holds a credential
+func (c *ntmConfig) IsSensitive(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, found := c.sensitiveKeys[strings.ToLower(key)]
+	return found
+}
+
 // IsSetting returns true for leaf nodes
 func (c *ntmConfig) IsSetting(key string) bool {
 	n, err := c.GetNode(key)
@@ -700,6 +724,7 @@ func (c *ntmConfig) layerList() []*nodeImpl {
 	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
+		c.infraMode,
 		c.file,
 		c.envs,
 		c.fleetPolicies,
@@ -761,6 +786,7 @@ func (c *ntmConfig) buildSchema() {
 	}
 
 	c.buildEnvVars()
+	c.sensitiveEnvVars = c.computeSensitiveEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
@@ -1388,6 +1414,7 @@ func NewNodeTreeConfig(name string, schemaType model.SchemaID) model.BuildableCo
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
+		sensitiveKeys:      map[string]struct{}{},
 		setWarnings:        map[string]bool{},
 		setTypeWarnings:    map[string]bool{},
 		defaults:           newInnerNode(nil),

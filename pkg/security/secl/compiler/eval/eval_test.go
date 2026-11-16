@@ -146,6 +146,28 @@ func TestIdentArrayError(t *testing.T) {
 	}
 }
 
+func TestCompareLeftOperandError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`["a", "b"] == "a"`:                        "string expected: 1:1",
+		`process.uid == 0 && ["a"] =~ "a*"`:        "string expected: 1:21",
+		`[1.1.1.1, 10.0.0.0/8] != 1.1.1.1`:         "struct expected: 1:1",
+		`process.array.flag in [true]`:             "bool expected: 1:1",
+		`process.uid == 0 && [true] not in [true]`: "bool expected: 1:21",
+	} {
+		model := &testModel{}
+		opts := newOptsWithParams(testConstants, nil)
+		rule, err := parseRule(expr, model, opts)
+		if rule == nil {
+			t.Fatal(err)
+		}
+
+		_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
+		if err == nil || err.Error() != expected {
+			t.Errorf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
+	}
+}
+
 func TestSimpleString(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
@@ -597,6 +619,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
+
+		// an event with the same field value and another uid matches
+		{Expr: `!(open.filename == "xyz" && process.uid == 456)`, Field: "open.filename", IsDiscarder: false},
+		// an event with the same field value and another uid matches
+		{Expr: `process.uid + 1 - 1 == process.gid`, Field: "process.gid", IsDiscarder: false},
 	}
 
 	for _, test := range tests {
@@ -1590,10 +1617,11 @@ func TestFieldReferenceSyntax(t *testing.T) {
 	}
 
 	tests := []struct {
-		Expr        string
-		Expected    bool
-		ShouldError bool
-		Desc        string
+		Expr          string
+		Expected      bool
+		ShouldError   bool
+		ErrorContains string
+		Desc          string
 	}{
 		{
 			Expr:     `%{process.name} == "test"`,
@@ -1616,9 +1644,16 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			Desc:     "multiple field references in string",
 		},
 		{
-			Expr:        `${process.pid} > 0`,
-			ShouldError: true,
-			Desc:        "variable syntax without variable should fail (no fallback)",
+			Expr:          `${process.pid} > 0`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.pid} to reference the field",
+			Desc:          "variable syntax without variable should fail (no fallback)",
+		},
+		{
+			Expr:          `"${process.name}" == "test"`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.name} to reference the field",
+			Desc:          "variable syntax in string interpolation hints at the field",
 		},
 		{
 			Expr:        `${nonexistent.variable} == "test"`,
@@ -1640,6 +1675,12 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			if test.ShouldError {
 				if err == nil {
 					t.Fatalf("expected error for `%s` but got none", test.Expr)
+				}
+				if test.ErrorContains != "" && !strings.Contains(err.Error(), test.ErrorContains) {
+					t.Fatalf("expected error for `%s` to contain `%s`, got `%s`", test.Expr, test.ErrorContains, err)
+				}
+				if test.ErrorContains == "" && strings.Contains(err.Error(), "to reference the field") {
+					t.Fatalf("unexpected field hint for `%s`: `%s`", test.Expr, err)
 				}
 				return
 			}
@@ -1986,7 +2027,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}

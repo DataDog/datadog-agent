@@ -41,6 +41,7 @@ import (
 const (
 	protobufContentType                         = "application/x-protobuf"
 	jsonContentType                             = "application/json"
+	payloadTypeHTTPHeader                       = "DD-Payload-Type"
 	payloadVersionHTTPHeader                    = "DD-Agent-Payload"
 	maxItemCountForCreateMarshalersBySourceType = 100
 )
@@ -377,7 +378,15 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
 	}
 
-	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression); err != nil {
+	// Clone the shared headers: they are read concurrently by other senders.
+	headers := s.jsonExtraHeadersWithCompression.Clone()
+	// Payloads from senders outside this repository may not report a type: they are sent without the header, which
+	// intake treats as unknown.
+	if t, ok := m.(marshaler.TypedJSONMarshaler); ok {
+		headers.Set(payloadTypeHTTPHeader, string(t.PayloadType()))
+	}
+
+	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), headers); err != nil {
 		return err
 	}
 

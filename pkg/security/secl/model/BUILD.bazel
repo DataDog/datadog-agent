@@ -481,6 +481,7 @@ dd_agent_go_test(
         "event_deep_copy_unix_test.go",
         "event_zeroer_unix_test.go",
         "events_test.go",
+        "file_capabilities_linux_test.go",
         "marshallers_test.go",
         "model_test.go",
         "mount_flags_test.go",

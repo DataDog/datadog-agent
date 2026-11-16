@@ -127,7 +127,7 @@ _configure = tag_class(
     attrs = {
         "s3_base_url": attr.string(default = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"),
         "clang_version": attr.string(default = "12.0.1"),
-        "clang_build_version": attr.string(default = "v60409452-ee70de70"),
+        "clang_build_version": attr.string(default = "v150220922-61ce1181"),
         "sha256s": attr.string_dict(doc = "SHA256 checksums keyed by '{binary_prefix}.{arch}', e.g. 'clang.amd64'."),
         "verbose": attr.bool(default = False),
     },
@@ -137,7 +137,7 @@ def _llvm_bpf_extension_impl(ctx):
     cfg = ctx.modules[0].tags.configure[0] if ctx.modules[0].tags.configure else struct(
         s3_base_url = "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
         clang_version = "12.0.1",
-        clang_build_version = "v60409452-ee70de70",
+        clang_build_version = "v150220922-61ce1181",
         sha256s = {},
         verbose = False,
     )

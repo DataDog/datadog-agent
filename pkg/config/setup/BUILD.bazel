@@ -73,6 +73,7 @@ dd_agent_go_test(
         "//pkg/config/setup/constants",
         "//pkg/config/setup/generatedsettings_local:generatedsettings",
         "//pkg/util/defaultpaths",
+        "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

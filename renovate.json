@@ -194,11 +194,6 @@
         "enabled": false
       },
       {
-        "matchManagers": ["maven"],
-        "matchUpdateTypes": ["major", "minor"],
-        "enabled": false
-      },
-      {
         "matchManagers": ["bazelisk"],
         "matchDepNames": ["*"],
         "enabled": false
@@ -230,6 +225,11 @@
           "supply_chain_tools"
         ],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["org.bouncycastle:*-fips"],
+        "groupName": "bouncycastle-fips"
       },
       {
         "matchManagers": ["bundler"],
@@ -413,6 +413,16 @@
         "depNameTemplate": "node",
         "datasourceTemplate": "node",
         "versioningTemplate": "node"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "temurin_jre_version = \"(?<currentValue>[^\"]+)\"\\n\\nhttp_archive\\(\\n    name = \"temurin_jre_windows_x64\",[\\s\\S]*?sha256 = \"(?<currentDigest>[0-9a-f]{64})\""
+        ],
+        "depNameTemplate": "temurin_jre_windows_x64",
+        "datasourceTemplate": "custom.temurin-jre-11-windows-x64",
+        "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?\\+(?<revision>\\d+)$"
       }
     ],
     "customDatasources": {
@@ -444,6 +454,12 @@
         "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-trace-py/releases",
         "transformTemplates": [
           "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\"), \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
+        ]
+      },
+      "temurin-jre-11-windows-x64": {
+        "defaultRegistryUrlTemplate": "https://api.adoptium.net/v3/assets/feature_releases/11/ga?architecture=x64&image_type=jre&jvm_impl=hotspot&os=windows&vendor=eclipse&page_size=20&sort_order=DESC",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $substringAfter($v.release_name, \"jdk-\"), \"digest\": $v.binaries[0].package.checksum, \"releaseTimestamp\": $v.timestamp } }) }"
         ]
       }
     }

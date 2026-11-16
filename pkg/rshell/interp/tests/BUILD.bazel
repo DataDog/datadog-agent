@@ -11,6 +11,8 @@ dd_agent_go_test(
         "redir_devnull_pentest_test.go",
         "redir_devnull_test.go",
         "redir_input_bypass_pentest_test.go",
+        "redir_input_bypass_unix_test.go",
+        "redir_input_bypass_windows_test.go",
         "subshell_test.go",
         "while_clause_fuzz_test.go",
         "while_clause_pentest_test.go",

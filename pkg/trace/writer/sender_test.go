@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -597,7 +598,7 @@ func newTestSenderWithClient(serverURL string, client *config.ResetClient) (*sen
 		apiKey: testAPIKey,
 	}
 	statsd := &statsd.NoOpClient{}
-	return newSender(scfg, apiKeyManager, statsd), nil
+	return newSender(scfg, apiKeyManager, statsd, false), nil
 }
 
 func newInProcessTestSender(server *testServer) (*sender, error) {
@@ -651,4 +652,323 @@ func TestNewSendersSkipMainEndpoint(t *testing.T) {
 		assert.Panics(t, func() { build(t, newCfg(true, main)) })
 		assert.Panics(t, func() { build(t, newCfg(true, main, mrf)) })
 	})
+}
+
+func TestNewSendersDeliversDelegatedAuthKey(t *testing.T) {
+	cfg := config.New()
+	staticIndex, pendingIndex := 0, 1
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://main.example.com", APIKey: "main-key"},
+		{Host: "https://additional.example.com", APIKey: "static-key", APIKeyConfigIndex: &staticIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &pendingIndex},
+	}
+	var deliver func(host string, keys []string)
+	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		deliver = cb
+	}
+	senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	t.Cleanup(func() { stopSenders(senders) })
+
+	var pending *sender
+	for _, s := range senders {
+		if s.awaitDelegatedAuth {
+			pending = s
+		}
+	}
+	require.NotNil(t, pending, "a pending marker must produce a pending sender")
+	assert.Equal(t, "https://additional.example.com", pending.cfg.host)
+	assert.Empty(t, pending.apiKeyManager.Get())
+
+	// Each sender receives the key from its own config slot.
+	deliver("https://additional.example.com", []string{"static-key", "resolved-key"})
+	assert.Equal(t, "resolved-key", pending.apiKeyManager.Get())
+
+	// Updates for other hosts must not touch the pending sender.
+	pending.apiKeyManager.Update("")
+	deliver("https://other.example.com", []string{"other-key"})
+	assert.Empty(t, pending.apiKeyManager.Get())
+}
+
+func TestSenderHoldsPayloadWhileDelegatedAuthPending(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	scfg := &senderConfig{
+		client:     config.NewResetClient(0, func() *http.Client { return &http.Client{Transport: handlerTransport(server.ServeHTTP)} }),
+		url:        parsed,
+		maxConns:   1,
+		maxQueued:  10,
+		maxRetries: 0,
+		recorder:   &mockRecorder{},
+		userAgent:  "testUserAgent",
+		host:       server.URL,
+	}
+	mgr := &apiKeyManager{apiKey: ""}
+	s := newSender(scfg, mgr, &statsd.NoOpClient{}, true)
+	t.Cleanup(func() { s.Stop() })
+
+	p := ppool.Get().(*payload)
+	p.body.Reset()
+	if p.headers == nil {
+		p.headers = make(map[string]string)
+	}
+	p.body.WriteString("payload")
+	p.headers["Content-Type"] = "application/octet-stream"
+	s.Push(p)
+
+	// While the key is pending no request must reach the server. holdLogged proves the
+	// loop goroutine entered the delegated-auth wait before the assertion runs.
+	require.Eventually(t, func() bool { return s.holdLogged.Load() },
+		5*time.Second, 20*time.Millisecond, "the sender must reach the delegated-auth wait")
+	assert.Zero(t, server.Total(), "a pending sender must hold payloads, not send with an empty key")
+
+	// The write-back delivers the key and the held payload flows.
+	mgr.Update(testAPIKey)
+	require.Eventually(t, func() bool { return server.Total() == 1 },
+		5*time.Second, 50*time.Millisecond, "the held payload must send once the key arrives")
+}
+
+func TestNewSendersDeliversRotatedDelegatedAuthKey(t *testing.T) {
+	cfg := config.New()
+	index := 0
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://main.example.com", APIKey: "main-key"},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &index},
+	}
+	var deliver func(host string, keys []string)
+	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		deliver = cb
+	}
+	senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	t.Cleanup(func() { stopSenders(senders) })
+
+	var pending *sender
+	for _, s := range senders {
+		if s.awaitDelegatedAuth {
+			pending = s
+		}
+	}
+	require.NotNil(t, pending)
+
+	deliver("https://additional.example.com", []string{"first-key"})
+	require.Equal(t, "first-key", pending.apiKeyManager.Get())
+
+	// Rotation replaces the resolved key in the list; the sender must adopt the new one
+	// even though it already holds a key.
+	deliver("https://additional.example.com", []string{"rotated-key"})
+	assert.Equal(t, "rotated-key", pending.apiKeyManager.Get())
+}
+
+func TestNewSendersRotatesKeyResolvedBeforeConstruction(t *testing.T) {
+	for _, path := range []string{pathTraces, pathStats} {
+		t.Run(path, func(t *testing.T) {
+			cfg := config.New()
+			index := 0
+			cfg.Endpoints = []*config.Endpoint{
+				{Host: "https://main.example.com", APIKey: "main-key"},
+				{Host: "https://additional.example.com", APIKey: "first-key", APIKeyConfigIndex: &index},
+			}
+			var deliver func(string, []string)
+			cfg.OnAdditionalEndpointsUpdate = func(cb func(string, []string)) {
+				deliver = cb
+				// Reconcile a rotation between the config snapshot and subscription.
+				cb("https://additional.example.com", []string{"current-key"})
+			}
+			senders := newSenders(cfg, &mockRecorder{}, path, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			t.Cleanup(func() { stopSenders(senders) })
+			require.Equal(t, "current-key", senders[1].apiKeyManager.Get())
+
+			deliver("https://additional.example.com", []string{"rotated-key"})
+			assert.Equal(t, "rotated-key", senders[1].apiKeyManager.Get())
+			assert.Equal(t, "main-key", senders[0].apiKeyManager.Get())
+		})
+	}
+}
+
+func TestNewSendersMultiOrgSameHost(t *testing.T) {
+	// Two DELA directives on one host resolve to two keys: both pending senders must be
+	// assigned distinct keys so both orgs ship.
+	cfg := config.New()
+	firstIndex, secondIndex := 0, 1
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://main.example.com", APIKey: "main-key"},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &firstIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &secondIndex},
+	}
+	var deliver func(host string, keys []string)
+	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		deliver = cb
+	}
+	senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	t.Cleanup(func() { stopSenders(senders) })
+
+	var pendingKeys []string
+	for _, s := range senders {
+		if s.awaitDelegatedAuth {
+			pendingKeys = append(pendingKeys, s.apiKeyManager.Get())
+		}
+	}
+	require.Len(t, pendingKeys, 2)
+	assert.Empty(t, pendingKeys[0])
+	assert.Empty(t, pendingKeys[1])
+
+	// Resolving the second directive first must not change the first sender's identity.
+	deliver("https://additional.example.com", []string{"", "resolved-b"})
+	assert.Empty(t, senders[1].apiKeyManager.Get())
+	require.Equal(t, "resolved-b", senders[2].apiKeyManager.Get())
+	deliver("https://additional.example.com", []string{"resolved-a", "resolved-b"})
+	require.Equal(t, "resolved-a", senders[1].apiKeyManager.Get())
+	deliver("https://additional.example.com", []string{"rotated-a", "resolved-b"})
+	assert.Equal(t, "rotated-a", senders[1].apiKeyManager.Get())
+	assert.Equal(t, "resolved-b", senders[2].apiKeyManager.Get())
+}
+
+func TestNewSendersRotationKeepsUnchangedKeys(t *testing.T) {
+	const host = "https://additional.example.com"
+	for _, skipMain := range []bool{false, true} {
+		t.Run(strconv.FormatBool(skipMain), func(t *testing.T) {
+			staticIndex, rotatingIndex := 0, 1
+			cfg := config.New()
+			cfg.SkipMainEndpoint = skipMain
+			cfg.Endpoints = []*config.Endpoint{
+				{Host: host, APIKey: "shared-key"},
+				{Host: host, APIKey: "shared-key", IsMRF: true},
+				{Host: host, APIKey: "shared-key", APIKeyConfigIndex: &staticIndex},
+				{Host: host, APIKey: "shared-key", APIKeyConfigIndex: &rotatingIndex},
+			}
+			var deliver func(string, []string)
+			cfg.OnAdditionalEndpointsUpdate = func(cb func(string, []string)) { deliver = cb }
+			senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			t.Cleanup(func() { stopSenders(senders) })
+
+			deliver(host, []string{"shared-key", "rotated-key"})
+			for _, s := range senders[:len(senders)-1] {
+				assert.Equal(t, "shared-key", s.apiKeyManager.Get())
+			}
+			rotating := senders[len(senders)-1]
+			require.Equal(t, "rotated-key", rotating.apiKeyManager.Get())
+			// A missing or pending slot must not substitute another slot's key.
+			deliver(host, []string{"shared-key"})
+			deliver(host, []string{"shared-key", ""})
+			assert.Equal(t, "rotated-key", rotating.apiKeyManager.Get())
+		})
+	}
+}
+
+func TestNewSendersStaticOnlyUpdateLeavesPendingKeyless(t *testing.T) {
+	cfg := config.New()
+	staticIndex, pendingIndex := 0, 1
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://main.example.com", APIKey: "main-key"},
+		{Host: "https://additional.example.com", APIKey: "static-key", APIKeyConfigIndex: &staticIndex},
+		{Host: "https://additional.example.com", HasPendingDelegatedAuth: true, APIKeyConfigIndex: &pendingIndex},
+	}
+	var deliver func(host string, keys []string)
+	cfg.OnAdditionalEndpointsUpdate = func(cb func(host string, apiKeys []string)) {
+		deliver = cb
+	}
+	senders := newSenders(cfg, &mockRecorder{}, pathTraces, 10, 10, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	t.Cleanup(func() { stopSenders(senders) })
+
+	var pending *sender
+	for _, s := range senders {
+		if s.awaitDelegatedAuth {
+			pending = s
+		}
+	}
+	require.NotNil(t, pending)
+
+	// A rewrite that carries only the static key (e.g. a remote-config update before the
+	// write-back) must not hand the static key to the pending sender.
+	deliver("https://additional.example.com", []string{"static-key"})
+	assert.Empty(t, pending.apiKeyManager.Get())
+}
+
+func TestSenderStopWhileDelegatedAuthPending(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	scfg := &senderConfig{
+		client:     config.NewResetClient(0, func() *http.Client { return &http.Client{Transport: handlerTransport(server.ServeHTTP)} }),
+		url:        parsed,
+		maxConns:   1,
+		maxQueued:  1,
+		maxRetries: 0,
+		recorder:   &mockRecorder{},
+		userAgent:  "testUserAgent",
+		host:       server.URL,
+	}
+	mgr := &apiKeyManager{apiKey: ""}
+	s := newSender(scfg, mgr, &statsd.NoOpClient{}, true)
+
+	p := ppool.Get().(*payload)
+	p.body.Reset()
+	if p.headers == nil {
+		p.headers = make(map[string]string)
+	}
+	p.body.WriteString("payload")
+	s.Push(p)
+
+	// Stopping while a payload is held must abort the wait instead of hanging on it.
+	done := make(chan struct{})
+	go func() {
+		s.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop hung while a payload was held for delegated auth")
+	}
+	assert.Zero(t, server.Total())
+}
+
+func TestSenderDropsWhenPendingQueueFull(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+	parsed, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	scfg := &senderConfig{
+		client:     config.NewResetClient(0, func() *http.Client { return &http.Client{Transport: handlerTransport(server.ServeHTTP)} }),
+		url:        parsed,
+		maxConns:   1,
+		maxQueued:  1, // the queue holds one payload; the loop goroutine holds it
+		maxRetries: 0,
+		recorder:   &mockRecorder{},
+		userAgent:  "testUserAgent",
+		host:       server.URL,
+	}
+	mgr := &apiKeyManager{apiKey: ""}
+	s := newSender(scfg, mgr, &statsd.NoOpClient{}, true)
+	t.Cleanup(func() { s.Stop() })
+
+	push := func() *payload {
+		p := ppool.Get().(*payload)
+		p.body.Reset()
+		if p.headers == nil {
+			p.headers = make(map[string]string)
+		}
+		p.body.WriteString("payload")
+		return p
+	}
+	s.Push(push()) // held by the loop goroutine
+	s.Push(push()) // fills the queue
+
+	// The third push must drop instead of blocking the sequential flush path.
+	done := make(chan struct{})
+	go func() {
+		s.Push(push())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Push blocked on a full pending queue; it must drop instead")
+	}
+	assert.Zero(t, server.Total())
 }

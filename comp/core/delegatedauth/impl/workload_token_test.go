@@ -47,8 +47,8 @@ func TestWorkloadTokenUsesSelectedInstance(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		instance := &authInstance{
-			authConfig: &common.AuthConfig{OrgUUID: "org-for-" + key},
-			targetSite: server.URL,
+			endpointRegistration: endpointRegistration{targetSite: server.URL},
+			authConfig:           &common.AuthConfig{OrgUUID: "org-for-" + key},
 			provider: workloadProvider{proof: func(_ context.Context, gotCfg pkgconfigmodel.Reader, auth *common.AuthConfig, got common.WorkloadTokenRequest) (string, error) {
 				require.Same(t, cfg, gotCfg)
 				require.Equal(t, "org-for-"+key, auth.OrgUUID)
@@ -119,10 +119,12 @@ func TestWorkloadTokenRejectsRemovedAdditionalEndpoint(t *testing.T) {
 	d := NewComponent().Comp.(*delegatedAuthComponent)
 	d.config = cfg
 	d.instances["additional-key"] = &authInstance{
-		provider:                     workloadProvider{}, // Must reject before attempting to generate a proof.
-		additionalEndpointDomain:     "datadoghq.eu",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		originalDirective:            "DELA[org]",
+		provider: workloadProvider{}, // Must reject before attempting to generate a proof.
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "datadoghq.eu",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[org]",
+		},
 	}
 	token, err := d.GetWorkloadToken(context.Background(), "additional-key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
 	require.ErrorIs(t, err, errWritebackTargetChanged)

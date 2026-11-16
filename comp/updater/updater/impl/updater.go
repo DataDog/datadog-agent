@@ -17,12 +17,9 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater/def"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-)
-
-var (
-	errRemoteConfigRequired = errors.New("remote config is required to create the updater")
 )
 
 // Requires defines the dependencies for the updater component.
@@ -42,9 +39,15 @@ type Provides struct {
 
 // NewComponent creates a new updater component.
 func NewComponent(reqs Requires) (Provides, error) {
+	if !configUtils.IsRemoteConfigEnabled(reqs.Config) {
+		return Provides{}, updatercomp.ErrRemoteConfigRequired
+	}
+	if !reqs.Config.GetBool("remote_updates") {
+		return Provides{}, updatercomp.ErrRemoteUpdateDisabled
+	}
 	remoteConfig, ok := reqs.RemoteConfig.Get()
 	if !ok {
-		return Provides{}, errRemoteConfigRequired
+		return Provides{}, errors.New("remote config failed to initialize")
 	}
 	hostname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {

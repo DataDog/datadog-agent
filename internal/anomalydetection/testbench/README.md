@@ -19,6 +19,31 @@ Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
+### Metric workflow
+
+Legacy detectors remain the default. Add `--use-metric-pipeline` to select the
+kind-routed workflow at startup, in either the binary or Python wrapper:
+
+```bash
+# Interactive: legacy / pipeline
+dda inv anomalydetection.launch-testbench
+dda inv anomalydetection.launch-testbench --use-metric-pipeline
+
+# Headless: same scenario and parameter file, different workflows
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/legacy.json
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/pipeline.json --use-metric-pipeline
+```
+
+The workflows are mutually exclusive. The pipeline owns its detector defaults;
+legacy detector toggles and parameters do not configure it. Baseline and scorer
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). The UI does not switch workflows.
+
+Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
+`eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
+Local reports identify the workflow, and resume never reuses another workflow's
+results. Remote DDEval does not support pipeline selection.
+
 ### Manual launch
 
 ```bash
@@ -72,6 +97,29 @@ stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
 Headless replay streams by default and fails if input cannot be replayed in order.
 `--retain-parquet` explicitly enables retained sorting for diagnosis. Interactive
 replay retains all data, so detections can differ.
+
+## No-fault evaluations
+
+```bash
+# Count false positives across the healthy dataset.
+dda inv anomalydetection.eval-scenarios --dataset observer-nofaults-2026-10-26
+
+# Open the same dataset for visual investigation.
+dda inv anomalydetection.launch-testbench --dataset observer-nofaults-2026-10-26
+```
+
+Scoring follows each recording's metadata. Healthy recordings require
+`mode: healthy-control`, `expectation: healthy`, an `evaluation_window`, and no
+disruptions. Each distinct High-severity episode starting in that window counts
+as one false positive. Warmup episodes are excluded, including those continuing
+into the window. No F1 is computed; fault scenarios keep their existing F1 score.
+A mixed dataset reports both metrics separately. Failed or incomplete evaluations
+have no aggregate score. Combination search and Bayesian optimization still
+require fault scenarios because they maximize F1.
+
+The testbench shows the healthy evaluation window and false-positive count.
+**Inspect High episodes** opens the counted reports; **View metrics** zooms to an
+episode's time range. Healthy recordings have no disruption or recovery markers.
 
 ## Evals
 
@@ -301,6 +349,15 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 - `"enabled"` is optional — omit to use the catalog default.
 - Hyperparameter fields are optional — omitted fields keep their default values.
+
+An optional top-level `log_time_buckets` object enables regular log-count inputs
+for replay. For example, add `"log_time_buckets": {"enabled": true}` beside
+`components` to use five-second buckets, a 300-second idle TTL, and 600-second
+retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
+`retention_seconds`; an explicit zero idle TTL is supported. When omitted, replay
+preserves the current bucket setting, initially configured by the Agent and
+disabled by default.
+This setting changes detector inputs; keep it identical across binary comparisons.
 
 ### Example
 

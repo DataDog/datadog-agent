@@ -149,6 +149,7 @@ func jobSetLaunchd(data launchdTemplateData) map[string][]byte {
 		"com.datadoghq.agent.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", data),
 		"com.datadoghq.sysprobe.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", data),
 		"com.datadoghq.data-plane.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", data),
+		"com.datadoghq.installer.plist":  mustRenderLaunchdJob("com.datadoghq.installer.plist", data),
 	}
 }
 

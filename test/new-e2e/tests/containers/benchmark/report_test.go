@@ -56,7 +56,7 @@ func testReport(verdict Verdict) *Report {
 
 	return &Report{
 		ClusterName: "bench-cluster",
-		Phases:      [2]Window{testWindow, testSwappedWindow},
+		Phases:      []Window{testWindow, testSwappedWindow},
 		Baseline: Version{
 			Name:        "baseline",
 			Commit:      "0123456789abcdef0123456789abcdef01234567",
@@ -67,7 +67,8 @@ func testReport(verdict Verdict) *Report {
 			Name:   "comparison",
 			Images: []Image{{Component: "Node Agent", Image: "registry/agent-qa:1234-abcdef"}},
 		},
-		Results: []Result{cpu, memory, runTime},
+		Results:      []Result{cpu, memory, runTime},
+		DashboardURL: "https://dddev.datadoghq.com/dashboard/abc-def-ghi",
 	}
 }
 
@@ -75,9 +76,13 @@ func TestReportMarkdown(t *testing.T) {
 	markdown := testReport(VerdictRegression).Markdown()
 
 	for _, expected := range []string{
-		"on the EKS cluster `bench-cluster`, in two phases: from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s) with the baseline images on installation a and the comparison images on installation b, each with node pools of its own, then from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s) with the images swapped.",
+		"on the EKS cluster `bench-cluster`, in 2 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n" +
+			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s): baseline images on installation a, comparison images on installation b\n" +
+			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s): baseline images on installation b, comparison images on installation a\n\n",
 		"| Node Agent | [`container.cpu.usage`](https://dddev.datadoghq.com/metric/explorer?exp_metric=container.cpu.usage) | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | **regression** |",
 		`| Cluster Agent | ` + "`container.memory.rss`" + ` | | | | | **error**: baseline: no data \| at all |`,
+		"Graphs and profiles of the run: [dashboard](https://dddev.datadoghq.com/dashboard/abc-def-ghi)\n",
+		"each image runs half of the phases on the node pools of each installation",
 		"Each phase is split into blocks of 5m0s, in which",
 		"significant (t-test of e = 0, p < 0.05)",
 		"| Node Agent | `kubelet` check run time | 40.0 ms | 38.0 ms | -5.0% (-2.0 ms) | 0.200 | unchanged |",
@@ -89,6 +94,18 @@ func TestReportMarkdown(t *testing.T) {
 	} {
 		assert.Contains(t, markdown, expected)
 	}
+}
+
+func TestReportMarkdownFourPhases(t *testing.T) {
+	report := testReport(VerdictRegression)
+	report.Phases = testWindows(4, 15*time.Minute)
+
+	assert.Contains(t, report.Markdown(),
+		"in 4 phases, between which installations a and b, each with node pools of its own, swap their images:\n\n"+
+			"- phase 1, from 2026-10-13 10:00 UTC to 2026-10-13 10:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
+			"- phase 2, from 2026-10-13 11:00 UTC to 2026-10-13 11:15 UTC (15m0s): baseline images on installation b, comparison images on installation a\n"+
+			"- phase 3, from 2026-10-13 12:00 UTC to 2026-10-13 12:15 UTC (15m0s): baseline images on installation a, comparison images on installation b\n"+
+			"- phase 4, from 2026-10-13 13:00 UTC to 2026-10-13 13:15 UTC (15m0s): baseline images on installation b, comparison images on installation a\n\n")
 }
 
 func TestReportWrite(t *testing.T) {
@@ -129,9 +146,7 @@ func TestReportWrite(t *testing.T) {
 			require.NoError(t, err)
 			var decoded Report
 			require.NoError(t, json.Unmarshal(data, &decoded))
-			assert.Equal(t, report.Results, decoded.Results)
-			assert.Equal(t, report.Baseline, decoded.Baseline)
-			assert.Equal(t, report.Phases, decoded.Phases)
+			assert.Equal(t, *report, decoded)
 		})
 	}
 }
@@ -146,11 +161,11 @@ func TestReportMarkdownDifferentSignificances(t *testing.T) {
 }
 
 func TestURLs(t *testing.T) {
+	appURL := url.URL{Scheme: "https", Host: "dddev.datadoghq.com"}
 	to := testFrom.Add(30 * time.Minute)
 
-	explorer, err := url.Parse(MetricsExplorerURL("https://dddev.datadoghq.com", "container.cpu.usage", []string{"kube_cluster_name:bench", "kube_container_name:agent"}, []string{"kube_namespace"}, testFrom, to))
+	explorer, err := url.Parse(MetricsExplorerURL(appURL, "container.cpu.usage", []string{"kube_cluster_name:bench", "kube_container_name:agent"}, []string{"kube_namespace"}, testFrom, to))
 	require.NoError(t, err)
-	assert.Equal(t, "dddev.datadoghq.com", explorer.Host)
 	assert.Equal(t, "/metric/explorer", explorer.Path)
 	assert.Equal(t, url.Values{
 		"exp_metric":   {"container.cpu.usage"},
@@ -163,9 +178,15 @@ func TestURLs(t *testing.T) {
 		"live":         {"false"},
 	}, explorer.Query())
 
-	profiles, err := url.Parse(ProfilesURL("https://dddev.datadoghq.com", "kube_cluster_name:bench kube_namespace:datadog-a", testFrom, to))
+	profiles, err := url.Parse(ProfilesURL(appURL, "kube_cluster_name:bench kube_namespace:datadog-a", testFrom, to))
 	require.NoError(t, err)
 	assert.Equal(t, "/profiling/explorer", profiles.Path)
 	assert.Equal(t, "kube_cluster_name:bench kube_namespace:datadog-a", profiles.Query().Get("query"))
-	assert.Equal(t, "1791885600000", profiles.Query().Get("from_ts"))
+
+	assert.Equal(t, "https://dddev.datadoghq.com/dashboard/abc-def-ghi?from_ts=1791885600000&live=false&refresh_mode=paused&to_ts=1791887400000&tpl_var_kube_cluster_name%5B0%5D=bench&tpl_var_profiles_from%5B0%5D=1791885600000",
+		DashboardURL(appURL, "abc-def-ghi", map[string]string{"kube_cluster_name": "bench", "profiles_from": "1791885600000"}, testFrom, to))
+
+	// Only the scheme and the host of the app URL are kept, and the page path is escaped.
+	assert.Equal(t, "https://dddev.datadoghq.com/dashboard/a%20b?from_ts=1791885600000&live=false&refresh_mode=paused&to_ts=1791887400000",
+		DashboardURL(url.URL{Scheme: "https", Host: "dddev.datadoghq.com", Path: "/ignored", Fragment: "ignored"}, "a b", nil, testFrom, to))
 }

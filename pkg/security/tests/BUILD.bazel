@@ -173,6 +173,7 @@ dd_agent_go_test(
         "eventmonitor_test.go",
         "failed_dns_test.go",
         "fields_test.go",
+        "file_capabilities_test.go",
         "file_metadata_test.go",
         "file_windows_test.go",
         "filters_test.go",

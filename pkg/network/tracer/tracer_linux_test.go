@@ -35,9 +35,11 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +47,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"go.uber.org/mock/gomock"
 	"go4.org/intern"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -2314,6 +2318,145 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	require.False(t, ok, "expected connection to not be found")
 }
 
+// acceptedTCPConnPair opens a loopback TCP connection and returns both ends, closed
+// at the end of the test, along with the server and client ports.
+func acceptedTCPConnPair(t *testing.T) (client, server net.Conn, serverPort, clientPort uint16) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+	}()
+	client, err = net.Dial("tcp4", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	select {
+	case server = <-accepted:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "connection not accepted")
+	}
+	t.Cleanup(func() { server.Close() })
+	return client, server, uint16(ln.Addr().(*net.TCPAddr).Port), uint16(client.LocalAddr().(*net.TCPAddr).Port)
+}
+
+// TestTCPAcceptedConnectionOngoingConnectPid checks the tcp_ongoing_connect_pid
+// entry made for an accepted connection: it must be keyed with a zero pid, like
+// tcp_close and tcp_done look it up, hold the accepting process's pid, and be
+// removed when the connection closes. Otherwise tcp_done can't attribute a
+// server-side failure to the accepting process, and the entry lingers until the
+// userspace cleaner's TTL.
+func (s *TracerSuite) TestTCPAcceptedConnectionOngoingConnectPid() {
+	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't use tcp_ongoing_connect_pid")
+	}
+	tr := setupTracer(t, cfg)
+	ongoing, err := tr.GetMap(probes.TCPOngoingConnectPid)
+	require.NoError(t, err)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	type entry struct {
+		key netebpf.SkpConn
+		val netebpf.PidTs
+	}
+	// entries for the accepted socket: local port = server port
+	acceptedEntries := func() ([]entry, error) {
+		var entries []entry
+		var key netebpf.SkpConn
+		var val netebpf.PidTs
+		it := ongoing.Iterate()
+		for it.Next(&key, &val) {
+			if key.Tup.Sport == serverPort && key.Tup.Dport == clientPort {
+				entries = append(entries, entry{key, val})
+			}
+		}
+		return entries, it.Err()
+	}
+
+	entries, err := acceptedEntries()
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "expected one tcp_ongoing_connect_pid entry for the accepted socket")
+	assert.Zero(t, entries[0].key.Tup.Pid, "accepted socket's entry must be keyed with a zero pid")
+	assert.Equal(t, os.Getpid(), int(entries[0].val.Tgid>>32), "accepted socket's entry must hold the accepting process's pid")
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		entries, err := acceptedEntries()
+		require.NoError(ct, err)
+		assert.Empty(ct, entries)
+	}, 3*time.Second, 100*time.Millisecond, "tcp_ongoing_connect_pid entry for the accepted socket wasn't removed on close")
+}
+
+// TestTCPFailureServerSideReset covers an accepted connection that the client
+// resets: the server's socket gets ECONNRESET in tcp_done, which takes the pid
+// from the accept-time tcp_ongoing_connect_pid entry, then the server closes it.
+// The server side must be reported once, as an established connection with one
+// reset, attributed to the accepting process. (On loopback the RST is processed
+// in the test process's context, so the pid check alone can't tell the map's pid
+// from the current one; TestTCPAcceptedConnectionOngoingConnectPid checks the
+// map entry.)
+func (s *TracerSuite) TestTCPFailureServerSideReset() {
+	t := s.T()
+	checkSkipFailureConnectionsTests(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	_, err := client.Write([]byte("ping"))
+	require.NoError(t, err)
+	buf := make([]byte, 4)
+	_, err = io.ReadFull(server, buf)
+	require.NoError(t, err)
+
+	// closing with SO_LINGER 0 sends an RST
+	require.NoError(t, client.(*net.TCPConn).SetLinger(0))
+	require.NoError(t, client.Close())
+	// Reading the reset clears sk_err, so tcp_close no longer sees the failure:
+	// it can only be reported from tcp_done, which is what this test checks.
+	// Without this read the test would pass even if tcp_done missed the reset.
+	require.NoError(t, server.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = server.Read(buf)
+	require.ErrorIs(t, err, syscall.ECONNRESET)
+	require.NoError(t, server.Close())
+
+	isServerSide := func(cs network.ConnectionStats) bool {
+		return cs.Type == network.TCP && cs.SPort == serverPort && cs.DPort == clientPort
+	}
+	var records []network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		found := network.FilterConnections(connections, isServerSide)
+		require.NotEmpty(ct, found)
+		records = found
+	}, 3*time.Second, 100*time.Millisecond, "server side of the connection not reported")
+
+	for _, r := range records {
+		t.Logf("server-side record: %s established=%d closed=%d failures=%v", r, r.Monotonic.TCPEstablished, r.Monotonic.TCPClosed, r.TCPFailures)
+	}
+	require.Len(t, records, 1, "expected the server side to be reported once")
+	r := records[0]
+	assert.Equal(t, uint16(1), r.Monotonic.TCPEstablished, "established")
+	assert.Equal(t, uint32(1), r.TCPFailures[uint16(syscall.ECONNRESET)], "expected 1 connection reset")
+	assert.Equal(t, uint64(4), r.Monotonic.RecvBytes, "received bytes")
+	assert.Equal(t, os.Getpid(), int(r.Pid), "pid")
+
+	// a later poll must not report the server side again
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
+	assert.Empty(t, network.FilterConnections(connections, isServerSide), "server side reported again")
+}
+
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	t := s.T()
 
@@ -2357,6 +2500,182 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 		require.NotNil(collect, conn)
 		require.Equal(collect, network.OUTGOING, conn.Direction)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackUDPReplyIPv4 covers an unconnected AF_INET6 UDP server
+// bound to [::] (IPV6_V6ONLY off) that replies to an IPv4 client with sendto, as
+// a dual-stack DNS server does. Both directions must land on a single IPv4
+// connection: the sent bytes must not be split into a separate IPv6-family record.
+func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// SK keeps one record per socket, labelled with the socket's family, and
+		// counts a dual-stack send in both fexit/udp_sendmsg and fexit/udpv6_sendmsg
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	// Before 4.7 the prebuilt tracer builds the receive tuple from the socket's
+	// bound address rather than the packet, so it drops receives on a socket
+	// bound to the wildcard address. Without UDPv6 collection (prebuilt on
+	// 5.18+), the receive on the AF_INET6 socket isn't traced either. Only the
+	// send side can be checked there.
+	checkRecv := cfg.CollectUDPv6Conns && !(isPrebuilt(cfg) && kv < kv470)
+	tr := setupTracer(t, cfg)
+
+	sfd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+	require.NoError(t, syscall.SetsockoptInt(sfd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(sfd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(sfd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 5}))
+	sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	serverPort := sa.(*syscall.SockaddrInet6).Port
+
+	client, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: serverPort})
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	require.NoError(t, tracertestutil.SetTestDeadline(client))
+	clientPort := client.LocalAddr().(*net.UDPAddr).Port
+
+	request := []byte("request")
+	_, err = client.Write(request)
+	require.NoError(t, err)
+
+	buf := make([]byte, 64)
+	n, from, err := syscall.Recvfrom(sfd, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(request), n)
+	// the peer is reported as an IPv4-mapped IPv6 address
+	from6, ok := from.(*syscall.SockaddrInet6)
+	require.True(t, ok, "expected an AF_INET6 peer address, got %T", from)
+	require.True(t, netip.AddrFrom16(from6.Addr).Is4In6(), "expected an IPv4-mapped peer address")
+
+	reply := []byte("a longer reply")
+	require.NoError(t, syscall.Sendto(sfd, reply, 0, from6))
+	n, err = client.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(reply), n)
+
+	// A connection is only reported when it has new activity, so accumulate the
+	// server-side records across polls, keeping the latest copy of each.
+	server := map[network.StatCookie]network.ConnectionStats{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == uint16(serverPort) && cs.DPort == uint16(clientPort)
+		}) {
+			server[c.Cookie] = c
+		}
+		var v4 []network.ConnectionStats
+		for _, c := range server {
+			if !assert.Equal(ct, network.AFINET, c.Family, "server connection has the wrong family: %s", c) {
+				continue
+			}
+			v4 = append(v4, c)
+		}
+		require.Len(ct, v4, 1)
+		assert.Equal(ct, "127.0.0.1", v4[0].Source.String())
+		assert.Equal(ct, "127.0.0.1", v4[0].Dest.String())
+		assert.Equal(ct, uint64(len(reply)), v4[0].Monotonic.SentBytes, "sent bytes")
+		if checkRecv {
+			assert.Equal(ct, uint64(len(request)), v4[0].Monotonic.RecvBytes, "received bytes")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
+// resolver when both IPv4 and IPv6 nameservers are configured, sends its
+// queries from one unconnected AF_INET6 UDP socket to the IPv4-mapped address
+// of an IPv4 server. Each query's DNS stats must be attached
+// to an IPv4 connection, including a query that times out and so has no
+// response packet to create the connection from.
+func (s *TracerSuite) TestUnconnectedDualStackDNSClient() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+	tr := setupTracer(t, cfg)
+
+	answering := testdns.GetServerIP(t).To4()
+	// nothing listens on this address, so the query times out
+	silent := net.IPv4(127, 0, 0, 154).To4()
+
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(fd) })
+	require.NoError(t, syscall.SetsockoptInt(fd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 2}))
+	sa, err := syscall.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := uint16(sa.(*syscall.SockaddrInet6).Port)
+
+	mapped := func(ip net.IP) *syscall.SockaddrInet6 {
+		to := &syscall.SockaddrInet6{Port: 53}
+		copy(to.Addr[:], ip.To16())
+		return to
+	}
+	query := func(domain string) []byte {
+		msg := new(dns.Msg)
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		b, err := msg.Pack()
+		require.NoError(t, err)
+		return b
+	}
+
+	require.NoError(t, syscall.Sendto(fd, query("good.com"), 0, mapped(answering)))
+	buf := make([]byte, 512)
+	_, _, err = syscall.Recvfrom(fd, buf, 0)
+	require.NoError(t, err, "no answer from the test DNS server")
+	require.NoError(t, syscall.Sendto(fd, query("golang.org"), 0, mapped(silent)))
+	require.NoError(t, tr.reverseDNS.WaitForDomain("good.com"))
+
+	// DNS stats that don't match a connection in the same poll are discarded,
+	// and an idle UDP connection isn't reported, so re-send on both flows before
+	// each poll to keep both connections in it. Stats are attached once, so sum
+	// them across polls; the unanswered query's timeout shows up on the stats
+	// keeper's next expiry tick after cfg.DNSTimeout.
+	type counts struct{ successes, timeouts uint32 }
+	got := map[string]*counts{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		for _, ip := range []net.IP{answering, silent} {
+			assert.NoError(ct, syscall.Sendto(fd, []byte{0}, 0, mapped(ip)))
+		}
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == clientPort && cs.DPort == 53
+		}) {
+			if !assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c) {
+				continue
+			}
+			dst := c.Dest.String()
+			if got[dst] == nil {
+				got[dst] = &counts{}
+			}
+			for _, byDomain := range c.DNSStats {
+				for _, stats := range byDomain {
+					got[dst].successes += stats.CountByRcode[0]
+					got[dst].timeouts += stats.Timeouts
+				}
+			}
+		}
+		if assert.Contains(ct, got, answering.String()) {
+			assert.Equal(ct, uint32(1), got[answering.String()].successes, "successful responses")
+		}
+		if assert.Contains(ct, got, silent.String()) {
+			assert.Equal(ct, uint32(1), got[silent.String()].timeouts, "timeouts")
+		}
+		// The DNS stats keeper records a timeout on its next expiry tick, up to
+		// about twice cfg.DNSTimeout after the query, so allow for slow VMs.
+	}, 10*time.Second, 200*time.Millisecond)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
@@ -2865,6 +3184,96 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	}
 	testutil.RunCommands(tb, cmds, false)
 	return
+}
+
+// classifierEntryMaxSize bounds the size of the protocol classification entry program after verification and JIT
+// constant blinding. It's the only classification program attached to a socket, and attaching charges that size
+// against net.core.optmem_max: 20 KiB on kernels before 6.8 and on GKE COS, which also sets
+// net.core.bpf_jit_harden=2. 7.85.0 failed to attach there. The budget is 1 KiB below 20 KiB because the same program
+// can come out larger on other kernels (about 100 bytes larger on GKE COS than on Ubuntu 24.04), and the kernel also
+// charges a small header. To stay under it, avoid inlining the same helper more than once, or move code into the
+// tail-called programs (see classification_progs).
+const classifierEntryMaxSize = 19 * 1024
+
+func (s *TracerSuite) TestProtocolClassifierEntrySize() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	// Constant blinding is done by the JIT, so without it the program would be measured unblinded.
+	jitEnable, err := os.ReadFile("/proc/sys/net/core/bpf_jit_enable")
+	if err != nil || strings.TrimSpace(string(jitEnable)) == "0" {
+		t.Skip("BPF JIT is disabled, so constants can't be blinded")
+	}
+
+	// Blind constants like GKE COS does, since that's what makes the program biggest.
+	const jitHarden = "/proc/sys/net/core/bpf_jit_harden"
+	orig, err := os.ReadFile(jitHarden)
+	require.NoError(t, err)
+	if err := os.WriteFile(jitHarden, []byte("2"), 0644); err != nil {
+		t.Skipf("can't enable constant blinding: %s", err)
+	}
+	t.Cleanup(func() { _ = os.WriteFile(jitHarden, orig, 0644) })
+
+	// Make sure the tracer can attach the program however big it is, so the test measures it against the budget
+	// rather than failing to attach: before 6.8, net.core.optmem_max defaults to 20 KiB.
+	const optmemMax = "/proc/sys/net/core/optmem_max"
+	origOptmem, err := os.ReadFile(optmemMax)
+	require.NoError(t, err)
+	if limit, err := strconv.Atoi(strings.TrimSpace(string(origOptmem))); err != nil || limit < 1<<18 {
+		if err := os.WriteFile(optmemMax, []byte(strconv.Itoa(1<<18)), 0644); err != nil {
+			t.Skipf("can't raise net.core.optmem_max: %s", err)
+		}
+		t.Cleanup(func() { _ = os.WriteFile(optmemMax, origOptmem, 0644) })
+	}
+
+	setupTracer(t, cfg)
+
+	// Find this tracer's entry program through the program IDs it registered with pkg/ebpf, which records each
+	// program's full name from the eBPF manager. The kernel truncates program names (and before 4.15 doesn't keep
+	// them), and other processes may load programs with the same name.
+	entryName := string(probes.ProtocolClassifierEntrySocketFilter)
+	size := 0
+	var id ebpf.ProgramID
+	for {
+		id, err = ebpf.ProgramGetNextID(id)
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		require.NoError(t, err)
+
+		if name, err := ddebpf.GetProgNameFromProgID(uint32(id)); err != nil || name != entryName {
+			continue
+		}
+		if module, err := ddebpf.GetModuleFromProgID(uint32(id)); err != nil || module != "npm_tracer" {
+			continue
+		}
+		prog, err := ebpf.NewProgramFromID(id)
+		if err != nil {
+			continue // registered by a tracer from an earlier test, unloaded since
+		}
+		info, err := prog.Info()
+		prog.Close()
+		require.NoError(t, err)
+		// Program IDs only increase, so the last match is the one this test's tracer loaded.
+		size, err = info.TranslatedSize()
+		require.NoError(t, err)
+	}
+
+	require.NotZero(t, size, "%s not loaded", entryName)
+	if ebpftest.GetBuildMode() == ebpftest.CORE && kv < kernel.VersionCode(5, 0, 0) {
+		// The CO-RE program comes out larger on older kernels (19,920 bytes on Ubuntu 18.04's 4.18 and 20,408 on Amazon
+		// Linux 2's 4.14), too close to the limit for a budget meant to leave room for newer kernels like GKE COS's.
+		// Constant blinding is off by default on those kernels, and enabling it there isn't a configuration this test
+		// covers.
+		t.Skipf("%s is %d bytes after constant blinding in CO-RE mode; the budget doesn't apply before kernel 5.0", entryName, size)
+	}
+	assert.LessOrEqual(t, size, classifierEntryMaxSize,
+		"%s is %d bytes after constant blinding; keep it under %d so it can be attached on hosts with net.core.optmem_max=20480 (e.g. GKE COS nodes, which also blind constants)",
+		entryName, size, classifierEntryMaxSize)
 }
 
 func (s *TracerSuite) TestTLSClassification() {
@@ -4355,4 +4764,176 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 		assert.Nil(collect, own.NetNSOriginalContainerID)
 		assert.NotEmpty(collect, own.Tags)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestClassificationGRPCRouting checks that only HTTP2 flows reach the gRPC classifier: flows that leave the
+// application-layer programs (queues, dbs) without a match must not tail-call it.
+func (s *TracerSuite) TestClassificationGRPCRouting() {
+	t := s.T()
+	cfg := testConfig()
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+	// The stubs need prog array lookups that return program IDs (4.14) and BPF_PROG_GET_FD_BY_ID (4.13).
+	if kv, err := kernel.HostVersion(); err != nil || kv < kernel.VersionCode(4, 14, 0) {
+		t.Skip("prog array lookup by ID not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+	progs, err := tr.GetMap(probes.ClassificationProgsMap)
+	require.NoError(t, err)
+
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(io.Discard, c)
+		_ = c.Close()
+	})
+	require.NoError(t, srv.Run())
+	t.Cleanup(srv.Shutdown)
+
+	t.Run("HTTP2 payload is classified as gRPC", func(t *testing.T) {
+		c, err := srv.Dial()
+		require.NoError(t, err)
+		defer c.Close()
+
+		var hdrs bytes.Buffer
+		enc := hpack.NewEncoder(&hdrs)
+		for _, f := range []hpack.HeaderField{
+			{Name: ":method", Value: "POST"},
+			{Name: ":path", Value: "/helloworld.Greeter/SayHello"},
+			{Name: "content-type", Value: "application/grpc"},
+		} {
+			require.NoError(t, enc.WriteField(f))
+		}
+		var msg bytes.Buffer
+		msg.WriteString(http2.ClientPreface)
+		framer := http2.NewFramer(&msg, nil)
+		require.NoError(t, framer.WriteSettings())
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{StreamID: 1, BlockFragment: hdrs.Bytes(), EndHeaders: true}))
+		_, err = c.Write(msg.Bytes())
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			payload, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), payload)
+			require.True(collect, ok, "connection not found")
+			require.Equal(collect, protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}, conn.ProtocolStack)
+		}, 3*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("unclassified payload skips gRPC", func(t *testing.T) {
+		// Tail-called programs are not accounted in bpf_stats, so count passes with stubs instead: one replaces
+		// the gRPC slot, the other wraps the dbs slot (the last application-layer program) and tail-calls the
+		// original, so every unclassified payload packet bumps the dbs counter.
+		const grpcIdx, dbsIdx = 0, 1
+		counters, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.Array, KeySize: 4, ValueSize: 8, MaxEntries: 2})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = counters.Close() })
+		passes := func(idx uint32) uint64 {
+			var n uint64
+			require.NoError(t, counters.Lookup(idx, &n))
+			return n
+		}
+
+		swap := func(slot netebpf.ClassificationProgram, stub *ebpf.Program) *ebpf.Program {
+			key := uint32(slot)
+			var origID uint32
+			require.NoError(t, progs.Lookup(key, &origID))
+			orig, err := ebpf.NewProgramFromID(ebpf.ProgramID(origID))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = orig.Close() })
+			require.NoError(t, progs.Put(key, stub))
+			t.Cleanup(func() { assert.NoError(t, progs.Put(key, orig)) })
+			return orig
+		}
+
+		grpcStub := countingProgram(t, counters, grpcIdx, nil)
+		swap(netebpf.ClassificationGRPC, grpcStub)
+
+		dbsTail, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.ProgramArray, KeySize: 4, ValueSize: 4, MaxEntries: 1})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = dbsTail.Close() })
+		dbsStub := countingProgram(t, counters, dbsIdx, dbsTail)
+		origDBs := swap(netebpf.ClassificationDBs, dbsStub)
+		require.NoError(t, dbsTail.Put(uint32(0), origDBs))
+
+		// Prove the gRPC stub is reachable: an HTTP2 preface routes the entrypoint to it.
+		h2, err := srv.Dial()
+		require.NoError(t, err)
+		defer h2.Close()
+		_, err = h2.Write([]byte(http2.ClientPreface))
+		require.NoError(t, err)
+		require.Eventually(t, func() bool { return passes(grpcIdx) > 0 }, 3*time.Second, 50*time.Millisecond, "gRPC slot never reached")
+
+		// The server acknowledges every message before the next is sent, so each message is its own segment, and
+		// the classifier, which runs synchronously on the packet tap, has processed it before the ack arrives.
+		const writes = 50
+		const msgSize = 256
+		ackSrv := tracertestutil.NewTCPServer(func(c net.Conn) {
+			defer c.Close()
+			buf := make([]byte, msgSize)
+			for {
+				if _, err := io.ReadFull(c, buf); err != nil {
+					return
+				}
+				if _, err := c.Write([]byte{0xab}); err != nil {
+					return
+				}
+			}
+		})
+		require.NoError(t, ackSrv.Run())
+		t.Cleanup(ackSrv.Shutdown)
+
+		c, err := ackSrv.Dial()
+		require.NoError(t, err)
+		defer c.Close()
+		require.NoError(t, c.(*net.TCPConn).SetNoDelay(true))
+
+		grpcBefore, dbsBefore := passes(grpcIdx), passes(dbsIdx)
+		payload := bytes.Repeat([]byte{0xab}, msgSize)
+		ack := make([]byte, 1)
+		for i := 0; i < writes; i++ {
+			_, err := c.Write(payload)
+			require.NoError(t, err)
+			_, err = io.ReadFull(c, ack)
+			require.NoError(t, err)
+		}
+		dbsPasses := passes(dbsIdx) - dbsBefore
+		grpcPasses := passes(grpcIdx) - grpcBefore
+		require.GreaterOrEqual(t, dbsPasses, uint64(writes), "payload packets did not reach the dbs classifier")
+		// Before this routing rule, every dbs pass tail-called gRPC. Other HTTP2 traffic on the host can still
+		// reach the gRPC slot directly, so allow some slack.
+		assert.Less(t, grpcPasses, dbsPasses/2, "dbs passes: %d", dbsPasses)
+	})
+}
+
+// countingProgram returns a socket filter that increments counters[idx] and then tail-calls tail[0] if tail is set.
+func countingProgram(t *testing.T, counters *ebpf.Map, idx int32, tail *ebpf.Map) *ebpf.Program {
+	insns := asm.Instructions{
+		asm.Mov.Reg(asm.R6, asm.R1),
+		asm.StoreImm(asm.RFP, -4, int64(idx), asm.Word),
+		asm.Mov.Reg(asm.R2, asm.RFP),
+		asm.Add.Imm(asm.R2, -4),
+		asm.LoadMapPtr(asm.R1, counters.FD()),
+		asm.FnMapLookupElem.Call(),
+		asm.JEq.Imm(asm.R0, 0, "out"),
+		asm.Mov.Imm(asm.R1, 1),
+		asm.StoreXAdd(asm.R0, asm.R1, asm.DWord),
+	}
+	if tail != nil {
+		insns = append(insns,
+			asm.Mov.Reg(asm.R1, asm.R6).WithSymbol("out"),
+			asm.LoadMapPtr(asm.R2, tail.FD()),
+			asm.Mov.Imm(asm.R3, 0),
+			asm.FnTailCall.Call(),
+			asm.Mov.Imm(asm.R0, 0),
+		)
+	} else {
+		insns = append(insns, asm.Mov.Imm(asm.R0, 0).WithSymbol("out"))
+	}
+	insns = append(insns, asm.Return())
+	prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{Type: ebpf.SocketFilter, License: "GPL", Instructions: insns})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = prog.Close() })
+	return prog
 }

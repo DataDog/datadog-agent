@@ -702,6 +702,9 @@ properties:
        * pattern - string - The pattern to match the desired content to replace
        * repl - string - what to inline if the pattern is matched
 
+      The env of a span cannot be replaced, as it is used for sampling and stats:
+      rules named "env" are ignored, and "*" rules skip the span env.
+
       See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
     example: |2-
 
@@ -822,6 +825,7 @@ properties:
     env_parser: comma_then_space_separated
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1124,6 +1128,7 @@ properties:
     - DD_APM_DEBUG_V1_PAYLOADS
   debugger_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1134,6 +1139,7 @@ properties:
       type: array
   debugger_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1146,6 +1152,7 @@ properties:
     - DD_APM_DEBUGGER_DD_URL
   debugger_diagnostics_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1156,6 +1163,7 @@ properties:
       type: array
   debugger_diagnostics_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1282,6 +1290,7 @@ properties:
     - DD_APM_MODE
   profiling_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1370,6 +1379,7 @@ properties:
         default: 0
   symdb_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1380,6 +1390,7 @@ properties:
       type: array
   symdb_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1402,6 +1413,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         env_vars:

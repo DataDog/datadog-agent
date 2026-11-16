@@ -192,20 +192,26 @@ type seriesStats struct {
 	// so generated data does not make an otherwise-idle series look active.
 	lastActivityTimestamp int64
 
-	// writeGeneration is per-series and increments on every Add, including
-	// same-bucket merges into an existing point.
+	// writeGeneration is per-series and increments on every committed bucket or
+	// Add, including implicit zeros and same-bucket merges into an existing point.
 	writeGeneration int64
 
 	buckets []pointBucket
 	counts  *bucketCounts
+	// logCounts stores completed interval spans for bucketized logs. Their
+	// buckets slice contains only nonzero values; readers expose logical zeros.
+	logCounts *logCountHistory
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
 	return 1 << uint8(agg)
 }
 
-// pointCount returns the number of stored points.
+// pointCount returns the number of retained logical points.
 func (s *seriesStats) pointCount() int {
+	if s.logCounts != nil {
+		return s.logCounts.count
+	}
 	return len(s.buckets)
 }
 
@@ -258,6 +264,9 @@ func (s *seriesStats) trimBuckets(n int) {
 // sampleCount returns the total number of samples for a series.
 // A point can contain multiple samples if it is aggregated.
 func (s *seriesStats) sampleCount() int64 {
+	if s.logCounts != nil {
+		return int64(s.logCounts.count)
+	}
 	count := int64(0)
 	for i := range s.buckets {
 		count += s.countAt(i)
@@ -297,13 +306,7 @@ func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 // toSeries converts internal stats to the simplified Series for analyses.
 func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 	n := s.pointCount()
-	points := make([]observer.Point, n)
-	for i := 0; i < n; i++ {
-		points[i] = observer.Point{
-			Timestamp: s.buckets[i].timestamp,
-			Value:     s.aggregateAt(i, agg),
-		}
-	}
+	points := snapshotPoints(s, 0, n, agg, nil)
 	return observer.Series{
 		Namespace: s.Namespace,
 		Name:      s.Name,
@@ -370,10 +373,10 @@ func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, valu
 // composite view from the bounded tag interner. Existing-series writes do not
 // inspect or transform tags. The first known metric type is retained per series.
 func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
-	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key, metricType)
+	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key, metricType, 0)
 }
 
-func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
+func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType, logBucketWidth int64) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -423,6 +426,17 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 	stats.writeGeneration++
 	if len(stats.buckets) == 0 || timestamp > stats.lastActivityTimestamp {
 		stats.lastActivityTimestamp = timestamp
+	}
+	if logBucketWidth > 0 && (stats.logCounts != nil || value == 0) {
+		retention := s.cfg.PointRetentionSecs
+		if stats.retentionOverrideSecs > 0 {
+			retention = stats.retentionOverrideSecs
+		}
+		// Completion advances the logical revision even for a zero. Existing
+		// detector gates therefore keep processing after the point cap is full,
+		// without requiring a physical zero point or a new scheduling policy.
+		stats.appendLogCount(value, timestamp, logBucketWidth, retention, s.cfg.MaxPointsPerSeries)
+		return res
 	}
 
 	// Bucket by second.
@@ -536,12 +550,12 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 		}
 		// Timestamps are sorted, but some series may start with default/non-data
 		// zero timestamps. Ignore only the non-positive prefix, not the series.
-		firstIdx := searchAfter(stats.buckets, 0)
+		firstIdx := stats.pointsUpTo(0)
 		if firstIdx >= n {
 			continue
 		}
-		first := stats.buckets[firstIdx].timestamp
-		last := stats.buckets[n-1].timestamp
+		first := stats.timestampAt(firstIdx)
+		last := stats.timestampAt(n - 1)
 		if !found {
 			min = first
 			max = last
@@ -570,7 +584,7 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 			continue
 		}
 		if n := stats.pointCount(); n > 0 {
-			if t := stats.buckets[n-1].timestamp; t > max {
+			if t := stats.timestampAt(n - 1); t > max {
 				max = t
 			}
 		}
@@ -894,12 +908,16 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			Host:      st.Host,
 			Tags:      st.Tags.UnsafeToReadOnlySliceString(),
 		}
-		n := st.pointCount()
-		for i := 0; i < n; i++ {
+		points := snapshotPoints(st, 0, st.pointCount(), AggregateSum, nil)
+		for i, point := range points {
+			count := int64(1)
+			if st.logCounts == nil {
+				count = st.countAt(i)
+			}
 			ds.Points = append(ds.Points, dumpPoint{
-				Timestamp: st.buckets[i].timestamp,
-				Sum:       st.buckets[i].sum,
-				Count:     st.countAt(i),
+				Timestamp: point.Timestamp,
+				Sum:       point.Value,
+				Count:     count,
 			})
 		}
 		out = append(out, ds)
@@ -922,8 +940,16 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 		if stats == nil {
 			continue
 		}
-		for _, bucket := range stats.buckets {
-			seen[bucket.timestamp] = struct{}{}
+		if stats.logCounts != nil {
+			for _, interval := range stats.logCounts.intervals {
+				for timestamp := interval.firstEnd; timestamp <= interval.lastEnd; timestamp += stats.logCounts.width {
+					seen[timestamp] = struct{}{}
+				}
+			}
+		} else {
+			for _, bucket := range stats.buckets {
+				seen[bucket.timestamp] = struct{}{}
+			}
 		}
 	}
 	// Include observation timestamps (e.g., from logs that produced no virtual metrics).
@@ -1356,8 +1382,29 @@ func (s *timeSeriesStorage) TotalSeriesCount() int {
 	return s.liveSeriesCount
 }
 
-// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
-// Uses binary search since timestamps are sorted.
+// FreshSeriesCount returns the number of non-telemetry series whose latest
+// bucket visible at cutoff is newer than previousCutoff. Buckets beyond cutoff
+// are not yet visible to analysis and are ignored.
+func (s *timeSeriesStorage) FreshSeriesCount(excludeNamespace string, cutoff, previousCutoff int64) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	fresh := 0
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || (excludeNamespace != "" && stats.Namespace == excludeNamespace) {
+			continue
+		}
+		lastVisible := stats.pointsUpTo(cutoff) - 1
+		if lastVisible < 0 || stats.timestampAt(lastVisible) <= previousCutoff {
+			continue
+		}
+		fresh++
+	}
+	return fresh
+}
+
+// PointCountUpTo returns the retained logical point count through endTime.
+// Bucketized logs include completed implicit zeros.
 func (s *timeSeriesStorage) PointCountUpTo(ref observer.SeriesRef, endTime int64) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1366,7 +1413,7 @@ func (s *timeSeriesStorage) PointCountUpTo(ref observer.SeriesRef, endTime int64
 	if stats == nil || stats.pointCount() == 0 {
 		return 0
 	}
-	return searchAfter(stats.buckets, endTime)
+	return stats.pointsUpTo(endTime)
 }
 
 // RecordObservationTime records that an observation occurred at the given timestamp.
@@ -1379,8 +1426,8 @@ func (s *timeSeriesStorage) RecordObservationTime(timestamp int64) {
 }
 
 // WriteGeneration returns a counter that increments on every Add call
-// (including same-bucket merges). Detectors use this to detect value
-// changes that don't create new buckets.
+// (including same-bucket merges) or completed implicit zero bucket. Detectors
+// use this to detect changes when the retained point count stays constant.
 func (s *timeSeriesStorage) WriteGeneration(ref observer.SeriesRef) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1407,7 +1454,7 @@ func (s *timeSeriesStorage) BulkSeriesStatus(refs []observer.SeriesRef, endTime 
 			continue
 		}
 		result[i] = seriesStatus{
-			pointCount:      searchAfter(stats.buckets, endTime),
+			pointCount:      stats.pointsUpTo(endTime),
 			writeGeneration: stats.writeGeneration,
 		}
 	}
@@ -1473,35 +1520,39 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 	}
 
 	// Binary search: find first index where timestamp > start
-	lo := searchAfter(stats.buckets, start)
+	lo := stats.pointsUpTo(start)
 	// Binary search: find first index where timestamp > end
-	hi := searchAfter(stats.buckets, end)
+	hi := stats.pointsUpTo(end)
 
 	// Range is [lo, hi) in the bucket slice, corresponding to (start, end] in time.
 	resultLen := hi - lo
 	points := make([]observer.Point, resultLen)
 
 	// For aggregates that map directly to a column, avoid per-point switch.
-	switch agg {
-	case AggregateSum:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.buckets[lo+i].timestamp,
-				Value:     stats.buckets[lo+i].sum,
+	if stats.logCounts != nil {
+		stats.snapshotLogCountPoints(lo, hi, agg, points)
+	} else {
+		switch agg {
+		case AggregateSum:
+			for i := 0; i < resultLen; i++ {
+				points[i] = observer.Point{
+					Timestamp: stats.buckets[lo+i].timestamp,
+					Value:     stats.buckets[lo+i].sum,
+				}
 			}
-		}
-	case AggregateCount:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.buckets[lo+i].timestamp,
-				Value:     float64(stats.countAt(lo + i)),
+		case AggregateCount:
+			for i := 0; i < resultLen; i++ {
+				points[i] = observer.Point{
+					Timestamp: stats.buckets[lo+i].timestamp,
+					Value:     float64(stats.countAt(lo + i)),
+				}
 			}
-		}
-	default: // AggregateAverage and any unknown
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.buckets[lo+i].timestamp,
-				Value:     stats.aggregateAt(lo+i, agg),
+		default: // AggregateAverage and any unknown
+			for i := 0; i < resultLen; i++ {
+				points[i] = observer.Point{
+					Timestamp: stats.buckets[lo+i].timestamp,
+					Value:     stats.aggregateAt(lo+i, agg),
+				}
 			}
 		}
 	}
@@ -1572,7 +1623,7 @@ func (s *timeSeriesStorage) ForEachLastPoints(
 		pointBufPool.Put(bufp)
 		return false
 	}
-	endIndex := searchAfter(stats.buckets, end)
+	endIndex := stats.pointsUpTo(end)
 	startIndex := max(0, endIndex-n)
 	series := observer.Series{Namespace: stats.Namespace, Name: stats.Name, Host: stats.Host, Tags: stats.Tags}
 	buf = snapshotPoints(stats, startIndex, endIndex, agg, buf)
@@ -1598,6 +1649,9 @@ func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, a
 	stats := s.resolveByID(ref)
 	if stats == nil {
 		return 0
+	}
+	if stats.logCounts != nil && agg == AggregateCount {
+		return float64(max(0, stats.pointsUpTo(end)-stats.pointsUpTo(start)))
 	}
 
 	lo := searchAfter(stats.buckets, start)
@@ -1639,8 +1693,8 @@ func (s *timeSeriesStorage) snapshotRange(
 		return observer.Series{}, buf, false
 	}
 
-	lo := searchAfter(stats.buckets, start)
-	hi := searchAfter(stats.buckets, end)
+	lo := stats.pointsUpTo(start)
+	hi := stats.pointsUpTo(end)
 	buf = snapshotPoints(stats, lo, hi, agg, buf)
 
 	return observer.Series{
@@ -1660,6 +1714,10 @@ func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observe
 	} else {
 		buf = make([]observer.Point, n)
 	}
+	if stats.logCounts != nil {
+		stats.snapshotLogCountPoints(lo, hi, agg, buf)
+		return buf
+	}
 	for i := range buf {
 		buf[i] = observer.Point{
 			Timestamp: stats.buckets[lo+i].timestamp,
@@ -1667,4 +1725,17 @@ func snapshotPoints(stats *seriesStats, lo, hi int, agg Aggregate, buf []observe
 		}
 	}
 	return buf
+}
+
+// SeriesCountByKind counts non-telemetry gauges by committed kind.
+func (s *timeSeriesStorage) SeriesCountByKind() [metricKindCount]uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var counts [metricKindCount]uint64
+	for _, stats := range s.series {
+		if stats.Namespace != observer.TelemetryNamespace && stats.MetricType == metrics.GaugeType && stats.MetricKind < metricKindCount {
+			counts[stats.MetricKind]++
+		}
+	}
+	return counts
 }

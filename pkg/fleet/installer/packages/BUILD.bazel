@@ -8,6 +8,7 @@ go_library(
         "apm_inject_windows.go",
         "apm_library_dotnet_windows.go",
         "datadog_agent_darwin.go",
+        "datadog_agent_darwin_dmg.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
         "datadog_agent_eudm_windows.go",
@@ -55,10 +56,12 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/symlink",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/symlink",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -100,6 +103,7 @@ dd_agent_go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "datadog_agent_darwin_dmg_test.go",
         "datadog_agent_darwin_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
@@ -117,15 +121,21 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",

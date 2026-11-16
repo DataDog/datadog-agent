@@ -113,6 +113,8 @@ dd_agent_go_test(
         "builtin_write_error_test.go",
         "case_clause_vuln_hunt_test.go",
         "cd_support_test.go",
+        "check_input_devnull_unix_test.go",
+        "check_input_devnull_windows_test.go",
         "check_remote_linux_test.go",
         "check_remote_test.go",
         "check_test.go",

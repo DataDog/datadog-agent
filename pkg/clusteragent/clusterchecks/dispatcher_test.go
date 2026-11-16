@@ -874,6 +874,86 @@ func TestUpdateRunnersStats(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+// blockingClcRunnerClient answers GetRunnerStats only once release is closed,
+// like a runner that stopped answering and is waiting for the client timeout.
+type blockingClcRunnerClient struct {
+	called  chan struct{}
+	release chan struct{}
+}
+
+func (c *blockingClcRunnerClient) GetVersion(string) (version.Version, error) {
+	return version.Version{}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
+	return types.Workers{Count: 4}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerStats(string) (types.CLCRunnersStats, error) {
+	c.called <- struct{}{}
+	<-c.release
+	return types.CLCRunnersStats{"check:1": {MetricSamples: 5}}, nil
+}
+
+func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	client := &blockingClcRunnerClient{called: make(chan struct{}, 3), release: make(chan struct{})}
+	dispatcher.clcRunnersClient = client
+
+	dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-b", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-c", "10.0.0.3", types.NodeStatus{})
+
+	collected := make(chan struct{})
+	go func() {
+		dispatcher.updateRunnersStats()
+		close(collected)
+	}()
+	<-client.called
+
+	// While a runner query is in flight, heartbeats (including one from a new
+	// IP), config polls and node expiry go through.
+	unblocked := make(chan struct{})
+	go func() {
+		dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+		dispatcher.processNodeStatus("stats-node-c", "10.0.0.9", types.NodeStatus{})
+		_, _, _ = dispatcher.getClusterCheckConfigs("stats-node-a")
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["stats-node-b"].heartbeat = 0
+		dispatcher.store.Unlock()
+		dispatcher.expireNodes()
+		close(unblocked)
+	}()
+	select {
+	case <-unblocked:
+	case <-time.After(5 * time.Second):
+		close(client.release)
+		t.Fatal("store stayed locked while querying a runner")
+	}
+
+	close(client.release)
+	<-collected
+
+	nodeA, found := dispatcher.store.getNodeStore("stats-node-a")
+	require.True(t, found)
+	assert.Equal(t, 4, nodeA.workers)
+	assert.Contains(t, nodeA.clcRunnerStats, "check:1")
+
+	// The runner that expired mid-query is neither recreated nor reported.
+	assert.NotContains(t, dispatcher.store.nodes, "stats-node-b")
+	assert.Zero(t, busyness.WithValues("stats-node-b", le.JoinLeaderValue).Get())
+
+	// The runner that moved to a new IP doesn't get the results of its old one.
+	nodeC, found := dispatcher.store.getNodeStore("stats-node-c")
+	require.True(t, found)
+	assert.Equal(t, "10.0.0.9", nodeC.clientIP)
+	assert.Zero(t, nodeC.workers)
+	assert.Empty(t, nodeC.clcRunnerStats)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 func TestGetStateIncludesStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
