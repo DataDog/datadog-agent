@@ -231,21 +231,25 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 				traceLogs = append(traceLogs, l)
 			case strings.Contains(l.Tags, "agent.flavor:"+flavor.SystemProbe):
 				systemProbeLogs = append(systemProbeLogs, l)
-			case strings.Contains(l.StackTrace, "datadog_agent.go"):
+			case strings.Contains(l.Tags, "integration:"):
+				// Python-origin records carry the integration tag and a
+				// redacted Python stack instead of Go frames.
 				pythonLogs = append(pythonLogs, l)
 			case strings.Contains(l.StackTrace, "check_logger.go"):
 				coreLogs = append(coreLogs, l)
 			}
 		}
 		assert.NotEmpty(c, pythonLogs, "no core-agent Python-path error logs received yet")
-		assert.NotEmpty(c, coreLogs, "no core-agent Go-core error logs received yet")
 		assert.NotEmpty(c, processLogs, "no process-agent error logs received yet")
 		assert.NotEmpty(c, securityLogs, "no security-agent error logs received yet")
 		assert.NotEmpty(c, traceLogs, "no trace-agent error logs received yet")
 		assert.NotEmpty(c, systemProbeLogs, "no system-probe error logs received yet")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for error logs from every agent binary")
 
-	for _, l := range append(pythonLogs, coreLogs...) {
+	for _, l := range pythonLogs {
+		assertPythonLogShape(s.T(), l)
+	}
+	for _, l := range coreLogs {
 		assertCommonLogShape(s.T(), l, flavor.DefaultAgent)
 	}
 	for _, l := range processLogs {
@@ -261,14 +265,11 @@ func (s *errorTrackingSuite) TestPayloadShape() {
 		assertCommonLogShape(s.T(), l, flavor.SystemProbe)
 	}
 
-	// Python path: log.Error(string) carries no error-typed slog attribute,
-	// so ErrorKind is always empty. Call site is in datadog_agent.go.
-	for _, l := range pythonLogs {
-		assert.Empty(s.T(), l.ErrorKind, "error_kind must be empty for Python-path logs")
-	}
-	// Go core path: log.Errorc(string, ...) also carries no error-typed slog
-	// attribute, so ErrorKind is empty here too. Call site is in
-	// check_logger.go, not the Python bridge.
+	// Go core path: log.Errorc(string, ...) carries no error-typed slog
+	// attribute, so ErrorKind is empty here. Check failures raised by Python
+	// code no longer reach this path: they carry the Python stack and are
+	// asserted in errortracking_python_test.go. Python-origin records are
+	// covered by assertPythonLogShape.
 	for _, l := range coreLogs {
 		assert.Empty(s.T(), l.ErrorKind, "error_kind must be empty for Go-core path (Errorc passes string context)")
 	}

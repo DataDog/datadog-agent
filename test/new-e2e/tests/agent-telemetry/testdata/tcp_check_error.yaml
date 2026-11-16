@@ -1,0 +1,8 @@
+# The tcp_check integration logs an error and then raises when the host cannot
+# be resolved. The .invalid top level domain never resolves.
+init_config:
+instances:
+  - name: errortracking-e2e
+    host: errortracking-e2e.invalid
+    port: 80
+    min_collection_interval: 1

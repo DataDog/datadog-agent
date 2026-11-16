@@ -5,17 +5,22 @@ dd_agent_go_test(
     srcs = [
         "errortracking_cluster_agent_test.go",
         "errortracking_otel_agent_test.go",
+        "errortracking_python_test.go",
         "errortracking_test.go",
     ],
     data = [
+        "testdata/directory_error.yaml",
         "testdata/error_check.py",
         "testdata/error_check.yaml",
         "testdata/errortracking-disabled.yaml",
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
+        "testdata/errortracking-python.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/tcp_check_error.yaml",
     ],
     embedsrcs = [
+        "testdata/directory_error.yaml",
         "testdata/error_check.py",
         "testdata/error_check.yaml",
         "testdata/errortracking-cluster-agent-disabled.yaml",
@@ -23,8 +28,10 @@ dd_agent_go_test(
         "testdata/errortracking-disabled.yaml",
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-otel-agent-collector-config.yaml",
+        "testdata/errortracking-python.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/tcp_check_error.yaml",
     ],
     tags = ["manual"],
     deps = [

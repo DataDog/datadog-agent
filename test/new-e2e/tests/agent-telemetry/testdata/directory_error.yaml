@@ -1,0 +1,5 @@
+# The directory integration logs an error when it cannot walk the directory.
+init_config:
+instances:
+  - directory: /nonexistent/errortracking-e2e
+    min_collection_interval: 1
