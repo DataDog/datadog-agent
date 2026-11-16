@@ -147,6 +147,7 @@ void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t);
 void _set_get_version_cb(cb_get_version_t);
 void _set_headers_cb(cb_headers_t);
 void _set_log_cb(cb_log_t);
+void _set_log_with_stack_cb(cb_log_with_stack_t);
 void _set_send_log_cb(cb_send_log_t);
 void _set_set_check_metadata_cb(cb_set_check_metadata_t);
 void _set_set_external_tags_cb(cb_set_external_tags_t);

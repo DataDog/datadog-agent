@@ -24,6 +24,7 @@ import (
 #include "datadog_agent_rtloader.h"
 
 extern void doLog(char*, int);
+extern void doLogWithStack(char*, int, char*, char*);
 extern void getClustername(char **);
 extern void getConfig(char *, char **);
 extern void getHostname(char **);
@@ -53,6 +54,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_version_cb(rtloader, getVersion);
    set_headers_cb(rtloader, headers);
    set_log_cb(rtloader, doLog);
+   set_log_with_stack_cb(rtloader, doLogWithStack);
    set_send_log_cb(rtloader, sendLog);
    set_set_check_metadata_cb(rtloader, setCheckMetadata);
    set_set_external_tags_cb(rtloader, setExternalHostTags);
@@ -194,6 +196,24 @@ func getTracemallocEnabled() C.bool {
 //export doLog
 func doLog(msg *C.char, level C.int) {
 	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)))
+	os.WriteFile(tmpfile.Name(), data, 0644)
+}
+
+// logWithStackSeparator splits the fields doLogWithStack writes to the output
+// file: "[level]message", the stack and the exception type. A missing stack
+// or exception type is written as "<nil>".
+const logWithStackSeparator = "\x1f"
+
+//export doLogWithStack
+func doLogWithStack(msg *C.char, level C.int, stack *C.char, excType *C.char) {
+	field := func(s *C.char) string {
+		if s == nil {
+			return "<nil>"
+		}
+		return C.GoString(s)
+	}
+	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)) +
+		logWithStackSeparator + field(stack) + logWithStackSeparator + field(excType))
 	os.WriteFile(tmpfile.Name(), data, 0644)
 }
 

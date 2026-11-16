@@ -371,6 +371,15 @@ public:
     */
     virtual void setLogCb(cb_log_t) = 0;
 
+    //! setLogWithStackCb member.
+    /*!
+      \param A cb_log_with_stack_t function pointer to the CGO callback.
+
+      This allows us to set the optional CGO callback receiving error log messages along with
+      the Python stack and exception type active when they were logged.
+    */
+    virtual void setLogWithStackCb(cb_log_with_stack_t) = 0;
+
     //! sendLogCb member.
     /*!
       \param A cb_send_log_t function pointer to the CGO callback.

@@ -6,6 +6,7 @@
 
 // these must be set by the Agent
 static cb_log_t cb_log = NULL;
+static cb_log_with_stack_t cb_log_with_stack = NULL;
 
 void _set_log_cb(cb_log_t cb)
 {
@@ -20,4 +21,28 @@ void agent_log(log_level_t log_level, char *message)
         return;
     }
     cb_log(message, log_level);
+}
+
+void _set_log_with_stack_cb(cb_log_with_stack_t cb)
+{
+    cb_log_with_stack = cb;
+}
+
+bool agent_log_with_stack_enabled(void)
+{
+    return cb_log_with_stack != NULL;
+}
+
+// Logs a message and the Python stack that produced it. Caller is in charge of
+// freeing the arguments if needed.
+void agent_log_with_stack(log_level_t log_level, char *message, char *stack, char *exc_type)
+{
+    if (cb_log_with_stack == NULL) {
+        agent_log(log_level, message);
+        return;
+    }
+    if (message == NULL) {
+        return;
+    }
+    cb_log_with_stack(message, log_level, stack, exc_type);
 }

@@ -1054,6 +1054,11 @@ void Three::setLogCb(cb_log_t cb)
     _set_log_cb(cb);
 }
 
+void Three::setLogWithStackCb(cb_log_with_stack_t cb)
+{
+    _set_log_with_stack_cb(cb);
+}
+
 void Three::setSendLogCb(cb_send_log_t cb)
 {
     _set_send_log_cb(cb);

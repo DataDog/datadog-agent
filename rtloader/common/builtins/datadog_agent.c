@@ -8,6 +8,8 @@
 #include "stringutils.h"
 
 #include <log.h>
+#include <stdio.h>
+#include <string.h>
 
 // these must be set by the Agent
 static cb_get_clustername_t cb_get_clustername = NULL;
@@ -433,6 +435,166 @@ PyObject *tracemalloc_enabled(PyObject *self, PyObject *args)
     Py_RETURN_FALSE;
 }
 
+// Bounds on what log_message captures from the Python stack, so a deep stack
+// or very long names cannot make an error log expensive or unbounded.
+#define STACK_MAX_FRAMES 32
+#define STACK_MAX_BYTES 8192
+#define STACK_LINE_MAX 640
+#define STACK_FIELD_MAX 256
+#define EXC_TYPE_MAX 256
+
+/*! \fn void copy_sanitized(char *out, size_t max, PyObject *str)
+    \brief Copies the text of the Python string `str` into `out`, truncated to `max - 1`
+    bytes. Control characters and double quotes are replaced so the value cannot break the
+    one frame per line format. `out` is left empty if `str` is not a string.
+*/
+static void copy_sanitized(char *out, size_t max, PyObject *str)
+{
+    out[0] = '\0';
+    if (str == NULL || !PyUnicode_Check(str)) {
+        return;
+    }
+
+    const char *utf8 = PyUnicode_AsUTF8(str);
+    if (utf8 == NULL) {
+        PyErr_Clear();
+        return;
+    }
+
+    size_t i = 0;
+    for (; utf8[i] != '\0' && i < max - 1; i++) {
+        unsigned char c = (unsigned char)utf8[i];
+        out[i] = (c < 0x20 || c == 0x7f || c == '"') ? '?' : (char)c;
+    }
+    out[i] = '\0';
+}
+
+// Returns a new reference to the string attribute `name` of `obj`, or NULL
+// (with no Python error set) if it is missing or not a string.
+static PyObject *get_str_attr(PyObject *obj, const char *name)
+{
+    PyObject *value = PyObject_GetAttrString(obj, name);
+    if (value == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+    if (!PyUnicode_Check(value)) {
+        Py_DECREF(value);
+        return NULL;
+    }
+    return value;
+}
+
+/*! \fn char *capture_python_stack(void)
+    \brief Describes the Python frames of the calling thread, the same way a Python
+    traceback lists them (outermost frame first):
+
+        File "<path>", line <n>, in <function>
+
+    The innermost STACK_MAX_FRAMES frames are kept. Only code object attributes are read:
+    no source lines, local variables or exception messages.
+    \return A string allocated with the rtloader allocator that the caller must free with
+    _free, or NULL if no frame could be read.
+
+    The GIL must be held. The Python error indicator is left untouched.
+*/
+static char *capture_python_stack(void)
+{
+    char *buf = (char *)_malloc(STACK_MAX_BYTES);
+    if (buf == NULL) {
+        return NULL;
+    }
+
+    // The frames are visited innermost first and written from the end of the
+    // buffer so the final text reads outermost first without a second pass.
+    size_t pos = STACK_MAX_BYTES - 1;
+    buf[pos] = '\0';
+    int frames = 0;
+
+    PyFrameObject *frame = PyThreadState_GetFrame(PyThreadState_Get());
+    while (frame != NULL && frames < STACK_MAX_FRAMES) {
+        PyCodeObject *code = PyFrame_GetCode(frame);
+        if (code != NULL) {
+            char path[STACK_FIELD_MAX];
+            char function[STACK_FIELD_MAX];
+            PyObject *py_path = get_str_attr((PyObject *)code, "co_filename");
+            PyObject *py_function = get_str_attr((PyObject *)code, "co_qualname");
+            if (py_function == NULL) {
+                py_function = get_str_attr((PyObject *)code, "co_name");
+            }
+            copy_sanitized(path, sizeof(path), py_path);
+            copy_sanitized(function, sizeof(function), py_function);
+            Py_XDECREF(py_path);
+            Py_XDECREF(py_function);
+            Py_DECREF(code);
+
+            int lineno = PyFrame_GetLineNumber(frame);
+            char line[STACK_LINE_MAX];
+            int len = snprintf(line, sizeof(line), "  File \"%s\", line %d, in %s\n", path, lineno < 0 ? 0 : lineno, function);
+            if (len < 0 || (size_t)len >= sizeof(line) || (size_t)len > pos) {
+                break;
+            }
+            pos -= (size_t)len;
+            memcpy(buf + pos, line, (size_t)len);
+            frames++;
+        }
+
+        PyFrameObject *back = PyFrame_GetBack(frame);
+        Py_DECREF(frame);
+        frame = back;
+    }
+    Py_XDECREF(frame);
+
+    if (frames == 0) {
+        _free(buf);
+        return NULL;
+    }
+
+    memmove(buf, buf + pos, STACK_MAX_BYTES - pos);
+    return buf;
+}
+
+/*! \fn void capture_exception_type(char *out, size_t max)
+    \brief Writes into `out` the qualified class name of the exception being handled by
+    the calling thread (builtin exceptions have no module prefix), or an empty string when
+    none is being handled. The exception value and traceback, which can carry user data,
+    are never read.
+
+    The GIL must be held. The Python error indicator is left untouched.
+*/
+static void capture_exception_type(char *out, size_t max)
+{
+    out[0] = '\0';
+
+    PyObject *type = NULL;
+    PyObject *value = NULL;
+    PyObject *traceback = NULL;
+    PyErr_GetExcInfo(&type, &value, &traceback);
+
+    if (type != NULL && type != Py_None) {
+        char module[STACK_FIELD_MAX];
+        char qualname[STACK_FIELD_MAX];
+        PyObject *py_module = get_str_attr(type, "__module__");
+        PyObject *py_qualname = get_str_attr(type, "__qualname__");
+        copy_sanitized(module, sizeof(module), py_module);
+        copy_sanitized(qualname, sizeof(qualname), py_qualname);
+        Py_XDECREF(py_module);
+        Py_XDECREF(py_qualname);
+
+        if (qualname[0] != '\0') {
+            if (module[0] != '\0' && strcmp(module, "builtins") != 0) {
+                snprintf(out, max, "%s.%s", module, qualname);
+            } else {
+                snprintf(out, max, "%s", qualname);
+            }
+        }
+    }
+
+    Py_XDECREF(type);
+    Py_XDECREF(value);
+    Py_XDECREF(traceback);
+}
+
 /*! \fn PyObject *log_message(PyObject *self, PyObject *args)
     \brief This function implements the `datadog_agent.log` method, allowing to log
     python messages using the agent's go logging subsytem and its facilities.
@@ -451,6 +613,10 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     char *message = NULL;
     int log_level;
 
+    char *stack = NULL;
+    char exc_type[EXC_TYPE_MAX];
+    exc_type[0] = '\0';
+
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // PyArg_ParseTuple returns a pointer to the existing string in &message
@@ -460,9 +626,26 @@ static PyObject *log_message(PyObject *self, PyObject *args)
         return NULL;
     }
 
+    // The Python stack is only available while the GIL is held, so it is
+    // captured here, for error and critical messages only, and only when the
+    // agent registered a callback able to receive it.
+    int with_stack = (log_level == DATADOG_AGENT_ERROR || log_level == DATADOG_AGENT_CRITICAL)
+        && agent_log_with_stack_enabled();
+    if (with_stack) {
+        stack = capture_python_stack();
+        capture_exception_type(exc_type, sizeof(exc_type));
+    }
+
     PyGILState_Release(gstate);
 
-    agent_log(log_level, message);
+    if (with_stack) {
+        agent_log_with_stack(log_level, message, stack, exc_type[0] != '\0' ? exc_type : NULL);
+        if (stack != NULL) {
+            _free(stack);
+        }
+    } else {
+        agent_log(log_level, message);
+    }
     Py_RETURN_NONE;
 }
 

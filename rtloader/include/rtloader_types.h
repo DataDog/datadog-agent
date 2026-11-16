@@ -125,6 +125,11 @@ typedef void (*cb_get_clustername_t)(char **);
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
+// (message, level, stack, exception_type)
+// stack is a Python traceback style listing of the frames active when the
+// message was logged; exception_type is the handled exception class name.
+// Either may be NULL. Both are only valid for the duration of the call.
+typedef void (*cb_log_with_stack_t)(char *, int, char *, char *);
 // (log_line, check_id)
 typedef void (*cb_send_log_t)(char *, char *);
 // (check_id, name, value)

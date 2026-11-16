@@ -547,6 +547,11 @@ void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
 }
 
+void set_log_with_stack_cb(rtloader_t *rtloader, cb_log_with_stack_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setLogWithStackCb(cb);
+}
+
 void set_send_log_cb(rtloader_t *rtloader, cb_send_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSendLogCb(cb);

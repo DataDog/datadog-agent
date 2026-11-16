@@ -805,3 +805,177 @@ func TestResolveIssue(t *testing.T) {
 
 	helpers.AssertMemoryUsage(t)
 }
+
+// runLogWithStack runs code and returns the message, stack and exception type
+// received by the stack aware log callback.
+func runLogWithStack(t *testing.T, code string) (msg, stack, excType string) {
+	t.Helper()
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(out, logWithStackSeparator)
+	if len(parts) != 3 {
+		t.Fatalf("unexpected output, the stack aware callback was not used: %q", out)
+	}
+	return parts[0], parts[1], parts[2]
+}
+
+func TestLogWithStack(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	code := `
+	def inner():
+		datadog_agent.log("boom", 40)
+
+	def outer():
+		inner()
+
+	outer()
+	`
+	msg, stack, excType := runLogWithStack(t, code)
+
+	if msg != "[40]boom" {
+		t.Errorf("Unexpected message: %q", msg)
+	}
+	if excType != "<nil>" {
+		t.Errorf("No exception is being handled, got exception type %q", excType)
+	}
+	// Frames are listed outermost first, like a Python traceback.
+	iOuter := strings.Index(stack, "in outer")
+	iInner := strings.Index(stack, "in inner")
+	if iOuter < 0 || iInner < 0 || iOuter > iInner {
+		t.Errorf("Expected outer before inner in stack, got:\n%s", stack)
+	}
+	if !regexp.MustCompile(`(?m)^  File "[^"\n]+", line \d+, in inner$`).MatchString(stack) {
+		t.Errorf("Frame does not follow the traceback format:\n%s", stack)
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestLogWithStackExceptionType(t *testing.T) {
+	helpers.ResetMemoryStats()
+
+	code := `
+	class CustomError(Exception):
+		pass
+
+	try:
+		raise CustomError("top secret value")
+	except CustomError:
+		datadog_agent.log("handled", 40)
+	`
+	_, stack, excType := runLogWithStack(t, code)
+
+	if excType != "__main__.CustomError" {
+		t.Errorf("Unexpected exception type: %q", excType)
+	}
+	if strings.Contains(stack, "top secret value") {
+		t.Errorf("The exception message must not be captured:\n%s", stack)
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestLogWithStackBuiltinExceptionHasNoModule(t *testing.T) {
+	code := `
+	try:
+		{}["k"]
+	except KeyError:
+		datadog_agent.log("handled", 50)
+	`
+	msg, _, excType := runLogWithStack(t, code)
+
+	if msg != "[50]handled" {
+		t.Errorf("Critical messages use the stack aware callback, got %q", msg)
+	}
+	if excType != "KeyError" {
+		t.Errorf("Unexpected exception type: %q", excType)
+	}
+}
+
+func TestLogWithStackLevelGating(t *testing.T) {
+	// Levels other than error and critical keep using the plain callback.
+	for _, level := range []int{7, 10, 20, 30, 99} {
+		code := fmt.Sprintf(`datadog_agent.log("quiet", %d)`, level)
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("[%d]quiet", level); out != want {
+			t.Errorf("Level %d: expected %q from the plain callback, got %q", level, want, out)
+		}
+	}
+}
+
+func TestLogWithStackTruncatesDeepStacks(t *testing.T) {
+	code := `
+	def recurse(n):
+		if n == 0:
+			datadog_agent.log("deep", 40)
+		else:
+			recurse(n - 1)
+
+	recurse(200)
+	`
+	_, stack, _ := runLogWithStack(t, code)
+
+	frames := regexp.MustCompile(`(?m)^  File `).FindAllString(stack, -1)
+	if len(frames) != 32 {
+		t.Errorf("Expected the stack to be capped at 32 frames, got %d", len(frames))
+	}
+	if !strings.HasSuffix(strings.TrimSpace(stack), "in recurse") {
+		t.Errorf("Expected the innermost frame to be kept last, got:\n%s", stack)
+	}
+}
+
+func TestLogWithStackSanitizesFrameFields(t *testing.T) {
+	// A code object whose file name contains a quote and a newline must not be
+	// able to inject a forged frame line.
+	code := `
+	src = compile("datadog_agent.log('x', 40)", 'a"b\nc', 'exec')
+	exec(src, {'datadog_agent': datadog_agent})
+	`
+	_, stack, _ := runLogWithStack(t, code)
+
+	// run trims the output, which removes the indentation of the first line.
+	for _, line := range strings.Split(strings.TrimRight(stack, "\n"), "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "File ") {
+			t.Errorf("Unexpected line in stack: %q\n%s", line, stack)
+		}
+	}
+}
+
+func TestLogWithStackInvalidArguments(t *testing.T) {
+	// Argument errors are raised to Python and never reach a callback.
+	out, err := run(`datadog_agent.log(None, 40)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out, "TypeError") {
+		t.Errorf("Expected a TypeError, got %q", out)
+	}
+}
+
+// BenchmarkLogWithStack measures the cost of an error log with the stack
+// captured against the same log through the plain callback (level 30).
+func BenchmarkLogWithStack(b *testing.B) {
+	for _, level := range []int{30, 40} {
+		b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+			code := fmt.Sprintf(`
+	def f(n):
+		if n == 0:
+			for _ in range(%d):
+				datadog_agent.log("x", %d)
+		else:
+			f(n - 1)
+	f(12)
+`, b.N, level)
+			b.ResetTimer()
+			if _, err := run(code); err != nil {
+				b.Fatal(err)
+			}
+		})
+	}
+}

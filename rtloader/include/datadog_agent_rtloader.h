@@ -513,6 +513,19 @@ DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_trac
 */
 DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
 
+/*! \fn void set_log_with_stack_cb(rtloader_t *, cb_log_with_stack_t)
+    \brief Sets an optional callback used instead of the one set by set_log_cb for error
+    and critical messages, so the Python stack and exception type active at the log call
+    are delivered along with the message. Messages of other levels keep using the
+    set_log_cb callback.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_log_with_stack_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_log_with_stack_cb(rtloader_t *, cb_log_with_stack_t);
+
 /*! \fn void set_send_log_cb(rtloader_t *, cb_send_log_t)
     \brief Sets a callback to be used by rtloader to allow for submitting a log for a given
     check instance.
