@@ -8,6 +8,7 @@
 package utils
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -15,5 +16,6 @@ import (
 // It checks that both the config enables EndpointSlices AND the Kubernetes cluster version
 // supports them (v1.21+), falling back to Endpoints if the cluster is too old.
 func UseEndpointSlices() bool {
-	return apiserver.UseEndpointSlices()
+	return flavor.GetFlavor() == flavor.ClusterAgent &&
+		apiserver.UseEndpointSlices()
 }
