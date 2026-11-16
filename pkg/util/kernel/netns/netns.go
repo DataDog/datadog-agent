@@ -69,6 +69,7 @@ func WithNS(ns netns.NsHandle, fn func() error) (err error) {
 	defer func() {
 		if nsErr := setNS(prevNS); nsErr != nil {
 			err = errors.Join(err, fmt.Errorf("restoring network namespace: %w", nsErr))
+			return // stay locked so the runtime discards the thread
 		}
 		runtime.UnlockOSThread()
 	}()

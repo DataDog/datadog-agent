@@ -620,11 +620,7 @@ func TestRecvInetDiag(t *testing.T) {
 // resetSockDiagLatch clears the process-wide latches for the test's duration.
 func resetSockDiagLatch(t *testing.T) {
 	sockDiagOff.Store(false)
-	sockDiagNoV6.Store(false)
-	t.Cleanup(func() {
-		sockDiagOff.Store(false)
-		sockDiagNoV6.Store(false)
-	})
+	t.Cleanup(func() { sockDiagOff.Store(false) })
 }
 
 func TestSockDiagLatch(t *testing.T) {

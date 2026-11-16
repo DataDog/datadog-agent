@@ -15,8 +15,10 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,9 +54,6 @@ var dumpTCPListeners = sockDiagTCPListeners
 // straight to /proc/net instead of retrying (and re-triggering a module
 // autoload or an LSM denial) every time.
 var sockDiagOff atomic.Bool
-
-// sockDiagNoV6 latches once the kernel reports no AF_INET6 sock_diag handler.
-var sockDiagNoV6 atomic.Bool
 
 var errSockDiagOff = errors.New("sock_diag disabled after an earlier failure")
 
@@ -106,14 +105,15 @@ func (li *linuxImpl) appendSockDiagListeners() error {
 	return nil
 }
 
-// sockDiagTCPListeners returns the TCP listeners in the caller's network
-// namespace using NETLINK_SOCK_DIAG with idiag_states = TCPF_LISTEN, which
-// walks only the listening hash rather than every established socket. It
-// opens and closes its own socket, so it is safe to call concurrently.
+// sockDiagTCPListeners returns the TCP listeners in the process's network
+// namespace (the one /proc/net shows) using NETLINK_SOCK_DIAG with
+// idiag_states = TCPF_LISTEN, which walks only the listening hash rather than
+// every established socket. It opens and closes its own socket, so it is safe
+// to call concurrently.
 func sockDiagTCPListeners() ([]sockDiagListener, error) {
-	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_SOCK_DIAG)
+	fd, err := procNetlinkSocket()
 	if err != nil {
-		return nil, fmt.Errorf("netlink socket: %w", err)
+		return nil, err
 	}
 	defer unix.Close(fd)
 
@@ -129,28 +129,42 @@ func sockDiagTCPListeners() ([]sockDiagListener, error) {
 	}
 	var out []sockDiagListener
 	rbuf := make([]byte, sockDiagRecvBuf)
-	families := []uint8{unix.AF_INET, unix.AF_INET6}
-	if sockDiagNoV6.Load() {
-		families = families[:1]
-	}
-	for i, family := range families {
+	for i, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		seq := uint32(i + 1)
 		if err := unix.Sendto(fd, inetDiagListenRequest(family, seq), 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
 			return nil, fmt.Errorf("sending sock_diag request: %w", err)
 		}
 		famOut, err := recvInetDiag(recv, rbuf, family, seq, out)
-		if family == unix.AF_INET6 && errors.Is(err, unix.ENOENT) {
-			// IPv4 worked, so the kernel has no IPv6 and no IPv6 listeners.
-			// Stop asking, since each request retries a module autoload.
-			sockDiagNoV6.Store(true)
-			return out, nil
-		}
 		if err != nil {
 			return nil, err
 		}
 		out = famOut
 	}
 	return out, nil
+}
+
+// procNetlinkSocket opens the sock_diag socket in /proc/self/ns/net rather
+// than the current thread's namespace, which other code on this OS thread
+// may have switched. A netlink socket stays in the namespace it was created in.
+func procNetlinkSocket() (int, error) {
+	ns, err := vnetns.GetFromPath("/proc/self/ns/net")
+	if err != nil {
+		return -1, fmt.Errorf("opening process network namespace: %w", err)
+	}
+	defer ns.Close()
+	fd := -1
+	err = netns.WithNS(ns, func() error {
+		var serr error
+		fd, serr = unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_SOCK_DIAG)
+		return serr
+	})
+	if err != nil {
+		if fd >= 0 {
+			unix.Close(fd)
+		}
+		return -1, fmt.Errorf("netlink socket: %w", err)
+	}
+	return fd, nil
 }
 
 func inetDiagListenRequest(family uint8, seq uint32) []byte {
