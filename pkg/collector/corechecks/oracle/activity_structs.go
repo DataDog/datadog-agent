@@ -86,6 +86,11 @@ type OracleActivityRow struct {
 	CommandName           string `json:"command_name,omitempty"`
 	PreviousSQL           bool   `json:"previous_sql,omitempty"`
 	OpFlags               uint64 `json:"op_flags,omitempty"`
+	PLSQLEntryObjectID    uint64 `json:"plsql_entry_object_id,omitempty"`
+	TopLevelSQLID         string `json:"top_level_sql_id,omitempty"`
+	// InPLSQL is nil when unknown: the row reports the previous SQL of an idle session,
+	// or the sys.dd_session view has no plsql_entry_object_id column.
+	InPLSQL *bool `json:"in_plsql,omitempty"`
 	RowMetadata
 }
 
@@ -109,6 +114,8 @@ type OracleActivityRowDB struct {
 	SQLPlanHashValue           *uint64        `db:"SQL_PLAN_HASH_VALUE"`
 	SQLExecStart               sql.NullString `db:"SQL_EXEC_START"`
 	SQLAddress                 sql.NullString `db:"SQL_ADDRESS"`
+	PLSQLEntryObjectID         *uint64        `db:"PLSQL_ENTRY_OBJECT_ID"`
+	TopLevelSQLID              sql.NullString `db:"TOP_LEVEL_SQL_ID"`
 	PrevSQLID                  sql.NullString `db:"PREV_SQL_ID"`
 	PrevForceMatchingSignature *string        `db:"PREV_FORCE_MATCHING_SIGNATURE"`
 	PrevSQLPlanHashValue       *uint64        `db:"PREV_SQL_PLAN_HASH_VALUE"`

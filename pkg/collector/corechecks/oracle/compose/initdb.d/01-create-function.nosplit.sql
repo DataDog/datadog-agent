@@ -28,6 +28,7 @@ SELECT /*+ push_pred(sq) push_pred(sq_prev) */
     s.ksuseltm as logon_time,
     s.ksuseclid as client_identifier,
     s.ksusstmbv as op_flags,
+    DECODE(s.ksusepeo, 0, TO_NUMBER(NULL), s.ksusepeo) as plsql_entry_object_id,
     decode(s.ksuseblocker,
         4294967295, 'UNKNOWN', 4294967294, 'UNKNOWN', 4294967293, 'UNKNOWN', 4294967292, 'NO HOLDER', 4294967291, 'NOT IN WAIT',
         'VALID'

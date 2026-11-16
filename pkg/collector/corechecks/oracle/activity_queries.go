@@ -7,6 +7,18 @@
 
 package oracle
 
+import "strings"
+
+// activityViewPLSQLEntryObjectIDProbe checks whether the customer-created sys.dd_session view exposes
+// plsql_entry_object_id. Views created before the column was added to the view definition don't.
+const activityViewPLSQLEntryObjectIDProbe = `SELECT /* DD */ plsql_entry_object_id FROM sys.dd_session WHERE 1 = 0`
+
+// activityQueryOnViewWithoutPLSQLEntryObjectID adapts activityQueryOnView12 or activityQueryOnView11
+// to a sys.dd_session view that has no plsql_entry_object_id column.
+func activityQueryOnViewWithoutPLSQLEntryObjectID(query string) string {
+	return strings.Replace(query, "\tplsql_entry_object_id,", "\tNULL plsql_entry_object_id,", 1)
+}
+
 const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
 	sid,
@@ -25,6 +37,7 @@ const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
     sql_exec_start,
 	sql_address,
 	op_flags,
+	plsql_entry_object_id,
 	prev_sql_id,
 	prev_force_matching_signature,
     prev_sql_plan_hash_value,
@@ -92,6 +105,7 @@ const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
     sql_exec_start,
 	sql_address,
 	op_flags,
+	plsql_entry_object_id,
 	prev_sql_id,
 	prev_force_matching_signature,
     prev_sql_plan_hash_value,
@@ -157,6 +171,7 @@ sq.force_matching_signature as force_matching_signature,
 sq.plan_hash_value sql_plan_hash_value,
 s.sql_exec_start,
 s.sql_address,
+s.plsql_entry_object_id,
 s.prev_sql_id,
 sq_prev.plan_hash_value prev_sql_plan_hash_value,
 s.prev_exec_start as prev_sql_exec_start,
@@ -235,6 +250,8 @@ const activityQueryActiveSessionHistory = `SELECT /*+ push_pred(sq) */ /* DD_ACT
 	sq.force_matching_signature as force_matching_signature,
 	sq.plan_hash_value sql_plan_hash_value,
 	s.sql_exec_start,
+	s.plsql_entry_object_id,
+	s.top_level_sql_id,
 	s.module,
 	s.action,
 	sess.logon_time,

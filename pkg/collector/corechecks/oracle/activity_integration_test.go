@@ -159,6 +159,58 @@ END;`
 	}
 }
 
+// TestActivityInPLSQL samples a session that is inside DBMS_SESSION.SLEEP, called from an anonymous block.
+// DBMS_SESSION is the PL/SQL entry object of that session.
+func TestActivityInPLSQL(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+	// The session sleeps in an idle wait, which is only sampled with include_all_sessions.
+	c.config.QuerySamples.IncludeAllSessions = true
+
+	err := c.Run()
+	require.NoError(t, err, "check run")
+
+	conn, err := getSysConnection(t)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	const module = "dd_in_plsql_test"
+	plsqlDone := make(chan error, 1)
+	go func() {
+		_, err := conn.Exec(fmt.Sprintf(`BEGIN
+  DBMS_APPLICATION_INFO.SET_MODULE('%s', NULL);
+  DBMS_SESSION.SLEEP(10);
+END;`, module))
+		plsqlDone <- err
+	}()
+
+	for _, directQuery := range []bool{true, false} {
+		c.config.QuerySamples.ForceDirectQuery = directQuery
+		var plsqlRow *OracleActivityRow
+		for i := 0; i < 10 && plsqlRow == nil; i++ {
+			require.NoError(t, c.SampleSession(), "activity sample failed")
+			for _, r := range c.lastOracleActivityRows {
+				if r.PreviousSQL {
+					assert.Nilf(t, r.InPLSQL, "in_plsql must be unknown for the previous SQL of sid %d", r.SessionID)
+				}
+				if r.Module == module && !r.PreviousSQL {
+					plsqlRow = &r
+				}
+			}
+			if plsqlRow == nil {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+		require.NotNilf(t, plsqlRow, "session in PL/SQL not sampled, direct query: %t", directQuery)
+		assert.NotZerof(t, plsqlRow.PLSQLEntryObjectID, "direct query: %t", directQuery)
+		require.NotNilf(t, plsqlRow.InPLSQL, "direct query: %t", directQuery)
+		assert.Truef(t, *plsqlRow.InPLSQL, "direct query: %t", directQuery)
+	}
+	require.NoError(t, <-plsqlDone)
+}
+
 func isValidSessionType(sessionType string) bool {
 	return sessionType == "USER" || sessionType == "BACKGROUND"
 }

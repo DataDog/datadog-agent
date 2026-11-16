@@ -115,6 +115,8 @@ type Check struct {
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
 	lastSampleID                            uint64
+	activityViewPLSQLEntryObjectIDChecked   bool
+	activityViewHasPLSQLEntryObjectID       bool
 	obfuscator                              *obfuscate.Obfuscator
 }
 

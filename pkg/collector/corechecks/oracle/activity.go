@@ -135,6 +135,31 @@ func (c *Check) getBlockerFromLock(blockedSID uint64) (blockerInstance uint64, b
 	return row.BlockingInstance, row.BlockingSession, nil
 }
 
+// hasActivityViewPLSQLEntryObjectID reports whether sys.dd_session exposes plsql_entry_object_id.
+// The answer is cached once the probe succeeds or the column is reported missing (ORA-00904).
+func (c *Check) hasActivityViewPLSQLEntryObjectID() (bool, error) {
+	if c.activityViewPLSQLEntryObjectIDChecked {
+		return c.activityViewHasPLSQLEntryObjectID, nil
+	}
+	var ids []sql.NullInt64
+	err := selectWrapper(c, &ids, activityViewPLSQLEntryObjectIDProbe)
+	if err != nil && !strings.Contains(err.Error(), "ORA-00904") {
+		return false, err
+	}
+	c.activityViewPLSQLEntryObjectIDChecked = true
+	c.activityViewHasPLSQLEntryObjectID = err == nil
+	if !c.activityViewHasPLSQLEntryObjectID {
+		log.Warnf("%s sys.dd_session has no plsql_entry_object_id column, in_plsql will not be reported in activity samples. Recreate the view with the current definition from the Datadog Oracle setup documentation.", c.logPrompt)
+	}
+	return c.activityViewHasPLSQLEntryObjectID, nil
+}
+
+// isInPLSQL reports whether a sampled statement runs inside a PL/SQL call (procedure, function,
+// anonymous block or trigger). topLevelSQLID is only available when sampling from ASH.
+func isInPLSQL(plsqlEntryObjectID uint64, topLevelSQLID string, sqlID string) bool {
+	return plsqlEntryObjectID != 0 || (topLevelSQLID != "" && topLevelSQLID != sqlID)
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
@@ -155,6 +180,7 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
 	maxSQLTextLength := c.sqlSubstringLength
+	plsqlEntryObjectIDAvailable := true
 
 	if activeSessionHistory {
 		activityQuery = activityQueryActiveSessionHistory
@@ -163,6 +189,14 @@ func (c *Check) SampleSession() error {
 			activityQuery = activityQueryOnView12
 		} else {
 			activityQuery = activityQueryOnView11
+		}
+		hasColumn, err := c.hasActivityViewPLSQLEntryObjectID()
+		if err != nil {
+			return fmt.Errorf("failed to check the columns of sys.dd_session: %w", err)
+		}
+		if !hasColumn {
+			activityQuery = activityQueryOnViewWithoutPLSQLEntryObjectID(activityQuery)
+			plsqlEntryObjectIDAvailable = false
 		}
 	} else {
 		activityQuery = activityQueryDirect
@@ -266,6 +300,18 @@ AND status = 'ACTIVE'`)
 			}
 		}
 		sessionRow.PreviousSQL = previousSQL
+
+		if sample.PLSQLEntryObjectID != nil {
+			sessionRow.PLSQLEntryObjectID = *sample.PLSQLEntryObjectID
+		}
+		if sample.TopLevelSQLID.Valid {
+			sessionRow.TopLevelSQLID = sample.TopLevelSQLID.String
+		}
+		// The PL/SQL columns describe the current call, not the previous SQL of an idle session.
+		if plsqlEntryObjectIDAvailable && !previousSQL {
+			inPLSQL := isInPLSQL(sessionRow.PLSQLEntryObjectID, sessionRow.TopLevelSQLID, sessionRow.SQLID)
+			sessionRow.InPLSQL = &inPLSQL
+		}
 
 		if sample.Module.Valid {
 			sessionRow.Module = sample.Module.String
