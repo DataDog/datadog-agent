@@ -81,71 +81,75 @@ pub(crate) fn translate(
     if request.run_as == RunAs::Privileged && !request.grants.is_empty() {
         return Err(TranslateError::GrantsWithPrivileged);
     }
+    if let Some(grant) = first_unavailable(os, &request.grants) {
+        return Err(TranslateError::GrantUnavailable { grant, os });
+    }
 
-    match (os, request.run_as) {
-        (HostOs::Linux, RunAs::Agent) => {
-            let capabilities = request
-                .grants
+    Ok(TranslatedIdentity {
+        account: account(os, request.run_as)?,
+        capabilities: capabilities(os, request.run_as, &request.grants),
+        satisfied: satisfied(os, &request.grants),
+    })
+}
+
+fn first_unavailable(os: HostOs, grants: &BTreeSet<Grant>) -> Option<Grant> {
+    grants
+        .iter()
+        .copied()
+        .find(|grant| !grant_available(os, *grant))
+}
+
+fn grant_available(os: HostOs, grant: Grant) -> bool {
+    match (os, grant) {
+        (HostOs::Linux, Grant::BindPrivilegedPorts | Grant::RawNetwork) => true,
+        (HostOs::Windows, Grant::BindPrivilegedPorts) => true,
+        (HostOs::Windows, Grant::RawNetwork)
+        | (HostOs::MacOs | HostOs::Other, Grant::BindPrivilegedPorts | Grant::RawNetwork) => false,
+    }
+}
+
+fn account(os: HostOs, run_as: RunAs) -> Result<Account, TranslateError> {
+    Ok(match (os, run_as) {
+        (_, RunAs::Agent) => Account::Agent,
+        (HostOs::Linux, RunAs::Privileged) => Account::Privileged(PrivilegedAccount::LinuxUid0),
+        (HostOs::MacOs, RunAs::Privileged) => {
+            Account::Privileged(PrivilegedAccount::MacOsRootAdmin)
+        }
+        (HostOs::Windows, RunAs::Privileged) => {
+            Account::Privileged(PrivilegedAccount::WindowsLocalSystem)
+        }
+        (HostOs::Other, RunAs::Privileged) => return Err(TranslateError::PrivilegedUnsupported),
+    })
+}
+
+fn capabilities(os: HostOs, run_as: RunAs, grants: &BTreeSet<Grant>) -> CapabilityIntent {
+    match (os, run_as) {
+        (HostOs::Linux, RunAs::Agent) => CapabilityIntent::Exactly(
+            grants
                 .iter()
                 .copied()
                 .map(|grant| match grant {
                     Grant::BindPrivilegedPorts => LinuxCap::NetBindService,
                     Grant::RawNetwork => LinuxCap::NetRaw,
                 })
-                .collect();
-            Ok(TranslatedIdentity {
-                account: Account::Agent,
-                capabilities: CapabilityIntent::Exactly(capabilities),
-                satisfied: BTreeSet::new(),
+                .collect(),
+        ),
+        (HostOs::Linux, RunAs::Privileged) => CapabilityIntent::KeepDaemon,
+        (HostOs::MacOs | HostOs::Windows | HostOs::Other, _) => CapabilityIntent::None,
+    }
+}
+
+fn satisfied(os: HostOs, grants: &BTreeSet<Grant>) -> BTreeSet<Grant> {
+    match os {
+        HostOs::Windows => grants
+            .iter()
+            .copied()
+            .filter(|grant| match grant {
+                Grant::BindPrivilegedPorts => true,
+                Grant::RawNetwork => false,
             })
-        }
-        (HostOs::Linux, RunAs::Privileged) => Ok(TranslatedIdentity {
-            account: Account::Privileged(PrivilegedAccount::LinuxUid0),
-            capabilities: CapabilityIntent::KeepDaemon,
-            satisfied: BTreeSet::new(),
-        }),
-        (HostOs::MacOs | HostOs::Other, RunAs::Agent) => {
-            if let Some(grant) = request.grants.iter().copied().next() {
-                return Err(TranslateError::GrantUnavailable { grant, os });
-            }
-            Ok(TranslatedIdentity {
-                account: Account::Agent,
-                capabilities: CapabilityIntent::None,
-                satisfied: BTreeSet::new(),
-            })
-        }
-        (HostOs::MacOs, RunAs::Privileged) => Ok(TranslatedIdentity {
-            account: Account::Privileged(PrivilegedAccount::MacOsRootAdmin),
-            capabilities: CapabilityIntent::None,
-            satisfied: BTreeSet::new(),
-        }),
-        (HostOs::Windows, RunAs::Agent) => {
-            let mut satisfied = BTreeSet::new();
-            for grant in &request.grants {
-                match grant {
-                    Grant::BindPrivilegedPorts => {
-                        satisfied.insert(*grant);
-                    }
-                    Grant::RawNetwork => {
-                        return Err(TranslateError::GrantUnavailable {
-                            grant: *grant,
-                            os: HostOs::Windows,
-                        });
-                    }
-                }
-            }
-            Ok(TranslatedIdentity {
-                account: Account::Agent,
-                capabilities: CapabilityIntent::None,
-                satisfied,
-            })
-        }
-        (HostOs::Windows, RunAs::Privileged) => Ok(TranslatedIdentity {
-            account: Account::Privileged(PrivilegedAccount::WindowsLocalSystem),
-            capabilities: CapabilityIntent::None,
-            satisfied: BTreeSet::new(),
-        }),
-        (HostOs::Other, RunAs::Privileged) => Err(TranslateError::PrivilegedUnsupported),
+            .collect(),
+        HostOs::Linux | HostOs::MacOs | HostOs::Other => BTreeSet::new(),
     }
 }
 
