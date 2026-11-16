@@ -14,7 +14,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pci"
 )
@@ -38,11 +38,12 @@ type HostLinkInfo struct {
 	PCIeMaxWidth int
 }
 
-// newPCISysfs returns the sysfs reader for PCI facts. The host sysfs is often
-// only partly mounted in containers, but the PCI device tree isn't
-// namespaced, so the container's own /sys works too. Replaced in tests.
+// newPCISysfs returns the sysfs reader for PCI facts, rooted where the GPU
+// checks find the device tree. The host sysfs is often only partly mounted in
+// containers, but the PCI device tree isn't namespaced, so the container's own
+// /sys is tried next. Replaced in tests.
 var newPCISysfs = func() *pci.Sysfs {
-	return pci.NewSysfs(kernel.SysFSRoot(), "/sys")
+	return pci.NewSysfs(sysfsroot.DeviceSysFSRoot(), "/sys")
 }
 
 // fillTopologyAttributes caches static PCI, NUMA and host-link facts. They are
@@ -61,19 +62,15 @@ func (d *DeviceInfo) fillTopologyAttributes(dev SafeDevice) {
 	}
 	d.HostLink = d.queryHostLink(dev)
 
-	// NVML does not implement this on the drivers we tested (HGX B200 R580,
-	// GB200 R610); sysfs is the fallback there.
-	if node, err := dev.GetNumaNodeId(); err == nil && node >= 0 {
-		d.NUMANode = &node
-	}
 	if d.PCIBusID == "" {
 		return
 	}
 	sysfs := newPCISysfs()
-	if d.NUMANode == nil {
-		if node, ok := sysfs.NUMANode(d.PCIBusID); ok {
-			d.NUMANode = &node
-		}
+	// Host NUMA locality comes from sysfs only. nvmlDeviceGetNumaNodeId is
+	// documented for platforms where GPUs are NUMA nodes, so it can report
+	// the GPU's own memory node instead of the host node closest to it.
+	if node, ok := sysfs.NUMANode(d.PCIBusID); ok {
+		d.NUMANode = &node
 	}
 	if path, err := sysfs.UpstreamBridges(d.PCIBusID); err == nil {
 		d.PCIePath = path

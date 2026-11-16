@@ -210,14 +210,15 @@ func TestPullPlatformInfo(t *testing.T) {
 			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
 				return nvml.PlatformInfo{IbGuid: fabricGUID, ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
 			}
-			d.GetNumaNodeIdFunc = func() (int, nvml.Return) {
-				return 1, nvml.SUCCESS
-			}
 			d.GetSerialFunc = func() (string, nvml.Return) {
 				return "1650825051135", nvml.SUCCESS
 			}
+			d.GetPciInfoFunc = func() (nvml.PciInfo, nvml.Return) {
+				return nvml.PciInfo{Domain: 0x18, Bus: 1}, nvml.SUCCESS
+			}
 		})),
 	)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0018:00/0018:00:00.0/0018:01:00.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(context.Background())
@@ -246,17 +247,25 @@ func TestPullPlatformInfo(t *testing.T) {
 	}
 }
 
+// writePCIDevice returns a sysfs root holding one PCI device at path (e.g.
+// "pci0000:00/0000:00:1e.0"), linked from bus/pci/devices like the kernel does.
+func writePCIDevice(t *testing.T, path, numaNode string) string {
+	t.Helper()
+	sysRoot := t.TempDir()
+	deviceDir := filepath.Join(sysRoot, "devices", path)
+	require.NoError(t, os.MkdirAll(deviceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(deviceDir, "numa_node"), []byte(numaNode+"\n"), 0o644))
+	busDir := filepath.Join(sysRoot, "bus", "pci", "devices")
+	require.NoError(t, os.MkdirAll(busDir, 0o755))
+	require.NoError(t, os.Symlink(filepath.Join("..", "..", "..", "devices", path), filepath.Join(busDir, filepath.Base(path))))
+	return sysRoot
+}
+
 func TestPullNUMANodeFromSysfs(t *testing.T) {
-	// NVML doesn't support GetNumaNodeId (default mock), so the collector reads sysfs.
+	// The NUMA node comes from sysfs, never from NVML.
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmltestutil.SetupMockNVML(t)
-	sysRoot := t.TempDir()
-	deviceDir := filepath.Join(sysRoot, "devices", "pci0000:00", "0000:00:1e.0")
-	require.NoError(t, os.MkdirAll(deviceDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(deviceDir, "numa_node"), []byte("1\n"), 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(sysRoot, "bus", "pci", "devices"), 0o755))
-	require.NoError(t, os.Symlink("../../../devices/pci0000:00/0000:00:1e.0", filepath.Join(sysRoot, "bus", "pci", "devices", "0000:00:1e.0")))
-	ddnvml.WithMockPCISysfs(t, sysRoot)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0000:00/0000:00:1e.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(context.Background())
