@@ -5,6 +5,7 @@ go_library(
     name = "serverstore",
     srcs = [
         "in_memory.go",
+        "page.go",
         "parser.go",
         "store.go",
     ],
@@ -13,6 +14,7 @@ go_library(
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
+        "@com_github_google_uuid//:uuid",
         "@com_github_prometheus_client_golang//prometheus",
     ],
 )
@@ -21,6 +23,7 @@ dd_agent_go_test(
     name = "serverstore_test",
     srcs = [
         "in_memory_test.go",
+        "page_test.go",
         "store_test.go",
     ],
     embed = [":serverstore"],

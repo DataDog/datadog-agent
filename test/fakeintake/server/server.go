@@ -128,6 +128,7 @@ func NewServer(options ...Option) *Server {
 
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/payloads/page", fi.handleGetPayloadPage)
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)

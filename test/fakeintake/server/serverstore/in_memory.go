@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -20,8 +21,10 @@ import (
 type inMemoryStore struct {
 	mutex sync.RWMutex
 
-	rawPayloads map[string][]api.Payload
-	lastAPIKey  string
+	rawPayloads   map[string][]api.Payload
+	firstSequence map[string]uint64
+	generation    string
+	lastAPIKey    string
 
 	// NbPayloads is a prometheus metric to track the number of payloads collected by route
 	NbPayloads *prometheus.GaugeVec
@@ -30,8 +33,10 @@ type inMemoryStore struct {
 // newInMemoryStore initialise a new payloads store
 func newInMemoryStore() *inMemoryStore {
 	return &inMemoryStore{
-		mutex:       sync.RWMutex{},
-		rawPayloads: map[string][]api.Payload{},
+		mutex:         sync.RWMutex{},
+		rawPayloads:   map[string][]api.Payload{},
+		firstSequence: map[string]uint64{},
+		generation:    uuid.NewString(),
 		NbPayloads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "payloads",
 			Help: "Number of payloads collected by route",
@@ -91,6 +96,7 @@ func (s *inMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
 				lastInvalidPayloadIndex = i
 			}
 		}
+		s.firstSequence[route] += uint64(lastInvalidPayloadIndex + 1)
 		s.rawPayloads[route] = s.rawPayloads[route][lastInvalidPayloadIndex+1:]
 		s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
 	}
@@ -123,6 +129,8 @@ func (s *inMemoryStore) Flush() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.rawPayloads = map[string][]api.Payload{}
+	s.firstSequence = map[string]uint64{}
+	s.generation = uuid.NewString()
 	s.NbPayloads.Reset()
 }
 
