@@ -8,9 +8,7 @@
 package tailers
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,55 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// waitIdle waits until all the operations requested on ws are done.
-func waitIdle(t *testing.T, ws *WrappedSource) {
-	t.Helper()
-	ws.mu.Lock()
-	last := ws.last
-	ws.mu.Unlock()
-	if last == nil {
-		return
-	}
-	select {
-	case <-last:
-	case <-time.After(10 * time.Second):
-		require.FailNow(t, "WrappedSource operations did not complete")
-	}
-}
-
-// A Stop shortly following a Start must not leave the source behind.
-func TestWrappedSourceStopRightAfterStart(t *testing.T) {
-	logSources := sources.NewLogSources()
-
-	const n = 5000
-	wrapped := make([]*WrappedSource, 0, n)
-	for i := range n {
-		ws := &WrappedSource{
-			Source:  sources.NewLogSource(fmt.Sprintf("src-%d", i), &config.LogsConfig{Type: config.FileType, Path: "/tmp/x.log"}),
-			Sources: logSources,
-		}
-		require.NoError(t, ws.Start())
-		ws.Stop()
-		wrapped = append(wrapped, ws)
-	}
-
-	for _, ws := range wrapped {
-		waitIdle(t, ws)
-	}
-	require.Empty(t, logSources.GetSources(), "sources left behind after Start+Stop")
-}
-
-// Restarting a stopped WrappedSource adds the source back.
-func TestWrappedSourceStartStopStart(t *testing.T) {
+// Start and Stop add and remove the source before returning, so a Stop right
+// after a Start cannot leave the source behind.
+func TestWrappedSourceStartStop(t *testing.T) {
 	logSources := sources.NewLogSources()
 	ws := &WrappedSource{
 		Source:  sources.NewLogSource("src", &config.LogsConfig{Type: config.FileType, Path: "/tmp/x.log"}),
 		Sources: logSources,
 	}
-	require.NoError(t, ws.Start())
-	ws.Stop()
-	require.NoError(t, ws.Start())
 
-	waitIdle(t, ws)
-	require.Len(t, logSources.GetSources(), 1)
+	require.NoError(t, ws.Start())
+	require.Equal(t, []*sources.LogSource{ws.Source}, logSources.GetSources())
+
+	ws.Stop()
+	require.Empty(t, logSources.GetSources())
+
+	require.NoError(t, ws.Start())
+	require.Equal(t, []*sources.LogSource{ws.Source}, logSources.GetSources())
 }

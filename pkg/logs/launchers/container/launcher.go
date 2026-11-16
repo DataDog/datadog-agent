@@ -112,13 +112,46 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run(ctx context.Context, sourceProvider launchers.SourceProvider) {
 	log.Info("Starting Container launcher")
 
-	addedSources, removedSources := sourceProvider.SubscribeAll(l.addedSourcesDone, l.removedSourcesDone)
+	// Subscribe only to the container source types: tailers add file sources
+	// synchronously from this loop (see tailers.WrappedSource), so receiving
+	// them here would deadlock.
+	var added, removed []chan *sourcesPkg.LogSource
+	for sourceType := range containerSourceTypes {
+		a, r := sourceProvider.SubscribeForType(sourceType, l.addedSourcesDone, l.removedSourcesDone)
+		added = append(added, a)
+		removed = append(removed, r)
+	}
+	addedSources := mergeSources(l.addedSourcesDone, added)
+	removedSources := mergeSources(l.removedSourcesDone, removed)
 
 	for {
 		if !l.loop(ctx, addedSources, removedSources) {
 			break
 		}
 	}
+}
+
+// mergeSources forwards the sources received on chans to the returned channel,
+// until done is closed.
+func mergeSources(done chan struct{}, chans []chan *sourcesPkg.LogSource) chan *sourcesPkg.LogSource {
+	out := make(chan *sourcesPkg.LogSource)
+	for _, ch := range chans {
+		go func() {
+			for {
+				select {
+				case source := <-ch:
+					select {
+					case out <- source:
+					case <-done:
+						return
+					}
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+	return out
 }
 
 // loop runs one iteration of the launcher's main loop, and returns true if it should be run again.

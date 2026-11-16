@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +23,7 @@ import (
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
+	containertailers "github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -132,4 +134,57 @@ func TestCannotStartTailer(t *testing.T) {
 	require.True(t, l.loop(context.Background(), addedSources, removedSources))
 	require.Nil(t, l.tailers[source])
 	require.Equal(t, "Error: uhoh", source.Status().GetError())
+}
+
+// A tailer adding and removing a file source from the launcher loop, like
+// tailers.WrappedSource does, must not deadlock the launcher.
+func TestChildFileSourceAddedFromLoop(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	logSources := sources.NewLogSources()
+
+	// stand-in for the file launcher
+	fileDone := make(chan struct{})
+	fileAdded, fileRemoved := logSources.SubscribeForType(config.FileType, fileDone, fileDone)
+
+	l := NewLauncher(logSources, option.None[workloadmeta.Component](), fakeTagger)
+	l.tailerFactory = &testFactory{
+		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
+			return &containertailers.WrappedSource{
+				Source: sources.NewLogSource(source.Name, &config.LogsConfig{
+					Type:       config.FileType,
+					Path:       "/var/log/pods/abc/0.log",
+					Identifier: source.Config.Identifier,
+				}),
+				Sources: logSources,
+			}, nil
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	l.cancel = cancel
+	l.stopped = make(chan struct{})
+	go l.run(ctx, logSources)
+	defer l.Stop()
+	// runs before l.Stop, so that stopping the launcher never waits on this
+	// stand-in
+	defer close(fileDone)
+
+	receive := func(ch chan *sources.LogSource) *sources.LogSource {
+		t.Helper()
+		select {
+		case source := <-ch:
+			return source
+		case <-time.After(10 * time.Second):
+			require.FailNow(t, "timed out: the container launcher is blocked")
+			return nil
+		}
+	}
+
+	parent := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: "abc"})
+	logSources.AddSource(parent)
+	child := receive(fileAdded)
+	require.Equal(t, "abc", child.Config.Identifier)
+
+	logSources.RemoveSource(parent)
+	require.Same(t, child, receive(fileRemoved))
+	require.Empty(t, logSources.GetSources())
 }
