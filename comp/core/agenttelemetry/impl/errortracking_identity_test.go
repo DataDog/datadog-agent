@@ -6,6 +6,7 @@
 package agenttelemetryimpl
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ func TestBuildIdentityTags(t *testing.T) {
 		{"release candidate with metadata", "7.85.0-rc.8+git.3.1234567", ",agent.version:7.85.0-rc.8,agent.rc:true"},
 		// A segment that merely starts with "rc" is not a release candidate.
 		{"rc-like segment", "7.85.0-rcfoo.1", ",agent.version:7.85.0-rcfoo.1,agent.rc:false"},
+		{"pre-release with tag delimiter emits nothing", "7.85.0-rc:1", ""},
 		{"unparsable version emits nothing", "not-a-version", ""},
 	}
 	for _, tt := range tests {
@@ -35,8 +37,9 @@ func TestBuildIdentityTags(t *testing.T) {
 	}
 }
 
+// The binary's stamped version varies by build, so only the wiring is checked
+// here; the tag values are covered by TestBuildIdentityTags.
 func TestEnrichErrorLog_CarriesIdentityTags(t *testing.T) {
 	out := enrichErrorLog(errortracking.ErrorLog{})
-	assert.Contains(t, out.Tags, ",agent.version:")
-	assert.Contains(t, out.Tags, ",agent.rc:")
+	assert.True(t, strings.HasSuffix(out.Tags, identityTags()))
 }

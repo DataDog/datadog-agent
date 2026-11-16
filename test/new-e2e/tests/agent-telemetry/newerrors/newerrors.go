@@ -51,14 +51,31 @@ var (
 	callArgsRe = regexp.MustCompile(`\(((0x[0-9a-fA-F]+|\.\.\.)[, ]*)*\)$`)
 	// lineRe matches the trailing ":line" of a file reference.
 	lineRe = regexp.MustCompile(`:\d+$`)
+	// closureNumberRe matches the numbering the compiler gives closures and
+	// wrappers (".func2", ".gowrap1"), which changes when code is added nearby.
+	closureNumberRe = regexp.MustCompile(`\.(func|gowrap|deferwrap)\d+`)
 )
+
+// maxFrames is how many frames, after dropping logging plumbing, make up a
+// fingerprint. The top frames identify the fault; deeper callers vary between
+// releases and entry points.
+const maxFrames = 5
+
+// loggingPlumbingPrefixes are function prefixes of the logging path that every
+// event passes through, which carry no information about the fault.
+var loggingPlumbingPrefixes = []string{
+	"github.com/DataDog/datadog-agent/pkg/util/log",
+}
 
 // Normalize reduces a stack trace to its release-independent shape: one
 // "function file" line per frame, where file is the base name. Offsets,
 // addresses and call arguments are dropped so builds compare equal, and line
 // numbers are dropped because they move between releases. Two call sites in
-// one function and file therefore share a fingerprint. Lines that are not
-// frames are ignored; a stack with no frames normalizes to "".
+// one function and file therefore share a fingerprint. Closure numbering is
+// dropped, frames of the logging path (pkg/util/log and below) are skipped,
+// and only the first maxFrames remaining frames are kept, so an extra caller
+// or a different goroutine entry does not change the result. Lines that are
+// not frames are ignored; a stack with no frames normalizes to "".
 func Normalize(stack string) string {
 	var frames []string
 	var fn string
@@ -73,13 +90,27 @@ func Normalize(stack string) string {
 			}
 			file = lineRe.ReplaceAllString(file, "")
 			file = file[strings.LastIndexAny(file, "/\\")+1:]
-			frames = append(frames, fn+" "+file)
+			if !isLoggingPlumbing(fn) {
+				frames = append(frames, closureNumberRe.ReplaceAllString(fn, ".$1")+" "+file)
+			}
 			fn = ""
+			if len(frames) == maxFrames {
+				break
+			}
 			continue
 		}
 		fn = strings.TrimSpace(callArgsRe.ReplaceAllString(strings.TrimSpace(line), ""))
 	}
 	return strings.Join(frames, "\n")
+}
+
+func isLoggingPlumbing(fn string) bool {
+	for _, p := range loggingPlumbingPrefixes {
+		if strings.HasPrefix(fn, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // Fingerprint returns a stable short hash of the normalized stack, or "" when

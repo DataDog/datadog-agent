@@ -33,7 +33,8 @@ var identityTags = sync.OnceValue(func() string { return buildIdentityTags(agent
 
 func buildIdentityTags(agentVersion string) string {
 	v, err := agentversion.New(agentVersion, "")
-	if err != nil {
+	// A pre-release containing a tag delimiter would corrupt the tags string.
+	if err != nil || strings.ContainsAny(v.Pre, ",:") {
 		return ""
 	}
 	rc := "false"

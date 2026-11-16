@@ -90,8 +90,9 @@ func (s *errorTrackingIdentitySuite) TestIdentityTags() {
 
 // TestNewErrorDetection runs the two-cohort comparison on payloads collected
 // from FakeIntake. The candidate cohort is what the build under test emitted.
-// The baseline is synthetic: the same events as another build would emit them
-// (offsets rewritten), minus one seeded fingerprint. No real previous release
+// The baseline is synthetic: the same events minus one seeded fingerprint, with
+// offsets rewritten. Fingerprint stability across builds (offsets, line
+// numbers, paths) is proven by the newerrors unit tests, not here. No real previous release
 // emits errortracking with identity tags yet, and versions are never faked
 // inside a real agent.
 func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
@@ -104,13 +105,20 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 		require.NoError(c, err)
 		distinct := map[string]struct{}{}
 		for _, l := range logs {
-			distinct[newerrors.Fingerprint(l.StackTrace)] = struct{}{}
+			if fp := newerrors.Fingerprint(l.StackTrace); fp != "" {
+				distinct[fp] = struct{}{}
+			}
 		}
 		assert.GreaterOrEqual(c, len(distinct), 2, "need at least two distinct error fingerprints")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for two distinct error fingerprints")
 
-	seeded := newerrors.Fingerprint(logs[0].StackTrace)
-	require.NotEmpty(s.T(), seeded)
+	var seeded string
+	for _, l := range logs {
+		if seeded = newerrors.Fingerprint(l.StackTrace); seeded != "" {
+			break
+		}
+	}
+	require.NotEmpty(s.T(), seeded, "no log with a usable stack")
 
 	var candidate, baseline newerrors.Cohort
 	for _, l := range logs {
