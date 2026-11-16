@@ -8,6 +8,7 @@
 package remoteflags
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -15,12 +16,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
 const (
@@ -28,8 +31,12 @@ const (
 	// client subscribes to.
 	productAgentRemoteFlags = "AGENT_REMOTE_FLAGS"
 
-	// flagErrortracking is the remote flag that turns errortracking on.
+	// flagErrortracking is the remote flag that turns errortracking on, by
+	// driving errortrackingKey under the Remote Config source.
 	flagErrortracking = "agent_errortracking"
+
+	// errortrackingKey is the only setting the feature reads.
+	errortrackingKey = "agent_telemetry.errortracking.enabled"
 
 	// otherFlag is a flag no component subscribes to.
 	otherFlag = "unrelated_flag"
@@ -54,9 +61,13 @@ class ErrorCheck(AgentCheck):
 	// errortrackingBaseConfig leaves agent_telemetry.errortracking.enabled
 	// unset so that only the remote flag can turn the feature on. The short
 	// flush interval and no dedup window make every induced error visible
-	// within seconds.
+	// within seconds. The short inventory intervals make the configuration
+	// layers, and therefore the source of the key, reach fakeintake within
+	// seconds.
 	errortrackingBaseConfig = `remote_flags:
   enabled: true
+inventories_min_interval: 1
+inventories_max_interval: 10
 agent_telemetry:
   errortracking:
     flush_interval_seconds: 1
@@ -65,9 +76,10 @@ agent_telemetry:
 `
 
 	// errortrackingLocalFalseConfig sets the local switch explicitly off.
-	errortrackingLocalFalseConfig = `log_level: debug
-remote_flags:
+	errortrackingLocalFalseConfig = `remote_flags:
   enabled: true
+inventories_min_interval: 1
+inventories_max_interval: 10
 agent_telemetry:
   errortracking:
     enabled: false
@@ -110,8 +122,8 @@ func TestErrortrackingFlagSuite(t *testing.T) {
 }
 
 // errortrackingFlagPayload builds an AGENT_REMOTE_FLAGS payload the way the
-// backend does, with the optional override_local some producers add. The
-// agent ignores it.
+// backend does: a name and a value, with no configuration_field. Some
+// producers add override_local; the agent ignores it for this flag.
 func errortrackingFlagPayload(name string, enabled, overrideLocal bool) []byte {
 	if overrideLocal {
 		return fmt.Appendf(nil, `{"flags":[{"name":%q,"enabled":%t,"override_local":true}]}`, name, enabled)
@@ -178,6 +190,99 @@ func (s *errortrackingFlagSuite) requireQuiet(msg string) {
 	assert.Never(s.T(), func() bool { return s.errorEventCount() > 0 }, window, time.Second, msg)
 }
 
+// errortrackingConfigValue reads the key from the running agent's
+// configuration. The dump leaves out settings still at their default, so an
+// absent key reports false and not set.
+func (s *errortrackingFlagSuite) errortrackingConfigValue() (value, set bool, err error) {
+	out, err := s.Env().Agent.Client.ConfigWithError()
+	if err != nil {
+		return false, false, err
+	}
+	var cfg struct {
+		AgentTelemetry struct {
+			Errortracking struct {
+				Enabled *bool `yaml:"enabled"`
+			} `yaml:"errortracking"`
+		} `yaml:"agent_telemetry"`
+	}
+	if err := yaml.Unmarshal([]byte(out), &cfg); err != nil {
+		return false, false, err
+	}
+	enabled := cfg.AgentTelemetry.Errortracking.Enabled
+	if enabled == nil {
+		return false, false, nil
+	}
+	return *enabled, true, nil
+}
+
+// requireKeyTrue waits until `agent config` shows the key as true. This proves
+// the flag reached the agent and was applied, independently of any event.
+func (s *errortrackingFlagSuite) requireKeyTrue(msg string) {
+	s.T().Helper()
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		value, set, err := s.errortrackingConfigValue()
+		require.NoError(c, err)
+		assert.True(c, set && value, msg)
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// requireKeyNotTrue waits until `agent config` no longer shows the key as true:
+// back to the local or default value.
+func (s *errortrackingFlagSuite) requireKeyNotTrue(msg string) {
+	s.T().Helper()
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		value, _, err := s.errortrackingConfigValue()
+		require.NoError(c, err)
+		assert.False(c, value, msg)
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// remoteConfigLayerHasKey reports whether the latest configuration layers sent
+// by the agent list the key under the Remote Config source. The key is only
+// there while the flag drives it, which is how the source is observed: `agent
+// config` only shows the resolved value.
+func (s *errortrackingFlagSuite) remoteConfigLayerHasKey() (bool, error) {
+	payloads, err := s.Env().FakeIntake.Client().GetMetadata()
+	if err != nil {
+		return false, err
+	}
+	var latest *aggregator.MetadataPayload
+	for _, p := range payloads {
+		if _, ok := p.Metadata["remote_configuration"]; ok && (latest == nil || p.Timestamp > latest.Timestamp) {
+			latest = p
+		}
+	}
+	if latest == nil {
+		return false, errors.New("no configuration layers received yet")
+	}
+	layer, _ := latest.Metadata["remote_configuration"].(string)
+	var cfg struct {
+		AgentTelemetry struct {
+			Errortracking struct {
+				Enabled *bool `yaml:"enabled"`
+			} `yaml:"errortracking"`
+		} `yaml:"agent_telemetry"`
+	}
+	if err := yaml.Unmarshal([]byte(layer), &cfg); err != nil {
+		return false, err
+	}
+	return cfg.AgentTelemetry.Errortracking.Enabled != nil, nil
+}
+
+// requireRemoteConfigSource waits until the key is (or is no longer) provided
+// by the Remote Config source. Only payloads sent after the change count, so a
+// stale payload cannot settle the wait.
+func (s *errortrackingFlagSuite) requireRemoteConfigSource(want bool, msg string) {
+	s.T().Helper()
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		require.NoError(c, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+		time.Sleep(15 * time.Second)
+		got, err := s.remoteConfigLayerHasKey()
+		require.NoError(c, err)
+		assert.Equal(c, want, got, msg)
+	}, 5*time.Minute, time.Second)
+}
+
 func (s *errortrackingFlagSuite) requireAgentReady() {
 	s.T().Helper()
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -185,24 +290,31 @@ func (s *errortrackingFlagSuite) requireAgentReady() {
 	}, 2*time.Minute, 5*time.Second, "agent did not become ready")
 }
 
-// TestFlagTogglesLive checks the feature follows the flag without a restart:
-// off before the flag, on when it is true, off when it is false, on again, and
-// off when the flag disappears.
+// TestFlagTogglesLive checks the feature follows the flag without a restart.
+// `agent config` shows the key true with the flag, and it goes back to the
+// default when the flag is false or removed; events follow the key.
 func (s *errortrackingFlagSuite) TestFlagTogglesLive() {
 	s.requireAgentReady()
 	s.removeFlag()
+	s.requireKeyNotTrue("the key must not be set before the flag")
 	s.requireQuiet("no errortracking event is expected before the flag is set")
 
 	s.setFlag(flagErrortracking, true, false)
+	s.requireKeyTrue("the flag must set the key")
+	s.requireRemoteConfigSource(true, "the key must come from the Remote Config source while the flag is true")
 	s.requireEvents("errortracking events are expected once the flag is true")
 
 	s.setFlag(flagErrortracking, false, false)
+	s.requireKeyNotTrue("the key must be false once the flag is false")
 	s.requireQuiet("no errortracking event is expected once the flag is false")
 
 	s.setFlag(flagErrortracking, true, false)
+	s.requireKeyTrue("the flag must set the key again")
 	s.requireEvents("errortracking events are expected again once the flag is true again")
 
 	s.removeFlag()
+	s.requireKeyNotTrue("the key must go back to its default once the flag is removed")
+	s.requireRemoteConfigSource(false, "the Remote Config source must give the key back once the flag is removed")
 	s.requireQuiet("no errortracking event is expected once the flag is removed")
 }
 
@@ -212,6 +324,7 @@ func (s *errortrackingFlagSuite) TestUnrelatedFlagDoesNotEnable() {
 	s.removeFlag()
 
 	s.setFlag(otherFlag, true, false)
+	s.requireKeyNotTrue("an unrelated flag must not set the key")
 	s.requireQuiet("an unrelated flag must not enable errortracking")
 }
 
@@ -228,14 +341,19 @@ func (s *errortrackingFlagSuite) TestLocalFalseWinsOverFlag() {
 
 	s.setFlag(flagErrortracking, true, true)
 
-	// Prove the flag reached the agent and was deliberately overridden, so
+	// Prove the flag reached the agent and was deliberately not applied, so
 	// that the quiet period below cannot pass just because it never arrived.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(
-			"sudo grep -c 'errortracking remote flag is true, local setting present: true, errortracking on: false' /var/log/datadog/agent.log || true")
+			"sudo grep -c 'not applying to \"" + errortrackingKey + "\"' /var/log/datadog/agent.log || true")
 		require.NoError(c, err)
 		assert.Regexp(c, `^[1-9][0-9]*$`, strings.TrimSpace(out))
-	}, 2*time.Minute, 5*time.Second, "the agent never logged the flag as received")
+	}, 2*time.Minute, 5*time.Second, "the agent never logged that the flag was not applied")
 
+	value, set, err := s.errortrackingConfigValue()
+	require.NoError(s.T(), err)
+	assert.True(s.T(), set, "the local setting must still be there")
+	assert.False(s.T(), value, "the local false must not be overridden")
+	s.requireRemoteConfigSource(false, "the Remote Config source must not provide the key")
 	s.requireQuiet("an explicit local false must win over the flag")
 }
