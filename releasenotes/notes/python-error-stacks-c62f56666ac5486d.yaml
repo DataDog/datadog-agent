@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    When Agent error tracking is enabled, errors logged by Python integrations
+    and errors raised by Python checks are now reported with the Python stack
+    of the integration, so each integration problem is tracked as its own issue
+    instead of all of them sharing the Agent logger frames. Only the exception
+    type and frames of Datadog-shipped integrations are reported, with
+    package-relative paths. Frames of custom checks and of third-party code are
+    replaced by a placeholder, and log and exception messages are never sent.
+    Error log lines written by Python integrations now show an
+    ``integration:<name>`` context entry.

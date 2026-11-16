@@ -46,3 +46,7 @@ func TestObfuscaterConfig(t *testing.T) {
 func TestReportIssue(t *testing.T) {
 	testReportIssue(t)
 }
+
+func TestLogMessageWithStackBridge(t *testing.T) {
+	testLogMessageWithStack(t)
+}

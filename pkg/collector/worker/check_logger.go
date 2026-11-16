@@ -7,6 +7,7 @@
 package worker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
 const (
@@ -68,7 +70,15 @@ func (cl *CheckLogger) CheckFinished() {
 
 // Error is used to log an error that occurred during the invocation of the check
 func (cl *CheckLogger) Error(checkErr error) {
-	log.Errorc(fmt.Sprintf("Error running check: %s", checkErr), "check", cl.Check)
+	message := fmt.Sprintf("Error running check: %s", checkErr)
+	// Errors raised by a check carry their own redacted stack, which error
+	// tracking reports instead of this call site.
+	var withStack errortracking.StackProvider
+	if errors.As(checkErr, &withStack) {
+		log.Errorc(message, "check", cl.Check, "integration", withStack.ExternalStack())
+		return
+	}
+	log.Errorc(message, "check", cl.Check)
 }
 
 // Debug is used to log a message for a check that may be useful in debugging

@@ -162,6 +162,25 @@ func LogMessage(message *C.char, logLevel C.int) {
 	}
 }
 
+// LogMessageWithStack logs an error or critical message from python through
+// the agent logger, along with the python stack and the type of the exception
+// being handled when the message was logged (either may be NULL). It falls
+// back to LogMessage when no stack can be derived.
+//
+//export LogMessageWithStack
+func LogMessageWithStack(message *C.char, logLevel C.int, stack *C.char, excType *C.char) {
+	if stack != nil {
+		var goExcType string
+		if excType != nil {
+			goExcType = C.GoString(excType)
+		}
+		if logMessageWithStack(int(logLevel), C.GoString(message), C.GoString(stack), goExcType) {
+			return
+		}
+	}
+	LogMessage(message, logLevel)
+}
+
 // SetExternalTags adds a set of tags for a given hostname to the External Host
 // Tags metadata provider cache.
 //

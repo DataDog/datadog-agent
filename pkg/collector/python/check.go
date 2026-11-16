@@ -134,7 +134,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	if checkErrStr == "" {
 		return nil
 	}
-	return errors.New(checkErrStr)
+	return newCheckError(checkErrStr)
 }
 
 func (c *PythonCheck) runCheck(commitMetrics bool) error {

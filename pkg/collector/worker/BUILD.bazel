@@ -22,6 +22,7 @@ go_library(
         "//pkg/metrics/servicecheck",
         "//pkg/util/hostname",
         "//pkg/util/log",
+        "//pkg/util/log/errortracking",
         "//pkg/util/utilizationtracker",
         "@com_github_benbjohnson_clock//:clock",
     ],
@@ -30,6 +31,7 @@ go_library(
 dd_agent_go_test(
     name = "worker_test",
     srcs = [
+        "check_logger_errortracking_test.go",
         "check_logger_test.go",
         "utilization_test.go",
         "worker_test.go",
@@ -57,6 +59,8 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/metrics/servicecheck",
         "//pkg/util/log",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/slog",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

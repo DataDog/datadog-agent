@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand/v2"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	logslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -227,4 +231,42 @@ func reportIssueErrMsg(errOut *C.char) string {
 		return ""
 	}
 	return C.GoString(errOut)
+}
+
+func testLogMessageWithStack(t *testing.T) {
+	var mu sync.Mutex
+	var logs []errortracking.ErrorLog
+	submit := errortracking.Submitter(func(e errortracking.ErrorLog) {
+		mu.Lock()
+		defer mu.Unlock()
+		logs = append(logs, e)
+	})
+	bouncer := errortracking.NewBouncer(time.Hour, 0)
+	handler := errortracking.NewHandler(func() errortracking.Submitter { return submit }).
+		WithBouncerLoader(func() *errortracking.Bouncer { return bouncer })
+	log.SetupLogger(logslog.NewWrapper(handler), "debug")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "debug") })
+
+	stack := C.CString("  File \"/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/redisdb/redisdb.py\", line 42, in check\n")
+	excType := C.CString("redis.exceptions.ConnectionError")
+	msg := C.CString("message with user data")
+
+	LogMessageWithStack(msg, 40, stack, excType)
+
+	mu.Lock()
+	require.Len(t, logs, 1)
+	assert.Equal(t, "redis.exceptions.ConnectionError", logs[0].ErrorKind)
+	assert.Equal(t, "redisdb", logs[0].Integration)
+	assert.True(t, strings.HasPrefix(logs[0].Stack, "datadog_checks.redisdb.redisdb.check\n\tdatadog_checks/redisdb/redisdb.py:42"))
+	logs = nil
+	mu.Unlock()
+
+	// Without a stack the message is logged like before, with a Go stack.
+	LogMessageWithStack(msg, 40, nil, nil)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, logs, 1)
+	assert.Empty(t, logs[0].Stack)
+	assert.NotZero(t, logs[0].PCsLen)
 }
