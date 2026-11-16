@@ -420,9 +420,14 @@ func (suite *kindSuite) TestControlPlane() {
 }
 
 func (suite *kindSuite) TestHostTags() {
+	controlPlaneNode, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().Get(suite.T().Context(), suite.clusterName+"-control-plane", metav1.GetOptions{})
+	suite.Require().NoError(err, "failed to get the control-plane node")
+	nodeArch := controlPlaneNode.Status.NodeInfo.Architecture
+	suite.Require().NotEmpty(nodeArch, "control-plane node does not report its architecture")
+
 	expectedTags := []string{
 		`^os:linux$`,
-		`^arch:amd64$`,
+		`^arch:` + regexp.QuoteMeta(nodeArch) + `$`,
 		`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 		`^kube_node:` + regexp.QuoteMeta(suite.clusterName) + `-control-plane`,
 		`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,

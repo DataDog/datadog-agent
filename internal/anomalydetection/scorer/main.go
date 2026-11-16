@@ -4,11 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package main provides a standalone scorer for anomaly detection eval output.
-// It has two mutually exclusive scoring modes:
+// It has three mutually exclusive scoring modes:
 //
 //   - Default (F1 scoring): Reads high-severity anomaly_scorer episodes from headless output,
 //     resolves ground truth timestamps from the scenario's episode.json, and computes
 //     a Gaussian F1 score measuring whether the disruption was detected at the right time.
+//
+//   - --score-no-faults: Counts unique High episode starts inside an explicitly
+//     labelled healthy evaluation window, excluding warmup.
 //
 //   - --score-tp (TP metric scoring): Reads a headless output JSON produced with the
 //     passthrough correlator, loads metric ground truth from ground_truth.json, and
@@ -32,11 +35,31 @@ func main() {
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
+	scoreNoFault := flag.Bool("score-no-faults", false, "Count High-severity episode starts inside an explicitly healthy evaluation window")
 	flag.Parse()
+	if *scoreNoFault && (*scoreTP || *groundTruthTS != 0) {
+		fmt.Fprintln(os.Stderr, "--score-no-faults cannot be combined with --score-tp or --ground-truth-ts")
+		os.Exit(1)
+	}
 
 	if *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp] [--json]\n")
+		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp | --score-no-faults] [--json]\n")
 		os.Exit(1)
+	}
+
+	if *scoreNoFault {
+		result, err := scoreNoFaults(*outputPath, *scenariosDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "No-fault scoring failed: %v\n", err)
+			os.Exit(1)
+		}
+		if *jsonOutput {
+			data, _ := json.Marshal(result)
+			fmt.Println(string(data))
+		} else {
+			fmt.Printf("No-fault evaluation\n  False positives: %d\n", result.FalsePositives)
+		}
+		return
 	}
 
 	var gtTimestamps []int64

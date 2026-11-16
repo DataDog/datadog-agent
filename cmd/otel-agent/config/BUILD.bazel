@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/impl",
         "//comp/core/secrets/noop-impl/types",
         "//comp/core/telemetry/impl/noops",

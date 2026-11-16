@@ -1028,9 +1028,7 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
-    build_dir = get_ebpf_build_dir(arch)
-    runtime_dir = get_ebpf_runtime_dir()
-    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), verify=True)
+    bazel_build_ebpf(ctx, arch, verify=True)
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -2562,7 +2560,7 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
         return
 
     info(
-        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}({kmt_pipeline.gitlab.web_url}/-/pipelines/{pipeline_id}):"
     )
     for job in jobs_to_retry:
         info(f"[+] {job.name} (status: {job.status})")

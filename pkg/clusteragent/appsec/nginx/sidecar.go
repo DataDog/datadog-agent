@@ -130,6 +130,9 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 		// IngressClass name is not available during pod mutation; empty name is
 		// acceptable because the event message contains the ConfigMap name.
 		n.eventRecorder.recordConfigMapCreateFailed("", err)
+		if errors.Is(err, errForeignConfigMap) {
+			return appsecconfig.MutationSkipped, err
+		}
 		return appsecconfig.MutationError, fmt.Errorf("failed to create/update DD ConfigMap: %w", err)
 	}
 	// IngressClass name is not available during pod mutation; empty name is

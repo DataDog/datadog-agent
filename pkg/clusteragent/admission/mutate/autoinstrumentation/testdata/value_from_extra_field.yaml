@@ -1,0 +1,13 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "value-from"
+        ddTraceConfigs:
+          - name: "DD_API_KEY"
+            valueFrom:
+              secretKeyRef:
+                name: datadog-secret
+                key: api-key
+                fooBar: baz

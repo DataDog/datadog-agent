@@ -90,15 +90,6 @@ func TestProbeResponse_ProbeObject(t *testing.T) {
 	assert.Equal(t, "true", annotations[admicommon.ProbeReceivedAnnotationKey])
 }
 
-// newTestServer skips NewServer to avoid leaking a health.RegisterReadiness
-// goroutine that these tests never drain or deregister.
-func newTestServer(t *testing.T) *Server {
-	t.Helper()
-	s := &Server{mux: http.NewServeMux()}
-	s.initDecoder()
-	return s
-}
-
 // countingFiller hands out up to `remaining` bytes without allocating them
 // up front, and records how many were actually read.
 type countingFiller struct {
@@ -170,7 +161,7 @@ func TestHandleBodyLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestServer(t)
+			s := NewServer(nil)
 			hit := false
 			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(_ *Request) *admiv1.AdmissionResponse {
 				hit = true
@@ -204,7 +195,7 @@ func TestHandleBodyLimits(t *testing.T) {
 }
 
 func TestHandlePassesRequestContextToWebhook(t *testing.T) {
-	s := newTestServer(t)
+	s := NewServer(nil)
 	var webhookContext context.Context
 	s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(request *Request) *admiv1.AdmissionResponse {
 		webhookContext = request.Context
@@ -226,7 +217,7 @@ func TestHandlePassesRequestContextToWebhook(t *testing.T) {
 }
 
 func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
-	s := newTestServer(t)
+	s := NewServer(nil)
 	for _, uri := range []string{"/injectconfig", "/autoscaling"} {
 		s.Register(uri, "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
 			t.Fatalf("webhook func should not be called for an oversized request to %s", uri)
@@ -244,5 +235,79 @@ func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
 
 		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code, "route %s", uri)
 		assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10), "route %s", uri)
+	}
+}
+
+func TestHandleReviewWithoutRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "v1 review without request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview"}`},
+		{name: "v1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":null}`},
+		{name: "v1beta1 review without request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview"}`},
+		{name: "v1beta1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview","request":null}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer(nil)
+			hit := false
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				hit = true
+				return &admiv1.AdmissionResponse{Allowed: true}
+			}, nil, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(tt.body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.False(t, hit, "webhook func should not be called without a request")
+		})
+	}
+}
+
+func TestHandleWebhookResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiVersion string
+		response   *admiv1.AdmissionResponse
+		wantStatus int
+	}{
+		{name: "v1 webhook without response", apiVersion: "admission.k8s.io/v1", wantStatus: http.StatusInternalServerError},
+		{name: "v1beta1 webhook without response", apiVersion: "admission.k8s.io/v1beta1", wantStatus: http.StatusInternalServerError},
+		{name: "v1 webhook with response", apiVersion: "admission.k8s.io/v1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+		{name: "v1beta1 webhook with response", apiVersion: "admission.k8s.io/v1beta1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer(nil)
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				return tt.response
+			}, nil, nil)
+
+			body := `{"apiVersion":"` + tt.apiVersion + `","kind":"AdmissionReview","request":{"uid":"test-uid","operation":"UPDATE"}}`
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			require.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			var review struct {
+				Response struct {
+					UID     string `json:"uid"`
+					Allowed bool   `json:"allowed"`
+				} `json:"response"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &review))
+			assert.Equal(t, "test-uid", review.Response.UID)
+			assert.True(t, review.Response.Allowed)
+		})
 	}
 }

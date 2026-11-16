@@ -8,6 +8,7 @@ package runners
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -101,6 +102,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
+		ledger:       newTaskLedger("", nil),
 	}
 
 	got, failureTask, err := executor.PrepareTask(context.Background(), dequeuedTask)
@@ -158,6 +160,58 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), failureTask.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), failureTask.Data.Attributes.SpanId)
+}
+
+func TestWorkflowTaskExecutorPrepareTaskRefusesAlreadyAcceptedTask(t *testing.T) {
+	ledgerDir := t.TempDir()
+	newExecutor := func(taskID string) *WorkflowTaskExecutor {
+		unwrappedTask := newWorkflowTask(taskID, "signed-bundle", "signed-action", "")
+		unwrappedTask.Data.Attributes.ExpirationTime = time.Now().Add(time.Hour)
+		return &WorkflowTaskExecutor{
+			registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+			config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+			taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrappedTask},
+			resolver:     &fakeCredentialResolver{},
+			ledger:       newTaskLedger(ledgerDir, nil),
+		}
+	}
+	executor := newExecutor("signed-task")
+
+	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	require.NoError(t, err)
+
+	got, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
+	assert.Nil(t, got)
+	require.NotNil(t, failureTask)
+	assert.Equal(t, "job-2", failureTask.Data.Attributes.JobId)
+
+	// A new process sharing the ledger directory still refuses the task.
+	_, _, err = newExecutor("signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-3"))
+	require.ErrorContains(t, err, errTaskAlreadyAccepted.Error())
+
+	_, _, err = newExecutor("other-signed-task").PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-4"))
+	require.NoError(t, err)
+}
+
+func TestWorkflowTaskExecutorPrepareTaskDoesNotRecordTaskRefusedEarlier(t *testing.T) {
+	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
+	unwrappedTask.Data.Attributes.ExpirationTime = time.Now().Add(time.Hour)
+	resolver := &fakeCredentialResolver{err: errors.New("credential resolution failed")}
+	executor := &WorkflowTaskExecutor{
+		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+		taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrappedTask},
+		resolver:     resolver,
+		ledger:       newTaskLedger(t.TempDir(), nil),
+	}
+
+	_, _, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-1"))
+	require.Error(t, err)
+
+	resolver.err = nil
+	_, _, err = executor.PrepareTask(context.Background(), newWorkflowTask("wrapper-task", "b", "a", "job-2"))
+	require.NoError(t, err)
 }
 
 func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
@@ -457,4 +511,68 @@ func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
 	require.Equal(t, "executed", output)
 	require.Len(t, logger.entries, 2, "one shared start and one enriched completion")
 	require.Equal(t, "1.2.3", logger.entries[1]["package_version"])
+}
+
+func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
+	const (
+		bundleID   = "test-bundle"
+		actionName = "test-action"
+	)
+	int32Ptr := func(v int32) *int32 { return &v }
+
+	tests := []struct {
+		name          string
+		configTimeout *int32
+		taskTimeout   interface{}
+		wantTimeout   time.Duration
+		wantDeadline  bool
+	}{
+		{name: "task timeout above config is capped", configTimeout: int32Ptr(60), taskTimeout: float64(86400), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout at int32 max is capped", configTimeout: int32Ptr(60), taskTimeout: float64(math.MaxInt32), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "shorter input timeout belongs to the action", configTimeout: int32Ptr(60), taskTimeout: float64(5), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout equal to config is kept", configTimeout: int32Ptr(60), taskTimeout: float64(60), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "missing task timeout uses config", configTimeout: int32Ptr(60), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "invalid task timeout uses config", configTimeout: int32Ptr(60), taskTimeout: "86400", wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "unset config adds no deadline", taskTimeout: float64(120)},
+		{name: "negative config adds no deadline", configTimeout: int32Ptr(-1), taskTimeout: float64(120)},
+		{name: "zero config adds no deadline", configTimeout: int32Ptr(0), taskTimeout: float64(120)},
+		{name: "unset config and task timeout has no deadline"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var deadline time.Time
+			var hasDeadline bool
+			action := &recordingAction{report: func(ctx context.Context) {
+				deadline, hasDeadline = ctx.Deadline()
+			}}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					bundleID: &fakeBundle{action: action},
+				}},
+				config: &config.Config{
+					ActionsAllowlist:   map[string]sets.Set[string]{bundleID: sets.New(actionName)},
+					MetricsClient:      &statsd.NoOpClient{},
+					TaskTimeoutSeconds: tc.configTimeout,
+				},
+			}
+			task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
+			if tc.taskTimeout != nil {
+				task.Data.Attributes.Inputs = map[string]interface{}{"timeout": tc.taskTimeout}
+			}
+
+			before := time.Now()
+			output, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
+			after := time.Now()
+
+			require.NoError(t, err)
+			assert.Equal(t, "executed", output)
+			require.True(t, action.called)
+			require.Equal(t, tc.wantDeadline, hasDeadline)
+			if tc.wantDeadline {
+				assert.False(t, deadline.Before(before.Add(tc.wantTimeout)), "deadline %v earlier than expected", deadline)
+				assert.False(t, deadline.After(after.Add(tc.wantTimeout)), "deadline %v later than expected", deadline)
+			}
+		})
+	}
 }

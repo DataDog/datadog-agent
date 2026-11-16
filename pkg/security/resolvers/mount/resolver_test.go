@@ -537,6 +537,32 @@ func TestIterateNamespacePreservesPivotedContainerMounts(t *testing.T) {
 	assert.Len(t, visited, 3)
 }
 
+func TestGetPidProcfsZombieLeaderFallback(t *testing.T) {
+	const (
+		zombieLeaderPid = uint32(100)
+		workerTid       = uint32(101)
+		expectedNs      = uint32(4026532351)
+	)
+
+	fakeProc := t.TempDir()
+	leaderTaskDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(zombieLeaderPid), 10), "task", strconv.FormatUint(uint64(zombieLeaderPid), 10))
+	require.NoError(t, os.MkdirAll(leaderTaskDir, 0o755))
+
+	workerTaskDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(zombieLeaderPid), 10), "task", strconv.FormatUint(uint64(workerTid), 10))
+	require.NoError(t, os.MkdirAll(filepath.Join(workerTaskDir, "ns"), 0o755))
+	require.NoError(t, os.Symlink(fmt.Sprintf("mnt:[%d]", expectedNs), filepath.Join(workerTaskDir, "ns", "mnt")))
+	require.NoError(t, os.WriteFile(filepath.Join(workerTaskDir, "mountinfo"), []byte("800 799 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n"), 0o644))
+
+	var mounts []*model.Mount
+	err := GetPidProcfs(fakeProc, zombieLeaderPid, func(m *model.Mount) {
+		mounts = append(mounts, m)
+	})
+	require.NoError(t, err)
+	require.Len(t, mounts, 1)
+	assert.Equal(t, uint32(800), mounts[0].MountID)
+	assert.Equal(t, expectedNs, mounts[0].NamespaceInode)
+}
+
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
 	mr, _ := NewResolver(nil, nil, ResolverOpts{})

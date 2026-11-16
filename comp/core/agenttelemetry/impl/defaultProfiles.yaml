@@ -464,17 +464,6 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
-- name: trace-agent
-  metric:
-    exclude:
-      zero_metric: true
-    metrics:
-      - name: trace.enabled
-      - name: trace.working
-  schedule:
-    start_after: 60
-    iterations: 0
-    period: 900
 - name: gpu
   metric:
     exclude:
@@ -591,6 +580,11 @@ profiles:
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
+      - name: workloadmeta.notifications_sent
+        preserve_tags:
+          - subscriber_name
+          - status
+          - dropped_event
       - name: appsec_injector.watched_changes
         preserve_tags:
           - proxy_type

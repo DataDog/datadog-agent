@@ -238,6 +238,10 @@ func registerFlags(fs *builtins.FlagSet) builtins.HandlerFunc {
 				if opts.longFmt && info.Mode()&iofs.ModeSymlink != 0 {
 					if t, err := callCtx.ReadlinkFile(ctx, p); err == nil {
 						pa.linkTarget = t
+					} else {
+						// GNU ls still lists the entry, without " -> target".
+						callCtx.Errf("ls: cannot read symbolic link '%s': %s\n", builtins.SafeOperand(p), callCtx.PortableErr(err))
+						failed = true
 					}
 					// Stat the target for -F/-p indicators (nil for dangling links).
 					if ti, err := callCtx.StatFile(ctx, p); err == nil {
@@ -398,6 +402,10 @@ func listDir(ctx context.Context, callCtx *builtins.CallContext, dir string, opt
 			fullPath := joinPath(dir, name)
 			if t, err := callCtx.ReadlinkFile(ctx, fullPath); err == nil {
 				ei.linkTarget = t
+			} else {
+				// GNU ls still lists the entry, without " -> target".
+				callCtx.Errf("ls: cannot read symbolic link '%s': %s\n", builtins.SafeOperand(fullPath), callCtx.PortableErr(err))
+				failed = true
 			}
 			// Stat the target for -F/-p indicators (nil for dangling links).
 			if ti, err := callCtx.StatFile(ctx, fullPath); err == nil {

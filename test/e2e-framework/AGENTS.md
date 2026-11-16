@@ -51,7 +51,7 @@ An environment defines what infrastructure a test needs:
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
 | `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
 | `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
-| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions |
+| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions (see `doc/how-to/test/e2e/benchmarkeks/`) |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
@@ -358,3 +358,7 @@ This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
 "Keeping AI context accurate"). Update it when environments, provisioners,
 agentparams, or key APIs change. AI agents should fix inaccuracies they
 encounter during tasks.
+
+The developer docs in `doc/how-to/test/e2e/`, the `benchmarkeks` scenario
+included, and `doc/how-to/test/manual-qa/` also describe this framework: update
+them in the same PR when a change alters what they describe.

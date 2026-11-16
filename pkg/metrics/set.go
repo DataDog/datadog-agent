@@ -41,6 +41,12 @@ func (s *Set) isStateful() bool {
 	return false
 }
 
+// Unique values counted for the parts of a window can overlap, so their counts don't
+// sum up to the count of the window.
+func (s *Set) isDecomposable() bool {
+	return false
+}
+
 func (s *Set) metricType() MetricType {
 	return SetType
 }

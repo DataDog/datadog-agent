@@ -113,7 +113,7 @@ func TestRecorderForwardsOnceBeforeWriting(t *testing.T) {
 				inner = &reportingHandle{testHandle: *base, dropped: true}
 			}
 			var source string
-			rec := NewComponent(metrics, logs)
+			rec := NewComponent(metrics, logs, nil)
 			h := rec.GetHandle(func(name string) observer.Handle {
 				source = name
 				return inner
@@ -150,7 +150,7 @@ func TestRecorderTimestampFallbackAndHostTag(t *testing.T) {
 	var events []string
 	metrics := &metricWriter{events: &events}
 	logs := &logWriter{events: &events}
-	rec := NewComponent(metrics, logs)
+	rec := NewComponent(metrics, logs, nil)
 	h := rec.GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("logs")
 	before := time.Now()
 	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}, metricType: observer.UnknownType, sampleRate: 0}, 0)
@@ -164,4 +164,35 @@ func TestRecorderTimestampFallbackAndHostTag(t *testing.T) {
 	require.LessOrEqual(t, metrics.data[0].Timestamp, after.Unix())
 	require.GreaterOrEqual(t, logs.data[0].TimestampMs, before.UnixMilli())
 	require.LessOrEqual(t, logs.data[0].TimestampMs, after.UnixMilli())
+}
+
+func TestRecorderMetricFilter(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		filter      recorder.MetricFilter
+		wantWritten bool
+	}{
+		{name: "absent filter", filter: nil, wantWritten: true},
+		{name: "included", filter: &stubMetricFilter{excluded: false}, wantWritten: true},
+		{name: "excluded", filter: &stubMetricFilter{excluded: true}, wantWritten: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var events []string
+			metrics := &metricWriter{events: &events}
+			logs := &logWriter{events: &events}
+			rec := NewComponent(metrics, logs, tc.filter)
+			handle := rec.GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("check")
+			handle.ObserveMetric(&testMetric{name: "load", tags: []string{"container_id:abc"}}, 1)
+			wantEvents := []string{"forward metric"}
+			if tc.wantWritten {
+				wantEvents = append(wantEvents, "write metric")
+			}
+			require.Equal(t, wantEvents, events)
+			if tc.wantWritten {
+				require.Len(t, metrics.data, 1)
+			} else {
+				require.Empty(t, metrics.data)
+			}
+		})
+	}
 }
