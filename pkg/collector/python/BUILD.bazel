@@ -47,7 +47,6 @@ go_library(
         "//conditions:default": ["//rtloader:rtloader_dynamic"],
     }),
     cgo = True,
-    embedsrcs = ["shipped_integrations.txt"],
     clinkopts = select({
         "@rules_go//go/platform:aix": [
             "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
@@ -118,6 +117,7 @@ go_library(
         "//conditions:default": [],
     }),  # keep
     copts = ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
+    embedsrcs = ["shipped_integrations.txt"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
     tags = ["manual"],
     visibility = ["//visibility:public"],
