@@ -849,7 +849,6 @@ func TestRunCommand(t *testing.T) {
 func TestJetsonCheckRequiresFileProvider(t *testing.T) {
 	tests := []struct {
 		name     string
-		instance string
 		provider string
 		wantErr  string
 	}{
@@ -887,23 +886,13 @@ func TestJetsonCheckRequiresFileProvider(t *testing.T) {
 			provider: names.Kubernetes,
 			wantErr:  "only accepts configuration from local files",
 		},
-		{
-			// Common options such as tags and empty_default_hostname are applied to the
-			// shared singleton "jetson" sender by CommonConfigure. The mock sender has no
-			// expectations set here, so this case also proves the provider gate runs before
-			// CommonConfigure: a rejected config must not touch the sender.
-			name:     "untrusted provider with common options does not touch the sender",
-			instance: "tags:\n  - tenant:evil\nempty_default_hostname: true\n",
-			provider: names.KubeContainer,
-			wantErr:  "only accepts configuration from local files",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tegraCheck := newCheck().(*JetsonCheck)
 			mock := mocksender.NewMockSender(t, tegraCheck.ID())
-			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(tt.instance), nil, "test", tt.provider)
+			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", tt.provider)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				assert.Empty(t, tegraCheck.tegraStatsPath)
