@@ -184,7 +184,7 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		obfuscateRedisArgN(args, 3)
 
 	case "GEOHASH", "GEOPOS", "GEODIST", "LPUSH", "RPUSH", "SREM",
-		"ZREM", "SADD", "SMISMEMBER":
+		"ZREM", "SADD", "SMISMEMBER", "ZMSCORE":
 		// Obfuscate all arguments after the first one.
 		// • GEOHASH key member [member ...]
 		// • GEOPOS key member [member ...]
@@ -195,6 +195,7 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • SREM key member [member ...]
 		// • ZREM key member [member ...]
 		// • SADD key member [member ...]
+		// • ZMSCORE key member [member ...]
 		if len(args) > 1 {
 			args[1] = "?"
 			args = args[:2]

@@ -490,6 +490,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"smismember key ?",
 		},
 		{
+			"ZMSCORE key member1 member2",
+			"ZMSCORE key ?",
+		},
+		{
+			"zmscore key member",
+			"zmscore key ?",
+		},
+		{
 			`
 CONFIG command
 SET k v
