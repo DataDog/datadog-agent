@@ -61,8 +61,8 @@ func WithWindowLogSize(logSize int) WriterOption {
 	return func(o *writerOptions) { o.windowLogSize = &logSize }
 }
 
-// WithLowerEncoderMem controls the pure-Go encoder's memory-saving mode.
-// Disabling it can improve throughput at the cost of memory. The default is true.
-func WithLowerEncoderMem(enabled bool) WriterOption {
-	return func(o *writerOptions) { o.lowerEncoderMem = enabled }
+// WithDisableLowerEncoderMem disables the pure-Go encoder's memory-saving mode.
+// It can improve throughput at the cost of memory.
+func WithDisableLowerEncoderMem() WriterOption {
+	return func(o *writerOptions) { o.lowerEncoderMem = false }
 }

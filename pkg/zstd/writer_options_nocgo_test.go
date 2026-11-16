@@ -34,7 +34,7 @@ func TestWriterOptions(t *testing.T) {
 	for _, data := range [][]byte{nil, bytes.Repeat([]byte("symbols"), 200000)} {
 		var compressed bytes.Buffer
 		w, err := NewWriterLevelWithOptions(&compressed, BestSpeed,
-			WithWindowLogSize(-1), WithWindowLogSize(20), WithLowerEncoderMem(false))
+			WithWindowLogSize(-1), WithWindowLogSize(20), WithDisableLowerEncoderMem())
 		if err != nil {
 			t.Fatal(err)
 		}
