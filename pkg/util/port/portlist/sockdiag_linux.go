@@ -12,12 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"strconv"
 	"sync/atomic"
 
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,11 +53,39 @@ type sockDiagListener struct {
 var dumpTCPListeners = sockDiagTCPListeners
 
 // sockDiagOff latches once sock_diag proves unavailable, so later polls skip
-// straight to /proc/net instead of retrying (and re-triggering a module
-// autoload or an LSM denial) every time.
+// straight to /proc/net instead of retrying (and re-hitting an LSM denial)
+// every time.
 var sockDiagOff atomic.Bool
 
-var errSockDiagOff = errors.New("sock_diag disabled after an earlier failure")
+var (
+	errSockDiagOff = errors.New("sock_diag disabled after an earlier failure")
+	errNoTCPDiag   = errors.New("tcp_diag module not loaded")
+)
+
+// tcpDiagPresent reports whether the tcp_diag handler is loaded or built in.
+// A dump without it would make the kernel autoload the module, which the
+// agent must not do. Checked every poll so a later load is picked up.
+var tcpDiagPresent = func() bool {
+	_, err := os.Stat(kernel.HostSys("module", "tcp_diag"))
+	return err == nil
+}
+
+var noTCPDiagLogged atomic.Bool
+
+// sockDiagFamilyError tags a dump error with the address family it came from.
+type sockDiagFamilyError struct {
+	family uint8
+	err    error
+}
+
+func (e *sockDiagFamilyError) Error() string {
+	if e.family == unix.AF_INET6 {
+		return "AF_INET6: " + e.err.Error()
+	}
+	return "AF_INET: " + e.err.Error()
+}
+
+func (e *sockDiagFamilyError) Unwrap() error { return e.err }
 
 // sockDiagUnavailable reports whether err means sock_diag won't work for the
 // life of this process, as opposed to a failure worth retrying next poll.
@@ -65,8 +95,12 @@ func sockDiagUnavailable(err error) bool {
 		return false
 	}
 	switch errno {
+	case unix.ENOENT: // no inet_diag/tcp_diag handler
+		// AF_INET6 is registered alongside AF_INET, so an ENOENT there after
+		// AF_INET succeeded means the module went away mid-poll; retry.
+		var fe *sockDiagFamilyError
+		return !errors.As(err, &fe) || fe.family != unix.AF_INET6
 	case unix.EPROTONOSUPPORT, unix.EAFNOSUPPORT, // no NETLINK_SOCK_DIAG
-		unix.ENOENT,                  // no inet_diag/tcp_diag handler, and autoload failed
 		unix.EINVAL, unix.EOPNOTSUPP, // kernel rejects the (constant) request
 		unix.EPERM, unix.EACCES: // LSM or seccomp policy
 		return true
@@ -80,6 +114,12 @@ func sockDiagUnavailable(err error) bool {
 func (li *linuxImpl) appendSockDiagListeners() error {
 	if sockDiagOff.Load() {
 		return errSockDiagOff
+	}
+	if !tcpDiagPresent() {
+		if noTCPDiagLogged.CompareAndSwap(false, true) {
+			log.Debug("tcp_diag module not loaded, listing TCP listeners from /proc/net until it is")
+		}
+		return errNoTCPDiag
 	}
 	ls, err := dumpTCPListeners()
 	if err != nil {
@@ -132,11 +172,11 @@ func sockDiagTCPListeners() ([]sockDiagListener, error) {
 	for i, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		seq := uint32(i + 1)
 		if err := unix.Sendto(fd, inetDiagListenRequest(family, seq), 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
-			return nil, fmt.Errorf("sending sock_diag request: %w", err)
+			return nil, &sockDiagFamilyError{family, fmt.Errorf("sending sock_diag request: %w", err)}
 		}
 		famOut, err := recvInetDiag(recv, rbuf, family, seq, out)
 		if err != nil {
-			return nil, err
+			return nil, &sockDiagFamilyError{family, err}
 		}
 		out = famOut
 	}

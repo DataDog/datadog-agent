@@ -200,6 +200,7 @@ func requireRoot(tb testing.TB) {
 // the final list.
 func pollKnown(t *testing.T, includeLocalhost, useSockDiag bool) (map[string]string, []string) {
 	t.Helper()
+	setTCPDiagPresent(t, true)
 	orig := dumpTCPListeners
 	defer func() { dumpTCPListeners = orig }()
 	var dumpErr error
@@ -459,6 +460,7 @@ func TestTCPOnlyFallsBackToProcNet(t *testing.T) {
 	}
 	defer u.Close()
 
+	setTCPDiagPresent(t, true)
 	orig := dumpTCPListeners
 	defer func() { dumpTCPListeners = orig }()
 	calls := 0
@@ -617,10 +619,18 @@ func TestRecvInetDiag(t *testing.T) {
 	}
 }
 
-// resetSockDiagLatch clears the process-wide latches for the test's duration.
+// resetSockDiagLatch clears the process-wide latches for the test's duration
+// and reports tcp_diag as present.
 func resetSockDiagLatch(t *testing.T) {
 	sockDiagOff.Store(false)
 	t.Cleanup(func() { sockDiagOff.Store(false) })
+	setTCPDiagPresent(t, true)
+}
+
+func setTCPDiagPresent(t testing.TB, present bool) {
+	orig := tcpDiagPresent
+	tcpDiagPresent = func() bool { return present }
+	t.Cleanup(func() { tcpDiagPresent = orig })
 }
 
 func TestSockDiagLatch(t *testing.T) {
@@ -632,6 +642,11 @@ func TestSockDiagLatch(t *testing.T) {
 		{"socket_EPROTONOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EPROTONOSUPPORT), true},
 		{"socket_EAFNOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EAFNOSUPPORT), true},
 		{"nlmsg_error_ENOENT", fmt.Errorf("sock_diag request: %w", unix.ENOENT), true},
+		{"v4_ENOENT", &sockDiagFamilyError{unix.AF_INET, fmt.Errorf("sock_diag request: %w", unix.ENOENT)}, true},
+		{"v6_ENOENT", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.ENOENT)}, false},
+		{"v6_EPERM", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.EPERM)}, true},
+		{"v6_EINVAL", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("sock_diag request: %w", unix.EINVAL)}, true},
+		{"v6_EAGAIN", &sockDiagFamilyError{unix.AF_INET6, fmt.Errorf("receiving sock_diag reply: %w", unix.EAGAIN)}, false},
 		{"nlmsg_error_EINVAL", fmt.Errorf("sock_diag request: %w", unix.EINVAL), true},
 		{"nlmsg_error_EPERM", fmt.Errorf("sock_diag request: %w", unix.EPERM), true},
 		{"socket_EACCES", fmt.Errorf("netlink socket: %w", unix.EACCES), true},
@@ -671,6 +686,42 @@ func TestSockDiagLatch(t *testing.T) {
 				t.Fatalf("latch = %v, want %v", sockDiagOff.Load(), tc.latch)
 			}
 		})
+	}
+}
+
+func TestSockDiagRequiresTCPDiag(t *testing.T) {
+	resetSockDiagLatch(t)
+	present := false
+	tcpDiagPresent = func() bool { return present }
+	orig := dumpTCPListeners
+	defer func() { dumpTCPListeners = orig }()
+	calls := 0
+	dumpTCPListeners = func() ([]sockDiagListener, error) {
+		calls++
+		return nil, nil
+	}
+	li := newLinuxImpl(true, true)
+	for i := 0; i < 3; i++ {
+		if _, err := li.AppendListeningPorts(nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := li.appendSockDiagListeners(); err != errNoTCPDiag {
+			t.Fatalf("err = %v, want errNoTCPDiag", err)
+		}
+	}
+	if calls != 0 {
+		t.Fatalf("sock_diag dumped %d times without tcp_diag", calls)
+	}
+	if sockDiagOff.Load() {
+		t.Fatal("a missing tcp_diag latched sock_diag off")
+	}
+
+	present = true
+	if err := li.appendSockDiagListeners(); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("sock_diag not used once tcp_diag appeared (calls = %d)", calls)
 	}
 }
 
@@ -738,6 +789,7 @@ func BenchmarkTCPListeners(b *testing.B) {
 
 			for _, mode := range []string{"procfs-all", "procfs-tcp", "sockdiag"} {
 				b.Run("mode="+mode, func(b *testing.B) {
+					setTCPDiagPresent(b, true)
 					orig := dumpTCPListeners
 					defer func() { dumpTCPListeners = orig }()
 					if mode == "procfs-tcp" {
