@@ -84,7 +84,11 @@ func detectorNames(detectors []detectorRegistration) []string {
 	names := make([]string, 0, len(detectors))
 	for _, registration := range detectors {
 		detector := registration.detector
-		names = append(names, detector.Name())
+		// Direct failure evidence needs no statistical qualification or noisy-series
+		// muting; pre-existing failures remain failures rather than becoming healthy.
+		if !isDirectFailureDetector(detector.Name()) {
+			names = append(names, detector.Name())
+		}
 	}
 	return names
 }

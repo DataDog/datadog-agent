@@ -951,7 +951,10 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	if s.openEpisode == nil {
 		return nil
 	}
-	return []observerdef.ActiveCorrelation{*s.openEpisode}
+	// Example retention must not truncate a sustained episode's duration.
+	snapshot := *s.openEpisode
+	snapshot.LastUpdated = max(snapshot.LastUpdated, s.lastAdvancedSec)
+	return []observerdef.ActiveCorrelation{snapshot}
 }
 
 // Reset clears all internal EWMA/window state and resets every dispatcher so

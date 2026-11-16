@@ -5551,6 +5551,31 @@ properties:
                 type: boolean
                 default: true
                 comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+          log_failure:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  Detect repeated application errors without statistical warmup.
+                  Requires three errors across two five-second intervals within thirty seconds.
+                  Enables error-count extraction unless explicitly disabled. Does not activate Observer by itself.
+          log_error_count_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  Count accepted error-or-higher logs per host, service, environment and Observer input.
+                  Counts use five-second intervals independently of pattern time buckets.
+                  Intervals with accepted non-error logs contribute zero; intervals without logs are omitted.
+                  To warm up on INFO-only traffic, configure the relevant log input's min_severity to info.
           log_pattern_extractor:
             node_type: section
             type: object

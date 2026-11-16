@@ -107,6 +107,10 @@ func (b *materializedLogCountBucketizer) observe(
 		return false
 	}
 	anchor := timestamp
+	if namespace == LogErrorCountExtractorName {
+		// Use fixed boundaries across gaps without filling those gaps.
+		anchor -= anchor % b.config.BucketSeconds
+	}
 	if state != nil {
 		anchor = state.anchor
 	}
@@ -124,7 +128,7 @@ func (b *materializedLogCountBucketizer) observe(
 			seriesKey:    seriesKey,
 			context:      metric.Context,
 			hasContext:   metric.HasContext,
-			anchor:       timestamp,
+			anchor:       anchor,
 			lastObserved: timestamp,
 			storageRef:   -1,
 			values:       make(map[int64]float64),

@@ -479,6 +479,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onErrorCountCapacityHit = obsTelemetry.recordErrorCountCapacityHit
 	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	for _, extractor := range extractors {

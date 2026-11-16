@@ -244,6 +244,12 @@ const (
 	AnomalyTypeLog AnomalyType = "log"
 )
 
+// EvidenceKind describes the meaning of a detection; it is not its confidence.
+type EvidenceKind string
+
+// EvidenceFailure denotes qualified direct failure evidence.
+const EvidenceFailure EvidenceKind = "failure"
+
 // Anomaly is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
 type Anomaly struct {
@@ -259,6 +265,8 @@ type Anomaly struct {
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
 	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
+	// Evidence marks qualified failure evidence independently of statistical confidence.
+	Evidence EvidenceKind
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -294,6 +302,10 @@ type LevelChangeEvidence struct {
 
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
+	// Direct failure rule identity and window, captured for output formatting.
+	FailureRule          string `json:"-"`
+	FailureWindowSeconds int64  `json:"-"`
+	FailureMinIntervals  int    `json:"-"`
 	// Baseline statistics
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
@@ -750,9 +762,10 @@ type StorageReader interface {
 
 // DetectionFilter is borrowed: never mutate or retain it; telemetry is excluded.
 type DetectionFilter struct {
-	MetricKind   *MetricKind         // nil: any kind; value/nil fixed across calls and resets
-	MetricType   *metrics.MetricType // nil: any type; value/nil fixed across calls and resets
-	Aggregations []Aggregate         // Valid unique values in order; empty selects Average then Count.
+	ExcludeNamespaces []string            // immutable exclusions; fixed across calls and resets
+	MetricKind        *MetricKind         // nil: any kind; value/nil fixed across calls and resets
+	MetricType        *metrics.MetricType // nil: any type; value/nil fixed across calls and resets
+	Aggregations      []Aggregate         // Valid unique values in order; empty selects Average then Count.
 }
 
 // Detector analyzes stored series for anomalies.

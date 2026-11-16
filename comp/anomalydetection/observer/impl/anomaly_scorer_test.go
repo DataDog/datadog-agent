@@ -1540,3 +1540,22 @@ func TestPendingEvents_ResetClearsPending(t *testing.T) {
 		t.Fatalf("expected nil PendingEvents after Reset(), got %v", got)
 	}
 }
+
+func TestOpenHighDurationContinuesAfterExampleCap(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.MaxEpisodeAnomalies = 1
+	cfg.WindowSecs = 30
+	s := newScorerWithTelemetry(cfg)
+	seedAndCrossHighThreshold(s, 1000)
+	for sec := int64(1010); sec < 1020; sec++ {
+		s.ProcessAnomaly(makeAnomaly("bocpd", sec, nil))
+		s.Advance(sec)
+	}
+	correlations := s.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	require.Len(t, correlations[0].Anomalies, 1)
+	require.Equal(t, int64(1019), correlations[0].LastUpdated, "example cap must not freeze the active period end")
+	s.Advance(1020)
+	require.Equal(t, int64(1020), s.ActiveCorrelations()[0].LastUpdated, "time advances even without another anomaly")
+}

@@ -61,10 +61,46 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_metrics_extractor` | on |
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
+| Extractor | `log_error_count_extractor` | off |
 | Detector | `bocpd` | on |
+| Detector | `log_failure` | off |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
+
+`log_error_count_extractor` emits `log.errors.count`, pooling patterns and
+container/source tags within host, service, environment and Observer ingress.
+It classifies explicit application levels (JSON or a declared text level), rather than
+assuming container stderr means error. Unclassified logs establish no zero history.
+It always sums accepted error-or-higher logs into five-second intervals, independent
+of the pattern time-bucket setting. Non-error logs establish zero-error history;
+intervals with no accepted logs remain missing. This measures accepted logs, not
+source health or unsampled application totals. INFO-only warmup requires allowing
+INFO at the relevant ingress severity gate. Pending state is capped at 256 series
+and two buckets per series; drops increment `observer.log_error_count.capacity_dropped`.
+Stored series use the normal storage/eviction limits and count-bucket retention.
+
+`log_failure` is an opt-in experimental direct detector over the same aggregate.
+It automatically enables `log_error_count_extractor` unless explicitly disabled. Three errors across
+at least two occupied five-second intervals in thirty seconds qualify, without
+model warmup, prior source health, novelty or baseline noisy-series muting. It
+renews only on a fresh positive bucket and can rearm after a quiet interval.
+When enabled, statistical detectors exclude the error-count namespace before
+model initialization. Other log-pattern and metric detections remain enabled.
+Direct detectors also work alongside the kind-routed metric pipeline.
+Replay JSON can override `log_failure`'s `min_errors`, `min_intervals`, and
+`window_seconds`; Agent defaults remain 3, 2, and 30. Buckets/freshness remain
+five seconds. Lookbacks are bounded to 300 seconds, and the detector declares
+its point-window requirement so bounded storage retains the configured history.
+
+Direct log detections carry `EvidenceFailure`, which describes the signal without
+changing scorer weighting. They enter ordinary source/aggregation deduplication,
+scoring and reporting. Repeated emissions refresh one contributor in the scorer
+window. Open scorer episodes report duration through the latest analyzed data
+second even after their bounded example list fills.
+Replay bypasses producer admission: live experiments must explicitly admit INFO
+transport logs when application ERROR levels arrive on stdout. Replay results do
+not validate production admission or unsampled application rates.
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
@@ -75,7 +111,7 @@ runtime state.
 restrictions and authoritative aggregation selection. Empty aggregations select
 average then count; explicit selections keep order, skipping duplicates and invalid
 values. Kind/type values and nil presence must stay constant per instance,
-including resets; equal-valued
+including resets; namespace exclusions are also fixed across calls. Equal-valued
 replacement pointers are allowed. Aggregations may vary per call. Empty means
 unrestricted workload detection; telemetry is always excluded. Filtering neither
 advances excluded state nor removes it; callers own reset/transition cleanup.
@@ -360,6 +396,11 @@ scoring, or deduplication.
 
 ## Testing
 
+Semantic failure rules need typed positive/negative fixtures and their own
+streaming-versus-retained replay checks; arbitrary numeric series are not valid
+positive fixtures. Replay series refs are run-local: compare source identities
+and timestamps, and verify the scorer's distinct-series counts at every tick.
+Benchmark unchanged-data checks separately from fresh qualified emissions.
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
 dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args="-test.run=^$ -test.bench=."

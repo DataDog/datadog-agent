@@ -142,6 +142,9 @@ func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point
 func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {
 	selection := observer.WorkloadSeriesFilter()
 	selection.MetricKind, selection.MetricType = filter.MetricKind, filter.MetricType
+	if len(filter.ExcludeNamespaces) > 0 {
+		selection.ExcludeNamespaces = append(selection.ExcludeNamespaces, filter.ExcludeNamespaces...)
+	}
 	return selection
 }
 

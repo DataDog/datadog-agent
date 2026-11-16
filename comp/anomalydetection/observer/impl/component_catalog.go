@@ -6,7 +6,9 @@
 package observerimpl
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -189,7 +191,22 @@ type componentCatalog struct {
 func defaultCatalog() *componentCatalog {
 	return &componentCatalog{
 		entries: []componentEntry{
+			{
+				name: LogFailureDetectorName, displayName: "Log Failure", kind: componentDetector,
+				defaultConfig: DefaultLogFailureConfig(), defaultEnabled: false,
+				factory: func(cfg any) any { return newLogFailureDetector(cfg.(LogFailureConfig)) },
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					return parseLogFailureConfig(defaults.(LogFailureConfig), raw)
+				},
+			},
 			// ---- Extractors ----
+			{
+				name:           LogErrorCountExtractorName,
+				displayName:    "Log Error Count Extractor",
+				kind:           componentExtractor,
+				factory:        func(any) any { return &LogErrorCountExtractor{} },
+				defaultEnabled: false,
+			},
 			{
 				name:           "log_metrics_extractor",
 				displayName:    "Log Metrics Extractor",
@@ -418,6 +435,19 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	err error,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
+	if settings.Enabled[LogFailureDetectorName] {
+		if enabled, explicit := settings.Enabled[LogErrorCountExtractorName]; explicit && !enabled {
+			return nil, nil, nil, nil, nil, errors.New("log_failure requires log_error_count_extractor; remove its explicit disable")
+		}
+		// This detector requires count extraction. Do not require a second opt-in
+		// or mutate the caller's settings map.
+		enabled := make(map[string]bool, len(settings.Enabled)+1)
+		for name, value := range settings.Enabled {
+			enabled[name] = value
+		}
+		enabled[LogErrorCountExtractorName] = true
+		settings.Enabled = enabled
+	}
 
 	if settings.UseMetricPipeline {
 		logging.Info("metric pipeline enabled")
@@ -434,7 +464,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	}
 
 	for _, entry := range c.entries {
-		if settings.UseMetricPipeline && entry.kind == componentDetector {
+		if settings.UseMetricPipeline && entry.kind == componentDetector && !isDirectFailureDetector(entry.name) {
 			continue
 		}
 
@@ -446,6 +476,11 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 		enabled := entry.defaultEnabled
 		if override, ok := settings.Enabled[entry.name]; ok {
 			enabled = override
+		}
+		if entry.name == LogFailureDetectorName {
+			if err := cfg.(LogFailureConfig).validate(); err != nil {
+				return nil, nil, nil, nil, nil, err
+			}
 		}
 
 		instance := entry.factory(cfg)
@@ -485,6 +520,31 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 		}
 	}
 	return detectors, correlators, scorer, extractors, components, err
+}
+
+func parseLogFailureConfig(defaults LogFailureConfig, raw []byte) (LogFailureConfig, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return LogFailureConfig{}, fmt.Errorf("log_failure: %w", err)
+	}
+	if fields == nil {
+		return LogFailureConfig{}, errors.New("log_failure config must be an object")
+	}
+	for name, value := range fields {
+		if name != "enabled" && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return LogFailureConfig{}, fmt.Errorf("log_failure %s must be a number", name)
+		}
+	}
+	envelope := struct {
+		Enabled *bool `json:"enabled"`
+		LogFailureConfig
+	}{LogFailureConfig: defaults}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&envelope); err != nil {
+		return LogFailureConfig{}, fmt.Errorf("log_failure: %w", err)
+	}
+	return envelope.LogFailureConfig, envelope.LogFailureConfig.validate()
 }
 
 // CatalogEntry is a public view of a catalog component.
