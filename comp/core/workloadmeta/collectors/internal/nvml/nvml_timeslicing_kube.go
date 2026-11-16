@@ -10,9 +10,7 @@ package nvml
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // fetchNodeGPULabels reads this node's labels from the cluster agent or
@@ -23,29 +21,4 @@ func (c *collector) fetchNodeGPULabels(ctx context.Context) (map[string]string, 
 		return nil, err
 	}
 	return ni.GetNodeLabels(ctx)
-}
-
-// getKubeletDeviceIDs returns the IDs of every device registered to the
-// kubelet on this node, across plugins.
-func (c *collector) getKubeletDeviceIDs(ctx context.Context) ([]string, error) {
-	// for now support only kubernetes as a source of truth for devices
-	if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
-		return nil, nil
-	}
-
-	kubeUtil, err := kubelet.GetKubeUtil()
-	if err != nil {
-		return nil, err
-	}
-
-	kubeDevices, err := kubeUtil.GetDevicesList(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, 0, len(kubeDevices))
-	for _, dev := range kubeDevices {
-		ids = append(ids, dev.ID)
-	}
-	return ids, nil
 }

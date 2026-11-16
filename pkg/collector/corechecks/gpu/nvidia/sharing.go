@@ -33,14 +33,8 @@ const (
 	sharingReplicasUsedMetricName = "device.sharing_replicas_used"
 )
 
-// sharingCollector reports the share of its device assigned to each container
-// that shares it with other workloads: the fraction and the memory of it, as
-// the NVML workloadmeta collector publishes them in
-// workloadmeta.Container.GPUShares for containers sharing a device by a
-// mechanism that assigns each of them a share, such as KAI Scheduler GPU
-// fractions; and the number of device replicas each container holds, as
-// published in workloadmeta.Container.GPUDeviceReplicas for containers
-// holding replicas of a device shared by replication (time-slicing, MPS).
+// sharingCollector reports, per container, its share of the device (KAI
+// fractions) and the replicas of it the container holds (time-slicing, MPS).
 type sharingCollector struct {
 	device ddnvml.Device
 	wmeta  workloadmeta.Component
@@ -82,7 +76,12 @@ func (c *sharingCollector) Collect() ([]Sample, error) {
 	// device, not any of its workloads.
 	var samples []Sample
 	if gpu, err := c.wmeta.GetGPU(deviceUUID); err == nil && gpu.SharingReplicas > 0 {
-		samples = append(samples, NewMetricWithNoWorkloadTags(sharingReplicasMetricName, float64(gpu.SharingReplicas), metrics.GaugeType, Low, nil))
+		samples = append(samples, &Metric{
+			baseSample: baseSample{noWorkloadTags: true},
+			Name:       sharingReplicasMetricName,
+			Value:      float64(gpu.SharingReplicas),
+			Type:       metrics.GaugeType,
+		})
 	}
 
 	for _, container := range c.wmeta.ListContainersWithFilter(hasGPUSharing) {

@@ -397,10 +397,10 @@ metrics:
       metric_type: gauge
       unit: device
       description: >-
-        Number of device replicas the device plugin registered of the GPU,
-        when it is shared by replication (time-slicing or MPS), as described
-        by the gpu_sharing_mode tag: how many workloads can share the GPU.
-        Not reported for GPUs that are not shared by replication.
+        Number of replicas of the GPU, when it is shared by replication
+        (time-slicing or MPS), as described by the gpu_sharing_mode tag: how
+        many workloads can share the GPU. Read from the GPU Feature Discovery
+        nvidia.com/gpu.replicas node label, so not reported without it.
       aggregation: absolute_usage
     optional: true
     tagsets:

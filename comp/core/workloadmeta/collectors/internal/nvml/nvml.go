@@ -455,16 +455,12 @@ func (c *collector) Pull(ctx context.Context) error {
 			uuid := dev.GetDeviceInfo().UUID
 			if _, shared := kai.sharedGPUs[uuid]; shared {
 				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
-			} else if mode, replicas, shared := timeSlices.gpuSharingInfo(uuid); shared {
-				// KAI fractions and device-plugin replicas do not normally
-				// coexist: a physical GPU is registered under exactly one
-				// strategy, and a KAI reservation holds a whole, unsuffixed
-				// allocation. A node where both signals appear is misconfigured
-				// (e.g. fractions requested on a time-sliced resource); KAI
-				// wins there for determinism, its resolution naming the exact
-				// device, so the mode does not flap between pulls.
-				gpu.SharingMode = mode
-				gpu.SharingReplicas = replicas
+			} else if _, shared := timeSlices.shared[uuid]; shared {
+				// KAI does not support the device plugin's replicas setting,
+				// so a GPU is never both:
+				// https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/gpu-sharing/README.md#device-plugin-replicas-setting
+				gpu.SharingMode = timeSlices.mode
+				gpu.SharingReplicas = timeSlices.replicas
 			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
@@ -629,7 +625,9 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 	maps.Copy(claiming, kai.claiming)
 	// Every container holding a shared-replica allocation claims too, for
 	// the same retraction as the DRA and KAI claims.
-	maps.Copy(claiming, timeSlices.claiming)
+	for id := range timeSlices.byContainer {
+		claiming[id] = struct{}{}
+	}
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -682,12 +680,10 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 				uuids = append(uuids, uuid)
 			}
 		}
-		// Merge the shared replicas' base devices the same way, rather than
-		// emitting a second event: a replica holder sees the whole base device.
-		// The UUIDs are kubelet's allocation rather than a resolution, so they
-		// do not touch allResolved: a base device NVML does not report is the
-		// same situation as an exclusive allocation of such a device.
-		for _, uuid := range timeSlices.containerReplicaUUIDs(container.ID) {
+		// A replica holder sees its whole base device. These UUIDs come
+		// straight from the kubelet allocation, so they never make the
+		// mapping partial.
+		for _, uuid := range slices.Sorted(maps.Keys(timeSlices.byContainer[container.ID])) {
 			if !slices.Contains(uuids, uuid) {
 				uuids = append(uuids, uuid)
 			}

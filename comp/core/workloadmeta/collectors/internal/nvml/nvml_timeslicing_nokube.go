@@ -13,8 +13,3 @@ import "context"
 func (c *collector) fetchNodeGPULabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
 }
-
-// getKubeletDeviceIDs returns no devices without kubelet access.
-func (c *collector) getKubeletDeviceIDs(_ context.Context) ([]string, error) {
-	return nil, nil
-}

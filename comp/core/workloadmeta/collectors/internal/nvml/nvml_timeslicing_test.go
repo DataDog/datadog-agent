@@ -79,22 +79,6 @@ func TestSharingModeFromStrategyLabel(t *testing.T) {
 	assert.Equal(t, workloadmeta.GPUSharingModeUnknown, sharingModeFromStrategyLabel("something-new"))
 }
 
-func TestCountRegisteredReplicas(t *testing.T) {
-	ts := timeSlices{replicas: map[string]int{}}
-	// RegisteredDevices of a node with one 4-replica time-sliced GPU, plus
-	// the other registered devices such a node has.
-	countRegisteredReplicas(ts, []string{
-		"GPU-170ab964-06dc-a639-af22-0cafd46259c7::0",
-		"GPU-170ab964-06dc-a639-af22-0cafd46259c7::1",
-		"GPU-170ab964-06dc-a639-af22-0cafd46259c7::2",
-		"GPU-170ab964-06dc-a639-af22-0cafd46259c7::3",
-		"GPU-8b2f7c14-1e49-4db9-9d1d-b7a62eeb32c9", // exclusive GPU of the same node
-		"some-other-plugin-device",                 // another plugin's device
-	})
-
-	assert.Equal(t, map[string]int{"GPU-170ab964-06dc-a639-af22-0cafd46259c7": 4}, ts.replicas)
-}
-
 func TestResolveTimeSlices(t *testing.T) {
 	nvmltestutil.SetupMockNVML(t, testutil.WithDeviceCount(2))
 	labels := timeSlicedGPUTestLabels()
@@ -109,13 +93,9 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		want := map[string]int{testutil.GPUUUIDs[0]: 1}
 		assert.Equal(t, want, ts.byContainer["gpu-burner-0"])
-		assert.Equal(t, map[string]workloadmeta.GPUSharingMode{
-			testutil.GPUUUIDs[0]: workloadmeta.GPUSharingModeTimeSlicing,
-		}, ts.sharedGPUs)
-		assert.Contains(t, ts.claiming, "gpu-burner-0")
-		// No kubelet access in this build, so the replica count comes from the
-		// node's replicas label.
-		assert.Equal(t, map[string]int{testutil.GPUUUIDs[0]: 4}, ts.replicas)
+		assert.Contains(t, ts.shared, testutil.GPUUUIDs[0])
+		assert.Equal(t, workloadmeta.GPUSharingModeTimeSlicing, ts.mode)
+		assert.Equal(t, 4, ts.replicas)
 	})
 
 	t.Run("a container holding several replicas of the same GPU", func(t *testing.T) {
@@ -132,7 +112,6 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		want := map[string]int{testutil.GPUUUIDs[0]: 2}
 		assert.Equal(t, want, ts.byContainer["multi"])
-		assert.Contains(t, ts.claiming, "multi")
 	})
 
 	t.Run("time-sliced allocation under a renamed resource", func(t *testing.T) {
@@ -143,7 +122,7 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Equal(t, workloadmeta.GPUSharingModeTimeSlicing, ts.sharedGPUs[testutil.GPUUUIDs[0]])
+		assert.Equal(t, workloadmeta.GPUSharingModeTimeSlicing, ts.mode)
 		assert.Contains(t, ts.byContainer["gpu-burner-1"], testutil.GPUUUIDs[0])
 	})
 
@@ -154,7 +133,9 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Equal(t, workloadmeta.GPUSharingModeUnknown, ts.sharedGPUs[testutil.GPUUUIDs[0]])
+		assert.Contains(t, ts.shared, testutil.GPUUUIDs[0])
+		assert.Equal(t, workloadmeta.GPUSharingModeUnknown, ts.mode)
+		assert.Zero(t, ts.replicas)
 	})
 
 	t.Run("MPS allocations use the same IDs, the label disambiguates", func(t *testing.T) {
@@ -166,7 +147,7 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Equal(t, workloadmeta.GPUSharingModeMPS, ts.sharedGPUs[testutil.GPUUUIDs[0]])
+		assert.Equal(t, workloadmeta.GPUSharingModeMPS, ts.mode)
 	})
 
 	t.Run("exclusive allocations are not replicas", func(t *testing.T) {
@@ -177,9 +158,8 @@ func TestResolveTimeSlices(t *testing.T) {
 		ts := c.resolveTimeSlices(t.Context())
 
 		assert.Empty(t, ts.byContainer)
-		assert.Empty(t, ts.sharedGPUs)
-		assert.Empty(t, ts.claiming)
-		assert.Empty(t, ts.replicas)
+		assert.Empty(t, ts.shared)
+		assert.Empty(t, ts.mode, "the node labels are not read without a replica")
 	})
 
 	t.Run("non-NVIDIA suffixed allocations are not replicas", func(t *testing.T) {
@@ -189,7 +169,7 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Empty(t, ts.sharedGPUs)
+		assert.Empty(t, ts.shared)
 	})
 }
 

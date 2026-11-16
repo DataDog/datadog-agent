@@ -8,6 +8,7 @@
 package nvml
 
 import (
+	"context"
 	"maps"
 	"os"
 	"path/filepath"
@@ -259,10 +260,9 @@ func newKAICollector(store workloadmeta.Component) *collector {
 }
 
 // containerGPUEvents runs createContainerGPUEvents the way Pull does, with the
-// KAI fractions resolved from the same device cache. There are no shared
-// device replicas on the KAI fixtures, so the time-slices are empty.
+// KAI fractions resolved from the same device cache.
 func containerGPUEvents(c *collector, deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
-	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache), timeSlices{})
+	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache), c.resolveTimeSlices(context.Background()))
 }
 
 // setGPUDeviceIDs indexes the GPUDeviceIDs published by a pull, by container ID.
