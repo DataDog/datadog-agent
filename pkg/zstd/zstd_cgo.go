@@ -9,6 +9,7 @@ package zstd
 
 import (
 	"io"
+	"log/slog"
 
 	ddzstd "github.com/DataDog/zstd"
 )
@@ -52,8 +53,11 @@ func NewWriterLevel(w io.Writer, level Level) (Writer, error) {
 }
 
 // NewWriterLevelWithOptions creates a libzstd writer at the given level.
-// The pure-Go tuning options are ignored by this backend.
-func NewWriterLevelWithOptions(w io.Writer, level Level, _ ...WriterOption) (Writer, error) {
+// The pure-Go tuning options are ignored by this backend with a warning.
+func NewWriterLevelWithOptions(w io.Writer, level Level, options ...WriterOption) (Writer, error) {
+	if len(options) > 0 {
+		slog.Warn("zstd: writer options are ignored by the CGO backend")
+	}
 	return NewWriterLevel(w, level)
 }
 

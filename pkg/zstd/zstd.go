@@ -47,7 +47,7 @@ func Compress(dst, src []byte) ([]byte, error) {
 	return CompressLevel(dst, src, DefaultCompression)
 }
 
-// WriterOption tunes the pure-Go encoder. Options are ignored by the CGO backend.
+// WriterOption tunes the pure-Go encoder. The CGO backend logs a warning and ignores options.
 type WriterOption func(*writerOptions)
 
 type writerOptions struct {
