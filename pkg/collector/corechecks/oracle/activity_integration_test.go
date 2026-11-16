@@ -8,6 +8,8 @@
 package oracle
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -159,37 +161,66 @@ END;`
 	}
 }
 
-// TestActivityInPLSQL samples a session that is inside DBMS_SESSION.SLEEP, called from an anonymous block.
-// DBMS_SESSION is the PL/SQL entry object of that session.
+// TestActivityInPLSQL samples a session blocked in DBMS_LOCK.REQUEST, called from an anonymous block.
+// DBMS_LOCK is the PL/SQL entry object of that session. The test holds the user lock in another
+// session and releases it once both query modes have sampled the waiting session.
 func TestActivityInPLSQL(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 
 	c.dbmEnabled = true
-	// The session sleeps in an idle wait, which is only sampled with include_all_sessions.
-	c.config.QuerySamples.IncludeAllSessions = true
 
 	err := c.Run()
 	require.NoError(t, err, "check run")
 
-	conn, err := getSysConnection(t)
+	db, err := getSysConnection(t)
 	require.NoError(t, err)
-	defer conn.Close()
+	defer db.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// DBMS_LOCK user lock ids range from 0 to 1073741823.
+	const lockID = 1073741001
 	const module = "dd_in_plsql_test"
-	plsqlDone := make(chan error, 1)
+
+	holder, err := db.Conn(ctx)
+	require.NoError(t, err)
+	defer holder.Close()
+	var holderStatus int
+	_, err = holder.ExecContext(ctx, fmt.Sprintf(`BEGIN :1 := DBMS_LOCK.REQUEST(%d, DBMS_LOCK.X_MODE, 0); END;`, lockID), sql.Out{Dest: &holderStatus})
+	require.NoError(t, err)
+	require.Equal(t, 0, holderStatus, "the holder session must get the user lock")
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			_, err := holder.ExecContext(ctx, fmt.Sprintf(`BEGIN :1 := DBMS_LOCK.RELEASE(%d); END;`, lockID), sql.Out{Dest: &holderStatus})
+			assert.NoError(t, err, "failed to release the user lock")
+		}
+	}
+	defer release()
+
+	waiter, err := db.Conn(ctx)
+	require.NoError(t, err)
+	defer waiter.Close()
+	waiterDone := make(chan error, 1)
 	go func() {
-		_, err := conn.Exec(fmt.Sprintf(`BEGIN
+		// The request timeout bounds the wait if the holder never releases the lock.
+		_, err := waiter.ExecContext(ctx, fmt.Sprintf(`DECLARE
+  status INTEGER;
+BEGIN
   DBMS_APPLICATION_INFO.SET_MODULE('%s', NULL);
-  DBMS_SESSION.SLEEP(10);
-END;`, module))
-		plsqlDone <- err
+  status := DBMS_LOCK.REQUEST(%d, DBMS_LOCK.X_MODE, 30);
+  status := DBMS_LOCK.RELEASE(%d);
+END;`, module, lockID, lockID))
+		waiterDone <- err
 	}()
 
 	for _, directQuery := range []bool{true, false} {
 		c.config.QuerySamples.ForceDirectQuery = directQuery
 		var plsqlRow *OracleActivityRow
-		for i := 0; i < 10 && plsqlRow == nil; i++ {
+		for i := 0; i < 20 && plsqlRow == nil; i++ {
 			require.NoError(t, c.SampleSession(), "activity sample failed")
 			for _, r := range c.lastOracleActivityRows {
 				if r.PreviousSQL {
@@ -200,15 +231,23 @@ END;`, module))
 				}
 			}
 			if plsqlRow == nil {
-				time.Sleep(500 * time.Millisecond)
+				// The waiter session may not have reached DBMS_LOCK.REQUEST yet.
+				time.Sleep(200 * time.Millisecond)
 			}
 		}
 		require.NotNilf(t, plsqlRow, "session in PL/SQL not sampled, direct query: %t", directQuery)
-		assert.NotZerof(t, plsqlRow.PLSQLEntryObjectID, "direct query: %t", directQuery)
+		assert.NotNilf(t, plsqlRow.PLSQLEntryObjectID, "direct query: %t", directQuery)
 		require.NotNilf(t, plsqlRow.InPLSQL, "direct query: %t", directQuery)
 		assert.Truef(t, *plsqlRow.InPLSQL, "direct query: %t", directQuery)
 	}
-	require.NoError(t, <-plsqlDone)
+
+	release()
+	select {
+	case err := <-waiterDone:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("the PL/SQL session did not finish after the user lock was released")
+	}
 }
 
 func isValidSessionType(sessionType string) bool {

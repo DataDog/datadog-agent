@@ -156,8 +156,8 @@ func (c *Check) hasActivityViewPLSQLEntryObjectID() (bool, error) {
 
 // isInPLSQL reports whether a sampled statement runs inside a PL/SQL call (procedure, function,
 // anonymous block or trigger). topLevelSQLID is only available when sampling from ASH.
-func isInPLSQL(plsqlEntryObjectID uint64, topLevelSQLID string, sqlID string) bool {
-	return plsqlEntryObjectID != 0 || (topLevelSQLID != "" && topLevelSQLID != sqlID)
+func isInPLSQL(plsqlEntryObjectID *uint64, topLevelSQLID string, sqlID string) bool {
+	return plsqlEntryObjectID != nil || (topLevelSQLID != "" && topLevelSQLID != sqlID)
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -301,9 +301,7 @@ AND status = 'ACTIVE'`)
 		}
 		sessionRow.PreviousSQL = previousSQL
 
-		if sample.PLSQLEntryObjectID != nil {
-			sessionRow.PLSQLEntryObjectID = *sample.PLSQLEntryObjectID
-		}
+		sessionRow.PLSQLEntryObjectID = sample.PLSQLEntryObjectID
 		if sample.TopLevelSQLID.Valid {
 			sessionRow.TopLevelSQLID = sample.TopLevelSQLID.String
 		}

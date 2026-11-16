@@ -21,15 +21,18 @@ import (
 )
 
 func TestIsInPLSQL(t *testing.T) {
+	objectID := uint64(12345)
+	zeroObjectID := uint64(0)
 	tests := []struct {
 		name               string
-		plsqlEntryObjectID uint64
+		plsqlEntryObjectID *uint64
 		topLevelSQLID      string
 		sqlID              string
 		expected           bool
 	}{
 		{name: "top-level statement", sqlID: "abc", expected: false},
-		{name: "plsql entry object set", plsqlEntryObjectID: 12345, sqlID: "abc", expected: true},
+		{name: "plsql entry object set", plsqlEntryObjectID: &objectID, sqlID: "abc", expected: true},
+		{name: "plsql entry object set to zero", plsqlEntryObjectID: &zeroObjectID, sqlID: "abc", expected: true},
 		{name: "ash top-level statement", topLevelSQLID: "abc", sqlID: "abc", expected: false},
 		{name: "ash statement run by a plsql call", topLevelSQLID: "plsqlcall", sqlID: "abc", expected: true},
 	}
@@ -71,12 +74,13 @@ func TestSampleSessionInPLSQLDirect(t *testing.T) {
 	}).
 		AddRow("2024-01-01 00:00:00", 1, 1, "ACTIVE", "toplevel", "SELECT 1 FROM dual", nil, nil, nil).
 		AddRow("2024-01-01 00:00:00", 2, 1, "ACTIVE", "inproc", "SELECT 2 FROM dual", nil, nil, 12345).
-		AddRow("2024-01-01 00:00:00", 3, 1, "INACTIVE", nil, nil, "previous", "SELECT 3 FROM dual", nil)
+		AddRow("2024-01-01 00:00:00", 3, 1, "INACTIVE", nil, nil, "previous", "SELECT 3 FROM dual", nil).
+		AddRow("2024-01-01 00:00:00", 4, 1, "ACTIVE", "zeroentry", "SELECT 4 FROM dual", nil, nil, 0)
 	dbMock.ExpectQuery("s.plsql_entry_object_id").WillReturnRows(activityRows)
 
 	require.NoError(t, c.SampleSession())
 	require.NoError(t, dbMock.ExpectationsWereMet())
-	require.Len(t, c.lastOracleActivityRows, 3)
+	require.Len(t, c.lastOracleActivityRows, 4)
 
 	topLevel := activityRowJSON(t, c.lastOracleActivityRows[0])
 	assert.Equal(t, false, topLevel["in_plsql"], "in_plsql must be sent when false")
@@ -90,6 +94,11 @@ func TestSampleSessionInPLSQLDirect(t *testing.T) {
 	previous := activityRowJSON(t, c.lastOracleActivityRows[2])
 	assert.Equal(t, true, previous["previous_sql"])
 	assert.NotContains(t, previous, "in_plsql", "in_plsql is unknown for the previous SQL of an idle session")
+
+	// Only NULL means no entry object: a non-NULL zero is sent and counts as set.
+	zeroEntry := activityRowJSON(t, c.lastOracleActivityRows[3])
+	assert.Equal(t, float64(0), zeroEntry["plsql_entry_object_id"])
+	assert.Equal(t, true, zeroEntry["in_plsql"])
 }
 
 func TestSampleSessionInPLSQLActiveSessionHistory(t *testing.T) {

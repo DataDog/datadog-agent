@@ -86,8 +86,9 @@ type OracleActivityRow struct {
 	CommandName           string `json:"command_name,omitempty"`
 	PreviousSQL           bool   `json:"previous_sql,omitempty"`
 	OpFlags               uint64 `json:"op_flags,omitempty"`
-	PLSQLEntryObjectID    uint64 `json:"plsql_entry_object_id,omitempty"`
-	TopLevelSQLID         string `json:"top_level_sql_id,omitempty"`
+	// PLSQLEntryObjectID is nil when the column is NULL.
+	PLSQLEntryObjectID *uint64 `json:"plsql_entry_object_id,omitempty"`
+	TopLevelSQLID      string  `json:"top_level_sql_id,omitempty"`
 	// InPLSQL is nil when unknown: the row reports the previous SQL of an idle session,
 	// or the sys.dd_session view has no plsql_entry_object_id column.
 	InPLSQL *bool `json:"in_plsql,omitempty"`
