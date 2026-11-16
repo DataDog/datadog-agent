@@ -1589,46 +1589,6 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 	})
 }
 
-func TestActivityNodeForEvent_capabilitiesSyscallsAndMount(t *testing.T) {
-	now := time.Now()
-	proc := &activity_tree.ProcessNode{}
-	chroot := activity_tree.NewCapabilityNode(unix.CAP_SYS_CHROOT, true, false, false, now, 1, activity_tree.Runtime)
-	admin := activity_tree.NewCapabilityNode(unix.CAP_SYS_ADMIN, false, true, false, now, 1, activity_tree.Runtime)
-	proc.Capabilities = []*activity_tree.CapabilityNode{chroot, admin}
-
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.CapabilitiesEventType)
-	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN) | (1 << unix.CAP_NET_BIND_SERVICE)
-	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
-	event.CapabilitiesUsage.AttemptedHostUserNS = 1 << unix.CAP_SYS_ADMIN
-
-	nodes := activityNodeForEvent(nil, proc, nil, event, nil)
-	require.Equal(t, []*activity_tree.NodeBase{&chroot.NodeBase, &admin.NodeBase}, nodes)
-
-	openat := activity_tree.NewSyscallNode(int(model.SysOpenat), now, 1, activity_tree.Runtime)
-	read := activity_tree.NewSyscallNode(int(model.SysRead), now, 1, activity_tree.Runtime)
-	proc.Syscalls = map[int]*activity_tree.SyscallNode{openat.Syscall: openat, read.Syscall: read}
-	event.Type = uint32(model.SyscallsEventType)
-	event.Syscalls.Syscalls = []model.Syscall{model.SysOpenat, model.SysWrite}
-
-	nodes = activityNodeForEvent(nil, proc, nil, event, nil)
-	require.Equal(t, []*activity_tree.NodeBase{&openat.NodeBase}, nodes)
-
-	tree := activity_tree.NewActivityTree(nil, nil, "test")
-	require.True(t, tree.InsertMount(0, 0, "/tmp/wp-mount-dst", "/", "ext4", 0, 1, activity_tree.Runtime, now, false))
-	require.Len(t, tree.Mounts, 1)
-	mountNode := tree.Mounts[0]
-	event.Type = uint32(model.FileMountEventType)
-	event.Mount.Mount.Path = "/tmp/wp-mount-dst"
-	event.Mount.Mount.FSType = "ext4"
-
-	nodes = activityNodeForEvent(tree, nil, nil, event, nil)
-	require.Equal(t, []*activity_tree.NodeBase{&mountNode.NodeBase}, nodes)
-
-	event.Mount.Mount.MountFlags = 1
-	assert.Nil(t, activityNodeForEvent(tree, nil, nil, event, nil))
-}
-
 func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 	const cooldown = time.Minute
 	t0 := time.Now()

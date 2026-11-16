@@ -25,7 +25,6 @@ import (
 	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1416,14 +1415,12 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false, nil
 	}
 
-	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
+	// Same lock as FinalizePatterns, so an activity node can't be folded before its cookie exists.
 	secprof.Lock()
-	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
-	var activityNodes []*activity_tree.NodeBase
+	inserted, processNode, activityNodes, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err == nil {
 		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
-		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
-		activityNodes = activityNodeForEvent(secprof.ActivityTree, processNode, eventNodeBase, event, m.resolvers)
+		m.registerSampleCookie(event, secprof, processNode, activityNodes, imageTag)
 		if sampleCookieFromEvent(event) != 0 {
 			// A node in cooldown can get a new cookie from a new sample key, or from a restart that emptied
 			// the kernel maps: it has to be released when the cooldown expires too.
@@ -1442,85 +1439,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	return secprof, inserted, activityNodes
 }
 
-// activityNodeForEvent returns the nodes whose lastAnomalySent tracks this event.
-// Exec is the process node. File, bind and connect are the event node
-// returned by Insert. DNS, capabilities, syscalls and mount do not return their node from Insert,
-// so they are looked up. A capabilities or a syscalls event can match several nodes.
-func activityNodeForEvent(tree *activity_tree.ActivityTree, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, event *model.Event, res *resolvers.EBPFResolvers) []*activity_tree.NodeBase {
-	if eventNodeBase != nil {
-		return []*activity_tree.NodeBase{eventNodeBase}
-	}
-	if event == nil {
-		return nil
-	}
-
-	switch event.GetEventType() {
-	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
-		if tree == nil {
-			return nil
-		}
-		if node := tree.MountNodeForEvent(event, res); node != nil {
-			return []*activity_tree.NodeBase{&node.NodeBase}
-		}
-		return nil
-	}
-
-	if processNode == nil {
-		return nil
-	}
-	switch event.GetEventType() {
-	case model.ExecEventType:
-		return []*activity_tree.NodeBase{&processNode.NodeBase}
-	case model.DNSEventType:
-		if dnsNode, ok := processNode.DNSNames[event.DNS.Question.Name]; ok {
-			return []*activity_tree.NodeBase{&dnsNode.NodeBase}
-		}
-	case model.CapabilitiesEventType:
-		return capabilityNodesForEvent(processNode, event)
-	case model.SyscallsEventType:
-		return syscallNodesForEvent(processNode, event)
-	}
-	return nil
-}
-
-// syscallNodesForEvent returns the syscall nodes of the syscalls of the event, which InsertSyscalls keys
-// by syscall id.
-func syscallNodesForEvent(processNode *activity_tree.ProcessNode, event *model.Event) []*activity_tree.NodeBase {
-	var nodes []*activity_tree.NodeBase
-	for _, syscall := range event.Syscalls.Syscalls {
-		if node, ok := processNode.Syscalls[int(syscall)]; ok {
-			nodes = append(nodes, &node.NodeBase)
-		}
-	}
-	return nodes
-}
-
-// capabilityNodesForEvent returns the capability nodes touched by the event, using the same
-// identity as InsertCapabilitiesUsageEvent.
-func capabilityNodesForEvent(processNode *activity_tree.ProcessNode, event *model.Event) []*activity_tree.NodeBase {
-	var nodes []*activity_tree.NodeBase
-	for capability := uint64(0); capability <= unix.CAP_LAST_CAP; capability++ {
-		if event.CapabilitiesUsage.Attempted&(1<<capability) == 0 {
-			continue
-		}
-		capable := event.CapabilitiesUsage.Used&(1<<capability) != 0
-		attemptedHostUserNS := event.CapabilitiesUsage.AttemptedHostUserNS&(1<<capability) != 0
-		capableHostUserNS := event.CapabilitiesUsage.UsedHostUserNS&(1<<capability) != 0
-		for _, existing := range processNode.Capabilities {
-			if existing.Capability == capability &&
-				existing.Capable == capable &&
-				existing.AttemptedHostUserNS == attemptedHostUserNS &&
-				existing.CapableHostUserNS == capableHostUserNS {
-				nodes = append(nodes, &existing.NodeBase)
-				break
-			}
-		}
-	}
-	return nodes
-}
-
 // registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
-func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, imageTag string) {
+// File, bind and connect each contribute one activity node, which is where the cookie is stored.
+func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, activityNodes []*activity_tree.NodeBase, imageTag string) {
 	if processNode == nil {
 		return
 	}
@@ -1535,6 +1456,10 @@ func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profi
 	}
 	if sampleCookie == 0 {
 		return
+	}
+	var eventNodeBase *activity_tree.NodeBase
+	if len(activityNodes) > 0 {
+		eventNodeBase = activityNodes[0]
 	}
 	m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
 		profile:       prof,

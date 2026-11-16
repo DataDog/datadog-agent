@@ -364,8 +364,9 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
 }
 
-// Insert inserts an event in the profile and returns the matched/created process node and event node
-func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
+// Insert inserts an event in the profile and returns the matched or created process node
+// and the activity nodes that correspond to the event.
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, []*activity_tree.NodeBase, error) {
 	p.Lock()
 	defer p.Unlock()
 

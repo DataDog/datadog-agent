@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -683,18 +684,75 @@ func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
 	syscallMask := make(map[int]int)
 	const tagID = uint64(1)
 
-	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
-		"the first delivery introduces new syscalls")
+	newEntry, nodes := pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false)
+	assert.True(t, newEntry, "the first delivery introduces new syscalls")
+	require.Len(t, nodes, 2)
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
 	assert.Len(t, pn.Syscalls, 2)
 
-	assert.False(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
-		"re-delivering the same mask must not report new syscalls")
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false)
+	assert.False(t, newEntry, "re-delivering the same mask must not report new syscalls")
+	require.Len(t, nodes, 2, "an existing syscall is returned with the event")
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
 	assert.Len(t, pn.Syscalls, 2, "re-delivery must not duplicate nodes")
 
-	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false),
-		"a grown mask reports the newly discovered syscall")
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false)
+	assert.True(t, newEntry, "a grown mask reports the newly discovered syscall")
+	require.Len(t, nodes, 3)
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
+	assert.Same(t, &pn.Syscalls[3].NodeBase, nodes[2])
 	assert.Len(t, pn.Syscalls, 3, "only the genuinely new syscall is added")
 	assert.Equal(t, map[int]int{1: 1, 2: 2, 3: 3}, syscallMask)
+
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(4), tagID, syscallMask, stats, true)
+	assert.True(t, newEntry, "a dry run still reports a syscall that is not in the tree")
+	assert.Nil(t, nodes, "a dry run does not return syscall nodes")
+	assert.NotContains(t, pn.Syscalls, 4)
+}
+
+func TestInsertCapabilitiesUsageEvent_ReturnsTouchedNodes(t *testing.T) {
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	stats := NewActivityTreeNodeStats()
+	const tagID = uint64(1)
+
+	event := &model.Event{BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}}}
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	event.CapabilitiesUsage.AttemptedHostUserNS = 1 << unix.CAP_SYS_ADMIN
+
+	newEntry, nodes := pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.True(t, newEntry)
+	require.Len(t, nodes, 2)
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[1])
+	assert.Equal(t, uint64(unix.CAP_SYS_CHROOT), pn.Capabilities[0].Capability)
+	assert.Equal(t, uint64(unix.CAP_SYS_ADMIN), pn.Capabilities[1].Capability)
+
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.False(t, newEntry, "re-delivering the same capabilities must not report new nodes")
+	require.Len(t, nodes, 2, "existing capability nodes are returned with the event")
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[1])
+
+	// CAP_NET_BIND_SERVICE is numbered below the two existing capabilities, so it is
+	// visited first and the returned slice follows capability-number order.
+	event.CapabilitiesUsage.Attempted |= 1 << unix.CAP_NET_BIND_SERVICE
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.True(t, newEntry)
+	require.Len(t, nodes, 3)
+	assert.Same(t, &pn.Capabilities[2].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[1])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[2])
+	assert.Equal(t, uint64(unix.CAP_NET_BIND_SERVICE), pn.Capabilities[2].Capability)
+
+	event.CapabilitiesUsage.Attempted = 1 << unix.CAP_NET_RAW
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, true)
+	assert.True(t, newEntry, "a dry run still reports a capability that is not in the tree")
+	assert.Nil(t, nodes, "a dry run does not return capability nodes")
+	assert.Len(t, pn.Capabilities, 3)
 }
 
 func TestSyscallsByImageTagID(t *testing.T) {
@@ -792,4 +850,120 @@ func TestProcessInfoMatches(t *testing.T) {
 		Argv:      []string{"-s", "https://example.com"},
 	}
 	assert.True(t, node.Matches(entry, true, false))
+}
+
+func TestInsertReturnsActivityNodes(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	event := newExecTestEventWithAncestors([]model.Process{
+		{
+			ContainerContext: model.ContainerContext{ContainerID: "123"},
+			FileEvent: model.FileEvent{
+				PathnameStr: "/bin/app",
+				FileFields:  model.FileFields{PathKey: model.PathKey{Inode: 1}},
+			},
+		},
+	})
+
+	inserted, proc, nodes, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	require.NotNil(t, proc)
+	require.Equal(t, []*NodeBase{&proc.NodeBase}, nodes)
+
+	inserted, proc2, nodes, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Same(t, proc, proc2)
+	require.Equal(t, []*NodeBase{&proc.NodeBase}, nodes)
+
+	event.Type = uint32(model.FileOpenEventType)
+	event.Open.File = model.FileEvent{IsPathnameStrResolved: true, PathnameStr: "/tmp/foo"}
+	inserted, proc2, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Same(t, proc, proc2)
+	require.Len(t, nodes, 1)
+	leaf := proc.Files["tmp"].Children["foo"]
+	require.NotNil(t, leaf)
+	assert.Same(t, &leaf.NodeBase, nodes[0])
+
+	inserted, _, again, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.DNSEventType)
+	event.DNS.Question.Name = "example.com"
+	event.DNS.Question.Type = 1
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	dnsNode := proc.DNSNames["example.com"]
+	require.NotNil(t, dnsNode)
+	require.Equal(t, []*NodeBase{&dnsNode.NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.BindEventType)
+	event.Bind.AddrFamily = unix.AF_INET
+	event.Bind.Addr.Port = 80
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, proc.Sockets, 1)
+	require.Len(t, proc.Sockets[0].Bind, 1)
+	require.Equal(t, []*NodeBase{&proc.Sockets[0].Bind[0].NodeBase}, nodes)
+
+	event.Type = uint32(model.SyscallsEventType)
+	event.Syscalls.Syscalls = []model.Syscall{1, 2}
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Equal(t, []*NodeBase{&proc.Syscalls[1].NodeBase, &proc.Syscalls[2].NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.CapabilitiesEventType)
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, nodes, 2)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+	assert.Same(t, &proc.Capabilities[0].NodeBase, again[0])
+	assert.Same(t, &proc.Capabilities[1].NodeBase, again[1])
+
+	event.Type = uint32(model.FileMountEventType)
+	event.Mount.Mount.Path = "/data"
+	event.Mount.Mount.RootStr = "/"
+	event.Mount.Mount.FSType = "ext4"
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, tree.Mounts, 1)
+	require.Equal(t, []*NodeBase{&tree.Mounts[0].NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Mount.Mount.MountFlags = 1
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, nodes, 1)
+	require.Len(t, tree.Mounts, 2)
+	assert.Same(t, &tree.Mounts[1].NodeBase, nodes[0])
 }
