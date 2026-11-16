@@ -3,10 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hosttags",
-    srcs = [
-        "extra_tags.go",
-        "host_tag_provider.go",
-    ],
+    srcs = ["host_tag_provider.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/hosttags",
     visibility = ["//visibility:public"],
     deps = [
@@ -19,10 +16,7 @@ go_library(
 
 dd_agent_go_test(
     name = "hosttags_test",
-    srcs = [
-        "extra_tags_test.go",
-        "host_tag_provider_test.go",
-    ],
+    srcs = ["host_tag_provider_test.go"],
     embed = [":hosttags"],
     deps = [
         "//comp/metadata/host/impl/hosttags",

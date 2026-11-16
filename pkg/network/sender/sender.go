@@ -145,16 +145,12 @@ func New(
 	hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 
 	syscfg := deps.Sysprobeconfig
-	hostTagProvider := hosttags.WithExtraTags(
-		hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
-		// identifies the task in ECS Fargate, where the hostname is empty
-		fargate.NewTaskARNTag().Tags,
-	)
 	ctx, cancel := context.WithCancel(ctx)
 	ds := directSender{
 		tracer: tr,
 
-		hostTagProvider: hostTagProvider,
+		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		sidecar:         fargate.IsSidecar(),
 		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
 		ctx:             ctx,
 		cancelFunc:      cancel,
@@ -189,12 +185,31 @@ func New(
 	return &ds, nil
 }
 
+// hostTags returns the tags for the payload's host. In sidecar mode it adds the tagger's global
+// tags, which are meant for when there are no host tags. On ECS Fargate they include task_arn,
+// which identifies the task since the hostname is empty.
+func (d *directSender) hostTags() []string {
+	hostTags := d.hostTagProvider.GetHostTags()
+	if !d.sidecar {
+		return hostTags
+	}
+	globalTags, err := d.tagger.GlobalTags(types.OrchestratorCardinality)
+	if err != nil {
+		d.log.Debugf("unable to get global tags: %v", err)
+		return hostTags
+	}
+	// clip so append never writes into the provider's slice
+	return append(slices.Clip(hostTags), globalTags...)
+}
+
 type directSender struct {
 	tracer  ConnectionsSource
 	groupID atomic.Int32
 
-	hostTagProvider hosttags.Getter
-	agentCfg        *model.AgentConfiguration
+	hostTagProvider *hosttags.HostTagProvider
+	// sidecar is true when the agent runs as a sidecar (e.g. ECS Fargate), where there's no host
+	sidecar  bool
+	agentCfg *model.AgentConfiguration
 
 	sysprobeconfig sysprobeconfig.Component
 	tagger         tagger.Component
@@ -490,7 +505,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags())))
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTags())))
 			builder.SetEncodedTags(func(b *bytes.Buffer) {
 				b.Write(tagsEncoder.Buffer())
 			})
