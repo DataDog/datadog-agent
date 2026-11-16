@@ -6,6 +6,8 @@
 package observerimpl
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -57,8 +59,8 @@ func DefaultStablePipelineConfig() StablePipelineConfig {
 	}
 }
 
-// newStableDetector selects the detector configured by stable-pipeline blocks.
-func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
+// validateStableDetectorSelection enforces the single-detector rule.
+func validateStableDetectorSelection(cfg StablePipelineConfig) error {
 	selected := 0
 	for _, present := range []bool{cfg.ScanMW != nil, cfg.ScanWelch != nil, cfg.BOCPD != nil} {
 		if present {
@@ -66,7 +68,32 @@ func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
 		}
 	}
 	if selected > 1 {
-		return nil, errors.New("stable pipeline accepts at most one detector block")
+		return errors.New("stable pipeline accepts at most one detector block")
+	}
+	return nil
+}
+
+// ParseStablePipelineConfigJSON decodes stable pipeline JSON configuration.
+func ParseStablePipelineConfigJSON(raw []byte) (*StablePipelineConfig, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	stable := DefaultStablePipelineConfig()
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&stable); err != nil {
+		return nil, fmt.Errorf("parse stable pipeline config: %w", err)
+	}
+	if err := validateStableDetectorSelection(stable); err != nil {
+		return nil, err
+	}
+	return &stable, nil
+}
+
+// newStableDetector selects the detector configured by stable-pipeline blocks.
+func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
+	if err := validateStableDetectorSelection(cfg); err != nil {
+		return nil, err
 	}
 	switch {
 	case cfg.ScanMW != nil:
