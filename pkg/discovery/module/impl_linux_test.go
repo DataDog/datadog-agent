@@ -269,7 +269,7 @@ func disableCloseOnExec(t *testing.T, f *os.File) {
 }
 
 // serviceCommand gives the fixture a neutral comm name; sleep itself is excluded.
-func serviceCommand(t *testing.T, ctx context.Context) *exec.Cmd {
+func serviceCommand(ctx context.Context, t *testing.T) *exec.Cmd {
 	t.Helper()
 	sleepPath, err := exec.LookPath("sleep")
 	require.NoError(t, err)
@@ -285,7 +285,7 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
 
-	cmd := serviceCommand(t, ctx)
+	cmd := serviceCommand(ctx, t)
 	t.Cleanup(func() {
 		cancel()
 		_ = cmd.Wait()

@@ -65,13 +65,9 @@ static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
     b"system-probe-li", // system-probe-lite, truncated to 15 bytes.
     b"trace-agent",
 
-    // SSH daemons and session helpers use several distinct executable names.
-    // Generated service names can drop suffixes such as .pam; match comm here.
+    // SSH variants without a hyphen need exact matches. Generated service
+    // names can drop suffixes such as .pam; match comm here.
     b"sshd",
-    b"sshd-auth",
-    b"sshd-bd",
-    b"sshd-session",
-    b"sshd-sftponly",
     b"sshd.dssh",
     b"sshd.pam",
     b"sshd2",
@@ -97,6 +93,7 @@ static IGNORE_FAMILIES: phf::Set<&'static [u8]> = phf_set! {
     b"datadog",
     b"containerd",
     b"docker",
+    b"sshd", // SSH daemon variants and session helpers, e.g. sshd-session.
 };
 
 /// Returns true if the process with the given PID should be ignored based on

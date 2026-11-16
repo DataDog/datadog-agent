@@ -264,7 +264,7 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(t, ctx)
+	cmd := serviceCommand(ctx, t)
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
@@ -383,7 +383,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(func() { cancel() })
 
-			cmd := serviceCommand(t, ctx)
+			cmd := serviceCommand(ctx, t)
 			cmd.Dir = "/tmp/"
 			err = cmd.Start()
 			require.NoError(t, err)
@@ -429,7 +429,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(t, ctx)
+	cmd := serviceCommand(ctx, t)
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "DD_SERVICE=background-worker")
 	cmd.Env = append(cmd.Env, "DD_ENV=test-env")
@@ -530,7 +530,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(t, ctx)
+	cmd := serviceCommand(ctx, t)
 	cmd.Dir = "/tmp/"
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -582,7 +582,7 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(t, ctx)
+	cmd := serviceCommand(ctx, t)
 	cmd.Dir = "/tmp/"
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -850,7 +850,7 @@ func (s *discoveryTestSuite) TestServicesNamespaces() {
 		t.Cleanup(func() { f.Close() })
 		disableCloseOnExec(t, f)
 
-		cmd := serviceCommand(t, ctx)
+		cmd := serviceCommand(ctx, t)
 		err = cmd.Start()
 		require.NoError(t, err)
 		f.Close()
