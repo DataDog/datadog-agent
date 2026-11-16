@@ -98,9 +98,8 @@ func (c *Check) CustomQueries() error {
 	return allErrors
 }
 
-// runCustomQuery releases rows before recovering its pool, and keeps the query
-// context alive until fetching and cleanup both finish. Each subsequent query
-// (and recovery connection) receives an independent deadline.
+// runCustomQuery catches late errors so the caller does not publish partial
+// results as successful metrics.
 func (c *Check) runCustomQuery(q config.CustomQuery) (_ []metricRow, retErr error) {
 	/*
 	 * We are creating a dedicated DB connection for custom queries. Custom queries is
