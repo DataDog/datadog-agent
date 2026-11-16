@@ -10,12 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strconv"
 	"time"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
@@ -69,9 +69,9 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	hostname := c.hostname.GetSafe(context.Background())
 	return []runnerdef.IssueReport{{
-		IssueID:   hostIssueID(hostname),
+		IssueID:   logsissue.HostIssueID(IssueID, hostname),
 		IssueName: IssueName,
-		Source:    issueSource,
+		Source:    logsissue.Source,
 		Context: map[string]string{
 			contextKeyBytes:        strconv.FormatInt(totalBytes, 10),
 			contextKeyRotations:    strconv.FormatInt(totalRotations, 10),
@@ -110,12 +110,4 @@ func rankSources(summaries []logsmetrics.MissedBytesSummary) ([]sourceLoss, int)
 		return ranked, 0
 	}
 	return ranked[:maxBreakdownSources], len(ranked) - maxBreakdownSources
-}
-
-// hostIssueID scopes IssueID to this host. The backend dedups on id alone, so
-// without the digest one host going clean resolves the issue for every host.
-func hostIssueID(hostname string) string {
-	h := fnv.New64a()
-	h.Write([]byte(hostname)) // never returns an error for hash.Hash
-	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
