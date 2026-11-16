@@ -1,8 +1,8 @@
-import { ScenarioSelector } from './ScenarioSelector';
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { CorrelatorSection } from './CorrelatorSection';
 import { AnomalySwimlane } from './AnomalySwimlane';
 import { CompressedGroupCard } from './CompressedGroupCard';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { Correlation } from '../api/client';
 import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
@@ -75,18 +75,17 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
   }, [allCorrelations, tagFilterInput]);
 
   return (
-    <div className="flex-1 flex min-w-0">
+    <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
-        className="bg-slate-800 border-r border-slate-700 overflow-y-auto shrink-0"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
         {/* Scenarios */}
-        <ScenarioSelector
+        <ScenarioSelector busy={state.connectionState === 'loading'}
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
-          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {/* Correlator toggles */}
@@ -104,9 +103,6 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
                   <div className="flex items-center gap-2 px-2 py-1.5">
                     <button
                       onClick={() => actions.toggleComponent(comp.name)}
-                      aria-label={`Toggle ${comp.displayName}`}
-                      aria-pressed={comp.enabled}
-                      disabled={state.pendingComponents.size > 0 || state.connectionState === 'loading'}
                       className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
                         comp.enabled ? 'bg-purple-600' : 'bg-slate-600'
                       }`}
@@ -178,7 +174,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
+      <main className="flex-1 p-6 overflow-y-auto">
         {state.connectionState !== 'ready' && (
           <EmptyState connectionState={state.connectionState} activeScenario={state.activeScenario} error={state.error} />
         )}

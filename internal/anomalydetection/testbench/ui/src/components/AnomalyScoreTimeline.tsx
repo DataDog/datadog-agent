@@ -12,7 +12,6 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { api } from '../api/client';
-import { aggregateScoreBuckets } from '../scorerDisplay';
 import type { ScoreState, ScoreBucket, ScorerConfig, SeverityEvent } from '../api/client';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 
@@ -37,6 +36,33 @@ const CHART_H = 240;
 const CHART_TOP_PADDING = 0.20;
 
 // ── Display aggregation (Step 6 — testbench only) ──────────────────────────
+
+interface DisplayBucket {
+  bins: [number, number, number, number, number];
+  count: number;
+  ewma: number;
+  startSec: number;
+}
+
+function aggregateBuckets(buckets: ScoreBucket[], windowSecs: number): DisplayBucket[] {
+  if (buckets.length === 0) return [];
+  const start = buckets[0].second;
+  const end = buckets[buckets.length - 1].second;
+  const result: DisplayBucket[] = [];
+  for (let t = start; t <= end; t += windowSecs) {
+    const slice = buckets.filter(b => b.second >= t && b.second < t + windowSecs);
+    const bins: [number, number, number, number, number] = [0, 0, 0, 0, 0];
+    let count = 0;
+    let ewma = 0;
+    for (const b of slice) {
+      for (let l = 0; l < 5; l++) bins[l] += b.bins[l];
+      count += b.count;
+      ewma = b.ewma; // last EWMA in the window
+    }
+    result.push({ bins, count, ewma, startSec: t });
+  }
+  return result;
+}
 
 function autoWindow(buckets: ScoreBucket[], targetBars = 80): number {
   if (buckets.length === 0) return 1;
@@ -123,19 +149,22 @@ export function AnomalyScoreTimeline({
     const w = el.clientWidth;
     if (w > 0) setChartW(w);
     return () => ro.disconnect();
-  }, [scoreState]);
+  }, []);
 
   // Load the selected timing view whenever the scenario or mode changes.
   useEffect(() => {
+    if (scenarioDataVersion === 0) {
+      return;
+    }
     const requestID = ++requestIDRef.current;
 
     const request = Promise.resolve().then(() => {
       if (requestID !== requestIDRef.current) return null;
       setScoreState(null);
       onScoreState?.(null);
+      setLoading(true);
       setError(null);
-      setLoading(scenarioDataVersion > 0);
-      return scenarioDataVersion > 0 ? api.getScores() : null;
+      return api.getScores();
     }).then(original => {
       if (!original || requestID !== requestIDRef.current || !original.available || timeMode === 'detection') {
         return original;
@@ -161,8 +190,8 @@ export function AnomalyScoreTimeline({
     return () => { requestIDRef.current += 1; };
   }, [scenarioDataVersion, timeMode, onScoreState]);
 
-  const allBuckets = useMemo(() => scoreState?.buckets ?? [], [scoreState]);
-  const allEvents = useMemo(() => scoreState?.events ?? [], [scoreState]);
+  const allBuckets = scoreState?.buckets ?? [];
+  const allEvents = scoreState?.events ?? [];
   const cfg: ScorerConfig = {
     ...DISPLAY_FALLBACK_CONFIG,
     ...(scoreState?.available === false ? {} : scoreState?.config ?? {}),
@@ -190,7 +219,7 @@ export function AnomalyScoreTimeline({
 
   // Step 6: display aggregation
   const resolvedWindow = autoWindow(buckets);
-  const displayBuckets = useMemo(() => aggregateScoreBuckets(buckets, resolvedWindow), [buckets, resolvedWindow]);
+  const displayBuckets = useMemo(() => aggregateBuckets(buckets, resolvedWindow), [buckets, resolvedWindow]);
   const displayCount = displayBuckets.length;
 
   // EWMA chart scale
@@ -288,10 +317,9 @@ export function AnomalyScoreTimeline({
     return { x1: 0, x2: tsToX(bucketStart), durationSecs: bucketStart - displayStart };
   }, [displayStart, bucketStart, tsToX]);
 
-  const visibleEvents = allEvents.filter(event => !timeRange || (event.timestamp >= timeRange.start && event.timestamp <= timeRange.end));
-  const upEvents = visibleEvents.filter(event => event.to_level > event.from_level).length;
-  const downEvents = visibleEvents.filter(event => event.to_level < event.from_level).length;
-  const peakActiveInputs = buckets.reduce((peak, bucket) => Math.max(peak, bucket.count), 0);
+  const totalAnomalies = buckets.reduce((s, b) => s + b.count, 0);
+  const upEvents = allEvents.filter(e => e.to_level > e.from_level).length;
+  const downEvents = allEvents.filter(e => e.to_level < e.from_level).length;
 
   // ── Interaction state ────────────────────────────────────────────────────
 
@@ -362,7 +390,7 @@ export function AnomalyScoreTimeline({
   return (
     <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-white">Anomaly intensity timeline</h3>
           <div className="text-xs text-slate-400 mt-0.5">
@@ -374,7 +402,7 @@ export function AnomalyScoreTimeline({
               ? <span className="text-amber-300">Scorer unavailable for this run</span>
               : allBuckets.length === 0
               ? 'No data'
-              : `${buckets.length} scorer seconds · peak ${peakActiveInputs} active inputs · ${upEvents}↑ ${downEvents}↓ transitions`}
+              : `${totalAnomalies} anomalies · ${buckets.length}s · ${upEvents}↑ ${downEvents}↓ severity transitions`}
           </div>
         </div>
         <div className="text-right text-xs space-y-0.5">
@@ -413,24 +441,21 @@ export function AnomalyScoreTimeline({
         </span>
       </div>
 
-      <p className="mb-3 text-xs text-slate-400">Bars show average active inputs in the scorer’s rolling window. The same input can remain active across seconds; these are not new detections.</p>
-      <details className="mb-3 rounded border border-slate-700 p-2">
-        <summary className="cursor-pointer text-xs text-slate-400">Scorer configuration · read only</summary>
-        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Signal</div>
-            <ConfigRow label="EWMA α" value={cfg.alpha.toFixed(3)} color="#67e8f9" />
-            <ConfigRow label="Count saturation k" value={`k=${cfg.saturation_k}`} color="#f97316" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Event detection</div>
-            <ConfigRow label="Low threshold" value={cfg.low_threshold.toFixed(3)} color="#22c55e" />
-            <ConfigRow label="High threshold" value={cfg.high_threshold.toFixed(3)} color="#ef4444" />
-            <ConfigRow label="Margin (hysteresis)" value={`${(cfg.margin_pct * 100).toFixed(0)}% of high`} color="#f59e0b" />
-            <ConfigRow label="Cooldown (decrease)" value={formatDuration(cfg.cooldown_secs)} color="#a78bfa" />
-          </div>
+      {/* Read-only config */}
+      <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-3">
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Signal</div>
+          <ConfigRow label="EWMA α" value={cfg.alpha.toFixed(3)} color="#67e8f9" />
+          <ConfigRow label="Count saturation k" value={`k=${cfg.saturation_k}`} color="#f97316" />
         </div>
-      </details>
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Event detection</div>
+          <ConfigRow label="Low threshold" value={cfg.low_threshold.toFixed(3)} color="#22c55e" />
+          <ConfigRow label="High threshold" value={cfg.high_threshold.toFixed(3)} color="#ef4444" />
+          <ConfigRow label="Margin (hysteresis)" value={`${(cfg.margin_pct * 100).toFixed(0)}% of high`} color="#f59e0b" />
+          <ConfigRow label="Cooldown (decrease)" value={formatDuration(cfg.cooldown_secs)} color="#a78bfa" />
+        </div>
+      </div>
 
       {/* Chart */}
       {displayBuckets.length === 0 ? (
@@ -444,14 +469,14 @@ export function AnomalyScoreTimeline({
             : 'No anomalies detected yet'}
         </div>
       ) : (
-        <div ref={chartContainerRef} className="relative min-w-0 select-none">
+        <div ref={chartContainerRef} className="relative select-none">
           {/* Hover tooltip */}
           {hoverBucket && hoverX !== null && (
             <div
               className="absolute z-20 pointer-events-none bg-slate-900/95 border border-slate-600 rounded-lg p-2 shadow-xl text-xs min-w-[140px]"
               style={{
                 top: 4,
-                left: Math.max(0, Math.min(hoverX + 10, chartW - 190)),
+                left: hoverX + 10,
               }}
             >
               <div className="font-mono text-white font-medium mb-1">{formatTs(hoverBucket.startSec)}</div>
@@ -465,13 +490,13 @@ export function AnomalyScoreTimeline({
                       <div key={label} className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: LEVEL_COLORS[i] }} />
                         <span className="text-slate-400">{label}</span>
-                        <span className="font-mono text-slate-200 ml-auto">{hoverBucket.bins[i].toFixed(1)}</span>
+                        <span className="font-mono text-slate-200 ml-auto">{hoverBucket.bins[i]}</span>
                       </div>
                     ) : null,
                   )}
                   <div className="text-slate-500 pt-0.5 border-t border-slate-700 flex justify-between">
-                    <span>Avg active inputs / s</span>
-                    <span className="font-mono text-slate-300">{hoverBucket.count.toFixed(1)}</span>
+                    <span>Total</span>
+                    <span className="font-mono text-slate-300">{hoverBucket.count}</span>
                   </div>
                 </div>
               ) : (
@@ -482,8 +507,6 @@ export function AnomalyScoreTimeline({
 
           <svg
             ref={svgRef}
-            role="img"
-            aria-label="Scorer active inputs and EWMA timeline"
             width={chartW}
             height={CHART_H + 26}
             className="block"
@@ -635,7 +658,6 @@ export function AnomalyScoreTimeline({
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px]">
-        <span className="text-slate-500">Active-input weights:</span>
         {LEVEL_LABELS.map((label, i) => (
           <span key={label} className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: LEVEL_COLORS[i] }} />
@@ -646,7 +668,6 @@ export function AnomalyScoreTimeline({
           <span className="w-6 h-0.5 inline-block bg-cyan-300" />
           EWMA (ceil={ewmaDisplayMax.toFixed(3)})
         </span>
-        <span className="text-slate-500">Episode severity:</span>
         {Object.entries(SEVERITY_LABELS).map(([lvl, label]) => (
           <span key={lvl} className="flex items-center gap-1">
             <span style={{ color: SEVERITY_COLORS[Number(lvl)] }}>▲▼</span>

@@ -1,6 +1,6 @@
-import { ScenarioSelector } from './ScenarioSelector';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { api } from '../api/client';
 import type { ReportEvent } from '../api/client';
@@ -583,10 +583,9 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
   };
 
   return (
-    <div className="flex-1 flex min-w-0">
-      <aside className="bg-slate-800 border-r border-slate-700 overflow-y-auto shrink-0" style={{ width: sidebarWidth }}>
-        <ScenarioSelector scenarios={scenarios} activeScenario={state.activeScenario} onLoadScenario={actions.loadScenario}
-          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0} />
+    <div className="flex-1 flex">
+      <aside className="bg-slate-800 border-r border-slate-700 overflow-y-auto" style={{ width: sidebarWidth }}>
+        <ScenarioSelector busy={state.connectionState === 'loading'} scenarios={scenarios} activeScenario={state.activeScenario} onLoadScenario={actions.loadScenario} />
 
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Correlators</h2>
@@ -601,9 +600,6 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                   <button
                     type="button"
                     onClick={() => actions.toggleComponent(comp.name)}
-                      aria-label={`Toggle ${comp.displayName}`}
-                      aria-pressed={comp.enabled}
-                      disabled={state.pendingComponents.size > 0 || state.connectionState === 'loading'}
                     className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors flex-shrink-0 ${
                       comp.enabled ? 'bg-purple-600' : 'bg-slate-600'
                     }`}
@@ -663,7 +659,7 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col min-h-0 p-6 overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 p-6 overflow-hidden">
         {state.error && state.connectionState === 'ready' && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6 shrink-0">
             <div className="text-red-400">{state.error}</div>

@@ -29,7 +29,6 @@ interface SeriesTreeProps {
   anomalousSources: Set<string>;
   onToggleMetricType: (metricType: string) => void;
   onSelectionChange: (newSelection: Set<string>) => void;
-  maxSelected?: number;
 }
 
 function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNode {
@@ -98,7 +97,6 @@ interface TreeNodeComponentProps {
   onToggleNode: (keys: string[]) => void;
   expandedPaths: Set<string>;
   onToggleExpanded: (path: string) => void;
-  maxSelected: number;
 }
 
 function TreeNodeComponent({
@@ -113,7 +111,6 @@ function TreeNodeComponent({
   onToggleNode,
   expandedPaths,
   onToggleExpanded,
-  maxSelected,
 }: TreeNodeComponentProps) {
   const isExpanded = expandedPaths.has(node.fullPath);
   const hasChildren = node.children.size > 0;
@@ -140,8 +137,6 @@ function TreeNodeComponent({
       >
         {hasChildren && !node.isLeaf ? (
           <button
-            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.fullPath}`}
-            aria-expanded={isExpanded}
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpanded(node.fullPath);
@@ -156,9 +151,7 @@ function TreeNodeComponent({
 
         <input
           type="checkbox"
-          aria-label={`Select ${node.fullPath}`}
           checked={allSelected}
-          disabled={!allSelected && selectedSeries.size >= maxSelected}
           ref={(el) => {
             if (el) el.indeterminate = someSelected && !allSelected;
           }}
@@ -210,7 +203,7 @@ function TreeNodeComponent({
           <span className="text-xs text-slate-500">{uniqueKeys.length}</span>
         )}
 
-        {hasAnomaly && <span role="img" aria-label="Detector hits in this group" title="Detector hits in this group; this is not a loading or configuration error." className="text-red-500 text-xs">!</span>}
+        {hasAnomaly && <span className="text-red-500 text-xs">!</span>}
       </div>
 
       {isExpanded && hasChildren && (
@@ -229,7 +222,6 @@ function TreeNodeComponent({
               onToggleNode={onToggleNode}
               expandedPaths={expandedPaths}
               onToggleExpanded={onToggleExpanded}
-              maxSelected={maxSelected}
             />
           ))}
         </div>
@@ -245,7 +237,6 @@ export function SeriesTree({
   anomalousSources,
   onToggleMetricType,
   onSelectionChange,
-  maxSelected = Infinity,
 }: SeriesTreeProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
@@ -336,13 +327,13 @@ export function SeriesTree({
 
   useEffect(() => {
     if (hasAutoExpanded.current) return;
-    if (selectedSeries.size === 0 || series.length === 0) return;
+    if (anomalousSources.size === 0 || series.length === 0) return;
 
     hasAutoExpanded.current = true;
     const pathsToExpand = new Set<string>();
 
     for (const s of series) {
-      if (selectedSeries.has(s.key)) {
+      if (anomalousSources.has(s.key)) {
         const nameForTree = s.displayName ?? s.name;
         const parts = nameForTree.split('.');
         let pathSoFar = '';
@@ -354,7 +345,7 @@ export function SeriesTree({
     }
 
     setExpandedPaths(pathsToExpand);
-  }, [selectedSeries, series]);
+  }, [anomalousSources, series]);
 
   if (series.length === 0) {
     return <div className="text-sm text-slate-500">No series available</div>;
@@ -401,7 +392,6 @@ export function SeriesTree({
             onToggleNode={toggleNode}
             expandedPaths={expandedPaths}
             onToggleExpanded={toggleExpanded}
-            maxSelected={maxSelected}
           />
         ))}
       </div>

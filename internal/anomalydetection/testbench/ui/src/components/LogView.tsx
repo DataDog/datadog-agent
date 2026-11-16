@@ -1,8 +1,8 @@
-import { ScenarioSelector } from './ScenarioSelector';
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import * as d3 from 'd3';
 import { api } from '../api/client';
 import type { LogAnomaly, LogEntry, LogsSummary, LogPattern, SeriesData } from '../api/client';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
@@ -22,9 +22,6 @@ interface LogViewProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   phaseMarkers?: PhaseMarker[];
   onJumpToSeries?: (groupKey: string) => void;
-  requestedLogTags?: { tags: string } | null;
-  onRequestedLogTagsConsumed?: () => void;
-  onBackToScorer?: () => void;
   requestedPatternFilter?: string | null;
   onRequestedPatternFilterConsumed?: () => void;
 }
@@ -910,7 +907,7 @@ function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false, onHover
 
 const LOG_PAGE_SIZE = 50;
 
-export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed, requestedLogTags, onRequestedLogTagsConsumed, onBackToScorer }: LogViewProps) {
+export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeChange, phaseMarkers, onJumpToSeries, requestedPatternFilter, onRequestedPatternFilterConsumed }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
@@ -956,20 +953,6 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   const [telemetryLogsPage, setTelemetryLogsPage] = useState<LogEntry[]>([]);
   const [telemetryLogsTotal, setTelemetryLogsTotal] = useState(0);
   const [logsSummary, setLogsSummary] = useState<LogsSummary | null>(state.logsSummary);
-
-  useEffect(() => {
-    if (!requestedLogTags) return;
-    // Apply source filters after the destination tab has been shown.
-    const frame = requestAnimationFrame(() => {
-      setTagFilterInput(requestedLogTags.tags);
-      setActivePatternFilter(null);
-      setSelectedPatternHash(null);
-      setLogPage(1);
-      setLogsExpanded(true);
-      onRequestedLogTagsConsumed?.();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [requestedLogTags, onRequestedLogTagsConsumed]);
 
   // Apply a pattern filter requested from an external tab (e.g. MetricsView "↗ View in logs" button).
   // Also expand the pattern section, open the detail row, and scroll it into view.
@@ -1129,17 +1112,16 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
   }, [sortedAnomalies, timeRange]);
 
   return (
-    <div className="flex-1 flex min-w-0">
+    <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
-        className="bg-slate-800 border-r border-slate-700 overflow-y-auto shrink-0"
+        className="bg-slate-800 border-r border-slate-700 overflow-y-auto"
         style={{ width: sidebarWidth }}
       >
-        <ScenarioSelector
+        <ScenarioSelector busy={state.connectionState === 'loading'}
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
-          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {/* Log Detectors */}
@@ -1282,9 +1264,7 @@ export function LogView({ state, actions, sidebarWidth, timeRange, onTimeRangeCh
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
-        {onBackToScorer && <button type="button" className="mb-3 self-start text-xs text-purple-300 hover:underline" onClick={onBackToScorer}>← Back to scorer event</button>}
-
+      <main className="flex-1 p-6 overflow-y-auto">
         {state.error && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
             <div className="text-red-400">{state.error}</div>

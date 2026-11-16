@@ -6,7 +6,7 @@ import { LogView } from './components/LogView';
 import { ReportsView } from './components/ReportsView';
 import { ScorerView } from './components/ScorerView';
 import { BenchmarkView } from './components/BenchmarkView';
-import type { EpisodeInfo, SeriesInfo } from './api/client';
+import type { EpisodeInfo } from './api/client';
 import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'scorer' | 'benchmark';
@@ -148,8 +148,8 @@ function EpisodeInfoPanel({ info, onShowConfig }: { info: EpisodeInfo; onShowCon
           <span className="text-xs font-mono text-slate-400">Episode</span>
           <span className="text-sm font-semibold text-white">{info.name || info.episode}</span>
           {info.cycle ? <span className="text-xs text-slate-500">#{info.cycle}</span> : null}
-          <span title="Recording execution status from episode metadata; independent of detector accuracy." className={`text-xs px-1.5 py-0.5 rounded font-medium ${(info.success || info.status === 'passed') ? 'bg-green-900/60 text-green-400' : info.success === false || info.status === 'failed' ? 'bg-red-900/60 text-red-400' : 'bg-slate-700 text-slate-400'}`}>
-            {(info.success || info.status === 'passed') ? 'Recorded ✓' : info.success === false || info.status === 'failed' ? 'Recording failed ✗' : 'Status unavailable'}
+          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${(info.success || info.status === 'passed') ? 'bg-green-900/60 text-green-400' : 'bg-red-900/60 text-red-400'}`}>
+            {(info.success || info.status === 'passed') ? '✓' : '✗'}
           </span>
         </div>
 
@@ -288,9 +288,6 @@ function App() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [requestedFocusedGroupKey, setRequestedFocusedGroupKey] = useState<string | null>(null);
-  const [requestedSeries, setRequestedSeries] = useState<SeriesInfo | null>(null);
-  const [requestedLogTags, setRequestedLogTags] = useState<{ tags: string } | null>(null);
-  const [scorerReturn, setScorerReturn] = useState<{ range: TimeRange | null } | null>(null);
   const [requestedPatternFilter, setRequestedPatternFilter] = useState<string | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
@@ -407,9 +404,6 @@ function App() {
     setTimeRangeLive(null);
     setNav({ history: [null], index: 0 });
     setRequestedFocusedGroupKey(null);
-    setRequestedSeries(null);
-    setRequestedLogTags(null);
-    setScorerReturn(null);
   }, [state.activeScenario]);
 
   // Once episode info arrives for a freshly loaded scenario, apply its time range as default
@@ -423,12 +417,27 @@ function App() {
   }, [episodeTimeRange, episodeInfo]);
 
   const activeTimeRange = timeRange ?? scenarioTimeRange;
-
-  const backToScorer = scorerReturn ? () => {
-    commitTimeRange(scorerReturn.range);
-    setActiveTab('scorer');
-    setScorerReturn(null);
-  } : undefined;
+  const timePresets = useMemo(() => {
+    const presets: { id: string; label: string; range: TimeRange }[] = [];
+    const recordingRange = episodeTimeRange ?? scenarioTimeRange;
+    if (recordingRange) presets.push({ id: 'recording', label: 'Full recording', range: recordingRange });
+    const phaseKeys = episodeInfo?.mode === 'healthy-control'
+      ? (['warmup', 'evaluation_window'] as const)
+      : (['warmup', 'baseline', 'disruption', 'cooldown'] as const);
+    for (const key of phaseKeys) {
+      const phase = episodeInfo?.[key];
+      if (!phase) continue;
+      const start = Date.parse(phase.start) / 1000;
+      const end = Date.parse(phase.end) / 1000;
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+        presets.push({ id: key, label: PHASE_STYLES[key].label, range: { start, end } });
+      }
+    }
+    return presets;
+  }, [episodeInfo, episodeTimeRange, scenarioTimeRange]);
+  const selectedTimePreset = timePresets.find(preset =>
+    preset.range.start === activeTimeRange?.start && preset.range.end === activeTimeRange?.end
+  )?.id ?? 'custom';
 
   // Sidebar resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -569,9 +578,25 @@ function App() {
             {/* Global time span control (available in all tabs) */}
             {activeTimeRange && (
               <div
-                className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5"
+                className="flex flex-wrap items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5"
                 title="middle-drag or cmd+drag to pan"
               >
+                <label className="flex items-center gap-2 text-xs text-slate-400">
+                  Zoom to
+                  <select
+                    aria-label="Zoom to time window"
+                    title="Choose a phase, drag a chart, or edit the timestamps for a custom range"
+                    value={selectedTimePreset}
+                    onChange={event => {
+                      const preset = timePresets.find(option => option.id === event.target.value);
+                      if (preset) commitTimeRange(preset.range);
+                    }}
+                    className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {timePresets.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                    <option value="custom" disabled>Custom range</option>
+                  </select>
+                </label>
                 <span className="text-xs text-slate-400">Time Span:</span>
                 <EditableTimestamp
                   value={activeTimeRange.start}
@@ -582,16 +607,6 @@ function App() {
                   value={activeTimeRange.end}
                   onChange={end => commitTimeRange({ start: activeTimeRange.start, end })}
                 />
-                {/* Two reset buttons: scenario range vs all data */}
-                {episodeTimeRange && (
-                  <button
-                    onClick={() => commitTimeRange(episodeTimeRange)}
-                    className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-purple-700 rounded text-slate-300"
-                    title="Reset to scenario time range (from episode.json)"
-                  >
-                    Scenario
-                  </button>
-                )}
                 <button
                   onClick={() => commitTimeRange(null)}
                   className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
@@ -603,7 +618,7 @@ function App() {
             )}
             {!activeTimeRange && state.connectionState === 'ready' && (
               <span className="text-xs text-slate-500" title="middle-drag or cmd+drag to pan">
-                {activeTab === 'timeseries' ? 'Drag a chart to inspect a window' : 'Drag a chart to zoom'}
+                Drag a chart to zoom
               </span>
             )}
 
@@ -694,7 +709,7 @@ function App() {
         />
 
         {/* Tab content - both tabs stay mounted to preserve state */}
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'timeseries' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'timeseries' ? 'hidden' : ''}`}>
           <MetricsView
             state={state}
             actions={actions}
@@ -703,13 +718,6 @@ function App() {
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
             phaseMarkers={phaseMarkers}
-            requestedSeries={requestedSeries}
-            onRequestedSeriesConsumed={() => setRequestedSeries(null)}
-            onBackToScorer={backToScorer}
-            onResumeInspection={() => {
-              if (scorerReturn) commitTimeRange(scorerReturn.range);
-              setScorerReturn(null);
-            }}
             requestedFocusedGroupKey={requestedFocusedGroupKey}
             onRequestedFocusedGroupKeyConsumed={() => setRequestedFocusedGroupKey(null)}
             onJumpToPattern={(patternHash) => {
@@ -718,7 +726,7 @@ function App() {
             }}
           />
         </div>
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
           <CorrelatorView
             state={state}
             actions={actions}
@@ -727,7 +735,7 @@ function App() {
             phaseMarkers={phaseMarkers}
           />
         </div>
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'logs' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'logs' ? 'hidden' : ''}`}>
           <LogView
             state={state}
             actions={actions}
@@ -739,14 +747,11 @@ function App() {
               setRequestedFocusedGroupKey(groupKey);
               setActiveTab('timeseries');
             }}
-            requestedLogTags={requestedLogTags}
-            onRequestedLogTagsConsumed={() => setRequestedLogTags(null)}
-            onBackToScorer={backToScorer}
             requestedPatternFilter={requestedPatternFilter}
             onRequestedPatternFilterConsumed={() => setRequestedPatternFilter(null)}
           />
         </div>
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'reports' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'reports' ? 'hidden' : ''}`}>
           <ReportsView
             onInspectEpisode={(start, end) => {
               commitTimeRange({ start: start - 30, end: Math.max(start + 30, end + 10) });
@@ -760,7 +765,7 @@ function App() {
             phaseMarkers={phaseMarkers}
           />
         </div>
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'scorer' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'scorer' ? 'hidden' : ''}`}>
           <ScorerView
             state={state}
             actions={actions}
@@ -768,22 +773,9 @@ function App() {
             phaseMarkers={phaseMarkers.filter(marker => marker.key !== 'baseline' && marker.key !== 'baseline-mute')}
             timeRange={activeTimeRange}
             onTimeRangeChange={commitTimeRange}
-            isActive={activeTab === 'scorer'}
-            onInspectSeries={(series, range) => {
-              setScorerReturn({ range: activeTimeRange });
-              setRequestedSeries(series);
-              commitTimeRange(range);
-              setActiveTab('timeseries');
-            }}
-            onInspectLogs={(range, tags) => {
-              setScorerReturn({ range: activeTimeRange });
-              setRequestedLogTags({ tags });
-              commitTimeRange(range);
-              setActiveTab('logs');
-            }}
           />
         </div>
-        <div className={`flex-1 flex min-w-0 ${activeTab !== 'benchmark' ? 'hidden' : ''}`}>
+        <div className={`flex-1 flex ${activeTab !== 'benchmark' ? 'hidden' : ''}`}>
           <BenchmarkView
             state={state}
             actions={actions}

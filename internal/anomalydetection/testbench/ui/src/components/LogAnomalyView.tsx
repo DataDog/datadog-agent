@@ -1,6 +1,6 @@
-import { ScenarioSelector } from './ScenarioSelector';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { LogAnomaly } from '../api/client';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 
 interface LogAnomalyViewProps {
@@ -253,18 +253,17 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
   }, [filteredAnomalies]);
 
   return (
-    <div className="flex-1 flex min-w-0">
+    <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
         className="bg-slate-800 border-r border-slate-700 flex flex-col"
         style={{ width: sidebarWidth }}
       >
         {/* Scenario selector */}
-        <ScenarioSelector
+        <ScenarioSelector busy={state.connectionState === 'loading'}
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
-          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {/* Detector filter */}
@@ -344,7 +343,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 p-6 overflow-y-auto">
+      <main className="flex-1 p-6 overflow-y-auto">
         {state.error && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
             <div className="text-red-400">{state.error}</div>

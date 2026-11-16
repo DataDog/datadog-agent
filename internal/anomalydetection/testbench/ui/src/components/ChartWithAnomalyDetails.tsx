@@ -37,8 +37,6 @@ interface ChartWithAnomalyDetailsProps {
   isTelemetry?: boolean;
   phaseMarkers?: PhaseMarker[];
   subtitle?: React.ReactNode;
-  inspectionRange?: TimeRange | null;
-  onInspectRange?: (range: TimeRange) => void;
 }
 
 function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
@@ -96,8 +94,6 @@ export function ChartWithAnomalyDetails({
   isTelemetry = false,
   phaseMarkers,
   subtitle,
-  inspectionRange,
-  onInspectRange,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
@@ -121,7 +117,7 @@ export function ChartWithAnomalyDetails({
 
   const formatFieldName = (key: string) => {
     // Convert camelCase to Title Case: "baselineMean" -> "Baseline Mean"
-    return key.replace(/^baseline/, 'reference')
+    return key
       .replace(/([A-Z])/g, ' $1')
       .replace(/^./, (s) => s.toUpperCase())
       .trim();
@@ -219,8 +215,6 @@ export function ChartWithAnomalyDetails({
         onMarkerClick={handleMarkerClick}
         isTelemetry={isTelemetry}
         phaseMarkers={phaseMarkers}
-        inspectionRange={inspectionRange}
-        onInspectRange={onInspectRange}
       />
 
       {/* Optional subtitle — e.g. log pattern info */}
@@ -234,8 +228,7 @@ export function ChartWithAnomalyDetails({
       {filteredAnomalies.length > 0 && (
         <details ref={anomalyDetailsRef} className="border-t border-slate-700 px-4 py-2">
           <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-200">
-            {filteredAnomalies.length} anomal{filteredAnomalies.length === 1 ? 'y' : 'ies'} {inspectionRange ? 'in chart' : 'detected'}
-            {inspectionRange && ` · ${filteredAnomalies.filter(anomaly => anomaly.timestamp >= inspectionRange.start && anomaly.timestamp <= inspectionRange.end).length} in inspected window`}
+            {filteredAnomalies.length} anomal{filteredAnomalies.length === 1 ? 'y' : 'ies'} detected
           </summary>
           <div className="space-y-0 mt-1">
             {filteredAnomalies.map((anomaly, idx) => {
@@ -286,7 +279,7 @@ export function ChartWithAnomalyDetails({
                       {formatTimestamp(anomaly.timestamp)}
                     </span>
                     <span className="text-slate-300 flex-1 truncate">
-                      {debug ? `${formatValue(debug.deviationSigma)}σ from reference` : anomaly.title}
+                      {debug ? `${formatValue(debug.deviationSigma)}σ from baseline` : anomaly.title}
                     </span>
                     {anomaly.tags && anomaly.tags.length > 0 && (() => {
                       const headerTags = anomaly.tags.filter((tag) =>
@@ -310,12 +303,12 @@ export function ChartWithAnomalyDetails({
                     <div className="ml-1 mt-1 mb-2 p-2 bg-slate-900/50 rounded border border-slate-700/50">
                       {debug && (
                         <>
-                          <p className="mb-2 text-[10px] text-slate-400">Detector reference statistics; independent of the recording’s Baseline phase.</p>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                             {Object.entries(debug).map(([key, value]) => {
                               // Skip array fields in the grid (rendered separately below)
                               if (Array.isArray(value)) return null;
-                              if (value == null) return null;
+                              // Skip zero/null values
+                              if (value === 0 && key !== 'deviationSigma') return null;
                               return (
                                 <div key={key} className="contents">
                                   <div className="text-slate-500">{formatFieldName(key)}:</div>

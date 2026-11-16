@@ -1,8 +1,8 @@
-import { ScenarioSelector } from './ScenarioSelector';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 import { api } from '../api/client';
 import type { DetectorProcessingStats, ReplayStats } from '../api/client';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { TagFilterGroups } from './TagFilterGroups';
 import { parseTagFilter, toggleTagInInput, matchesTagFilter } from '../filters';
@@ -45,9 +45,6 @@ function fmtTotal(ns: number): string {
   if (ms < 1_000) return ms.toFixed(1) + 'ms';
   return (ms / 1_000).toFixed(3) + 's';
 }
-
-// ── Scenario selector (same as other views) ───────────────────────────────────
-
 
 // ── Bar chart ─────────────────────────────────────────────────────────────────
 
@@ -516,17 +513,16 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
   }, [hoveredDetector, tagFilterInput, stats]);
 
   return (
-    <div className="flex-1 flex min-w-0">
+    <div className="flex-1 flex">
       {/* Sidebar */}
       <aside
         className="bg-slate-800 border-r border-slate-700 overflow-y-auto flex-shrink-0"
         style={{ width: sidebarWidth }}
       >
-        <ScenarioSelector
+        <ScenarioSelector busy={state.connectionState === 'loading'}
           scenarios={state.scenarios ?? []}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
-          busy={state.connectionState === 'loading' || state.pendingComponents.size > 0}
         />
 
         {stats.length > 0 && (
@@ -592,7 +588,7 @@ export function BenchmarkView({ state, actions, sidebarWidth }: BenchmarkViewPro
       </aside>
 
       {/* Main area */}
-      <main className="flex-1 min-w-0 flex flex-col min-h-0 p-6 overflow-auto">
+      <main className="flex-1 flex flex-col min-h-0 p-6 overflow-auto">
         {/* Empty states */}
         {state.connectionState === 'disconnected' && (
           <div className="text-center py-20">

@@ -26,7 +26,6 @@ export interface ObserverState {
   activeScenario: string | null;
   error: string | null;
   loadProgress: ReplayProgress | null;
-  pendingComponents: Set<string>;
 }
 
 export interface ObserverActions {
@@ -55,12 +54,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [error, setError] = useState<string | null>(null);
   const [loadProgress, setLoadProgress] = useState<ReplayProgress | null>(null);
 
-  const [pendingComponents, setPendingComponents] = useState<Set<string>>(new Set());
-  const pendingComponentsRef = useRef(new Set<string>());
-  const metadataReadyRef = useRef(false);
-  const scenarioRef = useRef<string | null>(null);
-  const generationRef = useRef(0);
-  const fetchingRef = useRef<{ generation: number; promise: Promise<boolean> } | null>(null);
+  const fetchingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearRetryTimer = useCallback(() => {
@@ -78,105 +72,92 @@ export function useObserver(): [ObserverState, ObserverActions] {
     }, delayMs);
   }, []);
 
-  const fetchScenarioData = useCallback(() => {
-    const generation = generationRef.current;
-    if (fetchingRef.current?.generation === generation) return fetchingRef.current.promise;
-    const promise = (async () => {
-      try {
-        const [
-          componentsData, anomaliesData, logsSummaryData, logAnomaliesData,
-          correlationsData, reportsData, compressedGroupsData, statsData, seriesData
-        ] = await Promise.all([
-          api.getComponents(),
-          api.getAnomalies(),
-          api.getLogsSummary(),
-          api.getLogAnomalies(),
-          api.getCorrelations(),
-          api.getReports(),
-          api.getCompressedCorrelations(),
-          api.getStats(),
-          api.getSeries(),
-        ]);
+  const fetchScenarioData = useCallback(async () => {
+    if (fetchingRef.current) return null;
+    fetchingRef.current = true;
+    try {
+      const [
+        componentsData, anomaliesData, logsSummaryData, logAnomaliesData,
+        correlationsData, reportsData, compressedGroupsData, statsData, seriesData
+      ] = await Promise.all([
+        api.getComponents(),
+        api.getAnomalies(),
+        api.getLogsSummary(),
+        api.getLogAnomalies(),
+        api.getCorrelations(),
+        api.getReports(),
+        api.getCompressedCorrelations(),
+        api.getStats(),
+        api.getSeries(),
+      ]);
 
-        if (generation !== generationRef.current) return false;
-        const componentNames = (componentsData ?? []).map((c: ComponentInfo) => c.name);
-        const componentDataResults = await Promise.all(
-          componentNames.map(async (name: string) => {
-            try {
-              const data = await api.getComponentData(name);
-              return [name, data] as [string, ComponentDataResponse];
-            } catch {
-              return [name, { enabled: false, data: null }] as [string, ComponentDataResponse];
-            }
-          })
-        );
+      const componentNames = componentsData.map((c: ComponentInfo) => c.name);
+      const componentDataResults = await Promise.all(
+        componentNames.map(async (name: string) => {
+          try {
+            const data = await api.getComponentData(name);
+            return [name, data] as [string, ComponentDataResponse];
+          } catch {
+            return [name, { enabled: false, data: null }] as [string, ComponentDataResponse];
+          }
+        })
+      );
 
-        if (generation !== generationRef.current) return false;
-        setComponents(componentsData ?? []);
-        setSeries(seriesData ?? []);
-        setAnomalies(anomaliesData ?? []);
-        setLogs([]);
-        setLogsSummary(logsSummaryData);
-        setLogAnomalies(logAnomaliesData ?? []);
-        setCorrelations(correlationsData ?? []);
-        setReports(reportsData ?? []);
-        setCompressedGroups(compressedGroupsData ?? []);
-        setComponentData(new Map(componentDataResults));
-        setCorrelatorStats(statsData);
-        setScenarioDataVersion((v) => v + 1);
-        clearRetryTimer();
-        metadataReadyRef.current = true;
-        setConnectionState('ready');
-        setLoadProgress(null);
-        setError(null);
-        return true;
-      } catch (e) {
-        if (generation !== generationRef.current) return false;
-        console.error('fetchScenarioData failed:', e);
-        setError(e instanceof Error ? e.message : 'Failed to refresh scenario data');
-        scheduleScenarioRetry();
-        return false;
-      } finally {
-        if (fetchingRef.current?.generation === generation) fetchingRef.current = null;
-      }
-    })();
-    fetchingRef.current = { generation, promise };
-    return promise;
+      setComponents(componentsData);
+      setSeries(seriesData);
+      setAnomalies(anomaliesData);
+      setLogs([]);
+      setLogsSummary(logsSummaryData);
+      setLogAnomalies(logAnomaliesData);
+      setCorrelations(correlationsData);
+      setReports(reportsData);
+      setCompressedGroups(compressedGroupsData);
+      setComponentData(new Map(componentDataResults));
+      setCorrelatorStats(statsData);
+      setScenarioDataVersion((v) => v + 1);
+      clearRetryTimer();
+      setError(null);
+      return true;
+    } catch (e) {
+      console.error('fetchScenarioData failed:', e);
+      setError(e instanceof Error ? e.message : 'Failed to refresh scenario data');
+      scheduleScenarioRetry();
+      return false;
+    } finally {
+      fetchingRef.current = false;
+    }
   }, [clearRetryTimer, scheduleScenarioRetry]);
 
   // Stable ref so SSE listener always calls the latest fetchScenarioData without re-subscribing.
   const fetchScenarioDataRef = useRef(fetchScenarioData);
   fetchScenarioDataRef.current = fetchScenarioData;
 
-  const adoptStatus = useCallback((statusData: StatusResponse) => {
-    if (scenarioRef.current !== statusData.scenario || (!statusData.ready && metadataReadyRef.current)) {
-      generationRef.current += 1;
-      metadataReadyRef.current = false;
-      scenarioRef.current = statusData.scenario;
-    }
-    setStatus(statusData);
-    setActiveScenario(statusData.scenario || null);
-    setError(null);
-    if (statusData.ready && statusData.scenario) {
-      setConnectionState(metadataReadyRef.current ? 'ready' : 'loading');
-      setLoadProgress(null);
-    } else {
-      setConnectionState(statusData.scenario ? 'loading' : 'connected');
-    }
-  }, []);
-
-  // Reconcile after mutations, sharing metadata requests with SSE updates.
+  // Reconciliation: after a mutating action, if no SSE status arrives within
+  // this timeout, fall back to a direct fetch so the UI never stays stale.
   const reconcile = useCallback(async () => {
     try {
       const statusData = await api.getStatus();
-      adoptStatus(statusData);
-      if (statusData.ready && statusData.scenario) await fetchScenarioData();
+      setStatus(statusData);
+      setError(null);
+      if (statusData.ready && statusData.scenario) {
+        setConnectionState('ready');
+        setActiveScenario(statusData.scenario);
+        setLoadProgress(null);
+        const ok = await fetchScenarioData();
+        if (ok === false) {
+          scheduleScenarioRetry();
+        }
+      } else if (statusData.scenario) {
+        setConnectionState('loading');
+      } else {
+        setConnectionState('connected');
+      }
     } catch (e) {
       console.error('reconcile failed:', e);
       setError(e instanceof Error ? e.message : 'Failed to reconcile observer state');
       scheduleScenarioRetry();
     }
-  }, [adoptStatus, fetchScenarioData, scheduleScenarioRetry]);
+  }, [fetchScenarioData, scheduleScenarioRetry]);
 
   // SSE connection — single persistent stream replaces all polling.
   useEffect(() => {
@@ -184,8 +165,20 @@ export function useObserver(): [ObserverState, ObserverActions] {
 
     es.addEventListener('status', (e: MessageEvent) => {
       const statusData: StatusResponse = JSON.parse(e.data);
-      adoptStatus(statusData);
-      if (statusData.ready && statusData.scenario) fetchScenarioDataRef.current();
+      setStatus(statusData);
+      setError(null);
+
+      if (statusData.ready && statusData.scenario) {
+        setConnectionState('ready');
+        setActiveScenario(statusData.scenario);
+        setLoadProgress(null);
+        fetchScenarioDataRef.current();
+      } else if (statusData.scenario) {
+        setConnectionState('loading');
+        setActiveScenario(statusData.scenario);
+      } else {
+        setConnectionState('connected');
+      }
     });
 
     es.addEventListener('progress', (e: MessageEvent) => {
@@ -198,16 +191,13 @@ export function useObserver(): [ObserverState, ObserverActions] {
     };
 
     es.onerror = () => {
-      generationRef.current += 1;
-      metadataReadyRef.current = false;
-      clearRetryTimer();
       setConnectionState('disconnected');
       setError('Connection lost. Reconnecting...');
       // EventSource auto-reconnects; on reconnect the hub replays latest status.
     };
 
     // Fetch scenarios once (rarely change, not worth pushing via SSE).
-    api.getScenarios().then(data => setScenarios(data ?? [])).catch(() => {});
+    api.getScenarios().then(setScenarios).catch(() => {});
 
     return () => {
       clearRetryTimer();
@@ -216,22 +206,10 @@ export function useObserver(): [ObserverState, ObserverActions] {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadScenario = useCallback(async (name: string) => {
-    generationRef.current += 1;
-    scenarioRef.current = name;
-    metadataReadyRef.current = false;
-    clearRetryTimer();
     setConnectionState('loading');
     setActiveScenario(name);
     setSeries([]);
-    setAnomalies([]);
-    setLogAnomalies([]);
-    setLogs([]);
-    setLogsSummary(null);
     setReports([]);
-    setCorrelations([]);
-    setCompressedGroups([]);
-    setComponentData(new Map());
-    setScenarioDataVersion(0);
     setLoadProgress(null);
     setError(null);
 
@@ -241,11 +219,10 @@ export function useObserver(): [ObserverState, ObserverActions] {
       // Fall back to direct fetch in case the SSE event was missed.
       await reconcile();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to load scenario';
-      await reconcile();
-      setError(message);
+      setError(e instanceof Error ? e.message : 'Failed to load scenario');
+      setConnectionState('connected');
     }
-  }, [reconcile, clearRetryTimer]);
+  }, [reconcile]);
 
   const requestedScenario = useRef(new URLSearchParams(window.location.search).get('scenario') || import.meta.env.VITE_SCENARIO);
   useEffect(() => {
@@ -261,9 +238,6 @@ export function useObserver(): [ObserverState, ObserverActions] {
   }, [fetchScenarioData]);
 
   const toggleComponent = useCallback(async (name: string) => {
-    if (pendingComponentsRef.current.size > 0) return;
-    pendingComponentsRef.current.add(name);
-    setPendingComponents(new Set(pendingComponentsRef.current));
     try {
       await api.toggleComponent(name);
       // SSE status event normally triggers refresh.
@@ -272,9 +246,6 @@ export function useObserver(): [ObserverState, ObserverActions] {
     } catch (e) {
       console.error('Failed to toggle component:', e);
       setError(e instanceof Error ? e.message : 'Failed to toggle component');
-    } finally {
-      pendingComponentsRef.current.delete(name);
-      setPendingComponents(new Set(pendingComponentsRef.current));
     }
   }, [reconcile]);
 
@@ -298,7 +269,6 @@ export function useObserver(): [ObserverState, ObserverActions] {
       activeScenario,
       error,
       loadProgress,
-      pendingComponents,
     },
     {
       loadScenario,

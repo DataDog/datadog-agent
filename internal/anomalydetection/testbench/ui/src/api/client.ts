@@ -421,8 +421,8 @@ class ApiClient {
     return this.fetch(`/series/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
   }
 
-  async getSeriesDataByID(id: string, signal?: AbortSignal): Promise<SeriesData> {
-    return this.fetch(`/series/id/${encodeURIComponent(id)}`, { signal });
+  async getSeriesDataByID(id: string): Promise<SeriesData> {
+    return this.fetch(`/series/id/${encodeURIComponent(id)}`);
   }
 
   async getAnomalies(detector?: string): Promise<Anomaly[]> {
