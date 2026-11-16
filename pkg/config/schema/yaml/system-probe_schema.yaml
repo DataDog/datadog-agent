@@ -243,8 +243,10 @@ properties:
         default: true
         visibility: public
         description: |-
-          Connect to the netlink/conntrack subsystem to add network address
-          translation (NAT) information to connection data.
+          Add network address translation (NAT) information to connection data
+          by tracking the kernel's conntrack table. An eBPF-based conntracker is
+          used by default; system-probe falls back to netlink/conntrack if it
+          cannot be loaded.
           See http://conntrack-tools.netfilter.org/
       enable_conntrack_all_namespaces:
         node_type: setting
@@ -467,7 +469,9 @@ properties:
           The maximum number of connections that can be tracked. This determines
           the size of the eBPF maps. When the limit is reached, new connections
           are not tracked until existing ones close. Increase this value on hosts
-          with a large number of concurrent connections.
+          with a large number of concurrent connections. Unless set explicitly,
+          the closed- and failed-connection buffers default to this value, so
+          raising it increases system-probe memory use beyond the eBPF maps.
         tags:
         - golang_type:int64
       memory_controller:
@@ -705,7 +709,12 @@ properties:
         type: string
         default: 10s
         visibility: public
-        description: The time to wait for conntrack to initialize before failing.
+        description: |-
+          The time to wait for conntrack to initialize. If the eBPF conntracker
+          does not initialize within this time, system-probe falls back to the
+          netlink conntracker, which uses the same timeout. If that also fails,
+          system-probe does not start unless
+          network_config.ignore_conntrack_init_failure is set to true.
         format: duration
         tags:
         - golang_type:duration
