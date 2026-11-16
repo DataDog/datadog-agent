@@ -900,19 +900,27 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	var tags [][]string
+	var profileTags [][]string
+	var disabledProfileTags [][]string
 	m.profilesLock.Lock()
 	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
 		profiles = append(profiles, prof)
+		tags := []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag}
+		profileTags = append(profileTags, tags)
 		if prof.IsEnabled() {
 			continue
 		}
-		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+		disabledProfileTags = append(disabledProfileTags, tags)
 	}
 	m.profilesLock.Unlock()
 
-	for _, tag := range tags {
+	for _, tag := range profileTags {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2Profiles, 1, tag, 1.0); err != nil {
+			return err
+		}
+	}
+	for _, tag := range disabledProfileTags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
 		}

@@ -639,6 +639,11 @@ var (
 
 	// Event Processing metrics
 
+	// MetricSecurityProfileV2Profiles is the name of the metric used to report the profiles held by this host.
+	// A gauge of 1 is emitted per profile, so the number of profiles is the sum of the series.
+	// Tags: profile_image_name, profile_image_tag
+	MetricSecurityProfileV2Profiles = newRuntimeMetric(".security_profile_v2.profiles")
+
 	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
 	// Tags: profile_image_name, profile_image_tag
 	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
