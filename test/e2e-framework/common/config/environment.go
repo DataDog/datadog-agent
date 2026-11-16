@@ -236,7 +236,7 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.34")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.37")
 }
 
 func (e *CommonEnvironment) KindVersion() string {
@@ -329,9 +329,11 @@ func (e *CommonEnvironment) AgentFlavor() string {
 func (e *CommonEnvironment) AgentLocalPackage() string {
 	return e.AgentConfig.Get(DDAgentLocalPackage)
 }
+
 func (e *CommonEnvironment) AgentLocalChartPath() string {
 	return e.AgentConfig.Get(DDAgentLocalChartPath)
 }
+
 func (e *CommonEnvironment) PipelineID() string {
 	return e.AgentConfig.Get(DDAgentPipelineID)
 }
@@ -359,9 +361,11 @@ func (e *CommonEnvironment) OperatorVersion() string {
 func (e *CommonEnvironment) OperatorFullImagePath() string {
 	return e.OperatorConfig.Get(DDOperatorFullImagePathParamName)
 }
+
 func (e *CommonEnvironment) OperatorLocalChartPath() string {
 	return e.OperatorConfig.Get(DDOperatorLocalChartPath)
 }
+
 func (e *CommonEnvironment) ImagePullRegistry() string {
 	return e.AgentConfig.Get(DDImagePullRegistryParamName)
 }
@@ -415,7 +419,6 @@ func (e *CommonEnvironment) MajorVersion() string {
 func (e *CommonEnvironment) AgentExtraEnvVars() map[string]string {
 	result := make(map[string]string)
 	envVars, err := e.AgentConfig.Try(DDAgentExtraEnvVars)
-
 	// If not found
 	if err != nil {
 		return result

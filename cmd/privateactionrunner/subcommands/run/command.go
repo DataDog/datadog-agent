@@ -33,6 +33,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	pcapuploaderfx "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/fx"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -40,8 +41,8 @@ import (
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -102,7 +103,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
-			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
+			LogParams:    log.ForDaemon(command.LoggerName, par.LogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile()),
 		}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -124,6 +125,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		pcapuploaderfx.Module(),
 		statsdfx.Module(),
 		fx.Invoke(startTelemetryServer),
 		privateactionrunnerfx.Module(),

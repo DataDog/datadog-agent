@@ -1,0 +1,12 @@
+description: Line continuation inside quoted variable assignment value joins lines.
+input:
+  script: |+
+    X="hel\
+    lo wor\
+    ld"
+    echo "$X"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

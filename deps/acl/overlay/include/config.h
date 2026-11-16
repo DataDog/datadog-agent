@@ -14,9 +14,9 @@
 /* Define to 1 if you have the <attr/error_context.h> header file. */
 #define HAVE_ATTR_ERROR_CONTEXT_H 1
 
-/* Define to 1 if you have the Mac OS X function CFLocaleCopyCurrent in the
-   CoreFoundation framework. */
-/* #undef HAVE_CFLOCALECOPYCURRENT */
+/* Define to 1 if you have the Mac OS X function
+   CFLocaleCopyPreferredLanguages in the CoreFoundation framework. */
+/* #undef HAVE_CFLOCALECOPYPREFERREDLANGUAGES */
 
 /* Define to 1 if you have the Mac OS X function CFPreferencesCopyAppValue in
    the CoreFoundation framework. */
@@ -29,6 +29,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
+/* Define to 1 if you have the 'getxattrat' function. */
+/* #undef HAVE_GETXATTRAT */
+
 /* Define if the GNU gettext() function is already present or preinstalled. */
 /* #undef HAVE_GETTEXT */
 
@@ -38,14 +41,29 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
-/* Define to 1 if you have the `attr' library (-lattr). */
-#define HAVE_LIBATTR 1
+/* Define to 1 if you have the <linux/openat2.h> header file. */
+#define HAVE_LINUX_OPENAT2_H 1
 
-/* Define to 1 if you have the <memory.h> header file. */
-#define HAVE_MEMORY_H 1
+/* Define to 1 if you have the 'listxattrat' function. */
+/* #undef HAVE_LISTXATTRAT */
+
+/* Define to 1 if you have the <minix/config.h> header file. */
+/* #undef HAVE_MINIX_CONFIG_H */
+
+/* Define to 1 if you have the 'openat2' function. */
+/* #undef HAVE_OPENAT2 */
+
+/* Define to 1 if you have the 'removexattrat' function. */
+/* #undef HAVE_REMOVEXATTRAT */
+
+/* Define to 1 if you have the 'setxattrat' function. */
+/* #undef HAVE_SETXATTRAT */
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#define HAVE_STDIO_H 1
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
@@ -65,6 +83,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
+/* Define to 1 if you have the <wchar.h> header file. */
+#define HAVE_WCHAR_H 1
+
 /* GCC supports visibility attributes */
 #define HAVE_VISIBILITY_ATTRIBUTE /**/
 
@@ -81,7 +102,7 @@
 #define PACKAGE_NAME "acl"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "acl 2.3.1"
+#define PACKAGE_STRING "acl 2.4.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "acl"
@@ -90,10 +111,18 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.3.1"
+#define PACKAGE_VERSION "2.4.0"
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
+
+/* Define to enable unsafe restore warnings */
+/* #undef UNSAFE_RESTORE_WARNINGS */
+
+/* Define to use openat2 syscall */
+#define USE_OPENAT2 1
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
@@ -118,7 +147,7 @@
 
 
 /* Version number of package */
-#define VERSION "2.3.1"
+#define VERSION "2.4.0"
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment of the host SBOM reports the packages of the
+    running kernel, its image, its built-in modules and its loaded modules,
+    as running as root, where they read as not running.
+  - |
+    The runtime usage of a removed kernel package stays with it, where it
+    spread to the kernels installed beside it.

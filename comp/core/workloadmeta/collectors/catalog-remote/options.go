@@ -29,7 +29,6 @@ func remoteWorkloadmetaParams() fx.Option {
 			AddKind(workloadmeta.KindKubernetesPod).
 			AddKind(workloadmeta.KindECSTask).
 			AddKind(workloadmeta.KindProcess).
-			AddKind(workloadmeta.KindContainerImageMetadata).
 			Build()
 
 		return remoteworkloadmeta.Params{

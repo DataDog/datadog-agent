@@ -19,13 +19,11 @@ import (
 	"path"
 	"runtime"
 	"slices"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
-	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/DataDog/rshell/interp"
-	"github.com/DataDog/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -309,7 +307,12 @@ func (h *RunCommandHandler) Run(
 	if inputs.EffectivePermissions != "" {
 		switch inputs.EffectivePermissions {
 		case privilegedhelper.EscalationAllowed:
-			return h.runPrivileged(ctx, task, inputs)
+			if h.privilegedEnabled {
+				return h.runPrivileged(ctx, task, inputs)
+			}
+			// Permission to elevate does not require elevation. Without local
+			// opt-in, the ordinary interpreter runs commands and rejects sudo
+			// if it is invoked, including through shell expansion.
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:
@@ -333,7 +336,7 @@ func (h *RunCommandHandler) Run(
 	log.Infof("rshell runCommand (mode=%s): backendAllowedCommands=%v effectiveAllowedCommands=%v elevatableCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v procPath=%s systemdTarget=%+v disableDetailedTelemetry=%v",
 		h.mode, backendCommands, effectiveAllowedCommands, inputs.ElevatableCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices, procPath, systemdTarget, h.disableCommandTelemetry)
 
-	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
+	prog, err := interp.ParseScript(inputs.Command, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}

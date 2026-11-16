@@ -62,6 +62,7 @@ dd_agent_go_test(
     name = "agent_test",
     srcs = ["docker_image_test.go"],
     embed = [":agent"],
+    tags = ["go_link:enormous"],
     deps = [
         "//test/e2e-framework/common/config",
         "@com_github_pulumi_pulumi_sdk_v3//go/common/resource",

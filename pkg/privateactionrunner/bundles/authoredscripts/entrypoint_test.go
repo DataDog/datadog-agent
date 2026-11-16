@@ -6,6 +6,7 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -29,7 +30,7 @@ func (*entrypointTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, 
 
 func TestAuthoredScriptsGetAction(t *testing.T) {
 	client := &entrypointTestRCClient{}
-	bundle, err := NewAuthoredScripts(client)
+	bundle, err := NewAuthoredScripts(client, http.DefaultClient)
 	require.NoError(t, err)
 	require.Equal(t, state.ProductUpdaterCatalogDD, client.product)
 	require.NotNil(t, client.handler)

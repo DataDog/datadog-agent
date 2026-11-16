@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	modpsapi                  = windows.NewLazyDLL("psapi.dll")
-	modkernel                 = windows.NewLazyDLL("kernel32.dll")
+	modpsapi                  = windows.NewLazySystemDLL("psapi.dll")
+	modkernel                 = windows.NewLazySystemDLL("kernel32.dll")
 	procGetProcessMemoryInfo  = modpsapi.NewProc("GetProcessMemoryInfo")
 	procGetProcessHandleCount = modkernel.NewProc("GetProcessHandleCount")
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")

@@ -33,12 +33,12 @@
 --     process — tokens flow from the upstream Aggregator's
 --     AggregatedMessageWithTokens.tokens. The Sampler treats
 --     tokens as opaque inputs whose semantics are described in
---     tokenizer.allium.
+--     pkg/logs/tokenizer/tokenizer.allium.
 --   - Caller-side selection of which Sampler implementation a
 --     particular log source uses. That is a preprocessor
 --     configuration concern, not part of the contract.
 
-use "./tokenizer.allium" as tokenizer
+use "../../../tokenizer/tokenizer.allium" as tokenizer
 
 ------------------------------------------------------------
 -- Value Types

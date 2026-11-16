@@ -1,0 +1,13 @@
+description: tail -v -n 0 produces no output and no header even with verbose flag.
+setup:
+  files:
+    - path: one.txt
+      content: "only one line\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -v -n 0 one.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -10,17 +10,24 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"slices"
 	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestUnshareEvent(t *testing.T) {
@@ -38,6 +45,10 @@ func TestUnshareEvent(t *testing.T) {
 		{
 			ID:         "test_unshare_newuser_newnet",
 			Expression: `unshare.flags & CLONE_NEWUSER > 0 && unshare.flags & CLONE_NEWNET > 0 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_clone_newns_exec",
+			Expression: `exec.file.name == "syscall_tester" && exec.argv in ["sleep"] && !(exec.argv in ["leader-exit-pthread-exec"])`,
 		},
 	}
 
@@ -104,6 +115,130 @@ func TestUnshareEvent(t *testing.T) {
 	t.Run("unshare-newns", func(t *testing.T) {
 		flags := unix.CLONE_NEWNS
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newns"); err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("clone-newns", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not applicable to ebpfless")
+		}
+		parentMntNS, err := utils.NewNSPathFromPid(utils.Getpid(), utils.MntNsType).GetNSID()
+		require.NoError(t, err)
+
+		var (
+			cmd        *exec.Cmd
+			childMntNS uint32
+		)
+		defer func() {
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		}()
+
+		err = test.GetEventSent(t, func() error {
+			cmd = exec.Command(syscallTester, "sleep", "2")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: unix.CLONE_NEWNS | unix.CLONE_NEWIPC}
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+			var nsErr error
+			childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/ns/mnt", cmd.Process.Pid), utils.MntNsType).GetNSID()
+			return nsErr
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			assert.NotZero(t, event.Exec.Process.MntNS, "child mntns should be resolved")
+			assert.NotEqual(t, parentMntNS, event.Exec.Process.MntNS, "child cloned with CLONE_NEWNS should not inherit parent mntns")
+			assert.Equal(t, childMntNS, event.Exec.Process.MntNS, "child mntns should match /proc/<pid>/ns/mnt")
+			return true
+		}, time.Second*3, "test_clone_newns_exec")
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("clone-newns-leader-exit-pthread-exec", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not applicable to ebpfless")
+		}
+		parentMntNS, err := utils.NewNSPathFromPid(utils.Getpid(), utils.MntNsType).GetNSID()
+		require.NoError(t, err)
+
+		var (
+			cmd        *exec.Cmd
+			childMntNS uint32
+		)
+		defer func() {
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			}
+		}()
+
+		err = test.GetEventSent(t, func() error {
+			cmd = exec.Command(syscallTester, "leader-exit-pthread-exec", syscallTester, "sleep", "2")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: unix.CLONE_NEWNS}
+			stdinPipe, pipeErr := cmd.StdinPipe()
+			if pipeErr != nil {
+				return pipeErr
+			}
+			if err := cmd.Start(); err != nil {
+				_ = stdinPipe.Close()
+				return err
+			}
+			var nsErr error
+			childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/ns/mnt", cmd.Process.Pid), utils.MntNsType).GetNSID()
+			if nsErr != nil {
+				entries, readDirErr := os.ReadDir(fmt.Sprintf("/proc/%d/task", cmd.Process.Pid))
+				if readDirErr == nil {
+					for _, entry := range entries {
+						if childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/task/%s/ns/mnt", cmd.Process.Pid, entry.Name()), utils.MntNsType).GetNSID(); nsErr == nil {
+							break
+						}
+					}
+				}
+			}
+			if nsErr != nil {
+				_ = stdinPipe.Close()
+				return nsErr
+			}
+
+			ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
+			statusPath := fmt.Sprintf("/proc/%d/status", cmd.Process.Pid)
+			deadline := time.Now().Add(2 * time.Second)
+			leaderZombie := false
+			for time.Now().Before(deadline) {
+				statusBytes, readErr := os.ReadFile(statusPath)
+				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") {
+					leaderZombie = true
+				}
+				if leaderZombie && (testEnvironment == DockerEnvironment || ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) != nil) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			require.True(t, leaderZombie, "leader thread did not reach zombie state")
+
+			if err := test.GetProbeEvent(func() error {
+				return exec.Command(syscallTester, "check", "sentinel-leader-exit").Run()
+			}, func(event *model.Event) bool {
+				return event.ProcessContext.ArgsEntry != nil && slices.Contains(event.ProcessContext.ArgsEntry.Values, "sentinel-leader-exit")
+			}, 3*time.Second, model.ExitEventType); err != nil {
+				_ = stdinPipe.Close()
+				return err
+			}
+			if testEnvironment != DockerEnvironment {
+				assert.NotNil(t, ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)), "process cache entry should remain alive while worker thread is running")
+			}
+
+			return stdinPipe.Close()
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			assert.NotZero(t, event.Exec.Process.MntNS, "worker exec mntns should be resolved after leader exit")
+			assert.NotEqual(t, parentMntNS, event.Exec.Process.MntNS, "worker exec should not inherit parent mntns")
+			assert.Equal(t, childMntNS, event.Exec.Process.MntNS, "worker exec mntns should match /proc/<pid>/ns/mnt")
+			return true
+		}, time.Second*3, "test_clone_newns_exec")
+		if err != nil {
 			t.Error(err)
 		}
 	})

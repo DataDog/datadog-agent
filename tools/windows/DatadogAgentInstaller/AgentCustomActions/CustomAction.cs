@@ -60,18 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ReportFailure(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportFailure(session);
-        }
-
-        [CustomAction]
-        public static ActionResult ReportSuccess(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportSuccess(session);
-        }
-
-        [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.EnsureNpmServiceDependency(session);

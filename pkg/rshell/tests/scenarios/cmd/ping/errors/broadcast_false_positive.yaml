@@ -1,0 +1,13 @@
+# 10.0.1.255 ends in .255 so it is rejected by the broadcast heuristic.
+# On a 10.0.0.0/16 network this would be a valid unicast address (broadcast
+# is 10.0.255.255), but without subnet-mask knowledge the heuristic blocks it.
+# This documents the known false-positive described in buildPinger.
+description: "ping blocks .255 address even if unicast on wider subnet (known false-positive)"
+input:
+  script: |+
+    ping -c 1 10.0.1.255
+expect:
+  stdout: ""
+  stderr: "ping: broadcast destination not allowed: 10.0.1.255\n"
+  exit_code: 1
+skip_assert_against_bash: true

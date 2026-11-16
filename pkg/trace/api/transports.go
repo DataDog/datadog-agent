@@ -164,3 +164,17 @@ func newMeasuringForwardingTransport(
 	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, maxRequestBytes)
 	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
 }
+
+// replayableBody buffers req.Body so it can be sent to several endpoints. When
+// req.Body is nil the returned func yields an untyped nil, since a non-nil empty
+// body would be sent chunked.
+func replayableBody(req *http.Request, maxBytes int64) (func() io.ReadCloser, error) {
+	if req.Body == nil {
+		return func() io.ReadCloser { return nil }, nil
+	}
+	slurp, err := io.ReadAll(apiutil.NewLimitedReader(req.Body, maxBytes))
+	if err != nil {
+		return nil, err
+	}
+	return func() io.ReadCloser { return io.NopCloser(bytes.NewReader(slurp)) }, nil
+}

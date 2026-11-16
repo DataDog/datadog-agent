@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add the low-cardinality ``inference_workload`` and
+    ``inference_workload_component`` tags to KServe Kubernetes pods and their
+    containers when ``app.kubernetes.io/part-of`` is ``llminferenceservice``.
+    Use ``app.kubernetes.io/name`` for the workload name and
+    ``app.kubernetes.io/component`` for the component.

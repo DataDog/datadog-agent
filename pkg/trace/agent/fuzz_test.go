@@ -100,6 +100,11 @@ func FuzzObfuscateSpan(f *testing.F) {
 			Meta:     map[string]string{"sql.query": "UPDATE users(name) SET ('Jim')"},
 		},
 		{
+			Type:     "sql",
+			Resource: "UPDATE users(name) SET ('Jim')",
+			Meta:     map[string]string{"db.statement": "UPDATE users(name) SET ('Jim')", "db.query.text": "SELECT 1"},
+		},
+		{
 			Type:     "http",
 			Resource: "http://mysite.mydomain/1/2?q=asd",
 			Meta:     map[string]string{"http.url": "http://mysite.mydomain/1/2?q=asd"},

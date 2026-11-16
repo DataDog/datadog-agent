@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -45,6 +46,8 @@ const (
 	testAzureResourceGroup        = "example-resource-group"
 	testAzureAppServiceInstanceID = "example-instance"
 	testAzureFunctionsInstanceID  = "example-functions-instance"
+	testAzureContainerAppsName    = "example-container-app"
+	testAzureContainerAppsReplica = "example-replica"
 	testServiceInstanceID         = "example-service-instance"
 
 	// testAttributeAzureAppServiceInstanceID is the Go detector's App Service
@@ -187,6 +190,49 @@ func TestSourceFromAttrs(t *testing.T) {
 				string(conventions.ServiceNameKey):    testAzureAppServiceName,
 				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
 				attributeAzureResourceGroupName:       testAzureResourceGroup,
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceName,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+					},
+				},
+			},
+		},
+		{
+			name: "Azure App Service identity from cloud.resource_id fallback",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(semconv143.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/example-app",
+				string(conventions.HostIDKey):         testHostID,
+			}),
+			ok: true,
+			src: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: testAzureAppServiceName,
+					Dimensions: map[string]string{
+						"name":            testAzureAppServiceName,
+						"subscription_id": testAzureSubscriptionID,
+						"resource_group":  testAzureResourceGroup,
+					},
+				},
+			},
+		},
+		{
+			name: "Azure App Service explicit name takes precedence over cloud.resource_id",
+			attrs: testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):    testAzureAppServiceName,
+				string(semconv143.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/different-app",
+				string(conventions.HostIDKey):         testHostID,
 			}),
 			ok: true,
 			src: source.Source{
@@ -352,46 +398,6 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
-			name: "Azure Container Apps (no replica name, falls back to name for Primary)",
-			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(conventions.ServiceNameKey):           "my-app",
-				string(semconv1_27.CloudAccountIDKey):        "sub-123",
-				string(semconv143.AzureResourceGroupNameKey): "my-rg",
-			}),
-			ok: true,
-			src: source.Source{
-				Kind:       source.AzureContainerAppsKind,
-				Identifier: "my-app", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
-				SourceIdentifier: source.SourceIdentifier{
-					Primary: "my-app",
-					Dimensions: map[string]string{
-						"name":            "my-app",
-						"subscription_id": "sub-123",
-						"resource_group":  "my-rg",
-					},
-				},
-			},
-		},
-		{
-			name: "Azure Container Apps (missing identifying attributes, still classified as ACA but unidentified)",
-			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(semconv143.AzureResourceGroupNameKey): "my-rg",
-			}),
-			ok: true,
-			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				SourceIdentifier: source.SourceIdentifier{
-					Dimensions: map[string]string{
-						"resource_group": "my-rg",
-					},
-				},
-			},
-		},
-		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),
@@ -498,6 +504,403 @@ func TestAzureFunctionsSource(t *testing.T) {
 	}
 }
 
+func TestAzureContainerAppsSource(t *testing.T) {
+	want := source.Source{
+		Kind:       source.AzureContainerAppsKind,
+		Identifier: testAzureContainerAppsReplica, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{
+			Primary: testAzureContainerAppsReplica,
+			Dimensions: map[string]string{
+				"name":            testAzureContainerAppsName,
+				"subscription_id": testAzureSubscriptionID,
+				"resource_group":  testAzureResourceGroup,
+				"replica":         testAzureContainerAppsReplica,
+			},
+		},
+	}
+
+	for _, platform := range []string{cloudPlatformAzureContainerApps, cloudPlatformAzureContainerAppsLegacy} {
+		t.Run(platform, func(t *testing.T) {
+			attrs := testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  platform,
+				string(conventions.ServiceNameKey):    testAzureContainerAppsName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				AttributeAzureContainerAppInstanceID:  testAzureContainerAppsReplica,
+				string(conventions.HostIDKey):         testHostID,
+			})
+
+			got, ok := SourceFromAttrs(attrs, nil)
+			assert.True(t, ok)
+			assert.Equal(t, want, got)
+			assert.Empty(t, GetHost(attrs, "fallback-host"))
+		})
+	}
+}
+
+func TestAzureResourceResolversValidateProviderAndType(t *testing.T) {
+	t.Run("App Service rejects a Container Apps resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			string(conventions.HostIDKey):         "collector-host",
+		})
+
+		_, ok := azureAppServiceResourceFromAttributes(attrs)
+		assert.False(t, ok)
+
+		got, ok := SourceFromAttrs(attrs, nil)
+		require.True(t, ok)
+		assert.Equal(t, source.HostnameKind, got.Kind)
+		assert.Equal(t, "collector-host", got.Identifier) //nolint:staticcheck // Verify the existing host fallback.
+	})
+
+	t.Run("Functions rejects a Container Apps resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureFunctions,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-function",
+		})
+
+		_, ok := azureFunctionsResourceFromAttributes(attrs)
+		assert.False(t, ok)
+	})
+
+	t.Run("Container Apps rejects an App Service resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureContainerApps,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			AttributeAzureContainerAppInstanceID:  "replica-1",
+		})
+
+		_, ok := azureContainerAppsResourceFromAttributes(attrs)
+		assert.False(t, ok)
+	})
+
+	t.Run("complete explicit identity ignores a mismatched fallback resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(conventions.ServiceNameKey):    testAzureAppServiceName,
+			string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+			attributeAzureResourceGroupName:       testAzureResourceGroup,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+		})
+
+		got, ok := azureAppServiceResourceFromAttributes(attrs)
+		require.True(t, ok)
+		assert.Equal(t, azureAppServiceResource{
+			name:           testAzureAppServiceName,
+			subscriptionID: testAzureSubscriptionID,
+			resourceGroup:  testAzureResourceGroup,
+		}, got)
+	})
+}
+
+func TestBackendCompleteServerlessIdentityFixtures(t *testing.T) {
+	tests := []struct {
+		name  string
+		attrs map[string]string
+		want  source.Source
+	}{
+		{
+			name: "AWS Lambda function ARN",
+			attrs: map[string]string{
+				"cloud.provider": "aws",
+				"cloud.platform": "aws_lambda",
+				"faas.id":        "arn:aws:lambda:us-east-1:123456789012:function:orders:42",
+			},
+			want: source.Source{
+				Kind: source.AWSLambdaKind,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "arn:aws:lambda:us-east-1:123456789012:function:orders",
+					Dimensions: map[string]string{
+						"function_arn":  "arn:aws:lambda:us-east-1:123456789012:function:orders",
+						"function_name": "orders",
+						"region":        "us-east-1",
+						"aws_account":   "123456789012",
+					},
+				},
+			},
+		},
+		{
+			name: "AWS Lambda cloud resource ID",
+			attrs: map[string]string{
+				"cloud.provider":    "aws",
+				"cloud.resource_id": "arn:aws:lambda:us-west-2:123456789012:function:payments",
+				"faas.name":         "payments",
+			},
+			want: source.Source{
+				Kind: source.AWSLambdaKind,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "arn:aws:lambda:us-west-2:123456789012:function:payments",
+					Dimensions: map[string]string{
+						"function_arn":  "arn:aws:lambda:us-west-2:123456789012:function:payments",
+						"function_name": "payments",
+						"region":        "us-west-2",
+						"aws_account":   "123456789012",
+					},
+				},
+			},
+		},
+		{
+			name: "ECS Fargate case-insensitive launch type",
+			attrs: map[string]string{
+				"cloud.provider":      "aws",
+				"cloud.platform":      "aws_ecs",
+				"aws.ecs.launchtype":  "Fargate",
+				"aws.ecs.task.arn":    "arn:aws:ecs:us-east-1:123456789012:task/cluster/task-id",
+				"service.instance.id": "task-id",
+			},
+			want: source.Source{
+				Kind:             source.AWSECSFargateKind,
+				Identifier:       "arn:aws:ecs:us-east-1:123456789012:task/cluster/task-id", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{Primary: "arn:aws:ecs:us-east-1:123456789012:task/cluster/task-id"},
+			},
+		},
+		{
+			name: "Azure App Service ARM resource ID",
+			attrs: map[string]string{
+				"cloud.provider":    "azure",
+				"cloud.platform":    "azure.app_service",
+				"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			},
+			want: source.Source{
+				Kind:       source.AzureAppServiceKind,
+				Identifier: "my-app", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "my-app",
+					Dimensions: map[string]string{
+						"name":            "my-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Functions ARM resource ID",
+			attrs: map[string]string{
+				"cloud.provider":    "azure",
+				"cloud.platform":    "azure.functions",
+				"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-function",
+			},
+			want: source.Source{
+				Kind:       source.AzureFunctionsKind,
+				Identifier: "my-function", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "my-function",
+					Dimensions: map[string]string{
+						"name":            "my-function",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+					},
+				},
+			},
+		},
+		{
+			name: "Azure Container Apps ARM resource ID",
+			attrs: map[string]string{
+				"cloud.provider":                  "azure",
+				"cloud.platform":                  "azure.container_apps",
+				"cloud.resource_id":               "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-container-app",
+				"azure.container_app.instance.id": "replica-1",
+			},
+			want: source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: "replica-1", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "replica-1",
+					Dimensions: map[string]string{
+						"name":            "my-container-app",
+						"subscription_id": "sub-123",
+						"resource_group":  "my-rg",
+						"replica":         "replica-1",
+					},
+				},
+			},
+		},
+		{
+			name: "GCP Cloud Run service resource name",
+			attrs: map[string]string{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_run",
+				"cloud.resource_id": "//run.googleapis.com/projects/project-1/locations/us-central1/services/orders",
+				"faas.instance":     "instance-1",
+			},
+			want: source.Source{
+				Kind:       source.GCPCloudRunKind,
+				Identifier: "instance-1", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "instance-1",
+					Dimensions: map[string]string{
+						"project_id":   "project-1",
+						"location":     "us-central1",
+						"service_name": "orders",
+						"instance":     "instance-1",
+					},
+				},
+			},
+		},
+		{
+			name: "GCP Cloud Run revision resource with explicit service name",
+			attrs: map[string]string{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_run",
+				"cloud.resource_id": "//run.googleapis.com/projects/project-1/locations/us-central1/revisions/orders-00001",
+				"faas.name":         "orders",
+				"faas.instance":     "instance-1",
+			},
+			want: source.Source{
+				Kind:       source.GCPCloudRunKind,
+				Identifier: "instance-1", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "instance-1",
+					Dimensions: map[string]string{
+						"project_id":   "project-1",
+						"location":     "us-central1",
+						"service_name": "orders",
+						"instance":     "instance-1",
+					},
+				},
+			},
+		},
+		{
+			name: "GCP Cloud Run Functions resource name",
+			attrs: map[string]string{
+				"cloud.provider":    "gcp",
+				"cloud.platform":    "gcp_cloud_functions",
+				"cloud.resource_id": "//cloudfunctions.googleapis.com/projects/project-1/locations/us-central1/functions/orders-function",
+				"faas.instance":     "instance-1",
+			},
+			want: source.Source{
+				Kind:       source.GCPCloudFunctionsKind,
+				Identifier: "instance-1", //nolint:staticcheck // Verify legacy consumer compatibility.
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "instance-1",
+					Dimensions: map[string]string{
+						"project_id":   "project-1",
+						"location":     "us-central1",
+						"service_name": "orders-function",
+						"instance":     "instance-1",
+					},
+				},
+			},
+		},
+		{
+			name: "GCP Cloud Run Jobs resource name",
+			attrs: map[string]string{
+				"cloud.provider":              "gcp",
+				"cloud.platform":              "gcp_cloud_run",
+				"cloud.resource_id":           "//run.googleapis.com/projects/project-1/locations/us-central1/jobs/daily-job",
+				"faas.instance":               "instance-1",
+				"gcp.cloud_run.job.execution": "daily-job-abc",
+			},
+			want: source.Source{
+				Kind: source.GCPCloudRunJobsKind,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "instance-1",
+					Dimensions: map[string]string{
+						"project_id": "project-1",
+						"location":   "us-central1",
+						"job_name":   "daily-job",
+						"instance":   "instance-1",
+					},
+				},
+			},
+		},
+		{
+			name: "GKE Autopilot workload",
+			attrs: map[string]string{
+				"cloud.provider":   "gcp",
+				"cloud.platform":   "gcp_kubernetes_engine",
+				"cloud.account.id": "project-1",
+				"k8s.cluster.name": "autopilot-cluster",
+				"host.name":        "gk3-autopilot-cluster-pool-abc",
+			},
+			want: source.Source{
+				Kind: source.GKEAutopilotKind,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary: "project-1:autopilot-cluster:gk3-autopilot-cluster-pool-abc.project-1",
+					Dimensions: map[string]string{
+						"project_id":   "project-1",
+						"cluster_name": "autopilot-cluster",
+						"hostname":     "gk3-autopilot-cluster-pool-abc.project-1",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := testutils.NewAttributeMap(tt.attrs)
+			got, ok := SourceFromAttrs(attrs, nil)
+			assert.True(t, ok)
+			assert.Equal(t, tt.want, got)
+			assert.Empty(t, GetHost(attrs, "collector-fallback-host"))
+		})
+	}
+}
+
+func TestBackendIncompleteServerlessIdentityFixturesKeepCurrentFallback(t *testing.T) {
+	t.Run("Lambda without a function ARN still uses the host", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			"cloud.provider": "aws",
+			"cloud.platform": "aws_lambda",
+			"host.id":        "collector-host",
+		})
+		got, ok := SourceFromAttrs(attrs, nil)
+		assert.True(t, ok)
+		assert.Equal(t, source.HostnameKind, got.Kind)
+		assert.Equal(t, "collector-host", GetHost(attrs, "fallback-host"))
+	})
+
+	t.Run("Cloud Run Job without a complete identity keeps the GCP fallback behavior", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			"cloud.provider":              "gcp",
+			"cloud.platform":              "gcp_cloud_run",
+			"gcp.cloud_run.job.execution": "daily-job-abc",
+			"datadog.host.name":           "collector-host",
+		})
+		got, ok := SourceFromAttrs(attrs, nil)
+		assert.False(t, ok)
+		assert.Equal(t, source.Source{}, got)
+		assert.Empty(t, GetHost(attrs, "fallback-host"))
+	})
+
+	t.Run("GKE Autopilot without a cluster keeps the host", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			"cloud.provider":   "gcp",
+			"cloud.platform":   "gcp_kubernetes_engine",
+			"cloud.account.id": "project-1",
+			"host.name":        "gk3-autopilot-cluster-pool-abc",
+		})
+		got, ok := SourceFromAttrs(attrs, nil)
+		assert.True(t, ok)
+		assert.Equal(t, source.HostnameKind, got.Kind)
+	})
+}
+
+func TestAzureCloudPlatformMatching(t *testing.T) {
+	for _, tt := range []struct {
+		platform string
+		suffix   string
+		want     bool
+	}{
+		{platform: "azure.app_service", suffix: "app_service", want: true},
+		{platform: "azure_app_service", suffix: "app_service", want: true},
+		{platform: "azure-app_service", suffix: "app_service", want: true},
+		{platform: "AZURE.FUNCTIONS", suffix: "functions", want: true},
+		{platform: "azure/functions", suffix: "functions", want: true},
+		{platform: "azure.container_apps", suffix: "container_apps", want: true},
+		{platform: "azurefunctions", suffix: "functions", want: false},
+		{platform: "gcp_cloud_functions", suffix: "functions", want: false},
+	} {
+		t.Run(tt.platform, func(t *testing.T) {
+			assert.Equal(t, tt.want, isAzureCloudPlatform(tt.platform, tt.suffix))
+		})
+	}
+}
+
 func TestGCPServerlessSource(t *testing.T) {
 	for _, platform := range []struct {
 		name string
@@ -577,8 +980,20 @@ func TestGCPServerlessSource(t *testing.T) {
 						attrs.PutInt(jobKey, value)
 					}
 					src, ok := SourceFromAttrs(attrs, nil)
-					assert.False(t, ok, "job key %s must exclude the resource", jobKey)
-					assert.Equal(t, source.Source{}, src)
+					if platform.kind == source.GCPCloudRunKind {
+						assert.True(t, ok)
+						assert.Equal(t, source.GCPCloudRunJobsKind, src.Kind)
+						assert.Equal(t, "instance-1", src.SourceIdentifier.Primary)
+						assert.Equal(t, map[string]string{
+							"project_id": "project-1",
+							"location":   "us-central1",
+							"job_name":   "my-service",
+							"instance":   "instance-1",
+						}, src.SourceIdentifier.Dimensions)
+					} else {
+						assert.False(t, ok, "job key %s must exclude the resource", jobKey)
+						assert.Equal(t, source.Source{}, src)
+					}
 					assert.Empty(t, GetHost(attrs, "fallback-host"))
 				}
 			}
@@ -626,7 +1041,48 @@ func TestAzureFunctionsSourceRequiresBillingIdentity(t *testing.T) {
 	}
 }
 
-func TestAzureAppServiceSourceRequiresBillingIdentity(t *testing.T) {
+func TestAzureContainerAppsSourceRequiresBillingIdentity(t *testing.T) {
+	requiredAttributes := []string{
+		string(conventions.ServiceNameKey),
+		string(conventions.CloudAccountIDKey),
+		attributeAzureResourceGroupName,
+		AttributeAzureContainerAppInstanceID,
+	}
+
+	for _, required := range requiredAttributes {
+		for _, testCase := range []struct {
+			name   string
+			mutate func(map[string]string)
+		}{
+			{name: "missing", mutate: func(attrs map[string]string) { delete(attrs, required) }},
+			{name: "empty", mutate: func(attrs map[string]string) { attrs[required] = "" }},
+		} {
+			t.Run(testCase.name+" "+required, func(t *testing.T) {
+				attrs := map[string]string{
+					string(conventions.CloudPlatformKey):  cloudPlatformAzureContainerApps,
+					string(conventions.ServiceNameKey):    testAzureContainerAppsName,
+					string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+					attributeAzureResourceGroupName:       testAzureResourceGroup,
+					AttributeAzureContainerAppInstanceID:  testAzureContainerAppsReplica,
+					string(conventions.HostIDKey):         testHostID,
+				}
+				testCase.mutate(attrs)
+
+				got, ok := SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.True(t, ok)
+				assert.Equal(t, source.HostnameKind, got.Kind)
+				assert.Equal(t, testHostID, GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+
+				delete(attrs, string(conventions.HostIDKey))
+				_, ok = SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.False(t, ok)
+				assert.Equal(t, "fallback-host", GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+			})
+		}
+	}
+}
+
+func TestAzureAppServiceSourceRequiresBillingIdentityWithoutResourceID(t *testing.T) {
 	requiredAttributes := []string{
 		string(conventions.ServiceNameKey),
 		string(conventions.CloudAccountIDKey),

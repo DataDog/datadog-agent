@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var dbIdentifierVarRe = regexp.MustCompile(`\$([a-z_]+)`)
+
 type vInstance struct {
 	HostName     sql.NullString `db:"HOST_NAME"`
 	InstanceName string         `db:"INSTANCE_NAME"`
@@ -204,8 +206,7 @@ func (c *Check) createDatabaseIdentifier() string {
 
 	identifier := c.config.DatabaseIdentifier.Template
 
-	re := regexp.MustCompile(`\$([a-z_]+)`)
-	matches := re.FindAllString(identifier, -1)
+	matches := dbIdentifierVarRe.FindAllString(identifier, -1)
 	for _, match := range matches {
 		key := strings.TrimPrefix(match, "$")
 		if value, ok := tags[key]; ok && value != "" {

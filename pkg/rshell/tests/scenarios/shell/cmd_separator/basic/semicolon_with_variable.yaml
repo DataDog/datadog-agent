@@ -1,0 +1,9 @@
+description: Semicolons separate variable assignment from its use in a single line.
+input:
+  script: |+
+    x=42; echo "x is $x"
+expect:
+  stdout: |+
+    x is 42
+  stderr: ""
+  exit_code: 0

@@ -11,6 +11,7 @@ jobs:
   update-and-generate:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Cleanup runner
@@ -41,7 +42,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.collector-generate-and-update.create-pr
 
       - name: Check biweekly schedule
@@ -63,7 +64,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
-          dda inv -- -e install-tools
           dda inv -- -e collector.update
           OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT

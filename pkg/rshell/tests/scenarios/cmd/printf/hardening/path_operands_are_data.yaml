@@ -1,0 +1,17 @@
+description: printf path-like operands are inert data and are not opened.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    printf "%s\n" secret/data.txt @secret/data.txt /proc/self/environ
+expect:
+  stdout: |+
+    secret/data.txt
+    @secret/data.txt
+    /proc/self/environ
+  exit_code: 0

@@ -5,15 +5,12 @@
   needs: []
 
 lint_licenses:
-  extends: .lint
+  extends: [.lint, .bazel:defs:cache:progressive]
   script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e lint-licenses
-  needs: ["go_deps", "go_tools_deps"]
 
 lint_rust_licenses:
-  extends: .lint
+  extends: [.lint, .rust_internal_registry]
   script:
     - dda inv -- -e lint-rust-licenses
 
@@ -40,6 +37,12 @@ lint_docs_links:
   extends: .lint
   script:
     - dda inv -- -e linter.docs-links
+
+lint_e2e_internet_access:
+  extends: .lint
+  script:
+    - dda self dep sync -f go-ast
+    - dda inv -- -e linter.e2e-internet-access
 
 lint_codeowners:
   extends: .lint
@@ -102,9 +105,22 @@ lint_releasenotes_unique_ids:
   script:
     - dda inv -- -e linter.releasenote-unique-ids
 
-lint_rtloader:
+lint_releasenotes_reused_uids:
   extends: .lint
-  rules: !reference [.on_rtloader_changes]
+  rules: !reference [.on_releasenotes_changes]
+  variables:
+    GIT_DEPTH: 0  # Full history: looks for past deletions of the added notes' UIDs
   script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.format --raise-if-changed
+    - dda inv -- -e linter.releasenote-reused-uids --only-changed
+
+lint_config_schema:
+  extends: .lint
+  rules:
+    - !reference [.on_main]
+    - changes:
+        paths:
+          - pkg/config/schema/**/*
+          - tasks/schema/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - dda inv -- -e schema.lint

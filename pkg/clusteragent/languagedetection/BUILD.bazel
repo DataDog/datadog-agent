@@ -37,7 +37,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	schemaimpl "github.com/DataDog/datadog-agent/comp/core/schema/impl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -31,9 +33,40 @@ func testSelfIdent() *selfident.SelfIdent {
 
 // A valid system-probe setting passes the schema → no report.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
+}
+
+func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
+	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.health_port":                "wrong",
+		"system_probe_config.internal_profiling.api_key": []string{"PRIVATE_KEY"},
+	})
+	c := newTestChecker(cfg, testHostname("h"), testSelfIdent())
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 2)
+	ids := map[string]string{}
+	for _, report := range reports {
+		issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(report.Context)
+		require.NoError(t, err)
+		errors := issue.Extra.GetFields()["errors"].GetStructValue().GetFields()
+		require.Len(t, errors, 1)
+		for path, messages := range errors {
+			ids[path] = report.IssueID
+			assert.Contains(t, messages.GetListValue().GetValues()[0].GetStringValue(), "The default value for this setting is")
+		}
+	}
+	assert.NotEqual(t, ids["/system_probe_config/health_port"], ids["/system_probe_config/internal_profiling/api_key"])
+	cfg.SetInTest("system_probe_config.health_port", 5558)
+	// validate the updated configuration, like the Agent does when it loads it
+	_, err = c.schema.ValidateConfig(cfg)
+	require.NoError(t, err)
+	reports, err = c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, ids["/system_probe_config/internal_profiling/api_key"], reports[0].IssueID)
 }
 
 // A string in an integer-typed field violates the schema → one report.
@@ -41,7 +74,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Regexp(t, `^invalid-system-probe-config:[0-9a-f]{16}$`, reports[0].IssueID)
@@ -55,57 +88,42 @@ func TestInstanceIssueID_UniquePerHost(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	a, err := newChecker(cfg, testHostname("host-a"), testSelfIdent()).Run()
+	a, err := newTestChecker(cfg, testHostname("host-a"), testSelfIdent()).Run()
 	require.NoError(t, err)
-	b, err := newChecker(cfg, testHostname("host-b"), testSelfIdent()).Run()
+	b, err := newTestChecker(cfg, testHostname("host-b"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, a, 1)
 	require.Len(t, b, 1)
 	assert.NotEqual(t, a[0].IssueID, b[0].IssueID, "issue id must differ per host")
 }
 
-// The core guarantee: we validate the customer's config, not values that Adjust() rewrites
-// at the agent-runtime layer. A bad file value must survive the merge and be seen by the check.
-func TestCustomerConfig_SkipsAgentRuntime(t *testing.T) {
-	cfg := sysprobeconfigmock.NewMock(t)
-	cfg.Set("system_probe_config.health_port", "not-an-integer", model.SourceFile) // customer's value
-	cfg.Set("system_probe_config.health_port", 5558, model.SourceAgentRuntime)     // Adjust's repair
-
-	got := customerConfig(cfg)
-	spc, _ := got["system_probe_config"].(map[string]any)
-	require.NotNil(t, spc)
-	assert.Equal(t, "not-an-integer", spc["health_port"], "the customer's file value must survive, not Adjust's runtime repair")
-}
-
 // Locks the dedup contract that distinguishes this issue from invalid-config.
 func TestBuildIssue_LocksContract(t *testing.T) {
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(map[string]string{
-		contextKeyConfigPath: "/etc/datadog-agent/system-probe.yaml",
-		contextKeyErrorCount: "1",
-		contextErrorKey(0):   "at '/system_probe_config/health_port': got string, want integer",
+		"config_path":  "/etc/datadog-agent/system-probe.yaml",
+		"setting_path": "/system_probe_config/health_port",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, "system-probe", issue.GetLocation())
 	assert.Equal(t, []string{"config", "schema", "system-probe"}, issue.GetTags())
-	assert.Equal(t, "Found 1 configuration error in system-probe.yaml", issue.GetTitle())
-	assert.Contains(t, issue.GetDescription(), "/etc/datadog-agent/system-probe.yaml or environment variables")
-	assert.Equal(t, "Fix each violation listed in the description.", issue.GetRemediation().GetSteps()[1].Text)
+	assert.Equal(t, "Invalid configuration: `/system_probe_config/health_port`", issue.GetTitle())
+	assert.Equal(t, "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "Check the value and format of `/system_probe_config/health_port`.", issue.GetRemediation().GetSteps()[1].Text)
 }
 
 func TestCheck_ExplainsTypeAndDefault(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMock(t)
 	cfg.Set("system_probe_config.health_port", "PRIVATE_INVALID_PORT", model.SourceFile)
-	cfg.Set("system_probe_config.health_port", 5558, model.SourceAgentRuntime)
-	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
 	require.NoError(t, err)
 	assert.Contains(t, issue.Description, "`/system_probe_config/health_port` expects a whole number, but received a string.")
 	assert.Equal(t, "Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`.", issue.Remediation.Steps[1].Text)
-	assert.Equal(t, "Check the settings listed below in your system-probe configuration file or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "Check this setting in your system-probe configuration file or environment variables.", issue.Remediation.Steps[0].Text)
 	assert.NotContains(t, issue.Title+issue.Description, "unknown path")
 	violations := issue.Extra.GetFields()["violations"].GetListValue().GetValues()
 	require.Len(t, violations, 1)
@@ -122,7 +140,7 @@ func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
 	for _, value := range []any{[]string{"PRIVATE_KEY"}, map[string]any{"value": "PRIVATE_KEY"}} {
 		cfg := sysprobeconfigmock.NewMock(t)
 		cfg.Set("system_probe_config.internal_profiling.api_key", value, model.SourceFile)
-		reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+		reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 		require.NoError(t, err)
 		require.Len(t, reports, 1)
 		issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
@@ -137,7 +155,7 @@ func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
 // Without system-probe config the startup check must NOT register, or the bundle would
 // resolve a real persisted issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil, nil, testSelfIdent())}
+	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newTestChecker(nil, nil, testSelfIdent())}
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }
 
@@ -147,7 +165,7 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 		"system_probe_config.health_port": "not-an-integer",
 	})
 	dd := config.NewMock(t)
-	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp, testHostname("h"), testSelfIdent())}
+	m := &invalidSysprobeConfigModule{datadog: dd, checker: newTestChecker(sp, testHostname("h"), testSelfIdent())}
 
 	// Enabled (default) → violation surfaces.
 	reports, err := m.BuiltInStartupHealthCheck().Fn()
@@ -159,4 +177,16 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 	reports, err = m.BuiltInStartupHealthCheck().Fn()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
+}
+
+// newTestChecker returns a checker validating cfg with a new schema component, so results cached by previous tests are
+// ignored.
+func newTestChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	schemaComp := schemaimpl.NewComponent().Comp
+	if cfg != nil {
+		// validate the configuration like the Agent does when it loads it. Errors (ie: the schema isn't embedded in
+		// the test binary) leave no violation to report.
+		_, _ = schemaComp.ValidateConfig(cfg)
+	}
+	return newChecker(cfg, schemaComp, hostname, selfIdent)
 }

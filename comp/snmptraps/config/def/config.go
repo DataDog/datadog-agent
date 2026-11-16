@@ -162,15 +162,16 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 		}
 	}
 
-	return &gosnmp.GoSNMP{
-		Port:                        c.Port,
-		Transport:                   "udp",
-		Version:                     gosnmp.Version3, // Always using version3 for traps, only option that works with all SNMP versions simultaneously
-		SecurityModel:               gosnmp.UserSecurityModel,
-		SecurityParameters:          &gosnmp.UsmSecurityParameters{AuthoritativeEngineID: c.authoritativeEngineID},
-		TrapSecurityParametersTable: usmTable,
-		Logger:                      snmpLogger,
-	}, nil
+	params := &gosnmp.GoSNMP{
+		Port:               c.Port,
+		Transport:          "udp",
+		Version:            gosnmp.Version3, // Always using version3 for traps, only option that works with all SNMP versions simultaneously
+		SecurityModel:      gosnmp.UserSecurityModel,
+		SecurityParameters: &gosnmp.UsmSecurityParameters{AuthoritativeEngineID: c.authoritativeEngineID},
+		Logger:             snmpLogger,
+	}
+	params.SetTrapSecurityParametersTable(usmTable)
+	return params, nil
 }
 
 // GetPacketChannelSize returns the default size for the packets channel

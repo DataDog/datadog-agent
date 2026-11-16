@@ -27,6 +27,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	pcapuploaderfx "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/fx"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -34,7 +35,7 @@ import (
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -49,7 +50,7 @@ type cliParams struct {
 func (p *cliParams) configParams() config.Params {
 	options := []func(*config.Params){config.WithExtraConfFiles(p.ExtraConfFilePath)}
 	if p.executorSocket != "" {
-		options = append(options, config.WithCLIOverride(privateactionrunner.PARExecutorSocketPath, p.executorSocket))
+		options = append(options, config.WithCLIOverride(par.ExecutorSocketPath, p.executorSocket))
 	}
 	if p.ipcCertFile != "" {
 		options = append(options, config.WithCLIOverride("ipc_cert_file_path", p.ipcCertFile))
@@ -69,7 +70,7 @@ func runExecutor(ctx context.Context, params *cliParams) error {
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: params.configParams(),
-			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
+			LogParams:    log.ForDaemon(command.LoggerName, par.LogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
@@ -90,6 +91,7 @@ func runExecutor(ctx context.Context, params *cliParams) error {
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		pcapuploaderfx.Module(),
 		statsdfx.Module(),
 		privateactionrunnerfx.ExecutorModule(),
 	}

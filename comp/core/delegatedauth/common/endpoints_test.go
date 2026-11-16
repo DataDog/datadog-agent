@@ -21,6 +21,18 @@ func TestNormalizeListShapeEntriesJSONString(t *testing.T) {
 	assert.Equal(t, "abc", entry["api_key"])
 }
 
+func TestListEntryIdentityExcludesAPIKey(t *testing.T) {
+	first, ok := ListEntryIdentity(map[string]any{"host": "logs.datadoghq.com", "api_key": "first"})
+	require.True(t, ok)
+	second, ok := ListEntryIdentity(map[string]any{"api_key": "second", "host": "logs.datadoghq.com"})
+	require.True(t, ok)
+	changedHost, ok := ListEntryIdentity(map[string]any{"host": "other.datadoghq.com", "api_key": "first"})
+	require.True(t, ok)
+
+	assert.Equal(t, first, second)
+	assert.NotEqual(t, first, changedHost)
+}
+
 func TestNormalizeListShapeEntriesInvalidJSONString(t *testing.T) {
 	_, ok := NormalizeListShapeEntries(`not json`)
 	assert.False(t, ok)

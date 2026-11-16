@@ -1,0 +1,19 @@
+description: find -ipath matches full path case-insensitively.
+skip_assert_against_bash: true  # intentional: case-insensitive filesystem handling may differ
+setup:
+  files:
+    - path: SRC/Main.go
+      content: "package main"
+      chmod: 0644
+    - path: doc/readme.md
+      content: "# Readme"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -ipath '*/src/*' -type f
+expect:
+  stdout: |+
+    ./SRC/Main.go
+  stderr: ""
+  exit_code: 0

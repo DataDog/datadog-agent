@@ -1,7 +1,7 @@
 #ifndef _HELPERS_STRINGS_H
 #define _HELPERS_STRINGS_H
 
-void __attribute__((always_inline)) clean_str_trailing_zeros(char *s, int string_size, int array_size) {
+static __always_inline void clean_str_trailing_zeros(char *s, int string_size, int array_size) {
     int nul = 15;
 
     if (s[0] == 0) nul = 0;

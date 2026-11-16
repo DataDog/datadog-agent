@@ -94,10 +94,10 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens Borrowed
 		a.patternMatchedOnce = true
 		a.sendBuffer()
 		// This line starts a new group; capture its tokens as the first-line tokens.
-		a.firstLineTokens = tokens.retained()
+		a.firstLineTokens = tokens.Retained()
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
-		a.firstLineTokens = tokens.retained()
+		a.firstLineTokens = tokens.Retained()
 	}
 
 	isTruncated := a.shouldTruncate

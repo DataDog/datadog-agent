@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Fix IBM Db2 SQL obfuscation for string literals containing backslashes,
+    preserving literal boundaries and preventing literal values from appearing
+    in normalized query text.

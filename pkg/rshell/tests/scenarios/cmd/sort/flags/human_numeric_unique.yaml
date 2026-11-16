@@ -1,0 +1,21 @@
+description: sort -h -u dedupes lines that compare equal under human-numeric ordering.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1K
+        2M
+        1K
+        500K
+        2M
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h -u file.txt
+expect:
+  stdout: |+
+    1K
+    500K
+    2M
+  stderr: |+
+  exit_code: 0

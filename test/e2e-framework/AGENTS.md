@@ -14,20 +14,20 @@ Tests live in `test/new-e2e/tests/` and import this framework.
 test/e2e-framework/
 ├── testing/
 │   ├── e2e/              # Test harness: BaseSuite, Run(), SuiteOption
-│   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS
+│   ├── environments/     # Environment types: Host, DockerHost, Kubernetes, ECS, BenchmarkEKS
 │   ├── provisioners/     # Provisioner interfaces + cloud-specific implementations
-│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm)
+│   │   ├── aws/          # host, docker, ecs, kubernetes (eks, kindvm, kubeadm, benchmarkeks)
 │   │   ├── azure/        # host (linux, windows), kubernetes (aks)
 │   │   ├── gcp/          # host (linux), kubernetes (gke, openshiftvm)
 │   │   └── local/        # host (podman), kubernetes (kind)
 │   └── components/       # Test-side wrappers: RemoteHost, Agent, FakeIntake
 ├── scenarios/
-│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm
+│   └── aws/              # Pulumi programs: ec2, ec2docker, ecs, eks, kindvm, kubeadm, benchmarkeks
 ├── components/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu2204E2E, WindowsServer2025, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
@@ -51,13 +51,14 @@ An environment defines what infrastructure a test needs:
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
 | `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
 | `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
+| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions (see `doc/how-to/test/e2e/benchmarkeks/`) |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
 
 Provisioners create the environment's infrastructure. Built-in provisioners
 live in `testing/provisioners/` organized by cloud provider (aws, azure, gcp, local).
-The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm}`;
+The Kubernetes provisioners live one level deeper, in `aws/kubernetes/{kindvm,eks,kubeadm,benchmarkeks}`;
 tests commonly alias the kind one as `awskubernetes`, and the ECS one as `awsecs`, which are
 import aliases rather than package names. Azure, GCP and local provisioners take their options
 directly (`azurehost.WithAgentOptions(...)`) rather than nesting them inside `WithRunOptions`
@@ -67,7 +68,7 @@ as the AWS example below does.
 // Host on AWS EC2
 awshost.Provisioner(
     awshost.WithRunOptions(
-        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E)),
+        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
         ec2.WithAgentOptions(
             agentparams.WithAgentConfig(config),
             agentparams.WithIntegration("check.d", checkConfig),
@@ -76,13 +77,33 @@ awshost.Provisioner(
 )
 ```
 
-Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve to
-Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
-so a test never installs them at runtime. They are already the Linux defaults
-(`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+Every `platforms.json` image is a Packer-built AMI with Docker, the AWS CLI, `jq`,
+`ansible` and friends prebaked, so a test never installs them at runtime. Keys and
+descriptors carry no `-e2e` suffix: that distinction only exists in ami-builder, whose
+`platforms_key` maps its `-e2e` builds to our keys. Passing no OS at all is also
+correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025`).
+There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
+(Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
+and it fails on AWS. Add new dependencies to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
+
+### Kubernetes internet access
+
+AWS Kubernetes test provisioners (`kindvm`, `kubeadm`, and `eks`) default to
+no internet access. Override with `WithRunOptions(kindvm.WithInternetAccess())`,
+the equivalent kubeadm option, or
+`WithRunOptions(eks.WithEKSOptions(eks.WithInternetAccess()))` for EKS.
+Register explicit opt-outs in `test/new-e2e/internet-access.yaml`. Direct scenario
+callers do not inherit these provisioner defaults. EKS Auto Mode requires an
+explicit opt-out; EKS Fargate pods are not covered by the egress restriction.
+
+EKS private networking must allow all IPv4 CIDRs associated with the VPC, not
+just its primary CIDR: nodes and custom-CNI pods can use secondary networks.
+The restricted security groups also allow HTTPS to regional S3 through its
+gateway endpoint, which ECR needs for image layers. Keep the node, pod, and
+control-plane egress rules aligned through `eks.NoInternetEgressRules`.
 
 ### Kubernetes resource ownership
 
@@ -118,6 +139,15 @@ Key helpers on BaseSuite:
   DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
   it from `SetupSuite` when readiness is a prerequisite for every test; use
   `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
+  `environments.WaitForKubernetesAgentReady(ctx, cluster, agent, options...)` does the same
+  for an Agent that isn't the one of a `Kubernetes` environment, e.g. one of the two
+  installations of `environments.BenchmarkEKS`, looking up each workload in the namespace it
+  was installed in; pair it with `WithLinuxNodeAgentNodeSelector` for an installation pinned to
+  a subset of the nodes. Auxiliary workloads that must be ready
+  alongside the Agent use `WithPodsReadyForNodes` (one pod per selected node, e.g. a
+  DaemonSet) or `WithPodsReady` (a minimum number of pods, all ready, e.g. a Deployment).
+  `WithAgentRestartsAllowed` accepts Agent pods that restarted, e.g. once at a node's cold
+  start, as long as they are ready; auxiliary workloads must still never restart.
 
 ## Agent configuration
 
@@ -155,6 +185,14 @@ and the standalone driver — keep them in sync.
 
 Reference consumer: `cmd/ai-sandbox/main.go` (provisions a host, runs an AI agent on it,
 retrieves a directory), wrapped by the `dda inv ai-sandbox.run` invoke task.
+
+## GCP authentication
+
+GCP provisioning uses ADC, while generated GKE kubeconfigs use the active gcloud
+CLI account through `gke-gcloud-auth-plugin`. Local GKE creation checks CLI credentials
+before provisioning because they can expire independently of ADC. When
+`GOOGLE_APPLICATION_CREDENTIALS` is supplied, preserve the existing service account
+activation path and skip the local CLI check.
 
 ## Agent installers outside Pulumi
 
@@ -320,3 +358,7 @@ This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
 "Keeping AI context accurate"). Update it when environments, provisioners,
 agentparams, or key APIs change. AI agents should fix inaccuracies they
 encounter during tasks.
+
+The developer docs in `doc/how-to/test/e2e/`, the `benchmarkeks` scenario
+included, and `doc/how-to/test/manual-qa/` also describe this framework: update
+them in the same PR when a change alters what they describe.

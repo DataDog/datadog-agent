@@ -5,7 +5,7 @@
 .linux_lint:
   extends: .bazel:defs:cache:progressive
   stage: lint
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_MEMORY_REQUEST: 32Gi

@@ -49,6 +49,7 @@ go_library(
         "//pkg/collector/corechecks/embed/apm",
         "//pkg/collector/corechecks/embed/process",
         "//pkg/collector/corechecks/gpu",
+        "//pkg/collector/corechecks/gpu/amd",
         "//pkg/collector/corechecks/gpu/nccl",
         "//pkg/collector/corechecks/net/network",
         "//pkg/collector/corechecks/net/networkv2",
@@ -96,7 +97,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "//comp/core/telemetry/impl",

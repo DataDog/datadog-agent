@@ -4,7 +4,7 @@ go_library(
     name = "external_unix_proxy_server_lib",
     srcs = ["external_unix_proxy_server.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy/external_unix_proxy_server",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
     deps = select({
@@ -21,7 +21,7 @@ go_library(
 go_binary(
     name = "external_unix_proxy_server",
     embed = [":external_unix_proxy_server_lib"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

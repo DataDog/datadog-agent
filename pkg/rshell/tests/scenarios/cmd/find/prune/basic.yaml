@@ -1,0 +1,18 @@
+description: find -prune skips directory contents.
+setup:
+  files:
+    - path: dir/skip/hidden.txt
+      content: "hidden"
+      chmod: 0644
+    - path: dir/keep/visible.txt
+      content: "visible"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name skip -prune -o -type f -print
+expect:
+  stdout: |+
+    dir/keep/visible.txt
+  stderr: ""
+  exit_code: 0

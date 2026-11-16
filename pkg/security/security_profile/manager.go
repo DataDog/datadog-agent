@@ -680,7 +680,7 @@ func (m *Manager) evictUnusedNodes() {
 			profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())

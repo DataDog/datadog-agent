@@ -17,6 +17,8 @@ import (
 	"sync"
 	"testing"
 
+	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,10 +44,6 @@ func (m *testPackageMaterializer) Materialize(_ context.Context, descriptor Desc
 		return m.materializeErr
 	}
 
-	scriptDir := filepath.Join(destination, scriptDirectory)
-	if err := os.MkdirAll(scriptDir, 0o700); err != nil {
-		return err
-	}
 	manifest := fmt.Sprintf(`{
   "schema-version": "v1",
   "version": %q,
@@ -53,10 +51,14 @@ func (m *testPackageMaterializer) Materialize(_ context.Context, descriptor Desc
   "command": {"entrypoint": "run.sh"}
 }
 `, descriptor.Version, descriptor.FQN)
-	if err := os.WriteFile(filepath.Join(scriptDir, manifestFile), []byte(manifest), 0o600); err != nil {
+	artifact := LocalArtifact{Directory: destination}
+	if err := os.MkdirAll(artifact.ScriptDirectory(), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(scriptDir, "run.sh"), []byte("#!/bin/sh\n"), 0o700)
+	if err := os.WriteFile(filepath.Join(artifact.ScriptDirectory(), manifestFile), []byte(manifest), 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(artifact.ScriptDirectory(), "run.sh"), []byte("#!/bin/sh\n"), 0o700)
 }
 
 func (m *testPackageMaterializer) materializationCount() int {
@@ -104,12 +106,64 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 
 	artifact, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
-	require.NoError(t, os.Remove(filepath.Join(artifact.Directory, scriptDirectory, "run.sh")))
+	require.NoError(t, os.Remove(filepath.Join(artifact.ScriptDirectory(), "run.sh")))
 
 	repaired, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
 	assert.Equal(t, artifact.Directory, repaired.Directory)
 	assert.Equal(t, 2, materializer.materializationCount())
+}
+
+func TestArtifactResolverFollowsRemoteCatalogSelection(t *testing.T) {
+	client := &testCatalogRCClient{}
+	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+	require.NoError(t, err)
+	materializer := &testPackageMaterializer{materializationID: "test-layout"}
+	resolver, err := NewArtifactResolver(t.TempDir(), materializer)
+	require.NoError(t, err)
+
+	older := remotePackageVersion("0.0.1", testCatalogDigest)
+	olderLatest := older
+	olderLatest.Latest = true
+	newer := remotePackageVersion("0.0.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	newerLatest := newer
+	newerLatest.Latest = true
+
+	steps := []struct {
+		name         string
+		packages     []fleetcatalog.Package
+		want         fleetcatalog.Package
+		materializes int
+	}{
+		{"initial version", []fleetcatalog.Package{olderLatest}, older, 1},
+		{"upgrade", []fleetcatalog.Package{older, newerLatest}, newer, 2},
+		{"cached upgrade", []fleetcatalog.Package{newerLatest, older}, newer, 2},
+		{"rollback", []fleetcatalog.Package{newer, olderLatest}, older, 2},
+	}
+	artifacts := make(map[string]LocalArtifact)
+	for _, step := range steps {
+		t.Run(step.name, func(t *testing.T) {
+			status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: step.packages})
+			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
+			descriptor, err := catalog.Lookup(testExecutionFQN)
+			require.NoError(t, err)
+			require.Equal(t, step.want.Version, descriptor.Version)
+			require.Equal(t, step.want.URL, descriptor.URL)
+			require.Equal(t, step.want.SHA256, descriptor.SHA256)
+
+			artifact, err := resolver.Resolve(context.Background(), descriptor)
+			require.NoError(t, err)
+			require.Equal(t, step.materializes, materializer.materializationCount())
+			for digest, cached := range artifacts {
+				if digest == descriptor.SHA256 {
+					require.Equal(t, cached, artifact)
+				} else {
+					require.NotEqual(t, cached.Directory, artifact.Directory)
+				}
+			}
+			artifacts[descriptor.SHA256] = artifact
+		})
+	}
 }
 
 func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {

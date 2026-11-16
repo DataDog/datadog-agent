@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package k8s
 
@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	metafake "k8s.io/client-go/metadata/fake"
+	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -29,6 +31,8 @@ import (
 type CollectorTestConfig struct {
 	// Resources to create in the fake client
 	Resources []runtime.Object
+	// Metadata-only resources (PartialObjectMetadata) to create in the fake metadata client
+	MetadataResources []runtime.Object
 	// Expected metadata message type
 	ExpectedMetadataType interface{}
 	// Expected number of resources
@@ -50,18 +54,33 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	// Create fake client
 	client := fake.NewClientset(config.Resources...)
 
-	// Create fake informer factory
+	// Create fake metadata client
+	metadataScheme := runtime.NewScheme()
+	assert.NoError(t, metav1.AddMetaToScheme(metadataScheme))
+	metadataClient := metafake.NewSimpleMetadataClient(metadataScheme, config.MetadataResources...)
+
+	// Create fake informer factories
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second)
+	secretMetadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	configMapMetadataInformerFactory := metadatainformer.NewFilteredSharedInformerFactory(metadataClient, 300*time.Second, metav1.NamespaceAll,
+		func(opts *metav1.ListOptions) {
+			opts.LabelSelector = NonHelmReleaseLabelSelector
+		})
 
 	// Create OrchestratorInformerFactory with fake informers
 	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
 		InformerFactory: informerFactory,
 	}
+	orchestratorInformerFactory.ConfigMapMetadataInformerFactory = configMapMetadataInformerFactory
+	orchestratorInformerFactory.SecretMetadataInformerFactory = secretMetadataInformerFactory
 
-	apiClient := &apiserver.APIClient{Cl: client}
+	apiClient := &apiserver.APIClient{Cl: client, InformerCl: client}
 
 	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
 	orchestratorCfg.KubeClusterName = "test-cluster"
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 
 	runCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
@@ -71,6 +90,7 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 		ClusterID:   "test-cluster",
 		Config:      orchestratorCfg,
 		MsgGroupRef: atomic.NewInt32(0),
+		StopCh:      stopCh,
 	}
 
 	// Run additional setup if provided
@@ -81,10 +101,10 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	// Initialize the collector
 	collector.Init(runCfg)
 
-	// Start the informer factory
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+	// Start the informer factories
 	informerFactory.Start(stopCh)
+	secretMetadataInformerFactory.Start(stopCh)
+	configMapMetadataInformerFactory.Start(stopCh)
 
 	// Wait for the informer to sync
 	if k8sCollector, ok := collector.(collectors.K8sCollector); ok {

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp"
+	"github.com/pulumi/pulumi-gcp/sdk/v10/go/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiConfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )

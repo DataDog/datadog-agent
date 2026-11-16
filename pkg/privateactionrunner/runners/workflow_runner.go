@@ -11,11 +11,14 @@ import (
 	"sync"
 	"time"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -41,18 +44,21 @@ type WorkflowRunner struct {
 
 func NewWorkflowRunner(
 	configuration *config.Config,
+	coreConfig model.Reader,
 	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,
 	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	pcapUploader pcapuploader.Component,
+	hostname hostnameinterface.Component,
 	ipcClient ipc.HTTPClient,
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor, err := NewWorkflowTaskExecutor(configuration, rcClient, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +207,8 @@ func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedW
 	if err == nil {
 		n.publishSuccess(ctx, task, output)
 	} else {
-		logger.Warn("task execution failed", log.ErrorField(err))
+		// The error text can carry credentials, so it is only published to OPMS.
+		logger.Warn("task execution failed", log.Int32("error_code", int32(util.DefaultPARError(err).ErrorCode)))
 		n.publishFailure(ctx, task, err)
 	}
 }

@@ -17,6 +17,7 @@ go_library(
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//comp/logs/auditor/def",
+        "//pkg/config/setup",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/launchers",
         "//pkg/logs/launchers/file/provider",

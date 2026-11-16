@@ -14,6 +14,12 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
+)
+
+var (
+	reFedSite = regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
+	reFedURL  = regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 )
 
 // ConfFileDirectory returns the absolute path to the folder containing the config
@@ -23,15 +29,14 @@ func ConfFileDirectory(c pkgconfigmodel.Reader) string {
 }
 
 // SetLogLevel validates and sets the "log_level" setting in the configuration. The logger will automatically react to this configuration change.
-// It takes a `level` string representing the desired log level and a `source` model.Source indicating where the new level came from (CLI, Remote Config, ...).
+// It takes a `level` string representing the desired log level — a single level or a per-package level specification — and a `source` model.Source indicating where the new level came from (CLI, Remote Config, ...).
 // It returns an error if the log level is invalid
 func SetLogLevel(level string, config pkgconfigmodel.Writer, source pkgconfigmodel.Source) error {
-	seelogLogLevel, err := log.ValidateLogLevel(level)
-	if err != nil {
+	if err := types.ValidateLevelRules(level); err != nil {
 		return err
 	}
 	// Logger subscribe to config changes to automatically apply new log_level value
-	config.Set("log_level", seelogLogLevel.String(), source)
+	config.Set("log_level", level, source)
 	return nil
 }
 
@@ -86,11 +91,9 @@ func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 
 // IsFed returns true if the Agent is running in a gov environment
 func IsFed(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
-	reURL := regexp.MustCompile(`https://.+\.ddog-gov\.com`)
 	isFipsAgent, _ := pkgfips.Enabled()
 	return cfg.GetBool("fips.enabled") || isFipsAgent ||
-		reSite.MatchString(cfg.GetString("site")) || reURL.MatchString(cfg.GetString("dd_url"))
+		reFedSite.MatchString(cfg.GetString("site")) || reFedURL.MatchString(cfg.GetString("dd_url"))
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in

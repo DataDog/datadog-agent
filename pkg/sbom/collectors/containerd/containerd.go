@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	containerd "github.com/containerd/containerd/v2/client"
 
@@ -68,17 +69,16 @@ type Collector struct {
 	containerdClient cutil.ContainerdItf
 	wmeta            option.Option[workloadmeta.Component]
 
-	closed bool
-}
+	// warnExport logs, once, that the collector exports the images it cannot
+	// read in place.
+	warnExport sync.Once
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return c.trivyCollector.CleanCache()
+	closed bool
 }
 
 // Init initializes the collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}
@@ -130,6 +130,13 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 
 	report, err = scanner(ctx, imageMeta, image, c.containerdClient, c.opts)
+	if errors.Is(err, trivy.ErrLayerUnreadable) || errors.Is(err, cutil.ErrNotUnpacked) {
+		c.warnExport.Do(func() {
+			log.Warnf("Exporting containerd images for SBOM scans, since the Agent cannot read their layers in place: %v", err)
+		})
+		report, err = c.trivyCollector.ScanContainerdImage(ctx, imageMeta, image, c.containerdClient, c.opts)
+		scanMethod = "tarball"
+	}
 	scanResult := sbom.ScanResult{
 		Error:            err,
 		Report:           report,

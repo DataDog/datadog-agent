@@ -1,0 +1,6 @@
+pulumi_plugins = use_extension("//deps/pulumi_plugins:extension.bzl", "pulumi_plugins")
+pulumi_plugins.from_file(
+    go_sum = "//test/new-e2e:go.sum",
+    npm_dependencies = ["@pulumi/kubernetes"],  # needed by pulumi-eks
+)
+use_repo(pulumi_plugins, "pulumi_plugins")

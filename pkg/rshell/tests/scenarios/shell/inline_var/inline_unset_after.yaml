@@ -1,0 +1,11 @@
+description: An inline assignment of a new variable does not persist after the command.
+input:
+  script: |+
+    NEWVAR=test echo something
+    echo "[$NEWVAR]"
+expect:
+  stdout: |+
+    something
+    []
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+# -p/--output-error is out of scope: every FIFO write target is already
+# rejected by the sandbox before the "pipe error" modes -p exists for could
+# ever be observed (see the "Out of scope" section in builtins/tee/tee.go).
+description: -p/--output-error is rejected as an unknown flag.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    tee -p out.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: invalid option -- 'p'
+    Try 'tee --help' for more information.
+  exit_code: 1
+skip_assert_against_bash: true

@@ -1,0 +1,7 @@
+description: Heredoc preserves trailing spaces on content lines.
+input:
+  script: "cat <<EOF\ntrailing spaces   \nanother line\nEOF\n"
+expect:
+  stdout: "trailing spaces   \nanother line\n"
+  stderr: ""
+  exit_code: 0

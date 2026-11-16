@@ -32,7 +32,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	serverContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("nginx"),
-		Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+		Image: pulumi.String(apps.Image(&e, "apps-nginx-server")),
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.checks": pulumi.String(utils.JSONMustMarshal(
 				map[string]interface{}{
@@ -75,7 +75,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	queryContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("query"),
-		Image: pulumi.String("ghcr.io/datadog/apps-http-client:" + apps.Version),
+		Image: pulumi.String(apps.Image(&e, "apps-http-client")),
 		Command: pulumi.StringArray{
 			pulumi.String("-url"),
 			pulumi.String("http://localhost"),

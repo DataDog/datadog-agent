@@ -1,0 +1,13 @@
+description: "D restarts the cycle but preserves subMade for t/T branching."
+setup:
+  files:
+    - path: input.txt
+      content: "ax\nby\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e '/a/{' -e 'N' -e 's/a/A/' -e 'D' -e '}' -e 't s' -e 's/b/B/' -e ':s' input.txt
+expect:
+  stdout: "by\n"
+  stderr: ""
+  exit_code: 0

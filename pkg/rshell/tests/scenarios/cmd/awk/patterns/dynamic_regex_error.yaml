@@ -1,0 +1,11 @@
+description: awk rejects malformed dynamic and literal regular expressions.
+input:
+  script: |+
+    awk 'BEGIN { pattern="["; print "a" ~ pattern }'
+    awk 'BEGIN { print "unreachable"; if (0) print /(abc/ }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: fatal: invalid regular expression "[": error parsing regexp: missing closing ]: `[`
+    awk: invalid regular expression "(abc": error parsing regexp: missing closing ): `(abc`
+  exit_code: 1

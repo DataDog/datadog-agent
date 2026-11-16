@@ -6,10 +6,10 @@
 package observerimpl
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -22,7 +22,7 @@ type testLifecycle struct {
 }
 
 func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *testing.T) {
-	detectors := []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}
+	detectors := []detectorRegistration{{detector: NewBOCPDDetector(DefaultBOCPDConfig())}}
 
 	for name, test := range map[string]struct {
 		yaml string
@@ -42,15 +42,47 @@ func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *test
 	}
 }
 
+func TestStorageConfigFromAgentConfigValidatesSeriesCapacity(t *testing.T) {
+	defaults := DefaultStorageConfig()
+	tests := []struct {
+		name      string
+		maxSeries int
+		ratio     float64
+		wantMax   int
+		wantRatio float64
+	}{
+		{name: "valid lower bounds", maxSeries: 1, ratio: 0, wantMax: 1, wantRatio: 0},
+		{name: "valid ratio below one", maxSeries: 123, ratio: 0.999, wantMax: 123, wantRatio: 0.999},
+		{name: "zero max and ratio one use defaults", maxSeries: 0, ratio: 1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "negative values use defaults", maxSeries: -1, ratio: -0.1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "ratio above one uses default", maxSeries: 123, ratio: 1.1, wantMax: 123, wantRatio: defaults.EvictionFloorRatio},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  storage:
+    max_series: %d
+    eviction_floor_ratio: %g
+`, tc.maxSeries, tc.ratio))
+
+			got := storageConfigFromAgentConfig(cfg, nil)
+			require.Equal(t, tc.wantMax, got.MaxSeries)
+			require.Equal(t, tc.wantRatio, got.EvictionFloorRatio)
+		})
+	}
+}
+
 func TestMaxDetectorPoints(t *testing.T) {
 	bocpdConfig := DefaultBOCPDConfig()
 	bocpdConfig.WarmupPoints = 40
-	detectors := []observerdef.Detector{
-		NewBOCPDDetector(bocpdConfig),
-		NewHoltResidualDetector(),
-		NewTukeyBiweightDetector(),
-		NewScanMWDetector(),
-		NewScanWelchDetector(),
+	detectors := []detectorRegistration{
+		{detector: NewBOCPDDetector(bocpdConfig)},
+		{detector: NewHoltResidualDetector(DefaultHoltResidualConfig())},
+		{detector: NewTukeyBiweightDetector(DefaultTukeyBiweightConfig())},
+		{detector: NewScanMWDetector(DefaultScanMWConfig())},
+		{detector: NewScanWelchDetector(DefaultScanWelchConfig())},
 	}
 	require.Equal(t, 120, maxDetectorPoints(detectors))
 }
@@ -108,6 +140,21 @@ anomaly_detection:
         name_pattern: kubernetes.*.cpu
 `,
 			errContains: "anomaly_detection.metrics.processing_rules: rule \"bad_pattern\": name_pattern must be a prefix with an optional trailing *",
+		},
+		{
+			name: "invalid allowed metric type",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  metrics:
+    enabled: true
+    allowed_types:
+      - Gauge
+      - bogus_type
+`,
+			errContains: `anomaly_detection.metrics.allowed_types: invalid metric type "bogus_type" (valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp)`,
 		},
 	}
 

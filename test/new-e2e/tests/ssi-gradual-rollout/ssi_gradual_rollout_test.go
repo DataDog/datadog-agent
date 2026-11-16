@@ -5,7 +5,7 @@
 
 // Package ssigradualrollout provides end-to-end tests for the SSI gradual rollout image
 // resolver. It deploys an in-cluster mock container registry and asserts that the
-// cluster-agent's admission webhook injects digest-based lib init containers for every
+// cluster-agent's admission webhook injects digest-based lib images for every
 // default-language target when gradual rollout is enabled (the default).
 package ssigradualrollout
 
@@ -19,6 +19,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -84,8 +85,11 @@ func (v *ssiGradualRolloutSuite) TestDefaultOptIn() {
 	}))
 
 	k8s := v.Env().KubernetesCluster.Client()
-	pod := findMutatedPod(v.T(), k8s, scenarioNamespace, appName, "python")
+	pod := findMutatedPod(v.T(), k8s, scenarioNamespace, appName)
+	// The exact mock digest proves the resolver used the mock registry.
+	expected := make(map[string]string, len(defaultSSILanguages))
 	for _, lang := range defaultSSILanguages {
-		requireDigestBasedLibImage(v.T(), pod, lang)
+		expected[lang] = fakeRegistryDigest
 	}
+	testutils.NewPodValidator(pod, testutils.InjectionModeAuto).RequireLibraryVersions(v.T(), expected)
 }

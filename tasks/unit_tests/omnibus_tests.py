@@ -81,8 +81,8 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
-            (r'ci-identities-gitlab-job-client secrets read .*', Result()),
-            (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
+            (r'tools/ci/read_ci_secret\.sh .*', Result()),
+            (r'powershell\.exe .* -File tools\\ci\\read_ci_secret\.ps1 .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -309,7 +309,7 @@ class TestOmnibusInstall(unittest.TestCase):
         omnibus.bundle_install_omnibus(self.mock_ctx, env={'FOO': 'bar'})
         env = self.mock_ctx.run.mock_calls[0].kwargs['env']
         self.assertEqual(env['FOO'], 'bar')
-        self.assertEqual(env['BUNDLE_BUILD__FFI___YAJL'], '--with-cflags=-std=gnu17')
+        self.assertEqual(env['BUNDLE_BUILD__FFI___YAJL'], '--with-cflags=-std=gnu11')
 
     def test_failure(self):
         self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1))

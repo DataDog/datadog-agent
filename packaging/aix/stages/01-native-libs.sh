@@ -62,18 +62,18 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 # Libraries taken from AIX Toolbox (yum install <pkg>-devel) use whatever
 # version is provided by the toolbox.
 #
-ZLIB_VERSION="1.3.1"
+ZLIB_VERSION="1.3.2"
 BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.9"
-XZ_VERSION="5.8.1"
-LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
+XZ_VERSION="5.8.4"
+LIBXML2_VERSION="2.15.4"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
 LIBFFI_VERSION="3.4.4"     # yum install libffi-devel
 NCURSES_VERSION="6.5"      # yum install ncurses-devel
 READLINE_VERSION="8.2"     # yum install readline-devel
-SQLITE_VERSION="3.53.2"    # built from source (amalgamation)
+SQLITE_VERSION="3.54.1"    # built from source (amalgamation)
 LIBICONV_VERSION="1.17"    # yum install libiconv
 LIBUNWIND_VERSION="1.0"    # derived from /opt/freeware/lib/libgcc_s.a (GCC runtime)
 
@@ -205,7 +205,9 @@ else
     rm -rf "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
     extract_gz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/zlib-${ZLIB_VERSION}"
-    ./configure --prefix="$EMBEDDED"
+    # zlib's configure probes the compiler with a bare "$CC -c" (no CFLAGS), which fails under
+    # OBJECT_MODE=64 (64-bit assembler vs gcc's default 32-bit dialect), so bake in -maix64.
+    CC="$CC -maix64" ./configure --prefix="$EMBEDDED"
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
     lib_cache_save zlib "$ZLIB_VERSION" "$_pre"

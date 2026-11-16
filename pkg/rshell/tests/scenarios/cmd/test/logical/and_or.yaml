@@ -1,0 +1,25 @@
+description: "test logical AND (-a) and OR (-o) operators"
+input:
+  script: |+
+    test "t" -a "t"
+    echo "and-tt: $?"
+    test "" -a "t"
+    echo "and-ft: $?"
+    test "t" -a ""
+    echo "and-tf: $?"
+    test "t" -o "t"
+    echo "or-tt: $?"
+    test "" -o "t"
+    echo "or-ft: $?"
+    test "" -o ""
+    echo "or-ff: $?"
+expect:
+  stdout: |
+    and-tt: 0
+    and-ft: 1
+    and-tf: 1
+    or-tt: 0
+    or-ft: 0
+    or-ff: 1
+  stderr: ""
+  exit_code: 0

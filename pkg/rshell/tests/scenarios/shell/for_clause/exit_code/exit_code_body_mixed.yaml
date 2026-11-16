@@ -1,0 +1,14 @@
+description: For loop exit code comes from the very last command of the final iteration regardless of earlier commands.
+input:
+  script: |+
+    for i in a b c; do
+      false
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

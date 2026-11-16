@@ -21,9 +21,9 @@ import (
 )
 
 var (
-	k32        = windows.NewLazyDLL("kernel32.dll")
-	versiondll = windows.NewLazyDLL("version.dll")
-	shlwapi    = windows.NewLazyDLL("shlwapi.dll")
+	k32        = windows.NewLazySystemDLL("kernel32.dll")
+	versiondll = windows.NewLazySystemDLL("version.dll")
+	shlwapi    = windows.NewLazySystemDLL("shlwapi.dll")
 
 	procGetFileVersionInfoSizeEx = versiondll.NewProc("GetFileVersionInfoSizeExW")
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")

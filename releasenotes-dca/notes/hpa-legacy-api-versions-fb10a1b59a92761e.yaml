@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    Upgrade the Kubernetes client libraries to v0.37. The Cluster Agent keeps
+    serving external metrics to the HorizontalPodAutoscalers of Kubernetes
+    clusters that only serve the ``autoscaling/v2beta1`` or
+    ``autoscaling/v2beta2`` API versions (Kubernetes older than 1.23).

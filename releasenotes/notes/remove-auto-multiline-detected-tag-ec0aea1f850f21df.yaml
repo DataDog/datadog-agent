@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    Log sources with automatic multi-line detection disabled no longer receive
+    the ``auto_multiline_detected:true`` tag on the first line of a detected
+    multi-line group. These lines are sent individually without detection
+    tags. The internal ``logs_config.auto_multi_line_detection_tagging``
+    setting is removed.

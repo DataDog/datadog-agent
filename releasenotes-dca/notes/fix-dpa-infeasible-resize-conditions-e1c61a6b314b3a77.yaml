@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Cluster Agent: Fix the Datadog Pod Autoscaler reporting a successful in-place
+    resize when the kubelet had rejected it (for example ``Infeasible`` for
+    Guaranteed pods on nodes using the static CPU manager policy). The Cluster
+    Agent now sees the ``PodResizePending`` and ``PodResizeInProgress`` pod
+    conditions, so a rejected resize falls back to a rollout.

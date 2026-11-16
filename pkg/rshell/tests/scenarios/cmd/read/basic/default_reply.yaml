@@ -1,0 +1,9 @@
+description: read with no variable name assigns the line to REPLY.
+input:
+  script: |+
+    echo "hi there" | { read; echo "$REPLY"; }
+expect:
+  stdout: |+
+    hi there
+  stderr: ""
+  exit_code: 0

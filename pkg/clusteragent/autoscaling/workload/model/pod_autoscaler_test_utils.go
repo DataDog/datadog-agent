@@ -72,6 +72,7 @@ type FakePodAutoscalerInternal struct {
 	AppliedProfileHash                 string
 	TargetGVK                          schema.GroupVersionKind
 	CustomRecommenderConfiguration     *RecommenderConfiguration
+	Paused                             bool
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
@@ -105,6 +106,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	}
 
 	return PodAutoscalerInternal{
+		paused:                             f.Paused,
 		namespace:                          f.Namespace,
 		name:                               f.Name,
 		generation:                         f.Generation,

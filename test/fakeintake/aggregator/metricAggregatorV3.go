@@ -56,7 +56,7 @@ func ParseMetricSeriesV3(payload api.Payload) ([]*MetricSeries, error) {
 		}
 
 		metricType := r.Type()
-		if metricType == intake_v3.MetricType_Sketch {
+		if metricType == intake_v3.MetricType_DDSketch || r.isHistogram() {
 			return nil, fmt.Errorf("unexpected sketch metric %q in V3 series payload", r.Name())
 		}
 

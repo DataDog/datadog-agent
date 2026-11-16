@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "docker.go",
         "docker_nop.go",
+        "image_metadata.go",
         "image_sbom_stub.go",
         "image_sbom_trivy.go",
         "stub.go",
@@ -42,7 +43,10 @@ go_library(
 
 dd_agent_go_test(
     name = "docker_test",
-    srcs = ["docker_test.go"],
+    srcs = [
+        "docker_test.go",
+        "image_metadata_test.go",
+    ],
     embed = [":docker"],
     gotags_sets = [[
         "cel",
@@ -55,5 +59,6 @@ dd_agent_go_test(
         "@com_github_moby_moby_api//types/image",
         "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

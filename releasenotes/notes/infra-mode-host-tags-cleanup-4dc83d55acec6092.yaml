@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Host tags now ignore unknown ``infrastructure_mode`` values instead of
+    emitting ``infra_mode:<typo>``. The ``infra_mode`` host tag is also no
+    longer copied onto metrics or logs during the expected-tags window, so
+    custom metrics cannot pick up the mark.

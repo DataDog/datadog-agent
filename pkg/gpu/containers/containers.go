@@ -32,12 +32,19 @@ var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
-	dockerInspectTimeout       = 100 * time.Millisecond
+	// nvidiaDriverCapabilitiesEnvVar is the environment variable through which a
+	// container declares which NVIDIA driver capabilities (e.g. compute,
+	// utility, graphics, video, ngx, compat32) are injected into it. The value
+	// is a comma-separated list, or "all".
+	// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+	nvidiaDriverCapabilitiesEnvVar = "NVIDIA_DRIVER_CAPABILITIES"
+	dockerInspectTimeout           = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
-	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
+	// GPUDeviceIDs is populated by the Docker collector on ECS and by the NVML
+	// collector for Kubernetes DRA allocations and KAI Scheduler fractional GPUs.
 	if len(container.GPUDeviceIDs) > 0 {
 		return true
 	}
@@ -358,6 +365,47 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
 }
 
+// IsUtilityOnlyContainer reports whether a container declares, through the
+// NVIDIA_DRIVER_CAPABILITIES environment variable, that "utility" is the
+// only capability injected into it. Utility-only containers (e.g. GPU
+// monitoring sidecars such as DCGM exporters) hold the GPU devices only to
+// observe them and cannot use them to run workloads, so they must not be
+// attributed as users of the device in GPU metrics.
+// Containers declaring any other capability are kept: besides compute,
+// capabilities such as graphics or video are also used by real workloads
+// (e.g. rendering, transcoding).
+// When the variable is unset, the NVIDIA toolkit injects a default capability
+// set (utility, compute), so the container is not considered utility-only.
+//
+// Known limitation: for containers provisioned through CDI (Kubernetes NVIDIA
+// DRA claims, docker CDI device requests), the CDI spec controls what is
+// injected and the environment variable does not restrict it. Such a
+// container can declare utility only and still run CUDA; it is excluded
+// anyway, which is the accepted trade-off (documented on AXT-73).
+// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+func IsUtilityOnlyContainer(container *workloadmeta.Container) bool {
+	capabilities, found := container.EnvVars[nvidiaDriverCapabilitiesEnvVar]
+	if !found || capabilities == "" {
+		return false
+	}
+
+	hasCapability := false
+	for _, capability := range strings.Split(capabilities, ",") {
+		switch strings.ToLower(strings.TrimSpace(capability)) {
+		case "":
+			continue
+		case "utility":
+			hasCapability = true
+		default:
+			// Another capability is requested: the container can use the GPU
+			// for more than monitoring it.
+			return false
+		}
+	}
+
+	return hasCapability
+}
+
 // IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
 func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
 	currentPID := os.Getpid()
@@ -376,4 +424,44 @@ func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadme
 	// Compare the struct as a value, not as a pointer, because the pointers might be different if they're created
 	// in different places
 	return runningContainer.Owner != nil && container.Owner != nil && *runningContainer.Owner == *container.Owner
+}
+
+const (
+	// kaiReservationGPUAnnotation holds the UUID of the GPU a KAI Scheduler
+	// reservation pod reserves. The reservation pod writes it itself shortly
+	// after it starts.
+	kaiReservationGPUAnnotation = "run.ai/reserve_for_gpu_index"
+	// kaiGPUGroupLabel is the GPU group label KAI puts on reservation pods and
+	// on the fractional pods sharing their GPU.
+	kaiGPUGroupLabel = "runai-gpu-group"
+	// kaiReservationPodPrefix prefixes every reservation pod name, as checked
+	// by KAI's own IsGPUReservationPod.
+	kaiReservationPodPrefix = "gpu-reservation"
+)
+
+// IsKAIReservationContainer reports whether the container belongs to a KAI
+// Scheduler reservation pod. KAI creates one per shared GPU, requesting the
+// whole GPU only to hold it for the fractional pods: it runs no GPU work, so
+// it must not be reported as the GPU's user. The namespace and app label are
+// configurable in KAI, so neither is used.
+func IsKAIReservationContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
+	pod, err := wmeta.GetKubernetesPodForContainer(container.ID)
+	if err != nil {
+		return false
+	}
+	return IsKAIReservationPod(pod)
+}
+
+// IsKAIReservationPod reports whether the pod is a KAI Scheduler reservation
+// pod: one carrying the reserved-GPU annotation or, before it has written it,
+// the GPU group label and KAI's reservation pod name prefix.
+func IsKAIReservationPod(pod *workloadmeta.KubernetesPod) bool {
+	if pod.Annotations[kaiReservationGPUAnnotation] != "" {
+		return true
+	}
+	// Until the reservation pod writes its annotation, recognize it the way KAI
+	// does, by its name. The group label keeps an unrelated pod that happens to
+	// share the prefix out.
+	_, hasGPUGroup := pod.Labels[kaiGPUGroupLabel]
+	return hasGPUGroup && strings.HasPrefix(pod.Name, kaiReservationPodPrefix)
 }

@@ -1,0 +1,19 @@
+description: |+
+  When IFS contains both whitespace and a non-whitespace separator,
+  bash strips trailing IFS-whitespace AGAIN after dropping a lone
+  trailing non-ws separator (the "separator + optional spaces"
+  pattern). For example, `IFS=' :' read a b` over ` a : b : `
+  must produce a="a" b="b", not a="a" b="b " (with a trailing
+  space). Verified empirically against bash 5.2.0.
+input:
+  script: |+
+    printf ' a : b : \n' | { IFS=' :' read a b; echo "[$a][$b]"; }
+    printf 'a : b\n'     | { IFS=' :' read a b; echo "[$a][$b]"; }
+    printf 'a : b : '    | { IFS=' :' read a b; echo "[$a][$b]"; }
+expect:
+  stdout: |+
+    [a][b]
+    [a][b]
+    [a][b]
+  stderr: ""
+  exit_code: 0

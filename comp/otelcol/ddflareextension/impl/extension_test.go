@@ -37,6 +37,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
@@ -108,7 +109,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	ddExt.Start(t.Context(), host)
 
 	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), true))
-	ddExt.NotifyConfig(t.Context(), conf)
+	err = ddExt.NotifyConfigSnapshot(t.Context(), extensioncapabilities.NewConfigSnapshot(conf, nil))
 	assert.NoError(t, err)
 
 	handler := ddExt.server.srv.Handler

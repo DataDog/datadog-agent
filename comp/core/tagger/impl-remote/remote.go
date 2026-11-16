@@ -244,7 +244,7 @@ func start(remoteTagger *remoteTagger) error {
 
 				port, err := strconv.ParseUint(sPort, 10, 16)
 				if err != nil {
-					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+					return nil, fmt.Errorf("invalid port for vsock listener: %w", err)
 				}
 
 				cid, err := socket.ParseVSockAddress(vsockAddr)
@@ -477,6 +477,24 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
+}
+
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+//
+// It comes from the stream rather than the local config, so a Cluster Check
+// Runner reports the mode of the Cluster Agent that dispatches its checks even
+// when the setting was not applied to the runner itself.
+func (t *remoteTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
 }
 
 // EnrichTags enriches the tags with the global tags.

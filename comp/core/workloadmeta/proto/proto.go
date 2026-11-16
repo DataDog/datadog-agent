@@ -210,6 +210,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Resources:                  toProtoContainerResources(container.Resources),
 		Owner:                      ownerEntityID,
 		SecurityContext:            toProtoContainerSecurityContext(container.SecurityContext),
+		GpuDeviceIDs:               container.GPUDeviceIDs,
 	}, nil
 }
 
@@ -486,6 +487,11 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		})
 	}
 
+	var created *timestamppb.Timestamp
+	if !containerImageMetadata.Created.IsZero() {
+		created = timestamppb.New(containerImageMetadata.Created)
+	}
+
 	containerImageMetadataProto := &pb.ContainerImageMetadata{
 		EntityId:     protoEntityID,
 		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
@@ -497,6 +503,7 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		OsVersion:    containerImageMetadata.OSVersion,
 		Architecture: containerImageMetadata.Architecture,
 		Variant:      containerImageMetadata.Variant,
+		Created:      created,
 		Layers:       protoLayers,
 	}
 
@@ -1018,6 +1025,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
 		Owner:                      owner,
 		SecurityContext:            toWorkloadmetaContainerSecurityContext(protoContainer.SecurityContext),
+		GPUDeviceIDs:               protoContainer.GpuDeviceIDs,
 	}, nil
 }
 
@@ -1399,6 +1407,10 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		Architecture: protoContainerImageMetadata.Architecture,
 		Variant:      protoContainerImageMetadata.Variant,
 		Layers:       layers,
+	}
+
+	if protoContainerImageMetadata.Created != nil {
+		containerImageMetadata.Created = protoContainerImageMetadata.Created.AsTime()
 	}
 
 	if protoContainerImageMetadata.Sbom != nil {

@@ -120,6 +120,40 @@ func TestMacroMerge(t *testing.T) {
 	}
 }
 
+func TestMacroMergeOverride(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     MacroDefinition
+		override MacroDefinition
+	}{
+		{
+			name:     "expression to expression",
+			base:     MacroDefinition{Expression: `["/etc/default/foo"]`},
+			override: MacroDefinition{Expression: `["/etc/custom/foo"]`},
+		},
+		{
+			name:     "expression to values",
+			base:     MacroDefinition{Expression: `["/etc/default/foo"]`},
+			override: MacroDefinition{Values: []string{"/etc/custom/foo"}},
+		},
+		{
+			name:     "values to expression",
+			base:     MacroDefinition{Values: []string{"/etc/default/foo"}},
+			override: MacroDefinition{Expression: `["/etc/custom/foo"]`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.override.Combine = OverridePolicy
+			m := &PolicyMacro{Def: &tt.base}
+			require.NoError(t, m.MergeWith(&PolicyMacro{Def: &tt.override}))
+			assert.Equal(t, tt.override.Expression, m.Def.Expression)
+			assert.Equal(t, tt.override.Values, m.Def.Values)
+		})
+	}
+}
+
 func TestRuleMerge(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{
@@ -2109,6 +2143,37 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 	return rs, errs
 }
 
+func TestRuleNullAction(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				nil,
+				{
+					Kill: &KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		}},
+	}
+
+	rs, errs := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+	require.Error(t, errs.ErrorOrNil())
+	require.Len(t, errs.Errors, 1)
+	assert.ErrorContains(t, errs.Errors[0], "rule `test_rule` error: action definition can't be null")
+
+	var aerr *ErrActionLoad
+	require.ErrorAs(t, errs.Errors[0], &aerr)
+	assert.Nil(t, aerr.Action)
+
+	rule := rs.GetRuleByID("test_rule")
+	require.NotNil(t, rule)
+	require.Len(t, rule.PolicyRule.Actions, 1)
+	assert.NotNil(t, rule.PolicyRule.Actions[0].Def.Kill)
+}
+
 func TestRuleErrorLoading(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{
@@ -2130,7 +2195,7 @@ func TestRuleErrorLoading(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 1)
-	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
+	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:16: unexpected `=`, did you mean `==`?")
 
 	assert.Contains(t, rs.ListRuleIDs(), "testA")
 	assert.NotContains(t, rs.ListRuleIDs(), "testB")
@@ -2619,7 +2684,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field cardinality mismatch for variable 'connection_hostname': field 'connect.addr.hostname' is an array, but append is not set for variable 'connection_hostname' with value ''")
+			assert.ErrorContains(t, err, "expression 'connect.addr.hostname' for variable 'connection_hostname': incompatible types: expression returns slice but default_value is string")
 		}
 	})
 
@@ -2728,7 +2793,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+			assert.ErrorContains(t, err, "expression 'process.pid' for variable 'connection_id_pid': incompatible types: expression returns int but default_value is string")
 		}
 	})
 

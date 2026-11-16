@@ -105,6 +105,21 @@ type FileSerializer struct {
 	MountDetached *bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
+	// Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage.
+	Capabilities *FileCapabilitiesSerializer `json:"capabilities,omitempty"`
+}
+
+// FileCapabilitiesSerializer serializes the executable's file capabilities.
+// easyjson:json
+type FileCapabilitiesSerializer struct {
+	// Permitted capabilities attached to the executable, before the bounding-set check.
+	Permitted []string `json:"permitted"`
+	// Inheritable capabilities attached to the executable.
+	Inheritable []string `json:"inheritable"`
+	// File effective capability bit, not a capability set.
+	Effective bool `json:"effective"`
+	// Whether valid file capabilities were collected during exec or procfs resolution.
+	Available bool `json:"available"`
 }
 
 // FileMetadataSerializer serializes a file metadata
@@ -575,13 +590,15 @@ type MountEventSerializer struct {
 	// Mount source path
 	MountSourcePath string `json:"source.path,omitempty"`
 	// Mount point path error
-	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
-	// Mount is not visible in the VFS tree
+	// Mount is visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
+	// Per-mount attribute flags expressed as MOUNT_ATTR_* names
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -703,6 +720,42 @@ type SetrlimitEventSerializer struct {
 type UnshareEventSerializer struct {
 	// Namespace flags requested by the unshare call
 	Flags []string `json:"flags,omitempty"`
+}
+
+// SetNSEventSerializer serializes a setns event
+// easyjson:json
+type SetNSEventSerializer struct {
+	// Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0
+	NSType []string `json:"nstype,omitempty"`
+	// Namespace IDs of the thread once the syscall returned
+	NamespaceIDsSerializer
+	// Namespace IDs of the thread before the syscall
+	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+	// Indicates that the mount namespace of the thread after the syscall is the host's initial one
+	MntNSHost bool `json:"mntns_host,omitempty"`
+	// Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one
+	MntNSOutsideBase bool `json:"mntns_outside_base,omitempty"`
+}
+
+// NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
+// easyjson:json
+type NamespaceIDsSerializer struct {
+	// Mount namespace ID
+	MntNS uint32 `json:"mntns,omitempty"`
+	// Network namespace ID
+	NetNS uint32 `json:"netns,omitempty"`
+	// ID of the PID namespace future children are created in (pid_for_children)
+	PIDNS uint32 `json:"pidns,omitempty"`
+	// User namespace ID
+	UserNS uint32 `json:"userns,omitempty"`
+	// UTS namespace ID
+	UTSNS uint32 `json:"utsns,omitempty"`
+	// IPC namespace ID
+	IPCNS uint32 `json:"ipcns,omitempty"`
+	// Cgroup namespace ID
+	CgroupNS uint32 `json:"cgroupns,omitempty"`
+	// Time namespace ID
+	TimeNS uint32 `json:"timens,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -869,16 +922,13 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SetNSEventSerializer         `json:"setns,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
 	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
 	ses := SyscallsEventSerializer{}
-	// Sample events carry a single syscall in SyscallID instead of the Syscalls drain bitmap.
-	if e.EventReason == model.SampleReason {
-		return &SyscallsEventSerializer{{ID: int(e.SyscallID), Name: model.Syscall(e.SyscallID).String()}}
-	}
 	for _, s := range e.Syscalls {
 		ses = append(ses, SyscallSerializer{
 			ID:   int(s),
@@ -975,6 +1025,26 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 	return fs
 }
 
+func newFileCapabilitiesSerializer(caps *model.FileCapabilities) *FileCapabilitiesSerializer {
+	if !caps.Available {
+		return nil
+	}
+	permitted := model.KernelCapability(caps.Permitted).StringArray()
+	if permitted == nil {
+		permitted = []string{}
+	}
+	inheritable := model.KernelCapability(caps.Inheritable).StringArray()
+	if inheritable == nil {
+		inheritable = []string{}
+	}
+	return &FileCapabilitiesSerializer{
+		Permitted:   permitted,
+		Inheritable: inheritable,
+		Effective:   caps.Effective,
+		Available:   true,
+	}
+}
+
 func newFileMetadataSerializer(m *model.FileMetadata) *FileMetadataSerializer {
 	return &FileMetadataSerializer{
 		Size:               m.Size,
@@ -1048,6 +1118,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
+		psSerializer.Executable.Capabilities = newFileCapabilitiesSerializer(&ps.FileCapabilities)
+
 		if ps.HasInterpreter() {
 			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e, 0, nil)
 		}
@@ -1101,6 +1173,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
 				PodUID:    ps.ContainerContext.PodUID,
+				ECSTaskID: ps.ContainerContext.ECSTaskID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1337,12 +1410,12 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
-			Path:    e.GetMountRootPath(),
+			Path:    mountPointPath,
 			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
-			Path:    e.GetMountMountpointPath(),
+			Path:    fh.ResolveMountRootPath(e, &e.Mount),
 			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
@@ -1355,11 +1428,15 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		MountSourcePath: mountSourcePath,
 		Detached:        e.Mount.Detached,
 		Visible:         e.Mount.Visible,
+		Flags:           model.MountFlagsStrings(e.Mount.MountFlags),
 	}
 
-	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
+	// potential errors retrieved from ResolveMountPointPath, ResolveMountRootPath and ResolveMountSourcePath
+	if e.Mount.MountPointPathResolutionError != nil {
+		mountSerializer.MountPointPathResolutionError = e.Mount.MountPointPathResolutionError.Error()
+	}
 	if e.Mount.MountRootPathResolutionError != nil {
-		mountSerializer.MountRootPathResolutionError = e.Mount.MountRootPathResolutionError.Error()
+		mountSerializer.Root.PathResolutionError = e.Mount.MountRootPathResolutionError.Error()
 	}
 	if e.Mount.MountSourcePathResolutionError != nil {
 		mountSerializer.MountSourcePathResolutionError = e.Mount.MountSourcePathResolutionError.Error()
@@ -1469,9 +1546,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent. Skip sample events unless
-	// they are anomalies, otherwise the sampled syscall (in SyscallID) is never serialized.
-	if e.GetEventType() == model.SyscallsEventType && (e.Syscalls.EventReason != model.SampleReason || e.IsAnomalyDetectionEvent()) {
+	// add the syscalls from the event only for the top level parent
+	if e.GetEventType() == model.SyscallsEventType {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1489,7 +1565,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
+		savedErr := e.Error
 		s := newProcessSerializer(&pce.Process, e)
+		if !first && &pce.Process != pc.Parent {
+			e.Error = savedErr
+		}
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
@@ -1657,6 +1737,17 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 	}
 }
 
+func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	previous := NamespaceIDsSerializer(e.SetNS.Previous)
+	return &SetNSEventSerializer{
+		NSType:                 model.CloneFlags(e.SetNS.NSType).StringArray(),
+		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
+		Previous:               &previous,
+		MntNSHost:              e.SetNS.MntNSHost,
+		MntNSOutsideBase:       e.SetNS.MntNSOutsideBase,
+	}
+}
+
 func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
 	return &SocketEventSerializer{
 		Domain:   model.SocketDomain(e.Socket.Domain).String(),
@@ -1721,6 +1812,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
 			PodUID:    event.ProcessContext.ContainerContext.PodUID,
+			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
@@ -1959,9 +2051,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		if event.Syscalls.EventReason != model.SampleReason || event.IsAnomalyDetectionEvent() {
-			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
-		}
+		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
@@ -1975,6 +2065,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, &event.Exec.FileMetadata),
 		}
+		s.FileEventSerializer.Capabilities = newFileCapabilitiesSerializer(&event.ProcessContext.Process.FileCapabilities)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Exec = args
@@ -1997,6 +2088,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SetNSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.SetNS.Retval)
+		s.SetNSEventSerializer = newSetNSEventSerializer(event)
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)

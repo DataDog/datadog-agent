@@ -51,7 +51,7 @@ fn reload_removes_deleted_yaml_from_catalog() {
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
 
     procmgr.remove_process_yaml("sleeper_idle");
     procmgr.assert_reload_matches(ReloadExpect {
@@ -90,7 +90,7 @@ fn reload_remove_only_empties_catalog() {
 }
 
 #[test]
-fn reload_adds_no_auto_start_stays_created() {
+fn reload_adds_no_auto_start_is_skipped() {
     let procmgr = TestEnv::new().start();
     procmgr.require_list().assert_empty();
 
@@ -101,7 +101,7 @@ fn reload_adds_no_auto_start_stays_created() {
     });
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn reload_remove_and_add_swaps_catalog() {
     procmgr.assert_pid_gone(old_pid);
     let list = procmgr.require_list();
     list.assert_len(1);
-    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
 }
 
 #[test]

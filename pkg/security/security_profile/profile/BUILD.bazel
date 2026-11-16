@@ -119,6 +119,7 @@ go_library(
 dd_agent_go_test(
     name = "profile_test",
     srcs = [
+        "base_mount_namespace_test.go",
         "disable_test.go",
         "protobuf_security_context_test.go",
     ],

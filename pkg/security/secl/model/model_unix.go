@@ -137,6 +137,7 @@ type Event struct {
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
 	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
+	SetNS        SetNSEvent        `field:"setns" event:"setns"`                 // [7.86] [Kernel] A thread joined an existing namespace
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -400,11 +401,23 @@ func SetInterpreterFields(bprm *LinuxBinprm, subField string, _ interface{}) (bo
 	return true, nil
 }
 
+// FileCapabilities contains capabilities attached to the executable, independently
+// of the process credentials and observed capability usage. Kernel exec events
+// collect the file sets before bounding-set filtering. Procfs snapshot/fallback
+// reads the current executable's xattr, which may have changed since exec.
+type FileCapabilities struct {
+	Permitted   uint64 `field:"permitted"`   // SECLDoc[permitted] Definition:`Permitted capabilities attached to the executable file, before any process bounding-set filtering` Constants:`Kernel Capability constants`
+	Inheritable uint64 `field:"inheritable"` // SECLDoc[inheritable] Definition:`Inheritable capabilities attached to the executable file` Constants:`Kernel Capability constants`
+	Effective   bool   `field:"effective"`   // SECLDoc[effective] Definition:`File effective capability bit, which requests that capabilities granted during exec also become effective`
+	Available   bool   `field:"available"`   // SECLDoc[available] Definition:`Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
 
-	FileEvent FileEvent `field:"file,check:IsNotKworker"`
+	FileEvent        FileEvent        `field:"file,check:IsNotKworker"`
+	FileCapabilities FileCapabilities `field:"file.capabilities,check:IsNotKworker"`
 
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
@@ -425,6 +438,10 @@ type Process struct {
 	StopExecutionTime time.Time `field:"-"`
 
 	ForkFlags uint64 `field:"-"`
+
+	// InitialMntNS is the MntNS the process had at fork or exec, saved when MntNS is first
+	// updated by a later unshare or setns, 0 until then. Use GetInitialMntNS to read it
+	InitialMntNS uint32 `field:"-"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
@@ -625,8 +642,9 @@ type Mount struct {
 	Path                 string   `field:"-"`
 	Origin               uint32   `field:"-"`
 	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is visible in the VFS`
 	NamespaceInode       uint32   `field:"-"`
+	MountFlags           uint32   `field:"flags"` // SECLDoc[flags] Definition:`Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout`
 }
 
 // MountEvent represents a mount event
@@ -879,8 +897,9 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File FileEvent `field:"file"` // File pointing to the cgroup
-	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	File   FileEvent `field:"file"` // File pointing to the cgroup
+	Pid    uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
+	Retval int32     `field:"-"`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -966,13 +985,10 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent carries either a drain bitmap or a sample first-hit,
-// discriminated by EventReason.
+// SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	EventReason  SyscallDriftEventReason
-	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-	SyscallID    uint32    // populated iff EventReason == SampleReason
-	SampleCookie uint64    // populated iff EventReason == SampleReason
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache
@@ -1184,6 +1200,29 @@ type SetrlimitEvent struct {
 	RlimMax   uint64          `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
 	TargetPid uint32          `field:"-"`        // Internal field, not exposed to users
 	Target    *ProcessContext `field:"target"`   // SECLDoc[target] Definition:`Process context of the target process`
+}
+
+// SetNSEvent represents a setns event
+type SetNSEvent struct {
+	SyscallEvent
+	NSType int `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
+	NamespaceIDs
+	Previous         NamespaceIDs `field:"previous"`           // SECLDoc[previous] Definition:`Namespace IDs of the thread before the syscall`
+	MntNSHost        bool         `field:"mntns_host"`         // SECLDoc[mntns_host] Definition:`Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved`
+	MntNSOutsideBase bool         `field:"mntns_outside_base"` // SECLDoc[mntns_outside_base] Definition:`Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved`
+}
+
+// NamespaceIDs holds the namespace IDs of a thread, as listed in /proc/<tid>/ns/. An ID is 0 if it
+// couldn't be resolved.
+type NamespaceIDs struct {
+	MntNS    uint32 `field:"mntns"`    // SECLDoc[mntns] Definition:`Mount namespace ID, 0 if it couldn't be resolved`
+	NetNS    uint32 `field:"netns"`    // SECLDoc[netns] Definition:`Network namespace ID, 0 if it couldn't be resolved`
+	PIDNS    uint32 `field:"pidns"`    // SECLDoc[pidns] Definition:`ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved`
+	UserNS   uint32 `field:"userns"`   // SECLDoc[userns] Definition:`User namespace ID, 0 if it couldn't be resolved`
+	UTSNS    uint32 `field:"utsns"`    // SECLDoc[utsns] Definition:`UTS namespace ID, 0 if it couldn't be resolved`
+	IPCNS    uint32 `field:"ipcns"`    // SECLDoc[ipcns] Definition:`IPC namespace ID, 0 if it couldn't be resolved`
+	CgroupNS uint32 `field:"cgroupns"` // SECLDoc[cgroupns] Definition:`Cgroup namespace ID, 0 if it couldn't be resolved`
+	TimeNS   uint32 `field:"timens"`   // SECLDoc[timens] Definition:`Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces`
 }
 
 // SetSockOptEvent represents a set socket option event

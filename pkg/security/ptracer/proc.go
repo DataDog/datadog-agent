@@ -210,11 +210,28 @@ func collectPIDEnvVars(pid int32) ([]string, bool, error) {
 	return envs, truncated, nil
 }
 
+// procExecutableName maps procfs's anonymous executable names to the convention
+// used by memfd syscall hooks and the probe (a basename, never a pathname).
+func procExecutableName(filename string) string {
+	if strings.HasPrefix(filename, "/memfd:") {
+		return strings.TrimSuffix(filename[1:], " (deleted)")
+	}
+	return filename
+}
+
 func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
-	ppid, err := proc.Ppid()
+	ppid, startTime, err := readProcessStat(int(proc.Pid))
 	if err != nil {
 		return nil, err
 	}
+	current, err := collectProcess(proc.Pid)
+	if err != nil {
+		return nil, err
+	}
+	if current.CreateTime != proc.CreateTime {
+		return nil, fmt.Errorf("process %d changed generation before its procfs snapshot", proc.Pid)
+	}
+	proc = current
 
 	uids, err := proc.Uids()
 	if err != nil {
@@ -225,11 +242,16 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(uids) < 2 || len(gids) < 2 {
+		return nil, fmt.Errorf("missing credentials for process %d", proc.Pid)
+	}
 
 	cmdLine, err := proc.CmdlineSlice()
 	if err != nil {
 		return nil, err
 	}
+	// Scanner snapshots share the wire limit and argument bounds of traced execs.
+	cmdLine, argsTruncated := truncateArgs(cmdLine)
 
 	filename, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", proc.Pid))
 	if err != nil {
@@ -245,6 +267,13 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("snapshot failed for %d: couldn't get container context: %w", proc.Pid, err)
 	}
+	_, currentStartTime, err := readProcessStat(int(proc.Pid))
+	if err != nil {
+		return nil, err
+	}
+	if currentStartTime != startTime {
+		return nil, fmt.Errorf("process %d changed generation during its procfs snapshot", proc.Pid)
+	}
 
 	return &ebpfless.Message{
 		Type: ebpfless.MessageTypeSyscall,
@@ -252,13 +281,15 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 			Type:        ebpfless.SyscallTypeExec,
 			PID:         uint32(proc.Pid),
 			Timestamp:   uint64(time.Unix(0, proc.CreateTime*int64(time.Millisecond)).UnixNano()),
+			StartTime:   startTime,
 			ContainerID: containerID,
 			CGroupID:    cgroupID,
 			Exec: &ebpfless.ExecSyscallMsg{
 				File: ebpfless.FileSyscallMsg{
-					Filename: filename,
+					Filename: procExecutableName(filename),
 				},
 				Args:          cmdLine,
+				ArgsTruncated: argsTruncated,
 				Envs:          envs,
 				EnvsTruncated: truncated,
 				TTY:           getPidTTY(int(proc.Pid)),
@@ -277,6 +308,9 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 
 func (ctx *CWSPtracerCtx) scanProcfs() {
 	cache := make(map[int32]int64)
+	// Exits must refer to the generation actually reported by this scanner,
+	// not whichever process may have reused the PID before network delivery.
+	reportedStartTimes := make(map[int32]uint64)
 
 	every := ctx.opts.ScanProcEvery
 	if every == 0 {
@@ -297,6 +331,7 @@ func (ctx *CWSPtracerCtx) scanProcfs() {
 			for _, proc := range add {
 				if msg, err := procToMsg(proc); err == nil {
 					_ = ctx.sendMsg(msg)
+					reportedStartTimes[proc.Pid] = msg.Syscall.StartTime
 				}
 				cache[proc.Pid] = proc.CreateTime
 			}
@@ -304,6 +339,11 @@ func (ctx *CWSPtracerCtx) scanProcfs() {
 			// cleanup
 			for _, pid := range del {
 				delete(cache, pid)
+				startTime, reported := reportedStartTimes[pid]
+				delete(reportedStartTimes, pid)
+				if !reported {
+					continue
+				}
 
 				msg := &ebpfless.Message{
 					Type: ebpfless.MessageTypeSyscall,
@@ -311,6 +351,7 @@ func (ctx *CWSPtracerCtx) scanProcfs() {
 						Type:      ebpfless.SyscallTypeExit,
 						PID:       uint32(pid),
 						Timestamp: uint64(time.Now().UnixNano()),
+						StartTime: startTime,
 						Exit:      &ebpfless.ExitSyscallMsg{},
 					},
 				}

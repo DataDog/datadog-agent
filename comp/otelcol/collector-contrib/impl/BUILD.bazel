@@ -21,6 +21,7 @@ go_library(
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_ecsobserver//:ecsobserver",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_hostobserver//:hostobserver",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_k8sobserver//:k8sobserver",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_opampextension//:opampextension",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_pprofextension//:pprofextension",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_extension_storage_filestorage//:filestorage",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor//:attributesprocessor",

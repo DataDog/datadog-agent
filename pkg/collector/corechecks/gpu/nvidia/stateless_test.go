@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -386,6 +388,46 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 	// Should get error but still have some metrics (memory.limit from processMemorySample)
 	require.Error(t, err)
 	require.Greater(t, len(processMetrics), 0) // Should still get memory.limit metric
+}
+
+func TestProcessMemoryUsageSkipsUnknownMemoryLimit(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+
+	metrics := processMemoryUsage(device, nil, Medium)
+
+	require.Empty(t, metrics)
+}
+
+func TestDeviceMemoryV2SkipsUtilizationWithZeroTotal(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfo_v2Func = func() (nvml.Memory_v2, nvml.Return) {
+			return nvml.Memory_v2{Free: 100, Reserved: 50, Used: 50}, nvml.SUCCESS
+		}
+	}))
+
+	var handler func(safenvml.Device, uint64) ([]Sample, uint64, error)
+	for _, api := range createStatelessAPIs(&CollectorDependencies{}) {
+		if api.Name == "device_memory_v2" {
+			handler = api.Handler
+			break
+		}
+	}
+	require.NotNil(t, handler)
+
+	samples, _, err := handler(device, 0)
+	require.NoError(t, err)
+	metrics := requireMetrics(t, samples)
+	metricNames := make([]string, 0, len(metrics))
+	for _, metric := range metrics {
+		metricNames = append(metricNames, metric.Name)
+	}
+	require.Contains(t, metricNames, "memory.free")
+	require.Contains(t, metricNames, "memory.reserved")
+	require.NotContains(t, metricNames, "memory.utilization")
 }
 
 // TestProcessMemoryMetricTags tests that process memory metrics have correct tags and priorities
@@ -843,75 +885,30 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 	}
 }
 
-func TestPCIELinkBytesPerSecond(t *testing.T) {
-	// This table was generated from https://en.wikipedia.org/wiki/PCI_Express#Hardware_protocol_summary:~:text=and%20other%20features.-,Comparison%20table,-%5Bedit%5D
-	tests := map[string]struct {
-		gen      int
-		width    int
-		wantErr  bool
-		expected float64
-	}{
-		// PCIe 1.0 — 2.5 GT/s, 8b/10b
-		"gen1 x1":  {gen: 1, width: 1, expected: 0.25e9},
-		"gen1 x2":  {gen: 1, width: 2, expected: 0.5e9},
-		"gen1 x4":  {gen: 1, width: 4, expected: 1e9},
-		"gen1 x8":  {gen: 1, width: 8, expected: 2e9},
-		"gen1 x16": {gen: 1, width: 16, expected: 4e9},
+// fakeNodeSource stands in for the cluster agent.
+type fakeNodeSource struct{}
 
-		// PCIe 2.0 — 5.0 GT/s, 8b/10b
-		"gen2 x1":  {gen: 2, width: 1, expected: 0.5e9},
-		"gen2 x2":  {gen: 2, width: 2, expected: 1e9},
-		"gen2 x4":  {gen: 2, width: 4, expected: 2e9},
-		"gen2 x8":  {gen: 2, width: 8, expected: 4e9},
-		"gen2 x16": {gen: 2, width: 16, expected: 8e9},
+func (fakeNodeSource) NodeUnschedulable() (nodeunschedulable.Result, error) {
+	return nodeunschedulable.Result{Reasons: []string{}}, nil
+}
+func (fakeNodeSource) Probe() error { return nil }
 
-		// PCIe 3.0 — 8.0 GT/s, 128b/130b
-		"gen3 x1":  {gen: 3, width: 1, expected: 0.985e9},
-		"gen3 x2":  {gen: 3, width: 2, expected: 1.969e9},
-		"gen3 x4":  {gen: 3, width: 4, expected: 3.938e9},
-		"gen3 x8":  {gen: 3, width: 8, expected: 7.877e9},
-		"gen3 x16": {gen: 3, width: 16, expected: 15.754e9},
-
-		// PCIe 4.0 — 16.0 GT/s, 128b/130b
-		"gen4 x1":  {gen: 4, width: 1, expected: 1.969e9},
-		"gen4 x2":  {gen: 4, width: 2, expected: 3.938e9},
-		"gen4 x4":  {gen: 4, width: 4, expected: 7.877e9},
-		"gen4 x8":  {gen: 4, width: 8, expected: 15.754e9},
-		"gen4 x16": {gen: 4, width: 16, expected: 31.508e9},
-
-		// PCIe 5.0 — 32.0 GT/s, 128b/130b
-		"gen5 x1":  {gen: 5, width: 1, expected: 3.938e9},
-		"gen5 x2":  {gen: 5, width: 2, expected: 7.877e9},
-		"gen5 x4":  {gen: 5, width: 4, expected: 15.754e9},
-		"gen5 x8":  {gen: 5, width: 8, expected: 31.508e9},
-		"gen5 x16": {gen: 5, width: 16, expected: 63.015e9},
-
-		// PCIe 6.0 — 64.0 GT/s, PAM4 + 242B/256B FLIT
-		"gen6 x1":  {gen: 6, width: 1, expected: 7.563e9},
-		"gen6 x2":  {gen: 6, width: 2, expected: 15.125e9},
-		"gen6 x4":  {gen: 6, width: 4, expected: 30.25e9},
-		"gen6 x8":  {gen: 6, width: 8, expected: 60.5e9},
-		"gen6 x16": {gen: 6, width: 16, expected: 121e9},
-
-		// Error cases
-		"unknown gen 0":  {gen: 0, width: 16, wantErr: true},
-		"unknown gen 7":  {gen: 7, width: 16, wantErr: true},
-		"negative gen":   {gen: -1, width: 16, wantErr: true},
-		"zero width":     {gen: 4, width: 0, wantErr: true},
-		"negative width": {gen: 4, width: -1, wantErr: true},
+// The reasons API is only dropped when no health source can ever exist and the node state is
+// off; a GPU missing from workloadmeta at startup keeps it, so health appears once known.
+func TestUnavailableReasonsAPISupport(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithUnsupportedFields(nvml.FI_DEV_GET_GPU_RECOVERY_ACTION))
+	wmeta := testutil.GetWorkloadMetaMock(t) // no GPUs yet
+	supported := func(deps *CollectorDependencies) int {
+		apis := createStatelessAPIs(deps)
+		return len(filterSupportedAPIs(device, []apiCallInfo{findAPICallByName(t, apis, "device_unavailable_reasons")}))
 	}
 
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			actual, err := pcieLinkBytesPerSecond(test.gen, test.width)
-			if test.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.InDelta(t, test.expected, actual, 1e6) // tolerate 1 MB/s drift
-		})
-	}
+	env.SetFeatures(t)
+	require.Zero(t, supported(&CollectorDependencies{Workloadmeta: wmeta}))
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta, NodeUnschedulable: nodeunschedulable.NewCache(fakeNodeSource{}, time.Minute)}))
+
+	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	require.Equal(t, 1, supported(&CollectorDependencies{Workloadmeta: wmeta}))
 }
 
 func TestPCIELinkMetrics(t *testing.T) {
@@ -1173,6 +1170,317 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	_, _, err := needsRecoverySample(device)
 	require.Error(t, err)
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
+func TestFabricHealthToSamples(t *testing.T) {
+	// HealthMask with every field reported as FALSE (healthy) and configuration NONE.
+	const healthyMask = nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION
+
+	tests := []struct {
+		name     string
+		info     nvml.GpuFabricInfo_v3
+		expected map[string]float64 // metric name and fabric_issue tag -> value
+	}{
+		{
+			// As reported by a GB200 NVL72 GPU on driver R580.
+			name:     "registered and healthy",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.SUCCESS), HealthMask: healthyMask, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY},
+			expected: map[string]float64{"fabric.registered": 1, "fabric.health.unhealthy": 0},
+		},
+		{
+			name:     "registration in progress, no health summary on older drivers",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: uint32(nvml.SUCCESS)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name:     "registration failed",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.ERROR_UNKNOWN)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name: "limited capacity with degraded bandwidth and insufficient NVLinks",
+			info: nvml.GpuFabricInfo_v3{
+				State:  nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status: uint32(nvml.SUCCESS),
+				HealthMask: nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+					nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+				HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+			},
+			expected: map[string]float64{
+				"fabric.registered":                                      1,
+				"fabric.health.unhealthy":                                1,
+				"fabric.health.issue|bandwidth_degraded":                 1,
+				"fabric.health.issue|route_unhealthy":                    1,
+				"fabric.health.issue|misconfigured_insufficient_nvlinks": 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := make(map[string]float64)
+			for _, metric := range requireMetrics(t, fabricHealthToSamples(tt.info)) {
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				parts := []string{metric.Name}
+				for _, tag := range metric.Tags() {
+					parts = append(parts, strings.TrimPrefix(tag, "fabric_issue:"))
+				}
+				got[strings.Join(parts, "|")] = metric.Value
+			}
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFabricHealthSampleUnsupported(t *testing.T) {
+	// The default NVML mock does not expose the versioned fabric API, like GPUs without NVLink fabric.
+	device := setupMockDevice(t)
+
+	_, _, err := fabricHealthSample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
+func TestRetiredPagesSample(t *testing.T) {
+	tests := []struct {
+		name          string
+		cause         nvml.PageRetirementCause
+		addresses     []uint64
+		expectedValue float64
+	}{
+		{
+			name:          "multiple single-bit ECC errors",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+			addresses:     []uint64{0x1000, 0x2000, 0x3000},
+			expectedValue: 3,
+		},
+		{
+			name:          "double-bit ECC error",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR,
+			addresses:     []uint64{0x4000},
+			expectedValue: 1,
+		},
+		{
+			// A healthy device reports no retired pages: NVML returns an empty
+			// (or nil) address list with SUCCESS, and the metric must still be
+			// emitted with value 0.
+			name:          "no retired pages",
+			cause:         nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS,
+			addresses:     nil,
+			expectedValue: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		causeName := pageRetirementCauseToName[tt.cause]
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture("volta"),
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+						return tt.addresses, nil, nvml.SUCCESS
+					}
+				}),
+			)
+
+			samplesOut, _, err := retiredPagesSample(mockDevice, tt.cause, causeName)
+			require.NoError(t, err)
+			require.Len(t, samplesOut, 1)
+
+			metric := requireMetrics(t, samplesOut)[0]
+			require.Equal(t, "retired_pages", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{"cause:" + causeName}, metric.Tags())
+		})
+	}
+}
+
+func TestRetiredPagesSampleError(t *testing.T) {
+	tests := []struct {
+		name string
+		ret  nvml.Return
+		// unsupportedOnDevice is true when the error indicates the API is
+		// unsupported (so the collector can skip it silently) and false for
+		// unexpected errors, which must surface as regular errors.
+		unsupportedOnDevice bool
+	}{
+		{name: "not supported", ret: nvml.ERROR_NOT_SUPPORTED, unsupportedOnDevice: true},
+		{name: "unexpected error", ret: nvml.ERROR_UNKNOWN, unsupportedOnDevice: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t,
+				testutil.WithArchitecture("volta"),
+				testutil.WithCustomHook(func(device *testutil.MockDevice) {
+					device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+						return nil, nil, tt.ret
+					}
+				}),
+			)
+
+			samplesOut, _, err := retiredPagesSample(mockDevice, nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR, "double_bit")
+			require.Error(t, err)
+			require.Empty(t, samplesOut)
+			require.Equal(t, tt.unsupportedOnDevice, safenvml.IsAPIUnsupportedOnDevice(err, mockDevice))
+		})
+	}
+}
+
+func gridFeature(code nvml.GridLicenseFeatureCode, state, enabled bool) nvml.GridLicensableFeature {
+	return nvml.GridLicensableFeature{
+		FeatureCode:    uint32(code),
+		FeatureState:   boolUint(state),
+		FeatureEnabled: boolUint(enabled),
+	}
+}
+
+func gridFeatures(supported bool, features ...nvml.GridLicensableFeature) nvml.GridLicensableFeatures {
+	out := nvml.GridLicensableFeatures{
+		IsGridLicenseSupported:  int32(boolUint(supported)),
+		LicensableFeaturesCount: uint32(len(features)),
+	}
+	copy(out.GridLicensableFeatures[:], features)
+	return out
+}
+
+func boolUint(b bool) uint32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func TestGridLicenseStatusSample(t *testing.T) {
+	rtx := nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX
+
+	tests := []struct {
+		name         string
+		deviceMode   testutil.DeviceFeatureMode
+		features     nvml.GridLicensableFeatures
+		expected     []float64
+		expectedTags []string
+		expectedErr  error
+	}{
+		{
+			name:         "licensed vgpu",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(rtx, true, true)),
+			expected:     []float64{1},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			name:         "unlicensed vgpu",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(rtx, false, true)),
+			expected:     []float64{0},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			// Only the enabled product is reported
+			name:       "multiple products, one enabled",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features: gridFeatures(true,
+				gridFeature(nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE, true, false),
+				gridFeature(rtx, false, true),
+			),
+			expected:     []float64{0},
+			expectedTags: []string{"vgpu_product:nvidia_rtx"},
+		},
+		{
+			name:         "unknown feature code",
+			deviceMode:   testutil.DeviceFeatureVGPU,
+			features:     gridFeatures(true, gridFeature(nvml.GridLicenseFeatureCode(42), true, true)),
+			expected:     []float64{1},
+			expectedTags: []string{"vgpu_product:unknown_42"},
+		},
+		{
+			name:        "physical device",
+			deviceMode:  testutil.DeviceFeaturePhysical,
+			expectedErr: errUnsupportedDevice,
+		},
+		{
+			name:        "grid licensing unsupported",
+			deviceMode:  testutil.DeviceFeatureVGPU,
+			features:    gridFeatures(false),
+			expectedErr: errUnsupportedDevice,
+		},
+		{
+			name:       "no features listed",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features:   gridFeatures(true),
+		},
+		{
+			name:       "no enabled product",
+			deviceMode: testutil.DeviceFeatureVGPU,
+			features:   gridFeatures(true, gridFeature(rtx, true, false)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := setupMockDevice(t, testutil.WithDeviceOptions(0,
+				testutil.WithDeviceFeatureMode(tt.deviceMode),
+				testutil.WithGridLicensableFeatures(tt.features, nil),
+			))
+
+			samples, _, err := gridLicenseStatusSample(mockDevice)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			metricsOut := requireMetrics(t, samples)
+			require.Len(t, metricsOut, len(tt.expected))
+			for i, value := range tt.expected {
+				require.Equal(t, "vgpu.license_status", metricsOut[i].Name)
+				require.Equal(t, metrics.GaugeType, metricsOut[i].Type)
+				require.Equal(t, value, metricsOut[i].Value)
+				require.Equal(t, tt.expectedTags, metricsOut[i].Tags())
+			}
+
+			// Only unsupported devices drop the handler; every other state is retried
+			api := findAPICallByName(t, createStatelessAPIs(&CollectorDependencies{}), "grid_license_status")
+			kept := len(filterSupportedAPIs(mockDevice, []apiCallInfo{api})) == 1
+			require.Equal(t, !errors.Is(tt.expectedErr, errUnsupportedDevice), kept)
+		})
+	}
+}
+
+func TestGridLicenseStatusSampleError(t *testing.T) {
+	tests := []struct {
+		name                string
+		ret                 nvml.Return
+		unsupportedOnDevice bool
+	}{
+		{name: "not supported", ret: nvml.ERROR_NOT_SUPPORTED, unsupportedOnDevice: true},
+		{name: "unexpected error", ret: nvml.ERROR_UNKNOWN, unsupportedOnDevice: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ret := tt.ret
+			mockDevice := setupMockDevice(t,
+				testutil.WithDeviceOptions(0,
+					testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
+					testutil.WithGridLicensableFeatures(nvml.GridLicensableFeatures{}, &ret),
+				),
+			)
+
+			samples, _, err := gridLicenseStatusSample(mockDevice)
+			require.Error(t, err)
+			require.Empty(t, samples)
+			require.Equal(t, tt.unsupportedOnDevice, safenvml.IsAPIUnsupportedOnDevice(err, mockDevice))
+		})
+	}
 }
 
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {

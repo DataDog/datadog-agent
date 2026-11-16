@@ -1,0 +1,9 @@
+description: Echo with many arguments joins them all with single spaces.
+input:
+  script: |+
+    echo a b c d e f g h i j
+expect:
+  stdout: |+
+    a b c d e f g h i j
+  stderr: ""
+  exit_code: 0

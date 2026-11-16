@@ -15,9 +15,9 @@ import (
 // resultChanSize defines the result channel size
 const resultChanSize = 1000
 
-// Type returns the container image scan type
+// Type returns the procfs scan type
 func (c *Collector) Type() collectors.ScanType {
-	return collectors.ProcfsCollector
+	return collectors.ProcfsScanType
 }
 
 // Channel returns the channel to send scan results

@@ -15,15 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-// Basic selection accumulates admitted CNM path byte volume over a
+// Basic selection accumulates admitted network path byte volume over a
 // five-minute bootstrap window and subsequent hourly intervals. It uses
-// bounded weighted Space-Saving to emit up to five one-shot paths per window.
-// Windows restart when flushed, and missed windows are not replayed.
+// bounded weighted Space-Saving to emit a configured number of one-shot paths.
+// Windows restart when flushed, and missed windows are not replayed. A window
+// that closes without candidates is retried after another bootstrap window so
+// sparse eligible traffic does not wait a full hour.
 const (
-	basicSelectionsPerWindow = 5
-	basicCandidateLimit      = 32
-	basicBootstrapWindow     = 5 * time.Minute
-	basicSelectionInterval   = time.Hour
+	basicSelectionsPerWindow       = 5
+	basicCandidateLimit            = 32
+	eudmBasicSelectionsPerWindow   = 20
+	defaultEUDMBasicCandidateLimit = 80
+	maxEUDMBasicCandidateLimit     = 512
+	basicBootstrapWindow           = 5 * time.Minute
+	basicSelectionInterval         = time.Hour
 )
 
 type basicCandidate struct {
@@ -44,14 +49,18 @@ func (candidate basicCandidate) betterThan(other basicCandidate) bool {
 // best-effort mode, while memory bounded independently of path count is a
 // critical safety property for the Agent on high-cardinality hosts.
 type basicSelector struct {
-	mu         sync.Mutex
-	deadline   time.Time
-	candidates map[uint64]basicCandidate
+	mu             sync.Mutex
+	deadline       time.Time
+	candidates     map[uint64]basicCandidate
+	candidateLimit int
+	selectionLimit int
 }
 
-func newBasicSelector() *basicSelector {
+func newBasicSelector(candidateLimit, selectionLimit int) *basicSelector {
 	return &basicSelector{
-		candidates: make(map[uint64]basicCandidate, basicCandidateLimit),
+		candidates:     make(map[uint64]basicCandidate, candidateLimit),
+		candidateLimit: candidateLimit,
+		selectionLimit: selectionLimit,
 	}
 }
 
@@ -87,7 +96,7 @@ func (selector *basicSelector) add(path common.Pathtest, bytes uint64, now time.
 	}
 
 	candidate := basicCandidate{path: path, hash: hash, bytes: bytes}
-	if len(selector.candidates) < basicCandidateLimit {
+	if len(selector.candidates) < selector.candidateLimit {
 		selector.candidates[hash] = candidate
 		return
 	}
@@ -121,14 +130,19 @@ func (selector *basicSelector) flush(now time.Time) []common.Pathtest {
 	if now.Before(selector.deadline) {
 		return nil
 	}
+	if len(selector.candidates) == 0 {
+		// Don't consume the hourly interval on an empty window: retry soon.
+		selector.deadline = now.Add(basicBootstrapWindow)
+		return nil
+	}
 
 	candidates := make([]basicCandidate, 0, len(selector.candidates))
 	for _, candidate := range selector.candidates {
 		candidates = append(candidates, candidate)
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].betterThan(candidates[j]) })
-	if len(candidates) > basicSelectionsPerWindow {
-		candidates = candidates[:basicSelectionsPerWindow]
+	if len(candidates) > selector.selectionLimit {
+		candidates = candidates[:selector.selectionLimit]
 	}
 
 	paths := make([]common.Pathtest, len(candidates))
