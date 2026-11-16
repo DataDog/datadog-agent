@@ -12,9 +12,7 @@ load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:description.bzl", "deb_description")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
-# kwargs is mandatory for macros, even if you don't use it.
-# buildifier: disable=unused-variable
-def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, srcs, version, **kwargs):
+def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, description, homepage, license, maintainer, priority, product_name, section, srcs, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
         name = variables_name,
@@ -57,27 +55,19 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
         architecture = architecture or "{arch_deb}",
         conflicts = conflicts,
         data = ":" + data,
-        depends = depends,
         description = deb_description(description),
         homepage = homepage or "http://www.datadoghq.com",
         installed_size_file = ":" + size_out,
         license = license or "Apache License Version 2.0",
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
         md5sums = ":" + sums_out,
-        out = out,
         package = "{product_name}",
-        package_file_name = package_file_name,
         package_variables = ":" + variables_name,
-        postinst = postinst,
-        postrm = postrm,
-        preinst = preinst,
-        prerm = prerm,
         priority = priority or "extra",
-        recommends = recommends,
         section = section or "utils",
         vendor = "Datadog <package@datadoghq.com>",
-        version = version,
         visibility = visibility,
+        **kwargs
     )
 
 dd_pkg_deb = macro(
