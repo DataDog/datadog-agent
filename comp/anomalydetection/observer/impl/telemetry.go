@@ -19,7 +19,7 @@ const (
 	observerTelemetryMetricPrefix            = "datadog.agent.observer."
 	telemetryObservationsAccepted            = "observer.observations.accepted"               // Observations accepted by the observer admission boundary.
 	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when a bounded observer admission queue is full.
-	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
+	telemetryLogMetricsExtractorPatternCount = "observer.log_metrics_extractor.pattern_count" // Current number of active log patterns.
 	telemetryLogsAcceptedBytes               = "observer.logs.accepted_bytes"                 // Total bytes accepted into observer log ingestion.
 	telemetryFilteredLogs                    = "observer.logs.filtered"                       // Number of logs filtered out by processing rules before/during admission.
 	telemetryFilteredMetrics                 = "observer.metrics.filtered"                    // Number of metrics filtered out before enqueue/ingest.
@@ -100,9 +100,9 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 		),
 		logPatternCount: telemetryComp.NewGauge(
 			"observer",
-			telemetryLogPatternExtractorPatternCount,
+			telemetryLogMetricsExtractorPatternCount,
 			nil,
-			"Current number of patterns held by the log pattern extractor",
+			"Current number of patterns held by the log metrics extractor",
 		),
 		logsAcceptedBytes: telemetryComp.NewCounter(
 			"observer",

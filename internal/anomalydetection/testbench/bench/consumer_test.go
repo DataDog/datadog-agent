@@ -171,7 +171,7 @@ func TestWorkflowSurvivesTestbenchReset(t *testing.T) {
 		for _, streaming := range []bool{false, true} {
 			tb.config.StreamParquet = streaming
 			require.NoError(t, tb.resetAllState())
-			tb.settings.Enabled["log_pattern_extractor"] = false
+			tb.settings.Enabled["log_metrics_extractor"] = false
 			require.NoError(t, tb.resetAllState())
 		}
 		require.Len(t, recorder.settings, 4)

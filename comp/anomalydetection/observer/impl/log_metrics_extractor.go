@@ -7,7 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"strconv"
+	"math"
 	"strings"
 	"unicode"
 
@@ -19,19 +19,29 @@ import (
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
 type LogMetricsExtractorConfig struct {
-	// MaxEvalBytes caps how many bytes we evaluate for unstructured signature generation (0 = no cap).
-	MaxEvalBytes int
+	// Non-positive bounds use production defaults; live caches are always bounded.
+	MaxEvalBytes          int     `json:"max_eval_bytes,omitempty"`
+	MinTokenMatchRatio    float64 `json:"min_token_match_ratio,omitempty"`
+	MaxPatterns           int     `json:"max_patterns,omitempty"`
+	MaxPatternsPerGroup   int     `json:"max_patterns_per_group,omitempty"`
+	MaxTagGroups          int     `json:"max_tag_groups,omitempty"`
+	PatternIdleTTLSeconds int64   `json:"pattern_idle_ttl_sec,omitempty"`
 
 	// IncludeFields, if non-empty, restricts JSON numeric extraction to these field names.
-	IncludeFields map[string]struct{}
+	IncludeFields map[string]struct{} `json:"include_fields,omitempty"`
 	// ExcludeFields always excludes JSON fields from numeric extraction.
-	ExcludeFields map[string]struct{}
+	ExcludeFields map[string]struct{} `json:"exclude_fields,omitempty"`
 }
 
 // DefaultLogMetricsExtractorConfig returns a LogMetricsExtractorConfig with default values.
 func DefaultLogMetricsExtractorConfig() LogMetricsExtractorConfig {
 	return LogMetricsExtractorConfig{
-		MaxEvalBytes: 4096,
+		MaxEvalBytes:          4096,
+		MinTokenMatchRatio:    0.9,
+		MaxPatterns:           3000,
+		MaxPatternsPerGroup:   1024,
+		MaxTagGroups:          256,
+		PatternIdleTTLSeconds: 4 * 60 * 60,
 		ExcludeFields: map[string]struct{}{
 			"timestamp": {}, "ts": {}, "time": {},
 			"pid": {}, "ppid": {}, "uid": {}, "gid": {},
@@ -46,17 +56,86 @@ const LogMetricsExtractorName = "log_metrics_extractor"
 // - JSON logs: numeric fields -> Avg aggregation
 // - Unstructured logs: pattern frequency -> Sum aggregation
 //
-// This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
-// It is not safe for concurrent use: its signature generator reuses scratch
-// buffers, so ProcessLog relies on the engine calling extractors one log at a time.
+// The engine is the single writer; the cache reuses tokenizer scratch and
+// retains only bounded, owned representatives.
 type LogMetricsExtractor struct {
-	config             LogMetricsExtractorConfig
-	signatureGenerator *logsignature.Generator
+	config    LogMetricsExtractorConfig
+	patterns  *logsignature.Cache
+	telemetry *observerTelemetry
 }
 
-// NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
+// resolveLogMetricsExtractorConfig applies bounded defaults before ingestion.
+func resolveLogMetricsExtractorConfig(config LogMetricsExtractorConfig) LogMetricsExtractorConfig {
+	defaults := DefaultLogMetricsExtractorConfig()
+	if config.MaxEvalBytes <= 0 {
+		config.MaxEvalBytes = defaults.MaxEvalBytes
+	}
+	if config.MinTokenMatchRatio <= 0 || config.MinTokenMatchRatio > 1 || math.IsNaN(config.MinTokenMatchRatio) {
+		config.MinTokenMatchRatio = defaults.MinTokenMatchRatio
+	}
+	if config.MaxPatterns <= 0 {
+		config.MaxPatterns = defaults.MaxPatterns
+	}
+	if config.MaxPatternsPerGroup <= 0 {
+		config.MaxPatternsPerGroup = defaults.MaxPatternsPerGroup
+	}
+	if config.MaxTagGroups <= 0 {
+		config.MaxTagGroups = defaults.MaxTagGroups
+	}
+	if config.PatternIdleTTLSeconds <= 0 {
+		config.PatternIdleTTLSeconds = defaults.PatternIdleTTLSeconds
+	}
+	return config
+}
+
+// NewLogMetricsExtractor constructs a bounded pattern cache and JSON field extractor.
 func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtractor {
-	return &LogMetricsExtractor{config: config, signatureGenerator: logsignature.NewGenerator(config.MaxEvalBytes)}
+	config = resolveLogMetricsExtractorConfig(config)
+	return &LogMetricsExtractor{config: config, patterns: logsignature.NewCache(logsignature.CacheConfig{
+		MaxEvalBytes: config.MaxEvalBytes, MatchThreshold: config.MinTokenMatchRatio,
+		MaxPatterns: config.MaxPatterns, MaxPatternsPerGroup: config.MaxPatternsPerGroup,
+		MaxGroups: config.MaxTagGroups, IdleTTLSeconds: config.PatternIdleTTLSeconds,
+	})}
+}
+
+// Reset drops cached representatives when the engine resets its series.
+func (a *LogMetricsExtractor) Reset() {
+	a.patterns.Reset()
+	if a.telemetry != nil {
+		a.telemetry.setLogPatternCount(0)
+	}
+}
+
+// SetObserverTelemetry publishes the active pattern count without scanning.
+func (a *LogMetricsExtractor) SetObserverTelemetry(t *observerTelemetry) {
+	a.telemetry = t
+	if t != nil {
+		t.setLogPatternCount(a.patterns.Len())
+	}
+}
+
+func logMetricsGroup(log observer.LogView) logsignature.Group {
+	var group logsignature.Group
+	for _, tag := range log.Tags() {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "source":
+			group.Source = value
+		case "service":
+			group.Service = value
+		case "env":
+			group.Env = value
+		case "host":
+			group.Host = value
+		}
+	}
+	if group.Host == "" {
+		group.Host = log.GetHostname()
+	}
+	return group
 }
 
 func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
@@ -65,22 +144,22 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	content := log.GetContent()
 	tags := tagset.CompositeTagsFromSlice(log.Tags())
 
-	// Always emit pattern frequency metric for all logs
-	patternSig := a.signatureGenerator.Generate(content)
-	if patternSig == "" {
-		return observer.LogMetricsExtractorOutput{}
+	pattern, evicted := a.patterns.Match(logMetricsGroup(log), content, log.GetTimestampUnixMilli()/1000)
+	if a.telemetry != nil {
+		a.telemetry.setLogPatternCount(a.patterns.Len())
+	}
+	if pattern == nil {
+		return observer.LogMetricsExtractorOutput{EvictedMetricNames: evicted}
 	}
 
-	metricName := patternCountMetricName(patternSig)
-
 	metrics := []observer.MetricOutput{{
-		Name:       metricName,
+		Name:       pattern.SeriesName,
 		Value:      1,
 		MetricType: pkgmetrics.CountType,
 		Tags:       tags,
 		HasContext: true,
 		Context: observer.MetricContext{
-			Pattern: patternSig,
+			Pattern: pattern.Signature,
 			Example: content,
 			Source:  "log_metrics_extractor",
 		},
@@ -91,7 +170,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
-	return observer.LogMetricsExtractorOutput{Metrics: metrics}
+	return observer.LogMetricsExtractorOutput{Metrics: metrics, EvictedMetricNames: evicted}
 }
 
 func isJSONObject(s string) bool {
@@ -170,10 +249,6 @@ func coerceNumber(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func patternCountMetricName(signature string) string {
-	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
 }
 
 func sanitizeMetricFragment(s string) string {

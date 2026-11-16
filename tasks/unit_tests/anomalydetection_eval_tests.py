@@ -443,7 +443,7 @@ class TestMetricWorkflow(unittest.TestCase):
             }
             eval_component.body(
                 Mock(),
-                component="log_pattern_extractor",
+                component="log_metrics_extractor",
                 n_subsets=1,
                 n_trials=1,
                 output_dir=root,

@@ -1232,7 +1232,6 @@ anomaly_detection:
 		metricFilter: filter,
 		extractors: []observerdef.LogMetricsExtractor{
 			NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
-			NewLogPatternExtractor(DefaultLogPatternExtractorConfig()),
 			connErrExtractor,
 		},
 	})
@@ -1318,7 +1317,7 @@ anomaly_detection:
 	// Gauge metric from JSON log field is stored, while Count metrics from log pattern
 	// and connection error extractors are filtered out.
 	assert.NotEmpty(t, storage.ListSeriesMetadata(LogMetricsExtractorName))
-	assert.Empty(t, storage.ListSeriesMetadata(LogPatternExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata("log_pattern_extractor"))
 	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)

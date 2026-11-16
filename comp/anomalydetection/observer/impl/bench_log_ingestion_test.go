@@ -141,8 +141,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 // BenchmarkLogContextSteadyState measures repeated writes to an existing
 // log-derived series, so series creation does not hide per-log context costs.
 func BenchmarkLogContextSteadyState(b *testing.B) {
-	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
-	extractor.config.MinClusterSizeBeforeEmit = 1
+	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 	e := mustNewEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},

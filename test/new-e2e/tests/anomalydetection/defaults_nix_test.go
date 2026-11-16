@@ -22,7 +22,7 @@ import (
 var observerMetricNames = []string{
 	telemetryObservationsAccepted,
 	"observer.observations.dropped",
-	"observer.log_pattern_extractor.pattern_count",
+	"observer.log_metrics_extractor.pattern_count",
 	"observer.logs.accepted_bytes",
 	"observer.metrics.filtered",
 	telemetrySeriesCount,

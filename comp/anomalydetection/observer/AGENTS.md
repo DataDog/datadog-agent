@@ -44,13 +44,11 @@ and the testbench use the same engine.
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
-| `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics: a count per log signature (`log.pattern.<hash>.count`), plus JSON numeric fields |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: bounded fuzzy frequency patterns at 0.9, plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
-| `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
-| `impl/logsignature/` | Log signatures (via `pkg/logs/tokenizer`) used by log metrics extractor |
+| `impl/logsignature/` | Bounded group/pattern cache using the shared Logs tokenizer and matcher |
 
 ### Component catalog (defaults)
 
@@ -59,7 +57,6 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Kind | Name | Default |
 |------|------|---------|
 | Extractor | `log_metrics_extractor` | on |
-| Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
@@ -82,13 +79,14 @@ advances excluded state nor removes it; callers own reset/transition cleanup.
 Catalog registrations bind one filter per detector instance; no configuration
 populates it yet.
 
-`anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
-patterns across all tag groups (default 3,000). This includes patterns below
-the metric emission threshold. Non-positive values use the default. Capacity
-eviction removes the least recently seen existing pattern and sends its metric
-name through engine cleanup. The internal per-group and tag-group safeguards
-still apply. This setting does not limit `log_metrics_extractor` outputs; the
-shared storage series budget remains separate.
+`anomaly_detection.detectors.log_metrics_extractor` owns the sole default log
+extractor. Matching uses `pkg/logs/tokenizer.IsMatch` at `min_token_match_ratio`
+(default 0.9), independently for each source/service/env/host group. Limits are
+3,000 patterns globally, 1,024 per group and 256 groups; non-positive values use
+bounded defaults. Patterns expire on the next ingested log after four hours of data-time inactivity.
+Eviction returns unique metric names through the engine cleanup path so storage,
+detector, bucketizer and dedup state are removed together. JSON numeric fields
+remain gauges. The retired semantic extractor is no longer in the catalog.
 
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:

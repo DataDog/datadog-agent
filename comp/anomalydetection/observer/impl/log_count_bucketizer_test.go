@@ -284,19 +284,17 @@ func TestLogDerivedMetricTypesReachStorage(t *testing.T) {
 			name = "bucketed"
 		}
 		t.Run(name, func(t *testing.T) {
-			pattern := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
-			pattern.config.MinClusterSizeBeforeEmit = 1
 			storage := newTimeSeriesStorageWith(StorageConfig{})
 			e := mustNewEngine(engineConfig{
 				storage:         storage,
-				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()), pattern, &ConnectionErrorExtractor{}},
+				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()), &ConnectionErrorExtractor{}},
 				logCountBuckets: LogCountBucketConfig{Enabled: bucketed, BucketSeconds: 5, IdleTTLSeconds: 10},
 			})
 			// A numeric JSON field named count is still a gauge, despite the suffix.
 			e.IngestLog("logs", &logObs{timestampMs: 1000, content: `{"message":"connection refused","duration":42,"count":7}`})
 			e.Advance(15)
 			metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
-			require.Len(t, metas, 5)
+			require.Len(t, metas, 4)
 			for _, meta := range metas {
 				want := metrics.CountType
 				if meta.Name == "log.field.duration" || meta.Name == "log.field.count" {
