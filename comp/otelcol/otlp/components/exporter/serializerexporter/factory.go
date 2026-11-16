@@ -275,7 +275,8 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		}
 		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
 			return nil, fmt.Errorf("feature gate %s needs the v3 distributions intake for every metrics destination, but these use v2: %s; "+
-				"set them to true in use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
+				"set use_v3_api.distributions.enabled to datadog_only (Datadog URLs) or true (all URLs), or set each of them to true in "+
+				"use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
 				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
 		}
 		newTranslator = minimalTranslatorFromConfig
