@@ -47,7 +47,7 @@ func NewMacro(id, expression string, model Model, parsingContext *parser.Parsing
 
 	// compiled only to report its errors where it's defined, each rule using it
 	// compiles its own copy
-	state := NewState(model, "")
+	state := NewState(model)
 	if _, _, err := compileExpr(macro.ast.Root, opts, state); err != nil {
 		if err, ok := err.(*ErrAstToEval); ok && err.Pos.Source == id {
 			return nil, fmt.Errorf("compilation error: macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})

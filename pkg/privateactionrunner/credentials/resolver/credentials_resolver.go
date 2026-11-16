@@ -123,6 +123,11 @@ func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task
 	if connInfo == nil {
 		return nil, nil
 	}
+	for _, token := range connInfo.GetTokens() {
+		if token == nil || len(token.GetNameSegments()) == 0 {
+			return nil, errors.New("connection token and its name must not be empty")
+		}
+	}
 	tokens, details := privateconnection.ExtractConnectionDetails(connInfo)
 	switch connInfo.CredentialsType {
 	case privateactionspb.CredentialsType_TOKEN_AUTH:

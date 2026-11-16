@@ -18,9 +18,9 @@ if (-not (Test-Path $ciIdentitiesExe)) {
     $ciIdentitiesExe = "C:\ci-identities-gitlab-job-client.exe"
 }
 
-if (-not $env:VAULT_ADDR) {
-    $env:VAULT_ADDR = "https://vault.us1.ddbuild.io"
-}
+# Talk to Vault directly, like `secrets read` does. A preset VAULT_ADDR can point to a
+# proxy, such as the Emissary sidecar, which replaces our CI Identity token with its own.
+$env:VAULT_ADDR = "https://vault.us1.ddbuild.io"
 
 # CI Identities grants trusted-jobs to protected refs. The pinned client predates
 # `token-claims`, so guess from GitLab and fall back to the other trust level:

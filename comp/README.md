@@ -971,6 +971,13 @@ Package metriclookback defines the metric lookback component.
 
 Package ndmconnectivitycheck provides the interactive NDM connectivity check.
 
+### [comp/ndmdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmdiscovery)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package ndmdiscovery sweeps the IP ranges it is asked to scan and reports the
+devices it finds to Network Device Monitoring. It never schedules a check.
+
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations

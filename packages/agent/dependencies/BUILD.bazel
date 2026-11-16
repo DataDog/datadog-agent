@@ -31,7 +31,7 @@ pkg_filegroup(
         "//conditions:default": [],
     }) + select({
         # if linux_target? and !heroku_target?
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
             "//deps/agent_data_plane:all_files",
@@ -73,7 +73,7 @@ pkg_filegroup(
 dd_collect_dependencies(
     name = "_collected_libs",
     srcs = select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
             "//cmd/agent",
             "//cmd/privateactionrunner",
             "//cmd/process-agent",
