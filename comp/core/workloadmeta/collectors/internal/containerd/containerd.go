@@ -12,10 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/cenkalti/backoff/v7"
 	containerd "github.com/containerd/containerd/v2/client"
 	containerdevents "github.com/containerd/containerd/v2/core/events"
 	"go.uber.org/fx"
@@ -59,6 +61,11 @@ const (
 	TaskResumedTopic = "/tasks/resumed"
 )
 
+const (
+	reconnectInitialBackoff = 1 * time.Second
+	reconnectMaxBackoff     = 5 * time.Minute
+)
+
 // containerdTopics includes the containerd topics that we want to subscribe to
 var containerdTopics = []string{
 	containerCreationTopic,
@@ -88,13 +95,20 @@ type dependencies struct {
 }
 
 type collector struct {
-	id               string
-	cfg              config.Component
-	store            workloadmeta.Component
-	catalog          workloadmeta.AgentType
+	id      string
+	cfg     config.Component
+	store   workloadmeta.Component
+	catalog workloadmeta.AgentType
+
+	clientMut        sync.RWMutex
 	containerdClient cutil.ContainerdItf
-	eventsChan       <-chan *containerdevents.Envelope
-	errorsChan       <-chan error
+
+	eventsChan   <-chan *containerdevents.Envelope
+	errorsChan   <-chan error
+	cancelEvents context.CancelFunc
+
+	// newClient opens a connection to the containerd socket.
+	newClient func() (cutil.ContainerdItf, error)
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -131,6 +145,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			imageSBOMs:             make(map[string]*workloadmeta.CompressedSBOM),
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
+			newClient:              cutil.NewContainerdUtil,
 		},
 	}, nil
 }
@@ -148,36 +163,34 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.store = store
 
 	var err error
-	c.containerdClient, err = cutil.NewContainerdUtil()
+	c.containerdClient, err = c.newClient()
 	if err != nil {
 		return err
 	}
 
 	if err = c.startSBOMCollection(ctx); err != nil {
+		c.closeClient()
 		return err
 	}
 
 	errs := c.filterPausedContainers.GetErrors()
 	if len(errs) > 0 {
+		c.closeClient()
 		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
-	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
-
-	err = c.notifyInitialEvents(ctx)
-	if err != nil {
-		cancelEvents()
+	if err = c.subscribeAndResync(ctx); err != nil {
+		c.closeClient()
 		return err
 	}
 
 	go func() {
+		defer c.closeClient()
 		defer func() {
-			if errClose := c.containerdClient.Close(); errClose != nil {
-				log.Warnf("Error when closing containerd connection: %s", errClose)
+			if c.cancelEvents != nil {
+				c.cancelEvents()
 			}
 		}()
-		defer cancelEvents()
 
 		c.stream(ctx)
 	}()
@@ -199,7 +212,16 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 
 func (c *collector) stream(ctx context.Context) {
 	healthHandle := health.RegisterLiveness(componentName)
-	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		if err := healthHandle.Deregister(); err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
+
+	var (
+		reconnectTimer   <-chan time.Time // non-nil while a reconnection attempt is pending
+		reconnectBackoff *backoff.ExponentialBackOff
+	)
 
 	for {
 		select {
@@ -211,41 +233,209 @@ func (c *collector) stream(ctx context.Context) {
 			}
 
 		case err := <-c.errorsChan:
-			if err != nil {
-				log.Errorf("stopping collection: %s", err)
+			if ctx.Err() != nil {
+				return
 			}
-			cancel()
-			return
+
+			if errors.Is(err, io.EOF) {
+				log.Info("containerd event stream ended, reconnecting")
+			} else {
+				log.Errorf("containerd event stream failed, reconnecting: %s", err)
+			}
+
+			c.eventsChan, c.errorsChan = nil, nil
+
+			// Try immediately, otherwise setup retry with backoff.
+			if err := c.resubscribe(ctx); err != nil {
+				log.Errorf("could not reconnect to the containerd event stream: %s", err)
+				reconnectBackoff = newReconnectBackoff()
+				reconnectTimer = time.After(reconnectBackoff.NextBackOff())
+			}
+
+		case <-reconnectTimer:
+			if err := c.resubscribe(ctx); err != nil {
+				log.Errorf("could not reconnect to the containerd event stream: %s", err)
+				reconnectTimer = time.After(reconnectBackoff.NextBackOff())
+			} else {
+				reconnectTimer = nil
+			}
 
 		case <-ctx.Done():
-			err := healthHandle.Deregister()
-			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
-			}
-			cancel()
 			return
 		}
 	}
 }
 
-func (c *collector) notifyInitialEvents(ctx context.Context) error {
-	var containerEvents []workloadmeta.CollectorEvent
+// newReconnectBackoff builds the backoff used between reconnection attempts.
+func newReconnectBackoff() *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = reconnectInitialBackoff
+	b.MaxInterval = reconnectMaxBackoff
+	return b
+}
 
-	namespaces, err := cutil.NamespacesToWatch(ctx, c.containerdClient)
+// resubscribe opens a new connection and subscribes to the new event stream.
+func (c *collector) resubscribe(ctx context.Context) error {
+	newClient, err := c.newClient()
 	if err != nil {
 		return err
 	}
 
+	previousClient := c.swapClient(newClient)
+	if errClose := previousClient.Close(); errClose != nil {
+		log.Warnf("Error when closing containerd connection: %s", errClose)
+	}
+
+	return c.subscribeAndResync(ctx)
+}
+
+// getClient returns the current containerd client.
+func (c *collector) getClient() cutil.ContainerdItf {
+	c.clientMut.RLock()
+	defer c.clientMut.RUnlock()
+	return c.containerdClient
+}
+
+// swapClient replaces the current containerd client and returns the previous
+// one, so the caller can close it.
+func (c *collector) swapClient(newClient cutil.ContainerdItf) cutil.ContainerdItf {
+	c.clientMut.Lock()
+	defer c.clientMut.Unlock()
+	previous := c.containerdClient
+	c.containerdClient = newClient
+	return previous
+}
+
+// subscribeAndResync subscribes to the containerd event stream and notifies
+// the store with the current state of containers and images.
+func (c *collector) subscribeAndResync(ctx context.Context) error {
+	// Cancel the previous subscription, if any
+	if c.cancelEvents != nil {
+		c.cancelEvents()
+		c.cancelEvents = nil
+	}
+
+	eventsCtx, cancelEvents := context.WithCancel(ctx)
+	c.eventsChan, c.errorsChan = c.getClient().GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
+
+	snapshot, err := c.notifyInitialEvents(ctx)
+	if err != nil {
+		cancelEvents()
+		c.eventsChan, c.errorsChan = nil, nil
+		return err
+	}
+
+	c.unsetEntitiesMissingFromSnapshot(snapshot)
+
+	c.cancelEvents = cancelEvents
+	return nil
+}
+
+// closeClient closes the current containerd connection, logging failures.
+func (c *collector) closeClient() {
+	if err := c.getClient().Close(); err != nil {
+		log.Warnf("Error when closing containerd connection: %s", err)
+	}
+}
+
+// entitySnapshot holds the entities found in a containerd enumeration.
+type entitySnapshot struct {
+	namespaces   map[string]struct{}
+	containerIDs map[string]struct{}
+	imageIDs     map[string]struct{}
+}
+
+func newEntitySnapshot() *entitySnapshot {
+	return &entitySnapshot{
+		namespaces:   make(map[string]struct{}),
+		containerIDs: make(map[string]struct{}),
+		imageIDs:     make(map[string]struct{}),
+	}
+}
+
+// unsetEntitiesMissingFromSnapshot unsets the entities this collector
+// published before but that are absent from the refreshed snapshot. This
+// can happen when there is an extended outage of the containerd daemon
+func (c *collector) unsetEntitiesMissingFromSnapshot(snapshot *entitySnapshot) {
+	var events []workloadmeta.CollectorEvent
+
+	for _, stored := range c.store.ListContainers() {
+		if stored.Runtime != workloadmeta.ContainerRuntimeContainerd {
+			continue
+		}
+		if _, watched := snapshot.namespaces[stored.Namespace]; !watched {
+			continue
+		}
+		if _, present := snapshot.containerIDs[stored.ID]; present {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceRuntime,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   stored.ID,
+				},
+			},
+		})
+	}
+
+	if c.imageMetadataCollectionIsEnabled() {
+		// knownImages and imageSBOMs are shared with the SBOM goroutine.
+		c.handleImagesMut.Lock()
+		for imageID := range c.knownImages.namesByID {
+			if _, present := snapshot.imageIDs[imageID]; present {
+				continue
+			}
+
+			for name := range c.knownImages.namesByID[imageID] {
+				c.knownImages.deleteReference(name, imageID)
+			}
+			delete(c.knownImages.namesByID, imageID)
+			delete(c.imageSBOMs, imageID)
+
+			events = append(events, workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeUnset,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   imageID,
+					},
+				},
+			})
+		}
+		c.handleImagesMut.Unlock()
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
+	}
+}
+
+func (c *collector) notifyInitialEvents(ctx context.Context) (*entitySnapshot, error) {
+	snapshot := newEntitySnapshot()
+	var containerEvents []workloadmeta.CollectorEvent
+
+	namespaces, err := cutil.NamespacesToWatch(ctx, c.getClient())
+	if err != nil {
+		return nil, err
+	}
+
 	for _, namespace := range namespaces {
+		snapshot.namespaces[namespace] = struct{}{}
+
 		if c.imageMetadataCollectionIsEnabled() {
-			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
-				return err
+			if err := c.notifyInitialImageEvents(ctx, namespace, snapshot); err != nil {
+				return nil, err
 			}
 		}
 
-		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
+		nsContainerEvents, err := c.generateInitialContainerEvents(namespace, snapshot)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		containerEvents = append(containerEvents, nsContainerEvents...)
 	}
@@ -254,18 +444,20 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 		c.store.Notify(containerEvents)
 	}
 
-	return nil
+	return snapshot, nil
 }
 
-func (c *collector) generateInitialContainerEvents(namespace string) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) generateInitialContainerEvents(namespace string, snapshot *entitySnapshot) ([]workloadmeta.CollectorEvent, error) {
 	var events []workloadmeta.CollectorEvent
 
-	existingContainers, err := c.containerdClient.Containers(namespace)
+	existingContainers, err := c.getClient().Containers(namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, container := range existingContainers {
+		snapshot.containerIDs[container.ID()] = struct{}{}
+
 		// if ignoreContainer returns an error, keep the container
 		// regardless.  it might've been because of network errors, so
 		// it's better to keep a container we should've ignored than
@@ -277,7 +469,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 			continue
 		}
 
-		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
+		ev, err := createSetEvent(container, namespace, c.getClient(), c.store)
 		if err != nil {
 			log.Warnf("%s", err.Error())
 			continue
@@ -289,8 +481,8 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 	return events, nil
 }
 
-func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace string) error {
-	existingImages, err := c.containerdClient.ListImages(namespace)
+func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace string, snapshot *entitySnapshot) error {
+	existingImages, err := c.getClient().ListImages(namespace)
 	if err != nil {
 		return err
 	}
@@ -309,6 +501,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		}
 	}
 	for _, wlmImage := range mergedImages {
+		snapshot.imageIDs[wlmImage.EntityID.ID] = struct{}{}
 		c.store.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeSet,
@@ -388,7 +581,7 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 	// ignore NotFound errors, since they happen for every deleted
 	// container, but these events still need to be handled
-	container, err := c.containerdClient.ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
+	container, err := c.getClient().ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
 	if err != nil && !agentErrors.IsNotFound(err) {
 		return "", nil, err
 	}
@@ -399,7 +592,9 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 // ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
 func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
-	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
+	client := c.getClient()
+
+	isSandbox, err := client.IsSandbox(namespace, container)
 	if err != nil {
 		return false, err
 	}
@@ -408,7 +603,7 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 		return true, nil
 	}
 
-	info, err := c.containerdClient.Info(namespace, container)
+	info, err := client.Info(namespace, container)
 	if err != nil {
 		return false, err
 	}

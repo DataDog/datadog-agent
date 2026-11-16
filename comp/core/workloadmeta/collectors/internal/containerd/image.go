@@ -201,7 +201,7 @@ func (c *collector) pullImageReferences(namespace string, img containerd.Image) 
 	}
 
 	// Get all references for the imageID
-	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, digest)
+	referenceImages, err := c.getClient().ListImagesWithDigest(namespace, digest)
 	if err == nil {
 		for _, image := range referenceImages {
 			imageName := image.Name()
@@ -279,7 +279,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 }
 
 func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace string, imageName string, bom *workloadmeta.SBOM) error {
-	img, err := c.containerdClient.Image(namespace, imageName)
+	img, err := c.getClient().Image(namespace, imageName)
 	if err != nil {
 		return fmt.Errorf("error getting image: %w", err)
 	}
