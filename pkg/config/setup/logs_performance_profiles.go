@@ -122,6 +122,20 @@ func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 	return false
 }
 
+// setBeforeFirstPass reports whether key has a value from a yield source other than fleet policies, which merge
+// between override passes. The profile never writes such a key, so a post-init value on it is a schema revert.
+func setBeforeFirstPass(config pkgconfigmodel.Reader, key string) bool {
+	for _, vs := range config.GetAllSources(key) {
+		if vs.Value == nil || vs.Source == pkgconfigmodel.SourceFleetPolicies {
+			continue
+		}
+		if _, ok := profileYieldSources[vs.Source]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // allProfileSettingKeys returns every key any profile can write, sorted.
 func allProfileSettingKeys() []string {
 	seen := map[string]struct{}{}
@@ -141,7 +155,9 @@ func allProfileSettingKeys() []string {
 // ApplyLogsPerformanceProfile expands logs_config.profile at SourceConfigPostInit; it is idempotent.
 func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 	for _, key := range allProfileSettingKeys() {
-		config.UnsetForSource(key, pkgconfigmodel.SourceConfigPostInit)
+		if !setBeforeFirstPass(config, key) {
+			config.UnsetForSource(key, pkgconfigmodel.SourceConfigPostInit)
+		}
 	}
 
 	name := configuredLogsPerformanceProfile(config)

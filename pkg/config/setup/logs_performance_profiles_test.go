@@ -6,6 +6,8 @@
 package setup
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"testing"
@@ -226,4 +228,29 @@ logs_config:
 		"a fleet-policy knob override must take precedence over the profile")
 	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"),
 		"the profile must still fill in keys fleet policy did not override")
+}
+
+type batchWaitViolationValidator struct{}
+
+func (batchWaitViolationValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return []*pkgconfigmodel.Violation{{Message: "invalid batch_wait", Path: "/logs_config/batch_wait", SettingKey: "logs_config.batch_wait"}}, nil
+}
+
+func TestLogsPerformanceProfileKeepsSchemaEnforcementRevert(t *testing.T) {
+	for _, profile := range []string{"", "low-latency"} {
+		t.Run("profile="+profile, func(t *testing.T) {
+			cfg := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			yaml := "schema:\n  enforce: true\nlogs_config:\n  batch_wait: 999\n  profile: '" + profile + "'\n"
+			require.NoError(t, os.WriteFile(configPath, []byte(yaml), 0o600))
+			cfg.SetConfigFile(configPath)
+			require.NoError(t, loadCustom(cfg, batchWaitViolationValidator{}, cfg))
+			require.Equal(t, 5, cfg.GetInt("logs_config.batch_wait"))
+
+			ApplyLogsPerformanceProfile(cfg)
+			ApplyLogsPerformanceProfile(cfg)
+
+			assert.Equal(t, 5, cfg.GetInt("logs_config.batch_wait"))
+		})
+	}
 }
