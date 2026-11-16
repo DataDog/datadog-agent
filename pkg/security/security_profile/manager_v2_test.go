@@ -1112,12 +1112,21 @@ func TestManagerV2_DisabledIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.FileExists(t, profilePath)
 
-	m.Start(t.Context())
-	m.ProcessEvent(newTestEventV2(model.ExecEventType, "v1", "known"))
-	m.HandleSampleRefresh(1)
-	assert.NoError(t, m.SendStats())
-	_, err = m.ListSecurityProfiles(nil)
+	var pm ProfileManager = m
+	pm.Start(t.Context())
+	pm.ProcessEvent(newTestEventV2(model.ExecEventType, "v1", "known"))
+	pm.HandleSampleRefresh(1)
+	assert.NoError(t, pm.SendStats())
+	_, err = pm.ListSecurityProfiles(nil)
 	assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+	_, err = pm.SaveSecurityProfile(nil)
+	assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+	dumps, err := pm.ListActivityDumps(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, dumps)
+	stopped, err := pm.StopActivityDump(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, stopped)
 }
 
 // newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the

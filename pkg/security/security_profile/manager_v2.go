@@ -1970,9 +1970,3 @@ func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.Activ
 func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	return nil, nil
 }
-
-// GenerateTranscoding generates a transcoding request for the given activity dump.
-// NO-OP in V2: V2 doesn't support transcoding through this API.
-func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	return nil, nil
-}

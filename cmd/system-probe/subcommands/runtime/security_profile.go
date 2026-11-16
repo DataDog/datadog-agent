@@ -126,7 +126,7 @@ func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Compone
 	}
 	defer client.Close()
 
-	output, err := client.ListSecurityProfiles(false)
+	output, err := client.ListSecurityProfiles()
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

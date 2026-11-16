@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
-// NewTestManager creates a minimal ManagerV2 suitable for testing.
+// NewTestManager creates a minimal disabled ManagerV2 suitable for testing.
 func NewTestManager(cfg *config.Config) *ManagerV2 {
 	return &ManagerV2{
 		config: cfg,

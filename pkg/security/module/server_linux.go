@@ -129,21 +129,8 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 }
 
 // TranscodingRequest encodes an activity dump following the requested parameters
-func (a *APIServer) TranscodingRequest(_ context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	if manager := p.GetProfileManager(); manager != nil {
-		msg, err := manager.GenerateTranscoding(params)
-		if err != nil {
-			seclog.Errorf("%s", err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, errors.New("monitor not configured")
+func (a *APIServer) TranscodingRequest(_ context.Context, _ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	return nil, errors.New("not supported")
 }
 
 // ListSecurityProfiles returns the list of security profiles

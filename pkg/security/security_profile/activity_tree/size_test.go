@@ -121,8 +121,8 @@ func populateRichTree(t *testing.T, tree *ActivityTree, tagID uint64) *ProcessNo
 	return root
 }
 
-// TestSizeBytes_EmptyTree confirms an empty tree reports zero on both the legacy V1
-// estimate (ApproximateSize) and the V2 accurate estimate (HeapSize) so neither metric
+// TestSizeBytes_EmptyTree confirms an empty tree reports zero on both the shallow
+// estimate (ApproximateSize) and the incremental estimate (HeapSize) so neither metric
 // lies when no profile data exists yet.
 func TestSizeBytes_EmptyTree(t *testing.T) {
 	tree := newSizeTestTree()
@@ -156,10 +156,8 @@ func TestApproximateSize_LegacyShallowSemantics(t *testing.T) {
 	}
 }
 
-// TestApproximateSize_IgnoresSizeBytes nails down V1's invariant: ApproximateSize never
-// consults SizeBytes, even when it's set. If a future refactor wires SizeBytes into
-// ApproximateSize, V1 max-size and unstable-threshold behavior would change without anyone
-// touching the V1 config knobs.
+// TestApproximateSize_IgnoresSizeBytes verifies that ApproximateSize never consults
+// SizeBytes, even when it is set.
 func TestApproximateSize_IgnoresSizeBytes(t *testing.T) {
 	stats := Stats{ProcessNodes: 1, SizeBytes: 999999}
 	expected := int64(unsafe.Sizeof(ProcessNode{}))

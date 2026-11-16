@@ -2634,7 +2634,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 
-			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
+			// to ensure the `enabled_events` map is correctly set with events enabled for security profiles or event sampling
 			if !slices.Contains(requestedEventTypes, eventType) {
 				requestedEventTypes = append(requestedEventTypes, eventType)
 			}

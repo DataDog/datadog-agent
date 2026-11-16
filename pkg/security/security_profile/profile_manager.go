@@ -32,9 +32,6 @@ type ProfileManager interface {
 	// SaveSecurityProfile saves the requested security profile to disk
 	SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error)
 
-	// GenerateTranscoding generates a transcoding request for the given activity dump
-	GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
-
 	// ListActivityDumps returns the list of active activity dumps
 	ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error)
 

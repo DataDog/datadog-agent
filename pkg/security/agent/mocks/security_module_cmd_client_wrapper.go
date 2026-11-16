@@ -259,68 +259,6 @@ func (_c *SecurityModuleCmdClientWrapper_DumpProcessCache_Call) RunAndReturn(run
 	return _c
 }
 
-// GenerateEncoding provides a mock function for the type SecurityModuleCmdClientWrapper
-func (_mock *SecurityModuleCmdClientWrapper) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	ret := _mock.Called(request)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenerateEncoding")
-	}
-
-	var r0 *api.TranscodingRequestMessage
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(*api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)); ok {
-		return returnFunc(request)
-	}
-	if returnFunc, ok := ret.Get(0).(func(*api.TranscodingRequestParams) *api.TranscodingRequestMessage); ok {
-		r0 = returnFunc(request)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.TranscodingRequestMessage)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(*api.TranscodingRequestParams) error); ok {
-		r1 = returnFunc(request)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// SecurityModuleCmdClientWrapper_GenerateEncoding_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GenerateEncoding'
-type SecurityModuleCmdClientWrapper_GenerateEncoding_Call struct {
-	*mock.Call
-}
-
-// GenerateEncoding is a helper method to define mock.On call
-//   - request *api.TranscodingRequestParams
-func (_e *SecurityModuleCmdClientWrapper_Expecter) GenerateEncoding(request any) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
-	return &SecurityModuleCmdClientWrapper_GenerateEncoding_Call{Call: _e.mock.On("GenerateEncoding", request)}
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateEncoding_Call) Run(run func(request *api.TranscodingRequestParams)) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *api.TranscodingRequestParams
-		if args[0] != nil {
-			arg0 = args[0].(*api.TranscodingRequestParams)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateEncoding_Call) Return(transcodingRequestMessage *api.TranscodingRequestMessage, err error) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
-	_c.Call.Return(transcodingRequestMessage, err)
-	return _c
-}
-
-func (_c *SecurityModuleCmdClientWrapper_GenerateEncoding_Call) RunAndReturn(run func(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)) *SecurityModuleCmdClientWrapper_GenerateEncoding_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetConfig provides a mock function for the type SecurityModuleCmdClientWrapper
 func (_mock *SecurityModuleCmdClientWrapper) GetConfig() (*api.SecurityConfigMessage, error) {
 	ret := _mock.Called()
@@ -604,8 +542,8 @@ func (_c *SecurityModuleCmdClientWrapper_ListActivityDumps_Call) RunAndReturn(ru
 }
 
 // ListSecurityProfiles provides a mock function for the type SecurityModuleCmdClientWrapper
-func (_mock *SecurityModuleCmdClientWrapper) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
-	ret := _mock.Called(includeCache)
+func (_mock *SecurityModuleCmdClientWrapper) ListSecurityProfiles() (*api.SecurityProfileListMessage, error) {
+	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListSecurityProfiles")
@@ -613,18 +551,18 @@ func (_mock *SecurityModuleCmdClientWrapper) ListSecurityProfiles(includeCache b
 
 	var r0 *api.SecurityProfileListMessage
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(bool) (*api.SecurityProfileListMessage, error)); ok {
-		return returnFunc(includeCache)
+	if returnFunc, ok := ret.Get(0).(func() (*api.SecurityProfileListMessage, error)); ok {
+		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func(bool) *api.SecurityProfileListMessage); ok {
-		r0 = returnFunc(includeCache)
+	if returnFunc, ok := ret.Get(0).(func() *api.SecurityProfileListMessage); ok {
+		r0 = returnFunc()
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*api.SecurityProfileListMessage)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(bool) error); ok {
-		r1 = returnFunc(includeCache)
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -637,20 +575,13 @@ type SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call struct {
 }
 
 // ListSecurityProfiles is a helper method to define mock.On call
-//   - includeCache bool
-func (_e *SecurityModuleCmdClientWrapper_Expecter) ListSecurityProfiles(includeCache any) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
-	return &SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles", includeCache)}
+func (_e *SecurityModuleCmdClientWrapper_Expecter) ListSecurityProfiles() *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
+	return &SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call{Call: _e.mock.On("ListSecurityProfiles")}
 }
 
-func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) Run(run func(includeCache bool)) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 bool
-		if args[0] != nil {
-			arg0 = args[0].(bool)
-		}
-		run(
-			arg0,
-		)
+func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) Run(run func()) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
+	_c.Call.Run(func(_ mock.Arguments) {
+		run()
 	})
 	return _c
 }
@@ -660,7 +591,7 @@ func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) Return(secur
 	return _c
 }
 
-func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) RunAndReturn(run func(includeCache bool) (*api.SecurityProfileListMessage, error)) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
+func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) RunAndReturn(run func() (*api.SecurityProfileListMessage, error)) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
 	_c.Call.Return(run)
 	return _c
 }
