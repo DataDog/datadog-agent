@@ -228,7 +228,7 @@ new-e2e-windows-eudm-package-a7-x86_64:
 new-e2e-installer-windows:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_installer_tests_or_e2e_changes]
     - !reference [.manual]
   needs:
     - setup_agent_version
