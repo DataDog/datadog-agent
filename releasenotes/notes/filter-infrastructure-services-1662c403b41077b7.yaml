@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Reduce non-application services reported by Linux service discovery by
-    excluding additional operating system daemons, Agent subprocesses, shell
-    helpers, and SSH daemon variants.

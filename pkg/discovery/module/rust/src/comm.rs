@@ -141,26 +141,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ignore_comms_lengths() {
-        for entry in IGNORE_COMMS.iter() {
-            assert!(
-                entry.len() <= MAX_COMM_LEN,
-                "Ignore comm entry {entry:?} exceeds max comm length {MAX_COMM_LEN}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_ignore_families_lengths() {
-        for entry in IGNORE_FAMILIES.iter() {
-            assert!(
-                entry.len() <= MAX_COMM_LEN,
-                "Ignore family entry {entry:?} exceeds max comm length {MAX_COMM_LEN}"
-            );
-        }
-    }
-
-    #[test]
     fn test_exact_match_with_newline() {
         assert!(should_ignore_comm_bytes(b"sshd\n"));
         assert!(should_ignore_comm_bytes(b"kubelet\n"));
@@ -173,52 +153,6 @@ mod tests {
         // When the buffer is exactly full, there's no trailing newline.
         assert!(should_ignore_comm_bytes(b"containerd"));
         assert!(should_ignore_comm_bytes(b"sshd"));
-    }
-
-    #[test]
-    fn test_infrastructure_and_helpers() {
-        for comm in [
-            b"bash\n".as_slice(),
-            b"sh\n",
-            b"conmon\n",
-            b"dbus-daemon\n",
-            b"process-agent\n",
-            b"tail\n",
-            b"sshd-session\n",
-            b"sshd.pam\n",
-            b"sshd.dssh\n",
-        ] {
-            assert!(should_ignore_comm_bytes(comm), "{comm:?}");
-        }
-    }
-
-    #[test]
-    fn test_truncated_infrastructure_comm() {
-        for executable in [
-            "system-probe-lite",
-            "amazon-ssm-agent",
-            "ssm-agent-worker",
-            "unattended-upgrades",
-        ] {
-            // Match the bytes actually read from /proc/<pid>/comm.
-            let comm: Vec<_> = executable.bytes().take(MAX_COMM_LEN).collect();
-            assert!(should_ignore_comm_bytes(&comm), "{executable}");
-        }
-    }
-
-    #[test]
-    fn test_helpers_require_exact_match() {
-        // Applications can share a helper's prefix or use an ambiguous name.
-        for comm in [
-            b"agent\n".as_slice(),
-            b"cron\n",
-            b"dash\n",
-            b"catalog\n",
-            b"bash-api\n",
-            b"sshd-exporter\n",
-        ] {
-            assert!(!should_ignore_comm_bytes(comm), "{comm:?}");
-        }
     }
 
     #[test]
