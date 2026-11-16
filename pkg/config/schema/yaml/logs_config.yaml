@@ -774,7 +774,9 @@ properties:
     node_type: setting
     type: string
     default: ''
-    comment: Logs Agent performance profile. Empty means off; see pkg/config/setup/logs_performance_profiles.go.
+    comment: Logs Agent performance profile, one of high-concurrency, high-throughput,
+      max-throughput or low-latency. Explicitly set logs_config settings take precedence.
+      Empty, off, none or default disables it.
   run_path:
     node_type: setting
     type: string
