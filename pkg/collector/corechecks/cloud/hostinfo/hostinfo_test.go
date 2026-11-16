@@ -430,11 +430,9 @@ func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
 		attempts++
 		return time.Time{}, errors.New("connection timed out")
 	}
-	// Healthy no-notice 404 for rebalance so only the preemption failures
-	// advance the shared counter in this test.
-	rebalanceNotFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/events/recommendations/rebalance"}
+	// Both lookups must fail to advance the shared connectivity counter.
 	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
-		return time.Time{}, rebalanceNotFound
+		return time.Time{}, errors.New("connection timed out")
 	}
 	uptime = uptimeSampler
 
@@ -461,7 +459,7 @@ func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
 	assert.Equal(t, 4, attempts)
 
 	// After the window elapses, the lookup is attempted again.
-	check.metadataLastAttempt = check.metadataLastAttempt.Add(-metadataFailureBackoff)
+	check.metadataLastFailure = check.metadataLastFailure.Add(-metadataFailureBackoff)
 	check.Run()
 	assert.Equal(t, 5, attempts)
 
@@ -472,7 +470,7 @@ func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
 		return time.Now().Add(-time.Minute), nil
 	}
 	check.metadataFailures = metadataFailureThreshold - 1
-	check.metadataLastAttempt = time.Now().Add(-metadataFailureBackoff)
+	check.metadataLastFailure = time.Now().Add(-metadataFailureBackoff)
 	check.Run()
 	assert.Equal(t, 0, check.metadataFailures)
 }
@@ -564,6 +562,65 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 	}
 	check.Run()
 	assert.Equal(t, 0, check.metadataFailures)
+}
+
+func TestHostInfoCheckHealthyLookupPreventsBackoff(t *testing.T) {
+	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	for _, failure := range []struct {
+		name string
+		err  error
+	}{
+		{name: "server_error", err: &httputils.StatusCodeError{StatusCode: 503, Method: "GET", URL: "u"}},
+		{name: "generic_error", err: errors.New("metadata lookup failed")},
+	} {
+		for _, healthyLookup := range []struct {
+			name          string
+			preemptionErr error
+			rebalanceErr  error
+		}{
+			{name: "preemption", preemptionErr: notFound, rebalanceErr: failure.err},
+			{name: "rebalance", preemptionErr: failure.err, rebalanceErr: notFound},
+		} {
+			t.Run(healthyLookup.name+"/"+failure.name, func(t *testing.T) {
+				defer resetTestVars()
+
+				detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+					return "AWS", ""
+				}
+
+				preemptionAttempts, rebalanceAttempts := 0, 0
+				getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+					preemptionAttempts++
+					return time.Time{}, healthyLookup.preemptionErr
+				}
+				getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+					rebalanceAttempts++
+					return time.Time{}, healthyLookup.rebalanceErr
+				}
+
+				mockSender := mocksender.NewMockSender(t, CheckName)
+				mockSender.On("FinalizeCheckServiceTag").Return()
+				mockSender.On("Commit").Return()
+
+				check := newCheck().(*Check)
+				check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+				mocksender.SetSender(mockSender, check.ID())
+
+				// Either healthy endpoint must clear stale failures even when
+				// the other fails, and keep both lookups polling on every run.
+				check.metadataFailures = metadataFailureThreshold - 1
+				runs := 2 * metadataFailureThreshold
+				for i := 0; i < runs; i++ {
+					assert.NoError(t, check.Run())
+					assert.Zero(t, check.metadataFailures)
+				}
+				assert.Equal(t, runs, preemptionAttempts)
+				assert.Equal(t, runs, rebalanceAttempts)
+				mockSender.AssertNumberOfCalls(t, "Commit", runs)
+				mockSender.AssertNumberOfCalls(t, "Event", 0)
+			})
+		}
+	}
 }
 
 func TestHostInfoCheckBothLookupsFailingCountsOncePerRun(t *testing.T) {
