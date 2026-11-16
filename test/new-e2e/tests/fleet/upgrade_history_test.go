@@ -26,7 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
 
-const upgradeHistoryMinorOffsetEnv = "E2E_FLEET_UPGRADE_MINOR_OFFSET"
+const (
+	// Keep in sync with the upgrade-history CI minor-offset matrix.
+	upgradeHistoryMinorCount     = 4
+	upgradeHistoryMinorOffsetEnv = "E2E_FLEET_UPGRADE_MINOR_OFFSET"
+)
 
 type upgradeHistorySuite struct {
 	suite.FleetSuite
@@ -35,20 +39,18 @@ type upgradeHistorySuite struct {
 }
 
 // TestFleetUpgradeHistory upgrades every released patch/package revision in the
-// four minors preceding the pipeline candidate. Each source/platform pair gets
-// its own VM: an upgrade must start with the historical Agent and installer,
-// without retaining state from an earlier upgrade to the candidate.
+// historical window, with a fresh VM for each source/platform pair.
 func TestFleetUpgradeHistory(t *testing.T) {
 	platforms := suite.Platforms()
 	if len(platforms) == 0 {
 		t.Skip("no Fleet platforms selected")
 	}
-	first, last := 1, 4
+	first, last := 1, upgradeHistoryMinorCount
 	if value := os.Getenv(upgradeHistoryMinorOffsetEnv); value != "" {
 		offset, err := strconv.Atoi(value)
-		require.NoError(t, err, "%s must be an integer from 1 to 4", upgradeHistoryMinorOffsetEnv)
+		require.NoError(t, err, "%s must be an integer from 1 to %d", upgradeHistoryMinorOffsetEnv, upgradeHistoryMinorCount)
 		require.GreaterOrEqual(t, offset, 1)
-		require.LessOrEqual(t, offset, 4)
+		require.LessOrEqual(t, offset, upgradeHistoryMinorCount)
 		first, last = offset, offset
 	}
 
