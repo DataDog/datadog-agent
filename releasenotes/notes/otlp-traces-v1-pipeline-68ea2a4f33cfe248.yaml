@@ -10,13 +10,9 @@ enhancements:
   - |
     APM: Traces received over OTLP by the trace-agent (including the Datadog
     exporter of the OpenTelemetry Collector and DDOT) are now converted directly
-    into the string-indexed "v1.0" trace format and processed and sent by the
-    same pipeline as traces from Datadog tracing libraries, instead of the legacy
-    pipeline. Converted spans should look the same in the Datadog UI. A few values
-    are now taken the way they already are for traces from tracing libraries: the
-    trace origin, payload env, app version and hostname can be taken from any
-    span of a trace rather than only its root span, and a ``_dd.git.commit.sha``
-    span attribute now sets the git commit SHA of the APM stats.
+    into the string-indexed "v1.0" trace format before being sent to the Datadog
+    backend. This format can be more efficient, and is more similar to the OTLP
+    data model. Converted spans should look the same in the Datadog UI.
     To send OTLP traces through the legacy pipeline instead, add the feature flag
     ``disable-convert-traces`` to ``apm_config.features``: it now applies to
     OTLP traces as well as to traces from tracing libraries.
