@@ -5,7 +5,6 @@ go_library(
     name = "process",
     srcs = [
         "diskspd.go",
-        "payloads.go",
         "testing.go",
     ],
     data = [
@@ -110,12 +109,19 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "payloads_test",
     srcs = [
-        "payloads.go",
         "payloads_test.go",
+        "testing.go",
     ],
+    embedsrcs = glob([
+        "compose/*.yaml",
+        "config/*.yaml",
+    ]),
     deps = [
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
