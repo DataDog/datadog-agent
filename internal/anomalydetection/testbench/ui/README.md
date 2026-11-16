@@ -75,7 +75,8 @@ Open `http://127.0.0.1:5173` in your browser.
   inspected interval, not a loading or configuration error. Aggregation and metric
   type filters remain available. Tagged-series legends are searchable and scrollable.
 - Anomaly lists start collapsed. Chart markers, including keyboard Enter/Space,
-  open the matching details. With a separate inspection interval, list captions
+  open the matching details. Coincident markers spread around their shared sample,
+  with connectors to the actual timestamp. With a separate inspection interval, list captions
   distinguish anomalies in the chart from those in the inspected window.
 - Detector selections show **Updating…** until results refresh. Metric requests
   reuse cached data, fetch only displayed aggregations, and cancel obsolete work.
@@ -89,6 +90,7 @@ Open `http://127.0.0.1:5173` in your browser.
 - Scorer contributors open the exact metric aggregation and tag set when uniquely
   identifiable, or source-filtered logs around onset. Ambiguous metric descriptors
   show **Series unavailable**. Temporary source focus preserves saved pins.
+  Dragging a chart leaves source focus and inspects the custom interval.
   **Back to scorer event** restores the previous time range and expanded event;
   **Resume metric inspection** returns to the previous recording context.
 

@@ -431,10 +431,11 @@ export function MetricsView({
   const rankingLabel = focusedGroupKey ? 'Source window' : INSPECTION_LABELS[inspectionScope];
   const highlightedWindow = focusedGroupKey || inspectionScope !== 'recording' ? rankingRange : null;
   const handleInspectRange = useCallback((range: TimeRange) => {
+    clearSourceFocus();
     setCustomWindow(range);
     setInspectionScope('custom');
     setRankedLimit(limit => limit || INITIAL_METRIC_GROUPS);
-  }, []);
+  }, [clearSourceFocus]);
   const chooseInspectionScope = (scope: InspectionScope) => {
     clearSourceFocus();
     setInspectionScope(scope);

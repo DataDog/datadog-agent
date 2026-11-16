@@ -330,6 +330,7 @@ export function MetricsChart({
       markerId: string;
       timestamp: number;
       detectorName: string;
+      anchorX: number;
       x: number;
       y: number;
       color: { fill: string; stroke: string };
@@ -361,12 +362,21 @@ export function MetricsChart({
           markerId,
           timestamp,
           detectorName: anomaly.detectorName,
+          anchorX: x,
           x,
           y: baseY,
           color,
           selected: markerId === highlightedMarkerId,
           sourceSeriesId: anomaly.sourceSeriesId,
         });
+      });
+    });
+
+    // Separate only coincident samples; other series at the same time stay in place.
+    // Connect displaced markers to their actual timestamp below.
+    d3.group(markerData, d => `${d.x}:${d.y}`).forEach(markers => {
+      markers.forEach((marker, index) => {
+        marker.x += (index - (markers.length - 1) / 2) * 12;
       });
     });
 
@@ -538,6 +548,16 @@ export function MetricsChart({
     // Draw anomaly marker circles on top of the brush so they receive pointer events.
     // The brush overlay rect (pointer-events: all) covers the full plot area; any element
     // appended before the brush group is painted beneath it and its handlers never fire.
+    g.append('g')
+      .attr('class', 'anomaly-marker-connectors')
+      .attr('pointer-events', 'none')
+      .selectAll('line')
+      .data(markerData.filter(d => d.x !== d.anchorX))
+      .enter().append('line')
+      .attr('x1', d => d.anchorX).attr('x2', d => d.x)
+      .attr('y1', d => d.y).attr('y2', d => d.y)
+      .attr('stroke', '#94a3b8').attr('stroke-width', 1);
+
     const markerSelection = g
       .append('g')
       .attr('class', 'anomaly-markers')
