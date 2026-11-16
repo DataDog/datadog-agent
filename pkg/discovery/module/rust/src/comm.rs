@@ -80,7 +80,6 @@ static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
     b"cat",
     b"grep",
     b"sh",
-    b"sleep",
     b"sudo",
     b"tail",
     b"tee",

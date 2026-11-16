@@ -256,7 +256,7 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	f, err := listener.(*net.TCPListener).File()
 	listener.Close()
 
-	// Disable close-on-exec so that the fixture inherits it
+	// Disable close-on-exec so that the sleep gets it
 	require.NoError(t, err)
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
@@ -264,7 +264,7 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(ctx, t)
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
@@ -383,7 +383,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(func() { cancel() })
 
-			cmd := serviceCommand(ctx, t)
+			cmd := exec.CommandContext(ctx, "sleep", "1000")
 			cmd.Dir = "/tmp/"
 			err = cmd.Start()
 			require.NoError(t, err)
@@ -425,11 +425,11 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 
 	createTracerMemfd(t, data)
 
-	// Create a process WITHOUT any listening ports - just the service fixture
+	// Create a process WITHOUT any listening ports - just a simple sleep
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(ctx, t)
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "DD_SERVICE=background-worker")
 	cmd.Env = append(cmd.Env, "DD_ENV=test-env")
@@ -530,7 +530,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(ctx, t)
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -574,7 +574,7 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 	_, err = logFd.WriteString("Service started\n")
 	require.NoError(t, err)
 
-	// Disable close-on-exec so the fixture inherits the log file
+	// Disable close-on-exec so the sleep process inherits the log file
 	disableCloseOnExec(t, logFd)
 
 	// Create a process WITHOUT any listening ports or tracer metadata
@@ -582,13 +582,13 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	cmd := serviceCommand(ctx, t)
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	err = cmd.Start()
 	require.NoError(t, err)
 
 	// Close the log file in the parent process (the test)
-	// The fixture process still has it open
+	// The child process (sleep) still has it open
 	logFd.Close()
 
 	pid := cmd.Process.Pid
@@ -845,12 +845,12 @@ func (s *discoveryTestSuite) TestServicesNamespaces() {
 		f, err := listener.(*net.TCPListener).File()
 		listener.Close()
 
-		// Disable close-on-exec so that the fixture inherits it
+		// Disable close-on-exec so that the sleep gets it
 		require.NoError(t, err)
 		t.Cleanup(func() { f.Close() })
 		disableCloseOnExec(t, f)
 
-		cmd := serviceCommand(ctx, t)
+		cmd := exec.CommandContext(ctx, "sleep", "1000")
 		err = cmd.Start()
 		require.NoError(t, err)
 		f.Close()
