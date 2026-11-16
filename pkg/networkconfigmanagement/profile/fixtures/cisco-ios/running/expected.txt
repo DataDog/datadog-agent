@@ -33,21 +33,26 @@ snmp-server location LAB-DC
 snmp-server contact netops@lab.example.net
 !
 ! ---- RADIUS / TACACS -------------------------------------------------
-radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key <secret hidden>
-tacacs-server host 192.0.2.20 key <secret hidden>
-radius-server key <secret hidden>
+radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 <secret hidden>
+tacacs-server host 192.0.2.20 key 7 <secret hidden>
+radius-server key 0 <secret hidden>
+tacacs-server key 9 <secret hidden>
 !
 radius server ISE-1
  address ipv4 192.0.2.30 auth-port 1812 acct-port 1813
- key <secret hidden>
+ key 0 <secret hidden>
  timeout 5
 !
 tacacs server TAC-1
  address ipv4 192.0.2.40
  key <secret hidden>
 !
+tacacs server TAC-2
+ address ipv4 192.0.2.41
+ key 7 <secret hidden>
+!
 aaa group server tacacs+ TAC-GROUP
- server-private 192.0.2.50 timeout 5 key <secret hidden>
+ server-private 192.0.2.50 timeout 5 key 0 <secret hidden>
 !
 ! ---- ISAKMP / IPsec --------------------------------------------------
 crypto isakmp policy 10
@@ -57,15 +62,22 @@ crypto isakmp policy 10
  group 14
  lifetime 86400
 crypto isakmp key <secret hidden> address 203.0.113.1
+crypto isakmp key 6 <secret hidden> address 203.0.113.3
 crypto ikev2 profile IKEV2-PROF
  match identity remote address 203.0.113.2 255.255.255.255
  authentication remote pre-share key <secret hidden>
  authentication local pre-share key <secret hidden>
+ authentication remote pre-share key 6 <secret hidden>
+crypto ikev2 keyring IKEV2-KEYRING
+ peer BRANCH
+  address 203.0.113.4
+  pre-shared-key local 0 <secret hidden>
+  pre-shared-key 6 <secret hidden>
 !
 ! ---- Key chains (includes a “key 7 …” style) -------------------------
 key chain OSPF-CHAIN
  key 1
-  key-string <secret hidden>
+  key-string 7 <secret hidden>
  accept-lifetime 00:00:00 Jan 1 2024 infinite
  send-lifetime 00:00:00 Jan 1 2024 infinite
 !
@@ -104,6 +116,10 @@ interface GigabitEthernet0/1
  description LAN
  ip address 10.10.10.1 255.255.255.0
  ip helper-address 10.10.20.10
+ ip ospf authentication-key 7 <secret hidden>
+ ip ospf message-digest-key 1 md5 7 <secret hidden>
+ standby 1 authentication md5 key-string 7 <secret hidden> timeout 30
+ standby 2 authentication md5 key-string <secret hidden>
 !
 interface Vlan20
  description CorpWiFi VLAN
@@ -113,17 +129,17 @@ interface Vlan20
 line con 0
  exec-timeout 0 0
  logging synchronous
- password <secret hidden>
+ password 7 <secret hidden>
 line vty 0 4
  transport input ssh
  login local
- password <secret hidden>
+ password 0 <secret hidden>
 !
 ! ---- Misc secrets sprinkled in indented contexts ---------------------
 router bgp 65001
  bgp log-neighbor-changes
  neighbor 203.0.113.1 remote-as 65002
- neighbor 203.0.113.1 password <secret hidden>
+ neighbor 203.0.113.1 password 7 <secret hidden>
 !
 ip ftp username backupuser
 ip ftp password 0 clear-ftp-pass
@@ -153,7 +169,7 @@ ip route 0.0.0.0 0.0.0.0 198.51.100.1
 !
 logging host 10.0.0.50
 ntp server 192.0.2.123 prefer
-ntp authentication-key 1 md5 <secret hidden>
+ntp authentication-key 1 md5 <secret hidden> 7
 ntp authentication-key 2 md5 <secret hidden>
 ntp trusted-key 1 - 3
 !

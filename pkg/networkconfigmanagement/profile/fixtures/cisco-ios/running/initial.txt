@@ -47,6 +47,7 @@ snmp-server contact netops@lab.example.net
 radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 045802150C2E1A
 tacacs-server host 192.0.2.20 key 7 094F471A1A0C
 radius-server key 0 plainRadiusKey
+tacacs-server key 9 $9$tacacsType9Hash
 !
 radius server ISE-1
  address ipv4 192.0.2.30 auth-port 1812 acct-port 1813
@@ -56,6 +57,10 @@ radius server ISE-1
 tacacs server TAC-1
  address ipv4 192.0.2.40
  key plainTacacsKey
+!
+tacacs server TAC-2
+ address ipv4 192.0.2.41
+ key 7 0822455D0A16
 !
 aaa group server tacacs+ TAC-GROUP
  server-private 192.0.2.50 timeout 5 key 0 plainPrivateKey
@@ -68,10 +73,17 @@ crypto isakmp policy 10
  group 14
  lifetime 86400
 crypto isakmp key plainPreShare address 203.0.113.1
+crypto isakmp key 6 typeSixPreShare address 203.0.113.3
 crypto ikev2 profile IKEV2-PROF
  match identity remote address 203.0.113.2 255.255.255.255
  authentication remote pre-share key plainRemotePsk
  authentication local pre-share key plainLocalPsk
+ authentication remote pre-share key 6 typeSixRemotePsk
+crypto ikev2 keyring IKEV2-KEYRING
+ peer BRANCH
+  address 203.0.113.4
+  pre-shared-key local 0 plainKeyringPsk
+  pre-shared-key 6 typeSixKeyringPsk
 !
 ! ---- Key chains (includes a “key 7 …” style) -------------------------
 key chain OSPF-CHAIN
@@ -115,6 +127,10 @@ interface GigabitEthernet0/1
  description LAN
  ip address 10.10.10.1 255.255.255.0
  ip helper-address 10.10.20.10
+ ip ospf authentication-key 7 0832585D0A16
+ ip ospf message-digest-key 1 md5 7 045802150C2E1A
+ standby 1 authentication md5 key-string 7 070C285F4D06 timeout 30
+ standby 2 authentication md5 key-string plainHsrpKey
 !
 interface Vlan20
  description CorpWiFi VLAN
@@ -138,6 +154,7 @@ router bgp 65001
 !
 ip ftp username backupuser
 ip ftp password 0 clear-ftp-pass
+ip ftp password 7 070C285F4D06
 !
 ip http server
 ip http authentication local
