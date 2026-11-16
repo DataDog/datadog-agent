@@ -95,5 +95,8 @@ func newMetricProbeStatsdClient(cfg coreconfig.Component) (ddgostatsd.ClientInte
 		configutils.GetBindHost(cfg),
 		cfg.GetInt("dogstatsd_port"),
 		ddgostatsd.WithoutOriginDetection(),
+		// TODO: enable after upgrading datadog-go, then remove the entity-tag override.
+		// ddgostatsd.WithoutEntityIDFromEnv(),
+		// ddgostatsd.WithoutEnvTags(),
 	)
 }

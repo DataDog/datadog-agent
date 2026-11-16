@@ -204,7 +204,17 @@ origin detection.
 Datadog-go also adds `DD_ENV`, `DD_SERVICE` and `DD_VERSION` from system-probe's
 environment as tags; if a deployment sets those on system-probe (for example
 through Helm's `datadog.env`), metric probe metrics carry a second
-`env`/`service`/`version` value. We accept this.
+`env`/`service`/`version` value.
+
+Pending a datadog-go dependency update, the client factory stubs out two
+independent options: `WithoutEntityIDFromEnv()` to stop inheriting
+`DD_ENTITY_ID`, and `WithoutEnvTags()` to stop inheriting `DD_ENV`, `DD_SERVICE`,
+and `DD_VERSION`. Once available, enable both, remove the unconditional
+`dd.internal.entity_id:none` override and the DogStatsD last-tag-wins test, and
+send only the target pod's entity tag when known. Update the reporter's tag
+tests accordingly. Probe-supplied `dd.internal.entity_id` tags must also be
+filtered so they cannot introduce competing identities. Until then, the
+current behavior above is unchanged.
 
 ### Probe status
 
