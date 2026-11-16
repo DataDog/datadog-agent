@@ -598,6 +598,22 @@ func TestRedisObfuscator(t *testing.T) {
 			"lpos key ? RANK -1 COUNT 2 MAXLEN 100",
 		},
 		{
+			"HSETEX key FIELDS 1 field value",
+			"HSETEX key FIELDS 1 field ?",
+		},
+		{
+			"hsetex key fnx ex 60 fields 2 f1 v1 f2 v2",
+			"hsetex key fnx ex 60 fields 2 f1 ? f2 ?",
+		},
+		{
+			"HSETEX fields KEEPTTL FIELDS 1 field value",
+			"HSETEX fields KEEPTTL FIELDS 1 field ?",
+		},
+		{
+			"HSETEX key FIELDS 1 field",
+			"HSETEX key FIELDS 1 field",
+		},
+		{
 			`
 CONFIG command
 SET k v

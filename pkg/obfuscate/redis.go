@@ -264,6 +264,16 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// args[i] is the entry ID
 		obfuscateRedisArgsStep(args, i+1, 2)
 
+	case "HSETEX":
+		// Every 2nd argument after the FIELDS numfields block.
+		// • HSETEX key [FNX|FXX] [EX seconds|PX milliseconds|EXAT unix-time-seconds|PXAT unix-time-milliseconds|KEEPTTL] FIELDS numfields field value [field value ...]
+		for i := 1; i < len(args); i++ {
+			if strings.ToUpper(args[i]) == "FIELDS" {
+				obfuscateRedisArgsStep(args, i+2, 2)
+				break
+			}
+		}
+
 	case "MSET", "MSETNX":
 		// Every 2nd argument starting from command.
 		// • MSET key value [key value ...]
