@@ -11,6 +11,7 @@ import (
 	"errors"
 	"strings"
 	"sync/atomic"
+	"syscall"
 
 	cebpf "github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -60,6 +61,9 @@ func RetryWithoutTPBTF(progName string, load func() error) error {
 	return load()
 }
 
+// errENOTSUPP is the kernel-internal ENOTSUPP (524), which golang.org/x/sys/unix does not define.
+const errENOTSUPP = syscall.Errno(524)
+
 // tpBTFRejection returns the verifier error if err is the verifier rejecting progName. Other errnos
 // that cilium/ebpf wraps in a VerifierError, such as ENOMEM, EPERM, or E2BIG, are not specific to
 // tp_btf, so they would recur on a retry.
@@ -68,7 +72,7 @@ func tpBTFRejection(err error, progName string) (*cebpf.VerifierError, bool) {
 	if err == nil || !errors.As(err, &ve) {
 		return nil, false
 	}
-	if !errors.Is(ve.Cause, unix.EACCES) && !errors.Is(ve.Cause, unix.EINVAL) {
+	if !errors.Is(ve.Cause, unix.EACCES) && !errors.Is(ve.Cause, unix.EINVAL) && !errors.Is(ve.Cause, errENOTSUPP) {
 		return nil, false
 	}
 	// cilium/ebpf prefixes collection load errors with the program name
