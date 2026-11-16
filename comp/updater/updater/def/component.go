@@ -7,7 +7,14 @@
 package updater
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
+)
+
+var (
+	ErrRemoteConfigRequired = errors.New("remote config is required to create the updater")
+	ErrRemoteUpdateDisabled = errors.New("remote updates are disabled")
 )
 
 // team: fleet windows-products
