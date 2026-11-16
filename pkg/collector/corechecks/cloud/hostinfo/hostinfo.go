@@ -36,7 +36,7 @@ const PreemptionEventType = "HostPreemption"
 // PreemptionRiskEventType is the event type for rebalance recommendation events
 const PreemptionRiskEventType = "HostPreemptionRisk"
 
-// After this many consecutive failed IMDS lookups, the check only retries
+// After this many consecutive failed IMDS polling runs, the check only retries
 // once per metadataFailureBackoff instead of on every run: on hosts where
 // IMDS can never answer (e.g. hop-limited containers), every-run lookups
 // each block a collector slot for the metadata timeout doing work that
@@ -76,18 +76,19 @@ func (c *Check) recordMetadataResult(err error) {
 }
 
 // applyMetadataResults updates the shared failure counter once per Run(),
-// from the outcomes recorded by recordMetadataResult. A failure recorded by
-// either lookup counts once toward the backoff, even though both the
-// preemption and rebalance lookups can fail on the same unreachable
-// endpoint within the same Run(). Otherwise, if IMDS answered any attempted
-// lookup (success or healthy 404), the counter is reset.
+// from the outcomes recorded by recordMetadataResult. If any lookup succeeds
+// or returns a healthy 404, IMDS is reachable and the counter is reset even
+// if the other lookup failed. This preserves healthy polling at the cost of
+// retrying the failing lookup (and potentially waiting out its timeout) on
+// every run. Only runs where every attempted lookup fails count once toward
+// the backoff.
 func (c *Check) applyMetadataResults() {
 	switch {
-	case c.metadataFailedThisRun:
-		c.metadataFailures++
-		c.metadataLastAttempt = time.Now()
 	case c.metadataAnsweredThisRun:
 		c.metadataFailures = 0
+	case c.metadataFailedThisRun:
+		c.metadataFailures++
+		c.metadataLastFailure = time.Now()
 	}
 	c.metadataFailedThisRun = false
 	c.metadataAnsweredThisRun = false
@@ -103,8 +104,8 @@ type Check struct {
 	rebalanceNoticeTime   time.Time
 	preemptionUnsupported bool // Set to true when preemption detection is not supported or instance is not preemptible
 
-	metadataFailures        int       // consecutive transient preemption-lookup failures
-	metadataLastAttempt     time.Time // time of the last preemption lookup
+	metadataFailures        int       // consecutive polling runs where all attempted metadata lookups failed
+	metadataLastFailure     time.Time // time of the last polling run where all attempted metadata lookups failed
 	metadataFailedThisRun   bool      // a lookup failed in the Run() currently executing
 	metadataAnsweredThisRun bool      // a lookup got an answer (success or healthy 404) in the Run() currently executing
 }
@@ -174,8 +175,8 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 	// After repeated transient failures (e.g. IMDS unreachable from a
 	// hop-limited container), retry at most once per backoff window instead
 	// of on every check run.
-	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
-		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastFailure) < metadataFailureBackoff {
+		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastFailure.Add(metadataFailureBackoff))
 		return
 	}
 
@@ -244,8 +245,8 @@ func (c *Check) checkRebalanceRecommendation(sender sender.Sender) {
 
 	// The rebalance lookup hits the same unreachable IMDS endpoint; back it
 	// off on the same counter as the preemption lookup.
-	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastAttempt) < metadataFailureBackoff {
-		log.Tracef("Skipping rebalance recommendation check, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastAttempt.Add(metadataFailureBackoff))
+	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastFailure) < metadataFailureBackoff {
+		log.Tracef("Skipping rebalance recommendation check, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastFailure.Add(metadataFailureBackoff))
 		return
 	}
 
