@@ -36,6 +36,7 @@ properties:
           AGENT_CONFIG too.
   api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
   apm_sampling:

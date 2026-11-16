@@ -56,6 +56,7 @@ from tasks import (
     kmt,
     linter,
     loader,
+    logs_tokenizer,
     macos,
     modules,
     msi,
@@ -244,6 +245,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(logs_tokenizer)
 ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)

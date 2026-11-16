@@ -1,0 +1,252 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides: datadog-agent-procmgr
+# Short-Description: Start and stop the Datadog process manager
+# Description: Datadog Process Manager, supervises the processes defined in processes.d
+# Required-Start: $remote_fs
+# Required-Stop: $remote_fs
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+### END INIT INFO
+
+# load-env is the unprivileged child. It applies the agent environment file and execs the daemon.
+if [ "$1" = load-env ]; then
+	etc=$2
+	install=$3
+	daemon=$4
+	if [ -r "$etc/environment" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			case $line in
+			""|"#"*|";"*) continue ;;
+			esac
+			case $line in
+			*=*) ;;
+			*) continue ;;
+			esac
+			key=${line%%=*}
+			value=${line#*=}
+			case $key in
+			*[!A-Za-z0-9_]*|"") continue ;;
+			[0-9]*) continue ;;
+			esac
+			case $value in
+			\"*\") value=${value#\"}; value=${value%\"} ;;
+			\'*\') value=${value#\'}; value=${value%\'} ;;
+			esac
+			export "$key=$value"
+		done < "$etc/environment"
+	fi
+	# Process definitions append /run to DD_PID_DIR.
+	export DD_PM_CONFIG_DIR="$install/processes.d"
+	export DD_CONF_DIR="$etc"
+	export DD_PID_DIR="$install"
+	export DD_INSTALL_DIR="$install"
+	exec "$daemon"
+	exit 1
+fi
+
+. /lib/lsb/init-functions
+
+ETC_DIR="{etc_dir}"
+INSTALL_DIR="{install_dir}"
+AGENTPATH="$INSTALL_DIR/embedded/bin/dd-procmgrd"
+# dd-procmgrd does not write a pid file itself, so start-stop-daemon creates one.
+PIDFILE="$INSTALL_DIR/run/dd-procmgrd.pid"
+AGENT_USER="dd-agent"
+NAME="datadog-agent-procmgr"
+DESC="Datadog Process Manager"
+
+
+
+if [ ! -x $AGENTPATH ]; then
+	echo "$AGENTPATH not found. Exiting $NAME"
+	exit 0
+fi
+
+# A regular definition in processes.d is the install-time choice. The admin file wins.
+# The check is a function so it cannot overwrite the start/stop argument in $1.
+procmgr_configured()
+{
+	for f in "$INSTALL_DIR/processes.d/"*.yaml "$INSTALL_DIR/processes.d/"*.yml; do
+		[ -f "$f" ] && return 0
+	done
+	return 1
+}
+
+if ! procmgr_configured; then
+	DATADOG_ENABLED=no
+fi
+if [ -r "/etc/default/${NAME}" ]; then
+	. "/etc/default/${NAME}"
+fi
+
+
+# Container root may not read another user's /proc/PID/exe without CAP_SYS_PTRACE.
+agent_start_stop_daemon()
+{
+	if command -v setpriv > /dev/null 2>&1; then
+		agent_gid=$(id -g "$AGENT_USER") || return 4
+		setpriv --reuid "$AGENT_USER" --regid "$agent_gid" --init-groups /sbin/start-stop-daemon "$@"
+	else
+		# Older util-linux lacks setpriv; keep all su options before the username.
+		su -s /bin/sh -c 'exec "$@"' -- "$AGENT_USER" sh /sbin/start-stop-daemon "$@"
+	fi
+}
+
+procmgr_status()
+{
+	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
+}
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+	# Return
+	#   0 if daemon has been started
+	#   1 if daemon was already running
+	#   2 if daemon could not be started
+
+	# dd-agent cannot create this directory under root-owned /var/run.
+	/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2
+	procmgr_status
+	case "$?" in
+		0) return 1 ;;
+		1|3) ;;
+		*) return 2 ;;
+	esac
+	# start-stop-daemon runs the child from /, so load-env needs the absolute script path.
+	start-stop-daemon --start --background --make-pidfile --chuid "$AGENT_USER" --quiet \
+		--pidfile "$PIDFILE" --user "$AGENT_USER" \
+		--exec "$AGENTPATH" --startas /bin/sh -- \
+		"/etc/init.d/$NAME" load-env "$ETC_DIR" "$INSTALL_DIR" "$AGENTPATH" \
+		|| return 2
+}
+
+
+#
+# Start the process manager and wait for it to be up
+#
+start_and_wait()
+{
+	log_daemon_msg "Starting $DESC" "$NAME"
+	do_start
+	case "$?" in
+		1) log_end_msg 0 ;;
+		2) log_end_msg 1 ;;
+		*)
+			retries=5
+			while [ $retries -gt 1 ]; do
+				procmgr_status
+				case "$?" in
+					0)
+						log_end_msg 0
+						return 0
+						;;
+					1|3)
+						retries=$(($retries - 1))
+						sleep 1
+						;;
+					*) break ;;
+				esac
+			done
+			log_end_msg 1
+
+		;;
+	esac
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+	# Return
+	#   0 if daemon has been stopped
+	#   1 if daemon was already stopped
+	#   2 if daemon could not be stopped
+	#   other if a failure occurred
+	agent_start_stop_daemon --stop --quiet --retry=TERM/200/KILL/5 --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
+	RETVAL="$?"
+	# A failed stop can leave the daemon running. The pid file is what stops the next start from launching another one.
+	if [ "$RETVAL" -eq 0 ] || [ "$RETVAL" -eq 1 ]; then
+		rm -f "$PIDFILE"
+	fi
+	return "$RETVAL"
+}
+
+#
+# Stop the process manager and wait for it to be down
+#
+stop_and_wait()
+{
+	log_daemon_msg "Stopping $DESC" "$NAME"
+	do_stop
+	case "$?" in
+		0|1) log_end_msg 0 ;;
+		*) log_end_msg 1 ;; # Failed to stop
+	esac
+}
+
+# Action to take
+case "$1" in
+	start)
+		if init_is_upstart; then
+			exit 1
+		fi
+		if [ "$DATADOG_ENABLED" = "no" ]; then
+			echo "Disabled via process manager configuration. Exiting."
+			exit 0
+		fi
+
+		start_and_wait
+
+		;;
+
+	stop)
+		if init_is_upstart; then
+			exit 0
+		fi
+
+		stop_and_wait
+
+		;;
+
+	status)
+		# Check the daemon as the agent user. Root cannot see a dd-agent process without CAP_SYS_PTRACE.
+		procmgr_status
+		RETVAL="$?"
+		case "$RETVAL" in
+			0) log_success_msg "$NAME is running" ;;
+			1|3) log_failure_msg "$NAME is not running" ;;
+			*) log_failure_msg "Could not determine $NAME status"; RETVAL=4 ;;
+		esac
+		exit "$RETVAL"
+		;;
+
+	restart|force-reload)
+		if init_is_upstart; then
+			exit 1
+		fi
+
+		echo "Restarting $DESC"
+
+		stop_and_wait || exit 1
+		if [ "$DATADOG_ENABLED" = "no" ]; then
+			echo "Disabled via process manager configuration. Exiting."
+			exit 0
+		fi
+		start_and_wait
+
+		;;
+
+	*)
+		N=/etc/init.d/$NAME
+		echo "Usage: $N {start|stop|restart|status}"
+		exit 1
+		;;
+esac
+
+exit $?

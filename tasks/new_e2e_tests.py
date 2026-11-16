@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     color_message,
     environ,
     get_repo_root,
+    gitlab_project_url,
     gitlab_section,
     running_in_ci,
     running_in_gitlab_ci,
@@ -154,7 +155,7 @@ def write_test_binaries_bzl(_):
     """
     query_output = bazel(
         "query",
-        "kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e))",
+        r"attr(tags, '\bmanual\b', kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e)))",
         "--output=label",
         capture_output=True,
     )
@@ -736,7 +737,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success, _ = process_test_result(
+    success = process_test_result(
         ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer, test_system="e2e"
     )
 
@@ -1022,6 +1023,34 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
     print(f"Written to {output_file}")
 
 
+@task(help={"output_file": "Markdown file to write the pull request comment to"})
+def benchmarkeks_instructions(_, output_file: str = "benchmarkeks_instructions.md"):
+    """
+    Write the pull request comment explaining how to start the benchmarkeks suite (TestBenchmarkEKSSuite), which only
+    runs manually: a button linking to its manual job in the current pipeline, or a link to the pipeline if the job
+    can't be found.
+    """
+    from tasks.libs.testing.benchmarkeks import BASELINE_JOB_NAME, instructions_comment
+
+    try:
+        # At the start of the pipeline, the job is still manual
+        jobs = (
+            get_gitlab_repo()
+            .pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+            .jobs.list(scope="manual", iterator=True, per_page=100)
+        )
+        job_url = next((job.web_url for job in jobs if job.name == BASELINE_JOB_NAME), None)
+        if job_url is None:
+            print(color_message(f"Job {BASELINE_JOB_NAME} not found, linking to the pipeline", Color.ORANGE))
+    except Exception as e:
+        print(color_message(f"Could not look up job {BASELINE_JOB_NAME}, linking to the pipeline: {e}", Color.ORANGE))
+        job_url = None
+
+    with open(output_file, "w") as f:
+        f.write(instructions_comment(job_url, os.environ["CI_PIPELINE_URL"]))
+    print(f"Written to {output_file}")
+
+
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
     """
     Post process the test results to add the test run name
@@ -1176,7 +1205,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     except TooManyLogsError:
         print(
             color_message("WARNING", "yellow")
-            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: {gitlab_project_url()}/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
         )
 
 

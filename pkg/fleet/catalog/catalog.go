@@ -26,6 +26,7 @@ type Package struct {
 	Size     int64  `json:"size"`
 	Platform string `json:"platform"`
 	Arch     string `json:"arch"`
+	Latest   bool   `json:"latest,omitempty"`
 }
 
 // MatchesTarget reports whether the package can be used on platform and arch.
@@ -51,8 +52,7 @@ func Parse(data []byte) (Catalog, error) {
 }
 
 // Merge combines catalog documents without changing package order or resolving
-// duplicate entries. Package selection therefore retains the existing
-// first-match behavior.
+// duplicate entries. Consumers apply their own selection rules to the result.
 func Merge(catalogs ...Catalog) Catalog {
 	var merged Catalog
 	for _, catalog := range catalogs {
@@ -63,7 +63,7 @@ func Merge(catalogs ...Catalog) Catalog {
 
 // GetPackage returns the first package variant matching name, version, and the
 // requested platform and architecture. Empty package constraints match every
-// platform or architecture.
+// platform or architecture. Latest markers do not affect exact-version lookups.
 func (c Catalog) GetPackage(packageName, version, platform, arch string) (Package, bool) {
 	for _, pkg := range c.Packages {
 		if pkg.Name == packageName && pkg.Version == version && pkg.MatchesTarget(platform, arch) {

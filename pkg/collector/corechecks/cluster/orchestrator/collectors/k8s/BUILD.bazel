@@ -58,6 +58,7 @@ go_library(
         "//pkg/redact",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/helminformers",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",

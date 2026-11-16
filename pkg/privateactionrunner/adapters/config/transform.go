@@ -156,16 +156,10 @@ func makeActionsAllowlist(config config.Component) ActionsAllowlist {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
-	allowlist := NewActionsAllowlist(actionFqns)
-	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
-	for bundleID, actionsSet := range bundleInheritedActions {
-		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
-	}
-
-	return allowlist
+	return NewActionsAllowlist(actionFqns)
 }
 
-// NewActionsAllowlist parses action FQNs without adding defaults or inherited actions.
+// NewActionsAllowlist parses action FQNs and adds inherited actions without adding defaults.
 func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
 	allowlist := make(ActionsAllowlist)
 	for _, fqn := range actionFqns {
@@ -175,6 +169,10 @@ func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
 			previous = sets.New[string]()
 		}
 		allowlist[bundleName] = previous.Insert(actionName)
+	}
+
+	for bundleID, actionsSet := range GetBundleInheritedAllowedActions(allowlist) {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
 	return allowlist
@@ -272,7 +270,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 
 		matched := false
 		for bundleID, actionsSet := range actionsAllowlist {
-			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+			if actionsSet.Len() > 0 && (bundleID == prefix || strings.HasPrefix(bundleID, prefix+".")) {
 				matched = true
 				break
 			}
