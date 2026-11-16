@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    APM: More efficient peer and primary tag extraction when calculating OTLP span metrics.

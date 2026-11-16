@@ -9,7 +9,9 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use crate::config::ProcessConfig;
-use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
+use crate::env::{
+    expand_env_vars, expand_env_vars_checked, parse_environment_file, try_expand_env_vars,
+};
 
 use super::stdio::{StdioSetting, parse_stdio_setting};
 
@@ -93,16 +95,25 @@ impl SpawnRequest {
         inherit_supervisor_env: bool,
     ) -> Result<Self> {
         let (env, config_env_start) = collect_env(process_name, config, inherit_supervisor_env)?;
+        let expand = |input: &str| {
+            expand_env_vars_checked(input)
+                .with_context(|| format!("[{process_name}] cannot expand the process command line"))
+        };
         Ok(Self {
-            command: expand_env_vars(&config.command),
-            args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
+            command: expand(&config.command)?,
+            args: config
+                .args
+                .iter()
+                .map(|a| expand(a))
+                .collect::<Result<_>>()?,
             env,
             config_env_start,
             inherit_supervisor_env,
             working_dir: config
                 .working_dir
                 .as_ref()
-                .map(|dir| PathBuf::from(expand_env_vars(dir))),
+                .map(|dir| expand(dir).map(PathBuf::from))
+                .transpose()?,
             stdout_setting: parse_stdio_setting(&config.stdout),
             stderr_setting: parse_stdio_setting(&config.stderr),
         })
@@ -286,6 +297,90 @@ mod tests {
                 .any(|(k, v)| k == "EXIT_CODE" && v == "42"),
             "environment_file vars must be included in spawn env: {:?}",
             request.env
+        );
+    }
+
+    fn par_config() -> ProcessConfig {
+        ProcessConfig {
+            command: "/bin/true".to_string(),
+            args: vec![
+                "--ipc-cert-file".to_string(),
+                "${DD_PM_IPC_CERT_FILE_PATH}".to_string(),
+            ],
+            ..Default::default()
+        }
+    }
+
+    /// Sets the two IPC cert path variables for one test and restores the originals on
+    /// drop, even when the test panics. Holds `test_env_guard`'s lock for the duration.
+    struct IpcCertEnv {
+        saved: [(&'static str, Option<OsString>); 2],
+        _guard: crate::config_gate::TestEnvGuard,
+    }
+
+    impl IpcCertEnv {
+        const SUPERVISOR: &'static str = "DD_PM_IPC_CERT_FILE_PATH";
+        const AGENT: &'static str = "DD_IPC_CERT_FILE_PATH";
+
+        fn set(supervisor: Option<&str>, agent: Option<&str>) -> Self {
+            let guard = crate::config_gate::test_env_guard();
+            let saved = [Self::SUPERVISOR, Self::AGENT].map(|name| (name, std::env::var_os(name)));
+            for (name, value) in [(Self::SUPERVISOR, supervisor), (Self::AGENT, agent)] {
+                // SAFETY: test_env_guard holds the lock that serializes env changes.
+                unsafe {
+                    match value {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
+                }
+            }
+            Self {
+                saved,
+                _guard: guard,
+            }
+        }
+    }
+
+    impl Drop for IpcCertEnv {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                // SAFETY: `_guard` is dropped after this, so its lock is still held.
+                unsafe {
+                    match value {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn from_config_expands_the_ipc_cert_path() {
+        let _env = IpcCertEnv::set(Some("/etc/datadog-agent/cert.pem"), None);
+        let request = SpawnRequest::from_config("par", &par_config(), false).unwrap();
+        assert_eq!(
+            request.args(),
+            ["--ipc-cert-file", "/etc/datadog-agent/cert.pem"]
+        );
+    }
+
+    #[test]
+    fn from_config_fails_when_the_ipc_cert_path_is_a_secret_handle() {
+        // An ENC[...] handle makes the resolver refuse to guess. This relies on no test in
+        // the crate filling the process-wide cache through the real resolver.
+        let _env = IpcCertEnv::set(None, Some("ENC[cert_path]"));
+        let Err(err) = SpawnRequest::from_config("par", &par_config(), false) else {
+            panic!("an unresolved cert path must fail the spawn");
+        };
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("[par] cannot expand the process command line"),
+            "the error must name the process: {message}"
+        );
+        assert!(
+            message.contains("secret handle"),
+            "unexpected error: {message}"
         );
     }
 

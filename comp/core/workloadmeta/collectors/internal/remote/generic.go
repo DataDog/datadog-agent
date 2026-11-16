@@ -212,6 +212,11 @@ func (c *GenericCollector) Run() {
 
 		if c.stream == nil {
 			if err := c.startWorkloadmetaStream(noTimeout); err != nil {
+				// The collector context is canceled when the Agent stops.
+				if c.ctx.Err() != nil {
+					log.Debugf("stopped trying to start stream: %s", err)
+					return
+				}
 				log.Warnf("error received trying to start stream: %s", err)
 				continue
 			}
@@ -244,7 +249,13 @@ func (c *GenericCollector) Run() {
 
 			if err != io.EOF {
 				telemetry.RemoteClientErrors.Inc(c.CollectorID)
-				log.Warnf("error received from remote workloadmeta: %s", err)
+				// The collector context is canceled when the Agent stops, which
+				// makes Recv fail with codes.Canceled: that is not a stream error.
+				if c.ctx.Err() != nil {
+					log.Debugf("remote workloadmeta stream closed on stop: %s", err)
+				} else {
+					log.Warnf("error received from remote workloadmeta: %s", err)
+				}
 			}
 
 			// A stream that outlived the longest delay restarts the delays, as a

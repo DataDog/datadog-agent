@@ -34,7 +34,6 @@ import (
 	go_version "github.com/hashicorp/go-version"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"
-	go_ora "github.com/sijms/go-ora/v2"
 )
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -78,7 +77,6 @@ type Check struct {
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
-	connection                              *go_ora.Connection
 	dbmEnabled                              bool
 	agentVersion                            string
 	agentHostname                           string
@@ -189,14 +187,6 @@ func (c *Check) Run() error {
 		if err != nil {
 			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
 		}
-	}
-
-	if c.driver == "oracle" && c.connection == nil {
-		conn, err := connectGoOra(c)
-		if err != nil {
-			return fmt.Errorf("%s failed to connect with go-ora %w", c.logPrompt, err)
-		}
-		c.connection = conn
 	}
 
 	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, c.config.DatabaseInstanceCollectionInterval)
@@ -375,7 +365,6 @@ func (c *Check) Teardown() {
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
 	c.dbCustomQueries = nil
-	closeGoOraConnection(c)
 }
 
 // Configure configures the Oracle check.

@@ -3,7 +3,6 @@ upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -16,7 +15,6 @@ upload_dependencies_sysprobe_arm64:
     - .package_dependencies
   timeout: 1h 05m
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -95,7 +93,6 @@ upload_minimized_btfs_sysprobe_x64:
   extends:
     - .upload_minimized_btfs
   needs:
-    - !reference [.kmt_setup_needs]
     - generate_minimized_btfs_x64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -109,7 +106,6 @@ upload_minimized_btfs_sysprobe_arm64:
     - .upload_minimized_btfs
   timeout: 1h 00m
   needs:
-    - !reference [.kmt_setup_needs]
     - generate_minimized_btfs_arm64
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
@@ -148,7 +144,6 @@ kmt_setup_env_sysprobe_x64:
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
@@ -185,7 +180,6 @@ upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_sysprobe_ebpf_functional_tests_x64
     - tests_ebpf_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -199,7 +193,6 @@ upload_sysprobe_tests_arm64:
     - .upload_sysprobe_tests
   timeout: 55m
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_sysprobe_ebpf_functional_tests_arm64
     - tests_ebpf_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

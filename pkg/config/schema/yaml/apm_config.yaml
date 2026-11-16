@@ -702,6 +702,9 @@ properties:
        * pattern - string - The pattern to match the desired content to replace
        * repl - string - what to inline if the pattern is matched
 
+      The env of a span cannot be replaced, as it is used for sampling and stats:
+      rules named "env" are ignored, and "*" rules skip the span env.
+
       See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
     example: |2-
 

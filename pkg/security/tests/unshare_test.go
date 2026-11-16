@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -47,7 +48,7 @@ func TestUnshareEvent(t *testing.T) {
 		},
 		{
 			ID:         "test_clone_newns_exec",
-			Expression: `exec.file.name == "syscall_tester" && exec.argv in ["sleep"]`,
+			Expression: `exec.file.name == "syscall_tester" && exec.argv in ["sleep"] && !(exec.argv in ["leader-exit-pthread-exec"])`,
 		},
 	}
 
@@ -205,13 +206,29 @@ func TestUnshareEvent(t *testing.T) {
 			ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
 			statusPath := fmt.Sprintf("/proc/%d/status", cmd.Process.Pid)
 			deadline := time.Now().Add(2 * time.Second)
+			leaderZombie := false
 			for time.Now().Before(deadline) {
 				statusBytes, readErr := os.ReadFile(statusPath)
-				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") &&
-					ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) == nil {
+				if readErr == nil && strings.Contains(string(statusBytes), "State:\tZ") {
+					leaderZombie = true
+				}
+				if leaderZombie && (testEnvironment == DockerEnvironment || ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)) != nil) {
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
+			}
+			require.True(t, leaderZombie, "leader thread did not reach zombie state")
+
+			if err := test.GetProbeEvent(func() error {
+				return exec.Command(syscallTester, "check", "sentinel-leader-exit").Run()
+			}, func(event *model.Event) bool {
+				return event.ProcessContext.ArgsEntry != nil && slices.Contains(event.ProcessContext.ArgsEntry.Values, "sentinel-leader-exit")
+			}, 3*time.Second, model.ExitEventType); err != nil {
+				_ = stdinPipe.Close()
+				return err
+			}
+			if testEnvironment != DockerEnvironment {
+				assert.NotNil(t, ebpfProbe.Resolvers.ProcessResolver.Get(uint32(cmd.Process.Pid)), "process cache entry should remain alive while worker thread is running")
 			}
 
 			return stdinPipe.Close()

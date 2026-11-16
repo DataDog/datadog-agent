@@ -39,51 +39,47 @@ func TestRunnerLifecycle(t *testing.T) {
 
 func TestRunnerRealtime(t *testing.T) {
 	enableProcessAgent(t)
+	response := types.RTResponse{
+		Statuses: []*model.CollectorStatus{{ActiveClients: 1, Interval: 10}},
+		Sequence: 1,
+	}
 
 	t.Run("rt allowed", func(t *testing.T) {
-		rtChan := make(chan types.RTResponse)
+		rtChan := make(chan struct{})
 		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": false},
-			fx.Provide(
-				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
-				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
-				func() <-chan types.RTResponse { return rtChan },
-			),
+			fx.Provide(func() *types.RTNotifier {
+				return &types.RTNotifier{
+					Wake:   rtChan,
+					Latest: func() types.RTResponse { return response },
+				}
+			}),
 		)
 
-		rtChan <- types.RTResponse{
-			&model.CollectorStatus{
-				ActiveClients: 1,
-				Interval:      10,
-			},
-		}
+		rtChan <- struct{}{}
 		assert.Eventually(t, func() bool {
 			return deps.Runner.(*runnerImpl).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("rt disallowed", func(t *testing.T) {
-		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
-		rtChan := make(chan types.RTResponse, 1)
+		// A disabled runner does not consume wake-ups.
+		rtChan := make(chan struct{}, 1)
 		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": true},
-			fx.Provide(
-				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
-				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
-				func() <-chan types.RTResponse { return rtChan },
-			),
+			fx.Provide(func() *types.RTNotifier {
+				return &types.RTNotifier{
+					Wake:   rtChan,
+					Latest: func() types.RTResponse { return response },
+				}
+			}),
 		)
 
-		rtChan <- types.RTResponse{
-			&model.CollectorStatus{
-				ActiveClients: 1,
-				Interval:      10,
-			},
-		}
+		rtChan <- struct{}{}
 		assert.Never(t, func() bool {
 			return deps.Runner.(*runnerImpl).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)

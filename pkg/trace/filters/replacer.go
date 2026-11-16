@@ -29,6 +29,20 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 
 const hiddenTagPrefix = "_"
 
+// envTag is the span tag holding the env. The trace agent can derive the env
+// used for sampling and stats from it (see traceutil.GetEnv), so "*" rules must
+// not rewrite it. Rules named "env" are dropped when the configuration is
+// loaded. Span event attributes named "env" are not the span env, so "*" rules
+// still apply to them.
+const envTag = "env"
+
+// wildcardReplaceableSpanTag reports whether "*" rules may rewrite the span tag
+// (V0 meta or metric, V1 attribute) named key. Span event attributes only skip
+// hidden tags and must not use it.
+func wildcardReplaceableSpanTag(key string) bool {
+	return key != envTag && !strings.HasPrefix(key, hiddenTagPrefix)
+}
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -37,12 +51,14 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
+					if wildcardReplaceableSpanTag(k) {
 						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 					}
 				}
 				for k := range s.Metrics {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
+					// Skipping env matters here too, as replaceNumericTag can
+					// move a non-numeric result into Meta["env"].
+					if wildcardReplaceableSpanTag(k) {
 						f.replaceNumericTag(re, s, k, str)
 					}
 				}
@@ -90,7 +106,11 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 			case "*":
 				for k, v := range s.Attributes() {
 					kString := trace.Strings.Get(k)
-					if strings.HasPrefix(kString, hiddenTagPrefix) {
+					// Skipping env matters here: spans decoded from msgpack
+					// v0.4/v0.5 payloads keep env both in the dedicated env field
+					// and in Attributes(), and setting the "env" attribute writes
+					// the env field.
+					if !wildcardReplaceableSpanTag(kString) {
 						continue
 					}
 					vString := v.AsString(trace.Strings)
