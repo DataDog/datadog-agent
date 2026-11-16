@@ -94,6 +94,19 @@ class TestJsonSchemaDuration(unittest.TestCase):
         doc = {"type": "object", "default": {"format": "duration"}, "enum": [{"format": "duration"}]}
         self.assertEqual(json_schema(doc), doc)
 
+    def test_banner_is_dropped_from_every_output(self):
+        """``banner`` only drives the config example: neither the binary nor external tools use it."""
+        from tasks.schema.produce_byproduct import embedded, json_schema
+
+        doc = {
+            "type": "object",
+            "properties": {
+                "api_key": {"node_type": "setting", "banner": "Basic Configuration", "type": "string", "default": ""}
+            },
+        }
+        for output in (embedded, json_schema):
+            self.assertNotIn("banner", output(doc)["properties"]["api_key"], output.__name__)
+
     def test_embedded_keeps_duration_format(self):
         from tasks.schema.produce_byproduct import embedded
 

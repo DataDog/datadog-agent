@@ -389,16 +389,16 @@ def check_public_section_has_public_child(path, schema):
 
 
 # ---------------------------------------------------------------------------
-# Check 11: Text fields (description, example, title) must not contain
+# Check 11: Text fields (description, example, title, banner) must not contain
 #           literal \\n escape sequences and use scalars instead
 # ---------------------------------------------------------------------------
 
-_TEXT_LINEBREAK_RE = re.compile(r'(?m)^\s*(description|example|title):\s*"[^"]*\\n')
+_TEXT_LINEBREAK_RE = re.compile(r'(?m)^\s*(description|example|title|banner):\s*"[^"]*\\n')
 
 
 def check_text_scalar_mode(path):
     """
-    Check that 'description', 'example', and 'title' fields do not contain
+    Check that 'description', 'example', 'title' and 'banner' fields do not contain
     literal \\n escape sequences in double-quoted YAML strings.
 
     Reads the raw file (no YAML parsing) and searches for the literal two-character
@@ -850,6 +850,37 @@ def check_no_null_values(path, schema, null_value_exceptions=None):
 
 
 # ---------------------------------------------------------------------------
+# Check 20: settings use 'banner', not 'title', to start a template banner
+# ---------------------------------------------------------------------------
+
+
+def check_no_title_on_settings(path, schema):
+    """
+    Check that no setting node has a 'title'.
+
+    A banner in the generated config example (datadog.yaml.example) is set with
+    the Agent's 'banner' keyword. 'title' is a standard JSON Schema keyword: the
+    short label of a value, which IDEs and other external tools show when
+    hovering or completing a setting. On a setting used to start a group of
+    settings, it would label that one setting with the group's name (e.g.
+    'api_key' shown as "Basic Configuration"). Sections may keep a 'title': it
+    is both their banner and a correct label for them.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") == "setting" and "title" in node:
+            errors.append(
+                f"{path}: [{node_path}] Setting has a 'title' ({node['title']!r}). 'title' is the label IDEs show "
+                f"for this setting's value, not a banner. "
+                f"Fix: to start a banner in the config example, rename 'title' to 'banner'; "
+                f"otherwise remove it and document the setting with 'description'."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -928,6 +959,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_template_section_on_public(schema_path, schema))
         all_errors.extend(check_sensitive(schema_path, schema))
         all_errors.extend(check_no_null_values(schema_path, schema, exc["null_value"]))
+        all_errors.extend(check_no_title_on_settings(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

@@ -247,12 +247,12 @@ def _keep_keys(node, keep_keys):
 def embedded(document):
     """Schema variant embedded into the Go binary for JSON-Schema validation.
 
-    Drops human-facing documentation strings (``description``/``title``) -- the
-    single largest contributor to the embedded schema size. The Go loader
-    compiles the schema for validation only, so these keywords are unused at
-    runtime.
+    Drops human-facing documentation strings (``description``/``title``/
+    ``banner``) -- the single largest contributor to the embedded schema size.
+    The Go loader compiles the schema for validation only, so these keywords
+    are unused at runtime.
     """
-    return _strip_keys(document, frozenset({"description", "example", "title", "comment", "tags"}))
+    return _strip_keys(document, frozenset({"description", "example", "title", "banner", "comment", "tags"}))
 
 
 def json_schema(document):

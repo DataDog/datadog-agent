@@ -560,5 +560,26 @@ class TestCheckNoNullValues(unittest.TestCase):
         )
 
 
+class TestCheckNoTitleOnSettings(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_no_title_on_settings, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_settings_with_title_are_errors_pointing_to_banner(self):
+        errors = errors_for(lint.check_no_title_on_settings, "bad_title_on_setting.yaml")
+        self.assertEqual(len(errors), 2, errors)
+        for path in ("[setting_with_title]", "[section_with_title.nested_setting_with_title]"):
+            self.assertTrue(
+                any(path in e and "rename 'title' to 'banner'" in e for e in errors),
+                f"Expected error for {path}, got: {errors}",
+            )
+
+    def test_banner_on_setting_and_title_on_section_pass(self):
+        errors = errors_for(lint.check_no_title_on_settings, "bad_title_on_setting.yaml")
+        self.assertFalse(
+            any("[setting_with_banner]" in e or "[section_with_title]" in e for e in errors), f"Got: {errors}"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

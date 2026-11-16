@@ -8,7 +8,7 @@ properties:
   api_key:
     node_type: setting
     sensitive: true
-    title: Basic Configuration
+    banner: Basic Configuration
     type: string
     default: ''
     visibility: public
@@ -1392,7 +1392,7 @@ properties:
             example: '"http://127.0.0.1:8080"'
   confd_path:
     node_type: setting
-    title: Advanced Configuration
+    banner: Advanced Configuration
     type: string
     default: ${conf_path}/conf.d
     visibility: public
@@ -1865,7 +1865,7 @@ properties:
         example: '"c:\\programdata\\datadog\\logs\\ddtray.log"'
   logs_enabled:
     node_type: setting
-    title: Log collection Configuration
+    banner: Log collection Configuration
     type: boolean
     default: false
     visibility: public
@@ -2496,7 +2496,7 @@ properties:
     $ref: sbom.yaml
   use_dogstatsd:
     node_type: setting
-    title: DogStatsD Configuration
+    banner: DogStatsD Configuration
     type: boolean
     default: true
     visibility: public
@@ -3074,7 +3074,7 @@ properties:
       Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
   jmx_custom_jars:
     node_type: setting
-    title: JMX Configuration
+    banner: JMX Configuration
     type: array
     default: []
     items:
@@ -3248,7 +3248,7 @@ properties:
     - full-agent-only:true
   log_level:
     node_type: setting
-    title: Logging Configuration
+    banner: Logging Configuration
     type: string
     default: info
     visibility: public
@@ -3369,7 +3369,7 @@ properties:
     - template_section:Logging
   autoconf_template_dir:
     node_type: setting
-    title: Autoconfig Configuration
+    banner: Autoconfig Configuration
     type: string
     default: /datadog/check_configs
     visibility: public
@@ -3523,7 +3523,7 @@ properties:
     - template_section:CoreAgent
   container_cgroup_root:
     node_type: setting
-    title: Container Autodiscovery Configuration
+    banner: Container Autodiscovery Configuration
     type: string
     default: /host/sys/fs/cgroup/
     visibility: public
@@ -3726,7 +3726,7 @@ properties:
     $ref: admission_controller.yaml
   docker_labels_as_tags:
     node_type: setting
-    title: Docker tag extraction
+    banner: Docker tag extraction
     type: object
     default: {}
     additionalProperties:
@@ -3762,7 +3762,7 @@ properties:
     - template_section:DockerTagging
   kubernetes_pod_labels_as_tags:
     node_type: setting
-    title: Kubernetes tag extraction
+    banner: Kubernetes tag extraction
     type: object
     default: {}
     additionalProperties:
@@ -3868,7 +3868,7 @@ properties:
     - template_section:KubernetesTagging
   ecs_agent_container_name:
     node_type: setting
-    title: ECS integration Configuration
+    banner: ECS integration Configuration
     type: string
     default: ecs-agent
     visibility: public
@@ -3954,7 +3954,7 @@ properties:
     - full-agent-only:true
   cri_socket_path:
     node_type: setting
-    title: CRI and Containerd integration Configuration
+    banner: CRI and Containerd integration Configuration
     type: string
     default: ''
     visibility: public
@@ -4046,7 +4046,7 @@ properties:
     - template_section:CoreAgent
   kubernetes_kubelet_host:
     node_type: setting
-    title: Kubernetes kubelet connectivity Configuration
+    banner: Kubernetes kubelet connectivity Configuration
     type: string
     default: ''
     visibility: public
@@ -4150,7 +4150,7 @@ properties:
     comment: in seconds, default 15 minutes
   kubernetes_kubeconfig_path:
     node_type: setting
-    title: Kubernetes apiserver integration Configuration
+    banner: Kubernetes apiserver integration Configuration
     type: string
     default: ''
     visibility: public

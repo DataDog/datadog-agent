@@ -133,15 +133,15 @@ api_key:
 
 ### `title`
 
-A short heading used to generate section banners in `datadog.yaml.example`.
+A short, human-readable label for a section. IDEs and other JSON Schema tools show it when hovering or completing the section, and the config example generator also renders it as the section's banner in `datadog.yaml.example`.
 
-- **Available on:** section nodes only.
+- **Available on:** section nodes only. Settings must use [`banner`](#banner) to start a banner: `schema.lint` rejects a `title` on a setting.
 
 /// note
-The Agent schema's use of `title` differs from the JSON Schema standard, where `title` is a concise human-readable summary of a schema. Here, `title` is specifically a banner label applied only to section nodes that begin a new conceptual group in the generated config file.
+In JSON Schema, `title` labels the value of the node it's on. On a setting that starts a group of settings, the group's name would become that one setting's label in IDEs: hovering `api_key` would show "Basic Configuration". A section's `title` names the section itself, so it's a correct label and a correct banner.
 ///
 
-When a section has a `title`, the config example generator produces a banner like this:
+When a section has a `title` (and no `banner`), the config example generator produces a banner like this:
 
 ```
 ####################################
@@ -433,6 +433,47 @@ api_key:
 
 /// note
 the configuration examples are generated following the schema order. Where you add you setting in the schema will determine where is will appear in the examples.
+///
+
+---
+
+### `banner`
+
+The text of a banner rendered in `datadog.yaml.example` just before the node, to start a new group of settings.
+
+- **Available on:** all nodes (setting and section). On a setting, it's the only way to get a banner.
+- **Mandatory:** no.
+
+Most top-level settings aren't in a section, so a group of them is started by putting a `banner` on its first setting. Every following setting belongs to the group until the next banner:
+
+```yaml
+api_key:
+  node_type: setting
+  banner: Basic Configuration
+  type: string
+  default: ""
+  visibility: public
+  description: The Datadog API key used by your Agent to submit metrics and events to Datadog.
+```
+
+renders as:
+
+```
+#########################
+## Basic Configuration ##
+#########################
+
+## @param api_key - string - required
+## @env DD_API_KEY - string - required
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+```
+
+A section uses its [`title`](#title) as its banner, so it rarely needs a `banner`. If it has both, the `banner` is rendered and the `title` stays the section's label for IDEs.
+
+`banner` is only used to generate the config examples: it's removed from the schema embedded in the Agent and from the JSON Schema published for external tools.
+
+/// note
+Don't use `title` on a setting to get a banner. `title` is the standard JSON Schema label of a value, which IDEs show for that setting: `api_key` would be labelled "Basic Configuration". `schema.lint` rejects a `title` on a setting.
 ///
 
 ---
