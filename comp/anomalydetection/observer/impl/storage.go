@@ -73,6 +73,11 @@ type StorageConfig struct {
 	// It is intended for finite replay comparisons and is disabled in live
 	// production because its size is unbounded.
 	TrackDetectorOutputHistory bool
+
+	// TrackScorerHistory retains the scorer's full bucket history, emitted
+	// severity transitions, episode contributor snapshots, and input timing for
+	// the interactive testbench. It is disabled in live production.
+	TrackScorerHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
