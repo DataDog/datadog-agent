@@ -250,6 +250,19 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			obfuscateRedisArgsStep(args, 1, 2)
 		}
 
+	case "SENTINEL":
+		// Obfuscate every value of the SET and CONFIG SET sub-commands.
+		// • SENTINEL SET master-name option value [option value ...]
+		// • SENTINEL CONFIG SET parameter value [parameter value ...]
+		switch strings.ToUpper(args[0]) {
+		case "SET":
+			obfuscateRedisArgsStep(args, 2, 2)
+		case "CONFIG":
+			if len(args) > 1 && strings.ToUpper(args[1]) == "SET" {
+				obfuscateRedisArgsStep(args, 2, 2)
+			}
+		}
+
 	case "BITFIELD":
 		// Obfuscate 3rd argument to every SET sub-command:
 		// • BITFIELD key [GET type offset] [SET type offset value] [INCRBY type offset increment] [OVERFLOW WRAP|SAT|FAIL]

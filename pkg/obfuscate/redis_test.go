@@ -522,6 +522,34 @@ func TestRedisObfuscator(t *testing.T) {
 			"GEOSEARCH key FROMMEMBER",
 		},
 		{
+			"SENTINEL SET mymaster auth-pass s3cret",
+			"SENTINEL SET mymaster auth-pass ?",
+		},
+		{
+			"sentinel set mymaster quorum 2 auth-pass s3cret",
+			"sentinel set mymaster quorum ? auth-pass ?",
+		},
+		{
+			"SENTINEL CONFIG SET sentinel-pass s3cret",
+			"SENTINEL CONFIG SET sentinel-pass ?",
+		},
+		{
+			"SENTINEL CONFIG SET resolve-hostnames yes sentinel-pass s3cret",
+			"SENTINEL CONFIG SET resolve-hostnames ? sentinel-pass ?",
+		},
+		{
+			"SENTINEL CONFIG GET sentinel-pass",
+			"SENTINEL CONFIG GET sentinel-pass",
+		},
+		{
+			"SENTINEL GET-MASTER-ADDR-BY-NAME mymaster",
+			"SENTINEL GET-MASTER-ADDR-BY-NAME mymaster",
+		},
+		{
+			"SENTINEL CONFIG",
+			"SENTINEL CONFIG",
+		},
+		{
 			`
 CONFIG command
 SET k v
