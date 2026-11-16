@@ -142,7 +142,21 @@ router bgp 65001
  neighbor 203.0.113.1 password 7 <secret hidden>
 !
 ip ftp username backupuser
-ip ftp password 0 clear-ftp-pass
+ip ftp password 0 <secret hidden>
+ip ftp password 7 <secret hidden>
+!
+! ---- Typed credentials with no command-specific rule -----------------
+mpls ldp neighbor 10.0.0.2 password 0 <secret hidden>
+cts sxp default password 0 <secret hidden>
+security passwords min-length 8
+interface Serial0/0/0
+ ppp pap sent-username branch1 password 7 <secret hidden>
+vpdn-group L2TP-OUT
+ l2tp tunnel password 0 <secret hidden>
+dot1x credentials SUPPLICANT
+ username dot1xuser password 0 <secret hidden>
+ldap server CORP-LDAP
+ bind authenticated root-dn cn=svc,dc=example,dc=net password 0 <secret hidden>
 !
 ip http server
 ip http authentication local

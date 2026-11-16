@@ -221,6 +221,10 @@ var DefaultProfiles = Map{
 			MkRedaction(`(?m)^( +domain-password) \S+ ?(.*)`, WithReplacement("$1 <secret hidden> $2")),
 			MkRedaction(`(?m)^( +pre-shared-key(?: local| remote)?(?: \d)?) .+`),
 			MkRedaction(`(?m)^(.*server-key(?: \d)?) \S+`),
+			MkRedaction(`(?m)^(ip ftp password(?: \d)?) .+`),
+			// Catch-all for typed credentials (`password 7 ...`, `secret 9 ...`) on commands without a
+			// specific rule. Matching `<secret hidden>` first keeps already-redacted values intact.
+			MkRedaction(`\b((?:password|secret) \d) (?:<secret hidden>|\S+)`),
 		},
 		MetadataRules: []MetadataRule{
 			{

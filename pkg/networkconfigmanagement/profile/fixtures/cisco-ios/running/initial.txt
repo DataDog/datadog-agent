@@ -156,6 +156,19 @@ ip ftp username backupuser
 ip ftp password 0 clear-ftp-pass
 ip ftp password 7 070C285F4D06
 !
+! ---- Typed credentials with no command-specific rule -----------------
+mpls ldp neighbor 10.0.0.2 password 0 ldpPlain
+cts sxp default password 0 sxpPlain
+security passwords min-length 8
+interface Serial0/0/0
+ ppp pap sent-username branch1 password 7 070C285F4D06
+vpdn-group L2TP-OUT
+ l2tp tunnel password 0 l2tpPlain
+dot1x credentials SUPPLICANT
+ username dot1xuser password 0 credPass
+ldap server CORP-LDAP
+ bind authenticated root-dn cn=svc,dc=example,dc=net password 0 ldapPass
+!
 ip http server
 ip http authentication local
 !
