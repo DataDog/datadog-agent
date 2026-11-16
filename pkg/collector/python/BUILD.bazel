@@ -5,7 +5,6 @@ go_library(
     name = "python",
     srcs = [
         "check.go",
-        "com_windows.go",
         "containers.go",
         "datadog_agent.go",
         "discovery.go",
@@ -185,13 +184,13 @@ dd_agent_go_test(
     name = "python_test",
     srcs = [
         "check_test.go",
-        "com_windows_test.go",
         "config_yaml_test.go",
         "containers_test.go",
         "datadog_agent_test.go",
         "discovery_test.go",
         "kubeutil_test.go",
         "loader_test.go",
+        "loader_windows_test.go",
         "tagger_test.go",
         "util_test.go",
         "version_test.go",
@@ -205,6 +204,7 @@ dd_agent_go_test(
         "kubelet",
         "python",
     ]],
+    include_default = False,
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/util/cache",

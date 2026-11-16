@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
+//go:build python && windows && test
 
 package python
 
@@ -29,15 +29,16 @@ func requireCOMInit(t *testing.T, err error, want uint32) {
 	require.Equal(t, want, uint32(oleErr.Code()))
 }
 
+// lockThread pins the test to one OS thread, because COM state is per thread.
 func lockThread(t *testing.T) {
 	runtime.LockOSThread()
 	t.Cleanup(runtime.UnlockOSThread)
 }
 
-func TestInitLoaderCOMOnUninitializedThread(t *testing.T) {
+func TestPlatformLoaderPrepOnUninitializedThread(t *testing.T) {
 	lockThread(t)
 
-	release, err := initLoaderCOM()
+	release, err := platformLoaderPrep()
 	require.NoError(t, err)
 	release()
 
@@ -47,12 +48,12 @@ func TestInitLoaderCOMOnUninitializedThread(t *testing.T) {
 	ole.CoUninitialize()
 }
 
-func TestInitLoaderCOMOnMultithreadedThread(t *testing.T) {
+func TestPlatformLoaderPrepOnMultithreadedThread(t *testing.T) {
 	lockThread(t)
 	requireCOMInit(t, ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED), 0)
 	defer ole.CoUninitialize()
 
-	release, err := initLoaderCOM()
+	release, err := platformLoaderPrep()
 	require.NoError(t, err)
 	release()
 
@@ -64,7 +65,7 @@ func TestInitLoaderCOMOnMultithreadedThread(t *testing.T) {
 // A Python check such as sqlserver with adodbapi initializes COM in the
 // single-threaded model on whichever OS thread runs it. A later load on that
 // thread must still succeed and must not release the check's reference.
-func TestInitLoaderCOMOnSingleThreadedThread(t *testing.T) {
+func TestPlatformLoaderPrepOnSingleThreadedThread(t *testing.T) {
 	lockThread(t)
 	requireCOMInit(t, ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED), 0)
 	defer ole.CoUninitialize()
@@ -72,7 +73,7 @@ func TestInitLoaderCOMOnSingleThreadedThread(t *testing.T) {
 	// The multithreaded call alone fails on this thread.
 	requireCOMInit(t, ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED), rpcEChangedMode)
 
-	release, err := initLoaderCOM()
+	release, err := platformLoaderPrep()
 	require.NoError(t, err)
 	release()
 
