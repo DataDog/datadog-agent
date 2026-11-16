@@ -122,11 +122,11 @@ const (
 	// KueueWorkloadUID is the tag for the Kueue Workload UID
 	KueueWorkloadUID = "kueue_workload_uid"
 	// Scheduler is the tag for the batch scheduler that manages a pod, e.g. kai or kueue
-	Scheduler = "scheduler"
+	Scheduler = "job_scheduler"
 	// SchedulerWorkload is the tag for the scheduling unit of a pod, e.g. the KAI PodGroup or Kueue Workload name
-	SchedulerWorkload = "scheduler_workload"
+	SchedulerWorkload = "job_scheduler_workload"
 	// SchedulerQueue is the tag for the queue that manages the quota of a pod's scheduling unit
-	SchedulerQueue = "scheduler_queue"
+	SchedulerQueue = "job_scheduler_queue"
 	// KAIWorkload is the tag for the KAI PodGroup name
 	KAIWorkload = "kai_workload"
 	// KAIQueue is the tag for the KAI queue name
