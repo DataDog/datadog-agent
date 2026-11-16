@@ -3,6 +3,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import MagicMock, patch
 
+from invoke import MockContext
 from invoke.exceptions import Exit
 
 from tasks import serverless_init
@@ -186,7 +187,7 @@ class TestReleaseNotes(unittest.TestCase):
             redirect_stdout(out),
             redirect_stderr(err),
         ):
-            serverless_init.release_notes(MagicMock(), 'prev', 'sha', version=version)
+            serverless_init.release_notes(MockContext(), 'prev', 'sha', version=version)
         return out.getvalue(), err.getvalue()
 
     def test_section(self):
