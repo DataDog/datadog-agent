@@ -2360,7 +2360,7 @@ properties:
             default: 1
   synthetics:
     node_type: section
-    title: 'Synthetics Configuration          '
+    title: Synthetics Configuration
     type: object
     visibility: public
     description: Enter specific configuration for Synthetics tests.
@@ -4748,7 +4748,7 @@ properties:
     - template_section:CoreAgent
   otlp_config:
     node_type: section
-    title: 'OpenTelemetry Configuration  '
+    title: OpenTelemetry Configuration
     type: object
     visibility: public
     description: This section configures OTLP ingest in the Datadog Agent.
