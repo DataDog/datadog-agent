@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
@@ -977,5 +978,50 @@ func BenchmarkLogWithStack(b *testing.B) {
 				b.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestLogWithStackDisabled(t *testing.T) {
+	helpers.ResetMemoryStats()
+	stackEnabled.Store(false)
+	defer stackEnabled.Store(true)
+
+	// The predicate says the stack is not wanted: the plain callback is used
+	// and no stack is captured or delivered.
+	for _, level := range []int{40, 50} {
+		out, err := run(fmt.Sprintf(`datadog_agent.log("quiet", %d)`, level))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("[%d]quiet", level); out != want {
+			t.Errorf("Level %d: expected %q from the plain callback, got %q", level, want, out)
+		}
+	}
+
+	// Switching it back on takes effect without re-registering callbacks.
+	stackEnabled.Store(true)
+	msg, stack, _ := runLogWithStack(t, `datadog_agent.log("loud", 40)`)
+	if msg != "[40]loud" || stack == "<nil>" || stack == "" {
+		t.Errorf("Expected the stack to be delivered again, got %q %q", msg, stack)
+	}
+
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestLogWithStackTruncationKeepsValidUTF8(t *testing.T) {
+	// A function name longer than the field limit, made of two byte characters
+	// and a two byte prefix so the limit falls in the middle of a character.
+	code := `
+	name = "ff" + "é" * 300
+	ns = {'datadog_agent': datadog_agent}
+	exec("def " + name + "():\n  datadog_agent.log('x', 40)\n" + name + "()", ns)
+	`
+	_, stack, _ := runLogWithStack(t, code)
+
+	if !utf8.ValidString(stack) {
+		t.Errorf("Truncated stack is not valid UTF-8: %q", stack)
+	}
+	if !strings.Contains(stack, "é") {
+		t.Errorf("Expected the long name to be kept, truncated, got:\n%s", stack)
 	}
 }

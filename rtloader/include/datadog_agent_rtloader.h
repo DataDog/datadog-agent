@@ -521,10 +521,13 @@ DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
     \param object A function pointer with cb_log_with_stack_t prototype to the callback
     function.
+    \param object A function pointer with cb_log_stack_enabled_t prototype, called before each
+    error message to tell whether the stack is wanted. When it returns 0 nothing is captured and
+    the set_log_cb callback is used. May be NULL, meaning always wanted.
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
-DATADOG_AGENT_RTLOADER_API void set_log_with_stack_cb(rtloader_t *, cb_log_with_stack_t);
+DATADOG_AGENT_RTLOADER_API void set_log_with_stack_cb(rtloader_t *, cb_log_with_stack_t, cb_log_stack_enabled_t);
 
 /*! \fn void set_send_log_cb(rtloader_t *, cb_send_log_t)
     \brief Sets a callback to be used by rtloader to allow for submitting a log for a given

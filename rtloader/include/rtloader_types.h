@@ -130,6 +130,9 @@ typedef void (*cb_log_t)(char *, int);
 // message was logged; exception_type is the handled exception class name.
 // Either may be NULL. Both are only valid for the duration of the call.
 typedef void (*cb_log_with_stack_t)(char *, int, char *, char *);
+// () -> non zero when the agent wants the stack of error messages. Checked
+// before any stack is captured, since it can change at runtime.
+typedef int (*cb_log_stack_enabled_t)(void);
 // (log_line, check_id)
 typedef void (*cb_send_log_t)(char *, char *);
 // (check_id, name, value)

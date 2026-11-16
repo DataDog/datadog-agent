@@ -32,11 +32,13 @@ void _set_log_cb(cb_log_t);
     Python stack that produced them. Optional: when unset, messages only use the
     callback set by _set_log_cb.
     \param object A function pointer to the callback function.
+    \param object A function pointer telling whether the stack is wanted right now, or NULL.
 */
-void _set_log_with_stack_cb(cb_log_with_stack_t);
+void _set_log_with_stack_cb(cb_log_with_stack_t, cb_log_stack_enabled_t);
 
 /*! \fn bool agent_log_with_stack_enabled(void)
-    \brief Reports whether a callback was set with _set_log_with_stack_cb.
+    \brief Reports whether a callback was set with _set_log_with_stack_cb and, when an enabled
+    predicate was set, whether it currently returns non zero.
 */
 bool agent_log_with_stack_enabled(void);
 

@@ -466,6 +466,13 @@ static void copy_sanitized(char *out, size_t max, PyObject *str)
         unsigned char c = (unsigned char)utf8[i];
         out[i] = (c < 0x20 || c == 0x7f || c == '"') ? '?' : (char)c;
     }
+    // Do not leave a partial multi-byte character at the end of a truncated
+    // value: back up to the start of the character that was cut.
+    if (utf8[i] != '\0') {
+        while (i > 0 && ((unsigned char)utf8[i] & 0xC0) == 0x80) {
+            i--;
+        }
+    }
     out[i] = '\0';
 }
 

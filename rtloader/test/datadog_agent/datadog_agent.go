@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -25,6 +26,7 @@ import (
 
 extern void doLog(char*, int);
 extern void doLogWithStack(char*, int, char*, char*);
+extern int logStackEnabled();
 extern void getClustername(char **);
 extern void getConfig(char *, char **);
 extern void getHostname(char **);
@@ -54,7 +56,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_version_cb(rtloader, getVersion);
    set_headers_cb(rtloader, headers);
    set_log_cb(rtloader, doLog);
-   set_log_with_stack_cb(rtloader, doLogWithStack);
+   set_log_with_stack_cb(rtloader, doLogWithStack, logStackEnabled);
    set_send_log_cb(rtloader, sendLog);
    set_set_check_metadata_cb(rtloader, setCheckMetadata);
    set_set_external_tags_cb(rtloader, setExternalHostTags);
@@ -215,6 +217,19 @@ func doLogWithStack(msg *C.char, level C.int, stack *C.char, excType *C.char) {
 	data := []byte(fmt.Sprintf("[%d]%s", int(level), C.GoString(msg)) +
 		logWithStackSeparator + field(stack) + logWithStackSeparator + field(excType))
 	os.WriteFile(tmpfile.Name(), data, 0644)
+}
+
+// stackEnabled is what the stack enabled predicate reports. Tests switch it.
+var stackEnabled atomic.Bool
+
+func init() { stackEnabled.Store(true) }
+
+//export logStackEnabled
+func logStackEnabled() C.int {
+	if stackEnabled.Load() {
+		return 1
+	}
+	return 0
 }
 
 //export sendLog

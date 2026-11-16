@@ -7,6 +7,7 @@
 // these must be set by the Agent
 static cb_log_t cb_log = NULL;
 static cb_log_with_stack_t cb_log_with_stack = NULL;
+static cb_log_stack_enabled_t cb_log_stack_enabled = NULL;
 
 void _set_log_cb(cb_log_t cb)
 {
@@ -23,14 +24,15 @@ void agent_log(log_level_t log_level, char *message)
     cb_log(message, log_level);
 }
 
-void _set_log_with_stack_cb(cb_log_with_stack_t cb)
+void _set_log_with_stack_cb(cb_log_with_stack_t cb, cb_log_stack_enabled_t enabled_cb)
 {
     cb_log_with_stack = cb;
+    cb_log_stack_enabled = enabled_cb;
 }
 
 bool agent_log_with_stack_enabled(void)
 {
-    return cb_log_with_stack != NULL;
+    return cb_log_with_stack != NULL && (cb_log_stack_enabled == NULL || cb_log_stack_enabled() != 0);
 }
 
 // Logs a message and the Python stack that produced it. Caller is in charge of

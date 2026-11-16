@@ -378,7 +378,7 @@ public:
       This allows us to set the optional CGO callback receiving error log messages along with
       the Python stack and exception type active when they were logged.
     */
-    virtual void setLogWithStackCb(cb_log_with_stack_t) = 0;
+    virtual void setLogWithStackCb(cb_log_with_stack_t, cb_log_stack_enabled_t) = 0;
 
     //! sendLogCb member.
     /*!

@@ -59,6 +59,14 @@ func RegisterErrortrackingSubmitter(s errortracking.Submitter) {
 	errortrackingSubmitterSlot.Store(&s)
 }
 
+// ErrortrackingEnabled reports whether a Submitter is currently registered,
+// that is whether error records are being collected. Producers that pay a
+// cost to build a record, such as capturing a stack outside the Go runtime,
+// use it to skip that work. It is cheap and safe for concurrent use.
+func ErrortrackingEnabled() bool {
+	return errortrackingSubmitterSlot.Load() != nil
+}
+
 // errortrackingBouncerSlot mirrors errortrackingSubmitterSlot for the
 // per-PC dedup Bouncer. Late-bound for the same reason: SetupLogger
 // runs before the agenttelemetry component (which owns the config that
