@@ -200,7 +200,9 @@ func TestLogFailureRespectsHandleAdmissionAndApplicationLevel(t *testing.T) {
 		want                         bool
 	}{
 		{"stdout_error_admitted", "info", "info", "ERROR", true},
-		{"stdout_error_filtered", "warn", "info", "ERROR", false},
+		// Container stdout arrives as info; the declared level admits it at the default minimum.
+		{"stdout_error_admitted_at_default_minimum", "warn", "info", "ERROR", true},
+		{"minimum_above_error_still_filters", "critical", "info", "ERROR", false},
 		{"stderr_info_is_not_failure", "warn", "error", "INFO", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -247,6 +249,30 @@ anomaly_detection:
 			require.True(t, found)
 		})
 	}
+}
+
+func TestDeclaredErrorAdmissionRequiresErrorCountExtraction(t *testing.T) {
+	logsCh := make(chan observation, 4)
+	filter := &logAdmissionFilter{
+		kubelet:    newLogSourceRateState("warn", -1, -1, -1),
+		containers: newLogSourceRateState("warn", -1, -1, -1),
+	}
+	h := &handle{logsCh: logsCh, source: "logs", logFilter: filter}
+	observe := func(content string) {
+		h.ObserveLog(&logObs{source: "docker", status: "info", content: content, tags: []string{"service:api"}})
+	}
+
+	observe(`{"level":"error"}`)
+	require.Empty(t, logsCh, "without error-count extraction the transport minimum applies unchanged")
+
+	filter.admitDeclaredErrors = true
+	observe(`{"level":"info","msg":"error budget healthy"}`)
+	observe(`2026-11-16 10:00:00 INFO request served`)
+	require.Empty(t, logsCh, "declared non-error output stays below the minimum")
+	observe(`2026-11-16 10:00:00.123 ERROR [main] write failed`)
+	require.Len(t, logsCh, 1)
+	admitted := (<-logsCh).log
+	require.Equal(t, "error", admitted.status, "admission and rate limiting use the declared level")
 }
 
 func TestLogErrorCountHostEnvironmentAndIngressIsolation(t *testing.T) {

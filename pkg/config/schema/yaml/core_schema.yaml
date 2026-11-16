@@ -5575,7 +5575,8 @@ properties:
                   Count accepted error-or-higher logs per host, service, environment and Observer input.
                   Counts use five-second intervals independently of pattern time buckets.
                   Intervals with accepted non-error logs contribute zero; intervals without logs are omitted.
-                  To warm up on INFO-only traffic, configure the relevant log input's min_severity to info.
+                  Logs below an input's min_severity are admitted when the application declares ERROR or higher.
+                  To build zero-error history from INFO-only traffic, configure that input's min_severity to info.
           log_pattern_extractor:
             node_type: section
             type: object

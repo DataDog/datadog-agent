@@ -27,6 +27,21 @@ func TestApplicationSeverityIsNotTransportSeverity(t *testing.T) {
 		{`{"message":"ERROR: fake level inside message"}`, "error", "", false},
 		{`routine unlevelled stderr`, "error", "", false},
 		{`invalid json {`, "error", "", false},
+		{`{"Level":"Error","msg":"write failed"}`, "info", "error", true},
+		{`{"lvl":"warn"}`, "error", "warn", true},
+		{`{"level":50,"msg":"pino error"}`, "info", "error", true},
+		{`{"level":30,"msg":"pino info"}`, "error", "info", true},
+		{`{"level":3,"msg":"unknown numeric scale"}`, "error", "", false},
+		{`2026-11-16 10:00:00.123 ERROR [main] c.e.OrderService - write failed`, "info", "error", true},
+		{`2026-11-16T10:00:00.000Z  INFO 1 --- [main] o.s.b.Application : Started`, "error", "info", true},
+		{`time=2026-11-16T10:00:00Z level=error msg="write failed"`, "info", "error", true},
+		{`ts=1 lvl=INFO msg=ok`, "error", "info", true},
+		{`level=unknown msg="no recognized level"`, "error", "", false},
+		{`[ERROR] 2026-11-16 write failed`, "info", "error", true},
+		{`2026/11/16 10:00:00 [error] 12#12: upstream timed out`, "info", "error", true},
+		{`E1116 10:00:00.123456       1 controller.go:42] sync failed`, "info", "error", true},
+		{`I1116 10:00:00.123456       1 controller.go:42] synced`, "error", "info", true},
+		{`retrying after error in upstream call`, "error", "", false},
 	} {
 		t.Run(tc.content, func(t *testing.T) {
 			got, known := applicationLogSeverity(&logObs{content: tc.content, status: tc.status})
@@ -64,10 +79,35 @@ func TestLogFailureColdStartRepetitionFreshnessAndRearm(t *testing.T) {
 	require.Len(t, e.Advance(164).anomalies, 1, "a later repeated failure rearms")
 	refs := []observer.SeriesRef{a[0].SourceRef.Ref}
 	d.RemoveSeries(refs)
-	require.Empty(t, d.lastPositive)
+	require.NotContains(t, d.lastRead, refs[0])
 	d.Reset()
 	require.False(t, d.Ready())
-	require.Empty(t, d.lastPositive)
+	require.Zero(t, d.checkedUpTo)
+}
+
+// Analysis advances only when input arrives, so a burst followed by silence is
+// first visible to the detector well after its last bucket completed.
+func TestLogFailureReportsBurstFirstSeenAfterQuietGap(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		advanceTo int64
+	}{
+		{"next input shortly after", 115},
+		{"next input after the window", 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newErrorCountTestEngine(NewLogFailureDetector())
+			require.Empty(t, e.Advance(99).anomalies, "the detector has run before the burst, as in live analysis")
+			for _, sec := range []int64{100, 100, 105} {
+				e.IngestLog("logs", &logObs{timestampMs: sec * 1000, content: `{"level":"error"}`, tags: []string{"service:api"}})
+			}
+			a := e.Advance(tc.advanceTo).anomalies
+			require.Len(t, a, 1)
+			require.Equal(t, int64(109), a[0].Timestamp, "evidence keeps the time of the qualifying bucket")
+			require.Equal(t, 3.0, a[0].DebugInfo.CurrentValue)
+			require.Empty(t, e.Advance(tc.advanceTo+10).anomalies, "a bucket is reported once")
+		})
+	}
 }
 
 func TestLogFailureDoesNotCombineServices(t *testing.T) {
@@ -170,7 +210,7 @@ func TestLogFailureConfiguredQualificationWindowAndReset(t *testing.T) {
 	}
 	d.Reset()
 	require.Equal(t, cfg, d.config)
-	require.Empty(t, d.lastPositive)
+	require.Zero(t, d.checkedUpTo)
 	require.Empty(t, d.lastRead)
 	require.False(t, d.Ready())
 	require.Empty(t, d.Detect(e.storage, 119, observer.DetectionFilter{}).Anomalies, "reset must retain configured thresholds")
@@ -275,7 +315,7 @@ func BenchmarkLogFailureFresh256(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Exercise qualification and emission while retaining populated storage and caches.
-		clear(d.lastPositive)
+		d.checkedUpTo = 0
 		clear(d.lastRead)
 		d.Detect(s, 129, observer.DetectionFilter{})
 	}

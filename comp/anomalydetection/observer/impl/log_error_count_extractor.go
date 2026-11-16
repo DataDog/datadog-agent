@@ -57,15 +57,47 @@ func (*LogErrorCountExtractor) ProcessLog(log observerdef.LogView) observerdef.L
 // must be summed even when optional pattern time buckets are disabled, and
 // must never inherit their speculative idle-zero TTL.
 func errorCountBucketizer(extractors []observerdef.LogMetricsExtractor) *materializedLogCountBucketizer {
+	if !hasLogErrorCountExtractor(extractors) {
+		return nil
+	}
+	return newMaterializedLogCountBucketizer(LogCountBucketConfig{
+		BucketSeconds:    defaultLogCountBucketSeconds,
+		RetentionSeconds: defaultLogCountRetentionSeconds,
+	})
+}
+
+func hasLogErrorCountExtractor(extractors []observerdef.LogMetricsExtractor) bool {
 	for _, extractor := range extractors {
 		if extractor.Name() == LogErrorCountExtractorName {
-			return newMaterializedLogCountBucketizer(LogCountBucketConfig{
-				BucketSeconds:    defaultLogCountBucketSeconds,
-				RetentionSeconds: defaultLogCountRetentionSeconds,
-			})
+			return true
 		}
 	}
-	return nil
+	return false
+}
+
+// errorLevelHint cheaply rejects lines that cannot declare an error level, so
+// routine output below a source's minimum skips the full parse.
+var errorLevelHint = regexp.MustCompile(`(?i)err|crit|fatal|panic|alert|emerg|"level"\s*:\s*[56]0|^\s*[EF]\d{4} `)
+
+// declaredErrorStatus raises a below-minimum log to its declared application
+// level when that level is ERROR or higher. Other logs keep their transport
+// status, so non-error output stays subject to the configured minimum.
+func (h *handle) declaredErrorStatus(msg observerdef.LogView, status string, bucket logsfilter.PriorityBucket) (string, logsfilter.PriorityBucket) {
+	if h.logFilter == nil || !h.logFilter.admitDeclaredErrors {
+		return status, bucket
+	}
+	content := msg.GetContent()
+	if len(content) > 16384 || !errorLevelHint.MatchString(content) {
+		return status, bucket
+	}
+	level, ok := applicationLogSeverity(msg)
+	if !ok {
+		return status, bucket
+	}
+	if declared := logsfilter.BucketForStatus(level); declared >= logsfilter.ErrorPriority && declared > bucket {
+		return level, declared
+	}
+	return status, bucket
 }
 
 // hasErrorCountCapacity bounds pending state even if ingestion does not advance
@@ -87,6 +119,24 @@ func (b *materializedLogCountBucketizer) hasErrorCountCapacity(seriesKey uint64,
 // Parsing is bounded; production defaults leave this experimental extractor off.
 var applicationLevelPattern = regexp.MustCompile(`(?i)(?:^|[\s\]])(TRACE|DEBUG|LOG|INFO|NOTICE|WARNING|WARN|ERROR|CRITICAL|FATAL|PANIC):`)
 
+// Header formats are matched only near the start of a line, where loggers put
+// the level: klog (`E1116 10:00:00.000000`), logfmt (`level=error`), bracketed
+// (`[ERROR]`) and a bare upper-case level after a timestamp (`... ERROR [main]`).
+// The leftmost match wins, so a level field precedes message text.
+var (
+	klogLevelPattern   = regexp.MustCompile(`^([IWEF])\d{4} \d{2}:\d{2}:\d{2}\.\d+ `)
+	headerLevelPattern = regexp.MustCompile(`(?:^|[\s\[(|])(?:(?i:level|lvl|severity|loglevel)=["']?([A-Za-z]+)|\[((?i:TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|ERR|CRITICAL|CRIT|FATAL|PANIC))\]|(TRACE|DEBUG|INFO|NOTICE|WARNING|WARN|ERROR|CRITICAL|FATAL|PANIC)(?:\s|$))`)
+)
+
+const applicationLevelHeaderBytes = 256
+
+var jsonLevelKeys = []string{"level", "severity", "log.level", "levelname", "lvl", "loglevel"}
+
+var klogLevels = map[string]string{"I": "info", "W": "warn", "E": "error", "F": "fatal"}
+
+// pinoLevels covers the numeric levels used by pino and bunyan.
+var pinoLevels = map[int]string{10: "trace", 20: "debug", 30: "info", 40: "warn", 50: "error", 60: "fatal"}
+
 func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 	content := strings.TrimSpace(log.GetContent())
 	if len(content) > 16384 {
@@ -95,15 +145,21 @@ func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 	if strings.HasPrefix(content, "{") {
 		var fields map[string]json.RawMessage
 		if json.Unmarshal([]byte(content), &fields) == nil {
-			for _, key := range []string{"level", "severity", "log.level", "levelname"} {
-				var value string
-				if json.Unmarshal(fields[key], &value) == nil {
-					if level, ok := declaredLogLevel(value); ok {
-						return level, true
-					}
+			return jsonLogLevel(fields)
+		}
+	}
+	if match := klogLevelPattern.FindStringSubmatch(content); match != nil {
+		return klogLevels[match[1]], true
+	}
+	header := content[:min(len(content), applicationLevelHeaderBytes)]
+	if match := headerLevelPattern.FindStringSubmatch(header); match != nil {
+		for _, value := range match[1:] {
+			if value != "" {
+				if level, ok := declaredLogLevel(value); ok {
+					return level, true
 				}
+				break
 			}
-			return "", false
 		}
 	}
 	if match := applicationLevelPattern.FindStringSubmatch(content); len(match) == 2 {
@@ -116,6 +172,30 @@ func applicationLogSeverity(log observerdef.LogView) (string, bool) {
 	return "", false
 }
 
+// jsonLogLevel reads the first recognized level key, ignoring key case.
+func jsonLogLevel(fields map[string]json.RawMessage) (string, bool) {
+	for _, key := range jsonLevelKeys {
+		for name, raw := range fields {
+			if !strings.EqualFold(name, key) {
+				continue
+			}
+			var text string
+			if json.Unmarshal(raw, &text) == nil {
+				if level, ok := declaredLogLevel(text); ok {
+					return level, true
+				}
+			}
+			var number int
+			if json.Unmarshal(raw, &number) == nil {
+				if level, ok := pinoLevels[number]; ok {
+					return level, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 func declaredLogLevel(value string) (string, bool) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -123,6 +203,12 @@ func declaredLogLevel(value string) (string, bool) {
 		return "fatal", true
 	case "log":
 		return "info", true
+	case "err":
+		return "error", true
+	case "crit":
+		return "critical", true
+	case "emerg":
+		return "emergency", true
 	case "trace", "debug", "info", "notice", "warn", "warning", "error", "critical", "fatal", "alert", "emergency":
 		return value, true
 	}

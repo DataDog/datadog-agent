@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"errors"
+	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -45,7 +46,7 @@ func (cfg LogFailureConfig) validate() error {
 // Runtime state is bounded by storage admission and removed on series eviction.
 type LogFailureDetector struct {
 	config       LogFailureConfig
-	lastPositive map[observer.SeriesRef]int64
+	checkedUpTo  int64
 	cachedSeries []observer.SeriesMeta
 	cachedGen    uint64
 	ready        bool
@@ -61,7 +62,7 @@ func NewLogFailureDetector() *LogFailureDetector {
 
 // newLogFailureDetector receives configuration validated by the catalog.
 func newLogFailureDetector(cfg LogFailureConfig) *LogFailureDetector {
-	return &LogFailureDetector{config: cfg, lastPositive: make(map[observer.SeriesRef]int64), lastRead: make(map[observer.SeriesRef]seriesStatus)}
+	return &LogFailureDetector{config: cfg, lastRead: make(map[observer.SeriesRef]seriesStatus)}
 }
 
 func (d *LogFailureDetector) DetectorPointWindow() observer.DetectorPointWindow {
@@ -72,7 +73,6 @@ func (d *LogFailureDetector) Ready() bool { return d.ready }
 func (d *LogFailureDetector) Reset()      { *d = *newLogFailureDetector(d.config) }
 func (d *LogFailureDetector) RemoveSeries(refs []observer.SeriesRef) {
 	for _, ref := range refs {
-		delete(d.lastPositive, ref)
 		delete(d.lastRead, ref)
 	}
 	// Do not retain descriptors/tags for evicted scopes until the next Detect.
@@ -102,20 +102,28 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 		d.cachedSeries = storage.ListSeries(selection)
 		d.cachedGen = storage.SeriesGeneration()
 	}
+	// Completed buckets are flushed before detectors run, so buckets after the
+	// previous check are exactly the newly visible ones. A first check has no
+	// such boundary and judges only the latest bucket, so a reset does not
+	// re-report retained history.
+	newAfter := d.checkedUpTo
+	if newAfter == 0 {
+		newAfter = dataTime - defaultLogCountBucketSeconds
+	}
+	d.checkedUpTo = dataTime
 	for _, meta := range d.cachedSeries {
 		status := seriesStatus{pointCount: storage.PointCountUpTo(meta.Ref, dataTime), writeGeneration: storage.WriteGeneration(meta.Ref)}
 		if previous, ok := d.lastRead[meta.Ref]; ok && status == previous {
 			continue
 		}
 		d.lastRead[meta.Ref] = status
-		_, d.points = directWindow(storage, meta.Ref, dataTime-d.config.WindowSeconds, dataTime, observer.AggregateAverage, d.points)
-		total, occupied, latest := countFailureWindow(d.points, defaultLogCountBucketSeconds)
-		if latest <= d.lastPositive[meta.Ref] {
-			continue
-		}
-		d.lastPositive[meta.Ref] = latest
-		// Old positive buckets cannot be renewed by metric activity or zero logs.
-		if total < float64(d.config.MinErrors) || occupied < d.config.MinIntervals || dataTime-latest >= defaultLogCountBucketSeconds {
+		// Analysis advances only when input arrives, so a bucket can become
+		// visible long after it completed. Judge each new bucket by the window
+		// ending at that bucket: late analysis neither drops nor re-reports it,
+		// and zero counts or old buckets cannot renew evidence.
+		_, d.points = directWindow(storage, meta.Ref, newAfter-d.config.WindowSeconds, dataTime, observer.AggregateAverage, d.points)
+		latest, total, ok := d.newestQualifiedBucket(d.points, newAfter)
+		if !ok {
 			continue
 		}
 		d.ready = true
@@ -133,6 +141,27 @@ func (d *LogFailureDetector) Detect(storage observer.StorageReader, dataTime int
 		})
 	}
 	return out
+}
+
+// newestQualifiedBucket returns the newest positive bucket after newAfter
+// whose window, ending at that bucket, satisfies the rule. Points are ascending.
+func (d *LogFailureDetector) newestQualifiedBucket(points []observer.Point, newAfter int64) (int64, float64, bool) {
+	for i := len(points) - 1; i >= 0; i-- {
+		candidate := points[i]
+		if candidate.Timestamp <= newAfter {
+			break
+		}
+		if !(candidate.Value > 0) {
+			continue
+		}
+		windowStart := candidate.Timestamp - d.config.WindowSeconds
+		first := sort.Search(i+1, func(j int) bool { return points[j].Timestamp > windowStart })
+		total, occupied, _ := countFailureWindow(points[first:i+1], defaultLogCountBucketSeconds)
+		if total >= float64(d.config.MinErrors) && occupied >= d.config.MinIntervals {
+			return candidate.Timestamp, total, true
+		}
+	}
+	return 0, 0, false
 }
 
 func hasLogFailureDetector(registrations []detectorRegistration) bool {

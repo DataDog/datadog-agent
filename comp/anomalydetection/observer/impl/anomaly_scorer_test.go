@@ -1559,3 +1559,34 @@ func TestOpenHighDurationContinuesAfterExampleCap(t *testing.T) {
 	s.Advance(1020)
 	require.Equal(t, int64(1020), s.ActiveCorrelations()[0].LastUpdated, "time advances even without another anomaly")
 }
+
+func TestEpisodeListsRepeatedFailureEvidenceOnce(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.WindowSecs = 30
+	s := newScorerWithTelemetry(cfg)
+	seedAndCrossHighThreshold(s, 1000)
+	failure := func(ref observer.SeriesRef, ts int64) observer.Anomaly {
+		a := makeAnomaly(LogFailureDetectorName, ts, nil)
+		a.Evidence = observer.EvidenceFailure
+		a.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage}
+		return a
+	}
+	for sec := int64(1005); sec <= 1030; sec += 5 {
+		s.ProcessAnomaly(failure(7, sec))
+		s.Advance(sec)
+	}
+	s.ProcessAnomaly(failure(8, 1031))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1031, nil))
+	s.Advance(1031)
+
+	correlations := s.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	var detectors []string
+	for _, a := range correlations[0].Anomalies {
+		detectors = append(detectors, a.DetectorName)
+	}
+	require.Equal(t, []string{LogFailureDetectorName, LogFailureDetectorName, "bocpd"}, detectors,
+		"each failure series is listed once, leaving room for other detectors")
+	require.Equal(t, int64(1031), correlations[0].LastUpdated)
+}

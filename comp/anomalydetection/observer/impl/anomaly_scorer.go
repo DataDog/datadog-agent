@@ -858,13 +858,30 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	}
 
 	if s.openEpisode != nil {
-		if s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies {
+		if (s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies) && !episodeListsFailure(s.openEpisode, a) {
 			s.openEpisode.Anomalies = append(s.openEpisode.Anomalies, a)
 			if a.Timestamp > s.openEpisode.LastUpdated {
 				s.openEpisode.LastUpdated = a.Timestamp
 			}
 		}
 	}
+}
+
+// episodeListsFailure reports whether the episode already lists failure evidence
+// from the same detector and series. Direct failure detectors re-emit on every
+// fresh interval; listing each repeat would crowd out other detectors' examples
+// from the capped member list. Repeats still contribute to the score.
+func episodeListsFailure(episode *observerdef.ActiveCorrelation, a observerdef.Anomaly) bool {
+	if a.Evidence != observerdef.EvidenceFailure || a.SourceRef == nil {
+		return false
+	}
+	for _, listed := range episode.Anomalies {
+		if listed.Evidence == observerdef.EvidenceFailure && listed.DetectorName == a.DetectorName &&
+			listed.SourceRef != nil && *listed.SourceRef == *a.SourceRef {
+			return true
+		}
+	}
+	return false
 }
 
 // Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
