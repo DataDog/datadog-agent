@@ -215,7 +215,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.22
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.12.0
-	github.com/DataDog/ddtrivy v0.0.0-20261109094941-8d7c43664a12
+	github.com/DataDog/ddtrivy v0.0.0-20261116092832-7f80104876c4
 	github.com/DataDog/ebpf-manager v0.8.7
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.6
@@ -1089,7 +1089,7 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-0762
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.76.3-0.20261109094403-eae976d6dbfc
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.76.3-0.20261116092414-53b7e79ba2c5
 
 // Stub the progress UI in trivy-db; cheggaaa/pb/v3 transitively activates
 // reflect.MethodByName via text/template, defeating Go's linker DCE.
