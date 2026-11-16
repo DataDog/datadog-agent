@@ -35,6 +35,7 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 			"private_action_runner.split_enabled": false,
 			"private_action_runner.self_enroll":   true,
 			"private_action_runner.private_key":   "invalid-key",
+			"delegated_auth.org_uuid":             "test-org",
 		})
 		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 		// Dependencies are deliberately absent: disabled startup must not use them.
@@ -68,7 +69,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
 			})
 			hostname, _ := hostnamemock.NewMock("test-host")
-			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
+			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: enrollment.NewIdentityStorage(cfg, nil)}
 
 			_, err := runner.getRunnerConfig(context.Background())
 			require.ErrorIs(t, err, opms.ErrEnrollmentRejected)
@@ -116,9 +117,10 @@ func TestExecutorSnapshotUsesMonolithPersistedIdentity(t *testing.T) {
 		URN:        util.MakeRunnerURN("us1", 42, "persisted-runner"),
 		PrivateKey: persistedKey.Key.(*ecdsa.PrivateKey), Hostname: "test-host",
 	}
-	require.NoError(t, enrollment.PersistIdentity(context.Background(), cfg, persisted))
+	storage := enrollment.NewIdentityStorage(cfg, nil)
+	require.NoError(t, storage.Persist(context.Background(), persisted))
 	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname}
+	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, identityStorage: storage}
 	resolved, err := runner.getRunnerConfig(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, persisted.URN, resolved.Urn)

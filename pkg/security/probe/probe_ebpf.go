@@ -77,6 +77,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -224,6 +225,9 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// ID of the host's initial mount namespace, 0 if it couldn't be resolved
+	hostMntNS uint32
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -348,15 +352,6 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported")
 	}
 
-	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
-	if err != nil {
-		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
-	}
-
-	if tailCallsBroken {
-		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
-	}
-
 	if !kernelVersion.HaveFentrySupportWithStructArgs() {
 		return errors.New("fentry enabled but not supported with struct args")
 	}
@@ -462,7 +457,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
-		seclog.Warnf("The capabilities monitoring feature of CWS requires a kernel version between 5.17 and 6.13, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		seclog.Warnf("The capabilities monitoring feature of CWS requires kernel 5.19 or later (or 5.17.13+ / 5.18.2+), setting event_monitoring_config.capabilities_monitoring.enabled to false")
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
@@ -521,7 +516,12 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 
 		if mounted, _ := mountinfo.Mounted(p.kernelVersion.OsReleasePath); !mounted {
-			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			hostRoot := os.Getenv("HOST_ROOT")
+			if hostRoot == "" || !strings.HasPrefix(p.kernelVersion.OsReleasePath, hostRoot) {
+				err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
+			} else if mounted, _ := mountinfo.Mounted(hostRoot); !mounted {
+				err = multierror.Append(err, fmt.Errorf("neither %s nor %s seem to be a mountpoint", p.kernelVersion.OsReleasePath, hostRoot))
+			}
 		}
 
 		// securityfs may not be mounted explicitly, but can still be reachable through the host root mount
@@ -1424,8 +1424,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
-	case model.ShortDNSResponseEventType,
-		model.DNSEventType,
+	case model.DNSEventType,
 		model.IMDSEventType,
 		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
@@ -2185,6 +2184,20 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
 			return false
 		}
+	case model.SetNSEventType:
+		if !p.regularUnmarshalEvent(&event.SetNS, eventType, offset, dataLen, data) {
+			return false
+		}
+		event.SetNS.MntNSHost = p.hostMntNS != 0 && event.SetNS.MntNS == p.hostMntNS
+		// the root's MntNS follows its unshare and setns calls, its initial one stays the
+		// container's base even when the root itself is the one leaving it
+		if event.SetNS.MntNS != 0 && event.ProcessContext.ContainerContext.ContainerID != "" {
+			if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil {
+				if baseMntNS := root.Process.GetInitialMntNS(); baseMntNS != 0 {
+					event.SetNS.MntNSOutsideBase = event.SetNS.MntNS != baseMntNS
+				}
+			}
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -2364,6 +2377,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.ShortDNSResponseEventType:
+		// Always stop here: the record has no process, span or cgroup context to decode.
 		if p.config.Probe.DNSResolutionEnabled {
 			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
 			if decodeErr == nil {
@@ -2377,7 +2391,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
 			}
+			p.monitors.ProcessEvent(event, p.probe.scrubber)
 		}
+		return false
 	}
 	return true
 }
@@ -2485,8 +2501,8 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handler, ok := allDiscarderHandlers[field]; ok {
-		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if d, ok := allDiscarders[field]; ok {
+		discarderPushed, _ := d.handler(rs, ev, p, Discarder{Field: field})
 
 		if discarderPushed {
 			p.discarderPushedCallbacksLock.RLock()
@@ -2800,7 +2816,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 func (p *EBPFProbe) updateEBPFCheckMapping() {
 	ddebpf.ClearProgramIDMappings("cws")
-	ddebpf.AddNameMappings(p.Manager.Get(), "cws")
+	p.Manager.AddNameMappings("cws")
 	ddebpf.AddProbeFDMappings(p.Manager.Get())
 
 }
@@ -3300,6 +3316,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "get_vfs_caps_from_disk_argc",
+			Value: getVFSCapsFromDiskArgCount(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
 			Value: getOvlPathInOvlInode(p.kernelVersion),
 		},
@@ -3784,6 +3804,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+
+	// read through the host procfs, so that it's the host's PID 1 even when the agent runs in a container
+	if p.hostMntNS, err = utils.NewNSPathFromPid(1, utils.MntNsType).GetNSID(); err != nil {
+		seclog.Warnf("failed to resolve the host mount namespace, setns.mntns_host won't be reported: %v", err)
+	}
 	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {
@@ -3971,6 +3996,31 @@ func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
+func getVFSCapsFromDiskArgCount(kernelVersion *kernel.Version) uint64 {
+	count, _ := constantfetch.GetBTFFunctionArgCount("get_vfs_caps_from_disk")
+	return vfsCapsFromDiskArgCount(kernelVersion, count)
+}
+
+func vfsCapsFromDiskArgCount(kernelVersion *kernel.Version, btfArgCount int) uint64 {
+	// Keep the minimum supported release gate separate from prototype and
+	// structure-layout detection. The latter uses the constant fetchers' field offsets.
+	if kernelVersion.Code < kernel.Kernel4_14 {
+		return 0
+	}
+
+	// Prefer the real prototype to account for idmapped-mount backports.
+	if btfArgCount != 0 {
+		if btfArgCount == 2 || btfArgCount == 3 {
+			return uint64(btfArgCount)
+		}
+		return 0
+	}
+	if kernelVersion.Code >= kernel.Kernel5_12 {
+		return 3
+	}
+	return 2
+}
+
 func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
 	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
 	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
@@ -4098,6 +4148,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSFlags, "struct super_block", "s_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperBlockStructSMagic, "struct super_block", "s_magic")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructLive, "struct signal_struct", "live")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructGroupExitCode, "struct signal_struct", "group_exit_code")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructFlags, "struct signal_struct", "flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
 	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
@@ -4108,6 +4161,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructPermitted, "struct cpu_vfs_cap_data", "permitted")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCPUVFSCapDataStructInheritable, "struct cpu_vfs_cap_data", "inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
@@ -4134,6 +4189,28 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
+
+	// setns namespace IDs. They are read through struct ns_common, so on older kernels the pointers
+	// to the namespaces are left unresolved as well, which makes the IDs report 0 instead of garbage
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructNsproxy, "struct task_struct", "nsproxy")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyPidNsForChildren, "struct nsproxy", "pid_ns_for_children")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyUtsNs, "struct nsproxy", "uts_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyIpcNs, "struct nsproxy", "ipc_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUserNs, "struct cred", "user_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePidNamespaceNs, "struct pid_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUtsNamespaceNs, "struct uts_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIpcNamespaceNs, "struct ipc_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUserNamespaceNs, "struct user_namespace", "ns")
+
+		// cgroup (4.6) and time (5.6) namespaces were backported to older distro kernels (ubuntu 16.04
+		// 4.4, sles 15.2 5.3), so they aren't gated on the upstream version: BTF/BTFHub tells whether
+		// they exist. They are optional constants: a kernel without them doesn't log an error
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyCgroupNs, "struct nsproxy", "cgroup_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCgroupNamespaceNs, "struct cgroup_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyTimeNs, "struct nsproxy", "time_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTimeNamespaceNs, "struct time_namespace", "ns")
+	}
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")

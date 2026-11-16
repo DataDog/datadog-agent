@@ -1,0 +1,15 @@
+description: awk accepts GNU newline continuations after ternary delimiters.
+# Debian bookworm's mawk rejects this GNU extension, so the Bash comparison
+# image cannot serve as the reference for this scenario.
+skip_assert_against_bash: true
+input:
+  script: |+
+    awk 'BEGIN { print (1 ?
+    2 : 3); print (0 ? 2 :
+    3) }'
+expect:
+  stdout: |+
+    2
+    3
+  stderr: |+
+  exit_code: 0

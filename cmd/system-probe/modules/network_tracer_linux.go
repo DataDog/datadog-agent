@@ -57,3 +57,7 @@ func getNetworkID(ctx context.Context) (string, error) {
 	}
 	return id, nil
 }
+
+func enableNetNSContainerAttribution(ctx context.Context, t *tracer.Tracer, deps module.FactoryDependencies) error {
+	return t.EnableNetNSContainerAttribution(ctx, deps.WMeta)
+}

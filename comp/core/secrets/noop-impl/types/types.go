@@ -39,10 +39,18 @@ func (r *SecretNoop) IsValueFromSecret(_ string) bool {
 	return false
 }
 
-// RemoveOrigin
+// RemoveOrigin is a no-op
 func (r *SecretNoop) RemoveOrigin(_ string) {}
+
+// SetOriginName is a no-op
+func (r *SecretNoop) SetOriginName(_ string, _ string) {}
 
 // GetPathsAndHandles returns empty slices for noop
 func (r *SecretNoop) GetPathsAndHandles() ([]string, []string) {
 	return []string{}, []string{}
+}
+
+// GetHashValues returns an empty map for noop
+func (r *SecretNoop) GetHashValues(_ []string) map[string]string {
+	return map[string]string{}
 }

@@ -44,6 +44,7 @@ const (
 
 type admissionProbeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
+	remotePersistenceStartup remotePersistenceStartup
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
@@ -53,6 +54,7 @@ func TestAdmissionProbeSuite(t *testing.T) {
 			provkindvm.WithRunOptions(
 				// TODO: Mirror Kubernetes component and workload images internally.
 				scenariokindvm.WithInternetAccess(),
+				scenariokindvm.WithPreAgentWorkloadApp(deployRemotePersistenceBackend),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(admissionProbeHelmValues),
 				),
@@ -204,6 +206,10 @@ func (suite *admissionProbeSuite) deployDisruptorPod(ctx context.Context, nodeNa
 					Name:    "disruptor",
 					Image:   agentImage,
 					Command: []string{"sleep", "infinity"},
+					// Prevent jemalloc workers from making nsenter multithreaded.
+					Env: []corev1.EnvVar{
+						{Name: "MALLOC_CONF", Value: "background_thread:false"},
+					},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged: &privileged,
 						Capabilities: &corev1.Capabilities{

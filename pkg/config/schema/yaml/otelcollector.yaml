@@ -52,6 +52,11 @@ properties:
     node_type: section
     type: object
     properties:
+      daemonset:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: set by Helm/Operator on the DaemonSet in the DaemonSet+Gateway setup
       mode:
         node_type: setting
         type: boolean

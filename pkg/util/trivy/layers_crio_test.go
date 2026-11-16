@@ -166,6 +166,6 @@ func TestScanCRIOImageUnreadableLayer(t *testing.T) {
 	client := layerDirs{dirs: []string{top, base}}
 
 	_, err := NewCollectorForCLI().ScanCRIOImageFromOverlayFS(t.Context(), imgMeta, client, sbom.ScanOptions{Analyzers: []string{OSAnalyzers}})
-	assert.ErrorIs(t, err, errLayerUnreadable)
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
 	assert.ErrorContains(t, err, top)
 }

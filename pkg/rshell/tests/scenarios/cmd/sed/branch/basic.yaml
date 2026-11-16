@@ -1,0 +1,13 @@
+description: The b command with no label branches to end of script.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/bbb/b; s/^/>> /' input.txt
+expect:
+  stdout: ">> aaa\nbbb\n>> ccc\n"
+  stderr: ""
+  exit_code: 0

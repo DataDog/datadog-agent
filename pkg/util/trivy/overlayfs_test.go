@@ -29,7 +29,7 @@ func TestCheckLayers(t *testing.T) {
 	assert.NoError(t, checkLayers([]string{empty, full}))
 
 	err := checkLayers([]string{full, missing})
-	assert.ErrorIs(t, err, errLayerUnreadable)
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
 	assert.ErrorIs(t, err, sbom.ErrScanNotSupported)
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 	assert.ErrorContains(t, err, missing)
@@ -50,7 +50,7 @@ func TestCheckLayersPermission(t *testing.T) {
 	t.Cleanup(func() { assert.NoError(t, os.Chmod(closed, 0o700)) })
 
 	err := checkLayers([]string{closed})
-	assert.ErrorIs(t, err, errLayerUnreadable)
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
 	assert.ErrorIs(t, err, fs.ErrPermission)
 }
 

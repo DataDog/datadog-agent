@@ -1,0 +1,13 @@
+# skip: command-not-found error format differs from bash
+skip_assert_against_bash: true
+description: An unknown command inside command substitution emits an error but the outer command still runs with empty substitution.
+input:
+  script: |+
+    echo "result=[$(unknown_cmd_xyz)]"
+expect:
+  stdout: |+
+    result=[]
+  stderr_contains:
+    - "unknown_cmd_xyz"
+    - "unknown command"
+  exit_code: 0

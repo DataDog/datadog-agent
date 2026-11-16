@@ -1,0 +1,10 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: A simple unknown command prints "unknown command" to stderr.
+input:
+  script: |+
+    foo
+expect:
+  stdout: ""
+  stderr_contains: ["foo", "unknown command"]
+  exit_code: 127

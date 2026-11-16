@@ -1,0 +1,10 @@
+# Specifying a non-existent interface name should fail with exit 1.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip addr show dev nonexistent-iface exits 1 with 'cannot find device' error"
+input:
+  script: |+
+    ip addr show dev nonexistent-iface-xyz
+expect:
+  stderr: "ip: cannot find device \"nonexistent-iface-xyz\"\n"
+  exit_code: 1
+skip_assert_against_bash: true

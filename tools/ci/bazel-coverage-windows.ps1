@@ -49,7 +49,7 @@ function Invoke-NonFatalStep {
     )
 
     try {
-        Write-Host "Starting ${Name}"
+        Write-Output "Starting ${Name}"
         $global:LASTEXITCODE = 0
         & $ScriptBlock
         if ($LASTEXITCODE -ne 0) {
@@ -57,7 +57,7 @@ function Invoke-NonFatalStep {
         }
     }
     catch {
-        Write-Host -ForegroundColor Red "${Name} failed (non-fatal): $($_.Exception.Message)"
+        [Console]::Error.WriteLine("${Name} failed (non-fatal): $($_.Exception.Message)")
     }
 }
 
@@ -68,12 +68,12 @@ try {
       --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BepFile //...
     if ($LASTEXITCODE -ne 0) {
         $bazelExitCode = $LASTEXITCODE
-        Write-Host -ForegroundColor Red "bazel coverage failed with exit code $bazelExitCode"
+        [Console]::Error.WriteLine("bazel coverage failed with exit code $bazelExitCode")
     }
 }
 catch {
     $bazelExitCode = if ($LASTEXITCODE -ne 0) { $LASTEXITCODE } else { 1 }
-    Write-Host -ForegroundColor Red "bazel coverage failed (exit $bazelExitCode): $($_.Exception.Message)"
+    [Console]::Error.WriteLine("bazel coverage failed (exit $bazelExitCode): $($_.Exception.Message)")
 }
 
 # Logic that tries to emulate gitlab `after_script` (always run and don't fail the job on failure)

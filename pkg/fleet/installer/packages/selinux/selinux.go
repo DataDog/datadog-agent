@@ -9,11 +9,14 @@
 package selinux
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
@@ -108,4 +111,122 @@ func isSELinuxSupported() (bool, error) {
 func isInstalled(program string) bool {
 	_, err := exec.LookPath(program)
 	return err == nil
+}
+
+// SetRuntimePermissions labels runtime directories independently of the legacy binary policy.
+func SetRuntimePermissions(ctx context.Context, paths ...string) error {
+	enabled, err := runtimeSELinuxEnabled(ctx)
+	if err != nil || !enabled {
+		return err
+	}
+	persistent := isInstalled("semanage") && isInstalled("restorecon")
+	if !persistent && !isInstalled("chcon") {
+		return errors.New("SELinux runtime labeling skipped: install semanage and restorecon, or chcon")
+	}
+	var definitions string
+	if persistent {
+		output, err := runtimeCommand(ctx, "semanage", "fcontext", "-l", "-C")
+		if err != nil {
+			return err
+		}
+		definitions = output
+	} else {
+		fmt.Println("SELinux runtime labeling uses chcon: install semanage and restorecon to preserve labels across filesystem relabels.")
+	}
+	var errs []error
+	for _, path := range paths {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("resolve runtime directory %s: %w", path, err))
+			continue
+		}
+		if persistent {
+			rule := runtimeContextRule(resolved)
+			currentType := runtimeContextType(definitions, rule)
+			if currentType != "var_run_t" {
+				operation := "-a"
+				if currentType != "" {
+					operation = "-m"
+				}
+				if _, err := runtimeCommand(ctx, "semanage", "fcontext", operation, "-t", "var_run_t", rule); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				definitions += "\n" + rule + " all files system_u:object_r:var_run_t:s0\n"
+			}
+			_, err = runtimeCommand(ctx, "restorecon", "-R", resolved)
+		} else {
+			_, err = runtimeCommand(ctx, "chcon", "-R", "-t", "var_run_t", resolved)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func runtimeSELinuxEnabled(ctx context.Context) (bool, error) {
+	if isInstalled("getenforce") {
+		output, err := runtimeCommand(ctx, "getenforce")
+		if err != nil {
+			return false, err
+		}
+		switch strings.TrimSpace(output) {
+		case "Enforcing", "Permissive":
+			return true, nil
+		case "Disabled":
+			return false, nil
+		default:
+			return false, fmt.Errorf("unknown SELinux state: %q", output)
+		}
+	}
+	if isInstalled("selinuxenabled") {
+		err := telemetry.CommandContext(ctx, "selinuxenabled").WithExpectedExitCodes(1).Run()
+		if err == nil {
+			return true, nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, fmt.Errorf("detect SELinux: %w", err)
+	}
+	return false, errors.New("SELinux runtime labeling skipped: neither getenforce nor selinuxenabled is available")
+}
+
+func runtimeCommand(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := telemetry.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s %v: %w: %s", name, args, err, output.String())
+	}
+	return output.String(), nil
+}
+
+func runtimeContextRule(path string) string {
+	const fleetRoot = "/opt/datadog-packages/datadog-agent/"
+	if strings.HasPrefix(path, fleetRoot) {
+		parts := strings.Split(strings.TrimPrefix(path, fleetRoot), "/")
+		if len(parts) == 2 && parts[1] == "run" {
+			return fleetRoot + "[^/]+/run(/.*)?"
+		}
+	}
+	return regexp.QuoteMeta(path) + "(/.*)?"
+}
+
+func runtimeContextType(definitions, rule string) string {
+	for _, line := range strings.Split(definitions, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[0] != rule {
+			continue
+		}
+		context := strings.Split(fields[len(fields)-1], ":")
+		if len(context) >= 3 {
+			return context[2]
+		}
+	}
+	return ""
 }

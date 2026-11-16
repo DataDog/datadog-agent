@@ -133,8 +133,11 @@ func (e *envoyGatewayInjectionPattern) Added(ctx context.Context, obj *unstructu
 		}
 	}
 
-	_, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
+	existing, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
 	if err == nil {
+		if !appsecconfig.IsManagedByDatadog(existing.GetLabels()) {
+			e.logger.Warnf("EnvoyExtensionPolicy %s/%s was not created by the Datadog Cluster Agent, leaving it as is", namespace, extProcName)
+		}
 		e.logger.Debug("Envoy extension policy already exists")
 		return nil
 	}
@@ -183,7 +186,7 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 	name := obj.GetName()
 
 	e.logger.Debugf("Processing deleted gateway for envoygateway: %s/%s", name, namespace)
-	_, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
+	policy, err := e.client.Resource(extensionGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		e.logger.Debug("Envoy extension policy already deleted")
 		return nil
@@ -199,6 +202,15 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 	}
 	if !alone {
 		e.logger.Debugf("Skipping Envoy extension policy creation for gateway %s/%s: not alone in namespace", namespace, name)
+		return nil
+	}
+
+	if !appsecconfig.IsManagedByDatadog(policy.GetLabels()) {
+		e.logger.Warnf("Not deleting EnvoyExtensionPolicy %s/%s: it was not created by the Datadog Cluster Agent", namespace, extProcName)
+		if e.Mode() == appsecconfig.InjectionModeSidecar {
+			// Added still created the Backend in that case
+			return e.deleteBackend(ctx, namespace)
+		}
 		return nil
 	}
 

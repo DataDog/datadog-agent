@@ -1,0 +1,19 @@
+description: find -perm 644 matches files with exact mode 0644.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.sh
+      content: "b"
+      chmod: 0755
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm 644
+expect:
+  stdout: |+
+    dir/a.txt
+  stdout_windows: ""
+  stderr: ""
+  exit_code: 0

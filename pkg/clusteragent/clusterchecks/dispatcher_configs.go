@@ -8,6 +8,10 @@
 package clusterchecks
 
 import (
+	"fmt"
+	"maps"
+	"slices"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -23,6 +27,51 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
+// nodesRunningCheck returns the Kubernetes nodes whose node Agent runs a check
+// dispatched as an endpoints check. It returns false when they are unknown:
+// while the dispatcher is not running, when the check is not dispatched (it
+// may run as a node Agent check), or when it is dispatched as a cluster check
+// to a node Agent, which is identified by its hostname rather than its node
+// name. Cluster checks dispatched to cluster check runners are not returned.
+func (d *dispatcher) nodesRunningCheck(checkName string) (map[string]struct{}, bool) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	if !d.store.active {
+		return nil, false
+	}
+	dispatched := false
+	for digest, config := range d.store.digestToConfig {
+		if config.Name != checkName {
+			continue
+		}
+		node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+		if !found {
+			continue
+		}
+		node.RLock()
+		nodeType := node.nodetype
+		node.RUnlock()
+		if nodeType != types.NodeTypeCLCRunner {
+			return nil, false
+		}
+		dispatched = true
+	}
+	nodes := make(map[string]struct{})
+	for nodeName, configs := range d.store.endpointsConfigs {
+		for _, config := range configs {
+			if config.Name == checkName {
+				nodes[nodeName] = struct{}{}
+				break
+			}
+		}
+	}
+	if !dispatched && len(nodes) == 0 {
+		return nil, false
+	}
+	return nodes, true
+}
+
 // nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
 // copied out of the store so scrubbing can happen without holding d.store's lock.
 type nodeConfigsSnapshot struct {
@@ -30,15 +79,33 @@ type nodeConfigsSnapshot struct {
 	rawConfigs  []integration.Config
 	instanceIDs [][]string
 	stats       types.CLCRunnersStats
+	nodeType    types.NodeType
+	group       string
+	workers     int
+	heartbeat   int64
 }
 
 func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
+	advanced := d.advancedDispatching.Load()
+	var utilization map[string]float64
+	if advanced {
+		utilization = d.runnerUtilization()
+	}
+
 	// Copy data out while holding the lock, then scrub after releasing it.
 	// Scrubbing is an O(instances) operation and would otherwise starve
 	// writers like expireNodes and updateLeaderIP.
 	d.store.RLock()
 	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
 	warmup := !d.store.active
+	dispatching := d.dispatchingState(advanced)
+	var unassignedReasons map[string]string
+	for _, config := range danglingConf {
+		if unassignedReasons == nil {
+			unassignedReasons = make(map[string]string)
+		}
+		unassignedReasons[config.Name] = d.unassignedReason(config.Name)
+	}
 
 	nodeSnapshots := make([]nodeConfigsSnapshot, 0, len(d.store.nodes))
 	for _, node := range d.store.nodes {
@@ -56,12 +123,17 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 				stats[k] = v
 			}
 		}
+		nodeType, workers, heartbeat := node.nodetype, node.workers, node.heartbeat
 		node.RUnlock()
 
 		nodeSnapshots = append(nodeSnapshots, nodeConfigsSnapshot{
 			name:       node.name,
 			rawConfigs: rawConfigs,
 			stats:      stats,
+			nodeType:   nodeType,
+			group:      node.group,
+			workers:    workers,
+			heartbeat:  heartbeat,
 		})
 	}
 	d.store.RUnlock()
@@ -90,8 +162,10 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	}
 
 	response := types.StateResponse{
-		Warmup:   warmup,
-		Dangling: danglingConf,
+		Warmup:            warmup,
+		Dangling:          danglingConf,
+		Dispatching:       dispatching,
+		UnassignedReasons: unassignedReasons,
 	}
 
 	for _, snap := range nodeSnapshots {
@@ -107,20 +181,89 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 			})
 		}
 
-		response.Nodes = append(response.Nodes, types.StateNodeResponse{
-			Name:    snap.name,
-			Configs: configsWithIDs,
-			Stats:   snap.stats,
-		})
+		nodeResponse := types.StateNodeResponse{
+			Name:          snap.name,
+			Configs:       configsWithIDs,
+			Stats:         snap.stats,
+			NodeType:      snap.nodeType,
+			Group:         snap.group,
+			Workers:       snap.workers,
+			LastHeartbeat: snap.heartbeat,
+		}
+		if u, found := utilization[snap.name]; found {
+			nodeResponse.Utilization = &u
+		}
+		response.Nodes = append(response.Nodes, nodeResponse)
 	}
 
 	return response, nil
 }
 
+// runnerUtilization returns the share of workers used by cluster checks on
+// each runner that reports its workers.
+func (d *dispatcher) runnerUtilization() map[string]float64 {
+	utilization := make(map[string]float64)
+	for name, runner := range d.currentDistribution().Runners {
+		if runner.Workers > 0 {
+			utilization[name] = runner.utilization()
+		}
+	}
+	return utilization
+}
+
+// dispatchingState describes the dispatching mode and settings. The store
+// must be read-locked.
+func (d *dispatcher) dispatchingState(advanced bool) *types.DispatchingState {
+	state := &types.DispatchingState{
+		AdvancedDispatching:           advanced,
+		NodeExpirationSeconds:         d.nodeExpirationSeconds,
+		ExcludedChecks:                slices.Sorted(maps.Keys(d.excludedChecks)),
+		ExcludedChecksFromDispatching: slices.Sorted(maps.Keys(d.excludedChecksFromDispatching)),
+	}
+	if advanced {
+		state.RebalancePeriod = d.rebalancingPeriod.String()
+	} else {
+		if reason := d.advancedDispatchingOffReason.Load(); reason != nil {
+			state.AdvancedDispatchingReason = *reason
+		}
+	}
+	for _, group := range slices.Sorted(maps.Keys(d.runnerGroups)) {
+		groupState := types.RunnerGroupState{Name: group, Checks: []string{}}
+		for check, owner := range d.checkGroup {
+			if owner == group {
+				groupState.Checks = append(groupState.Checks, check)
+			}
+		}
+		slices.Sort(groupState.Checks)
+		state.RunnerGroups = append(state.RunnerGroups, groupState)
+	}
+	return state
+}
+
+// unassignedReason explains why a check's dangling configs aren't dispatched.
+// The store must be read-locked.
+func (d *dispatcher) unassignedReason(checkName string) string {
+	if len(d.store.nodes) == 0 {
+		return "no agent is reporting"
+	}
+	group := d.checkGroup[checkName]
+	if len(d.groupNodes(group)) > 0 {
+		return "waiting for the next dispatch attempt"
+	}
+	if group == "" {
+		return "no general worker is reporting: every worker is in a runner group"
+	}
+	return fmt.Sprintf("runner group %q has no live runner", group)
+}
+
 func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) bool {
 	d.store.Lock()
 	defer d.store.Unlock()
+	return d.addConfigLocked(config, targetNodeName)
+}
 
+// addConfigLocked must be called with the store locked.
+func (d *dispatcher) addConfigLocked(config integration.Config, targetNodeName string) bool {
 	// Register config
 	digest := config.Digest()
 	fastDigest := config.FastDigest()
@@ -188,7 +331,6 @@ func (d *dispatcher) removeConfig(digest string) {
 	}
 
 	if !found { // Dangling config. Not assigned to any node.
-		danglingConfigs.Dec(le.JoinLeaderValue)
 		return
 	}
 

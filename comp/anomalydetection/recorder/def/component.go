@@ -22,6 +22,11 @@ type Component interface {
 	RecordLog(source string, msg observer.LogView)
 }
 
+// MetricFilter optionally excludes metric samples from recording.
+type MetricFilter interface {
+	IsExcluded(sample observer.MetricView) bool
+}
+
 // MetricData is a recorded metric. Timestamp is in Unix seconds.
 type MetricData struct {
 	Source     string   // Source/namespace

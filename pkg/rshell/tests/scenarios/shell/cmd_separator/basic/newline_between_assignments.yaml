@@ -1,0 +1,11 @@
+description: Newlines separate variable assignments that are used in subsequent commands.
+input:
+  script: |+
+    x=hello
+    y=world
+    echo "$x $y"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

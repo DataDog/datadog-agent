@@ -1,0 +1,11 @@
+# skip: rshell builtin error format differs from GNU xargs (path-error wording)
+skip_assert_against_bash: true
+description: xargs -a on a nonexistent file exits 1 and prints an error to stderr.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    xargs -a nonexistent.txt echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

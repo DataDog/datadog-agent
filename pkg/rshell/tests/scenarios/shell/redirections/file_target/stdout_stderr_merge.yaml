@@ -1,0 +1,12 @@
+description: In remediation mode, "> file 2>&1" merges stderr into the stdout redirect target.
+input:
+  script: |+
+    echo msg > out.txt 2>&1
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    msg
+  stderr: |+
+  exit_code: 0

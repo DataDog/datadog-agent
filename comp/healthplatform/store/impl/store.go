@@ -615,8 +615,8 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 // DaemonSet/cluster the collapsed issue came from. No-op on non-Kubernetes
 // agents, where both resolve to empty.
 func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Issue) {
-	deploymentID := h.selfIdent.DeploymentID()
-	clusterID := h.selfIdent.ClusterID()
+	deploymentID := h.selfIdent.DeploymentIDNonBlocking()
+	clusterID := h.selfIdent.ClusterIDNonBlocking()
 	if deploymentID == "" && clusterID == "" {
 		return
 	}

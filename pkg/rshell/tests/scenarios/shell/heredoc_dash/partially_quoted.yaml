@@ -1,0 +1,8 @@
+description: Partially single-quoted delimiter with heredoc-dash suppresses expansion.
+input:
+  script: "X=hello\ncat <<-E'N'D\n\t$X world\nEND\n"
+expect:
+  stdout: |+
+    $X world
+  stderr: ""
+  exit_code: 0

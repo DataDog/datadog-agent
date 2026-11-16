@@ -683,6 +683,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
 
+	// Path pattern metrics
+
+	// MetricSecurityProfileV2PathPatternsFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsFileNodesMerged = newRuntimeMetric(".security_profile_v2.path_patterns.file_nodes_merged")
+
+	// MetricSecurityProfileV2PathPatternsLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
+
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
 	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
 	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's

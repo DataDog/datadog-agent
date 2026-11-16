@@ -81,6 +81,13 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 	}
 	defer statusDDir.Close()
 
+	// Docker Hardened Images record each package in both status and status.d.
+	// The index credits a file to one record, so skip the copies in status.d.
+	inStatus := make(map[sbomtypes.Package]bool, len(pkgs))
+	for _, pkg := range pkgs {
+		inStatus[nameVersion(pkg)] = true
+	}
+
 	for {
 		statusFiles, err := statusDDir.ReadDir(readDirBatchSize)
 		if err != nil {
@@ -98,16 +105,25 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 			}
 
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
-			pkg, err := s.parseStatusFile(root, fullPath)
+			records, err := s.parseStatusFile(root, fullPath)
 			if err != nil {
 				seclog.Warnf("failed to parse dpkg status file (%s): %v", fullPath, err)
 				continue
 			}
-			pkgs = append(pkgs, pkg...)
+			for _, pkg := range records {
+				if !inStatus[nameVersion(pkg)] {
+					pkgs = append(pkgs, pkg)
+				}
+			}
 		}
 	}
 
 	return pkgs, nil
+}
+
+// nameVersion returns pkg reduced to its name and version.
+func nameVersion(pkg sbomtypes.Package) sbomtypes.Package {
+	return sbomtypes.Package{Name: pkg.Name, Epoch: pkg.Epoch, Version: pkg.Version, Release: pkg.Release}
 }
 
 func (s *dpkgScanner) listInstalledFiles(root *os.Root) (map[string][]string, error) {

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Agent metadata submissions now carry a ``DD-Payload-Type`` HTTP header
+    identifying the kind of payload (for example ``agent_metadata`` or
+    ``host_v5``), allowing intake to attribute payload sizes and errors
+    without decompressing the body.

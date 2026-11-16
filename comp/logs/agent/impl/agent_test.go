@@ -35,6 +35,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
+	intakeroutingmock "github.com/DataDog/datadog-agent/comp/intakerouting/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
@@ -526,6 +528,7 @@ type testAgentDeps struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	IntakeRouting      intakerouting.Component
 }
 
 func (suite *AgentTestSuite) createDeps() Requires {
@@ -544,6 +547,7 @@ func (suite *AgentTestSuite) createDeps() Requires {
 		}),
 		auditorfx.Module(),
 		fxutil.ProvideComponentConstructor(kubehealthmock.NewProvides),
+		intakeroutingmock.Module(),
 	)
 	return Requires{
 		Lc:                 d.Lc,
@@ -557,6 +561,7 @@ func (suite *AgentTestSuite) createDeps() Requires {
 		Tagger:             d.Tagger,
 		Compression:        d.Compression,
 		Secrets:            d.Secrets,
+		IntakeRouting:      d.IntakeRouting,
 	}
 }
 

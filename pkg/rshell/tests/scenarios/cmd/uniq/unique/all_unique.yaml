@@ -1,0 +1,13 @@
+description: uniq -u prints all lines when all are unique.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -u input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

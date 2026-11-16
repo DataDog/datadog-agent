@@ -17,7 +17,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.check_tools_version import expected_go_repo_v
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
     OS_SPECIFIC_ENV_PASSTHROUGH,
@@ -125,7 +125,6 @@ def get_omnibus_env(
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
-    fips_mode=False,
     *,
     install_dir,
 ):
@@ -178,25 +177,6 @@ def get_omnibus_env(
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
-
-    if fips_mode:
-        env['FIPS_MODE'] = 'true'
-        if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
-            # Point omnibus at the msgo root
-            # TODO: idk how to do this in omnibus datadog-agent.rb
-            #       because `File.read` is executed when the script is loaded,
-            #       not when the `command`s are run and the source tree is not
-            #       available at that time.
-            #       Comments from the Linux FIPS PR discussed wanting to centralize
-            #       the msgo root logic, so this can be updated then.
-            go_version = expected_go_repo_v()
-            env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
-            gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
-            if not os.path.exists(gobinpath):
-                raise Exit(f"msgo go.exe not found at {gobinpath}")
-        elif sys.platform == "linux":
-            # Matches bazel/rules/msgo/extension.bzl's, anticipating Go 1.27 default.
-            env["GOEXPERIMENT"] = "ms_nocgo_opensslcrypto"
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -256,7 +236,6 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
@@ -284,7 +263,6 @@ def build(
         flavor=flavor,
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
-        fips_mode=fips_mode,
         install_dir=install_directory or install_dir_for_project(target_project),
     )
 
@@ -737,11 +715,7 @@ def docker_build(
         '"'
     )
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -781,6 +755,9 @@ def docker_build(
 
     # Map arch to Docker platform
     platform = f"linux/{arch}"
+
+    # The Dockerfile copies nosys.so from the artifacts context, next to the tarball.
+    build_nosys_so(arch, artifacts_dir)
 
     # Build the Docker command
     build_args = [

@@ -1,0 +1,6 @@
+exports_files(
+    [
+        "jemalloc.h",
+    ],
+    visibility = ["@jemalloc//:__pkg__"],
+)

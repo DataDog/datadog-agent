@@ -1,0 +1,9 @@
+description: Negation inverts the exit code of an entire pipeline.
+input:
+  script: |+
+    ! echo hello | grep -q nomatch
+    echo $?
+expect:
+  stdout: "0\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: xargs -n with a non-positive value is rejected.
+input:
+  script: |+
+    echo a | xargs -n 0 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

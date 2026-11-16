@@ -1072,10 +1072,12 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	// every node may have grown a seen slot; the walk costs the same as tagging
+	at.recomputeSizeBytes()
 }
 
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
-// Called only from ComputeActivityTreeStats to periodically correct any accumulated drift.
+// Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes))
@@ -1144,6 +1146,49 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 	return total
 }
 
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinGroupSize as the threshold, then folds covered patterns. No-op
+// when path-pattern merging is disabled on the tree. Idempotent.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minGroupSize, at.Stats)
+	foldCoveredPatterns(pn.Files, at.Stats)
+	pn.filesIndex.reset()
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minGroupSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minGroupSize, at.Stats)
+	foldCoveredPatterns(fn.Children, at.Stats)
+	fn.childrenIndex.reset()
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minGroupSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -1190,14 +1235,17 @@ func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(proce
 	cb(processNode)
 }
 
-func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+// visitFileNode calls cb on every leaf with the IsPattern flags of its path.
+// cb must not retain isPattern, its backing array is reused.
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb func(fileNode *FileNode, isPattern []bool)) {
+	isPattern = append(isPattern, fileNode.IsPattern)
 	if len(fileNode.Children) == 0 {
-		cb(fileNode)
+		cb(fileNode, isPattern)
 		return
 	}
 
 	for _, file := range fileNode.Children {
-		at.visitFileNode(file, cb)
+		at.visitFileNode(file, isPattern, cb)
 	}
 }
 
@@ -1218,13 +1266,11 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		var fimPaths []string
 		if fimEnabled {
 			for _, file := range processNode.Files {
-				at.visitFileNode(file, func(fileNode *FileNode) {
-					path, ok := modifiedPaths[fileNode.File.PathnameStr]
-					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
-						path = modifiedPaths[fileNode.File.PathnameStr]
+				at.visitFileNode(file, nil, func(fileNode *FileNode, isPattern []bool) {
+					if fileNode.File == nil {
+						return
 					}
-					if len(path) > 0 {
+					if path := rulePathFromProfilePath(fileNode.File.PathnameStr, isPattern); len(path) > 0 {
 						fimPaths = append(fimPaths, path)
 					}
 				})

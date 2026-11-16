@@ -1,0 +1,9 @@
+description: Basic if statement with true condition executes then branch.
+input:
+  script: |+
+    if true; then echo yes; fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

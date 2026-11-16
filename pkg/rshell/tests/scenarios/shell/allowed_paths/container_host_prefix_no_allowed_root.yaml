@@ -1,0 +1,19 @@
+description: Container symlink to a host path not under any allowed root is blocked
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/opt/data/secret.txt
+      content: "secret\n"
+    - path: host/var/log/containers/sneaky.log
+      symlink: /opt/data/secret.txt
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    cat host/var/log/containers/sneaky.log
+expect:
+  stdout: |+
+  stderr_contains:
+    - "sneaky.log"
+  exit_code: 1

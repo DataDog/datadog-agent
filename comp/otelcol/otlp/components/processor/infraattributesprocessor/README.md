@@ -132,8 +132,9 @@ The following methods are tried, in order from highest to lowest precedence:
 | `datadog.container.cgroup_inode` (int)           | Based on container's cgroup inode |
 | `k8s.pod.uid` (str) + `k8s.container.name` (str) | Based on container's pod and name |
 
-For the method based on the container name, the `datadog.container.is_init` (boolean) resource attribute may be set to `true` to
-direct the processor's search towards init-containers rather than regular ones.
+The method based on the container name finds regular, ephemeral and init containers, including Kubernetes native sidecars
+(init containers with `restartPolicy: Always`). The `datadog.container.is_init` resource attribute is no longer needed and
+has no effect.
 
 ### SDK Configuration
 

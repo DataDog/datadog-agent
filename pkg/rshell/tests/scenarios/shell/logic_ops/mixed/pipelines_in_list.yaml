@@ -1,0 +1,9 @@
+description: Pipelines with negation in and-or lists.
+input:
+  script: |+
+    ! false && ! true | false && echo foo | cat
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

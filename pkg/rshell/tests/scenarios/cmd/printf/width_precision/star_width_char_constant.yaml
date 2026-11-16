@@ -1,0 +1,7 @@
+description: Bare quote character constant as star width argument yields width 0.
+input:
+  script: |+
+    printf '%*d\n' "'" 42
+expect:
+  stdout: "42\n"
+  exit_code: 0

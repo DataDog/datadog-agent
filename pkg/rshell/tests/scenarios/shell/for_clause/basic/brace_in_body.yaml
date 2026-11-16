@@ -1,0 +1,14 @@
+description: Brace group can be used inside for loop body.
+input:
+  script: |+
+    for i in 1 2; do
+      { echo "a:$i"; echo "b:$i"; }
+    done
+expect:
+  stdout: |+
+    a:1
+    b:1
+    a:2
+    b:2
+  stderr: ""
+  exit_code: 0
