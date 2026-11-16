@@ -440,6 +440,12 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		}
 		t.TraceID = buf[:]
 	}
+	// Check all 128 bits: an ID whose low-order 64 bits are zero is still a valid W3C/OTel
+	// trace ID. An empty or missing trace ID has been normalized to all zeros above.
+	if [16]byte(t.TraceID) == [16]byte{} {
+		ts.TracesDropped.TraceIDZero.Inc()
+		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %v", t.Spans[0])
+	}
 
 	spanIDs := make(map[uint64]struct{})
 	for _, span := range t.Spans {
