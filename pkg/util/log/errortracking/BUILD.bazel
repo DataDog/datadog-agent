@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "bouncer.go",
         "doc.go",
+        "external.go",
         "handler.go",
         "types.go",
     ],
@@ -17,6 +18,7 @@ dd_agent_go_test(
     name = "errortracking_test",
     srcs = [
         "bouncer_test.go",
+        "external_test.go",
         "handler_test.go",
     ],
     embed = [":errortracking"],

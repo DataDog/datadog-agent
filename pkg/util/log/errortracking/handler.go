@@ -120,6 +120,12 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if submit == nil {
 		return nil
 	}
+	if r.NumAttrs() > 0 {
+		if ext, ok := externalStackFromRecord(r); ok {
+			h.handleExternal(r, ext, submit)
+			return nil
+		}
+	}
 
 	// Capture the full call stack anchored at r.PC.
 	//

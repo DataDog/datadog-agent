@@ -59,6 +59,15 @@ type ErrorLog struct {
 	// user-controlled — it is determined by the code that creates the
 	// error — so it is safe to ship unlike the error message itself.
 	ErrorKind string
+
+	// Stack is a pre-formatted stack in the wire shape, set instead of
+	// PC/PCs when the stack was captured outside the Go runtime (see
+	// ExternalStack). Empty for Go-origin records.
+	Stack string
+
+	// Integration names the external component the Stack came from. Empty
+	// for Go-origin records.
+	Integration string
 }
 
 // Submitter is the registration target for sending an ErrorLog to a

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	agentversion "github.com/DataDog/datadog-agent/pkg/version"
@@ -108,7 +107,7 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		Count:      count,
 		IsCrash:    false,
 		ErrorKind:  e.ErrorKind,
-		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder + ",agent.flavor:" + flavor.GetFlavor(),
+		Tags:       errorLogTags(e),
 	}
 	out.StackTrace = symbolizeStackFrames(e)
 	return out
@@ -128,6 +127,9 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 // expensive; doing it here keeps the producer's hot path zero-alloc
 // beyond the runtime.Callers fixed-array fill.
 func symbolizeStackFrames(e errortracking.ErrorLog) string {
+	if e.Stack != "" {
+		return e.Stack
+	}
 	if e.PCsLen == 0 {
 		return ""
 	}
