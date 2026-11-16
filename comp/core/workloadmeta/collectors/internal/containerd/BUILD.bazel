@@ -85,6 +85,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//pkg/config/mock",
         "//pkg/errors",
+        "//pkg/status/health",
         "//pkg/util/containerd",
         "//pkg/util/containerd/fake",
         "//pkg/util/fxutil",

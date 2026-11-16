@@ -82,6 +82,8 @@ var containerdTopics = []string{
 	TaskResumedTopic,
 }
 
+var registerLiveness = health.RegisterLiveness
+
 type exitInfo struct {
 	exitCode *int64
 	exitTS   time.Time
@@ -95,14 +97,17 @@ type dependencies struct {
 }
 
 type collector struct {
-	id               string
-	cfg              config.Component
-	store            workloadmeta.Component
-	catalog          workloadmeta.AgentType
+	id      string
+	cfg     config.Component
+	store   workloadmeta.Component
+	catalog workloadmeta.AgentType
+
+	clientMut        sync.RWMutex
 	containerdClient cutil.ContainerdItf
-	eventsChan       <-chan *containerdevents.Envelope
-	errorsChan       <-chan error
-	cancelEvents     context.CancelFunc
+
+	eventsChan   <-chan *containerdevents.Envelope
+	errorsChan   <-chan error
+	cancelEvents context.CancelFunc
 
 	// newClient opens a connection to the containerd socket.
 	newClient func() (cutil.ContainerdItf, error)
@@ -208,12 +213,17 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 func (c *collector) stream(ctx context.Context) {
-	healthHandle := health.RegisterLiveness(componentName)
+	healthHandle := registerLiveness(componentName)
 	defer func() {
 		if err := healthHandle.Deregister(); err != nil {
 			log.Warnf("error de-registering health check: %s", err)
 		}
 	}()
+
+	var (
+		reconnectTimer   <-chan time.Time // non-nil while a reconnection attempt is pending
+		reconnectBackoff *backoff.ExponentialBackOff
+	)
 
 	for {
 		select {
@@ -235,8 +245,21 @@ func (c *collector) stream(ctx context.Context) {
 				log.Errorf("containerd event stream failed, reconnecting: %s", err)
 			}
 
-			if !c.reconnect(ctx) {
-				return
+			c.eventsChan, c.errorsChan = nil, nil
+
+			// Try immediately, otherwise setup retry with backoff.
+			if err := c.resubscribe(ctx); err != nil {
+				log.Errorf("could not reconnect to the containerd event stream: %s", err)
+				reconnectBackoff = newReconnectBackoff()
+				reconnectTimer = time.After(reconnectBackoff.NextBackOff())
+			}
+
+		case <-reconnectTimer:
+			if err := c.resubscribe(ctx); err != nil {
+				log.Errorf("could not reconnect to the containerd event stream: %s", err)
+				reconnectTimer = time.After(reconnectBackoff.NextBackOff())
+			} else {
+				reconnectTimer = nil
 			}
 
 		case <-ctx.Done():
@@ -245,39 +268,44 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-// reconnect re-establishes the containerd event stream after it ended,
-// retrying with a backoff until it succeeds or ctx is done and returns
-// whether the stream was successfully  re-established.
-func (c *collector) reconnect(ctx context.Context) bool {
-	backoff := backoff.NewExponentialBackOff()
-	backoff.InitialInterval = reconnectInitialBackoff
-	backoff.MaxInterval = reconnectMaxBackoff
-
-	for {
-		if err := c.resubscribe(ctx); err != nil {
-			log.Errorf("could not reconnect to the containerd event stream: %s", err)
-			select {
-			case <-ctx.Done():
-				return false
-			case <-time.After(backoff.NextBackOff()):
-			}
-			continue
-		}
-		return true
-	}
+// newReconnectBackoff builds the backoff used between reconnection attempts.
+func newReconnectBackoff() *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = reconnectInitialBackoff
+	b.MaxInterval = reconnectMaxBackoff
+	return b
 }
 
-// resubscribe closes the current containerd connection and opens a new one
+// resubscribe opens a new connection and subscribes to the new event stream.
 func (c *collector) resubscribe(ctx context.Context) error {
-	c.closeClient()
-
 	newClient, err := c.newClient()
 	if err != nil {
 		return err
 	}
-	c.containerdClient = newClient
+
+	previousClient := c.swapClient(newClient)
+	if errClose := previousClient.Close(); errClose != nil {
+		log.Warnf("Error when closing containerd connection: %s", errClose)
+	}
 
 	return c.subscribeAndResync(ctx)
+}
+
+// getClient returns the current containerd client.
+func (c *collector) getClient() cutil.ContainerdItf {
+	c.clientMut.RLock()
+	defer c.clientMut.RUnlock()
+	return c.containerdClient
+}
+
+// swapClient replaces the current containerd client and returns the previous
+// one, so the caller can close it.
+func (c *collector) swapClient(newClient cutil.ContainerdItf) cutil.ContainerdItf {
+	c.clientMut.Lock()
+	defer c.clientMut.Unlock()
+	previous := c.containerdClient
+	c.containerdClient = newClient
+	return previous
 }
 
 // subscribeAndResync subscribes to the containerd event stream and notifies
@@ -290,12 +318,15 @@ func (c *collector) subscribeAndResync(ctx context.Context) error {
 	}
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
+	c.eventsChan, c.errorsChan = c.getClient().GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
 
-	if err := c.notifyInitialEvents(ctx); err != nil {
+	snapshot, err := c.notifyInitialEvents(ctx)
+	if err != nil {
 		cancelEvents()
 		return err
 	}
+
+	c.unsetEntitiesMissingFromSnapshot(snapshot)
 
 	c.cancelEvents = cancelEvents
 	return nil
@@ -303,29 +334,109 @@ func (c *collector) subscribeAndResync(ctx context.Context) error {
 
 // closeClient closes the current containerd connection, logging failures.
 func (c *collector) closeClient() {
-	if err := c.containerdClient.Close(); err != nil {
+	if err := c.getClient().Close(); err != nil {
 		log.Warnf("Error when closing containerd connection: %s", err)
 	}
 }
 
-func (c *collector) notifyInitialEvents(ctx context.Context) error {
+// entitySnapshot holds the entities found in a containerd enumeration.
+type entitySnapshot struct {
+	namespaces   map[string]struct{}
+	containerIDs map[string]struct{}
+	imageIDs     map[string]struct{}
+}
+
+func newEntitySnapshot() *entitySnapshot {
+	return &entitySnapshot{
+		namespaces:   make(map[string]struct{}),
+		containerIDs: make(map[string]struct{}),
+		imageIDs:     make(map[string]struct{}),
+	}
+}
+
+// unsetEntitiesMissingFromSnapshot unsets the entities this collector
+// published before but that are absent from the refreshed snapshot. This
+// can happen when there is an extended outage of the containerd daemon
+func (c *collector) unsetEntitiesMissingFromSnapshot(snapshot *entitySnapshot) {
+	var events []workloadmeta.CollectorEvent
+
+	for _, stored := range c.store.ListContainers() {
+		if stored.Runtime != workloadmeta.ContainerRuntimeContainerd {
+			continue
+		}
+		if _, watched := snapshot.namespaces[stored.Namespace]; !watched {
+			continue
+		}
+		if _, present := snapshot.containerIDs[stored.ID]; present {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceRuntime,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   stored.ID,
+				},
+			},
+		})
+	}
+
+	if c.imageMetadataCollectionIsEnabled() {
+		// knownImages and imageSBOMs are shared with the SBOM goroutine.
+		c.handleImagesMut.Lock()
+		for imageID := range c.knownImages.namesByID {
+			if _, present := snapshot.imageIDs[imageID]; present {
+				continue
+			}
+
+			for name := range c.knownImages.namesByID[imageID] {
+				c.knownImages.deleteReference(name, imageID)
+			}
+			delete(c.knownImages.namesByID, imageID)
+			delete(c.imageSBOMs, imageID)
+
+			events = append(events, workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeUnset,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   imageID,
+					},
+				},
+			})
+		}
+		c.handleImagesMut.Unlock()
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
+	}
+}
+
+func (c *collector) notifyInitialEvents(ctx context.Context) (*entitySnapshot, error) {
+	snapshot := newEntitySnapshot()
 	var containerEvents []workloadmeta.CollectorEvent
 
-	namespaces, err := cutil.NamespacesToWatch(ctx, c.containerdClient)
+	namespaces, err := cutil.NamespacesToWatch(ctx, c.getClient())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, namespace := range namespaces {
+		snapshot.namespaces[namespace] = struct{}{}
+
 		if c.imageMetadataCollectionIsEnabled() {
-			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
-				return err
+			if err := c.notifyInitialImageEvents(ctx, namespace, snapshot); err != nil {
+				return nil, err
 			}
 		}
 
-		nsContainerEvents, err := c.generateInitialContainerEvents(namespace)
+		nsContainerEvents, err := c.generateInitialContainerEvents(namespace, snapshot)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		containerEvents = append(containerEvents, nsContainerEvents...)
 	}
@@ -334,18 +445,20 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 		c.store.Notify(containerEvents)
 	}
 
-	return nil
+	return snapshot, nil
 }
 
-func (c *collector) generateInitialContainerEvents(namespace string) ([]workloadmeta.CollectorEvent, error) {
+func (c *collector) generateInitialContainerEvents(namespace string, snapshot *entitySnapshot) ([]workloadmeta.CollectorEvent, error) {
 	var events []workloadmeta.CollectorEvent
 
-	existingContainers, err := c.containerdClient.Containers(namespace)
+	existingContainers, err := c.getClient().Containers(namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, container := range existingContainers {
+		snapshot.containerIDs[container.ID()] = struct{}{}
+
 		// if ignoreContainer returns an error, keep the container
 		// regardless.  it might've been because of network errors, so
 		// it's better to keep a container we should've ignored than
@@ -357,7 +470,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 			continue
 		}
 
-		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
+		ev, err := createSetEvent(container, namespace, c.getClient(), c.store)
 		if err != nil {
 			log.Warnf("%s", err.Error())
 			continue
@@ -369,8 +482,8 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 	return events, nil
 }
 
-func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace string) error {
-	existingImages, err := c.containerdClient.ListImages(namespace)
+func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace string, snapshot *entitySnapshot) error {
+	existingImages, err := c.getClient().ListImages(namespace)
 	if err != nil {
 		return err
 	}
@@ -389,6 +502,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 		}
 	}
 	for _, wlmImage := range mergedImages {
+		snapshot.imageIDs[wlmImage.EntityID.ID] = struct{}{}
 		c.store.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeSet,
@@ -468,7 +582,7 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 
 	// ignore NotFound errors, since they happen for every deleted
 	// container, but these events still need to be handled
-	container, err := c.containerdClient.ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
+	container, err := c.getClient().ContainerWithContext(ctx, containerdEvent.Namespace, containerID)
 	if err != nil && !agentErrors.IsNotFound(err) {
 		return "", nil, err
 	}
@@ -479,7 +593,9 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 // ignoreContainer returns whether a containerd event should be ignored.
 // The ignored events are the ones that refer to a "pause" container.
 func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
-	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
+	client := c.getClient()
+
+	isSandbox, err := client.IsSandbox(namespace, container)
 	if err != nil {
 		return false, err
 	}
@@ -488,7 +604,7 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 		return true, nil
 	}
 
-	info, err := c.containerdClient.Info(namespace, container)
+	info, err := client.Info(namespace, container)
 	if err != nil {
 		return false, err
 	}

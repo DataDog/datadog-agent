@@ -32,7 +32,7 @@ func (c *collector) buildCollectorEvent(
 ) (workloadmeta.CollectorEvent, error) {
 	switch containerdEvent.Topic {
 	case containerCreationTopic, containerUpdateTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
+		return createSetEvent(container, containerdEvent.Namespace, c.getClient(), store)
 
 	case containerDeletionTopic:
 		exitInfo := c.getExitInfo(containerID)
@@ -47,7 +47,7 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, pointer.Ptr(int64(exited.ExitStatus)), exited.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
+		return createSetEvent(container, containerdEvent.Namespace, c.getClient(), store)
 
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
@@ -56,10 +56,10 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, pointer.Ptr(int64(deleted.ExitStatus)), deleted.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
+		return createSetEvent(container, containerdEvent.Namespace, c.getClient(), store)
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
+		return createSetEvent(container, containerdEvent.Namespace, c.getClient(), store)
 
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
