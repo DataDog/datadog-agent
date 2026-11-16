@@ -118,7 +118,7 @@ func (e codedOracleError) Code() int     { return int(e) }
 func (e codedOracleError) Error() string { return fmt.Sprintf("native Oracle error %d", int(e)) }
 
 func TestRecoveryErrorClassification(t *testing.T) {
-	for _, code := range []int{28, 1012, 3113, 3114, 3135, 1000, 1013, 3106, 3156, 6413, 12161, 12514, 1033, 1089} {
+	for _, code := range []int{28, 1012, 3113, 3114, 3135, 1000, 1013, 3106, 3146, 3156, 6413, 12161, 12514, 1033, 1089} {
 		for _, err := range []error{network.NewOracleError(code), codedOracleError(code)} {
 			require.True(t, isConnectionError(err), "%T code %d", err, code)
 			require.True(t, isConnectionError(fmt.Errorf("query: %w", err)), "%T code %d", err, code)

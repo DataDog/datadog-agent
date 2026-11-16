@@ -160,11 +160,12 @@ func shouldResetOracleSession(code int) bool {
 	// 1000: go-ora/godror cursor exhaustion.
 	// 1013: go-ora/godror operation cancellation.
 	// 3106: go-ora fatal two-task communication protocol error; godror.IsBadConn also covers it.
+	// 3146: go-ora/godror invalid buffer length in a TTC protocol packet.
 	// 3156: godror OCI call timeout, preserved by ODPI-C.
 	// 6413: go-ora/godror connection not open.
 	// 12161: godror partial data received; ODPI-C can report this after a call timeout.
 	// 12514: go-ora/godror listener does not know the requested service.
-	case 1000, 1013, 3106, 3156, 6413, 12161, 12514:
+	case 1000, 1013, 3106, 3146, 3156, 6413, 12161, 12514:
 		return true
 	default:
 		return false
