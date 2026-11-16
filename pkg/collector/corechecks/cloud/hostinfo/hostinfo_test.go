@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -479,12 +480,12 @@ func TestMetadataLookupFailureClassification(t *testing.T) {
 	// The healthy no-active-notice response is a 404 from IMDS and must not
 	// count toward the backoff; every other failure (timeout, connection
 	// refused, 5xx) must.
-	assert.True(t, metadataLookupFailure(nil) == false)
-	assert.False(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
-	assert.True(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: 503, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
+	assert.False(t, metadataLookupFailure(nil))
+	assert.False(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
+	assert.True(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: http.StatusServiceUnavailable, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
 	assert.True(t, metadataLookupFailure(errors.New("connection timed out")))
 	// Wrapped StatusCodeError still classifies by status code.
-	assert.False(t, metadataLookupFailure(fmt.Errorf("unable to retrieve spot instance-action from IMDS: %w", &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"})))
+	assert.False(t, metadataLookupFailure(fmt.Errorf("unable to retrieve spot instance-action from IMDS: %w", &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"})))
 }
 
 func TestHostInfoCheckHealthy404DoesNotBackOff(t *testing.T) {
@@ -497,7 +498,7 @@ func TestHostInfoCheckHealthy404DoesNotBackOff(t *testing.T) {
 	attempts := 0
 	// The healthy steady state on a spot instance without an active notice:
 	// the termination endpoint answers 404 every time.
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
 		attempts++
 		return time.Time{}, notFound
@@ -553,7 +554,7 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 	// IMDS recovers to the healthy no-active-notice steady state: a 404
 	// must clear the stale failures, not just skip the increment, or they
 	// would linger forever on a spot instance that only ever 404s.
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"}
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
 		return time.Time{}, notFound
 	}
@@ -565,12 +566,12 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 }
 
 func TestHostInfoCheckHealthyLookupPreventsBackoff(t *testing.T) {
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"}
 	for _, failure := range []struct {
 		name string
 		err  error
 	}{
-		{name: "server_error", err: &httputils.StatusCodeError{StatusCode: 503, Method: "GET", URL: "u"}},
+		{name: "server_error", err: &httputils.StatusCodeError{StatusCode: http.StatusServiceUnavailable, Method: http.MethodGet, URL: "u"}},
 		{name: "generic_error", err: errors.New("metadata lookup failed")},
 	} {
 		for _, healthyLookup := range []struct {
