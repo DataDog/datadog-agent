@@ -550,6 +550,18 @@ func TestRedisObfuscator(t *testing.T) {
 			"SENTINEL CONFIG",
 		},
 		{
+			"PUBLISH channel message",
+			"PUBLISH channel ?",
+		},
+		{
+			"spublish channel message",
+			"spublish channel ?",
+		},
+		{
+			"PUBLISH channel",
+			"PUBLISH channel",
+		},
+		{
 			`
 CONFIG command
 SET k v
