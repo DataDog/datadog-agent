@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/Masterminds/semver/v3"

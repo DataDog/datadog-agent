@@ -14,7 +14,7 @@ import (
 
 	json "github.com/json-iterator/go"
 	"github.com/mohae/deepcopy"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
