@@ -26,10 +26,22 @@ dd_agent_go_test(
     name = "missedbytes_test",
     srcs = [
         "check_test.go",
+        "golden_cases_test.go",
+        "golden_test.go",
         "issue_test.go",
         "module_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":missedbytes"],
+    embedsrcs = [
+        "testdata/golden/empty.json",
+        "testdata/golden/malformed_sources.json",
+        "testdata/golden/nil.json",
+        "testdata/golden/pairs_omitted.json",
+        "testdata/golden/several_sources.json",
+        "testdata/golden/single_named_source.json",
+        "testdata/golden/unsafe_names.json",
+    ],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
@@ -38,5 +50,7 @@ dd_agent_go_test(
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
     ],
 )
