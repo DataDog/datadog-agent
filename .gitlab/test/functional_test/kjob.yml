@@ -35,7 +35,9 @@ single_machine_performance-kjob:
       - outputs/
   script:
     - mkdir -p outputs
-    - curl --silent --show-error --fail --location --output /tmp/helm.tar.gz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+    # The CI egress proxy blocks get.helm.sh. The Depot read API caches the
+    # same archive in ADMS, as for tools/ci/conduit.sh.
+    - curl --silent --show-error --fail --location --output /tmp/helm.tar.gz "https://depot-read-api-bzl.us1.ddbuild.io/get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
     - echo "${HELM_SHA256}  /tmp/helm.tar.gz" | sha256sum --check -
     - tar --extract --gzip --file /tmp/helm.tar.gz --directory /tmp linux-amd64/helm
     - export PATH="/tmp/linux-amd64:${PATH}"
