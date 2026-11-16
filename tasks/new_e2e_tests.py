@@ -441,7 +441,7 @@ def run(
     if impacted and running_in_ci():
         try:
             print(color_message("Using dynamic tests", "yellow"))
-            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarily remove the AWS_PROFILE to avoid connecting on agent-qa account
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
                 if is_enabled(ctx, "agent-ci-jev-test-impact-analysis"):
