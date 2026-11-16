@@ -154,23 +154,14 @@ type ConnectionConfig struct {
 	QueryTimeout int    `yaml:"query_timeout"`
 }
 
-// timeoutSeconds keeps both Q and the derived 2Q socket timeout representable.
-// Configuration values are seconds; nonpositive values retain the 20s default.
+// OCI represents call timeouts as uint32 milliseconds. Use the same limit for both drivers.
+const maxQueryTimeoutSeconds = (1<<32 - 1) / 1000
+
 func (c ConnectionConfig) timeoutSeconds() int64 {
-	seconds := int64(c.QueryTimeout)
-	if seconds <= 0 {
+	if c.QueryTimeout <= 0 {
 		return defaultQueryTimeout
 	}
-	maxSeconds := int64((1<<63 - 1) / (2 * time.Second))
-	// godror converts a context deadline to OCI's uint32 millisecond timeout.
-	// Keep extreme values from wrapping in the native driver as well.
-	if c.OracleClient || c.TnsAlias != "" {
-		maxSeconds = min(maxSeconds, int64((1<<32-1)/1000))
-	}
-	if seconds > maxSeconds {
-		return maxSeconds
-	}
-	return seconds
+	return min(int64(c.QueryTimeout), maxQueryTimeoutSeconds)
 }
 
 func (c ConnectionConfig) QueryTimeoutString() string {
