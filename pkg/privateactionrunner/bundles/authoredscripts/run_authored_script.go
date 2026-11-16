@@ -64,13 +64,13 @@ func (h *RunAuthoredScriptHandler) Run(
 		return nil, errors.New("authored-script task is required")
 	}
 
-	fqn := task.GetFQN()
+	executionFQN := task.GetExecutionFQN()
 	if err := h.catalog.WaitForReady(ctx); err != nil {
 		return nil, fmt.Errorf("waiting for authored-script catalog: %w", err)
 	}
-	descriptor, err := h.catalog.Lookup(fqn)
+	descriptor, err := h.catalog.Lookup(executionFQN)
 	if err != nil {
-		return nil, fmt.Errorf("could not look up authored-script package %q: %w", fqn, err)
+		return nil, fmt.Errorf("could not look up authored-script package %q: %w", executionFQN, err)
 	}
 	if h.artifactResolverInitErr != nil {
 		return nil, fmt.Errorf("could not initialize authored-script artifact resolver: %w", h.artifactResolverInitErr)
@@ -81,9 +81,9 @@ func (h *RunAuthoredScriptHandler) Run(
 
 	artifact, err := h.artifactResolver.Resolve(ctx, descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
+		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", executionFQN, err)
 	}
-	scriptPackage, err := authoredscriptssupport.LoadPackage(fqn, descriptor, artifact)
+	scriptPackage, err := authoredscriptssupport.LoadPackage(executionFQN, descriptor, artifact)
 	if err != nil {
 		return nil, err
 	}

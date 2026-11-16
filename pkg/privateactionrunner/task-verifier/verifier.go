@@ -121,6 +121,7 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 			Attributes: &types.Attributes{
 				Name:                  task.ActionName,
 				BundleID:              task.BundleId,
+				ExecutionFQN:          task.GetExecutionFqn(),
 				Client:                task.Client,
 				SecDatadogHeaderValue: task.SecDatadogHeaderValue,
 				Inputs:                task.Inputs.AsMap(),
