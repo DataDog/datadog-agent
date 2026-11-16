@@ -9,6 +9,7 @@ package remoteflags
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +65,8 @@ agent_telemetry:
 `
 
 	// errortrackingLocalFalseConfig sets the local switch explicitly off.
-	errortrackingLocalFalseConfig = `remote_flags:
+	errortrackingLocalFalseConfig = `log_level: debug
+remote_flags:
   enabled: true
 agent_telemetry:
   errortracking:
@@ -225,5 +227,15 @@ func (s *errortrackingFlagSuite) TestLocalFalseWinsOverFlag() {
 	s.removeFlag()
 
 	s.setFlag(flagErrortracking, true, true)
+
+	// Prove the flag reached the agent and was deliberately overridden, so
+	// that the quiet period below cannot pass just because it never arrived.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(
+			"sudo grep -c 'errortracking remote flag is true, local setting present: true, errortracking on: false' /var/log/datadog/agent.log || true")
+		require.NoError(c, err)
+		assert.NotEqual(c, "0", strings.TrimSpace(out))
+	}, 2*time.Minute, 5*time.Second, "the agent never logged the flag as received")
+
 	s.requireQuiet("an explicit local false must win over the flag")
 }

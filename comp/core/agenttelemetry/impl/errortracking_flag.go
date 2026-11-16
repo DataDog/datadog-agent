@@ -8,6 +8,7 @@ package agenttelemetryimpl
 import (
 	"sync"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 )
@@ -41,8 +42,14 @@ func (s remoteFlagSubscriber) Handlers() []pkgremoteflags.FlagHandler { return s
 // An absent flag and a recovery therefore only switch off what the flag
 // switched on; a local true is never undone. A setting counts as local when
 // it comes from any source other than the schema default.
+//
+// The Remote Flags client delivers a change from its own goroutine but an
+// absent flag inline, so a value that was just removed can be followed by a
+// late change that turns the feature on while the flag is absent. The next
+// event corrects it.
 type errortrackingFlagHandler struct {
 	cfg     pkgconfigmodel.Reader
+	log     log.Component
 	apply   func(on bool)
 	healthy func() bool
 
@@ -51,8 +58,8 @@ type errortrackingFlagHandler struct {
 	mu sync.Mutex
 }
 
-func newErrortrackingFlagHandler(cfg pkgconfigmodel.Reader, apply func(on bool), healthy func() bool) *errortrackingFlagHandler {
-	return &errortrackingFlagHandler{cfg: cfg, apply: apply, healthy: healthy}
+func newErrortrackingFlagHandler(cfg pkgconfigmodel.Reader, logComp log.Component, apply func(on bool), healthy func() bool) *errortrackingFlagHandler {
+	return &errortrackingFlagHandler{cfg: cfg, log: logComp, apply: apply, healthy: healthy}
 }
 
 // FlagName returns the flag name.
@@ -87,9 +94,11 @@ func (h *errortrackingFlagHandler) set(flagOn bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if h.cfg.IsConfigured(errortrackingEnabledKey) {
-		h.apply(h.cfg.GetBool(errortrackingEnabledKey))
-		return
+	on := flagOn
+	local := h.cfg.IsConfigured(errortrackingEnabledKey)
+	if local {
+		on = h.cfg.GetBool(errortrackingEnabledKey)
 	}
-	h.apply(flagOn)
+	h.log.Debugf("errortracking remote flag is %v, local setting present: %v, errortracking on: %v", flagOn, local, on)
+	h.apply(on)
 }

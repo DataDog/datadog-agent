@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryimpl "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,5 +21,12 @@ func Module() fxutil.Module {
 			agenttelemetryimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[agenttelemetry.Component](),
+		fx.Invoke(constructComponent),
 	)
 }
+
+// constructComponent forces the component to be built even when nothing
+// injects it: fx builds lazily, and several binaries only add this module.
+// Building it registers errortracking when it is enabled locally and
+// subscribes the remote flag handlers.
+func constructComponent(agenttelemetry.Component) {}

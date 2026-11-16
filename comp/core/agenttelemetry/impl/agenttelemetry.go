@@ -82,10 +82,13 @@ type atel struct {
 	// the health signal of the errortracking remote flag.
 	errLogsFlushFailures atomic.Uint32
 
-	errortrackingMu  sync.Mutex
-	errortrackingJob bool
-	started          bool
-	stopped          bool
+	errortrackingMu sync.Mutex
+	// errortrackingDrains tracks the flushes of queues released by a switch
+	// off, which stop waits for.
+	errortrackingDrains sync.WaitGroup
+	errortrackingJob    bool
+	started             bool
+	stopped             bool
 
 	// flag gates profiles carrying a `remote_flag`; nil means every gated profile is off.
 	flag *remoteFlagHandler
@@ -300,7 +303,7 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Config, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(deps.Config, deps.Log, a.setErrortracking, a.isErrortrackingHealthy)
 
 	// Register synchronously, not on start, so errors logged while the
 	// component graph is still being built are not dropped.
@@ -810,19 +813,32 @@ func (a *atel) SubmitErrorLog(log errortracking.ErrorLog) {
 // a producer with no retry expectation; retrying at flush time would
 // block subsequent ticks and require additional buffering complexity.
 func (a *atel) flushErrortracking(ctx context.Context) {
-	if ch := a.errLogsCh.Load(); ch != nil {
-		a.flushErrortrackingQueue(ctx, *ch)
+	ch := a.errLogsCh.Load()
+	if ch == nil {
+		return
 	}
+	sent, err := a.flushErrortrackingQueue(ctx, *ch)
+	// Only the live queue feeds the health signal: a switch off or on while
+	// this flush ran makes its outcome irrelevant.
+	if !sent || a.errLogsCh.Load() != ch {
+		return
+	}
+	if err != nil {
+		a.errLogsFlushFailures.Inc()
+		return
+	}
+	a.errLogsFlushFailures.Store(0)
 }
 
 // flushErrortrackingQueue drains up to the current depth of ch and sends it.
-func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortracking.ErrorLog) {
+// It reports whether a batch was sent and the send error.
+func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortracking.ErrorLog) (bool, error) {
 	// Snapshot the current queue depth so a hot producer cannot extend
 	// this batch indefinitely: items arriving after the snapshot wait for
 	// the next tick rather than growing errLogs beyond cap(ch).
 	n := len(ch)
 	if n == 0 {
-		return
+		return false, nil
 	}
 	errLogs := make([]errortracking.ErrorLog, 0, n)
 	for range n {
@@ -835,7 +851,7 @@ func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortrackin
 		}
 	}
 	if len(errLogs) == 0 {
-		return
+		return false, nil
 	}
 	logs := make([]Log, len(errLogs))
 	for i, l := range errLogs {
@@ -843,11 +859,9 @@ func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortrackin
 	}
 	err := a.sender.sendLogsBatch(ctx, logs)
 	if err != nil {
-		a.errLogsFlushFailures.Inc()
 		a.logComp.Debugf("errortracking flush failed (%d logs): %v", len(errLogs), err)
-		return
 	}
-	a.errLogsFlushFailures.Store(0)
+	return true, err
 }
 
 // isErrortrackingHealthy is the health probe of the errortracking remote
@@ -887,6 +901,10 @@ func unpublishErrortracking() {
 // is already buffered the way stop does, then releases the queue. Records a
 // producer submitted concurrently with the switch may be dropped. Errors
 // logged before the remote flag first arrives are not captured.
+//
+// The release of the queue runs in the background so that the Remote Flags
+// client, which calls this under its own lock, is never held up by a slow
+// intake; stop waits for it.
 func (a *atel) setErrortracking(on bool) {
 	a.errortrackingMu.Lock()
 	if !a.enabled || a.stopped || (a.errLogsCh.Load() != nil) == on {
@@ -905,11 +923,13 @@ func (a *atel) setErrortracking(on bool) {
 
 	unpublishErrortracking()
 	ch := a.errLogsCh.Swap(nil)
+	a.errortrackingDrains.Add(1)
 	a.errortrackingMu.Unlock()
 
-	if ch != nil {
+	go func() {
+		defer a.errortrackingDrains.Done()
 		a.drainErrortracking(*ch)
-	}
+	}()
 }
 
 // drainErrortracking sends what ch holds, bounded by the shutdown drain
@@ -917,7 +937,7 @@ func (a *atel) setErrortracking(on bool) {
 func (a *atel) drainErrortracking(ch chan errortracking.ErrorLog) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
 	defer cancel()
-	a.flushErrortrackingQueue(ctx, ch)
+	_, _ = a.flushErrortrackingQueue(ctx, ch)
 }
 
 // addErrortrackingJobLocked schedules the errortracking flush on the runner
@@ -1043,6 +1063,7 @@ func (a *atel) stop() error {
 	// Final errortracking drain. Uses a fresh background-derived ctx
 	// because a.cancelCtx is already done; the bounded timeout caps the
 	// budget so a hung intake cannot block shutdown.
+	a.errortrackingDrains.Wait()
 	if ch := a.errLogsCh.Load(); ch != nil {
 		a.drainErrortracking(*ch)
 	}

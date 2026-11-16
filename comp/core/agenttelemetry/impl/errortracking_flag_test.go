@@ -81,7 +81,7 @@ func newErrortrackingFlagTestAtel(t *testing.T, yaml string, sndr sender) (*atel
 	runner := &runnerMock{}
 	a := getTestAtel(t, nil, yaml, sndr, nil, stoppableRunner{runner})
 	require.True(t, a.enabled)
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
 	require.NoError(t, a.start())
 	t.Cleanup(a.cancel)
 	return a, runner
@@ -131,7 +131,7 @@ func TestErrortrackingFlagHandler_Precedence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, tt.local)
 			var applied []bool
-			h := newErrortrackingFlagHandler(cfg, func(on bool) { applied = append(applied, on) }, func() bool { return true })
+			h := newErrortrackingFlagHandler(cfg, makeLogMock(t), func(on bool) { applied = append(applied, on) }, func() bool { return true })
 
 			for _, e := range tt.events {
 				e.deliver(h)
@@ -145,7 +145,7 @@ func TestErrortrackingFlagHandler_Precedence(t *testing.T) {
 
 func TestErrortrackingFlagHandler_Identity(t *testing.T) {
 	healthy := true
-	h := newErrortrackingFlagHandler(configmock.NewFromYAML(t, errortrackingLocalUnset), func(bool) {}, func() bool { return healthy })
+	h := newErrortrackingFlagHandler(configmock.NewFromYAML(t, errortrackingLocalUnset), makeLogMock(t), func(bool) {}, func() bool { return healthy })
 
 	assert.Equal(t, pkgremoteflags.FlagName("agent_errortracking"), h.FlagName())
 	assert.True(t, h.IsHealthy())
@@ -157,7 +157,7 @@ func TestErrortrackingFlagHandler_Identity(t *testing.T) {
 // and the existing one keeps its flag and behavior.
 func TestRemoteFlagSubscriber_BothHandlers(t *testing.T) {
 	a := getRemoteFlagTestAtel(t, &senderMock{})
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
 
 	handlers := remoteFlagSubscriber{a.flag, a.errortrackingFlag}.Handlers()
 
@@ -191,6 +191,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	// submissions are dropped.
 	a.SubmitErrorLog(errorLog("buffered when switched off"))
 	_ = a.errortrackingFlag.OnChange(false)
+	a.errortrackingDrains.Wait()
 	assert.Len(t, sndr.capturedLogs(), 2)
 	assert.Nil(t, testQueue(a))
 	a.SubmitErrorLog(errorLog("after off"))
@@ -273,7 +274,7 @@ func TestSetErrortracking_AgentTelemetryDisabled(t *testing.T) {
 	cleanupErrortrackingSlots(t)
 	cfg := configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n")
 	a := createAtel(cfg, makeLogMock(t), makeTelMock(t), &senderMock{}, &runnerMock{})
-	h := newErrortrackingFlagHandler(cfg, a.setErrortracking, a.isErrortrackingHealthy)
+	h := newErrortrackingFlagHandler(cfg, makeLogMock(t), a.setErrortracking, a.isErrortrackingHealthy)
 
 	_ = h.OnChange(true)
 
@@ -359,7 +360,7 @@ func TestErrortrackingFlag_TroubleshootingUnaffected(t *testing.T) {
 	sndr := &senderMock{}
 	a := getRemoteFlagTestAtel(t, sndr)
 	cleanupErrortrackingSlots(t)
-	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.setErrortracking, a.isErrortrackingHealthy)
+	a.errortrackingFlag = newErrortrackingFlagHandler(a.cfgComp, a.logComp, a.setErrortracking, a.isErrortrackingHealthy)
 
 	require.NoError(t, a.flag.OnChange(true))
 	assert.Nil(t, testQueue(a), "the troubleshooting flag must not turn errortracking on")
@@ -416,4 +417,71 @@ func TestSetErrortracking_ConcurrentToggleAndSubmit(t *testing.T) {
 		require.NoError(t, a.stop())
 	})
 	assert.Nil(t, testQueue(a))
+}
+
+// gatedSender blocks errortracking sends until released, then returns err.
+type gatedSender struct {
+	*senderMock
+	entered chan struct{}
+	release chan struct{}
+	err     error
+}
+
+func newGatedSender(err error) *gatedSender {
+	return &gatedSender{senderMock: &senderMock{}, entered: make(chan struct{}, 8), release: make(chan struct{}), err: err}
+}
+
+func (s *gatedSender) sendLogsBatch(ctx context.Context, logs []Log) error {
+	s.entered <- struct{}{}
+	<-s.release
+	if s.err != nil {
+		return s.err
+	}
+	return s.senderMock.sendLogsBatch(ctx, logs)
+}
+
+// Switching off must return while the release of the queue is still stuck
+// on a slow intake, because the Remote Flags client calls it under its lock.
+// Stop waits for that release.
+func TestSetErrortracking_OffDoesNotWaitForTheFlush(t *testing.T) {
+	sndr := newGatedSender(nil)
+	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
+	a.setErrortracking(true)
+	a.SubmitErrorLog(errorLog("buffered"))
+
+	returned := make(chan struct{})
+	go func() {
+		a.errortrackingFlag.OnNoConfig()
+		close(returned)
+	}()
+	<-sndr.entered // the release of the queue is now blocked in the sender
+	<-returned
+	assert.Nil(t, testQueue(a))
+
+	stopped := make(chan struct{})
+	go func() {
+		_ = a.stop()
+		close(stopped)
+	}()
+	close(sndr.release)
+	<-stopped
+	assert.Len(t, sndr.capturedLogs(), 1, "stop must wait for the release of the queue")
+}
+
+// A release that outlives its queue must not feed the health signal of the
+// queue that replaced it.
+func TestSetErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
+	sndr := newGatedSender(errors.New("intake unavailable"))
+	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
+	a.setErrortracking(true)
+	a.SubmitErrorLog(errorLog("buffered"))
+	a.setErrortracking(false)
+	<-sndr.entered
+	a.setErrortracking(true)
+
+	close(sndr.release)
+	a.errortrackingDrains.Wait()
+
+	assert.True(t, a.isErrortrackingHealthy())
+	assert.Zero(t, a.errLogsFlushFailures.Load())
 }

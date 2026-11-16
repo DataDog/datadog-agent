@@ -8,6 +8,9 @@
 package fx
 
 import (
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,4 +56,45 @@ func TestModuleProvidesRemoteFlagSubscriber(t *testing.T) {
 	}
 	assert.Contains(t, names, pkgremoteflags.FlagName("troubleshooting_coat_bundle"))
 	assert.Contains(t, names, pkgremoteflags.FlagName("agent_errortracking"))
+}
+
+// recordingLog records the info messages, to observe what gets built.
+type recordingLog struct {
+	logdef.Component
+	mu   sync.Mutex
+	msgs []string
+}
+
+func (l *recordingLog) Infof(format string, params ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.msgs = append(l.msgs, fmt.Sprintf(format, params...))
+}
+
+func (l *recordingLog) started() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, m := range l.msgs {
+		if strings.HasPrefix(m, "Starting agent telemetry") {
+			return true
+		}
+	}
+	return false
+}
+
+// Binaries that only add the module, without injecting the component, must
+// still get it built, started and subscribed to the remote flags.
+func TestModuleBuildsComponentWhenNothingInjectsIt(t *testing.T) {
+	rec := &recordingLog{Component: logmock.New(t)}
+
+	fxutil.Test[struct{ fx.In }](t,
+		fx.Options(
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() logdef.Component { return rec }),
+			telemetrymock.Module(),
+			Module(),
+		),
+	)
+
+	assert.True(t, rec.started())
 }
