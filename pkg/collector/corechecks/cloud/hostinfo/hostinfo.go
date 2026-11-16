@@ -89,9 +89,19 @@ func (c *Check) applyMetadataResults() {
 	case c.metadataFailedThisRun:
 		c.metadataFailures++
 		c.metadataLastFailure = time.Now()
+		if c.metadataFailures == metadataFailureThreshold {
+			log.Debugf("Cloud metadata lookups failed on %d consecutive runs, retrying preemption and rebalance detection at most once every %s until the metadata service answers", c.metadataFailures, metadataFailureBackoff)
+		}
 	}
 	c.metadataFailedThisRun = false
 	c.metadataAnsweredThisRun = false
+}
+
+// inMetadataBackoff reports whether metadata lookups should be skipped on this
+// run: after metadataFailureThreshold consecutive failed runs, lookups are only
+// retried once metadataFailureBackoff has elapsed since the last failure.
+func (c *Check) inMetadataBackoff() bool {
+	return c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastFailure) < metadataFailureBackoff
 }
 
 // Check collects host information from cloud provider metadata services
@@ -175,7 +185,7 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 	// After repeated transient failures (e.g. IMDS unreachable from a
 	// hop-limited container), retry at most once per backoff window instead
 	// of on every check run.
-	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastFailure) < metadataFailureBackoff {
+	if c.inMetadataBackoff() {
 		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastFailure.Add(metadataFailureBackoff))
 		return
 	}
@@ -245,7 +255,7 @@ func (c *Check) checkRebalanceRecommendation(sender sender.Sender) {
 
 	// The rebalance lookup hits the same unreachable IMDS endpoint; back it
 	// off on the same counter as the preemption lookup.
-	if c.metadataFailures >= metadataFailureThreshold && time.Since(c.metadataLastFailure) < metadataFailureBackoff {
+	if c.inMetadataBackoff() {
 		log.Tracef("Skipping rebalance recommendation check, %d consecutive failures, backing off until %s", c.metadataFailures, c.metadataLastFailure.Add(metadataFailureBackoff))
 		return
 	}

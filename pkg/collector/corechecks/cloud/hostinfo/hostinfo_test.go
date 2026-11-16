@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -422,19 +423,29 @@ func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
 		return "AWS", ""
 	}
 
-	attempts := 0
 	// A transient failure mode (IMDS unreachable — not one of the sentinel
 	// errors that stops polling), so the check must keep retrying, but only
-	// once per backoff window after repeated failures (#55269).
+	// once per backoff window after repeated failures (#55269). Both lookups
+	// fail, so the shared counter advances.
+	lookupErr := errors.New("connection timed out")
+	preemptionAttempts, rebalanceAttempts := 0, 0
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
-		attempts++
-		return time.Time{}, errors.New("connection timed out")
+		preemptionAttempts++
+		return time.Time{}, lookupErr
 	}
-	// Both lookups must fail to advance the shared connectivity counter.
 	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
-		return time.Time{}, errors.New("connection timed out")
+		rebalanceAttempts++
+		return time.Time{}, lookupErr
 	}
 	uptime = uptimeSampler
+	assertAttempts := func(expected int) {
+		t.Helper()
+		assert.Equal(t, expected, preemptionAttempts, "preemption attempts")
+		assert.Equal(t, expected, rebalanceAttempts, "rebalance attempts")
+	}
+	expireBackoffWindow := func(check *Check) {
+		check.metadataLastFailure = check.metadataLastFailure.Add(-metadataFailureBackoff)
+	}
 
 	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
@@ -444,47 +455,116 @@ func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
 	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	mocksender.SetSender(mockSender, check.ID())
 
-	// Simulate the default 15s check interval: four consecutive runs hit the
-	// lookup, then the backoff window must skip it.
-	for i := 0; i < 4; i++ {
+	// Four consecutive failed runs reach both lookups and arm the backoff.
+	for i := 0; i < metadataFailureThreshold; i++ {
 		check.Run()
 	}
-	assert.Equal(t, 4, attempts)
-	assert.Equal(t, 4, check.metadataFailures)
+	assertAttempts(metadataFailureThreshold)
+	assert.Equal(t, metadataFailureThreshold, check.metadataFailures)
 
 	// The backoff window is 60s; without advancing the clock, further runs
-	// must not reach the lookup.
+	// must not reach either lookup.
 	check.Run()
 	check.Run()
-	assert.Equal(t, 4, attempts)
+	assertAttempts(metadataFailureThreshold)
 
-	// After the window elapses, the lookup is attempted again.
+	// After the window elapses, both lookups are retried once. The retry
+	// fails, so the backoff stays armed and a new full window starts.
+	expireBackoffWindow(check)
+	check.Run()
+	assertAttempts(metadataFailureThreshold + 1)
+	assert.Equal(t, metadataFailureThreshold+1, check.metadataFailures)
+	check.Run()
+	assertAttempts(metadataFailureThreshold + 1)
+
+	// IMDS recovers to the healthy no-active-notice steady state. The next
+	// retry after the window gets a 404, which clears the armed backoff.
+	lookupErr = &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"}
+	expireBackoffWindow(check)
+	check.Run()
+	assertAttempts(metadataFailureThreshold + 2)
+	assert.Zero(t, check.metadataFailures)
+
+	// From then on, every ordinary run polls both lookups again, without
+	// touching the clock.
+	check.Run()
+	check.Run()
+	assertAttempts(metadataFailureThreshold + 4)
+	assert.Zero(t, check.metadataFailures)
+	mockSender.AssertNumberOfCalls(t, "Event", 0)
+}
+
+func TestHostInfoCheckBackoffRecoveryEmitsNoticeOnce(t *testing.T) {
+	defer resetTestVars()
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	// IMDS is unreachable until the termination notice shows up.
+	var terminationTime time.Time
+	terminationErr := errors.New("connection timed out")
+	preemptionAttempts := 0
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		preemptionAttempts++
+		return terminationTime, terminationErr
+	}
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("connection timed out")
+	}
+	uptime = uptimeSampler
+
+	mockSender := mocksender.NewMockSender(t, CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+	mockSender.On("Commit").Return()
+	mockSender.On("Event", mock.MatchedBy(func(ev event.Event) bool {
+		return ev.Title == "Instance Preemption" && ev.EventType == PreemptionEventType
+	})).Return().Once()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	mocksender.SetSender(mockSender, check.ID())
+
+	// Arm the backoff.
+	for i := 0; i < metadataFailureThreshold; i++ {
+		check.Run()
+	}
+	assert.Equal(t, metadataFailureThreshold, check.metadataFailures)
+
+	// IMDS recovers with an active termination notice, but the backoff is
+	// still armed: the notice must wait for the window to elapse.
+	terminationTime = time.Now().Add(2 * time.Minute)
+	terminationErr = nil
+	check.Run()
+	assert.Equal(t, metadataFailureThreshold, preemptionAttempts)
+	mockSender.AssertNumberOfCalls(t, "Event", 0)
+
+	// Once the window elapses, the retry picks up the notice, emits exactly
+	// one event and clears the backoff.
 	check.metadataLastFailure = check.metadataLastFailure.Add(-metadataFailureBackoff)
 	check.Run()
-	assert.Equal(t, 5, attempts)
+	assert.Equal(t, metadataFailureThreshold+1, preemptionAttempts)
+	assert.Zero(t, check.metadataFailures)
+	mockSender.AssertNumberOfCalls(t, "Event", 1)
 
-	// A later success resets the failure count so every run polls again.
-	// (A past termination time is a success path that stores no event.)
-	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
-		attempts++
-		return time.Now().Add(-time.Minute), nil
-	}
-	check.metadataFailures = metadataFailureThreshold - 1
-	check.metadataLastFailure = time.Now().Add(-metadataFailureBackoff)
+	// The known termination time stops further polling and duplicate events.
 	check.Run()
-	assert.Equal(t, 0, check.metadataFailures)
+	check.Run()
+	assert.Equal(t, metadataFailureThreshold+1, preemptionAttempts)
+	mockSender.AssertNumberOfCalls(t, "Event", 1)
+	mockSender.AssertExpectations(t)
 }
 
 func TestMetadataLookupFailureClassification(t *testing.T) {
 	// The healthy no-active-notice response is a 404 from IMDS and must not
 	// count toward the backoff; every other failure (timeout, connection
 	// refused, 5xx) must.
-	assert.True(t, metadataLookupFailure(nil) == false)
-	assert.False(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
-	assert.True(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: 503, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
+	assert.False(t, metadataLookupFailure(nil))
+	assert.False(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
+	assert.True(t, metadataLookupFailure(&httputils.StatusCodeError{StatusCode: http.StatusServiceUnavailable, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}))
 	assert.True(t, metadataLookupFailure(errors.New("connection timed out")))
 	// Wrapped StatusCodeError still classifies by status code.
-	assert.False(t, metadataLookupFailure(fmt.Errorf("unable to retrieve spot instance-action from IMDS: %w", &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"})))
+	assert.False(t, metadataLookupFailure(fmt.Errorf("unable to retrieve spot instance-action from IMDS: %w", &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"})))
 }
 
 func TestHostInfoCheckHealthy404DoesNotBackOff(t *testing.T) {
@@ -497,7 +577,7 @@ func TestHostInfoCheckHealthy404DoesNotBackOff(t *testing.T) {
 	attempts := 0
 	// The healthy steady state on a spot instance without an active notice:
 	// the termination endpoint answers 404 every time.
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "http://169.254.169.254/latest/meta-data/spot/instance-action"}
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
 		attempts++
 		return time.Time{}, notFound
@@ -553,7 +633,7 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 	// IMDS recovers to the healthy no-active-notice steady state: a 404
 	// must clear the stale failures, not just skip the increment, or they
 	// would linger forever on a spot instance that only ever 404s.
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"}
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
 		return time.Time{}, notFound
 	}
@@ -565,12 +645,12 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 }
 
 func TestHostInfoCheckHealthyLookupPreventsBackoff(t *testing.T) {
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	notFound := &httputils.StatusCodeError{StatusCode: http.StatusNotFound, Method: http.MethodGet, URL: "u"}
 	for _, failure := range []struct {
 		name string
 		err  error
 	}{
-		{name: "server_error", err: &httputils.StatusCodeError{StatusCode: 503, Method: "GET", URL: "u"}},
+		{name: "server_error", err: &httputils.StatusCodeError{StatusCode: http.StatusServiceUnavailable, Method: http.MethodGet, URL: "u"}},
 		{name: "generic_error", err: errors.New("metadata lookup failed")},
 	} {
 		for _, healthyLookup := range []struct {
