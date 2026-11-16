@@ -292,7 +292,7 @@ func (s *RemoteQueryExecuteService) resultDeliveryBaseURL() (string, error) {
 	site := strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
 	var host string
 	switch site {
-	case "datad0g.com", "datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com", "ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com", "ddog-gov.com", "us2.ddog-gov.com", "datad0g.eu", "us3.datad0g.com":
+	case "datad0g.com", "datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com", "us7.datadoghq.com", "us8.datadoghq.com", "ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com", "ddog-gov.com", "us2.ddog-gov.com", "datad0g.eu", "us3.datad0g.com":
 		host = "api." + site
 	default:
 		return "", errors.New("remote query upload destination is unavailable for the Agent site")

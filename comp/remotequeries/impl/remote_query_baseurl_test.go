@@ -39,6 +39,8 @@ func TestExecuteStreamResolvesResultDeliveryBaseURLFromLocalSite(t *testing.T) {
 		{name: "production", site: "datadoghq.com", want: "https://api.datadoghq.com/api/unstable/its-agent-intake"},
 		{name: "EU", site: "datadoghq.eu", want: "https://api.datadoghq.eu/api/unstable/its-agent-intake"},
 		{name: "US3", site: "us3.datadoghq.com", want: "https://api.us3.datadoghq.com/api/unstable/its-agent-intake"},
+		{name: "US7", site: "us7.datadoghq.com", want: "https://api.us7.datadoghq.com/api/unstable/its-agent-intake"},
+		{name: "US8", site: "us8.datadoghq.com", want: "https://api.us8.datadoghq.com/api/unstable/its-agent-intake"},
 		{name: "normalized", site: "  AP1.Datadoghq.com ", want: "https://api.ap1.datadoghq.com/api/unstable/its-agent-intake"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
