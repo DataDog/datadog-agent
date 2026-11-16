@@ -12,10 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/cenkalti/backoff/v7"
 	containerd "github.com/containerd/containerd/v2/client"
 	containerdevents "github.com/containerd/containerd/v2/core/events"
 	"go.uber.org/fx"
@@ -59,6 +61,11 @@ const (
 	TaskResumedTopic = "/tasks/resumed"
 )
 
+const (
+	reconnectInitialBackoff = 1 * time.Second
+	reconnectMaxBackoff     = 5 * time.Minute
+)
+
 // containerdTopics includes the containerd topics that we want to subscribe to
 var containerdTopics = []string{
 	containerCreationTopic,
@@ -95,6 +102,10 @@ type collector struct {
 	containerdClient cutil.ContainerdItf
 	eventsChan       <-chan *containerdevents.Envelope
 	errorsChan       <-chan error
+	cancelEvents     context.CancelFunc
+
+	// newClient opens a connection to the containerd socket.
+	newClient func() (cutil.ContainerdItf, error)
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -131,6 +142,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			imageSBOMs:             make(map[string]*workloadmeta.CompressedSBOM),
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
+			newClient:              cutil.NewContainerdUtil,
 		},
 	}, nil
 }
@@ -148,36 +160,34 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.store = store
 
 	var err error
-	c.containerdClient, err = cutil.NewContainerdUtil()
+	c.containerdClient, err = c.newClient()
 	if err != nil {
 		return err
 	}
 
 	if err = c.startSBOMCollection(ctx); err != nil {
+		c.closeClient()
 		return err
 	}
 
 	errs := c.filterPausedContainers.GetErrors()
 	if len(errs) > 0 {
+		c.closeClient()
 		return fmt.Errorf("failed to create container filter: %w", errors.Join(errs...))
 	}
 
-	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
-
-	err = c.notifyInitialEvents(ctx)
-	if err != nil {
-		cancelEvents()
+	if err = c.subscribeAndResync(ctx); err != nil {
+		c.closeClient()
 		return err
 	}
 
 	go func() {
+		defer c.closeClient()
 		defer func() {
-			if errClose := c.containerdClient.Close(); errClose != nil {
-				log.Warnf("Error when closing containerd connection: %s", errClose)
+			if c.cancelEvents != nil {
+				c.cancelEvents()
 			}
 		}()
-		defer cancelEvents()
 
 		c.stream(ctx)
 	}()
@@ -199,7 +209,11 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 
 func (c *collector) stream(ctx context.Context) {
 	healthHandle := health.RegisterLiveness(componentName)
-	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		if err := healthHandle.Deregister(); err != nil {
+			log.Warnf("error de-registering health check: %s", err)
+		}
+	}()
 
 	for {
 		select {
@@ -211,20 +225,86 @@ func (c *collector) stream(ctx context.Context) {
 			}
 
 		case err := <-c.errorsChan:
-			if err != nil {
-				log.Errorf("stopping collection: %s", err)
+			if ctx.Err() != nil {
+				return
 			}
-			cancel()
-			return
+
+			if errors.Is(err, io.EOF) {
+				log.Info("containerd event stream ended, reconnecting")
+			} else {
+				log.Errorf("containerd event stream failed, reconnecting: %s", err)
+			}
+
+			if !c.reconnect(ctx) {
+				return
+			}
 
 		case <-ctx.Done():
-			err := healthHandle.Deregister()
-			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
-			}
-			cancel()
 			return
 		}
+	}
+}
+
+// reconnect re-establishes the containerd event stream after it ended,
+// retrying with a backoff until it succeeds or ctx is done and returns
+// whether the stream was successfully  re-established.
+func (c *collector) reconnect(ctx context.Context) bool {
+	backoff := backoff.NewExponentialBackOff()
+	backoff.InitialInterval = reconnectInitialBackoff
+	backoff.MaxInterval = reconnectMaxBackoff
+
+	for {
+		if err := c.resubscribe(ctx); err != nil {
+			log.Errorf("could not reconnect to the containerd event stream: %s", err)
+			select {
+			case <-ctx.Done():
+				return false
+			case <-time.After(backoff.NextBackOff()):
+			}
+			continue
+		}
+		return true
+	}
+}
+
+// resubscribe closes the current containerd connection and opens a new one
+func (c *collector) resubscribe(ctx context.Context) error {
+	c.closeClient()
+
+	newClient, err := c.newClient()
+	if err != nil {
+		return err
+	}
+	c.containerdClient = newClient
+
+	return c.subscribeAndResync(ctx)
+}
+
+// subscribeAndResync subscribes to the containerd event stream and notifies
+// the store with the current state of containers and images.
+func (c *collector) subscribeAndResync(ctx context.Context) error {
+	// Cancel the previous subscription, if any
+	if c.cancelEvents != nil {
+		c.cancelEvents()
+		c.cancelEvents = nil
+	}
+
+	eventsCtx, cancelEvents := context.WithCancel(ctx)
+	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, c.subscribeFilters()...)
+
+	if err := c.notifyInitialEvents(ctx); err != nil {
+		cancelEvents()
+		return err
+	}
+
+	c.cancelEvents = cancelEvents
+	return nil
+}
+
+// closeClient closes the current containerd connection, logging failures.
+func (c *collector) closeClient() {
+	if err := c.containerdClient.Close(); err != nil {
+		log.Warnf("Error when closing containerd connection: %s", err)
 	}
 }
 
