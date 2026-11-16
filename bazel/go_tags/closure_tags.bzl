@@ -1888,6 +1888,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/util/system": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/system/socket": ["clusterchecks"],
     "github.com/DataDog/datadog-agent/pkg/util/tags": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/util/telemetry": ["functionaltests", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/testutil": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/testutil/docker": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/testutil/flake": ["test"],
