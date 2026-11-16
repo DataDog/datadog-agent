@@ -234,7 +234,7 @@ func (s *errortrackingFlagSuite) TestLocalFalseWinsOverFlag() {
 		out, err := s.Env().RemoteHost.Execute(
 			"sudo grep -c 'errortracking remote flag is true, local setting present: true, errortracking on: false' /var/log/datadog/agent.log || true")
 		require.NoError(c, err)
-		assert.NotEqual(c, "0", strings.TrimSpace(out))
+		assert.Regexp(c, `^[1-9][0-9]*$`, strings.TrimSpace(out))
 	}, 2*time.Minute, 5*time.Second, "the agent never logged the flag as received")
 
 	s.requireQuiet("an explicit local false must win over the flag")

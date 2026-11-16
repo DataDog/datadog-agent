@@ -10,6 +10,7 @@ go_library(
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/impl",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
