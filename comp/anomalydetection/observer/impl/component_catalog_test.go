@@ -190,8 +190,8 @@ anomaly_detection:
 								`{"enabled":%t,"min_points":42,"max_points":84}`,
 								enabled)),
 						})
-						require.NoError(t, err)
 					}
+					require.NoError(t, err)
 					detectors, _, _, _, components := instantiateForTest(t, defaultCatalog(), settings)
 					var want, got any
 					switch d := components[name].instance.(type) {
@@ -305,12 +305,7 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
-anomaly_detection:
-  metric_pipeline:
-    enabled: true
-    stable:
-%s`, test.yaml))
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
 			_, err := settingsFromAgentConfig(defaultCatalog(), cfg)
 			require.EqualError(t, err, test.want)
 		})
