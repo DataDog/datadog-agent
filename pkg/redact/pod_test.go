@@ -797,3 +797,56 @@ fi;
 	}
 	return tests
 }
+
+func TestScrubContainerTokenNamesAndKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	probe := func(value string) *v1.Probe {
+		return &v1.Probe{ProbeHandler: v1.ProbeHandler{HTTPGet: &v1.HTTPGetAction{
+			HTTPHeaders: []v1.HTTPHeader{{Name: "X-Webhook", Value: value}},
+		}}}
+	}
+	secretRef := &v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{Key: "token"}}
+	input := v1.Container{
+		Env: []v1.EnvVar{
+			{Name: "SLACK_BOT_TOKEN", Value: "not-a-known-format"},
+			{Name: "CI_GITHUB_PAT", Value: "not-a-known-format"},
+			{Name: "USER_IDENTITY", Value: fakeJWT()},
+			{Name: "UPSTREAM", Value: "Bearer " + fakeGitHubToken()},
+			{Name: "HF_TOKEN", ValueFrom: secretRef},
+			{Name: "MAX_TOKENS", Value: "1024"},
+			{Name: "TOKENIZERS_PARALLELISM", Value: "false"},
+			{Name: "SA_TOKEN_PATH", Value: "/var/run/secrets/token"},
+		},
+		Args:          []string{"--notify", fakeSlackBotToken(), "--verbose"},
+		LivenessProbe: probe("Bearer " + fakeJWT()),
+	}
+	expected := v1.Container{
+		Env: []v1.EnvVar{
+			{Name: "SLACK_BOT_TOKEN", Value: "********"},
+			{Name: "CI_GITHUB_PAT", Value: "********"},
+			{Name: "USER_IDENTITY", Value: "********"},
+			{Name: "UPSTREAM", Value: "Bearer ********"},
+			{Name: "HF_TOKEN", ValueFrom: secretRef},
+			{Name: "MAX_TOKENS", Value: "1024"},
+			{Name: "TOKENIZERS_PARALLELISM", Value: "false"},
+			{Name: "SA_TOKEN_PATH", Value: "/var/run/secrets/token"},
+		},
+		Args:          []string{"--notify", "********", "--verbose"},
+		LivenessProbe: probe("Bearer ********"),
+	}
+	scrubContainer(&input, scrubber)
+	assert.Equal(t, expected, input)
+}
+
+func TestScrubPodAnnotationsKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+		"example.com/identity": fakeJWT(),
+		"example.com/owner":    "team-a",
+	}}}
+	ScrubPod(&pod, scrubber)
+	assert.Equal(t, map[string]string{
+		"example.com/identity": "********",
+		"example.com/owner":    "team-a",
+	}, pod.Annotations)
+}

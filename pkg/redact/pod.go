@@ -67,12 +67,22 @@ func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
 		for h := 0; h < len(probe.HTTPGet.HTTPHeaders); h++ {
 			if scrubber.ContainsSensitiveWord(probe.HTTPGet.HTTPHeaders[h].Name) {
 				probe.HTTPGet.HTTPHeaders[h].Value = redactedSecret
+			} else {
+				probe.HTTPGet.HTTPHeaders[h].Value = scrubber.ScrubKnownSecretValues(probe.HTTPGet.HTTPHeaders[h].Value)
 			}
 		}
 	}
 
 	if probe.Exec != nil {
+		scrubKnownSecretValuesInSlice(probe.Exec.Command, scrubber)
 		probe.Exec.Command, _, _ = scrubber.ScrubSimpleCommand(probe.Exec.Command, nil)
+	}
+}
+
+// scrubKnownSecretValuesInSlice redacts credentials recognized by their format in each element.
+func scrubKnownSecretValuesInSlice(values []string, scrubber *DataScrubber) {
+	for i := range values {
+		values[i] = scrubber.ScrubKnownSecretValues(values[i])
 	}
 }
 
@@ -80,13 +90,19 @@ func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
 func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
-		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
+		if isSensitiveEnvVarName(c.Env[e].Name, scrubber) {
 			// It's possible the env var is set using a ValueFrom field, in which case we don't want to scrub the value field
 			if c.Env[e].Value != "" {
 				c.Env[e].Value = redactedSecret
 			}
+		} else {
+			c.Env[e].Value = scrubber.ScrubKnownSecretValues(c.Env[e].Value)
 		}
 	}
+
+	// scrub credentials recognized by their format, whatever the flag name
+	scrubKnownSecretValuesInSlice(c.Command, scrubber)
+	scrubKnownSecretValuesInSlice(c.Args, scrubber)
 
 	// scrub probes http headers
 	scrubContainerProbe(c.LivenessProbe, scrubber)

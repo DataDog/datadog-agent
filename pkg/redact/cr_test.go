@@ -547,3 +547,48 @@ func getCRScrubCases() map[string]struct {
 	}
 	return tests
 }
+
+func TestScrubCRManifestKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	cr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "example.com/v1",
+		"kind":       "Notifier",
+		"metadata":   map[string]interface{}{"name": "notifier"},
+		"spec": map[string]interface{}{
+			"channel": "#alerts",
+			"webhook": fakeSlackBotToken(),
+			"headers": []interface{}{"Authorization: Bearer " + fakeJWT(), "Accept: */*"},
+			"env": []interface{}{
+				map[string]interface{}{"name": "DEPLOY_PAT", "value": "not-a-known-format"},
+				map[string]interface{}{"name": "UPSTREAM", "value": fakeGitHubToken()},
+				map[string]interface{}{"name": "LOG_LEVEL", "value": "info"},
+			},
+		},
+	}}
+	ScrubCRManifest(cr, scrubber)
+	assert.Equal(t, map[string]interface{}{
+		"channel": "#alerts",
+		"webhook": "********",
+		"headers": []interface{}{"Authorization: Bearer ********", "Accept: */*"},
+		"env": []interface{}{
+			map[string]interface{}{"name": "DEPLOY_PAT", "value": "********"},
+			map[string]interface{}{"name": "UPSTREAM", "value": "********"},
+			map[string]interface{}{"name": "LOG_LEVEL", "value": "info"},
+		},
+	}, cr.Object["spec"])
+}
+
+func TestScrubEnvMapKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	env := map[string]interface{}{
+		"GH_PAT":     "not-a-known-format",
+		"IDENTITY":   fakeJWT(),
+		"MAX_TOKENS": "1024",
+	}
+	scrubEnvMap(env, scrubber, false)
+	assert.Equal(t, map[string]interface{}{
+		"GH_PAT":     "********",
+		"IDENTITY":   "********",
+		"MAX_TOKENS": "1024",
+	}, env)
+}

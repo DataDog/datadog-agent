@@ -39,11 +39,13 @@ func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive 
 		isSensitiveKey := scrubber.ContainsSensitiveWord(lowerK)
 		shouldRedact := parentSensitive || isSensitiveKey
 
-		if shouldRedact {
-			if _, ok := v.(string); ok {
+		if s, ok := v.(string); ok {
+			if shouldRedact {
 				m[k] = redactedSecret
-				continue
+			} else {
+				m[k] = scrubber.ScrubKnownSecretValues(s)
 			}
+			continue
 		}
 
 		if k == "env" {
@@ -72,6 +74,8 @@ func scrubSlice(a []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 		case string:
 			if scrubber.ContainsSensitiveWord(item) || parentSensitive {
 				a[i] = redactedSecret
+			} else {
+				a[i] = scrubber.ScrubKnownSecretValues(item)
 			}
 		case map[string]interface{}:
 			scrubMap(item, scrubber, parentSensitive)
@@ -86,9 +90,11 @@ func scrubEnv(env []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 	for _, item := range env {
 		if item, ok := item.(map[string]interface{}); ok {
 			if name, ok := item["name"].(string); ok {
-				if _, ok := item["value"].(string); ok {
+				if value, ok := item["value"].(string); ok {
 					if isSensitiveEnvVarName(name, scrubber) || parentSensitive {
 						item["value"] = redactedSecret
+					} else {
+						item["value"] = scrubber.ScrubKnownSecretValues(value)
 					}
 				}
 			}
@@ -99,13 +105,23 @@ func scrubEnv(env []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 // scrubEnvMap scrubs sensitive values from map-form environment variables.
 func scrubEnvMap(env map[string]interface{}, scrubber *DataScrubber, parentSensitive bool) {
 	for name, value := range env {
-		if _, ok := value.(string); ok && (isSensitiveEnvVarName(name, scrubber) || parentSensitive) {
+		s, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if isSensitiveEnvVarName(name, scrubber) || parentSensitive {
 			env[name] = redactedSecret
+		} else {
+			env[name] = scrubber.ScrubKnownSecretValues(s)
 		}
 	}
 }
 
+// isSensitiveEnvVarName reports whether an env var holds a secret by its name: one
+// containing a sensitive word, or ending in "_token" or "_pat" (e.g. HF_TOKEN,
+// SLACK_BOT_TOKEN, GITHUB_PAT), while names like MAX_TOKENS are kept.
 func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
 	lowerName := strings.ToLower(name)
-	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
+	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" ||
+		strings.HasSuffix(lowerName, "_token") || strings.HasSuffix(lowerName, "_pat")
 }

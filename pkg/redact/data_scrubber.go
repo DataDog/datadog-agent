@@ -43,6 +43,25 @@ var (
 	// cmdlineTokenizer tokenizes by capturing non-whitespace terms as tokens EX: "agent --secret" > ["agent", "--secret"]
 	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
 	cmdlineTokenizer = regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
+
+	// knownSecretValues matches credentials by their own format, so they are redacted
+	// even when the surrounding key or env var name gives no hint (e.g. a JWT in
+	// USER_IDENTITY). Only formats with a distinctive prefix are listed, so hashes
+	// and IDs are left alone.
+	knownSecretValues = regexp.MustCompile(strings.Join([]string{
+		`eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+`,                 // JWT
+		`gh[pousr]_[A-Za-z0-9]{36,}`,                                                 // GitHub token
+		`github_pat_[A-Za-z0-9_]{22,}`,                                               // GitHub fine-grained token
+		`glpat-[A-Za-z0-9_-]{20,}`,                                                   // GitLab token
+		`xox[abposr]-[A-Za-z0-9-]{10,}`,                                              // Slack token
+		`xapp-[0-9]+-[A-Za-z0-9-]{10,}`,                                              // Slack app token
+		`npm_[A-Za-z0-9]{36}`,                                                        // npm token
+		`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----`, // PEM private key
+	}, "|"))
+
+	// knownSecretMarkers are literals every knownSecretValues match contains. Almost
+	// no value contains one, so checking them first skips the regex in the common case.
+	knownSecretMarkers = []string{"eyJ", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "glpat-", "xox", "xapp-", "npm_", "PRIVATE KEY-----"}
 )
 
 // DataScrubber allows the agent to block cmdline arguments that match
@@ -98,7 +117,19 @@ func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
 			annotationValue = r.ReplaceAllString(annotationValue, fmt.Sprintf(`${before_value}"%s"`, redactedSecret))
 		}
 	}
-	return annotationValue
+	return ds.ScrubKnownSecretValues(annotationValue)
+}
+
+// ScrubKnownSecretValues replaces credentials recognized by their format (JWTs,
+// GitHub, GitLab, Slack and npm tokens, PEM private keys) with ********, keeping
+// the rest of the string: "Bearer eyJ..." becomes "Bearer ********".
+func (ds *DataScrubber) ScrubKnownSecretValues(s string) string {
+	for _, marker := range knownSecretMarkers {
+		if strings.Contains(s, marker) {
+			return knownSecretValues.ReplaceAllLiteralString(s, redactedSecret)
+		}
+	}
+	return s
 }
 
 // ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.

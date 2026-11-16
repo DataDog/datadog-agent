@@ -6,6 +6,8 @@
 package redact
 
 import (
+	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -367,4 +369,59 @@ func testCasesSensitiveWords(testCases []annotationTestCaseCustomWord) []string 
 	}
 
 	return words
+}
+
+// Fake credentials are assembled at runtime so no literal in this file looks like a
+// real token to secret scanners.
+func fakeJWT() string {
+	enc := base64.RawURLEncoding.EncodeToString
+	return enc([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." + enc([]byte(`{"sub":"test","exp":1}`)) + "." + strings.Repeat("s", 43)
+}
+
+func fakeGitHubToken() string { return "ghp" + "_" + strings.Repeat("a1B2", 9) }
+
+func fakeSlackBotToken() string {
+	return "xox" + "b-" + "1234567890-1234567890-" + strings.Repeat("x", 24)
+}
+
+func fakePEMPrivateKey() string {
+	return "-----BEGIN " + "RSA PRIVATE KEY-----\n" + strings.Repeat("A", 64) + "\n-----END RSA PRIVATE KEY-----"
+}
+
+func TestScrubKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	tests := map[string]struct {
+		input    string
+		expected string
+	}{
+		"jwt":                  {fakeJWT(), "********"},
+		"jwt in bearer header": {"Bearer " + fakeJWT(), "Bearer ********"},
+		"github token":         {fakeGitHubToken(), "********"},
+		"github fine-grained":  {"github" + "_pat_" + strings.Repeat("A1_", 30), "********"},
+		"gitlab token":         {"glpat" + "-" + strings.Repeat("x9", 10), "********"},
+		"slack bot token":      {fakeSlackBotToken(), "********"},
+		"slack app token":      {"xap" + "p-1-A0123456789-" + strings.Repeat("f", 20), "********"},
+		"npm token":            {"npm" + "_" + strings.Repeat("Z", 36), "********"},
+		"pem private key":      {"key: " + fakePEMPrivateKey() + " end", "key: ******** end"},
+		"token inside a flag":  {"--slack=" + fakeSlackBotToken(), "--slack=********"},
+		"two tokens":           {fakeGitHubToken() + "," + fakeGitHubToken(), "********,********"},
+		"git sha":              {"3e07a8987d6c2b8a61f0c7a0b4b5e6d7f8a9b0c1", "3e07a8987d6c2b8a61f0c7a0b4b5e6d7f8a9b0c1"},
+		"md5":                  {"9e107d9d372bb6826bd81d3542a419d6", "9e107d9d372bb6826bd81d3542a419d6"},
+		"uuid":                 {"c6e112ef-c304-47a6-94ff-9d6cdfe45e5b", "c6e112ef-c304-47a6-94ff-9d6cdfe45e5b"},
+		"single base64 json":   {"eyJhbGciOiJIUzI1NiJ9", "eyJhbGciOiJIUzI1NiJ9"},
+		"short github prefix":  {"ghp_short", "ghp_short"},
+		"public key":           {"-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----", "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"},
+		"plain text":           {"gcr.io/datadoghq/agent:7.60.0", "gcr.io/datadoghq/agent:7.60.0"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, scrubber.ScrubKnownSecretValues(tc.input))
+		})
+	}
+}
+
+func TestScrubAnnotationValueKnownSecretValues(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	annotation := `{"webhook":{"url":"https://hooks.example.com","auth":"` + fakeSlackBotToken() + `"},"owner":"team-a"}`
+	assert.Equal(t, `{"webhook":{"url":"https://hooks.example.com","auth":"********"},"owner":"team-a"}`, scrubber.ScrubAnnotationValue(annotation))
 }
