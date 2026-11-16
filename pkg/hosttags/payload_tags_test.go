@@ -38,14 +38,14 @@ func TestPayloadTagsOnECSFargate(t *testing.T) {
 	env.SetFeatures(t, env.ECSFargate)
 	tagger := &fakeGlobalTagger{tags: []string{"cluster_name:cluster", testTaskARNTag}}
 
-	p := NewPayloadTags(providerWithTags("env:prod"), tagger)
-	assert.Equal(t, []string{"env:prod", "cluster_name:cluster", testTaskARNTag}, p.Get())
+	p := NewPayloadTags(providerWithTags("env:prod"), tagger, true)
+	assert.Equal(t, []string{"cluster_name:cluster", "env:prod", testTaskARNTag}, p.Get(), "sorted")
 	assert.Equal(t, types.OrchestratorCardinality, tagger.cardinality, "task_arn is an orchestrator cardinality tag")
 }
 
 func TestPayloadTagsGlobalTagsError(t *testing.T) {
 	env.SetFeatures(t, env.ECSFargate)
-	p := NewPayloadTags(providerWithTags("env:prod"), &fakeGlobalTagger{err: errors.New("not ready")})
+	p := NewPayloadTags(providerWithTags("env:prod"), &fakeGlobalTagger{err: errors.New("not ready")}, true)
 	assert.Equal(t, []string{"env:prod"}, p.Get())
 }
 
@@ -53,17 +53,23 @@ func TestPayloadTagsNotECSFargate(t *testing.T) {
 	for _, feature := range []env.Feature{env.EKSFargate, env.ECSManagedInstances} {
 		t.Run(string(feature), func(t *testing.T) {
 			env.SetFeatures(t, feature)
-			p := NewPayloadTags(providerWithTags("env:prod"), &fakeGlobalTagger{tags: []string{testTaskARNTag}})
+			p := NewPayloadTags(providerWithTags("env:prod"), &fakeGlobalTagger{tags: []string{testTaskARNTag}}, true)
 			assert.Equal(t, []string{"env:prod"}, p.Get())
 		})
 	}
+}
+
+func TestPayloadTagsDeduplicates(t *testing.T) {
+	env.SetFeatures(t, env.ECSFargate)
+	p := NewPayloadTags(providerWithTags("env:prod"), &fakeGlobalTagger{tags: []string{"env:prod", testTaskARNTag}}, true)
+	assert.Equal(t, []string{"env:prod", testTaskARNTag}, p.Get())
 }
 
 func TestPayloadTagsReturnsACopy(t *testing.T) {
 	env.SetFeatures(t, env.ECSFargate)
 	provider := &HostTagProvider{hostTags: make([]string, 1, 4)}
 	provider.hostTags[0] = "env:prod"
-	p := NewPayloadTags(provider, &fakeGlobalTagger{tags: []string{testTaskARNTag}})
+	p := NewPayloadTags(provider, &fakeGlobalTagger{tags: []string{testTaskARNTag}}, true)
 
 	tags := p.Get()
 	tags[0] = "changed"

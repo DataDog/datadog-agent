@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const taskARNTagPrefix = "task_arn:"
+const taskARNTagPrefix = tags.TaskARN + ":"
 
 // GlobalTagger returns the tags that apply to everything the agent reports. tagger.Component
 // implements it.
@@ -25,41 +26,47 @@ type GlobalTagger interface {
 
 // PayloadTags provides the host tags to attach to a payload.
 //
-// On ECS Fargate there's no host and the payload hostname can be empty, so it adds the tagger's
-// global tags, which are meant for when there are no host tags. At orchestrator cardinality they
-// include task_arn, which identifies the task.
+// On ECS Fargate there's no host, so it adds the tagger's global tags, which are meant for when
+// there are no host tags. At orchestrator cardinality they include task_arn, which identifies the
+// task.
 type PayloadTags struct {
-	provider   *HostTagProvider
-	tagger     GlobalTagger
-	ecsFargate bool
-	warnLimit  *log.Limit
+	provider          *HostTagProvider
+	tagger            GlobalTagger
+	ecsFargate        bool
+	logMissingTaskARN bool
+	logLimit          *log.Limit
 }
 
 // NewPayloadTags returns a PayloadTags that adds the tagger's global tags when the agent runs on
-// ECS Fargate.
-func NewPayloadTags(provider *HostTagProvider, tagger GlobalTagger) *PayloadTags {
+// ECS Fargate. Set logMissingTaskARN when the payload has no other way to identify the task, such
+// as an empty hostname.
+func NewPayloadTags(provider *HostTagProvider, tagger GlobalTagger, logMissingTaskARN bool) *PayloadTags {
 	return &PayloadTags{
-		provider:   provider,
-		tagger:     tagger,
-		ecsFargate: fargate.GetOrchestrator() == fargate.ECS,
-		warnLimit:  log.NewLogLimit(1, 10*time.Minute),
+		provider:          provider,
+		tagger:            tagger,
+		ecsFargate:        fargate.GetOrchestrator() == fargate.ECS,
+		logMissingTaskARN: logMissingTaskARN,
+		logLimit:          log.NewLogLimit(1, 10*time.Minute),
 	}
 }
 
-// Get returns the host tags for a payload. The returned slice is a copy the caller may modify.
+// Get returns the host tags for a payload, sorted and deduplicated. The slice is a copy owned by
+// the caller.
 func (p *PayloadTags) Get() []string {
-	tags := slices.Clone(p.provider.GetHostTags())
-	if !p.ecsFargate {
-		return tags
+	hostTags := slices.Clone(p.provider.GetHostTags())
+	if p.ecsFargate {
+		globalTags, err := p.tagger.GlobalTags(types.OrchestratorCardinality)
+		if err != nil {
+			log.Debugf("unable to get global tags: %v", err)
+		}
+		if p.logMissingTaskARN && p.logLimit.ShouldLog() &&
+			!slices.ContainsFunc(globalTags, func(tag string) bool { return strings.HasPrefix(tag, taskARNTagPrefix) }) {
+			// expected briefly after startup, until the tagger has the task's metadata
+			log.Infof("no task_arn in the global tags yet: payloads can't be attributed to the ECS task until it's available")
+		}
+		hostTags = append(hostTags, globalTags...)
 	}
-
-	globalTags, err := p.tagger.GlobalTags(types.OrchestratorCardinality)
-	if err != nil {
-		log.Debugf("unable to get global tags: %v", err)
-	}
-	if !slices.ContainsFunc(globalTags, func(tag string) bool { return strings.HasPrefix(tag, taskARNTagPrefix) }) && p.warnLimit.ShouldLog() {
-		// expected briefly after startup, until the tagger has the task's metadata
-		log.Warnf("no task_arn in the global tags: payloads can't be attributed to the ECS task until it's available")
-	}
-	return append(tags, globalTags...)
+	// sorted and deduplicated, so encoding the slice doesn't modify it
+	slices.Sort(hostTags)
+	return slices.Compact(hostTags)
 }

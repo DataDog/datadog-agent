@@ -260,7 +260,6 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
-        "//pkg/hosttags",
         "//pkg/network/dns",
         "//pkg/network/remoteservice",
         "//pkg/process/metadata",

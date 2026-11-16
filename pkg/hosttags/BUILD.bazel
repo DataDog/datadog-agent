@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/hosttags",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//comp/metadata/host/impl/hosttags",
         "//pkg/config/setup",

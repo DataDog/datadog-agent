@@ -28,7 +28,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -78,10 +77,6 @@ func (f *fakeConnectionSource) GetProcessCacheTags() map[uint32][]string {
 }
 
 func mockDirectSender(t *testing.T, overrides map[string]interface{}) *directSender {
-	return mockDirectSenderWithTagger(t, overrides, taggernoop.NewComponent())
-}
-
-func mockDirectSenderWithTagger(t *testing.T, overrides map[string]interface{}, tagger tagger.Component) *directSender {
 	hostnameComp, _ := hostname.NewMock("test")
 	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
@@ -93,7 +88,7 @@ func mockDirectSenderWithTagger(t *testing.T, overrides map[string]interface{}, 
 		Config:         config.NewMock(t),
 		Logger:         logmock.New(t),
 		Sysprobeconfig: sysprobeconfigmock.NewMockWithOverrides(t, overrides),
-		Tagger:         tagger,
+		Tagger:         taggernoop.NewComponent(),
 		Wmeta:          wmeta,
 		Hostname:       hostnameComp,
 		Forwarder:      connectionsforwardermock.Mock(t),

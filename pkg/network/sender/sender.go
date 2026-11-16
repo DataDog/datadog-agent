@@ -151,6 +151,8 @@ func New(
 		hostTags: hosttags.NewPayloadTags(
 			hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 			deps.Tagger,
+			// the hostname is empty on ECS Fargate, so task_arn is the only task identity
+			true,
 		),
 		agentCfg:   marshal.NewAgentConfiguration(syscfg, deps.Config),
 		ctx:        ctx,
@@ -489,8 +491,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			// clone: Encode sorts and dedups in place
-			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(slices.Clone(hostTags))))
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(hostTags)))
 			builder.SetEncodedTags(func(b *bytes.Buffer) {
 				b.Write(tagsEncoder.Buffer())
 			})

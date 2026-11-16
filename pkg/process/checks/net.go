@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
-	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -123,6 +122,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.hostTags = hosttags.NewPayloadTags(
 		hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")),
 		c.tagger,
+		// the fargate_task: hostname already identifies the task
+		false,
 	)
 
 	// LocalResolver is a singleton LocalResolver
@@ -664,8 +665,7 @@ func batchConnections(
 		hostTagsIndex := -1
 		// Add host tags if needed
 		if len(hostTags) > 0 {
-			// clone: Encode sorts and dedups in place, and hostTags is shared by every batch
-			hostTagsIndex = tagsEncoder.Encode(slices.Clone(hostTags))
+			hostTagsIndex = tagsEncoder.Encode(hostTags)
 		}
 
 		cc := &model.CollectorConnections{

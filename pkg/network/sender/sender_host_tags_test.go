@@ -17,44 +17,50 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
-func TestBatchesIncludeTaskARNOnECSFargate(t *testing.T) {
-	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
-	env.SetFeatures(t, env.ECSFargate)
+// payloadTagsOnECSFargate builds the payload tags the sender uses on ECS Fargate. The sender itself
+// is built first, outside of ECS Fargate: New memoizes process-wide state from the environment
+// (e.g. the container host type), which would otherwise leak into the other tests.
+func payloadTagsOnECSFargate(t *testing.T, globalTags ...string) *hosttags.PayloadTags {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"cluster_name:cluster"}, []string{taskARNTag}, nil, nil)
+	fakeTagger.SetGlobalTags(nil, globalTags, nil, nil)
+	env.SetFeatures(t, env.ECSFargate)
+	return hosttags.NewPayloadTags(hosttags.NewHostTagProvider(), fakeTagger, true)
+}
 
-	d := mockDirectSenderWithTagger(t, nil, fakeTagger)
+func decodeConnections(t *testing.T, payload []byte) *model.CollectorConnections {
+	m, err := model.DecodeMessage(payload)
+	require.NoError(t, err)
+	c, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+	return c
+}
+
+func TestBatchesCarryTheHostTagsInEveryChunk(t *testing.T) {
+	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
+	d := mockDirectSender(t, nil)
+	d.hostTags = payloadTagsOnECSFargate(t, "cluster_name:cluster", taskARNTag)
 	d.maxConnsPerMessage = 1
+
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(3)}}
 	payloads := slices.Collect(d.batches(conns, 1))
 
 	require.Len(t, payloads, 3)
 	for _, p := range payloads {
-		m, err := model.DecodeMessage(p)
-		require.NoError(t, err)
-		c, ok := m.Body.(*model.CollectorConnections)
-		require.True(t, ok)
+		c := decodeConnections(t, p)
 		require.Positive(t, c.HostTagsIndex)
-		assert.ElementsMatch(t, []string{"cluster_name:cluster", taskARNTag}, c.GetTags(int(c.HostTagsIndex)))
+		assert.Equal(t, []string{"cluster_name:cluster", taskARNTag}, c.GetTags(int(c.HostTagsIndex)))
 	}
 }
 
-func TestBatchesHaveNoGlobalTagsOutsideECSFargate(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"cluster_name:cluster"}, []string{"task_arn:arn"}, nil, nil)
-
-	d := mockDirectSenderWithTagger(t, nil, fakeTagger)
+func TestBatchesWithoutHostTags(t *testing.T) {
+	d := mockDirectSender(t, nil)
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(1)}}
 	payloads := slices.Collect(d.batches(conns, 1))
 
 	require.Len(t, payloads, 1)
-	m, err := model.DecodeMessage(payloads[0])
-	require.NoError(t, err)
-	c := m.Body.(*model.CollectorConnections)
-	if c.HostTagsIndex > 0 {
-		assert.NotContains(t, c.GetTags(int(c.HostTagsIndex)), "task_arn:arn")
-	}
+	assert.Negative(t, decodeConnections(t, payloads[0]).HostTagsIndex)
 }
