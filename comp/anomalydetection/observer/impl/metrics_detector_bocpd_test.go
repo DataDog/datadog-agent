@@ -207,7 +207,9 @@ func BenchmarkBOCPDDetectorAlertWithMedianEvidence(b *testing.B) {
 
 	for _, evidence := range []bool{false, true} {
 		b.Run(fmt.Sprintf("evidence=%t", evidence), func(b *testing.B) {
-			d := newBOCPDDetector(DefaultBOCPDConfig(), evidence)
+			config := DefaultBOCPDConfig()
+			config.WarmupPoints = 20
+			d := newBOCPDDetector(config, evidence)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
