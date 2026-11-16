@@ -4,4 +4,5 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package e2eframework is the entry point for the e2e-framework.
+// It provisions the environments used by the new-e2e tests.
 package e2eframework
