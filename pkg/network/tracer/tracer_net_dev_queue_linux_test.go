@@ -9,23 +9,21 @@ package tracer
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"net"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -70,14 +68,14 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 				connutil.NetDevQueueTPBTFRejected.Store(true)
 				t.Cleanup(func() { connutil.NetDevQueueTPBTFRejected.Store(false) })
 			}
-			testNetDevQueueSKBConnTuple(t, cfg, v6, coreOrFentry && !force)
+			testNetDevQueueSKBConnTuple(t, cfg, v6, coreOrFentry && !force, force)
 		})
 	}
 }
 
 // testNetDevQueueSKBConnTuple runs the checks against a new tracer. With tpBTFEligible, the tracer must
-// load tp_btf wherever the kernel supports it.
-func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFEligible bool) {
+// load tp_btf wherever the kernel supports it; with forcedRawTP, it must fall back to the raw tracepoint.
+func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFEligible, forcedRawTP bool) {
 	tr := setupTracer(t, cfg)
 	skbMap, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
@@ -87,7 +85,14 @@ func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFElig
 		require.False(t, connutil.NetDevQueueTPBTFRejected.Load(), "verifier rejected tp_btf net_dev_queue")
 		wantTPBTF = tpBTFExpected(t)
 	}
-	require.Equal(t, wantTPBTF, tpBTFNetDevQueueLoaded(t, skbMap), "tp_btf net_dev_queue program loaded")
+	tpBTFRunning, err := tr.ProbeRunning(probes.NetDevQueueTPBTF)
+	require.NoError(t, err)
+	require.Equal(t, wantTPBTF, tpBTFRunning, "tp_btf net_dev_queue probe running")
+	if forcedRawTP && features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		rawTPRunning, err := tr.ProbeRunning(probes.NetDevQueueRawTracepoint)
+		require.NoError(t, err)
+		require.True(t, rawTPRunning, "raw_tp net_dev_queue probe running")
+	}
 
 	t.Run("IPv4 TCP", func(t *testing.T) {
 		port := startEchoServer(t, "1.1.1.1:0", "tcp4")
@@ -170,42 +175,6 @@ func tpBTFExpected(t *testing.T) bool {
 	require.NoError(t, err)
 	_, err = os.Stat("/sys/kernel/btf/vmlinux")
 	return kv >= kernel.VersionCode(5, 9, 0) && err == nil && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64")
-}
-
-// tpBTFNetDevQueueLoaded reports whether the tracer owning skbMap loaded the tp_btf net_dev_queue program.
-// connection.Tracer doesn't expose its manager, so this matches the full program name the tracer registered
-// with pkg/ebpf, and the program's use of skbMap.
-func tpBTFNetDevQueueLoaded(t *testing.T, skbMap *ebpf.Map) bool {
-	mapInfo, err := skbMap.Info()
-	require.NoError(t, err)
-	mapID, ok := mapInfo.ID()
-	if !ok {
-		return false // no map IDs before 4.13, long before tp_btf
-	}
-
-	var id ebpf.ProgramID
-	for {
-		next, err := ebpf.ProgramGetNextID(id)
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		require.NoError(t, err)
-		id = next
-
-		if name, err := ddebpf.GetProgNameFromProgID(uint32(id)); err != nil || name != string(probes.NetDevQueueTPBTF) {
-			continue
-		}
-		prog, err := ebpf.NewProgramFromID(id)
-		if err != nil {
-			continue
-		}
-		info, err := prog.Info()
-		prog.Close()
-		require.NoError(t, err)
-		if mapIDs, _ := info.MapIDs(); slices.Contains(mapIDs, mapID) {
-			return true
-		}
-	}
 }
 
 // startEchoServer starts a TCP echo server and returns its port.
