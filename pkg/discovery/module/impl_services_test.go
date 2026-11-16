@@ -287,7 +287,7 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
 		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
 
-		assert.Equal(collect, "test-service", svc.GeneratedName)
+		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 	}, 30*time.Second, 100*time.Millisecond)
 
@@ -456,7 +456,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 		assert.Equal(collect, "1.0.0", svc.UST.Version)
 
 		// Verify basic service info
-		assert.Equal(collect, "test-service", svc.GeneratedName)
+		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 	}, 30*time.Second, 100*time.Millisecond)
 
@@ -609,7 +609,7 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 		assert.NotEmpty(collect, svc.LogFiles, "should have log files")
 
 		// Verify basic service info
-		assert.Equal(collect, "test-service", svc.GeneratedName)
+		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 	}, 30*time.Second, 100*time.Millisecond)
 

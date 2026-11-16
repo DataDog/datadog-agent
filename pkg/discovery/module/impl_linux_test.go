@@ -275,7 +275,10 @@ func serviceCommand(ctx context.Context, t *testing.T) *exec.Cmd {
 	require.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "test-service")
 	require.NoError(t, os.Symlink(sleepPath, path))
-	return exec.CommandContext(ctx, path, "1000")
+	cmd := exec.CommandContext(ctx, path, "1000")
+	// Multicall versions of sleep select the utility from argv[0].
+	cmd.Args[0] = sleepPath
+	return cmd
 }
 
 func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
