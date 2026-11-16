@@ -19,8 +19,8 @@ go_library(
 dd_agent_go_test(
     name = "zstd_test",
     srcs = [
-        "zstd_cross_test.go",
         "zstd_compressor_test.go",
+        "zstd_cross_test.go",
     ],
     embed = [":zstd"],
     deps = [
