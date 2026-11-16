@@ -11,9 +11,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/cli"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -32,24 +34,87 @@ func errorStr(e error) string {
 	return e.Error()
 }
 
-// Execute runs a command and validates the output with its validation rules.
-// The validation runs on the combined stdout and stderr of the command.
-func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+// ExecuteCommand runs a command and validates the output with its validation
+// rules. The validation runs on the combined stdout and stderr of the command.
+func ExecuteCommand(ctx context.Context, conn *SSHConnection, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if cmd.Interactive {
+		return runInteractive(ctx, conn, cmd)
+	}
+	r, err := runMain(ctx, conn.client, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return r, r.FormattedError()
+}
+
+// sessionEndWait bounds how long to wait for the device to hang up after an
+// interactive session ends.
+const sessionEndWait = 2 * time.Second
+
+// runInteractive runs the command in a shell session using the CLI dialect
+// for the connection's profile, for devices that scope command side effects
+// (such as the pager) to the session.
+func runInteractive(ctx context.Context, conn *SSHConnection, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if conn.prof == nil {
+		return nil, fmt.Errorf("no device type provided for %q", conn.ipAddress)
+	}
+	dialect, err := cli.ForProfile(conn.prof.Name)
+	if err != nil {
+		return nil, err
+	}
+	// Paging devices will not read commands without a terminal; StartShell
+	// requests one.
+	sh, terr := conn.StartShell(ctx)
+	if terr != nil {
+		return nil, terr
+	}
+	defer sh.Close()
+
+	session, err := cli.Open(ctx, sh, dialect)
+	if err != nil {
+		return nil, err
+	}
+	reply, runErr := session.Run(ctx, cmd.Command)
+	session.End(ctx, sessionEndWait)
+
+	r := &types.CommandResult{
+		CommandStr: cmd.Command,
+		Output:     strings.Trim(reply.Output, " \n\t"),
+	}
+	if runErr != nil {
+		// this could be a context closure or a problem with the actual send/receive.
+		r.Error = runErr.Error()
+	} else if err := dialect.CheckError(r.Output); err != nil {
+		// indicates that the dialect sees this output as an error
+		r.Error = err.Error()
+	} else {
+		cmd.Validator.ValidateResult(r)
+	}
+	if reply.Prompt == "" {
+		// Without the closing prompt there is no telling whether the output
+		// is complete.
+		r.Error = fmt.Sprintf("no %s prompt after %q, output may be incomplete: %v", dialect.Name, cmd.Command, runErr)
+	}
+	return r, r.FormattedError()
+}
+
+// runMain runs the command, captures its output, and validates it.
+func runMain(ctx context.Context, client sshClient, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, err
 	}
 	defer session.Close()
 
-	command := cmd.Command
-	if len(cmd.SetupCommands) > 0 {
-		lines := append(append([]string{}, cmd.SetupCommands...), cmd.Command)
-		command = strings.Join(lines, "\n")
-	}
-
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
-		output, err := session.CombinedOutput(command)
+		output, err := session.CombinedOutput(cmd.Command)
 		ch <- &types.CommandResult{
 			CommandStr: cmd.Command,
 			Output:     string(output),
@@ -59,7 +124,7 @@ func ExecuteCommand(ctx context.Context, client sshClient, cmd *profile.PlainCom
 	select {
 	case r := <-ch:
 		cmd.Validator.ValidateResult(r)
-		return r, r.FormattedError()
+		return r, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -81,6 +146,7 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 	}
 	defer session.Close()
 	cmdStr := fmt.Sprintf("%s -t %s", cmd.RemoteCommand, cmd.Filepath)
+	// Buffered so the goroutine can finish after a timeout.
 	ch := make(chan *types.CommandResult, 1)
 	go func() {
 		response, err := executeSCP(session, cmdStr, filepath.Base(cmd.Filepath), data)

@@ -15,6 +15,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/networkconfigmanagement/cli",
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/profile",
         "//pkg/networkconfigmanagement/types",

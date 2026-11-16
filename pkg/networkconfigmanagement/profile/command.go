@@ -54,9 +54,11 @@ type Command interface {
 type PlainCommand struct {
 	Command   string    `json:"command"`
 	Validator Validator `json:"validator"`
-	// SetupCommands run before Command in the same exec session. Note: if a setup
-	// command prints output, it may appear in the saved config.
-	SetupCommands []string `json:"setup_commands,omitempty"`
+	// Interactive runs Command in an interactive shell, using the CLI dialect
+	// for the device's profile (see package cli), instead of as an exec
+	// request. The dialect's session setup (e.g. disabling the pager) runs
+	// first, and only Command's own output is captured.
+	Interactive bool `json:"interactive,omitempty"`
 }
 
 func (c *PlainCommand) CommandType() string {
