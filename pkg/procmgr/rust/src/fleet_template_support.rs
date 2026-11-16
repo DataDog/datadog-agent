@@ -37,9 +37,18 @@ pub(crate) fn load_template(template: &str, name: &str, etc: &Path) -> ProcessCo
 
     let catalog = tempfile::tempdir().expect("tempdir");
     std::fs::write(catalog.path().join(format!("{name}.yaml")), rendered).expect("write yaml");
-    let mut definitions = load_configs(catalog.path()).expect("load catalog");
-    assert_eq!(definitions.len(), 1, "expected exactly one process");
-    definitions.remove(0).config
+    let catalog_load = load_configs(catalog.path()).expect("load catalog");
+    assert!(
+        catalog_load.invalid.is_empty(),
+        "shipped template must parse: {:?}",
+        catalog_load.invalid
+    );
+    assert_eq!(
+        catalog_load.processes.len(),
+        1,
+        "expected exactly one process"
+    );
+    catalog_load.processes.into_iter().next().unwrap().config
 }
 
 pub(crate) fn sorted(keys: &[String]) -> Vec<String> {
@@ -50,8 +59,9 @@ pub(crate) fn sorted(keys: &[String]) -> Vec<String> {
 
 /// The `configKeys` of the legacy SCM `service` definition, sorted and split by the config
 /// file each key is read from: `(coreConf keys, sysprobeConf keys)`. A Go map literal has
-/// no meaningful order, so only the sets are compared. Both SCM services these templates
-/// transcribe read from both files, so an empty half means the parse went wrong.
+/// no meaningful order, so only the sets are compared. An empty half is valid for a
+/// service that only reads one file (apm reads only `coreConf`). An empty pair means the
+/// parse went wrong.
 pub(crate) fn scm_service_keys(service: &str) -> (Vec<String>, Vec<String>) {
     let marker = format!("name: \"{service}\",");
     let definition = SCM_SERVICES_GO
@@ -84,7 +94,7 @@ pub(crate) fn scm_service_keys(service: &str) -> (Vec<String>, Vec<String>) {
         }
     }
     assert!(
-        !core.is_empty() && !sysprobe.is_empty(),
+        !core.is_empty() || !sysprobe.is_empty(),
         "parsed an implausible SCM key split for {service}: core={core:?} sysprobe={sysprobe:?}"
     );
     (sorted(&core), sorted(&sysprobe))

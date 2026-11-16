@@ -14,13 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // GetNvmlCollector creates the NVML collector, exposed here for testing purposes only
 func GetNvmlCollector(t *testing.T, config config.Component) workloadmeta.Collector {
-	collector, err := nvml.NewCollector(config)
+	collector, err := nvml.NewCollector(config, noopsimpl.NewComponent())
 	require.NoError(t, err, "failed to create NVML collector")
 	return collector.Collector
 }

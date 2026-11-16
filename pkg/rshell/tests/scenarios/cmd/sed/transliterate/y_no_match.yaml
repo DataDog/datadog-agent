@@ -1,0 +1,8 @@
+description: sed y command leaves unmatched characters unchanged.
+input:
+  script: |+
+    echo "abcxyz" | sed 'y/abc/ABC/'
+expect:
+  stdout: "ABCxyz\n"
+  stderr: ""
+  exit_code: 0

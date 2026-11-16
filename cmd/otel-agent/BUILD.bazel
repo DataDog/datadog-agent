@@ -16,13 +16,14 @@ go_library(
         "//cmd/otel-agent/command",
         "//comp/logs-library/metrics",
         "//pkg/util/flavor",
+        "//pkg/util/log",
+        "//pkg/util/mallocarena",
         "//pkg/version",
     ],
 )
 
 dd_agent_go_binary(
     name = "otel-agent",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/otel-agent/windows_resources:rsrc"],
         "//conditions:default": [],

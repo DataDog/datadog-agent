@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Metadata payloads are now sent with jitter. After the first payload, or one triggered by a
+    refresh, the next one comes after a random delay between ``inventories_min_interval`` and
+    ``inventories_max_interval``; later payloads come up to 20% earlier than ``inventories_max_interval``.
+    Agents that start or are reconfigured at the same time no longer send their payloads in lockstep.
+    Payloads are never further apart than ``inventories_max_interval``.

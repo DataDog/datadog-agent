@@ -35,6 +35,10 @@ type fakeNetworkStats struct {
 	tcp4StatsError           error
 	tcp6Stats                *mibTCPStats
 	tcp6StatsError           error
+	interfaceDetails         []interfaceDetails
+	interfaceDetailsError    error
+	netAdapters              map[uint32]msftNetAdapter
+	netAdaptersCalls         int
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -66,6 +70,17 @@ func (n *fakeNetworkStats) TCPStats(kind string) (*mibTCPStats, error) {
 		return n.tcp6Stats, n.tcp6StatsError
 	}
 	return nil, nil
+}
+
+// InterfaceDetails returns the mocked values for the GetIfTable2Ex syscall
+func (n *fakeNetworkStats) InterfaceDetails() ([]interfaceDetails, error) {
+	return n.interfaceDetails, n.interfaceDetailsError
+}
+
+// NetAdapters returns the mocked MSFT_NetAdapter properties
+func (n *fakeNetworkStats) NetAdapters() map[uint32]msftNetAdapter {
+	n.netAdaptersCalls++
+	return n.netAdapters
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {

@@ -1,0 +1,39 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  pprof/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  zpages/dd-autoconfigured:
+    endpoint: "localhost:55679"
+  opamp/dd-autoconfigured:
+    server:
+      http:
+        endpoint: "https://opamp.datadoghq.eu/v1/opamp"
+        headers:
+          DD-API-KEY: ggggg77777
+    reports_raw_config: true
+  dogtel/dd-autoconfigured:
+
+service:
+  extensions:
+    [
+      pprof/dd-autoconfigured,
+      zpages/dd-autoconfigured,
+      health_check/dd-autoconfigured,
+      opamp/dd-autoconfigured,
+      dogtel/dd-autoconfigured,
+    ]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]

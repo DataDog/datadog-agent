@@ -24,8 +24,20 @@ type Config struct {
 	NVLinkFECLightErrorThreshold int
 	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
 	LegacySMActive bool
+	// PreferGrEngineSMActive indicates whether the sm_active metric reported from the GPM GR engine activity should
+	// have priority over the other sm_active sources.
+	PreferGrEngineSMActive bool
 	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
 	StaticMetricsReportingInterval time.Duration
+	// GPUMonitoringEnabled indicates whether GPU monitoring is enabled in the core Agent. Not to be
+	// confused with Enabled, which is the system-probe setting.
+	GPUMonitoringEnabled bool
+	// IntegrateWithWorkloadmetaProcesses indicates whether the NVML workloadmeta collector should link
+	// GPUs to the processes reported by workloadmeta.
+	IntegrateWithWorkloadmetaProcesses bool
+	// KAISchedulerEnabled indicates whether the NVML workloadmeta collector should map KAI Scheduler
+	// fractional GPU workloads to their device.
+	KAISchedulerEnabled bool
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -165,6 +177,7 @@ func New() *Config {
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),
+		PreferGrEngineSMActive:         agentCfg.GetBool("gpu.prefer_gr_engine_sm_active"),
 		StaticMetricsReportingInterval: agentCfg.GetDuration("gpu.static_metrics_reporting_interval"),
 		ScanProcessesInterval:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
@@ -192,5 +205,9 @@ func New() *Config {
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 		JobsConfig:                 NewJobsConfig(agentCfg),
 		TracingConfig:              NewTracingConfig(agentCfg),
+
+		GPUMonitoringEnabled:               agentCfg.GetBool("gpu.enabled"),
+		IntegrateWithWorkloadmetaProcesses: agentCfg.GetBool("gpu.integrate_with_workloadmeta_processes"),
+		KAISchedulerEnabled:                agentCfg.GetBool("gpu.kai_scheduler.enabled"),
 	}
 }

@@ -1,0 +1,24 @@
+# vuln-hunt 2026-05-19-codex / allowed_paths.
+# skip: allowed_paths sandbox restriction is rshell-specific.
+skip_assert_against_bash: true
+description: A cd blocked by AllowedPaths does not change relative path resolution.
+setup:
+  files:
+    - path: allowed/data.txt
+      content: |+
+        allowed
+    - path: secret/data.txt
+      content: |+
+        SECRET
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cd secret
+    echo cd_status=$?
+    cat allowed/data.txt
+expect:
+  stdout: |+
+    cd_status=1
+    allowed
+  stderr_contains: ["permission denied"]
+  exit_code: 0

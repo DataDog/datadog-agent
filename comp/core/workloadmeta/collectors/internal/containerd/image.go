@@ -257,6 +257,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, ref, nil)
 		}
 
+		delete(c.imageSBOMs, imageID)
 		c.store.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeUnset,
@@ -365,6 +366,13 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 		}
 	}
 
+	// An image event changes only the names of the image, so the image keeps
+	// the SBOM of its last scan.
+	if prev := c.imageSBOMs[wlmImage.ID]; sbom == nil && prev != nil && prev.Status != workloadmeta.Pending {
+		if sbom, err = sbomutil.UncompressSBOM(prev); err != nil {
+			log.Errorf("Failed to uncompress the SBOM of image %s: %v", wlmImage.ID, err)
+		}
+	}
 	if sbom == nil {
 		sbom = &workloadmeta.SBOM{
 			Status: workloadmeta.Pending,
@@ -382,6 +390,7 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 		return nil, fmt.Errorf("failed to compress SBOM for image %s: %v", wlmImage.ID, err)
 	}
 	wlmImage.SBOM = csbom
+	c.imageSBOMs[wlmImage.ID] = csbom
 
 	return &wlmImage, nil
 }

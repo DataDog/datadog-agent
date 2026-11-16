@@ -321,6 +321,25 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 	assert.Contains(t, unsupported, "FI_DEV_C2C_LINK_ERROR_INTR")
 }
 
+func TestSupportsCapabilitiesNVLinkRange(t *testing.T) {
+	metricSpec := MetricSpec{Support: MetricSupportSpec{CapabilitiesRequired: MetricCapabilitiesRequired{
+		NVLink:    ptrTo(1),
+		MaxNVLink: ptrTo(6),
+	}}}
+
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 0}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 1}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 6}))
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 7}))
+}
+
+func TestValidateCapabilitiesRequired(t *testing.T) {
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{}))
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(1), MaxNVLink: ptrTo(1)}))
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{MaxNVLink: ptrTo(6)}), "without capabilities_required.nvlink")
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(7), MaxNVLink: ptrTo(6)}), "lower than")
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.

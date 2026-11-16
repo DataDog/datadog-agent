@@ -1,0 +1,11 @@
+description: Output produced inside the while loop is piped to a downstream command.
+input:
+  script: |+
+    i=; while [ "$i" != aaaaa ]; do i="${i}a"; echo "$i"; done | head -3
+expect:
+  stdout: |+
+    a
+    aa
+    aaa
+  stderr: |+
+  exit_code: 0

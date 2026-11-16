@@ -18,6 +18,8 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//comp/def",
@@ -39,6 +41,8 @@ dd_agent_go_test(
     ],
     embed = [":impl"],
     deps = [
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
         "//comp/rdnsquerier/def",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

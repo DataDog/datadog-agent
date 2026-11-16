@@ -1,0 +1,13 @@
+description: tee creates a FILE operand that does not already exist.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "content\n" | tee newfile.txt
+    cat newfile.txt
+expect:
+  stdout: |+
+    content
+    content
+  stderr: |+
+  exit_code: 0

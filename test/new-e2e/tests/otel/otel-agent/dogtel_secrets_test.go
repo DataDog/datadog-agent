@@ -107,6 +107,8 @@ func dogtelSecretsStandaloneProvisioner() provisioners.TypedProvisioner[environm
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)

@@ -32,11 +32,12 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUse
 			u   *user.User
 			err error
 		)
+		uidString := strconv.Itoa(int(fp.Uids[0]))
 		if uidProbe == nil {
-			// If the probe is nil, skip it and just call `user.LookupId` directly
-			u, err = user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+			// If the probe is nil, skip it and call user.LookupId directly.
+			u, err = user.LookupId(uidString)
 		} else {
-			u, err = uidProbe.LookupID(strconv.Itoa(int(fp.Uids[0])))
+			u, err = uidProbe.LookupID(uidString)
 		}
 		if err == nil {
 			username = u.Username

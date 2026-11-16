@@ -8,14 +8,14 @@ package modules
 import (
 	discoverymodule "github.com/DataDog/datadog-agent/pkg/discovery/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 func init() { registerModule(DiscoveryModule) }
 
 // DiscoveryModule is the discovery module factory.
 var DiscoveryModule = &module.Factory{
-	Name: config.DiscoveryModule,
+	Name: sysconfigtypes.DiscoveryModule,
 	Fn:   discoverymodule.NewDiscoveryModule,
 	NeedsEBPF: func() bool {
 		return false

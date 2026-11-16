@@ -195,7 +195,10 @@ func (w *TraceWriterV1) FlushSync() error {
 	return nil
 }
 
-// appendChunksV1 adds sampled chunks to the current payload, splitting the payload if it is too large.
+// appendChunksV1 adds sampled chunks to the current payload. When the buffer would exceed
+// MaxPayloadSize, the buffer is flushed on its own first, and an incoming payload larger than
+// MaxPayloadSize is split by bytes. Every request then carries about MaxPayloadSize at most
+// (plus the AgentPayload envelope), or a single trace chunk that cannot be split further.
 // Returns batches of prepared payloads to flush immediately.
 // Uses PreparedTracerPayload for accurate size calculations with pre-computed string compaction.
 func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTracerPayload {
@@ -208,41 +211,45 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTra
 	prepared := pb.PrepareTracerPayload(pbTracerPayload)
 	size := prepared.Size
 
-	if size+w.bufferedSizeV1 > MaxPayloadSize {
-		// Buffer is full, split the incoming Tracer payload
-		log.Debugf("Writer: reached maximum allowed buffered size, splitting payload with %d chunks and size %d", len(pbTracerPayload.Chunks), size)
-		numChunks := len(pbTracerPayload.Chunks)
-		if numChunks < 4 {
-			// If fewer than 4 chunks, send each chunk separately
-			for i := 0; i < numChunks; i++ {
-				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i:i+1])
-				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPrepared.Size+w.bufferedSizeV1)
-				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
-				toFlush = append(toFlush, batchToFlush)
-				w.resetBufferV1()
-			}
-		} else {
-			// Split into 4 groups of chunks
-			// This ensures we stay well under the intake limit as the worstcase here is 3.2 MB + 25 MB / 4 = 7.3 MB
-			chunksPerPayload := numChunks / 4
-			for i := range 4 {
-				// For the last group, include any remaining chunks due to integer division
-				endIdx := (i + 1) * chunksPerPayload
-				if i == 3 {
-					endIdx = numChunks
-				}
-				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i*chunksPerPayload:endIdx])
-				log.Tracef("Writer: new split payload has size %d", splitPrepared.Size+w.bufferedSizeV1)
-				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
-				toFlush = append(toFlush, batchToFlush)
-				w.resetBufferV1()
-			}
-		}
+	if size+w.bufferedSizeV1 <= MaxPayloadSize {
+		w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)
+		w.bufferedSizeV1 += size
+		return nil
+	}
+
+	// Never send the held buffer together with the incoming payload.
+	if len(w.preparedPayloadsV1) > 0 {
+		toFlush = append(toFlush, w.preparedPayloadsV1)
+		w.resetBufferV1()
+	}
+
+	if size <= MaxPayloadSize {
+		w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)
+		w.bufferedSizeV1 = size
 		return toFlush
 	}
-	w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)
-	w.bufferedSizeV1 += size
-	return nil
+
+	log.Debugf("Writer: payload with %d chunks and size %d exceeds %d bytes, splitting it", len(pbTracerPayload.Chunks), size, MaxPayloadSize)
+	for _, p := range splitPreparedBySize(pbTracerPayload, prepared, 0, len(pbTracerPayload.Chunks)) {
+		if p.Size > MaxPayloadSize {
+			log.Debugf("Writer: sending a single trace chunk of %d bytes, above the %d bytes target", p.Size, MaxPayloadSize)
+		}
+		toFlush = append(toFlush, []*pb.PreparedTracerPayload{p})
+	}
+	return toFlush
+}
+
+// splitPreparedBySize splits source.Chunks[lo:hi] in halves until each part fits in MaxPayloadSize
+// or holds a single chunk. prepared is the already computed payload for [lo:hi], or nil.
+func splitPreparedBySize(source *idx.TracerPayload, prepared *pb.PreparedTracerPayload, lo, hi int) []*pb.PreparedTracerPayload {
+	if prepared == nil {
+		prepared = pb.PrepareTracerPayloadWithChunks(source, source.Chunks[lo:hi])
+	}
+	if prepared.Size <= MaxPayloadSize || hi-lo <= 1 {
+		return []*pb.PreparedTracerPayload{prepared}
+	}
+	mid := lo + (hi-lo)/2
+	return append(splitPreparedBySize(source, nil, lo, mid), splitPreparedBySize(source, nil, mid, hi)...)
 }
 
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent
@@ -382,7 +389,7 @@ func (w *TraceWriterV1) recordEvent(t eventType, data *eventData) {
 		}
 
 	case eventTypeRejected:
-		log.Warnf("Trace writer payload rejected by edge: %v", data.err)
+		log.Warnf("Trace writer payload rejected by edge: %v (%d bytes, %d bytes uncompressed)", data.err, data.bytes, data.uncompressedBytes)
 		w.stats.Errors.Inc()
 
 	case eventTypeDropped:

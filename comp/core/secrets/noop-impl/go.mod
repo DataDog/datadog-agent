@@ -5,24 +5,24 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/status v0.72.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/comp/core/status v0.84.0-devel.0.20261028224924-1c255663adbd
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -55,6 +55,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/schema/def => ../../../../comp/core/schema/def
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl => ../../../../comp/core/schema/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../../comp/core/secrets/impl
@@ -120,6 +122,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../pkg/discovery/tracermetadata/model
@@ -151,6 +154,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../../pkg/remoteflags
+	github.com/DataDog/datadog-agent/pkg/rshell => ../../../../pkg/rshell
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer

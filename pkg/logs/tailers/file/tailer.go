@@ -445,7 +445,7 @@ func (t *Tailer) readForever() {
 			t.osFile.Close()
 		}
 		t.decoder.Stop()
-		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
+		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Load(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 	for {
 		n, err := t.read()

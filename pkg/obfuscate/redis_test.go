@@ -238,6 +238,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"BITFIELD key SET type offset",
 		},
 		{
+			"BITFIELD key SET i8 0 100 SET i8 8 200",
+			"BITFIELD key SET i8 0 ? SET i8 8 ?",
+		},
+		{
+			"BITFIELD key set i8 0 100 INCRBY i8 0 5 OVERFLOW SAT SET u4 4 7 GET u4 4",
+			"BITFIELD key set i8 0 ? INCRBY i8 0 5 OVERFLOW SAT SET u4 4 ? GET u4 4",
+		},
+		{
 			"CONFIG SET parameter value",
 			"CONFIG SET parameter ?",
 		},
@@ -420,6 +428,22 @@ func TestRedisObfuscator(t *testing.T) {
 		{
 			"ZADD key XX INCR score",
 			"ZADD key XX INCR score",
+		},
+		{
+			"zadd key nx score member",
+			"zadd key nx score ?",
+		},
+		{
+			"zadd key nx ch score member score member",
+			"zadd key nx ch score ? score ?",
+		},
+		{
+			"ZADD key GT CH score member score member",
+			"ZADD key GT CH score ? score ?",
+		},
+		{
+			"ZADD key XX LT score member",
+			"ZADD key XX LT score ?",
 		},
 		{
 			`

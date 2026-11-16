@@ -7,12 +7,11 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
 	"time"
-
-	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -50,7 +49,7 @@ type Worker struct {
 	waitForInflight bool
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
-	maxConcurrentRequests *semaphore.Weighted
+	maxConcurrentRequests weightedSemaphore
 	workerCtx             context.Context
 	cancel                context.CancelFunc
 	requestWg             sync.WaitGroup
@@ -75,13 +74,8 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointCountTelemetry PointCountTelemetry,
 	httpClient *SharedConnection,
+	concurrency concurrencyDomain,
 ) *Worker {
-	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
-	if maxConcurrentRequests <= 0 {
-		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
-		maxConcurrentRequests = 1
-	}
-
 	workerCtx, cancel := context.WithCancel(context.Background())
 
 	worker := &Worker{
@@ -97,7 +91,7 @@ func NewWorker(
 		blockedList:           blocked,
 		pointCountTelemetry:   pointCountTelemetry,
 		waitForInflight:       config.GetBool("forwarder_stop_wait_for_inflight"),
-		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
+		maxConcurrentRequests: concurrency.newRequestSemaphore(),
 		workerCtx:             workerCtx,
 		cancel:                cancel,
 	}
@@ -270,9 +264,16 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		return
 	}
 	if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
-		w.blockedList.close(target, time.Now())
+		// Context cancellation during shutdown means the Agent stopped waiting for a
+		// response, not that the endpoint is unhealthy. Requeue the transaction so it
+		// can be retried or persisted, but do not set the endpoint block list.
+		if errors.Is(err, context.Canceled) {
+			w.log.Debugf("Transaction processing was canceled; requeued for retry: %v", err)
+		} else {
+			w.blockedList.close(target, time.Now())
+			w.log.Errorf("Error while processing transaction: %v", err)
+		}
 		w.requeue(t)
-		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.recover(target, time.Now())
 	}

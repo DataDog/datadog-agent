@@ -344,6 +344,8 @@ func (v *MetricValidator) validateDefinition() error {
 
 // MetricSupportSpec defines where a metric is supported.
 type MetricSupportSpec struct {
+	// AMDOnly marks a metric emitted only for AMD GPUs: no NVIDIA architecture supports it.
+	AMDOnly                  bool                       `yaml:"amd_only,omitempty"`
 	UnsupportedArchitectures []string                   `yaml:"unsupported_architectures"`
 	DeviceModes              map[DeviceMode]bool        `yaml:"device_modes"`
 	CapabilitiesRequired     MetricCapabilitiesRequired `yaml:"capabilities_required,omitempty"`
@@ -351,8 +353,11 @@ type MetricSupportSpec struct {
 
 // MetricCapabilitiesRequired defines hardware capabilities required for a metric.
 type MetricCapabilitiesRequired struct {
-	NVLink *int  `yaml:"nvlink,omitempty"`
-	C2C    *bool `yaml:"c2c,omitempty"`
+	NVLink *int `yaml:"nvlink,omitempty"`
+	// MaxNVLink is the highest NVLink generation that supports the metric, for metrics
+	// whose source was removed in later generations.
+	MaxNVLink *int  `yaml:"max_nvlink,omitempty"`
+	C2C       *bool `yaml:"c2c,omitempty"`
 }
 
 // ArchitecturesSpec is the YAML architecture capability specification.
@@ -496,6 +501,9 @@ func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
 
 // SupportsArchitecture returns true if the metric is supported on this architecture.
 func (m MetricSpec) SupportsArchitecture(arch string) bool {
+	if m.Support.AMDOnly {
+		return false
+	}
 	for _, unsupportedArch := range m.Support.UnsupportedArchitectures {
 		if unsupportedArch == arch {
 			return false
@@ -522,6 +530,9 @@ func (m MetricSpec) SupportsConfig(config GPUConfig) bool {
 // SupportsCapabilities returns true if the metric's capability requirements are met.
 func (m MetricSpec) SupportsCapabilities(capabilities ArchitectureCapabilities) bool {
 	if m.Support.CapabilitiesRequired.NVLink != nil && capabilities.NVLink < *m.Support.CapabilitiesRequired.NVLink {
+		return false
+	}
+	if m.Support.CapabilitiesRequired.MaxNVLink != nil && capabilities.NVLink > *m.Support.CapabilitiesRequired.MaxNVLink {
 		return false
 	}
 	if m.Support.CapabilitiesRequired.C2C != nil && capabilities.C2C != *m.Support.CapabilitiesRequired.C2C {
@@ -626,6 +637,9 @@ func LoadSpecs() (*Specs, error) {
 		if err := validateConfigRequirements(metricName, metricSpec.ConfigRequired); err != nil {
 			return nil, err
 		}
+		if err := validateCapabilitiesRequired(metricName, metricSpec.Support.CapabilitiesRequired); err != nil {
+			return nil, err
+		}
 		if metricSpec.Metadata == nil || metricSpec.Metadata.Aggregation == "" {
 			continue
 		}
@@ -640,6 +654,19 @@ func LoadSpecs() (*Specs, error) {
 		Architectures: architectures,
 		Aggregations:  aggregations,
 	}, nil
+}
+
+func validateCapabilitiesRequired(metricName string, required MetricCapabilitiesRequired) error {
+	if required.MaxNVLink == nil {
+		return nil
+	}
+	if required.NVLink == nil {
+		return fmt.Errorf("metric %q sets capabilities_required.max_nvlink without capabilities_required.nvlink", metricName)
+	}
+	if *required.MaxNVLink < *required.NVLink {
+		return fmt.Errorf("metric %q has capabilities_required.max_nvlink %d lower than capabilities_required.nvlink %d", metricName, *required.MaxNVLink, *required.NVLink)
+	}
+	return nil
 }
 
 func validateConfigRequirements(metricName string, requirements []ConfigFeature) error {

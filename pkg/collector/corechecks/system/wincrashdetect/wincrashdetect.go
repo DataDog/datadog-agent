@@ -27,14 +27,14 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName = "wincrashdetect"
+	CheckName     = "wincrashdetect"
+	checkpointKey = "windows_crash_reporting:lastReported"
 )
 
 var (
-	// these are vars and not consts so that they can be overridden in
-	// the unit tests.
-	hive    = registry.LOCAL_MACHINE
-	baseKey = `SOFTWARE\Datadog\Datadog Agent\windows_crash_reporting`
+	// These legacy registry settings are overridden by the Windows check tests.
+	legacyHive = registry.LOCAL_MACHINE
+	legacyKey  = `SOFTWARE\Datadog\Datadog Agent\windows_crash_reporting`
 )
 
 // WinCrashConfig is the configuration options for this check
@@ -77,7 +77,7 @@ func (wcd *WinCrashDetect) Configure(senderManager sender.SenderManager, _ uint6
 		return err
 	}
 
-	wcd.reporter, err = crashreport.NewWinCrashReporter(hive, baseKey)
+	wcd.reporter, err = crashreport.NewWinCrashReporter(checkpointKey, legacyHive, legacyKey)
 	if err != nil {
 		return err
 	}

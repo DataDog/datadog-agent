@@ -1,0 +1,9 @@
+description: With IFS empty and -r, leading and trailing whitespace are preserved.
+input:
+  script: |+
+    printf '   hello   \n' | { IFS= read -r line; echo "[$line]"; }
+expect:
+  stdout: |+
+    [   hello   ]
+  stderr: ""
+  exit_code: 0

@@ -238,6 +238,37 @@ func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
 	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 
+func TestGetGridLicensableFeaturesRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetGridLicensableFeatures_v4.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetGridLicensableFeatures_v4"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetGridLicensableFeaturesFunc = func() (nvml.GridLicensableFeatures, nvml.Return) {
+				t.Error("GetGridLicensableFeatures must not be called when the symbol is missing from the library")
+				return nvml.GridLicensableFeatures{}, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	_, err = device.GetGridLicensableFeatures()
+	require.Error(t, err)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetGridLicensableFeatures_v4"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
 func TestDeviceSafeMethodSuccess(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.NewMockNVML(
@@ -392,6 +423,49 @@ func TestGetMIGInstanceProfileName(t *testing.T) {
 			require.Len(t, mockDevice.GetGpuInstanceByIdCalls(), 1)
 			require.Len(t, gpuInstance.GetInfoCalls(), tt.wantInstanceInfoCalls)
 			require.Equal(t, tt.wantProfileInfoCalls, profileInfoCalls)
+		})
+	}
+}
+
+func TestGetGpuFabricInfoV3(t *testing.T) {
+	clusterUUID := [16]uint8{0x33, 0x34, 0xf8}
+	v3 := nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY}
+	v2 := nvml.GpuFabricInfo_v2{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa}
+
+	for _, tt := range []struct {
+		name       string
+		v3Ret      nvml.Return
+		v2Ret      nvml.Return
+		want       nvml.GpuFabricInfo_v3
+		wantErr    nvml.Return
+		wantV2Call bool
+	}{
+		{name: "v3 supported", v3Ret: nvml.SUCCESS, want: v3},
+		{
+			name:  "older driver falls back to v2",
+			v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.SUCCESS, wantV2Call: true,
+			// V2 fields are kept and the health summary stays unsupported.
+			want: nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED},
+		},
+		{name: "v2 error is returned", v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.ERROR_NOT_SUPPORTED, wantErr: nvml.ERROR_NOT_SUPPORTED, wantV2Call: true},
+		{name: "v3 error is returned without fallback", v3Ret: nvml.ERROR_UNKNOWN, wantErr: nvml.ERROR_UNKNOWN},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v2Called := false
+			info, err := getGpuFabricInfoV3(
+				func() (nvml.GpuFabricInfo_v3, nvml.Return) { return v3, tt.v3Ret },
+				func() (nvml.GpuFabricInfo_v2, nvml.Return) { v2Called = true; return v2, tt.v2Ret },
+			)
+			require.Equal(t, tt.wantV2Call, v2Called)
+			if tt.wantErr != nvml.SUCCESS {
+				var nvmlErr *NvmlAPIError
+				require.ErrorAs(t, err, &nvmlErr)
+				require.Equal(t, tt.wantErr, nvmlErr.NvmlErrorCode)
+				require.Equal(t, nvml.GpuFabricInfo_v3{}, info)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, info)
 		})
 	}
 }

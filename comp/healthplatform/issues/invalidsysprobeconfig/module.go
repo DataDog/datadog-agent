@@ -35,7 +35,7 @@ type invalidSysprobeConfigModule struct {
 
 // NewModule captures the configs so the once-only startup check can read them.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidSysprobeConfigModule{datadog: deps.Config, checker: newChecker(deps.SysProbeConfig, deps.Hostname, deps.SelfIdent)}
+	return &invalidSysprobeConfigModule{datadog: deps.Config, checker: newChecker(deps.SysProbeConfig, deps.Schema, deps.Hostname, deps.SelfIdent)}
 }
 
 func (m *invalidSysprobeConfigModule) IssueName() string {
@@ -50,12 +50,13 @@ func (m *invalidSysprobeConfigModule) BuildIssue(context map[string]string) (*he
 	return InvalidSysprobeConfigIssue{}.BuildIssue(context)
 }
 
-// BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
+// BuiltInPeriodicHealthCheck returns nil as the configuration is only validated when loaded
 func (m *invalidSysprobeConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs system-probe schema validation once at agent startup.
+// BuiltInStartupHealthCheck reports the system-probe schema violations found when the configuration was loaded, once
+// at agent startup.
 // It returns nil when system-probe config isn't bundled (e.g. commands that don't load it),
 // so the bundle doesn't resolve a real persisted issue without ever validating.
 func (m *invalidSysprobeConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {

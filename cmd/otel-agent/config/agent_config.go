@@ -14,10 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
-	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -28,25 +24,19 @@ import (
 	"go.opentelemetry.io/collector/service"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	dogtelextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-)
-
-type logLevel int
-
-const (
-	trace logLevel = iota - 1
-	debug
-	info
-	warn
-	err
-	critical
-	off
+	logtypes "github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 // ddotZstdCompressionLevel is the default zstd compression level DDOT applies to
@@ -54,40 +44,8 @@ const (
 // overridable via the DD_*_ZSTD_*_LEVEL env vars; this is only the default.
 const ddotZstdCompressionLevel = 3
 
-// datadog agent log levels: trace, debug, info, warn, error, critical, and off
-// otel log levels: disabled, debug, info, warn, error
-var logLevelMap = map[string]logLevel{
-	"off":      off,
-	"disabled": off,
-	"trace":    trace,
-	"debug":    debug,
-	"info":     info,
-	"warn":     warn,
-	"error":    err,
-	"critical": critical,
-}
-
-var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
-	reverse := map[logLevel]string{}
-	for k, v := range src {
-		reverse[v] = k
-	}
-
-	return reverse
-}(logLevelMap)
-
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
-
-// otelAgentEnvVars lists DD_* environment variables that are consumed by the
-// otel-agent binary via CLI flags (envflag) rather than through the Datadog
-// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
-// emit spurious "Unknown environment variable" warnings for them.
-var otelAgentEnvVars = []string{
-	"DD_SYNC_DELAY",
-	"DD_SYNC_TO",
-	"DD_CORE_CONFIG",
-}
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
@@ -119,7 +77,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{})
 		if err != nil {
 			return nil, err
 		}
@@ -155,17 +113,18 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	activeLogLevel := critical
+	activeLogLevel := logtypes.CriticalLvl
+	activeLogLevelString := activeLogLevel.String()
 	if pkgconfig.IsConfigured("log_level") {
-		var ok bool
-		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
-		activeLogLevel, ok = logLevelMap[logLevel]
-		if !ok {
+		levelRules, err := logtypes.ParseLevelRules(pkgconfig.GetString("log_level"), "X") // pass a non-empty prefix just to get the default level
+		if err != nil {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
+		activeLogLevel = levelRules.DefaultLevel()
+		activeLogLevelString = levelRules.Spec()
 	}
 	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := "info"
+	telemetryLogLevel := logtypes.InfoStr
 	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
 		if stLogsCfg, ok := stCfgMap["logs"]; ok {
 			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
@@ -175,15 +134,16 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			}
 		}
 	}
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
-	if !ok {
+	telemetryLogMapping, err := logtypes.ValidateLogLevel(telemetryLogLevel)
+	if err != nil {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
+		activeLogLevelString = telemetryLogMapping.String()
 	}
-	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
+	fmt.Printf("using log level %v\n", activeLogLevelString)
+	pkgconfig.Set("log_level", activeLogLevelString, pkgconfigmodel.SourceFile)
 
 	// Standalone mode runs without a core Datadog Agent on the same host, so
 	// every client that would otherwise contact it over IPC (trace-agent
@@ -304,6 +264,20 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			if extcfg.KubernetesHTTPSKubeletPort > 0 {
 				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
 			}
+			if extcfg.UseKubeletCollector != nil {
+				pkgconfig.Set("otelcollector.standalone.use_kubelet_collector", *extcfg.UseKubeletCollector, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.NodeFromEnvVar != "" {
+				pkgconfig.Set("otelcollector.standalone.node_from_env_var", extcfg.NodeFromEnvVar, pkgconfigmodel.SourceFile)
+			}
+		}
+
+		// The cluster name resolution reads the k8s.cluster.name attribute of
+		// the collector's own telemetry resource, where users can set it in the
+		// collector config, next to the Kubernetes attributes the
+		// opentelemetry-collector Helm chart puts there.
+		if clusterName := telemetryResourceAttribute(sc.Telemetry, "k8s.cluster.name"); clusterName != "" {
+			pkgconfig.Set("otelcollector.standalone.telemetry_resource_cluster_name", clusterName, pkgconfigmodel.SourceFile)
 		}
 
 		// Resolve ENC[] secrets after dogtelextension config is applied so that
@@ -469,6 +443,39 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal pipeline config %w", err)
 	}
 	return pipelineConfig, nil
+}
+
+// telemetryResourceAttribute returns the value of the key attribute of the
+// collector's own telemetry resource, service.telemetry.resource, or an empty
+// string when it isn't set. telemetry is the service.telemetry section. The
+// resource takes either form the collector accepts: an inline map of attribute
+// names to values (legacy), where a null value leaves the attribute unset, or
+// an attributes list of name/value entries. The collector refuses a config that
+// uses both; should both be there anyway, the attributes list wins.
+func telemetryResourceAttribute(telemetry any, key string) string {
+	telemetryMap, ok := telemetry.(map[string]any)
+	if !ok {
+		return ""
+	}
+	resource, ok := telemetryMap["resource"].(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	var value string
+	if v, ok := resource[key]; ok && v != nil {
+		value = fmt.Sprint(v)
+	}
+	if attributes, ok := resource["attributes"].([]any); ok {
+		for _, a := range attributes {
+			attribute, ok := a.(map[string]any)
+			if !ok || attribute["name"] != key || attribute["value"] == nil {
+				continue
+			}
+			value = fmt.Sprint(attribute["value"])
+		}
+	}
+	return strings.TrimSpace(value)
 }
 
 // getDogtelExtensionConfig parses the first "dogtel*" entry in the

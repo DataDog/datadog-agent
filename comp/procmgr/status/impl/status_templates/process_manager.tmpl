@@ -1,0 +1,66 @@
+{{- with .processManager }}
+  Socket Path: {{ .SocketPath }}
+  Reachable: {{ .Daemon.Reachable }}
+  Ready: {{ .Daemon.Ready }}
+  {{- if .Daemon.Version }}
+  Version: {{ .Daemon.Version }}
+  {{- end }}
+  {{- if .Daemon.Reachable }}
+  Uptime: {{ .Daemon.UptimeSeconds }}s
+  Running Processes: {{ .Daemon.RunningProcesses }}
+  Total Processes: {{ .Daemon.TotalProcesses }}
+  {{- end }}
+  {{- if .Daemon.ServiceState }}
+  Service State: {{ .Daemon.ServiceState }}
+  {{- end }}
+  {{- if .DaemonError }}
+  Daemon Error: {{ .DaemonError }}
+  {{- end }}
+  {{- if .ProcessesError }}
+  Processes Error: {{ .ProcessesError }}
+  {{- end }}
+
+  Processes
+  {{ printDashes "Processes" "-" }}
+  {{- if .Processes }}
+  {{- range .Processes }}
+    - {{ .Name }}: state={{ .State }} pid={{ .PID }} restarts={{ .RestartCount }}
+      {{- if .Profile }} profile={{ .Profile }}{{ end }}
+      {{- if .User }} user={{ .User }}{{ end }}
+      {{- if .LastExitCode }} last_exit_code={{ .LastExitCode }}{{ end }}
+      {{- if .LastSignal }} last_signal={{ .LastSignal }}{{ end }}
+  {{- end }}
+
+  Tip: Full scrubbed argv is in flare file procmgr/state.json.
+  {{- else }}
+    (none)
+  {{- end }}
+
+  Services
+  {{ printDashes "Services" "-" }}
+  {{- if .Services }}
+  {{- range .Services }}
+    - {{ .ID }}: installed={{ .Installed }} configured={{ .ProcmgrConfigured }} mode={{ .ManagementMode }} procmgr_state={{ .ProcmgrState }}
+  {{- end }}
+  {{- else }}
+    (none)
+  {{- end }}
+
+  {{- if .Warnings }}
+
+  Warnings
+  {{ printDashes "Warnings" "-" }}
+  {{- range .Warnings }}
+    - {{ . }}
+  {{- end }}
+  {{- end }}
+
+  {{- if .Notes }}
+
+  Notes
+  {{ printDashes "Notes" "-" }}
+  {{- range .Notes }}
+    - {{ . }}
+  {{- end }}
+  {{- end }}
+{{- end }}

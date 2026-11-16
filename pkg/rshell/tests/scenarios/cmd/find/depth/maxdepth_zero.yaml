@@ -1,0 +1,15 @@
+description: find -maxdepth 0 only processes the starting point.
+setup:
+  files:
+    - path: dir/file.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -maxdepth 0
+expect:
+  stdout: |+
+    dir
+  stderr: ""
+  exit_code: 0

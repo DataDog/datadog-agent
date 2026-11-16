@@ -1,0 +1,26 @@
+# Every operand must be an exact, fully suffixed unit name of a supported type.
+skip_assert_against_bash: true
+description: systemctl rejects malformed unit operands before authorization
+input:
+  mode: remediation
+  script: |+
+    systemctl status foo.bogus
+    systemctl status foo
+    systemctl status .service
+    systemctl status foo.
+    systemctl status '@foo.service'
+    systemctl status 'a@b@c.service'
+    systemctl status ''
+    systemctl status
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: unsupported unit type "bogus" in "foo.bogus"
+    systemctl: invalid exact unit name "foo"
+    systemctl: invalid exact unit name ".service"
+    systemctl: invalid exact unit name "foo."
+    systemctl: invalid exact unit name "@foo.service"
+    systemctl: invalid exact unit name "a@b@c.service"
+    systemctl: unit name must not be empty
+    systemctl: at least one exact unit is required
+  exit_code: 1

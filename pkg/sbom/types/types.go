@@ -25,7 +25,13 @@ type ScanOptions struct {
 	Fast             bool
 	UseMount         bool
 	OverlayFsScan    bool
-	AdditionalDirs   []string
+}
+
+// OSOnly reports whether the scan runs the OS package analyzers alone, that is
+// whether Analyzers is exactly ["os"]. Any other list, empty included, selects
+// the application analyzers too.
+func (o ScanOptions) OSOnly() bool {
+	return len(o.Analyzers) == 1 && o.Analyzers[0] == "os"
 }
 
 const (

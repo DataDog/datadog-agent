@@ -194,7 +194,6 @@ def workflow_run_args(
     config_path: str,
     jobs: int,
     max_attempts: int,
-    data_env: str,
     limit: int = 0,
     where_in: str = "",
 ) -> list[str]:
@@ -211,8 +210,6 @@ def workflow_run_args(
         dataset,
         "--env",
         "ddbuild",
-        "--data-env",
-        data_env,
         "-f",
         config_path,
         "-j",

@@ -314,6 +314,15 @@ func setupSensitiveAnnotations() []annotationTestCase {
 		{`{"password": "test1234"}`, `{"password": "********"}`},
 		{`{"secret": "test1234"}`, `{"secret": "********"}`},
 		{`{"stripetoken": "test1234"}`, `{"stripetoken": "********"}`},
+		{`{"community_string": "test1234"}`, `{"community_string": "********"}`},
+		{`{"auth_key": "test1234"}`, `{"auth_key": "********"}`},
+		{`{"priv_key": "test1234"}`, `{"priv_key": "********"}`},
+		{`{"authentication_key": "test1234"}`, `{"authentication_key": "********"}`},
+		{`{"privacy_key": "test1234"}`, `{"privacy_key": "********"}`},
+
+		// case insensitive keys
+		{`{"authKey": "test1234", "privKey": "test5678"}`, `{"authKey": "********", "privKey": "********"}`},
+		{`{"Password": "test1234"}`, `{"Password": "********"}`},
 
 		// preserve the rest of the value
 		{`{"param1": 1, "password": "test1234", "param2": 2}`, `{"param1": 1, "password": "********", "param2": 2}`},

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix ``serverless-init`` on AWS Lambda MicroVMs dropping the last 20 to 30
+    seconds of APM trace stats (hits, errors, and latency) when a MicroVM is
+    terminated. The ``/terminate`` lifecycle hook now stops the trace agent so
+    all pending trace stats are sent before the MicroVM is destroyed.

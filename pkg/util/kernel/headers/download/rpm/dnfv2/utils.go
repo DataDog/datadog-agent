@@ -9,9 +9,8 @@
 package dnfv2
 
 import (
+	"bytes"
 	"fmt"
-	"os"
-	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/extract"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/backend"
@@ -46,13 +45,13 @@ func DefaultPkgMatcher(pkgName, kernelVersion string) repo.PkgMatchFunc {
 	}
 }
 
-// ExtractPackage extracts the RPM package described by `pkg` and contained in `data` to the provided directory
+// ExtractPackage extracts the RPM package described by pkg from its existing
+// downloaded data. bytes.NewReader shares that slice; the decompressed payload
+// streams to disk without another package-sized buffer or an intermediate RPM.
+// The compressed data stays live until extraction completes.
 func ExtractPackage(pkg *repo.PkgInfo, data []byte, directory string, target *types.Target, logger types.Logger) error {
-	pkgFileName := fmt.Sprintf("%s-%s.rpm", pkg.Header.Name, computePkgKernel(&pkg.Header))
-	pkgFileName = path.Join(directory, pkgFileName)
-	if err := os.WriteFile(pkgFileName, data, 0o644); err != nil {
-		return err
+	if err := extract.ExtractRPMPackage(bytes.NewReader(data), directory, target.Uname.Kernel, logger); err != nil {
+		return fmt.Errorf("extract %s-%s.rpm: %w", pkg.Header.Name, computePkgKernel(&pkg.Header), err)
 	}
-
-	return extract.ExtractRPMPackage(pkgFileName, directory, target.Uname.Kernel, logger)
+	return nil
 }

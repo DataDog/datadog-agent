@@ -1,0 +1,8 @@
+description: A long || chain of five commands all fail with exit code from the last.
+input:
+  script: |+
+    false || false || false || false || false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

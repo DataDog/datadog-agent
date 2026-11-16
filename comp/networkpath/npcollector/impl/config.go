@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -49,15 +50,23 @@ type collectorConfigs struct {
 	sourceProduct                   payload.SourceProduct
 }
 
-func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component, logger log.Component) *collectorConfigs {
 	var filterConfigs []connfilter.Config
 	err := structure.UnmarshalKey(agentConfig, "network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
+	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	infraMode := agentConfig.GetString("infrastructure_mode")
 	isEUDM := infraMode == "end_user_device"
+	// Basic tests are on by default, so they stand down when system-probe traceroute is
+	// explicitly disabled (e.g. the Helm chart default): every test would fail otherwise.
+	tracerouteExplicitlyDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
+	basicTestsRequested := !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm
+	if basicTestsRequested && tracerouteExplicitlyDisabled {
+		logger.Infof("Network Path basic dynamic tests are disabled because system-probe traceroute is explicitly disabled (traceroute.enabled: false)")
+	}
 	eudmBasicTestsEnabled := isEUDM && agentConfig.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled")
 	candidateLimit := basicCandidateLimit
 	selectionLimit := basicSelectionsPerWindow
@@ -70,8 +79,8 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		selectionLimit = eudmBasicSelectionsPerWindow
 	}
 	return &collectorConfigs{
-		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		basicTestsEnabled:            !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"),
+		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled") && cnm,
+		basicTestsEnabled:            basicTestsRequested && !tracerouteExplicitlyDisabled,
 		eudmBasicTestsEnabled:        eudmBasicTestsEnabled,
 		basicCandidateLimit:          candidateLimit,
 		basicSelectionLimit:          selectionLimit,

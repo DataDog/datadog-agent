@@ -8,6 +8,7 @@ package util
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -17,7 +18,7 @@ import (
 // RetryHTTPOptions controls the retry policy for RetryHTTPRequest.
 //
 // MaxElapsedTime == 0 disables the elapsed-time cap, meaning retries continue
-// until the request succeeds, hits a permanent failure (4xx), or the caller's
+// until the request succeeds, hits a permanent failure (see IsRetryableHTTPStatus), or the caller's
 // context is cancelled.
 type RetryHTTPOptions struct {
 	InitialInterval time.Duration
@@ -29,9 +30,8 @@ type RetryHTTPOptions struct {
 // (result, statusCode, err); statusCode should be 0 for transport-level errors
 // where no HTTP response was received.
 //
-// 4xx responses are treated as permanent (no retry) since they typically
-// indicate a non-transient client problem (bad credentials, malformed payload).
-// Transport errors and 5xx responses are retried.
+// Transport errors and responses accepted by IsRetryableHTTPStatus are
+// retried; other responses are permanent.
 func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opts RetryHTTPOptions) (T, error) {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = opts.InitialInterval
@@ -42,7 +42,7 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		if err == nil {
 			return result, nil
 		}
-		if statusCode >= 400 && statusCode < 500 {
+		if statusCode != 0 && !IsRetryableHTTPStatus(statusCode) {
 			return result, backoff.Permanent(err)
 		}
 		log.FromContext(ctx).Warnf("HTTP request failed, will retry: %v", err)
@@ -55,4 +55,15 @@ func RetryHTTPRequest[T any](ctx context.Context, op func() (T, int, error), opt
 		return result, re.LastErr
 	}
 	return result, err
+}
+
+// IsRetryableHTTPStatus reports whether a non-2xx response may succeed if the
+// same request is sent again: 5xx, and the 4xx that only mean "not now" (408
+// Request Timeout, 425 Too Early, 429 Too Many Requests).
+func IsRetryableHTTPStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusRequestTimeout, http.StatusTooEarly, http.StatusTooManyRequests:
+		return true
+	}
+	return statusCode < 400 || statusCode >= 500
 }

@@ -1,18 +1,21 @@
-load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
-load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//deps/krb5:krb5_codegen.bzl", "krb5_concat")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 
 package(
     default_package_metadata = [":package_metadata"],
-    default_visibility = ["//visibility:public"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
 )
 
-VERSION = "1.21.3"
+VERSION = "1.22.2"
 
 package_metadata(
     name = "package_metadata",
@@ -20,7 +23,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-{version}.tar.gz",
+        download_url = "https://kerberos.org/dist/krb5/1.22/krb5-{version}.tar.gz",
         package = "krb5",
         version = VERSION,
     ),
@@ -33,172 +36,174 @@ license(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "all_srcs",
-    srcs = glob(["src/**/*"]),
+exports_files(["src/config-files/krb5.conf"])
+
+# include/autoconf.h, captured from upstream's configure for each architecture.
+copy_file(
+    name = "autoconf_h",
+    src = select({
+        "@@//:linux_arm64": "autoconf-linux-arm64.h",
+        "@@//:linux_x86_64": "autoconf-linux-x86_64.h",
+    }),
+    out = "src/include/autoconf.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
-# Maps lib_filter name -> {"version": ..., "prefix": ...}.
-# - version: full version string ("" for unversioned plugins).
-# - prefix: subdirectory under lib/ where the file lands ("" means directly in lib/).
-LIBS = {
-    "k5tls": {
-        "version": "",
-        "prefix": "krb5/plugins/tls",
+# These paths are compiled into the libraries, so they must not depend on the install location.
+# Defaults the agent does not use point to /nonexistent, so a krb5 installed on the host is
+# never picked up. Plugins are found through %{LIBDIR}, which resolves at runtime next to the
+# loaded libkrb5 (see 0005-Resolve-LIBDIR-token-from-the-loaded-library-on-Unix.patch).
+expand_template(
+    name = "osconf_h",
+    out = "src/include/osconf.h",
+    substitutions = {
+        "@BINDIR": "/nonexistent/krb5/bin",
+        "@DYNOBJEXT": ".so",
+        "@GSSMODULEDIR": "/nonexistent/krb5/lib/gss",
+        "@KRB5RCTMPDIR": "/var/tmp",
+        "@LIBDIR": "%{LIBDIR}",
+        "@LOCALSTATEDIR": "/nonexistent/krb5/var",
+        "@MODULEDIR": "/nonexistent/krb5/lib/krb5/plugins",
+        "@RUNSTATEDIR": "/nonexistent/krb5/var/run",
+        "@SBINDIR": "/nonexistent/krb5/sbin",
+        "@SYSCONFCONF": "",
+        "@SYSCONFDIR": "/nonexistent/krb5/etc",
     },
-    "db2": {
-        "version": "",
-        "prefix": "krb5/plugins/kdb",
-    },
-    "test": {
-        "version": "",
-        "prefix": "krb5/plugins/preauth",
-    },
-    "spake": {
-        "version": "",
-        "prefix": "krb5/plugins/preauth",
-    },
-    "pkinit": {
-        "version": "",
-        "prefix": "krb5/plugins/preauth",
-    },
-    "otp": {
-        "version": "",
-        "prefix": "krb5/plugins/preauth",
-    },
-    "libcom_err": {
-        "version": "3.0",
-        "prefix": "",
-    },
-    "libgssapi_krb5": {
-        "version": "2.2",
-        "prefix": "",
-    },
-    "libgssrpc": {
-        "version": "4.2",
-        "prefix": "",
-    },
-    "libk5crypto": {
-        "version": "3.1",
-        "prefix": "",
-    },
-    "libkadm5clnt": {
-        "version": "",
-        "prefix": "",
-    },
-    "libkadm5clnt_mit": {
-        "version": "12.0",
-        "prefix": "",
-    },
-    "libkadm5srv": {
-        "version": "",
-        "prefix": "",
-    },
-    "libkadm5srv_mit": {
-        "version": "12.0",
-        "prefix": "",
-    },
-    "libkdb5": {
-        "version": "10.0",
-        "prefix": "",
-    },
-    "libkrad": {
-        "version": "0.0",
-        "prefix": "",
-    },
-    "libkrb5": {
-        "version": "3.3",
-        "prefix": "",
-    },
-    "libkrb5support": {
-        "version": "0.1",
-        "prefix": "",
-    },
-    "libverto": {
-        "version": "0.0",
-        "prefix": "",
-    },
-}
+    template = "src/include/osconf.hin",
+)
 
-configure_make(
-    name = "krb5",
-    args = [
-        "-j 16",
+# Public krb5/krb5.h: krb5.hin followed by the error tables, as in include/Makefile.in.
+krb5_concat(
+    name = "krb5_h",
+    out = "src/include/krb5/krb5.h",
+    epilogue = "#endif /* KRB5_KRB5_H_INCLUDED */",
+    inputs = [
+        "src/include/krb5/krb5.hin",
+        "//src/lib/krb5:error_tables/krb5_err.h",
+        "//src/lib/krb5:error_tables/k5e1_err.h",
+        "//src/lib/krb5:error_tables/kdb5_err.h",
+        "//src/lib/krb5:error_tables/kv5m_err.h",
+        "//src/lib/krb5:error_tables/krb524_err.h",
+        "//src/lib/krb5:error_tables/asn1_err.h",
     ],
-    configure_options = [
-        "--without-keyutils",  # this would require additional deps/system deps, disable it
-        "--without-system-verto",  # do not prefer libverto from the system, if installed
-        "--without-libedit",  # we don't want to link with libraries outside of the install dir
-        "--disable-static",
-        "--with-crypto-impl=openssl",
-        "--with-tls-impl=openssl",
-        "--disable-nls",
+    prologue = "/* This file is generated, please don't edit it directly.  */\\n#ifndef KRB5_KRB5_H_INCLUDED\\n#define KRB5_KRB5_H_INCLUDED",
+)
+
+# Public profile.h, as in util/profile/Makefile.in.
+krb5_concat(
+    name = "profile_h",
+    out = "src/include/profile.h",
+    inputs = [
+        "//src/util:profile/profile.hin",
+        "//src/util:profile/prof_err.h",
     ],
-    dynamic_deps = [
-        "@openssl//:openssl_shared",
+)
+
+# Upstream's include/ directory (source and generated headers), used by every library.
+cc_library(
+    name = "include",
+    hdrs = glob([
+        "src/include/*.h",
+        "src/include/krb5/*.h",
+    ]) + [
+        ":autoconf_h",
+        ":krb5_h",
+        ":osconf_h",
+        ":profile_h",
     ],
-    lib_source = ":all_srcs",
-    out_binaries = [
-        "kinit",
-    ],
-    out_shared_libs = [
-        "{}/{}.so".format(
-            spec["prefix"],
-            libname,
-        ) if spec["prefix"] else "{}.so".format(libname)
-        for libname, spec in LIBS.items()
-    ],
+    includes = ["src/include"],
     deps = [
-        "@openssl",
+        "//src/util:com_err_h",
+        "//src/util:verto_h",
     ],
 )
 
-[
-    foreign_cc_shared_wrapper(
-        name = "{}_shared".format(libname),
-        input = ":krb5",
-        lib_filter = libname,
-    )
-    for libname in LIBS.keys()
-]
-
-[
-    dd_cc_packaged(
-        name = "{}_pkg".format(libname),
-        dest_dir = "embedded/lib",
-        input = ":{}_shared".format(libname),
-        # kinit rides along with libkrb5 so its rpath gets patched via dd_cc_packaged.
-        installed_executables = {":_bins": "embedded/bin"} if libname == "libkrb5" else {},
-        # Headers ride along with libkrb5 so they flow through dd_collect_dependencies.
-        installed_files = [":hdr_files"] if libname == "libkrb5" else [],
-        libname = libname,
-        prefix = spec["prefix"],
-        version = spec["version"],
-    )
-    for libname, spec in LIBS.items()
-]
-
-filegroup(
-    name = "_headers",
-    srcs = [":krb5"],
-    output_group = "include",
+cc_library(
+    name = "patchlevel_h",
+    hdrs = ["src/patchlevel.h"],
+    includes = ["src"],
 )
 
-filegroup(
-    name = "_bins",
-    srcs = [":krb5"],
-    output_group = "kinit",
+expand_template(
+    name = "gssrpc_types_h",
+    out = "src/include/gssrpc/types.h",
+    substitutions = {
+        "@GSSRPC__BSD_TYPEALIASES@": "/* #undef GSSRPC__BSD_TYPEALIASES */",
+        "@GSSRPC__NETDB_H@": "/* #include <netdb.h> */",
+        "@GSSRPC__SYS_PARAM_H@": "#include <sys/param.h>",
+        "@GSSRPC__SYS_SELECT_H@": "#include <sys/select.h>",
+        "@GSSRPC__SYS_TIME_H@": "#include <sys/time.h>",
+        "@GSSRPC__UNISTD_H@": "#include <unistd.h>",
+        "@rpcent_define@": "#define STRUCT_RPCENT_IN_RPC_NETDB_H",
+    },
+    template = "src/include/gssrpc/types.hin",
+)
+
+# Public gssrpc/ headers, including the configured gssrpc/types.h.
+cc_library(
+    name = "gssrpc_h",
+    hdrs = glob(["src/include/gssrpc/*.h"]) + [":gssrpc_types_h"],
+    includes = ["src/include"],
+    deps = ["//src/lib/gssapi:gssapi_generic_h"],
 )
 
 pkg_files(
-    name = "hdr_files",
-    srcs = [":_headers"],
-    prefix = "embedded",
+    name = "include_hdr_files",
+    srcs = [
+        "src/include/gssapi.h",
+        "src/include/kdb.h",
+        "src/include/krad.h",
+        "src/include/krb5.h",
+        "src/include/krb5/ccselect_plugin.h",
+        "src/include/krb5/certauth_plugin.h",
+        "src/include/krb5/clpreauth_plugin.h",
+        "src/include/krb5/hostrealm_plugin.h",
+        "src/include/krb5/kadm5_auth_plugin.h",
+        "src/include/krb5/kadm5_hook_plugin.h",
+        "src/include/krb5/kdcpolicy_plugin.h",
+        "src/include/krb5/kdcpreauth_plugin.h",
+        "src/include/krb5/localauth_plugin.h",
+        "src/include/krb5/locate_plugin.h",
+        "src/include/krb5/plugin.h",
+        "src/include/krb5/preauth_plugin.h",
+        "src/include/krb5/pwqual_plugin.h",
+        ":gssrpc_types_h",
+        ":krb5_h",
+        ":profile_h",
+    ] + glob(["src/include/gssrpc/*.h"]),
+    prefix = "embedded/include",
+    strip_prefix = strip_prefix.from_pkg("src/include"),
 )
 
-# Single public entry point for "ship all krb5 libraries".
-dd_collect_dependencies(
-    name = "installed_libs",
-    srcs = [":{}_pkg".format(libname) for libname in LIBS.keys()],
+# All headers upstream's make install puts in include/, shipped with libkrb5.
+pkg_filegroup(
+    name = "hdr_files",
+    srcs = [
+        ":include_hdr_files",
+        "//src/lib:kadm5_hdr_files",
+        "//src/lib/gssapi:hdr_files",
+        "//src/util:com_err_hdr_files",
+        "//src/util:verto_hdr_files",
+    ],
+)
+
+# Entry point for packaging krb5, so consumers don't depend on the overlay layout.
+alias(
+    name = "kinit_pkg",
+    actual = "//src/clients/kinit:kinit_pkg",
     visibility = ["@@//packages:__subpackages__"],
+)
+
+# Upstream's self-contained C unit tests. Manual: run with `bazel test @krb5//:tests`.
+test_suite(
+    name = "tests",
+    tags = ["manual"],
+    tests = [
+        "//src/lib:krad_tests",
+        "//src/lib/crypto:crypto_tests",
+        "//src/lib/gssapi:gssapi_tests",
+        "//src/lib/krb5:krb5_tests",
+        "//src/util:com_err_tests",
+        "//src/util:support_tests",
+    ],
 )

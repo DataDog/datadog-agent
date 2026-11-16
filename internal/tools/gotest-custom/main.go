@@ -5,12 +5,9 @@
 package main
 
 import (
-	"archive/tar"
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -19,7 +16,6 @@ import (
 	"sync"
 
 	"github.com/google/shlex"
-	"github.com/klauspost/compress/zstd"
 )
 
 func main() {
@@ -39,10 +35,6 @@ func main() {
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(binaries))
-	outputs := make([]*bytes.Buffer, len(binaries))
-	for idx := range outputs {
-		outputs[idx] = &bytes.Buffer{}
-	}
 	errChannel := make(chan error, len(binaries))
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -168,14 +160,8 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		return nil, nil, fmt.Errorf("failed to parse manifest: %v", err)
 	}
 
-	// Create extraction directory if it doesn't exist
-	if err := os.MkdirAll(extractPath, 0755); err != nil {
-		return nil, nil, fmt.Errorf("failed to create extraction directory: %v", err)
-	}
-
 	var binaries []string
 	var matchedPackages []string
-	var targetBinaries = make(map[string]bool)
 
 	// For each target package, find matching binaries
 	for _, target := range packages {
@@ -190,71 +176,13 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 					binaryPath := filepath.Join(extractPath, binaryInfo.Binary)
 					binaries = append(binaries, binaryPath)
 					matchedPackages = append(matchedPackages, binaryInfo.Package)
-					targetBinaries[binaryInfo.Binary] = true
 				}
 			}
 		}
 	}
 
-	// Check if all needed binaries are already present on disk
-	// (e.g. pre-downloaded from S3 by the invoke task)
-	allPresent := len(targetBinaries) > 0
-	for binaryName := range targetBinaries {
-		outPath := filepath.Join(extractPath, binaryName)
-		if _, err := os.Stat(outPath); os.IsNotExist(err) {
-			allPresent = false
-			break
-		}
-	}
-
-	if allPresent {
-		return binaries, matchedPackages, nil
-	}
-
-	// Fall back to extracting from local tarball
-	binariesPath := "test-binaries.tar.zst"
-	file, err := os.Open(binariesPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
-	}
-	defer file.Close()
-
-	zr, err := zstd.NewReader(file)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create zstd reader: %v", err)
-	}
-	defer zr.Close()
-
-	tr := tar.NewReader(zr)
-
-	// Extract only the targeted binaries
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read tar header: %v", err)
-		}
-
-		// Skip if not a targeted binary
-		baseName := filepath.Base(header.Name)
-		if !targetBinaries[baseName] {
-			continue
-		}
-
-		// Create the file
-		outPath := filepath.Join(extractPath, baseName)
-		outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create output file %s: %v", outPath, err)
-		}
-
-		if _, err := io.Copy(outFile, tr); err != nil {
-			outFile.Close()
-			return nil, nil, fmt.Errorf("failed to write output file %s: %v", outPath, err)
-		}
-		outFile.Close()
+	if len(binaries) == 0 {
+		return nil, nil, fmt.Errorf("no binaries in %s match packages %v", manifestPath, packages)
 	}
 
 	return binaries, matchedPackages, nil

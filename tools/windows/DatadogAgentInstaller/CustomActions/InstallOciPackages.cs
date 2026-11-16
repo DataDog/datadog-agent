@@ -109,6 +109,19 @@ namespace Datadog.CustomActions
                 env["DD_LOG_LEVEL"] = _logLevel;
             }
 
+            var agentEnvironment = _session.Property("DD_ENV");
+            if (!string.IsNullOrEmpty(agentEnvironment))
+            {
+                env["DD_ENV"] = agentEnvironment;
+            }
+
+            // Enable Cloud Network Monitoring (network_config.enabled in system-probe.yaml)
+            var networkEnabled = _session.Property("DD_SYSTEM_PROBE_NETWORK_ENABLED");
+            if (!string.IsNullOrEmpty(networkEnabled))
+            {
+                env["DD_SYSTEM_PROBE_NETWORK_ENABLED"] = networkEnabled;
+            }
+
             var appKey = _session.Property("DD_APP_KEY");
             if (!string.IsNullOrEmpty(appKey))
             {

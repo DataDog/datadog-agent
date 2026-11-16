@@ -4,27 +4,21 @@
 // Copyright 2024-present Datadog, Inc.
 // Copyright (c) 2021, RapDev.IO
 
-// AIX is excluded because github.com/hashicorp/go-secure-stdlib/mlock does not
-// support AIX (its lockMemory is only defined for linux and darwin). This
-// transitively breaks compilation of github.com/hashicorp/vault/http on AIX.
-// Track https://github.com/hashicorp/go-secure-stdlib/pull/187 for the upstream fix.
-//go:build !aix
-
 package hashicorp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/aws"
-	vaultHttp "github.com/hashicorp/vault/http"
-	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -91,28 +85,85 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
+// createTestVault serves the subset of the Vault HTTP API the backend relies on: KV v1 and v2 reads and writes,
+// listing and creating mounts. "secret/" is a KV v1 mount, as in Vault's dev mode.
 func createTestVault(t *testing.T) (*api.Client, string) {
 	t.Helper()
 
 	// clear VAULT_ADDR to ensure NewVaultBackend uses the right vault address for ci test
 	t.Setenv("VAULT_ADDR", "")
 
-	// Create an in-memory, unsealed core (the "backend", if you will).
-	core, keyShares, rootToken := vault.TestCoreUnsealed(t)
-	_ = keyShares
+	const rootToken = "root"
+	var mu sync.Mutex
+	mounts := map[string]*api.MountOutput{"secret/": {Type: "kv", Options: map[string]string{"version": "1"}}}
+	secrets := map[string]map[string]interface{}{}
 
-	// Start an HTTP server for the core.
-	ln, addr := vaultHttp.TestServer(t, core)
+	kvV2Mount := func(path string) string {
+		for mount, out := range mounts {
+			if out.Options["version"] == "2" && strings.HasPrefix(path, mount) {
+				return mount
+			}
+		}
+		return ""
+	}
+	reply := func(w http.ResponseWriter, status int, body interface{}) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(body)
+	}
 
-	// listener cleanup before Vault shutdown.
-	t.Cleanup(func() {
-		ln.Close()
-	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		path := strings.TrimPrefix(r.URL.Path, "/v1/")
+		switch {
+		case path == "sys/mounts" && r.Method == http.MethodGet:
+			reply(w, http.StatusOK, map[string]interface{}{"data": mounts})
+		case strings.HasPrefix(path, "sys/mounts/"):
+			var in api.MountInput
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+				reply(w, http.StatusBadRequest, map[string]interface{}{"errors": []string{err.Error()}})
+				return
+			}
+			mounts[strings.TrimSuffix(strings.TrimPrefix(path, "sys/mounts/"), "/")+"/"] = &api.MountOutput{Type: in.Type, Options: in.Options}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPut || r.Method == http.MethodPost:
+			dec := json.NewDecoder(r.Body)
+			dec.UseNumber()
+			var body map[string]interface{}
+			if err := dec.Decode(&body); err != nil {
+				reply(w, http.StatusBadRequest, map[string]interface{}{"errors": []string{err.Error()}})
+				return
+			}
+			if kvV2Mount(path) != "" {
+				body, _ = body["data"].(map[string]interface{})
+			}
+			secrets[path] = body
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet:
+			data, ok := secrets[path]
+			if !ok {
+				reply(w, http.StatusNotFound, map[string]interface{}{"errors": []string{}})
+				return
+			}
+			if kvV2Mount(path) != "" {
+				reply(w, http.StatusOK, map[string]interface{}{
+					"renewable": false, "lease_duration": 0,
+					"data": map[string]interface{}{"data": data, "metadata": map[string]interface{}{"version": 1}},
+				})
+				return
+			}
+			reply(w, http.StatusOK, map[string]interface{}{"renewable": false, "lease_duration": 2764800, "data": data})
+		default:
+			reply(w, http.StatusMethodNotAllowed, map[string]interface{}{"errors": []string{"unsupported request"}})
+		}
+	}))
+	t.Cleanup(server.Close)
 
 	// Create a client that talks to the server, initially authenticating with
 	// the root token.
 	conf := api.DefaultConfig()
-	conf.Address = addr
+	conf.Address = server.URL
 
 	client, err := api.NewClient(conf)
 	if err != nil {

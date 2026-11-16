@@ -100,6 +100,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 func (w *Webhook) validate(request *admission.Request) *admiv1.AdmissionResponse {
 	var cr datadoghq.DatadogInstrumentation
 	if err := json.Unmarshal(request.Object, &cr); err != nil {
+		request.ProcessingFailed = true
 		return rejected(fmt.Sprintf("failed to decode DatadogInstrumentation: %v", err))
 	}
 

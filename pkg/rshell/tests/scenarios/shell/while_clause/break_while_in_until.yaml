@@ -1,0 +1,17 @@
+description: break 2 from a while inside an until exits both loops.
+input:
+  script: |+
+    until false; do
+      while true; do
+        echo inner
+        break 2
+      done
+      echo unreachable
+    done
+    echo done
+expect:
+  stdout: |+
+    inner
+    done
+  stderr: |+
+  exit_code: 0

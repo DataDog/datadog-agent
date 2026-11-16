@@ -109,3 +109,18 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(v, true)
 }
+
+func TestMultiRegionFailoverAllowlistRuntimeSettings(t *testing.T) {
+	for _, name := range []string{"multi_region_failover.metric_allowlist", "multi_region_failover.logs_service_allowlist"} {
+		t.Run(name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			s := NewMultiRegionFailoverRuntimeSetting(name, "")
+
+			assert.NoError(t, s.Set(cfg, []string{"a", "b"}, model.SourceRC))
+			v, err := s.Get(cfg)
+			assert.NoError(t, err)
+			assert.Equal(t, []string{"a", "b"}, v)
+			assert.Equal(t, model.SourceRC, cfg.GetSource(name))
+		})
+	}
+}

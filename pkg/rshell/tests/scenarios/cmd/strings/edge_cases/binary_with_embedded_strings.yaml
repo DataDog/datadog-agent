@@ -1,0 +1,13 @@
+description: strings extracts printable strings from binary data.
+setup:
+  files:
+    - path: binary.dat
+      content: "\x00\x01\x02hello\x00\x03world!!!\x00"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings binary.dat
+expect:
+  stdout: "hello\nworld!!!\n"
+  stderr: ""
+  exit_code: 0

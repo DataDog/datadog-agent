@@ -48,6 +48,7 @@ var validProducts = map[string]struct{}{
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
+	ProductNDMConfig:                    {},
 }
 
 const (
@@ -140,4 +141,6 @@ const (
 	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
 	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
 	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
+	// ProductNDMConfig receives configuration documents for network device monitoring
+	ProductNDMConfig = "NDM_CONFIG"
 )

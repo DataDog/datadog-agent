@@ -13,6 +13,8 @@ permissions: {}
 jobs:
   chase_for_qa_cards:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment:
       name: main
     steps:

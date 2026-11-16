@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    The Agent now reports ``runtime.agent_service_running``, a bool gauge tagged by
+    ``service`` and ``supervisor`` (``procmgr``, ``systemd``, or ``windows_service``)
+    that is 1 only when the process is up under that supervisor.
+
+    ``runtime.agent_service_management_mode`` remains an ownership signal:
+    ``mode:procmgr`` means the process is listed by ``dd-procmgrd`` in any state,
+    while ``mode:systemd`` / ``windows_service`` already imply the legacy unit or
+    service is actively running. Comparing those tags mixed ownership with uptime.
+    Use ``agent_service_running`` for fair "who keeps it up" comparisons; at most
+    one supervisor is 1 per service.

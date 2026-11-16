@@ -1,0 +1,11 @@
+description: $? reflects exit status of last command substitution during expansion.
+input:
+  script: |+
+    echo $(false) $?
+    echo $(true) $?
+expect:
+  stdout: |+
+     1
+     0
+  stderr: ""
+  exit_code: 0

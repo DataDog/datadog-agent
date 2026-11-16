@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -40,7 +42,10 @@ type ConnectionsClient struct {
 }
 
 func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
-	baseUrl := "https://api." + ddSite
+	baseUrl, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	httpClient := &http.Client{
@@ -50,7 +55,7 @@ func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*
 
 	return &ConnectionsClient{
 		httpClient: httpClient,
-		baseUrl:    baseUrl,
+		baseUrl:    strings.TrimSuffix(baseUrl, "/"),
 		apiKey:     apiKey,
 		appKey:     appKey,
 		retryOpts: parutil.RetryHTTPOptions{

@@ -21,6 +21,10 @@ tasks/
 └── BUILD.bazel         — Bazel targets for task code that has been migrated
 ```
 
+Unit-test files must end in `_tests.py`; nested test directories need an
+`__init__.py` for unittest discovery. Verify the reported test count: a successful
+command reporting `Ran 0 tests` has not validated the code.
+
 ## Task Categories
 
 ### Build and Test
@@ -52,12 +56,30 @@ Supporting library code:
 These tasks are typically CI-only and depend on GitLab/GitHub tokens available in CI
 environment variables.
 
+Reuse `libs/ciproviders/gitlab_api.py` for GitLab authentication and clients.
+For a pipeline's jobs, use `pipeline.jobs.list(iterator=True)` (or `get_all=True`),
+not `project.jobs.list(pipeline_id=...)`: the project endpoint does not filter by
+pipeline, and list calls do not fetch every page unless explicitly requested.
+
 ### Everything Else
 
 Release, packaging, tooling, and developer-experience tasks. Examples:
 `release.py`, `omnibus.py`, `package.py`, `licenses.py`, `notes.py`,
 `components.py`, `go_deps.py`, `go.py`, `modules.py`, `renovate.py`,
 `new_e2e_tests.py`, `ebpf.py`.
+
+## Tasks That Regenerate a `go.mod`
+
+A task that rewrites a `go.mod` wholesale rather than editing it in place — a code generator such as OCB in
+`collector.generate`, for instance — drops the intra-repo `replace` block that `modules.add-all-replace` maintains.
+Tidying from there resolves those modules to their published versions and CI's `modules.check-all-replace` fails, so
+the task has to restore the block itself.
+
+Restoring takes two `add_all_replace` passes with a `tidy` between them. `add_all_replace` ends by calling
+`check_go_mod_replaces(fix=True)`, which repairs replaces that are missing according to `go.sum` and spells them
+`../../../core/config` where `add_all_replace` itself writes the canonical `../../../../comp/core/config`. Until
+`tidy` drops the published versions from `go.sum`, that repair keeps firing and leaves the non-canonical spelling
+behind — which `check-all-replace` then reports as a diff even though both paths resolve to the same directory.
 
 ## Writing Commands That Work on Windows
 
@@ -68,7 +90,7 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 - **POSIX-only tools** — do the text manipulation in Python instead of piping through `sed`, `grep` or `cp`.
 - **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.
 
-To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`. `MockContext` matches command strings exactly, so its keys must carry the quoting `join_command` adds (`shlex` quotes `HEAD~1` as `'HEAD~1'`).
 
 ## Shelling Out to Pulumi
 
@@ -177,3 +199,7 @@ py_binary(
 > (2-4 lines each) and include *why* the idiom is needed.
 
 <!-- Add new idioms below this line -->
+
+- **A `py_binary` that runs `bazel` itself under `bazel run`** (e.g. `//tasks:write_go_tag_manifest`): run it in
+  `$BUILD_WORKSPACE_DIRECTORY` and drop `BAZEL_REAL` / `BAZELISK_SKIP_WRAPPER` from its environment. `bazel run`
+  passes them on, so the nested bazelisk would skip `tools/bazel` and lose the flags it adds (`--config=ci`, caches).

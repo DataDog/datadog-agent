@@ -46,48 +46,10 @@ type tbSeriesState struct {
 	lastFireTime int64
 }
 
-// TukeyBiweightDetector implements a streaming Tukey biweight M-estimator
-// changepoint detector (Tukey 1977; Beaton & Tukey 1974; Holland & Welsch
-// 1977; Maronna, Martin & Yohai 2006 §2.6 / §6.4). On each scoring tick it
-// fits a redescending biweight location/scale pair (mu, sigma) over the most
-// recent WindowSize values via 4 IRLS sweeps, then standardizes the latest
-// point against the IMMUNIZED baseline. Points beyond c·sigma get zero weight
-// during baseline estimation, so a single historical spike does NOT contaminate
-// the reference — unlike rank/AR detectors whose MAD or autocorrelation gets
-// poisoned for the entire window. This is the structural property that makes
-// biweight robust to "one historical glitch followed by a real shift later".
-//
-// Implements observer.Detector and observer.SeriesRemover. The iteration
-// shape matches the other streaming metric detectors: cache series, bulk-fetch
-// per-ref status, then advance each per-series cursor with ForEachPoint.
+// TukeyBiweightDetector scores recent values against a robust IRLS baseline.
 type TukeyBiweightDetector struct {
-	ready bool
-	// WindowSize is the number of recent points held in the IRLS window.
-	// Default: 80, enough context for a robust local baseline without making
-	// each scoring tick too expensive.
-	WindowSize int
-	// MinPoints is the minimum window fill before scoring runs.
-	// Default: WindowSize.
-	MinPoints int
-	// BiweightC is the Tukey biweight tuning constant. Default: 4.685, the
-	// canonical 95% Gaussian-efficiency value (Holland & Welsch 1977 fig. 2).
-	// Tightening to 4.0 trades efficiency for outlier rejection.
-	BiweightC float64
-	// IRLSIterations bounds the number of biweight reweighting sweeps.
-	// Default: 4. Maronna et al. §6.4 recommend 3-5; 3 is faster but
-	// occasionally non-convergent on bimodal windows.
-	IRLSIterations int
-	// ZThreshold is the |z| score above which the latest point is flagged.
-	// Default: 5.0 to keep the per-tick false-positive rate strict.
-	ZThreshold float64
-	// ScoreEvery amortizes IRLS cost: scoreBiweight runs every Nth point
-	// once the window is full. Default: 4.
-	ScoreEvery int
-	// CooldownPoints is the per-series suppression window after a fire.
-	// Default: 30.
-	CooldownPoints int
-	// Aggregations to run detection on. Default: [Average, Count].
-	Aggregations []observer.Aggregate
+	ready  bool
+	config TukeyBiweightConfig
 
 	// per-series state keyed by ref+agg
 	series map[tbStateKey]*tbSeriesState
@@ -100,16 +62,22 @@ type TukeyBiweightDetector struct {
 	cachedGen    uint64
 }
 
-// TukeyBiweightConfig holds catalog/testbench tunables for TukeyBiweightDetector.
+// TukeyBiweightConfig contains construction-time statistical parameters.
 type TukeyBiweightConfig struct {
-	WindowSize     int      `json:"window_size"`
-	MinPoints      int      `json:"min_points"`
-	BiweightC      float64  `json:"biweight_c"`
-	IRLSIterations int      `json:"irls_iterations"`
-	ZThreshold     float64  `json:"z_threshold"`
-	ScoreEvery     int      `json:"score_every"`
-	CooldownPoints int      `json:"cooldown_points"`
-	Aggregations   []string `json:"aggregations,omitempty"`
+	// WindowSize bounds the IRLS window (default: 80).
+	WindowSize int `json:"window_size"`
+	// MinPoints is the minimum window fill (default: WindowSize).
+	MinPoints int `json:"min_points"`
+	// BiweightC tunes outlier rejection (default: 4.685, 95% Gaussian efficiency).
+	BiweightC float64 `json:"biweight_c"`
+	// IRLSIterations bounds reweighting sweeps (default: 4).
+	IRLSIterations int `json:"irls_iterations"`
+	// ZThreshold is the firing |z| threshold (default: 5).
+	ZThreshold float64 `json:"z_threshold"`
+	// ScoreEvery runs IRLS every Nth point (default: 4).
+	ScoreEvery int `json:"score_every"`
+	// CooldownPoints suppresses this many points after a fire (default: 30).
+	CooldownPoints int `json:"cooldown_points"`
 }
 
 // DefaultTukeyBiweightConfig returns the production/testbench defaults.
@@ -122,31 +90,43 @@ func DefaultTukeyBiweightConfig() TukeyBiweightConfig {
 		ZThreshold:     5.0,
 		ScoreEvery:     4,
 		CooldownPoints: 30,
-		Aggregations: []string{
-			observer.AggregateString(observer.AggregateAverage),
-			observer.AggregateString(observer.AggregateCount),
-		},
 	}
 }
 
-// NewTukeyBiweightDetector returns a TukeyBiweightDetector with default
-// settings. Hyperparameter derivations are documented inline on each field.
-func NewTukeyBiweightDetector() *TukeyBiweightDetector {
-	return NewTukeyBiweightDetectorWithConfig(DefaultTukeyBiweightConfig())
-}
-
-// NewTukeyBiweightDetectorWithConfig returns a detector configured from cfg.
-func NewTukeyBiweightDetectorWithConfig(cfg TukeyBiweightConfig) *TukeyBiweightDetector {
+// NewTukeyBiweightDetector normalizes and copies configuration once at construction.
+func NewTukeyBiweightDetector(cfg TukeyBiweightConfig) *TukeyBiweightDetector {
+	defaults := DefaultTukeyBiweightConfig()
+	if cfg.WindowSize <= 0 {
+		cfg.WindowSize = defaults.WindowSize
+	}
+	if cfg.MinPoints <= 0 {
+		cfg.MinPoints = cfg.WindowSize
+	}
+	if cfg.MinPoints > cfg.WindowSize {
+		// Scoring requires a full window, so cap MinPoints.
+		cfg.MinPoints = cfg.WindowSize
+	}
+	if cfg.BiweightC <= 0 {
+		cfg.BiweightC = defaults.BiweightC
+	}
+	if cfg.IRLSIterations <= 0 {
+		cfg.IRLSIterations = defaults.IRLSIterations
+	}
+	if cfg.ZThreshold <= 0 {
+		cfg.ZThreshold = defaults.ZThreshold
+	}
+	if cfg.ScoreEvery <= 0 {
+		cfg.ScoreEvery = defaults.ScoreEvery
+	}
+	if cfg.CooldownPoints < 0 {
+		cfg.CooldownPoints = 0
+	}
+	if cfg.CooldownPoints == 0 {
+		cfg.CooldownPoints = defaults.CooldownPoints
+	}
 	return &TukeyBiweightDetector{
-		WindowSize:     cfg.WindowSize,
-		MinPoints:      cfg.MinPoints,
-		BiweightC:      cfg.BiweightC,
-		IRLSIterations: cfg.IRLSIterations,
-		ZThreshold:     cfg.ZThreshold,
-		ScoreEvery:     cfg.ScoreEvery,
-		CooldownPoints: cfg.CooldownPoints,
-		Aggregations:   parseAggregateConfig(cfg.Aggregations),
-		series:         make(map[tbStateKey]*tbSeriesState),
+		config: cfg,
+		series: make(map[tbStateKey]*tbSeriesState),
 	}
 }
 
@@ -157,8 +137,7 @@ func (d *TukeyBiweightDetector) Ready() bool { return d.ready }
 
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *TukeyBiweightDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	d.ensureDefaults()
-	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.WindowSize}
+	return observer.DetectorPointWindow{MinPoints: d.config.MinPoints, MaxPoints: d.config.WindowSize}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -174,12 +153,11 @@ func (d *TukeyBiweightDetector) Reset() {
 // cumulative number of series ever observed even after storage shrinks
 // because each entry owns a rolling window.
 func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
-	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, tbStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -191,12 +169,11 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 // bucket via a same-bucket merge or out-of-order backfill, the per-series state
 // is rebuilt from visible storage to keep incremental processing equivalent to
 // replaying the final stored points.
-func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	d.ensureDefaults()
-
+func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+		d.cachedSeries = storage.ListSeries(detectorSeriesFilter(filter))
 		d.cachedGen = gen
 	}
 
@@ -211,14 +188,14 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 	for i, meta := range d.cachedSeries {
 		status := bulkStatus[i]
 
-		for _, agg := range d.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
 				continue
 			}
 			sk := tbStateKey{ref: meta.Ref, agg: agg}
 
 			state, exists := d.series[sk]
-			if !exists && status.pointCount < d.MinPoints {
+			if !exists && status.pointCount < d.config.MinPoints {
 				continue
 			}
 			if !exists {
@@ -260,15 +237,15 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				}
 				state.ticksSinceScore++
 
-				if status.pointCount >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
-					seriesMeta, d.scoreBuf = collectLastPoints(storage, meta.Ref, p.Timestamp, d.WindowSize, agg, d.scoreBuf)
-					if len(d.scoreBuf) >= d.MinPoints {
+				if status.pointCount >= d.config.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.config.ScoreEvery {
+					seriesMeta, d.scoreBuf = collectLastPoints(storage, meta.Ref, p.Timestamp, d.config.WindowSize, agg, d.scoreBuf)
+					if len(d.scoreBuf) >= d.config.MinPoints {
 						state.ticksSinceScore = 0
 						d.ready = true
 						if anomaly, fired := d.scoreBiweight(d.scoreBuf, seriesMeta, agg, p.Timestamp); fired {
 							anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 							allAnomalies = append(allAnomalies, anomaly)
-							state.cooldownLeft = d.CooldownPoints
+							state.cooldownLeft = d.config.CooldownPoints
 							state.lastFireTime = p.Timestamp
 						}
 					}
@@ -337,12 +314,12 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 		sigma = math.Max(math.Abs(mu)*0.01, 1e-6)
 	}
 
-	c := d.BiweightC
+	c := d.config.BiweightC
 
 	// (c) IRLS sweeps: at each step compute biweight weights w_j = (1-u_j^2)^2
 	// for |u_j| < 1, zero otherwise (redescending psi), then update mu as the
 	// weighted mean. Break early on convergence.
-	for iter := 0; iter < d.IRLSIterations; iter++ {
+	for iter := 0; iter < d.config.IRLSIterations; iter++ {
 		num, den := 0.0, 0.0
 		for j := 0; j < n; j++ {
 			u := (xs[j] - mu) / (c * sigma)
@@ -393,7 +370,7 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 	latest := xs[n-1]
 	z := (latest - mu) / denom
 	zAbs := math.Abs(z)
-	if zAbs < d.ZThreshold {
+	if zAbs < d.config.ZThreshold {
 		return observer.Anomaly{}, false
 	}
 
@@ -424,46 +401,4 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 		},
 	}
 	return anomaly, true
-}
-
-// ensureDefaults fills in zero-valued config fields with sensible defaults so
-// struct-literal construction (&TukeyBiweightDetector{}) still works.
-func (d *TukeyBiweightDetector) ensureDefaults() {
-	if d.WindowSize <= 0 {
-		d.WindowSize = 80
-	}
-	if d.MinPoints <= 0 {
-		d.MinPoints = d.WindowSize
-	}
-	if d.MinPoints > d.WindowSize {
-		// Scoring requires a full window, so cap MinPoints.
-		d.MinPoints = d.WindowSize
-	}
-	if d.BiweightC <= 0 {
-		d.BiweightC = 4.685
-	}
-	if d.IRLSIterations <= 0 {
-		d.IRLSIterations = 4
-	}
-	if d.ZThreshold <= 0 {
-		d.ZThreshold = 5.0
-	}
-	if d.ScoreEvery <= 0 {
-		d.ScoreEvery = 4
-	}
-	if d.CooldownPoints < 0 {
-		d.CooldownPoints = 0
-	}
-	if d.CooldownPoints == 0 {
-		d.CooldownPoints = 30
-	}
-	if d.series == nil {
-		d.series = make(map[tbStateKey]*tbSeriesState)
-	}
-	if len(d.Aggregations) == 0 {
-		d.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
-	}
 }

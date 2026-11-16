@@ -15,7 +15,7 @@ export PYTHONIOENCODING=utf-8
 export LC_ALL=en_US.UTF-8
 
 # ── Python version ────────────────────────────────────────────────────────────
-PYTHON_VERSION="3.13.15"
+PYTHON_VERSION="3.13.18"
 PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
 export PYTHON_VERSION PYTHON_MAJ_MIN
 
@@ -24,7 +24,7 @@ export PYTHON_VERSION PYTHON_MAJ_MIN
 # Used for the Python-extension build stages; saluki's own Rust version is
 # installed separately by setup-host.sh. All stage scripts reference
 # $RUST_VERSION; update only this one line to upgrade.
-RUST_VERSION="1.92"
+RUST_VERSION="1.96"
 export RUST_VERSION
 
 # ── Build tree layout ─────────────────────────────────────────────────────────

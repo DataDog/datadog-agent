@@ -172,6 +172,35 @@ func (s *linuxTestSuite) TestProcessCheck() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
+// TestProcessAgentDisabledSkipsPIDFile checks that when process checks run in the core agent, the
+// standalone process-agent exits without writing its PID file. systemd removes PIDFile= on hosts
+// where it is allowed to, so the log is checked in addition to the file itself.
+func (s *linuxTestSuite) TestProcessAgentDisabledSkipsPIDFile() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
+
+	const (
+		logFile = "/var/log/datadog/process-agent.log"
+		pidFile = "/opt/datadog-agent/run/process-agent.pid"
+	)
+	host := s.Env().RemoteHost
+
+	logLines, err := strconv.Atoi(strings.TrimSpace(host.MustExecute("sudo cat " + logFile + " | wc -l")))
+	require.NoError(t, err)
+
+	host.MustExecute("sudo systemctl restart datadog-agent")
+
+	var newLogs string
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		newLogs = host.MustExecute(fmt.Sprintf("sudo tail -n +%d %s", logLines+1, logFile))
+		assert.Contains(c, newLogs, "process-agent is not enabled, exiting")
+	}, 2*time.Minute, 5*time.Second)
+
+	assert.NotContains(t, newLogs, "written to pid file")
+	_, err = host.Execute("sudo test ! -e " + pidFile)
+	assert.NoError(t, err, "%s should not exist after the process-agent exits as disabled", pidFile)
+}
+
 func (s *linuxTestSuite) TestZombieProcessAggregation() {
 	t := s.T()
 

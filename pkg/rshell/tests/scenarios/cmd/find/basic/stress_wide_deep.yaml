@@ -1,0 +1,1731 @@
+description: stress test find with a wide and deep directory tree (10 dirs x 43 files = 430 files)
+setup:
+  files:
+    - path: root/d00/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d00/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d01/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d02/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d03/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d04/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d05/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d06/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d07/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d08/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f05.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f06.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f07.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f08.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/f09.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s0/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s1/t1/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/f03.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/f04.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t0/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t0/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t0/f02.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t1/f00.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t1/f01.txt
+      content: "x"
+      chmod: 0644
+    - path: root/d09/s2/t1/f02.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find root -type f
+expect:
+  stdout_unordered: |+
+    root/d00/f00.txt
+    root/d00/f01.txt
+    root/d00/f02.txt
+    root/d00/f03.txt
+    root/d00/f04.txt
+    root/d00/f05.txt
+    root/d00/f06.txt
+    root/d00/f07.txt
+    root/d00/f08.txt
+    root/d00/f09.txt
+    root/d00/s0/f00.txt
+    root/d00/s0/f01.txt
+    root/d00/s0/f02.txt
+    root/d00/s0/f03.txt
+    root/d00/s0/f04.txt
+    root/d00/s0/t0/f00.txt
+    root/d00/s0/t0/f01.txt
+    root/d00/s0/t0/f02.txt
+    root/d00/s0/t1/f00.txt
+    root/d00/s0/t1/f01.txt
+    root/d00/s0/t1/f02.txt
+    root/d00/s1/f00.txt
+    root/d00/s1/f01.txt
+    root/d00/s1/f02.txt
+    root/d00/s1/f03.txt
+    root/d00/s1/f04.txt
+    root/d00/s1/t0/f00.txt
+    root/d00/s1/t0/f01.txt
+    root/d00/s1/t0/f02.txt
+    root/d00/s1/t1/f00.txt
+    root/d00/s1/t1/f01.txt
+    root/d00/s1/t1/f02.txt
+    root/d00/s2/f00.txt
+    root/d00/s2/f01.txt
+    root/d00/s2/f02.txt
+    root/d00/s2/f03.txt
+    root/d00/s2/f04.txt
+    root/d00/s2/t0/f00.txt
+    root/d00/s2/t0/f01.txt
+    root/d00/s2/t0/f02.txt
+    root/d00/s2/t1/f00.txt
+    root/d00/s2/t1/f01.txt
+    root/d00/s2/t1/f02.txt
+    root/d01/f00.txt
+    root/d01/f01.txt
+    root/d01/f02.txt
+    root/d01/f03.txt
+    root/d01/f04.txt
+    root/d01/f05.txt
+    root/d01/f06.txt
+    root/d01/f07.txt
+    root/d01/f08.txt
+    root/d01/f09.txt
+    root/d01/s0/f00.txt
+    root/d01/s0/f01.txt
+    root/d01/s0/f02.txt
+    root/d01/s0/f03.txt
+    root/d01/s0/f04.txt
+    root/d01/s0/t0/f00.txt
+    root/d01/s0/t0/f01.txt
+    root/d01/s0/t0/f02.txt
+    root/d01/s0/t1/f00.txt
+    root/d01/s0/t1/f01.txt
+    root/d01/s0/t1/f02.txt
+    root/d01/s1/f00.txt
+    root/d01/s1/f01.txt
+    root/d01/s1/f02.txt
+    root/d01/s1/f03.txt
+    root/d01/s1/f04.txt
+    root/d01/s1/t0/f00.txt
+    root/d01/s1/t0/f01.txt
+    root/d01/s1/t0/f02.txt
+    root/d01/s1/t1/f00.txt
+    root/d01/s1/t1/f01.txt
+    root/d01/s1/t1/f02.txt
+    root/d01/s2/f00.txt
+    root/d01/s2/f01.txt
+    root/d01/s2/f02.txt
+    root/d01/s2/f03.txt
+    root/d01/s2/f04.txt
+    root/d01/s2/t0/f00.txt
+    root/d01/s2/t0/f01.txt
+    root/d01/s2/t0/f02.txt
+    root/d01/s2/t1/f00.txt
+    root/d01/s2/t1/f01.txt
+    root/d01/s2/t1/f02.txt
+    root/d02/f00.txt
+    root/d02/f01.txt
+    root/d02/f02.txt
+    root/d02/f03.txt
+    root/d02/f04.txt
+    root/d02/f05.txt
+    root/d02/f06.txt
+    root/d02/f07.txt
+    root/d02/f08.txt
+    root/d02/f09.txt
+    root/d02/s0/f00.txt
+    root/d02/s0/f01.txt
+    root/d02/s0/f02.txt
+    root/d02/s0/f03.txt
+    root/d02/s0/f04.txt
+    root/d02/s0/t0/f00.txt
+    root/d02/s0/t0/f01.txt
+    root/d02/s0/t0/f02.txt
+    root/d02/s0/t1/f00.txt
+    root/d02/s0/t1/f01.txt
+    root/d02/s0/t1/f02.txt
+    root/d02/s1/f00.txt
+    root/d02/s1/f01.txt
+    root/d02/s1/f02.txt
+    root/d02/s1/f03.txt
+    root/d02/s1/f04.txt
+    root/d02/s1/t0/f00.txt
+    root/d02/s1/t0/f01.txt
+    root/d02/s1/t0/f02.txt
+    root/d02/s1/t1/f00.txt
+    root/d02/s1/t1/f01.txt
+    root/d02/s1/t1/f02.txt
+    root/d02/s2/f00.txt
+    root/d02/s2/f01.txt
+    root/d02/s2/f02.txt
+    root/d02/s2/f03.txt
+    root/d02/s2/f04.txt
+    root/d02/s2/t0/f00.txt
+    root/d02/s2/t0/f01.txt
+    root/d02/s2/t0/f02.txt
+    root/d02/s2/t1/f00.txt
+    root/d02/s2/t1/f01.txt
+    root/d02/s2/t1/f02.txt
+    root/d03/f00.txt
+    root/d03/f01.txt
+    root/d03/f02.txt
+    root/d03/f03.txt
+    root/d03/f04.txt
+    root/d03/f05.txt
+    root/d03/f06.txt
+    root/d03/f07.txt
+    root/d03/f08.txt
+    root/d03/f09.txt
+    root/d03/s0/f00.txt
+    root/d03/s0/f01.txt
+    root/d03/s0/f02.txt
+    root/d03/s0/f03.txt
+    root/d03/s0/f04.txt
+    root/d03/s0/t0/f00.txt
+    root/d03/s0/t0/f01.txt
+    root/d03/s0/t0/f02.txt
+    root/d03/s0/t1/f00.txt
+    root/d03/s0/t1/f01.txt
+    root/d03/s0/t1/f02.txt
+    root/d03/s1/f00.txt
+    root/d03/s1/f01.txt
+    root/d03/s1/f02.txt
+    root/d03/s1/f03.txt
+    root/d03/s1/f04.txt
+    root/d03/s1/t0/f00.txt
+    root/d03/s1/t0/f01.txt
+    root/d03/s1/t0/f02.txt
+    root/d03/s1/t1/f00.txt
+    root/d03/s1/t1/f01.txt
+    root/d03/s1/t1/f02.txt
+    root/d03/s2/f00.txt
+    root/d03/s2/f01.txt
+    root/d03/s2/f02.txt
+    root/d03/s2/f03.txt
+    root/d03/s2/f04.txt
+    root/d03/s2/t0/f00.txt
+    root/d03/s2/t0/f01.txt
+    root/d03/s2/t0/f02.txt
+    root/d03/s2/t1/f00.txt
+    root/d03/s2/t1/f01.txt
+    root/d03/s2/t1/f02.txt
+    root/d04/f00.txt
+    root/d04/f01.txt
+    root/d04/f02.txt
+    root/d04/f03.txt
+    root/d04/f04.txt
+    root/d04/f05.txt
+    root/d04/f06.txt
+    root/d04/f07.txt
+    root/d04/f08.txt
+    root/d04/f09.txt
+    root/d04/s0/f00.txt
+    root/d04/s0/f01.txt
+    root/d04/s0/f02.txt
+    root/d04/s0/f03.txt
+    root/d04/s0/f04.txt
+    root/d04/s0/t0/f00.txt
+    root/d04/s0/t0/f01.txt
+    root/d04/s0/t0/f02.txt
+    root/d04/s0/t1/f00.txt
+    root/d04/s0/t1/f01.txt
+    root/d04/s0/t1/f02.txt
+    root/d04/s1/f00.txt
+    root/d04/s1/f01.txt
+    root/d04/s1/f02.txt
+    root/d04/s1/f03.txt
+    root/d04/s1/f04.txt
+    root/d04/s1/t0/f00.txt
+    root/d04/s1/t0/f01.txt
+    root/d04/s1/t0/f02.txt
+    root/d04/s1/t1/f00.txt
+    root/d04/s1/t1/f01.txt
+    root/d04/s1/t1/f02.txt
+    root/d04/s2/f00.txt
+    root/d04/s2/f01.txt
+    root/d04/s2/f02.txt
+    root/d04/s2/f03.txt
+    root/d04/s2/f04.txt
+    root/d04/s2/t0/f00.txt
+    root/d04/s2/t0/f01.txt
+    root/d04/s2/t0/f02.txt
+    root/d04/s2/t1/f00.txt
+    root/d04/s2/t1/f01.txt
+    root/d04/s2/t1/f02.txt
+    root/d05/f00.txt
+    root/d05/f01.txt
+    root/d05/f02.txt
+    root/d05/f03.txt
+    root/d05/f04.txt
+    root/d05/f05.txt
+    root/d05/f06.txt
+    root/d05/f07.txt
+    root/d05/f08.txt
+    root/d05/f09.txt
+    root/d05/s0/f00.txt
+    root/d05/s0/f01.txt
+    root/d05/s0/f02.txt
+    root/d05/s0/f03.txt
+    root/d05/s0/f04.txt
+    root/d05/s0/t0/f00.txt
+    root/d05/s0/t0/f01.txt
+    root/d05/s0/t0/f02.txt
+    root/d05/s0/t1/f00.txt
+    root/d05/s0/t1/f01.txt
+    root/d05/s0/t1/f02.txt
+    root/d05/s1/f00.txt
+    root/d05/s1/f01.txt
+    root/d05/s1/f02.txt
+    root/d05/s1/f03.txt
+    root/d05/s1/f04.txt
+    root/d05/s1/t0/f00.txt
+    root/d05/s1/t0/f01.txt
+    root/d05/s1/t0/f02.txt
+    root/d05/s1/t1/f00.txt
+    root/d05/s1/t1/f01.txt
+    root/d05/s1/t1/f02.txt
+    root/d05/s2/f00.txt
+    root/d05/s2/f01.txt
+    root/d05/s2/f02.txt
+    root/d05/s2/f03.txt
+    root/d05/s2/f04.txt
+    root/d05/s2/t0/f00.txt
+    root/d05/s2/t0/f01.txt
+    root/d05/s2/t0/f02.txt
+    root/d05/s2/t1/f00.txt
+    root/d05/s2/t1/f01.txt
+    root/d05/s2/t1/f02.txt
+    root/d06/f00.txt
+    root/d06/f01.txt
+    root/d06/f02.txt
+    root/d06/f03.txt
+    root/d06/f04.txt
+    root/d06/f05.txt
+    root/d06/f06.txt
+    root/d06/f07.txt
+    root/d06/f08.txt
+    root/d06/f09.txt
+    root/d06/s0/f00.txt
+    root/d06/s0/f01.txt
+    root/d06/s0/f02.txt
+    root/d06/s0/f03.txt
+    root/d06/s0/f04.txt
+    root/d06/s0/t0/f00.txt
+    root/d06/s0/t0/f01.txt
+    root/d06/s0/t0/f02.txt
+    root/d06/s0/t1/f00.txt
+    root/d06/s0/t1/f01.txt
+    root/d06/s0/t1/f02.txt
+    root/d06/s1/f00.txt
+    root/d06/s1/f01.txt
+    root/d06/s1/f02.txt
+    root/d06/s1/f03.txt
+    root/d06/s1/f04.txt
+    root/d06/s1/t0/f00.txt
+    root/d06/s1/t0/f01.txt
+    root/d06/s1/t0/f02.txt
+    root/d06/s1/t1/f00.txt
+    root/d06/s1/t1/f01.txt
+    root/d06/s1/t1/f02.txt
+    root/d06/s2/f00.txt
+    root/d06/s2/f01.txt
+    root/d06/s2/f02.txt
+    root/d06/s2/f03.txt
+    root/d06/s2/f04.txt
+    root/d06/s2/t0/f00.txt
+    root/d06/s2/t0/f01.txt
+    root/d06/s2/t0/f02.txt
+    root/d06/s2/t1/f00.txt
+    root/d06/s2/t1/f01.txt
+    root/d06/s2/t1/f02.txt
+    root/d07/f00.txt
+    root/d07/f01.txt
+    root/d07/f02.txt
+    root/d07/f03.txt
+    root/d07/f04.txt
+    root/d07/f05.txt
+    root/d07/f06.txt
+    root/d07/f07.txt
+    root/d07/f08.txt
+    root/d07/f09.txt
+    root/d07/s0/f00.txt
+    root/d07/s0/f01.txt
+    root/d07/s0/f02.txt
+    root/d07/s0/f03.txt
+    root/d07/s0/f04.txt
+    root/d07/s0/t0/f00.txt
+    root/d07/s0/t0/f01.txt
+    root/d07/s0/t0/f02.txt
+    root/d07/s0/t1/f00.txt
+    root/d07/s0/t1/f01.txt
+    root/d07/s0/t1/f02.txt
+    root/d07/s1/f00.txt
+    root/d07/s1/f01.txt
+    root/d07/s1/f02.txt
+    root/d07/s1/f03.txt
+    root/d07/s1/f04.txt
+    root/d07/s1/t0/f00.txt
+    root/d07/s1/t0/f01.txt
+    root/d07/s1/t0/f02.txt
+    root/d07/s1/t1/f00.txt
+    root/d07/s1/t1/f01.txt
+    root/d07/s1/t1/f02.txt
+    root/d07/s2/f00.txt
+    root/d07/s2/f01.txt
+    root/d07/s2/f02.txt
+    root/d07/s2/f03.txt
+    root/d07/s2/f04.txt
+    root/d07/s2/t0/f00.txt
+    root/d07/s2/t0/f01.txt
+    root/d07/s2/t0/f02.txt
+    root/d07/s2/t1/f00.txt
+    root/d07/s2/t1/f01.txt
+    root/d07/s2/t1/f02.txt
+    root/d08/f00.txt
+    root/d08/f01.txt
+    root/d08/f02.txt
+    root/d08/f03.txt
+    root/d08/f04.txt
+    root/d08/f05.txt
+    root/d08/f06.txt
+    root/d08/f07.txt
+    root/d08/f08.txt
+    root/d08/f09.txt
+    root/d08/s0/f00.txt
+    root/d08/s0/f01.txt
+    root/d08/s0/f02.txt
+    root/d08/s0/f03.txt
+    root/d08/s0/f04.txt
+    root/d08/s0/t0/f00.txt
+    root/d08/s0/t0/f01.txt
+    root/d08/s0/t0/f02.txt
+    root/d08/s0/t1/f00.txt
+    root/d08/s0/t1/f01.txt
+    root/d08/s0/t1/f02.txt
+    root/d08/s1/f00.txt
+    root/d08/s1/f01.txt
+    root/d08/s1/f02.txt
+    root/d08/s1/f03.txt
+    root/d08/s1/f04.txt
+    root/d08/s1/t0/f00.txt
+    root/d08/s1/t0/f01.txt
+    root/d08/s1/t0/f02.txt
+    root/d08/s1/t1/f00.txt
+    root/d08/s1/t1/f01.txt
+    root/d08/s1/t1/f02.txt
+    root/d08/s2/f00.txt
+    root/d08/s2/f01.txt
+    root/d08/s2/f02.txt
+    root/d08/s2/f03.txt
+    root/d08/s2/f04.txt
+    root/d08/s2/t0/f00.txt
+    root/d08/s2/t0/f01.txt
+    root/d08/s2/t0/f02.txt
+    root/d08/s2/t1/f00.txt
+    root/d08/s2/t1/f01.txt
+    root/d08/s2/t1/f02.txt
+    root/d09/f00.txt
+    root/d09/f01.txt
+    root/d09/f02.txt
+    root/d09/f03.txt
+    root/d09/f04.txt
+    root/d09/f05.txt
+    root/d09/f06.txt
+    root/d09/f07.txt
+    root/d09/f08.txt
+    root/d09/f09.txt
+    root/d09/s0/f00.txt
+    root/d09/s0/f01.txt
+    root/d09/s0/f02.txt
+    root/d09/s0/f03.txt
+    root/d09/s0/f04.txt
+    root/d09/s0/t0/f00.txt
+    root/d09/s0/t0/f01.txt
+    root/d09/s0/t0/f02.txt
+    root/d09/s0/t1/f00.txt
+    root/d09/s0/t1/f01.txt
+    root/d09/s0/t1/f02.txt
+    root/d09/s1/f00.txt
+    root/d09/s1/f01.txt
+    root/d09/s1/f02.txt
+    root/d09/s1/f03.txt
+    root/d09/s1/f04.txt
+    root/d09/s1/t0/f00.txt
+    root/d09/s1/t0/f01.txt
+    root/d09/s1/t0/f02.txt
+    root/d09/s1/t1/f00.txt
+    root/d09/s1/t1/f01.txt
+    root/d09/s1/t1/f02.txt
+    root/d09/s2/f00.txt
+    root/d09/s2/f01.txt
+    root/d09/s2/f02.txt
+    root/d09/s2/f03.txt
+    root/d09/s2/f04.txt
+    root/d09/s2/t0/f00.txt
+    root/d09/s2/t0/f01.txt
+    root/d09/s2/t0/f02.txt
+    root/d09/s2/t1/f00.txt
+    root/d09/s2/t1/f01.txt
+    root/d09/s2/t1/f02.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the kai_scheduler metric origin for Agent-side serialization.

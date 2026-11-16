@@ -1,41 +1,23 @@
 """Evaluation helpers for anomaly detection dev tasks.
 
-Contains non-@task symbols: constants, S3 helpers, StepLogger, combo helpers,
+Contains non-@task symbols: constants, StepLogger, combo helpers,
 Optuna config builders, aggregation helpers, and summary printers used by the
 @task entry points in tasks/anomalydetection.py.
-
-Note: SCENARIOS and SCENARIO_EPISODE_NAMES are loaded from
-q_branch/gensim-eval-scenarios.json at import time. That file is not
-committed to this repo — it is expected to be present in developer environments
-where the q_branch/ directory has been checked out separately, or produced by
-dda inv anomalydetection.download-scenarios.
 """
 
 import json
 import os
 import random
-import shlex
 import shutil
-import tempfile
-import zipfile
 
 from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
-_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
+# Keep in sync with anomalydetection-scorer/score.go. Used to invalidate local
+# Bayesian report reuse when the scoring contract changes.
+F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
 
-try:
-    with open(_MANIFEST_PATH) as _f:
-        _EVAL_MANIFEST = json.load(_f)
-    SCENARIO_EPISODE_NAMES = {entry["scenario"]: entry["episode"] for entry in _EVAL_MANIFEST}
-    SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
-except (OSError, json.JSONDecodeError, KeyError):
-    # Manifest not present in this environment; eval tasks will require --scenarios.
-    SCENARIO_EPISODE_NAMES = {}
-    SCENARIOS = []
-
-S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
 # Components included in ablation / combination search.
@@ -56,8 +38,8 @@ TESTBENCH_WARMUP_PARAMS = {
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
-# Correlators always represented in generated configs. time_cluster defaults on
-# in the testbench, so scorer-only trials must explicitly disable it.
+# Correlators always represented in generated configs. Explicitly disable
+# time_cluster so F1 trials only produce the scorer's severity episodes.
 CONFIGURED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Log metrics extractors. Not part of the random ablation grid: eval_combinations
@@ -73,6 +55,33 @@ EXTRACTORS = [
 ANCHOR_COMBOS = [
     {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
 ]
+
+
+def scenario_mode(episode):
+    """Only explicit healthy labels select no-fault evaluation."""
+    if not isinstance(episode, dict):
+        raise ValueError("Episode metadata must be an object")
+    healthy = episode.get("mode") == "healthy-control" or episode.get("expectation") == "healthy"
+    if healthy:
+        if episode.get("mode") != "healthy-control" or episode.get("expectation") != "healthy":
+            raise ValueError("Healthy scenarios require mode=healthy-control and expectation=healthy")
+        if episode.get("disruption") or episode.get("disruptions"):
+            raise ValueError("Healthy scenarios must not contain disruptions")
+        window = episode.get("evaluation_window") or {}
+        if not isinstance(window, dict) or not window.get("start") or not window.get("end"):
+            raise ValueError("Healthy scenarios require evaluation_window.start and end")
+        return "no_faults"
+    if not (episode.get("disruption") or {}).get("start"):
+        raise ValueError("Scenario has neither explicit healthy labels nor disruption.start")
+    return "faults"
+
+
+def require_f1_report(report):
+    """Keep F1 maximization workflows from accepting incomplete results or FP counts."""
+    if report is None or report.get("score") is None or report.get("complete") is False:
+        raise ValueError("F1 optimization requires a complete evaluation")
+    if any(row.get("mode") == "no_faults" for row in report.get("metadata", {}).values()):
+        raise ValueError("F1 optimization requires fault scenarios; no-fault counts must be minimized separately")
 
 
 # --- StepLogger ---
@@ -133,121 +142,6 @@ class StepLogger:
         return StepLogger(total, label, depth=self.depth + 1, parent=self)
 
 
-# --- S3 parquet helpers ---
-
-
-def _resolve_zip_from_runs_jsonl(ctx, name):
-    """Resolve the latest zip key for a scenario from runs.jsonl in S3."""
-    episode_name = SCENARIO_EPISODE_NAMES.get(name)
-    if not episode_name:
-        return None
-
-    with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False, mode="w") as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            return None
-
-        with open(tmp_path) as f:
-            lines = []
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    lines.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue  # skip malformed records
-
-        # Find the latest successful entry matching this episode.
-        # parquet_count < 50 indicates a failed or truncated run. Known failures are 0 or 2.
-        # Post trace-removal, legitimate recordings on short scenarios produce ~60-90 parquets.
-        matches = [
-            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 50
-        ]
-        if not matches:
-            return None
-
-        # Walk newest-first, return the first zip that actually exists in S3.
-        for entry in reversed(matches):
-            zip_key = entry.get("zip")
-            if not zip_key:
-                continue
-            check = ctx.run(
-                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
-                warn=True,
-                hide=True,
-            )
-            if check is None or check.failed:
-                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
-                continue
-            print(
-                color_message(
-                    f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
-                    Color.BLUE,
-                )
-            )
-            return zip_key
-        return None
-    except (OSError, json.JSONDecodeError):
-        return None
-    finally:
-        os.unlink(tmp_path)
-
-
-def _ensure_parquets(ctx, name, parquet_dir):
-    """Download and extract parquet files from S3 via runs.jsonl."""
-    zip_key = _resolve_zip_from_runs_jsonl(ctx, name)
-    if not zip_key:
-        print(
-            color_message(
-                f"No recording found for '{name}' in runs.jsonl. Run a gensim-eks episode to produce one.",
-                Color.RED,
-            )
-        )
-        return
-
-    print(color_message(f"Downloading {zip_key} from S3...", Color.BLUE))
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
-            warn=True,
-        )
-        if result is None or result.failed:
-            print(color_message(f"Failed to download {zip_key} from S3", Color.RED))
-            return
-
-        scenario_dir = os.path.dirname(parquet_dir)
-        os.makedirs(parquet_dir, exist_ok=True)
-        try:
-            with zipfile.ZipFile(tmp_path) as zf:
-                for member in zf.namelist():
-                    if member.startswith("tmp/gensim-archive/parquet/") and not member.endswith("/"):
-                        filename = os.path.basename(member)
-                        with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
-                            dst.write(src.read())
-                    elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
-                        with zf.open(member) as src, open(os.path.join(scenario_dir, "episode.json"), "wb") as dst:
-                            dst.write(src.read())
-        except (zipfile.BadZipFile, OSError) as e:
-            print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
-            shutil.rmtree(parquet_dir, ignore_errors=True)
-            return
-
-        print(color_message(f"Extracted parquet files to {parquet_dir}", Color.GREEN))
-    finally:
-        os.unlink(tmp_path)
-
-
 # --- Summary printers ---
 
 
@@ -256,11 +150,32 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     if not results:
         return
 
+    if any(r.get("mode") == "no_faults" or r.get("status", "completed") != "completed" for r in results):
+        print("\nObserver Eval Summary")
+        show_f1 = any(r.get("mode") == "faults" for r in results)
+        f1_header = f" {'F1':>8}" if show_f1 else ""
+        print(f"{'Scenario':<48} {'Status':<12}{f1_header} {'False positives':>16} {'Eval minutes':>14}")
+        for result in results:
+            f1 = f"{result['f1']:.4f}" if "f1" in result else "—"
+            fp = (
+                str(result["false_positives"])
+                if result.get("status") == "completed" and "false_positives" in result
+                else "—"
+            )
+            f1_column = f" {f1:>8}" if show_f1 else ""
+            duration = (
+                f"{result['evaluation_duration_seconds'] / 60:.1f}" if "evaluation_duration_seconds" in result else "—"
+            )
+            print(f"{result['name']:<48} {result.get('status', 'completed'):<12}{f1_column} {fp:>16} {duration:>14}")
+            if result.get("error"):
+                print(f"  {result['error']}")
+        return
+
     print(color_message(f"\n{'=' * 60}", Color.GREEN))
     print(color_message("  Observer Eval Summary", Color.GREEN))
     print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
-    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (ign)':>12}  {'Post-onset (ign)':>17}"
+    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Recovery FPs':>12}  {'Warmup (ign)':>12}  {'Incident (ign)':>14}  {'Recovery (ign)':>14}"
     print(header)
     print("-" * len(header))
 
@@ -272,7 +187,8 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
         timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
         print(
             f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>18}"
+            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r.get('num_recovery_fps', 0):>12}"
+            f"  {r['num_filtered_warmup']:>12}  {r['num_filtered_cascading']:>14}  {r.get('num_filtered_recovery', 0):>14}"
             f"{timed_out_suffix}"
         )
         duration = r.get("baseline_duration_seconds", 0)
@@ -359,18 +275,37 @@ def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
 # --- Combo helpers ---
 
 
-def _full_stack_combo(force_disable: list | None = None, force_enable: list | None = None) -> dict:
+def workflow_detectors(use_metric_pipeline: bool = False) -> list[str]:
+    """Return the selectable detector workflow."""
+    return ["metric_pipeline"] if use_metric_pipeline else DETECTORS
+
+
+def validate_workflow_components(use_metric_pipeline: bool, *selections: str) -> None:
+    """Reject local searches over inactive metric detectors."""
+    names = {name.strip() for selection in selections for name in selection.split(",") if name.strip()}
+    inactive = set(DETECTORS) if use_metric_pipeline else {"metric_pipeline"}
+    if rejected := names & inactive:
+        raise ValueError(f"Components unavailable in the selected workflow: {', '.join(sorted(rejected))}")
+
+
+def _full_stack_combo(
+    force_disable: list | None = None, force_enable: list | None = None, use_metric_pipeline: bool = False
+) -> dict:
     """All ablation components plus force-enabled supported components."""
     fd = set(force_disable or [])
     fe_cors = {c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd}
     return {
-        "detectors": sorted(d for d in DETECTORS if d not in fd),
+        "detectors": sorted(d for d in workflow_detectors(use_metric_pipeline) if d not in fd),
         "correlators": sorted({c for c in ABLATION_CORRELATORS if c not in fd} | fe_cors),
     }
 
 
-def _anchor_combos(force_disable: list | None = None, force_enable: list | None = None) -> list[dict]:
+def _anchor_combos(
+    force_disable: list | None = None, force_enable: list | None = None, use_metric_pipeline: bool = False
+) -> list[dict]:
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable."""
+    if use_metric_pipeline:
+        return []
     fd = set(force_disable or [])
     fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
     fe_cors = sorted(c for c in (force_enable or []) if c in SUPPORTED_CORRELATORS and c not in fd)
@@ -395,6 +330,7 @@ def random_component_combinations(
     force_enable: list = None,
     force_disable: list = None,
     exclude_combo_keys: set | None = None,
+    use_metric_pipeline: bool = False,
 ) -> list:
     """Generate up to n distinct random component combinations.
 
@@ -404,9 +340,10 @@ def random_component_combinations(
     force_enable = set(force_enable or [])
     force_disable = set(force_disable or [])
 
-    det_pool = [d for d in DETECTORS if d not in force_disable]
+    detectors = workflow_detectors(use_metric_pipeline)
+    det_pool = [d for d in detectors if d not in force_disable]
     cor_pool = [c for c in ABLATION_CORRELATORS if c not in force_disable]
-    forced_dets = sorted(d for d in force_enable if d in DETECTORS and d not in force_disable)
+    forced_dets = sorted(d for d in force_enable if d in detectors and d not in force_disable)
     forced_cors = sorted(c for c in force_enable if c in SUPPORTED_CORRELATORS and c not in force_disable)
 
     rng = random.Random(seed)
@@ -457,10 +394,9 @@ def _component_base_config(name: str, enabled: bool) -> dict:
     # detector warmups. Sampled values below can intentionally override these.
     cfg.update(TESTBENCH_WARMUP_PARAMS.get(name, {}))
     if enabled and name == "anomaly_scorer":
-        # The scorer only contributes to Gaussian F1 when it emits Medium- or
-        # High-severity episodes as anomaly_periods. Keep cooldown at zero so
+        # F1 measures high-severity episode starts. Keep cooldown at zero so
         # those periods end on actual scorer de-escalation, not a delivery delay.
-        cfg.update({"correlation_events": True, "cooldown_secs": 0})
+        cfg.update({"correlation_events": True, "correlation_event_threshold": "high", "cooldown_secs": 0})
     return cfg
 
 
@@ -468,6 +404,7 @@ def _combo_to_config(
     detectors: list,
     correlators: list,
     force_disable: list | None = None,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a testbench JSON params config enabling exactly the listed detectors and correlators.
 
@@ -483,7 +420,10 @@ def _combo_to_config(
             components[name] = _component_base_config(name, True)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
-    return {"components": components}
+    config: dict[str, object] = {"components": components}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Optuna helpers ---
@@ -493,9 +433,9 @@ def _sample_component_params(trial, component: str) -> dict:
     """Sample Optuna hyperparameters for a named component that supports parseJSON."""
 
     def sample_anomaly_scorer() -> dict:
-        # A correlation episode begins at the selected Medium or High threshold.
+        # The evaluation contract fixes episode emission at High severity.
         # Keep Low below High so the scorer's three-level state machine remains
-        # well-formed while allowing Optuna to choose the emission boundary.
+        # well-formed while allowing Optuna to tune the numeric thresholds.
         low_threshold = trial.suggest_float("anomaly_scorer.low_threshold", 0.01, 0.2, log=True)
         high_threshold_gap = trial.suggest_float("anomaly_scorer.high_threshold_gap", 0.01, 0.3, log=True)
         high_threshold = min(0.45, low_threshold + high_threshold_gap)
@@ -507,9 +447,7 @@ def _sample_component_params(trial, component: str) -> dict:
         margin_pct = hysteresis_fraction * max_margin / high_threshold
         return {
             "correlation_events": True,
-            "correlation_event_threshold": trial.suggest_categorical(
-                "anomaly_scorer.correlation_event_threshold", ["medium", "high"]
-            ),
+            "correlation_event_threshold": "high",
             "cooldown_secs": 0,
             "alpha": trial.suggest_float("anomaly_scorer.alpha", 0.005, 0.08, log=True),
             "saturation_k": trial.suggest_float("anomaly_scorer.saturation_k", 2.0, 12.0),
@@ -573,6 +511,7 @@ def _build_optuna_config(
     trial,
     components: list,
     locked: set,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a TestbenchParamsFile config dict for one Optuna trial."""
     active_set = set(components)
@@ -583,12 +522,17 @@ def _build_optuna_config(
             result[name] = _component_base_config(name, False)
 
     for name in components:
+        if name == "metric_pipeline":
+            continue
         params = _component_base_config(name, True)
         if name not in locked:
             params.update(_sample_component_params(trial, name))
         result[name] = params
 
-    return {"components": result}
+    config: dict[str, object] = {"components": result}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Aggregation helpers ---

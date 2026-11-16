@@ -1,0 +1,15 @@
+description: rm FILE/ where FILE is a regular file fails with "Not a directory" instead of removing FILE.
+setup:
+  files:
+    - path: file.txt
+      content: "keep me\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm file.txt/
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'file.txt/': Not a directory
+  exit_code: 1

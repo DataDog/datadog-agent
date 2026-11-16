@@ -153,6 +153,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -206,6 +211,26 @@
           "name": "process.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.ancestors.file.change_time",
@@ -748,6 +773,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -801,6 +831,26 @@
           "name": "process.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.file.change_time",
@@ -1228,6 +1278,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -1281,6 +1336,26 @@
           "name": "process.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.parent.file.change_time",
@@ -2951,6 +3026,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exec.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -3004,6 +3084,26 @@
           "name": "exec.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "exec.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exec.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exec.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exec.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "exec.file.change_time",
@@ -3605,6 +3705,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exit.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -3658,6 +3763,26 @@
           "name": "exit.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "exit.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exit.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exit.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exit.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "exit.file.change_time",
@@ -5014,6 +5139,11 @@
           "property_doc_link": "mount-detached-doc"
         },
         {
+          "name": "mount.flags",
+          "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+          "property_doc_link": "mount-flags-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -5055,7 +5185,7 @@
         },
         {
           "name": "mount.visible",
-          "definition": "Mount is not visible in the VFS",
+          "definition": "Mount is visible in the VFS",
           "property_doc_link": "mount-visible-doc"
         }
       ]
@@ -5638,6 +5768,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -5691,6 +5826,26 @@
           "name": "ptrace.tracee.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.change_time",
@@ -6233,6 +6388,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -6286,6 +6446,26 @@
           "name": "ptrace.tracee.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.file.change_time",
@@ -6713,6 +6893,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -6766,6 +6951,26 @@
           "name": "ptrace.tracee.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.change_time",
@@ -7960,6 +8165,115 @@
       ]
     },
     {
+      "name": "setns",
+      "definition": "A thread joined an existing namespace",
+      "type": "Kernel",
+      "from_agent_version": "7.86",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setns.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.mntns_host",
+          "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_host-doc"
+        },
+        {
+          "name": "setns.mntns_outside_base",
+          "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_outside_base-doc"
+        },
+        {
+          "name": "setns.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.nstype",
+          "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+          "property_doc_link": "setns-nstype-doc"
+        },
+        {
+          "name": "setns.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.previous.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.previous.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.previous.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.previous.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.previous.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.previous.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        },
+        {
+          "name": "setns.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setns.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        }
+      ]
+    },
+    {
       "name": "setrlimit",
       "definition": "A setrlimit command was executed",
       "type": "Process",
@@ -8087,6 +8401,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -8140,6 +8459,26 @@
           "name": "setrlimit.target.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.ancestors.file.change_time",
@@ -8682,6 +9021,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -8735,6 +9079,26 @@
           "name": "setrlimit.target.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.file.change_time",
@@ -9162,6 +9526,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -9215,6 +9584,26 @@
           "name": "setrlimit.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.parent.file.change_time",
@@ -10113,6 +10502,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -10166,6 +10560,26 @@
           "name": "signal.target.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.ancestors.file.change_time",
@@ -10708,6 +11122,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -10761,6 +11180,26 @@
           "name": "signal.target.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.file.change_time",
@@ -11188,6 +11627,11 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
@@ -11241,6 +11685,26 @@
           "name": "signal.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.parent.file.change_time",
@@ -12582,6 +13046,31 @@
       "examples": []
     },
     {
+      "name": "*.available",
+      "link": "common-filecapabilities-available-doc",
+      "type": "bool",
+      "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.cap_effective",
       "link": "common-credentials-cap_effective-doc",
       "type": "int",
@@ -12729,6 +13218,19 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.cgroupns",
+      "link": "common-namespaceids-cgroupns-doc",
+      "type": "int",
+      "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -12896,6 +13398,56 @@
       "prefixes": [
         "network_flow_monitor.flows.egress",
         "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ecs_task_id",
+      "link": "common-containercontext-ecs_task_id-doc",
+      "type": "string",
+      "definition": "ECS task ID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.effective",
+      "link": "common-filecapabilities-effective-doc",
+      "type": "bool",
+      "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
       ],
       "constants": "",
       "constants_link": "",
@@ -13709,6 +14261,31 @@
       "examples": []
     },
     {
+      "name": "*.inheritable",
+      "link": "common-filecapabilities-inheritable-doc",
+      "type": "int",
+      "definition": "Inheritable capabilities attached to the executable file",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.inode",
       "link": "common-pathkey-inode-doc",
       "type": "int",
@@ -13794,6 +14371,19 @@
         "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ipcns",
+      "link": "common-namespaceids-ipcns-doc",
+      "type": "int",
+      "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -14132,6 +14722,19 @@
         "unlink.file.path",
         "utimes.file.name",
         "utimes.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mntns",
+      "link": "common-namespaceids-mntns-doc",
+      "type": "int",
+      "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -14522,6 +15125,19 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-namespaceids-netns-doc",
+      "type": "int",
+      "definition": "Network namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.netns",
@@ -15054,6 +15670,31 @@
       ]
     },
     {
+      "name": "*.permitted",
+      "link": "common-filecapabilities-permitted-doc",
+      "type": "int",
+      "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.pid",
       "link": "common-pidcontext-pid-doc",
       "type": "int",
@@ -15073,6 +15714,19 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pidns",
+      "link": "common-namespaceids-pidns-doc",
+      "type": "int",
+      "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -15173,6 +15827,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setns",
         "setrlimit",
         "setsockopt",
         "setxattr",
@@ -15498,6 +16153,19 @@
       "examples": []
     },
     {
+      "name": "*.timens",
+      "link": "common-namespaceids-timens-doc",
+      "type": "int",
+      "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.tty_name",
       "link": "common-process-tty_name-doc",
       "type": "string",
@@ -15717,6 +16385,32 @@
         "splice.file",
         "unlink.file",
         "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.userns",
+      "link": "common-namespaceids-userns-doc",
+      "type": "int",
+      "definition": "User namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.utsns",
+      "link": "common-namespaceids-utsns-doc",
+      "type": "int",
+      "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -16768,6 +17462,18 @@
       "examples": []
     },
     {
+      "name": "mount.flags",
+      "link": "mount-flags-doc",
+      "type": "int",
+      "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.fs_type",
       "link": "mount-fs_type-doc",
       "type": "string",
@@ -16855,7 +17561,7 @@
       "name": "mount.visible",
       "link": "mount-visible-doc",
       "type": "bool",
-      "definition": "Mount is not visible in the VFS",
+      "definition": "Mount is visible in the VFS",
       "prefixes": [
         "mount"
       ],
@@ -17197,6 +17903,42 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_host",
+      "link": "setns-mntns_host-doc",
+      "type": "bool",
+      "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_outside_base",
+      "link": "setns-mntns_outside_base-doc",
+      "type": "bool",
+      "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.nstype",
+      "link": "setns-nstype-doc",
+      "type": "int",
+      "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {

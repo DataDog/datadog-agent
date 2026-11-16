@@ -6,6 +6,8 @@
 package privateactionrunner
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,42 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
+
+// parExecutorPipe is the executor's named pipe in the Windows process definition.
+const parExecutorPipe = `\\.\pipe\dd-par-executor`
+
+// Access masks the executor grants on its pipe (see
+// pkg/privateactionrunner/executor/transport_windows.go).
+const (
+	pipeFullAccess   = 0x1f01ff // FILE_ALL_ACCESS, Local System and Administrators
+	pipeServerAccess = 0x12019f // FILE_GENERIC_READ | FILE_GENERIC_WRITE, the pipe creator
+	pipeClientAccess = 0x12008b // FILE_GENERIC_READ | FILE_WRITE_DATA, the Agent account
+)
+
+// Win32 errors returned by the probe.
+const (
+	errorAccessDenied = 5 // ERROR_ACCESS_DENIED
+	errorFileNotFound = 2 // ERROR_FILE_NOT_FOUND: the executor idled out mid-probe
+)
+
+//go:embed fixtures/windows-pipe-probe.ps1
+var pipeProbeScript []byte
+
+// pipeProbe is the JSON printed by fixtures/windows-pipe-probe.ps1.
+type pipeProbe struct {
+	SDDL      string `json:"sddl"`
+	Owner     string `json:"owner"`
+	Protected bool   `json:"protected"`
+	ACEs      []struct {
+		SID  string `json:"sid"`
+		Mask int64  `json:"mask"`
+		Type string `json:"type"`
+	} `json:"aces"`
+	ProbeError   int    `json:"probeError"`
+	AgentSID     string `json:"agentSid"`
+	AgentIsAdmin bool   `json:"agentIsAdmin"`
+	ExecutorSID  string `json:"executorSid"`
+}
 
 // parMonolithProcess is the always-installed monolithic runner definition. It must
 // stand down while split mode is active.
@@ -80,7 +118,7 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
 	s.waitForProcessState(parControlProcess, "Stopped", 30*time.Second)
 	_ = s.runProcmgr("stop", parExecutorProcess)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited", "Failed"}, 30*time.Second)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited", "Failed"}, 30*time.Second)
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
 }
 
@@ -115,6 +153,71 @@ func (s *windowsPARSplitLifecycleSuite) TestExecutorStartsForSignedWork() {
 	s.waitForProcessState(parExecutorProcess, "Exited", 2*time.Minute)
 }
 
+// TestExecutorPipeAdmitsOnlyIntendedAccounts checks the live executor pipe:
+// its DACL is exactly the one the executor asks for, and an unrelated local
+// user is denied even with par-control's narrowed client access. Together with
+// TestExecutorStartsForSignedWork, which connects through par-control as the
+// non-admin Agent account, this covers both sides of the pipe's access control.
+func (s *windowsPARSplitLifecycleSuite) TestExecutorPipeAdmitsOnlyIntendedAccounts() {
+	host := s.Env().RemoteHost
+	tmp, err := host.GetTmpFolder()
+	s.Require().NoError(err)
+	scriptPath := host.JoinPath(tmp, "par-pipe-probe.ps1")
+	_, err = host.WriteFile(scriptPath, pipeProbeScript)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { _ = host.Remove(scriptPath) })
+
+	// An ordinary local user: member of Users only, so it may log on locally.
+	const probeUser = "parpipeprobe"
+	probePassword := "Pp1!" + strings.ReplaceAll(uuid.NewString(), "-", "")[:16]
+	_, err = host.Execute(fmt.Sprintf(
+		`New-LocalUser -Name '%s' -Password (ConvertTo-SecureString '%s' -AsPlainText -Force) -AccountNeverExpires -PasswordNeverExpires | Out-Null; `+
+			`Add-LocalGroupMember -SID 'S-1-5-32-545' -Member '%s'`,
+		probeUser, probePassword, probeUser))
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { _, _ = host.Execute(fmt.Sprintf(`Remove-LocalUser -Name '%s'`, probeUser)) })
+
+	var probe pipeProbe
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := host.Execute(fmt.Sprintf(
+			`& powershell.exe -NoProfile -ExecutionPolicy Bypass -File '%s' -ProcmgrCLI '%s' -ExecutorProcess '%s' -PipePath '%s' -ProbeUser '%s' -ProbePassword '%s' -ClientAccess %d`,
+			scriptPath, s.procmgrCLI(), parExecutorProcess, parExecutorPipe, probeUser, probePassword, pipeClientAccess))
+		if !assert.NoError(c, err) {
+			return
+		}
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		probe = pipeProbe{}
+		if !assert.NoError(c, json.Unmarshal([]byte(strings.TrimSpace(lines[len(lines)-1])), &probe), output) {
+			return
+		}
+		// The executor idled out between the two probes; try again.
+		assert.NotEqual(c, errorFileNotFound, probe.ProbeError, "the executor pipe disappeared mid-probe")
+	}, 3*time.Minute, 5*time.Second, "could not probe the executor pipe")
+
+	s.T().Logf("executor pipe security descriptor: %s", probe.SDDL)
+	s.Require().NotEmpty(probe.AgentSID)
+	s.Require().Equal(probe.AgentSID, probe.ExecutorSID, "the executor must run as the Agent account")
+	s.Require().False(probe.AgentIsAdmin,
+		"the Agent account is an administrator, so this run cannot show the non-admin path works")
+
+	// The OWNER RIGHTS entry applies to the owner, which must be the Agent
+	// account for the executor to create further pipe instances.
+	s.Equal(probe.AgentSID, probe.Owner, "the executor pipe should be owned by the Agent account")
+	s.True(probe.Protected, "the pipe DACL must not inherit entries")
+	grants := map[string]int64{}
+	for _, ace := range probe.ACEs {
+		s.Equal("AccessAllowed", ace.Type, "unexpected ACE for %s", ace.SID)
+		grants[ace.SID] = ace.Mask
+	}
+	s.Equal(map[string]int64{
+		"S-1-5-18":     pipeFullAccess,
+		"S-1-5-32-544": pipeFullAccess,
+		"S-1-3-4":      pipeServerAccess,
+		probe.AgentSID: pipeClientAccess,
+	}, grants)
+	s.Equal(errorAccessDenied, probe.ProbeError, "an unrelated local user must be denied the executor pipe")
+}
+
 // TestMonolithStandsDown proves the monolithic runner exits cleanly instead of
 // polling alongside the control plane. Its definition is auto_start, so a clean
 // exit (not a crash) is the only correct outcome.
@@ -137,7 +240,7 @@ func (s *windowsPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervi
 	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 180s timeout")
 
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited"}, 3*time.Minute)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited"}, 3*time.Minute)
 }
 
 func (s *windowsPARSplitLifecycleSuite) clearSigningKeys() {

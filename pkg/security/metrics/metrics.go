@@ -102,6 +102,12 @@ var (
 	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
 	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
 	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
+	// MetricDNSADCorrelationHits DNS responses attributed back to the process that asked the question
+	MetricDNSADCorrelationHits = newRuntimeMetric(".dns_response_collector.ad_correlation_hits")
+	// MetricDNSADCorrelationMisses DNS responses whose question was unknown, stale, or ambiguous
+	MetricDNSADCorrelationMisses = newRuntimeMetric(".dns_response_collector.ad_correlation_misses")
+	// MetricDNSADCorrelationCollisions DNS questions dropped because two processes were in flight on the same key
+	MetricDNSADCorrelationCollisions = newRuntimeMetric(".dns_response_collector.ad_correlation_collisions")
 
 	// filtering metrics
 
@@ -207,6 +213,9 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverContainerContextCleared is the name of the metric used to report the number of container contexts cleared
+	// Tags: -
+	MetricProcessResolverContainerContextCleared = newRuntimeMetric(".process_resolver.container_context_cleared")
 	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
 	// Tags: -
 	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
@@ -250,6 +259,9 @@ var (
 	// MetricSpanContextProcessCtxSuccess is the counter of OTel process context read successes
 	// Tags: status:ok
 	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextProcessCtxQueueLatency is the distribution of seconds a pid waits in the OTel process context queue
+	// Tags: -
+	MetricSpanContextProcessCtxQueueLatency = newRuntimeMetric(".span_context.process_ctx.queue_latency")
 	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
 	// Tags: reader:otel_tls, reader:go_labels
 	//
@@ -261,6 +273,9 @@ var (
 	//
 	//       status:ok
 	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextResolutionLatency is the distribution of seconds a successful OTel TLS resolution takes
+	// Tags: elf:true, elf:false (offsets already registered)
+	MetricSpanContextResolutionLatency = newRuntimeMetric(".span_context.resolution.latency")
 	// MetricSpanContextEventFailed is the counter of per-event span context fill failures
 	// Tags: reader:otel_tls, reader:go_labels, reader:fill
 	//
@@ -610,6 +625,10 @@ var (
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
+	// MetricSecurityProfileV2TagResolutionEventsCapped is the name of the metric used to report events not queued because the tag resolution queue is full
+	// Tags: limit (cgroup or total)
+	MetricSecurityProfileV2TagResolutionEventsCapped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_capped")
+
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
@@ -664,6 +683,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
 
+	// Path pattern metrics
+
+	// MetricSecurityProfileV2PathPatternsFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsFileNodesMerged = newRuntimeMetric(".security_profile_v2.path_patterns.file_nodes_merged")
+
+	// MetricSecurityProfileV2PathPatternsLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
+
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
 	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
 	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
@@ -679,6 +708,22 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricEventSampleSentBelowThreshold is the name of the metric used to report events allowed below the pressure threshold
+	// Tags: event_type
+	MetricEventSampleSentBelowThreshold = newRuntimeMetric(".event_sample.sent_below_threshold")
+
+	// MetricEventSampleAllowedBetween is the name of the metric used to report events allowed by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleAllowedBetween = newRuntimeMetric(".event_sample.allowed_between")
+
+	// MetricEventSampleDroppedBetween is the name of the metric used to report events dropped by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleDroppedBetween = newRuntimeMetric(".event_sample.dropped_between")
+
+	// MetricEventSampleDroppedAboveCritical is the name of the metric used to report events dropped above the critical pressure threshold
+	// Tags: event_type
+	MetricEventSampleDroppedAboveCritical = newRuntimeMetric(".event_sample.dropped_above_critical")
 
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -

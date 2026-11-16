@@ -1,0 +1,15 @@
+description: find -newer with missing reference file reports error even with -mindepth preventing evaluation.
+skip_assert_against_bash: false
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -mindepth 99 -newer nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains: ["find:"]
+  exit_code: 1

@@ -1,0 +1,13 @@
+description: head -n with an astronomically large value on small input outputs all lines without hanging or OOMing.
+setup:
+  files:
+    - path: small.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 999999999999 small.txt
+expect:
+  stdout: "line1\nline2\nline3\n"
+  stderr: ""
+  exit_code: 0

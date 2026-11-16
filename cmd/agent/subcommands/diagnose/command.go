@@ -442,13 +442,13 @@ func cmdDiagnose(cliParams *cliParams,
 				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 			}
-			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger)
 		}
 	} else {
 		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
 			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 		}
-		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger, config)
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, filterStore, ac, tagger)
 	}
 
 	if err != nil {

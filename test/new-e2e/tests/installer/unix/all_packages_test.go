@@ -46,6 +46,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
+		e2eos.RedHat9SELinuxNPM,
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -140,6 +141,10 @@ func TestPackages(t *testing.T) {
 				continue
 			}
 			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
+				continue
+			}
+			// The SELinux NPM image does not include Ansible.
+			if flavor == e2eos.RedHat9SELinuxNPM && method == InstallMethodAnsible {
 				continue
 			}
 			// TODO: remove once ansible+suse is fully supported
@@ -261,7 +266,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 				break
 			}
 			if i == 2 {
-				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
+				s.Require().FailNow("failed to install ansible-galaxy collection after 3 attempts")
 			}
 			time.Sleep(time.Second)
 		}
@@ -282,7 +287,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
 	default:
-		s.T().Fatal("unsupported install method")
+		s.Require().FailNow("unsupported install method")
 	}
 }
 

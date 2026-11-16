@@ -1,0 +1,15 @@
+description: An until loop nested inside another until runs each outer iteration to completion.
+input:
+  script: |+
+    i=
+    until [ "$i" = aa ]; do
+      i="${i}a"
+      until true; do echo inner; done
+      echo "outer $i"
+    done
+expect:
+  stdout: |+
+    outer a
+    outer aa
+  stderr: |+
+  exit_code: 0
