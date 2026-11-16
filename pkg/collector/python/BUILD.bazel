@@ -209,7 +209,6 @@ dd_agent_go_test(
         "kubelet",
         "python",
     ]],
-    include_default = False,
     deps = [
         "//pkg/util/cache",
         "//pkg/util/log",
