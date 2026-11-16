@@ -21,7 +21,7 @@ import (
 // Store is the interface for a store that can store payloads and try parsing them
 type Store interface {
 	// AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-	AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error
+	AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time, request ...api.RequestMetadata) error
 	// SetLastAPIKey sets the last seen API Key
 	SetLastAPIKey(apiKey string)
 	// GetLastAPIKey gets the last seen API Keys
@@ -67,6 +67,7 @@ func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
 			APIKey:    payload.APIKey,
 			Data:      parsedPayload,
 			Encoding:  payload.Encoding,
+			Request:   payload.Request,
 		})
 	}
 	return parsedPayloads, errors.Join(errs...)
