@@ -327,12 +327,13 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • BITFIELD key [GET type offset] [SET type offset value] [INCRBY type offset increment] [OVERFLOW WRAP|SAT|FAIL]
 		var n int
 		for i, arg := range args {
-			if strings.ToUpper(arg) == "SET" {
-				n = i
-			}
 			if n > 0 && i-n == 3 {
 				args[i] = "?"
 				n = 0
+				continue
+			}
+			if strings.ToUpper(arg) == "SET" {
+				n = i
 			}
 		}
 

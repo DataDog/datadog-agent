@@ -658,6 +658,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"EVAL script 1",
 		},
 		{
+			"BITFIELD key SET i8 0 SET",
+			"BITFIELD key SET i8 0 ?",
+		},
+		{
+			"BITFIELD key SET i8 0 set SET u4 4 7",
+			"BITFIELD key SET i8 0 ? SET u4 4 ?",
+		},
+		{
 			`
 CONFIG command
 SET k v
