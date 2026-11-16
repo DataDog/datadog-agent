@@ -28,10 +28,8 @@ var sketchMaxObservationCount = uint64(quantile.Default().MaxCount())
 
 // validateExpHistogramDataPoint reports whether an exponential histogram data point
 // must be dropped, why, and how many observations it holds when that is the reason.
-// They all go into one sketch, so the bound is on their total.
-//
-// The limit is a parameter: a histogram forwarded without sketch conversion is
-// bounded by the backend instead, which is a different number (see OTAGENT-1131).
+// They all go into one sketch, so the bound is on their total. A histogram forwarded
+// without sketch conversion can be checked per bucket instead (see WithMaxBucketCount).
 func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, maxObservationCount uint64) (reason string, observations float64, drop bool) {
 	if dp.Flags().NoRecordedValue() {
 		return dropReasonNoRecordedValue, 0, true
@@ -50,6 +48,26 @@ func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, max
 	}
 
 	return "", 0, false
+}
+
+// bucketCountAbove returns the first of the counts above limit.
+func bucketCountAbove(limit uint64, counts ...pcommon.UInt64Slice) (uint64, bool) {
+	for _, c := range counts {
+		for _, v := range c.All() {
+			if v > limit {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// expBucketCountAbove returns the first bucket count of dp above limit, zero bucket included.
+func expBucketCountAbove(dp pmetric.ExponentialHistogramDataPoint, limit uint64) (uint64, bool) {
+	if dp.ZeroCount() > limit {
+		return dp.ZeroCount(), true
+	}
+	return bucketCountAbove(limit, dp.Positive().BucketCounts(), dp.Negative().BucketCounts())
 }
 
 // warnDroppedDataPoint logs a dropped data point once per metric name. Only

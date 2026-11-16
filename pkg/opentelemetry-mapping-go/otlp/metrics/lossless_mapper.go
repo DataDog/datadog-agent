@@ -202,13 +202,46 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 	}
 }
 
-// Histograms are forwarded unvalidated on purpose: the limits depend on the
-// backend that will consume them, which is not settled yet (OTAGENT-1131).
+// MapHistogramMetrics forwards the points as they are, minus those with a bucket
+// count above the WithMaxBucketCount limit.
 func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
+	if m.cfg.MaxBucketCount > 0 {
+		slice.RemoveIf(func(dp pmetric.HistogramDataPoint) bool {
+			count, above := bucketCountAbove(m.cfg.MaxBucketCount, dp.BucketCounts())
+			if above {
+				m.warnBucketCountAbove(dims.name, count)
+			}
+			return above
+		})
+	}
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil
 }
 
+// MapExponentialHistogramMetrics forwards the points as they are, minus those with a
+// bucket count above the WithMaxBucketCount limit.
 func (m *lossLessMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
+	if m.cfg.MaxBucketCount > 0 {
+		slice.RemoveIf(func(dp pmetric.ExponentialHistogramDataPoint) bool {
+			count, above := expBucketCountAbove(dp, m.cfg.MaxBucketCount)
+			if above {
+				m.warnBucketCountAbove(dims.name, count)
+			}
+			return above
+		})
+	}
 	consumer.ConsumeExponentialHistogram(ctx, dims, slice)
+}
+
+// warnBucketCountAbove logs a dropped data point once per metric name.
+func (m *lossLessMapper) warnBucketCountAbove(metricName string, count uint64) {
+	w, _ := m.warnedMetrics.LoadOrStore(metricName, &metricWarnings{})
+	if w.(*metricWarnings).bucketCountTooHigh.Swap(true) {
+		return
+	}
+	m.logger.Warn("Dropped histogram data point: bucket count above the limit",
+		zap.String("metric name", metricName),
+		zap.Uint64("bucket count", count),
+		zap.Uint64("limit", m.cfg.MaxBucketCount),
+	)
 }

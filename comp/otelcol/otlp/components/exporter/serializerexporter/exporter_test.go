@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1976,6 +1977,31 @@ func TestNativeOTelHistogramsGate(t *testing.T) {
 	// sent as is and the cumulative one is dropped.
 	assert.Equal(t, 1, v3SketchPointsWithGate(t, false))
 	assert.Equal(t, 2, v3SketchPointsWithGate(t, true))
+}
+
+func TestNativeOTelHistogramsDropBucketCountAboveLimit(t *testing.T) {
+	setNativeHistogramsGate(t, true)
+	s, fwd := newTestAgentSerializer(t, map[string]any{
+		"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
+	})
+	ctx := context.Background()
+	exp, err := createDDOTMetricsExporter(s, "")
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	m.SetName("delta.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	for _, count := range []uint64{math.MaxInt32, math.MaxInt32 + 1} {
+		dp := m.Histogram().DataPoints().AppendEmpty()
+		dp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+		dp.SetCount(count)
+		dp.BucketCounts().FromRaw([]uint64{count})
+	}
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+	assert.Equal(t, 1, fwd.pointsTo(endpoints.V3SketchSeriesEndpoint))
 }
 
 func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {

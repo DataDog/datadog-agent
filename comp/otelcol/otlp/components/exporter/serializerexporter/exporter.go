@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -223,6 +224,8 @@ func minimalTranslatorFromConfig(
 	}
 	// cumulativetodelta does not convert summaries, so the translator does it.
 	options = append(options, metrics.WithSummaryCumulativeToDelta())
+	// Same per-bucket limit as the OTLP metrics intake (ddoghq/dd-source#3197).
+	options = append(options, metrics.WithMaxBucketCount(math.MaxInt32))
 	logger := set.Logger.With(zap.String("component", "metrics translator"))
 	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
 }

@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 
@@ -172,6 +173,56 @@ func seriesTotal(t *testing.T, consumer *testConsumer, suffix string) float64 {
 
 	require.True(t, found, "no time series ending in %q, got %v", suffix, consumer.data.Metrics.TimeSeries)
 	return total
+}
+
+func TestExpBucketCountAbove(t *testing.T) {
+	const limit = math.MaxInt32
+	tests := []struct {
+		name  string
+		setup func(dp pmetric.ExponentialHistogramDataPoint)
+		count uint64
+		above bool
+	}{
+		{
+			name: "buckets at the limit pass, whatever their total",
+			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
+				dp.SetZeroCount(limit)
+				dp.Positive().BucketCounts().FromRaw([]uint64{limit, limit})
+				dp.Negative().BucketCounts().FromRaw([]uint64{limit})
+			},
+		},
+		{
+			name:  "zero bucket above the limit",
+			setup: func(dp pmetric.ExponentialHistogramDataPoint) { dp.SetZeroCount(limit + 1) },
+			count: limit + 1,
+			above: true,
+		},
+		{
+			name: "positive bucket above the limit",
+			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
+				dp.Positive().BucketCounts().FromRaw([]uint64{1, limit + 2})
+			},
+			count: limit + 2,
+			above: true,
+		},
+		{
+			name: "negative bucket above the limit",
+			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
+				dp.Negative().BucketCounts().FromRaw([]uint64{limit + 3})
+			},
+			count: limit + 3,
+			above: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dp := pmetric.NewExponentialHistogramDataPoint()
+			tt.setup(dp)
+			count, above := expBucketCountAbove(dp, limit)
+			assert.Equal(t, tt.above, above)
+			assert.Equal(t, tt.count, count)
+		})
+	}
 }
 
 func TestDefaultMapperSketchCapacity(t *testing.T) {

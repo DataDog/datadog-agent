@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    With the ``datadog.serializerexporter.NativeOTelHistograms`` feature gate on, DDOT now
+    drops histogram data points that have a bucket holding more than 2,147,483,647
+    observations, as the OTLP metrics intake does. This includes the zero bucket of
+    exponential histograms. DDOT logs a warning the first time it drops a point of a given
+    metric.
