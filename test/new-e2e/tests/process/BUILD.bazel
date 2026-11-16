@@ -5,6 +5,7 @@ go_library(
     name = "process",
     srcs = [
         "diskspd.go",
+        "payloads.go",
         "testing.go",
     ],
     data = [
@@ -42,6 +43,7 @@ go_library(
     ],
 )
 
+# gazelle:exclude payloads_test.go
 dd_agent_go_test(
     name = "process_test",
     srcs = [
@@ -101,5 +103,19 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+# Test payload selection without importing cloud provisioning dependencies.
+dd_agent_go_test(
+    name = "payloads_test",
+    srcs = [
+        "payloads.go",
+        "payloads_test.go",
+    ],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
     ],
 )
