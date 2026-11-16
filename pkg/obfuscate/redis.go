@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -272,6 +273,27 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 				obfuscateRedisArgsStep(args, i+2, 2)
 				break
 			}
+		}
+
+	case "EVAL", "EVAL_RO", "EVALSHA", "EVALSHA_RO", "FCALL", "FCALL_RO":
+		// Obfuscate all arguments after the keys.
+		// • EVAL script numkeys [key [key ...]] [arg [arg ...]]
+		// • EVAL_RO script numkeys [key [key ...]] [arg [arg ...]]
+		// • EVALSHA sha1 numkeys [key [key ...]] [arg [arg ...]]
+		// • EVALSHA_RO sha1 numkeys [key [key ...]] [arg [arg ...]]
+		// • FCALL function numkeys [key [key ...]] [arg [arg ...]]
+		// • FCALL_RO function numkeys [key [key ...]] [arg [arg ...]]
+		if len(args) < 3 {
+			break
+		}
+		start := 2
+		if numkeys, err := strconv.Atoi(args[1]); err == nil && numkeys > 0 {
+			// clamp numkeys so that a huge value can't overflow start
+			start += min(numkeys, len(args))
+		}
+		if start < len(args) {
+			args[start] = "?"
+			args = args[:start+1]
 		}
 
 	case "MSET", "MSETNX":

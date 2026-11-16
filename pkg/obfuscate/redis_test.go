@@ -614,6 +614,50 @@ func TestRedisObfuscator(t *testing.T) {
 			"HSETEX key FIELDS 1 field",
 		},
 		{
+			"EVAL \"return redis.call('set', KEYS[1], ARGV[1])\" 1 key value",
+			"EVAL \"return redis.call('set', KEYS[1], ARGV[1])\" 1 key ?",
+		},
+		{
+			"EVALSHA 1b936e3fe509bcbc9cd0664897bbe8fd0ac95f9e 2 k1 k2 a1 a2",
+			"EVALSHA 1b936e3fe509bcbc9cd0664897bbe8fd0ac95f9e 2 k1 k2 ?",
+		},
+		{
+			"fcall myfunc 0 a1 a2",
+			"fcall myfunc 0 ?",
+		},
+		{
+			"FCALL_RO myfunc 1 key arg",
+			"FCALL_RO myfunc 1 key ?",
+		},
+		{
+			"EVAL_RO script 1 key arg",
+			"EVAL_RO script 1 key ?",
+		},
+		{
+			"EVALSHA_RO sha 1 key arg",
+			"EVALSHA_RO sha 1 key ?",
+		},
+		{
+			"EVAL script 2 k1 k2",
+			"EVAL script 2 k1 k2",
+		},
+		{
+			"EVAL script 9223372036854775807 k1 k2",
+			"EVAL script 9223372036854775807 k1 k2",
+		},
+		{
+			"EVAL script notanumber k1 a1",
+			"EVAL script notanumber ?",
+		},
+		{
+			"EVAL script -1 a1",
+			"EVAL script -1 ?",
+		},
+		{
+			"EVAL script 1",
+			"EVAL script 1",
+		},
+		{
 			`
 CONFIG command
 SET k v
