@@ -148,7 +148,16 @@ func newScanMWPipelineWithMatcher(
 }
 
 func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
-	p, err := newScanMWMetricPipeline(cfg, true, nil)
+	stable, err := newStablePipeline(NewScanMWDetector(cfg), DefaultStablePipelineConfig())
+	if err != nil {
+		tb.Fatalf("build stable pipeline: %v", err)
+	}
+	p, err := newMetricPipeline([]pipelineRegistration{{
+		kind:         observer.STABLE,
+		metricType:   metrics.GaugeType,
+		detector:     stable,
+		aggregations: []observer.Aggregate{observer.AggregateAverage},
+	}}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	require.NoError(tb, err)
 	return p
 }
@@ -657,7 +666,7 @@ func TestMetricPipelineReactivationCutoffDisabled(t *testing.T) {
 
 func TestMetricPipelineReplayParity(t *testing.T) {
 	streaming, preloaded := newDetectorTestStorage(), newDetectorTestStorage()
-	for ts := int64(1); ts <= 100; ts++ {
+	for ts := int64(1); ts <= 120; ts++ {
 		value := 10.0
 		if ts > 60 {
 			value = 100
