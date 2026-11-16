@@ -158,6 +158,45 @@ dot1x credentials SUPPLICANT
 ldap server CORP-LDAP
  bind authenticated root-dn cn=svc,dc=example,dc=net password 0 <secret hidden>
 !
+! ---- Untyped and key-style secrets -----------------------------------
+crypto isakmp client configuration group EZ-SERVER
+ key <secret hidden>
+ pool EZ-POOL
+crypto ipsec client ezvpn EZ-CLIENT
+ group EZ-GROUP key <secret hidden>
+ username ezuser password <secret hidden>
+radius server ISE-2
+ address ipv4 192.0.2.31 auth-port 1812 acct-port 1813
+ pac key 0 <secret hidden>
+router isis CORE
+ area-password <secret hidden>
+ domain-password <secret hidden> authenticate snp validate
+router ospf 1
+ area 1 virtual-link 10.0.0.1 authentication-key 7 <secret hidden>
+ area 1 virtual-link 10.0.0.3 message-digest-key 1 md5 <secret hidden>
+router eigrp NAMED
+ address-family ipv4 unicast autonomous-system 100
+  af-interface GigabitEthernet0/1
+   authentication mode hmac-sha-256 0 <secret hidden>
+interface Tunnel0
+ ip nhrp authentication <secret hidden>
+ isis password <secret hidden> level-1
+ ipv6 ospf authentication ipsec spi 256 md5 <secret hidden>
+ ipv6 ospf encryption ipsec spi 300 esp aes-cbc 128 <secret hidden> sha1 <secret hidden>
+ glbp 1 authentication text <secret hidden>
+ glbp 2 authentication md5 key-string 7 <secret hidden>
+ vrrp 1 authentication md5 key-string <secret hidden>
+ standby 3 authentication text <secret hidden>
+ standby 4 authentication md5 key-chain HSRP-CHAIN
+ ppp pap sent-username branch2 password <secret hidden>
+dot11 ssid HEX-PSK
+ wpa-psk hex 0 <secret hidden>
+ip http client username fetcher
+ip http client password 0 <secret hidden>
+archive
+ path ftp://archuser:<secret hidden>@192.0.2.9/cfg
+boot system ftp://bootuser:<secret hidden>@192.0.2.9/image.bin
+!
 ip http server
 ip http authentication local
 !
