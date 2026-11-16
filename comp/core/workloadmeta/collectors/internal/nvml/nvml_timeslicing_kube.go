@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
-// fetchNodeGPULabels reads this node's labels from the cluster agent or
-// the API server.
-func (c *collector) fetchNodeGPULabels(ctx context.Context) (map[string]string, error) {
+// fetchNodeLabels reads this node's labels from the cluster agent or the API
+// server.
+func fetchNodeLabels(ctx context.Context) (map[string]string, error) {
 	ni, err := hostinfo.NewNodeInfo()
 	if err != nil {
 		return nil, err

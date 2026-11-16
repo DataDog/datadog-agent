@@ -9,7 +9,7 @@ package nvml
 
 import "context"
 
-// fetchNodeGPULabels reads no labels without kubelet access.
-func (c *collector) fetchNodeGPULabels(_ context.Context) (map[string]string, error) {
+// fetchNodeLabels reads no labels without kubelet access.
+func fetchNodeLabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
 }

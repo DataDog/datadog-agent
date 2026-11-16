@@ -8,6 +8,8 @@
 package nvml
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -33,14 +35,16 @@ func timeSlicedGPUTestLabels() map[string]string {
 	}
 }
 
+// staticNodeLabels returns a node labels reader always returning labels.
+func staticNodeLabels(labels map[string]string) func(context.Context) (map[string]string, error) {
+	return func(context.Context) (map[string]string, error) { return labels, nil }
+}
+
 // newTimeSliceCollector returns a collector reading the given node labels,
 // so the tests can pin the label the verdicts are disambiguated with.
 func newTimeSliceCollector(store workloadmeta.Component, nodeLabels map[string]string) *collector {
 	c := newCollector(store, nil, noopsimpl.NewComponent())
-	if nodeLabels != nil {
-		c.nodeGPULabels = nodeLabels
-		c.nodeGPULabelsAt = time.Now()
-	}
+	c.fetchNodeLabels = staticNodeLabels(nodeLabels)
 	return c
 }
 
@@ -77,6 +81,41 @@ func TestSharingModeFromStrategyLabel(t *testing.T) {
 	// say so, the label only disambiguates the mechanism.
 	assert.Equal(t, workloadmeta.GPUSharingModeUnknown, sharingModeFromStrategyLabel(""))
 	assert.Equal(t, workloadmeta.GPUSharingModeUnknown, sharingModeFromStrategyLabel("something-new"))
+}
+
+func TestGetNodeGPULabels(t *testing.T) {
+	labels := timeSlicedGPUTestLabels()
+	reads := 0
+	var readErr error
+	c := newCollector(nil, nil, noopsimpl.NewComponent())
+	c.fetchNodeLabels = func(context.Context) (map[string]string, error) {
+		reads++
+		if readErr != nil {
+			return nil, readErr
+		}
+		return labels, nil
+	}
+
+	// The first call reads the labels; the second, within the interval, is
+	// served from the cache.
+	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
+	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
+	assert.Equal(t, 1, reads)
+
+	// Once the interval elapses, the read fails: the last labels are kept, and
+	// the next call does not retry before the interval elapses again.
+	c.nodeGPULabelsAt = time.Now().Add(-nodeGPULabelsRefreshInterval)
+	readErr = errors.New("cluster agent unavailable")
+	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
+	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
+	assert.Equal(t, 2, reads)
+
+	// The next successful read replaces them.
+	c.nodeGPULabelsAt = time.Now().Add(-nodeGPULabelsRefreshInterval)
+	readErr = nil
+	labels = map[string]string{gfdSharingStrategyLabel: "mps"}
+	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
+	assert.Equal(t, 3, reads)
 }
 
 func TestResolveTimeSlices(t *testing.T) {
@@ -187,10 +226,7 @@ func TestPullSetsSharingModeOfTimeSlicedGPUs(t *testing.T) {
 		cfg := config.NewMock(t)
 		cfg.SetInTest("gpu.enabled", true)
 		c := newCollector(store, cfg, noopsimpl.NewComponent())
-		if nodeLabels != nil {
-			c.nodeGPULabels = nodeLabels
-			c.nodeGPULabelsAt = time.Now()
-		}
+		c.fetchNodeLabels = staticNodeLabels(nodeLabels)
 		return c, store, container
 	}
 

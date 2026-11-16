@@ -26,10 +26,10 @@ const (
 	// number of replicas per GPU.
 	gfdReplicasLabel = "nvidia.com/gpu.replicas"
 
-	// nodeGPULabelsCacheDuration bounds how long the node labels are reused
-	// between pulls: they are read from the cluster agent or the API server,
-	// and change only with the operator's sharing configuration.
-	nodeGPULabelsCacheDuration = 5 * time.Minute
+	// nodeGPULabelsRefreshInterval is how often the node labels are read: the
+	// GPU Feature Discovery default relabeling interval, so a cached label is
+	// at most one relabeling behind.
+	nodeGPULabelsRefreshInterval = time.Minute
 )
 
 // timeSlices holds the shared NVIDIA device replicas (time-slicing, MPS)
@@ -77,12 +77,7 @@ func (c *collector) resolveTimeSlices(ctx context.Context) timeSlices {
 	if len(ts.shared) == 0 {
 		return ts
 	}
-	ts.mode = workloadmeta.GPUSharingModeUnknown
-	labels, err := c.getNodeGPULabels(ctx)
-	if err != nil {
-		log.Debugf("cannot read the node labels to resolve the GPU sharing strategy: %v", err)
-		return ts
-	}
+	labels := c.getNodeGPULabels(ctx)
 	ts.mode = sharingModeFromStrategyLabel(labels[gfdSharingStrategyLabel])
 	if n, err := strconv.Atoi(labels[gfdReplicasLabel]); err == nil && n > 0 {
 		ts.replicas = n
@@ -103,19 +98,19 @@ func sharingModeFromStrategyLabel(strategy string) workloadmeta.GPUSharingMode {
 	}
 }
 
-// getNodeGPULabels returns this node's labels, cached for
-// nodeGPULabelsCacheDuration.
-func (c *collector) getNodeGPULabels(ctx context.Context) (map[string]string, error) {
-	if c.nodeGPULabels != nil && time.Since(c.nodeGPULabelsAt) < nodeGPULabelsCacheDuration {
-		return c.nodeGPULabels, nil
+// getNodeGPULabels returns this node's labels, read at most once per
+// nodeGPULabelsRefreshInterval. A failed read keeps the last labels read.
+func (c *collector) getNodeGPULabels(ctx context.Context) map[string]string {
+	if !c.nodeGPULabelsAt.IsZero() && time.Since(c.nodeGPULabelsAt) < nodeGPULabelsRefreshInterval {
+		return c.nodeGPULabels
 	}
-
-	labels, err := c.fetchNodeGPULabels(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	c.nodeGPULabels = labels
 	c.nodeGPULabelsAt = time.Now()
-	return labels, nil
+
+	labels, err := c.fetchNodeLabels(ctx)
+	if err != nil {
+		log.Debugf("cannot read the node labels to resolve the GPU sharing strategy: %v", err)
+		return c.nodeGPULabels
+	}
+	c.nodeGPULabels = labels
+	return labels
 }

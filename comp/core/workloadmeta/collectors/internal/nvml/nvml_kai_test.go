@@ -256,6 +256,7 @@ func newKAICollector(store workloadmeta.Component) *collector {
 		kaiAssignmentFailed:    newKAIAssignmentFailedCounter(noopsimpl.NewComponent()),
 		seenContainerGPUs:      make(map[string]struct{}),
 		publishedContainerGPUs: make(map[string][]string),
+		fetchNodeLabels:        staticNodeLabels(nil),
 	}
 }
 

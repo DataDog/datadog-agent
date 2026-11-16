@@ -63,10 +63,11 @@ type collector struct {
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
 	// nodeGPULabels caches the labels of this node, as read for the GPU
-	// sharing strategy resolution, and nodeGPULabelsAt is when they were
-	// read. Only used on kubelet builds.
+	// sharing strategy resolution, and nodeGPULabelsAt is when they were last
+	// read, successfully or not. fetchNodeLabels reads them.
 	nodeGPULabels   map[string]string
 	nodeGPULabelsAt time.Time
+	fetchNodeLabels func(context.Context) (map[string]string, error)
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
 	// lost GPUs keep the attributes that can no longer be queried from NVML.
 	lastPublishedGPUs map[string]*workloadmeta.GPU
@@ -346,6 +347,7 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
 		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
+		fetchNodeLabels:         fetchNodeLabels,
 		// The host sysfs is often only partly mounted in containers, but the PCI
 		// devices tree isn't namespaced, so the container's own /sys works too.
 		pciDevicesRoots: []string{kernel.HostSys("bus", "pci", "devices"), "/sys/bus/pci/devices"},
