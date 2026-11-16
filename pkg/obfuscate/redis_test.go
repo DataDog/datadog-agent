@@ -458,6 +458,22 @@ func TestRedisObfuscator(t *testing.T) {
 			"CONFIG SET p1 ? p2",
 		},
 		{
+			"GEOADD key NX 13.36 38.11 member",
+			"GEOADD key NX 13.36 38.11 ?",
+		},
+		{
+			"GEOADD key XX CH 13.36 38.11 member1 15.08 37.50 member2",
+			"GEOADD key XX CH 13.36 38.11 ? 15.08 37.50 ?",
+		},
+		{
+			"geoadd key ch 13.36 38.11 member",
+			"geoadd key ch 13.36 38.11 ?",
+		},
+		{
+			"GEOADD key NX CH",
+			"GEOADD key NX CH",
+		},
+		{
 			`
 CONFIG command
 SET k v

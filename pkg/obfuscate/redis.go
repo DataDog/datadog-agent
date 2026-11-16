@@ -199,9 +199,19 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		}
 
 	case "GEOADD":
-		// Obfuscating every 3rd argument starting from first
-		// • GEOADD key longitude latitude member [longitude latitude member ...]
-		obfuscateRedisArgsStep(args, 1, 3)
+		// Obfuscating every 3rd argument after potential optional ones.
+		// • GEOADD key [NX|XX] [CH] longitude latitude member [longitude latitude member ...]
+		i := 1
+	geoaddOptions:
+		for ; i < len(args); i++ {
+			switch strings.ToUpper(args[i]) {
+			case "NX", "XX", "CH":
+				// continue
+			default:
+				break geoaddOptions
+			}
+		}
+		obfuscateRedisArgsStep(args, i, 3)
 
 	case "HSET", "HMSET":
 		// Every 2nd argument starting from first.
