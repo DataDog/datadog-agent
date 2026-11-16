@@ -45,9 +45,6 @@ pkg_filegroup(
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
-        # TODO: system-probe
-        # TODO: system-probe - eBPF
-
         # TODO: //pkg/discovery/module/rust
         # TODO: cacerts
         # TODO: integrations on macOS, Windows and Linux FIPS (cryptography and psycopg need the FIPS OpenSSL)
@@ -55,6 +52,7 @@ pkg_filegroup(
         "@platforms//os:linux": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_install_dir_files",
             "//deps/agent_integrations:integration_configuration_files",
             "//deps/agent_integrations:integrations_bin_files",
             "//deps/agent_integrations:integrations_runtime_files",
@@ -67,6 +65,7 @@ pkg_filegroup(
         "//packages/agent:linux_fips": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -322,7 +321,7 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
-# Not wired into :all_files or Omnibus. FIPS omits the binary.
+# Not wired into Omnibus. FIPS omits the binary.
 pkg_filegroup(
     name = "system_probe_install_dir_files",
     srcs = [
