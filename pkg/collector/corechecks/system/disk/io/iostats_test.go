@@ -268,3 +268,26 @@ func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
 		require.Error(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", value)), "test", "provider"), "expected %s to be rejected", value)
 	}
 }
+
+func TestIOCheckDeviceExcludeRePrecedence(t *testing.T) {
+	// device_blacklist_re only applies when device_exclude_re is absent:
+	// an explicitly empty device_exclude_re must not fall back to it.
+	configure := func(initConfig string) *IOCheck {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(initConfig), "test", "provider"))
+		return ioCheck
+	}
+
+	ioCheck := configure("device_exclude_re: \"\"\ndevice_blacklist_re: ^sd.*\n")
+	assert.Nil(t, ioCheck.blacklist)
+
+	ioCheck = configure("device_blacklist_re: ^sd.*\n")
+	require.NotNil(t, ioCheck.blacklist)
+	assert.True(t, ioCheck.blacklist.MatchString("sda"))
+
+	ioCheck = configure("device_exclude_re: ^x.*\ndevice_blacklist_re: ^sd.*\n")
+	require.NotNil(t, ioCheck.blacklist)
+	assert.True(t, ioCheck.blacklist.MatchString("xvda"))
+	assert.False(t, ioCheck.blacklist.MatchString("sda"))
+}

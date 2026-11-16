@@ -39,10 +39,12 @@ func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integ
 		return err
 	}
 
-	regex := conf.DeviceExcludeRe
-	if regex == "" && conf.DeviceBlacklistRe != "" {
+	regex := ""
+	if conf.DeviceExcludeRe != nil {
+		regex = *conf.DeviceExcludeRe
+	} else if conf.DeviceBlacklistRe != nil {
 		log.Warn("'device_blacklist_re' has been deprecated, use 'device_exclude_re' instead")
-		regex = conf.DeviceBlacklistRe
+		regex = *conf.DeviceBlacklistRe
 	}
 	if regex != "" {
 		c.blacklist, err = regexp.Compile(regex)
@@ -55,11 +57,13 @@ func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integ
 	return nil
 }
 
-// ioConfig holds the init_config options of the io check.
+// ioConfig holds the init_config options of the io check. The regex options
+// are pointers so that an explicitly empty device_exclude_re does not fall
+// back to the deprecated device_blacklist_re, only an absent one does.
 type ioConfig struct {
-	DeviceExcludeRe    string `yaml:"device_exclude_re"`
-	DeviceBlacklistRe  string `yaml:"device_blacklist_re"`
-	LowercaseDeviceTag bool   `yaml:"lowercase_device_tag"`
+	DeviceExcludeRe    *string `yaml:"device_exclude_re"`
+	DeviceBlacklistRe  *string `yaml:"device_blacklist_re"`
+	LowercaseDeviceTag bool    `yaml:"lowercase_device_tag"`
 }
 
 // Factory creates a new check factory
