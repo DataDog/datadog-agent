@@ -747,3 +747,32 @@ func TestHostInfoCheckBothLookupsFailingCountsOncePerRun(t *testing.T) {
 	assert.Equal(t, metadataFailureThreshold, preemptionAttempts)
 	assert.Equal(t, metadataFailureThreshold, rebalanceAttempts)
 }
+
+func TestUpdateMetadataBackoff(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		outcomes         []metadataOutcome
+		expectedFailures int
+		expectStamped    bool
+	}{
+		{name: "none_attempted", outcomes: []metadataOutcome{metadataNotAttempted, metadataNotAttempted}, expectedFailures: 2},
+		{name: "one_failed_other_skipped", outcomes: []metadataOutcome{metadataFailed, metadataNotAttempted}, expectedFailures: 3, expectStamped: true},
+		{name: "both_failed_counts_once", outcomes: []metadataOutcome{metadataFailed, metadataFailed}, expectedFailures: 3, expectStamped: true},
+		{name: "answered_then_failed_resets", outcomes: []metadataOutcome{metadataAnswered, metadataFailed}, expectedFailures: 0},
+		{name: "failed_then_answered_resets", outcomes: []metadataOutcome{metadataFailed, metadataAnswered}, expectedFailures: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lastFailure := time.Now().Add(-time.Hour)
+			check := &Check{metadataFailures: 2, metadataLastFailure: lastFailure}
+
+			check.updateMetadataBackoff(tc.outcomes...)
+
+			assert.Equal(t, tc.expectedFailures, check.metadataFailures)
+			if tc.expectStamped {
+				assert.True(t, check.metadataLastFailure.After(lastFailure))
+			} else {
+				assert.Equal(t, lastFailure, check.metadataLastFailure)
+			}
+		})
+	}
+}
