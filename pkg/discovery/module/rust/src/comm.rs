@@ -12,18 +12,65 @@ use crate::procfs;
 /// Maximum length of a comm name in /proc/<pid>/comm (excluding newline).
 const MAX_COMM_LEN: usize = 15;
 
-/// Exact command names to ignore
+/// Infrastructure processes and command-line helpers, matched against the
+/// kernel comm name (not the generated service name). Executable names longer
+/// than MAX_COMM_LEN must use the kernel's truncated name.
 static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
+    b"ModemManager",
+    b"NetworkManager",
+    b"accounts-daemon",
+    b"amazon-ssm-agen",
+    b"atd",
+    b"auditd",
+    b"bash",
+    b"cat",
     b"chronyd",
     b"cilium-agent",
+    b"conmon",
     b"containerd",
+    b"crond",
+    b"dbus-broker",
+    b"dbus-daemon",
     b"dhclient",
+    b"do-agent",
     b"dockerd",
+    b"droplet-agent",
+    b"grep",
+    b"irqbalance",
     b"kubelet",
     b"livenessprobe",
     b"local-volume-pr",
+    b"polkitd",
+    b"process-agent",
+    b"security-agent",
+    b"sh",
+    b"sleep",
     b"sshd",
+    b"sshd-auth",
+    b"sshd-bd",
+    b"sshd-session",
+    b"sshd-sftponly",
+    b"sshd.dssh",
+    b"sshd.pam",
+    b"sshd2",
+    b"sshd_sftp",
+    b"ssm-agent-worke",
+    b"sssd",
+    b"sssd_be",
+    b"sssd_nss",
+    b"sssd_pac",
+    b"sssd_pam",
+    b"sssd_ssh",
+    b"sudo",
+    b"system-probe",
+    b"system-probe-li",
     b"systemd",
+    b"tail",
+    b"tee",
+    b"trace-agent",
+    b"udisksd",
+    b"unattended-upgr",
+    b"zsh",
 };
 
 /// Family prefixes (before the first `-`) to ignore.
@@ -108,6 +155,52 @@ mod tests {
         // When the buffer is exactly full, there's no trailing newline.
         assert!(should_ignore_comm_bytes(b"containerd"));
         assert!(should_ignore_comm_bytes(b"sshd"));
+    }
+
+    #[test]
+    fn test_infrastructure_and_helpers() {
+        for comm in [
+            b"bash\n".as_slice(),
+            b"sh\n",
+            b"conmon\n",
+            b"dbus-daemon\n",
+            b"process-agent\n",
+            b"tail\n",
+            b"sshd-session\n",
+            b"sshd.pam\n",
+            b"sshd.dssh\n",
+        ] {
+            assert!(should_ignore_comm_bytes(comm), "{comm:?}");
+        }
+    }
+
+    #[test]
+    fn test_truncated_infrastructure_comm() {
+        for executable in [
+            "system-probe-lite",
+            "amazon-ssm-agent",
+            "ssm-agent-worker",
+            "unattended-upgrades",
+        ] {
+            // Match the bytes actually read from /proc/<pid>/comm.
+            let comm: Vec<_> = executable.bytes().take(MAX_COMM_LEN).collect();
+            assert!(should_ignore_comm_bytes(&comm), "{executable}");
+        }
+    }
+
+    #[test]
+    fn test_helpers_require_exact_match() {
+        // These names can identify applications rather than OS helpers.
+        for comm in [
+            b"agent\n".as_slice(),
+            b"cron\n",
+            b"dash\n",
+            b"catalog\n",
+            b"bash-api\n",
+            b"sshd-exporter\n",
+        ] {
+            assert!(!should_ignore_comm_bytes(comm), "{comm:?}");
+        }
     }
 
     #[test]
