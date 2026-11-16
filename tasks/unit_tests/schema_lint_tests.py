@@ -513,5 +513,52 @@ class TestCheckTemplateSectionOnPublic(unittest.TestCase):
         )
 
 
+class TestCheckNoNullValues(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_no_null_values, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_every_way_of_accepting_null_is_an_error(self):
+        errors = errors_for(lint.check_no_null_values, "bad_null_value.yaml")
+        for location, reason in (
+            ("[enum_with_null]", "'enum' lists null"),
+            ("[const_null]", "'const' is null"),
+            ("[nullable_type]", "'type' accepts null"),
+            ("[nested_items_null.items.properties.mode]", "'enum' lists null"),
+            ("[any_of_null.anyOf[1]]", "'type' accepts null"),
+            ("[section.nested_enum_with_null]", "'enum' lists null"),
+        ):
+            self.assertTrue(
+                any(location in e and reason in e for e in errors),
+                f"Expected {reason!r} for {location}, got: {errors}",
+            )
+        self.assertEqual(len(errors), 6, errors)
+
+    def test_null_in_instance_data_is_not_reported(self):
+        errors = errors_for(lint.check_no_null_values, "bad_null_value.yaml")
+        self.assertFalse(any("null_in_default_object" in e or "valid_enum" in e for e in errors), f"Got: {errors}")
+
+    def test_excepted_settings_pass(self):
+        errors = errors_for(
+            lint.check_no_null_values, "bad_null_value.yaml", {"enum_with_null", "section.nested_enum_with_null"}
+        )
+        self.assertFalse(any("[enum_with_null]" in e or "nested_enum_with_null" in e for e in errors), f"Got: {errors}")
+        self.assertTrue(any("[const_null]" in e for e in errors))
+
+    def test_no_new_null_exception(self):
+        """No setting may be added to the null_value exceptions, see check_no_null_values in lint.py.
+
+        Only removing entries is allowed: when an exception is fixed, remove it from both
+        lint_exceptions.yaml and this list.
+        """
+        allowed = {"infrastructure_mode", "logs_config.file_wildcard_selection_mode"}
+        exceptions = lint.load_exceptions()["null_value"]
+        self.assertLessEqual(
+            exceptions,
+            allowed,
+            f"New null_value exception(s) {sorted(exceptions - allowed)}: remove null from the setting instead.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
