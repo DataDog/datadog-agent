@@ -426,7 +426,7 @@ url,https://github.com/servo/rust-url,MIT OR Apache-2.0,The rust-url developers
 utf8-zero,https://github.com/algesten/utf8-zero,MIT OR Apache-2.0,"Simon Sapin <simon.sapin@exyr.org>, Martin Algesten <martin@algesten.se>"
 utf8_iter,https://github.com/hsivonen/utf8_iter,Apache-2.0 OR MIT,Henri Sivonen <hsivonen@hsivonen.fi>
 utf8parse,https://github.com/alacritty/vte,Apache-2.0 OR MIT,"Joe Wilm <joe@jwilm.com>, Christian Duerr <contact@christianduerr.com>"
-uuid,https://github.com/uuid-rs/uuid,Apache-2.0 OR MIT,"Ashley Mannix<ashleymannix@live.com.au>, Dylan DPC<dylan.dpc@gmail.com>, Hunar Roop Kahlon<hunar.roop@gmail.com>"
+uuid,https://github.com/uuid-rs/uuid,Apache-2.0 OR MIT,The uuid Authors
 uzers,https://github.com/rustadopt/uzers-rs,MIT,"Sandro-Alessio Gierens <sandro@gierens.de>, Benjamin Sago <ogham@bsago.me>"
 vsock,https://github.com/rust-vsock/vsock-rs,Apache-2.0,"fsyncd, rust-vsock"
 walkdir,https://github.com/BurntSushi/walkdir,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
