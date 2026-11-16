@@ -10,12 +10,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/collector/confmap v1.70.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.70.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.70.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.70.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.70.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.70.0
+	go.opentelemetry.io/collector/confmap v1.71.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.71.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.71.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.71.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.71.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.71.0
 	go.uber.org/zap v1.28.0
 )
 
@@ -66,7 +66,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/knadh/koanf/maps v0.1.3 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.1 // indirect
-	github.com/knadh/koanf/v2 v2.3.8 // indirect
+	github.com/knadh/koanf/v2 v2.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
@@ -83,7 +83,7 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.opentelemetry.io/collector/featuregate v1.70.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.71.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
