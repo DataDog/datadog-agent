@@ -18,11 +18,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
+// waitIdle waits until all the operations requested on ws are done.
+func waitIdle(t *testing.T, ws *WrappedSource) {
+	t.Helper()
+	ws.mu.Lock()
+	last := ws.last
+	ws.mu.Unlock()
+	if last == nil {
+		return
+	}
+	select {
+	case <-last:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "WrappedSource operations did not complete")
+	}
+}
+
 // A Stop shortly following a Start must not leave the source behind.
 func TestWrappedSourceStopRightAfterStart(t *testing.T) {
 	logSources := sources.NewLogSources()
 
 	const n = 5000
+	wrapped := make([]*WrappedSource, 0, n)
 	for i := range n {
 		ws := &WrappedSource{
 			Source:  sources.NewLogSource(fmt.Sprintf("src-%d", i), &config.LogsConfig{Type: config.FileType, Path: "/tmp/x.log"}),
@@ -30,11 +47,13 @@ func TestWrappedSourceStopRightAfterStart(t *testing.T) {
 		}
 		require.NoError(t, ws.Start())
 		ws.Stop()
+		wrapped = append(wrapped, ws)
 	}
 
-	require.Eventually(t, func() bool {
-		return len(logSources.GetSources()) == 0
-	}, 10*time.Second, 10*time.Millisecond, "sources left behind after Start+Stop")
+	for _, ws := range wrapped {
+		waitIdle(t, ws)
+	}
+	require.Empty(t, logSources.GetSources(), "sources left behind after Start+Stop")
 }
 
 // Restarting a stopped WrappedSource adds the source back.
@@ -48,13 +67,6 @@ func TestWrappedSourceStartStopStart(t *testing.T) {
 	ws.Stop()
 	require.NoError(t, ws.Start())
 
-	require.Eventually(t, func() bool {
-		return len(logSources.GetSources()) == 1
-	}, 10*time.Second, 10*time.Millisecond)
-	// remains stable once all chained operations are done
-	ws.mu.Lock()
-	last := ws.last
-	ws.mu.Unlock()
-	<-last
+	waitIdle(t, ws)
 	require.Len(t, logSources.GetSources(), 1)
 }
