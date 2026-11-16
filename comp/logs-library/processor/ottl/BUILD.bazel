@@ -5,6 +5,7 @@ go_library(
     name = "ottl",
     srcs = [
         "compile.go",
+        "compile_noottl.go",
         "processing_rules_ottl.go",
         "processing_rules_ottl_mask.go",
     ],
@@ -33,6 +34,8 @@ dd_agent_go_test(
         "processing_rules_ottl_test.go",
     ],
     embed = [":ottl"],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/logs/agent/config",

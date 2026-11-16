@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build otlp
+
 // Package ottl compiles and evaluates OTTL rules for the logs pipeline.
 package ottl
 
