@@ -18,20 +18,17 @@ crate.from_cargo(
     validate_lockfile = True,
 )
 crate.annotation(
+    # prost-build passes PROTOC_INCLUDE to protoc as an include directory for
+    # protobuf's well-known types.
     build_script_env = {
         "PROTOC": "$(execpath @@//bazel/toolchains/protoc:protoc)",
-        "PROTOBUF_WELL_KNOWN_PROTOS": "$(execpaths @protobuf//:well_known_type_protos)",
+        "PROTOC_INCLUDE": "$(execpath @@//deps/libdd_rc:protobuf_include)",
     },
     build_script_tools = [
         "@@//bazel/toolchains/protoc:protoc",
-        "@protobuf//:well_known_type_protos",
+        "@@//deps/libdd_rc:protobuf_include",
     ],
     crate = "rc-x509-proto",
-    patch_args = ["-p1"],
-    # The libdd-rc crates are git-pinned, and rules_rs applies patches to the
-    # whole git checkout, so the patch uses repository-relative paths. Make them
-    # crate-relative again when switching to the published crates.
-    patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
     repositories = ["libdd_rc_crates"],
 )
 
@@ -73,9 +70,6 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
     crate = "aws-lc-sys",
     repositories = ["libdd_rc_crates"],
 )
-
-inject_repo(crate, "protobuf")
-
 use_repo(crate, "libdd_rc_crates")
 
 # libdd-rc release v0.2.0-2026-11-09.fc0359b. Its Go module is tagged
