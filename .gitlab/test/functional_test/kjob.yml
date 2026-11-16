@@ -28,6 +28,10 @@ single_machine_performance-kjob:
     # The SMP CLI renders Helm charts at submission and needs exactly this version.
     HELM_VERSION: v4.3.1
     HELM_SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+    # Do not log the access key ID of the bot, as in the regression detector.
+    RUST_LOG: info,aws_config::profile::credentials=error
+    # Temporary: show the AWS endpoints and the proxy connections of the submit.
+    KJOB_SUBMIT_RUST_LOG: info,aws_config::profile::credentials=error,aws_smithy_runtime=debug,hyper_util=debug
   artifacts:
     expire_in: 1 weeks
     when: always
@@ -54,7 +58,7 @@ single_machine_performance-kjob:
     # A dry run needs no AWS access. The job saves the resolved job input as an
     # artifact. The fixture holds only dummy credentials.
     - ./smp kjob submit "${KJOB_DIRECTORY}" --dry-run "${SMP_KJOB_ARGS[@]}" --output json > outputs/dry-run.json
-    - ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
+    - RUST_LOG="${KJOB_SUBMIT_RUST_LOG}" ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
     - KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json)
     - echo "KJob job ID is ${KJOB_JOB_ID}"
     # `smp kjob result` exits with 0 when the assertions pass, 1 when they
