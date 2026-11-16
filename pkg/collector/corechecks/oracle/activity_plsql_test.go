@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle_test
+//go:build oracle
 
 package oracle
 
@@ -14,10 +14,12 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 func TestIsInPLSQL(t *testing.T) {
@@ -48,12 +50,16 @@ func newActivityMockCheck(t *testing.T) (*Check, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	c, _ := newDbDoesNotExistCheck(t, "", "")
+	c := &Check{}
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	instanceConfig := []byte("server: localhost\nport: 1521\nusername: datadog\npassword: datadog\nservice_name: XE")
+	require.NoError(t, c.Configure(senderManager, integration.FakeConfigHash, instanceConfig, []byte(""), "oracle_test", ""))
+	mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager).SetupAcceptAll()
+
 	c.db = sqlx.NewDb(db, "sqlmock")
-	c.clock = clock.New()
 	c.sqlSubstringLength = 4000
 	c.config.QuerySamples.IncludeAllSessions = true
-	return &c, dbMock
+	return c, dbMock
 }
 
 // activityRowJSON returns the JSON object sent for an activity row.

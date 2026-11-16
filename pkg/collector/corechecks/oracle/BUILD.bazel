@@ -65,6 +65,7 @@ go_library(
 dd_agent_go_test(
     name = "oracle_test",
     srcs = [
+        "activity_plsql_test.go",
         "custom_query_schedule_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",
@@ -72,7 +73,10 @@ dd_agent_go_test(
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
     deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
+        "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
