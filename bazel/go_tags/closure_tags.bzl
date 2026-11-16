@@ -1892,7 +1892,6 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/util/testutil/flake": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/tmplvar": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/trivy": ["clusterchecks", "containerd", "crio", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test", "trivy", "trivy_no_javadb"],
-    "github.com/DataDog/datadog-agent/pkg/util/trivy/walker": ["trivy"],
     "github.com/DataDog/datadog-agent/pkg/util/uuid": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/winutil": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows": ["test"],
