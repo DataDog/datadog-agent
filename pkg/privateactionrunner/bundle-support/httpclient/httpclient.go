@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/httpclient"
@@ -23,7 +24,11 @@ const (
 type RunnerHttpClient struct{}
 
 type RunnerHttpClientConfig struct {
-	MaxRedirect        int
+	MaxRedirect int
+	// DisableRedirects returns 3xx responses to the caller instead of following them.
+	DisableRedirects bool
+	// CheckRedirectURL vets each redirect target before it is followed.
+	CheckRedirectURL   func(*url.URL) error
 	Transport          *RunnerHttpTransportConfig
 	AllowIMDSEndpoints bool
 	HTTPTimeout        time.Duration
@@ -52,10 +57,22 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 		Timeout:   clientConfig.HTTPTimeout,
 		Transport: transport,
 	}
-	if clientConfig.MaxRedirect != 0 {
+	if clientConfig.DisableRedirects {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	} else if clientConfig.MaxRedirect != 0 || clientConfig.CheckRedirectURL != nil {
+		maxRedirect := clientConfig.MaxRedirect
+		if maxRedirect == 0 {
+			// net/http's own default.
+			maxRedirect = 10
+		}
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= clientConfig.MaxRedirect {
-				return fmt.Errorf("stopped after %d redirects", clientConfig.MaxRedirect)
+			if len(via) >= maxRedirect {
+				return fmt.Errorf("stopped after %d redirects", maxRedirect)
+			}
+			if clientConfig.CheckRedirectURL != nil {
+				return clientConfig.CheckRedirectURL(req.URL)
 			}
 			return nil
 		}

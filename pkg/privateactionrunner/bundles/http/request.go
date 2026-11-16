@@ -13,10 +13,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -26,10 +29,19 @@ type Handler struct {
 	allowIMDSEndpoints bool
 	httpTimeout        time.Duration
 	httpClientProvider httpclient.Provider
+	isURLAllowed       func(string) bool
+	encryptionStore    *encryptioncontext.Store
+	oauth2             *oauth2Tokens
 }
 
 func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *Handler {
 	h.httpClientProvider = httpClientProvider
+	return h
+}
+
+// WithEncryptionStore enables secret inputs (encryptedCredentials) in raw mode.
+func (h *Handler) WithEncryptionStore(encryptionStore *encryptioncontext.Store) *Handler {
+	h.encryptionStore = encryptionStore
 	return h
 }
 
@@ -38,6 +50,8 @@ func NewHttpRequestAction(cfg *config.Config) *Handler {
 		allowIMDSEndpoints: cfg.AllowIMDSEndpoint,
 		httpTimeout:        cfg.HTTPTimeout,
 		httpClientProvider: httpclient.NewDefaultProvider(cfg),
+		isURLAllowed:       cfg.IsURLInAllowlist,
+		oauth2:             newOAuth2Tokens(),
 	}
 }
 
@@ -76,12 +90,24 @@ type RequestInputs struct {
 	ErrorOnStatus           []string        `json:"errorOnStatus,omitempty"`
 	ResponseParsing         *string         `json:"responseParsing,omitempty"`
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
+
+	// Raw mode only; see ResponseModeRaw. Unset keeps the default behavior.
+	ResponseMode         *string                             `json:"responseMode,omitempty"`
+	BodyBase64           string                              `json:"bodyBase64,omitempty"`
+	EncryptResponseTo    *ResponseKey                        `json:"encryptResponseTo,omitempty"`
+	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext,omitempty"`
+	EncryptedCredentials string                              `json:"encryptedCredentials,omitempty"`
 }
 
 type RequestOutputs struct {
 	Status  int         `json:"status"`
 	Body    interface{} `json:"body,omitempty"`
 	Headers http.Header `json:"headers"`
+
+	// Raw mode only.
+	BodyBase64    string `json:"bodyBase64,omitempty"`
+	EncryptedBody string `json:"encryptedBody,omitempty"`
+	BodyTruncated bool   `json:"bodyTruncated,omitempty"`
 }
 
 func (h *Handler) Run(
@@ -92,6 +118,12 @@ func (h *Handler) Run(
 	inputs, err := types.ExtractInputs[RequestInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionError(err)
+	}
+	if err := validateResponseMode(inputs); err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
+	}
+	if isRawMode(inputs) {
+		return h.runRaw(ctx, task, inputs, credential)
 	}
 
 	if err := validateHeaders(inputs.RequestHeaders); err != nil {
@@ -108,12 +140,31 @@ func (h *Handler) Run(
 	}
 
 	// Validate inputs
-	if credential != nil && credential.HttpDetails.BaseURL != "" {
-		baseURL := credential.HttpDetails.BaseURL
-		if baseURL != "" && !hasSameDomain(inputs.URL, baseURL) {
-			e := errors.New("specified URL does not match base URL configured in the Connection")
+	baseURL := ""
+	if credential != nil {
+		baseURL = credential.HttpDetails.BaseURL
+	}
+	if baseURL != "" && !hasSameDomain(inputs.URL, baseURL) {
+		e := errors.New("specified URL does not match base URL configured in the Connection")
+		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
+	}
+	if credential != nil && credential.HttpDetails.OAuth2 != nil {
+		// The base URL check above keeps the token on the connection's host.
+		if baseURL == "" {
+			e := errors.New("an OAuth2 connection requires a base URL")
 			return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
 		}
+		for name := range headers {
+			if strings.EqualFold(name, "Authorization") {
+				e := errors.New("both the request and the OAuth2 connection set Authorization")
+				return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
+			}
+		}
+		authorization, err := h.oauth2Authorization(ctx, credential.HttpDetails.OAuth2)
+		if err != nil {
+			return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
+		}
+		headers["Authorization"] = authorization
 	}
 
 	// BUILD URL
@@ -168,6 +219,9 @@ func (h *Handler) Run(
 	client, err := h.httpClientProvider.NewClient(&httpclient.RunnerHttpClientConfig{
 		AllowIMDSEndpoints: h.allowIMDSEndpoints,
 		HTTPTimeout:        h.httpTimeout,
+		// followRedirect: false must stop before the redirect is followed, not after.
+		DisableRedirects: inputs.FollowRedirect != nil && !*inputs.FollowRedirect,
+		CheckRedirectURL: h.redirectPolicy(baseURL),
 		Transport: &httpclient.RunnerHttpTransportConfig{
 			AllowExpiredCertificate: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
 		},
@@ -180,6 +234,9 @@ func (h *Handler) Run(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "failed to make request")
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized && credential != nil {
+		h.oauth2.invalidate(credential.HttpDetails.OAuth2)
+	}
 
 	// CHECK FOR ERROR
 	if len(inputs.ErrorOnStatus) > 0 {
@@ -226,4 +283,18 @@ func (h *Handler) Run(
 		Headers: resp.Header,
 	}
 	return output, nil
+}
+
+// redirectPolicy applies the checks made on the first URL to every redirect hop:
+// the runner allowlist, and the connection's base URL when it has one.
+func (h *Handler) redirectPolicy(baseURL string) func(*url.URL) error {
+	return func(next *url.URL) error {
+		if h.isURLAllowed != nil && !h.isURLAllowed(next.String()) {
+			return errors.New("redirect url is not allowed by runner policy: check your configuration file")
+		}
+		if baseURL != "" && !hasSameDomain(next.String(), baseURL) {
+			return errors.New("redirect url does not match base URL configured in the Connection")
+		}
+		return nil
+	}
 }
