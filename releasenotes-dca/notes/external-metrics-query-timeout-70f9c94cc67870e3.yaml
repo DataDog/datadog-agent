@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fix a request to Datadog that never completes blocking the refresh of all
+    external metrics, which made every ``DatadogMetric`` and every HPA external
+    metric stale. Requests to Datadog now time out after
+    ``external_metrics_provider.query_timeout`` seconds (default ``30``, ``0``
+    disables the timeout) and are reported as failed, while the results of the
+    other requests are still used. Queries that legitimately take longer than
+    the default now fail, increase the setting if you have such queries. A
+    warning is logged at startup if the timeout is not lower than
+    ``external_metrics_provider.max_age``.

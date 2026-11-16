@@ -96,6 +96,12 @@ properties:
     node_type: setting
     type: integer
     default: 8443
+  query_timeout:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: value in seconds. Maximum duration of a single request to Datadog. A request
+      that exceeds it is reported as failed. 0 or less disables the timeout.
   query_validity_period:
     node_type: setting
     type: integer

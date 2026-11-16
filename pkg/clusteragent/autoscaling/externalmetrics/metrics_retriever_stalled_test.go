@@ -17,6 +17,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -72,6 +74,29 @@ type memAddr struct{}
 func (memAddr) Network() string { return "mem" }
 func (memAddr) String() string  { return "mem" }
 
+// timeoutRequestsCount returns the number of requests to Datadog that timed out, from the
+// datadog_requests counter.
+func timeoutRequestsCount(t *testing.T) float64 {
+	t.Helper()
+
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "datadog_requests" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "status" && label.GetValue() == "timeout" {
+					return metric.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // TestRetrieveMetricsStalledRequest reproduces
 // https://github.com/DataDog/datadog-agent/issues/60529: a request to Datadog that never completes
 // (for instance after a connectivity issue) must not prevent the other metrics from being refreshed.
@@ -120,7 +145,11 @@ func TestRetrieveMetricsStalledRequest(t *testing.T) {
 
 		client := datadog.NewClient("api-key", "app-key")
 		client.SetBaseUrl("http://datadog.test")
-		client.HttpClient = &http.Client{Transport: transport}
+		// The timeout of the Datadog clients created by the Agent.
+		client.HttpClient = &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(cfg.GetInt("external_metrics_provider.query_timeout")) * time.Second,
+		}
 		client.RetryTimeout = 3 * time.Second
 
 		store := NewDatadogMetricsInternalStore()
@@ -137,11 +166,15 @@ func TestRetrieveMetricsStalledRequest(t *testing.T) {
 		retriever, err := NewMetricsRetriever(0, 120, autoscalers.NewProcessor(client), getIsLeaderFunction(true), &store, false)
 		require.NoError(t, err)
 
+		timeoutsBefore := timeoutRequestsCount(t)
+
 		go retriever.retrieveMetricsValues()
 
 		// Time only advances once every goroutine is blocked, so this takes no real time.
 		time.Sleep(hangLimit)
 		synctest.Wait()
+
+		assert.Equal(t, timeoutsBefore+1, timeoutRequestsCount(t), "the timed out request should be counted")
 
 		healthy := store.Get("healthy")
 		require.NotNil(t, healthy)

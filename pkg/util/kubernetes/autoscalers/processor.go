@@ -61,8 +61,13 @@ func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	}
 	ddRequestsParallelLimit.Set(float64(parallelQueries), le.JoinLeaderValue)
 
+	maxAge := time.Duration(externalMaxAge) * time.Second
+	if queryTimeout := time.Duration(pkgconfigsetup.Datadog().GetInt("external_metrics_provider.query_timeout")) * time.Second; queryTimeout > 0 && queryTimeout >= maxAge {
+		log.Warnf("external_metrics_provider.query_timeout (%s) is not lower than the maximum age of a metric value (%s, see external_metrics_provider.max_age): values returned by requests that take that long are discarded as outdated", queryTimeout, maxAge)
+	}
+
 	return &Processor{
-		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
+		externalMaxAge:  maxAge,
 		datadogClient:   datadogCl,
 		parallelQueries: parallelQueries,
 	}
