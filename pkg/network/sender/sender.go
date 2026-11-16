@@ -50,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -149,12 +148,14 @@ func New(
 	ds := directSender{
 		tracer: tr,
 
-		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
-		sidecar:         fargate.IsSidecar(),
-		agentCfg:        marshal.NewAgentConfiguration(syscfg, deps.Config),
-		ctx:             ctx,
-		cancelFunc:      cancel,
-		resolver:        newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		hostTags: hosttags.NewPayloadTags(
+			hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+			deps.Tagger,
+		),
+		agentCfg:   marshal.NewAgentConfiguration(syscfg, deps.Config),
+		ctx:        ctx,
+		cancelFunc: cancel,
+		resolver:   newContainerResolver(deps.Wmeta, syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -185,30 +186,11 @@ func New(
 	return &ds, nil
 }
 
-// hostTags returns the tags for the payload's host. In sidecar mode it adds the tagger's global
-// tags, which are meant for when there are no host tags. On ECS Fargate they include task_arn,
-// which identifies the task since the hostname is empty.
-func (d *directSender) hostTags() []string {
-	hostTags := d.hostTagProvider.GetHostTags()
-	if !d.sidecar {
-		return hostTags
-	}
-	globalTags, err := d.tagger.GlobalTags(types.OrchestratorCardinality)
-	if err != nil {
-		d.log.Debugf("unable to get global tags: %v", err)
-		return hostTags
-	}
-	// clip so append never writes into the provider's slice
-	return append(slices.Clip(hostTags), globalTags...)
-}
-
 type directSender struct {
 	tracer  ConnectionsSource
 	groupID atomic.Int32
 
-	hostTagProvider *hosttags.HostTagProvider
-	// sidecar is true when the agent runs as a sidecar (e.g. ECS Fargate), where there's no host
-	sidecar  bool
+	hostTags *hosttags.PayloadTags
 	agentCfg *model.AgentConfiguration
 
 	sysprobeconfig sysprobeconfig.Component
@@ -451,6 +433,8 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	})
 
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
+	// the same for every chunk of the group
+	hostTags := d.hostTags.Get()
 
 	return func(yield func([]byte) bool) {
 		defer func() {
@@ -505,7 +489,8 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTags())))
+			// clone: Encode sorts and dedups in place
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(slices.Clone(hostTags))))
 			builder.SetEncodedTags(func(b *bytes.Buffer) {
 				b.Write(tagsEncoder.Buffer())
 			})

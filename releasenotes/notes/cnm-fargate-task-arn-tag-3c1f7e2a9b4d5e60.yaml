@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    On ECS Fargate, CNM connections payloads from system-probe and the
+    process-agent now carry the Agent's global tags, including
+    ``task_arn``, as host tags. This lets the backend identify the task
+    when the payload's hostname is empty, as it is with
+    ``network_config.direct_send``.

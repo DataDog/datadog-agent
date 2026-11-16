@@ -1135,22 +1135,6 @@ func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
 	assert.Equal(t, int32(8), listeners[remoteservice.ListenKey{IP: "10.0.0.6", Port: 9090}])
 }
 
-func TestConnectionsCheckHostTags(t *testing.T) {
-	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"cluster_name:cluster"}, []string{taskARNTag}, nil, nil)
-
-	t.Run("sidecar adds the global tags", func(t *testing.T) {
-		c := &ConnectionsCheck{hostTagProvider: hosttags.NewHostTagProvider(), tagger: fakeTagger, sidecar: true}
-		assert.ElementsMatch(t, []string{"cluster_name:cluster", taskARNTag}, c.hostTags())
-	})
-
-	t.Run("not a sidecar", func(t *testing.T) {
-		c := &ConnectionsCheck{hostTagProvider: hosttags.NewHostTagProvider(), tagger: fakeTagger}
-		assert.Empty(t, c.hostTags())
-	})
-}
-
 func TestBatchConnectionsIncludesHostTags(t *testing.T) {
 	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
 	conns := []*model.Connection{makeConnection(1), makeConnection(2)}

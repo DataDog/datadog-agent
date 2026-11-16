@@ -36,7 +36,6 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,28 +86,9 @@ type ConnectionsCheck struct {
 
 	sysprobeClient *http.Client
 
-	hostTagProvider *hosttags.HostTagProvider
-	// sidecar is true when the agent runs as a sidecar (e.g. ECS Fargate), where there's no host
-	sidecar bool
-	tagger  tagger.Component
-	clock   clock.Clock
-}
-
-// hostTags returns the tags for the payload's host. In sidecar mode it adds the tagger's global
-// tags, which are meant for when there are no host tags. On ECS Fargate they include task_arn,
-// so the backend can identify the task without relying on the fargate_task: hostname.
-func (c *ConnectionsCheck) hostTags() []string {
-	hostTags := c.hostTagProvider.GetHostTags()
-	if !c.sidecar {
-		return hostTags
-	}
-	globalTags, err := c.tagger.GlobalTags(types.OrchestratorCardinality)
-	if err != nil {
-		log.Debugf("unable to get global tags: %v", err)
-		return hostTags
-	}
-	// clip so append never writes into the provider's slice
-	return append(slices.Clip(hostTags), globalTags...)
+	hostTags *hosttags.PayloadTags
+	tagger   tagger.Component
+	clock    clock.Clock
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -140,8 +120,10 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 	c.processData.Register(c.processNameExtractor)
-	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
-	c.sidecar = fargate.IsSidecar()
+	c.hostTags = hosttags.NewPayloadTags(
+		hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")),
+		c.tagger,
+	)
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
@@ -224,7 +206,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	addConnectionListeners(listeners, conns.Conns, netnsReattributed)
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTags(), getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners, netnsReattributed)
+	messages := batchConnections(c.hostInfo, c.hostTags.Get(), getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners, netnsReattributed)
 	return StandardRunResult(messages), nil
 }
 
@@ -682,7 +664,8 @@ func batchConnections(
 		hostTagsIndex := -1
 		// Add host tags if needed
 		if len(hostTags) > 0 {
-			hostTagsIndex = tagsEncoder.Encode(hostTags)
+			// clone: Encode sorts and dedups in place, and hostTags is shared by every batch
+			hostTagsIndex = tagsEncoder.Encode(slices.Clone(hostTags))
 		}
 
 		cc := &model.CollectorConnections{
