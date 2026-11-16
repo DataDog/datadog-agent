@@ -16,8 +16,8 @@ dd_agent_go_test(
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
-        "testdata/errortracking-team-logs.yaml",
         "testdata/errortracking-team.yaml",
+        "testdata/errortracking-team-logs.yaml",
     ],
     embedsrcs = [
         "testdata/error_check.py",
