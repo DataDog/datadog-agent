@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "agenttelemetry.go",
         "config.go",
+        "errortracking_identity.go",
         "errortracking_sender.go",
         "logs_payload.go",
         "remoteflag.go",
@@ -48,6 +49,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "agenttelemetry_test.go",
+        "errortracking_identity_test.go",
         "errortracking_sender_test.go",
         "phonehome_test.go",
         "utils_test.go",
