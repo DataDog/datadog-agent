@@ -428,6 +428,16 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
+
+
+@task
+def write_tag_manifest(_):
+    """
+    Regenerate bazel/go_tags/closure_tags.bzl: the build tags each go_library's closure reads.
+    """
+    bazel("run", "//tasks:write_go_tag_manifest")
 
 
 @task(autoprint=True)
@@ -438,7 +448,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.10 linux/amd64"
+    # result is like "go version go1.26.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

@@ -32,7 +32,7 @@ const (
 	podNameEnvVar      = "DD_POD_NAME"
 	daemonSetOwnerKind = "DaemonSet"
 
-	// Keep the default wait short for the synchronous ReportIssue path.
+	// Bound the default wait and background deployment resolution.
 	defaultResolveTimeout    = time.Second
 	defaultResolveRetryDelay = 200 * time.Millisecond
 )
@@ -45,6 +45,9 @@ type SelfIdent struct {
 
 	resolveMu    sync.Mutex
 	deploymentID atomic.Pointer[string]
+
+	deploymentResolveMu sync.Mutex
+	deploymentResolving bool
 
 	resolveTimeout    time.Duration
 	resolveRetryDelay time.Duration
@@ -84,6 +87,34 @@ func (s *SelfIdent) DeploymentID() string {
 	ctx, cancel := context.WithTimeout(context.Background(), s.resolveTimeout)
 	defer cancel()
 	return s.DeploymentIDWithContext(ctx)
+}
+
+// DeploymentIDNonBlocking returns the cached DaemonSet UID and starts resolution on a cache miss.
+func (s *SelfIdent) DeploymentIDNonBlocking() string {
+	if cached := s.deploymentID.Load(); cached != nil {
+		return *cached
+	}
+	s.triggerDeploymentResolve()
+	return ""
+}
+
+func (s *SelfIdent) triggerDeploymentResolve() {
+	s.deploymentResolveMu.Lock()
+	defer s.deploymentResolveMu.Unlock()
+	if s.deploymentResolving || s.deploymentID.Load() != nil {
+		return
+	}
+	s.deploymentResolving = true
+	go func() {
+		defer func() {
+			s.deploymentResolveMu.Lock()
+			s.deploymentResolving = false
+			s.deploymentResolveMu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), s.resolveTimeout)
+		defer cancel()
+		s.DeploymentIDWithContext(ctx)
+	}()
 }
 
 // DeploymentIDWithContext waits for the owning DaemonSet UID until ctx expires.
@@ -129,6 +160,15 @@ func (s *SelfIdent) ClusterID() string {
 	ctx, cancel := context.WithTimeout(context.Background(), s.resolveTimeout)
 	defer cancel()
 	return s.ClusterIDWithContext(ctx)
+}
+
+// ClusterIDNonBlocking returns the cached cluster ID and starts resolution on a cache miss.
+func (s *SelfIdent) ClusterIDNonBlocking() string {
+	if cached := s.clusterID.Load(); cached != nil {
+		return *cached
+	}
+	s.startClusterResolve()
+	return ""
 }
 
 // ClusterIDWithContext waits for the Kubernetes cluster ID until ctx expires.

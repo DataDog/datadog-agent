@@ -5,9 +5,10 @@
 # benchmarkeks: performance non-regression test of the Agent on EKS.
 #
 # TestBenchmarkEKSSuite deploys a baseline and a comparison Agent (node Agent, Cluster Agent and cluster checks runner)
-# on an EKS cluster and compares their resource usage. The comparison is the Agent of the pipeline, the baseline the one
-# of a commit of the base branch chosen like SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`). The report
-# is posted to the pull request when a metric improved, regressed or couldn't be compared.
+# on an EKS cluster and compares their resource usage over four phases, between which the two installations swap their
+# images. The comparison is the Agent of the pipeline, the baseline the one of a commit of the base branch chosen like
+# SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`). The report is posted to the pull request when a metric
+# improved, regressed or couldn't be compared.
 #
 # The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches, and only manually for now,
 # not to add an EKS cluster to every pull request changing the code it measures: such a pull request gets a comment
@@ -159,8 +160,9 @@ new-e2e-containers-benchmarkeks-init:
 
 new-e2e-containers-benchmarkeks:
   extends: .new_e2e_template
-  # The Agents, then two phases of 10 min of warm-up and 20 min of measurement, separated by the swap of the images
-  timeout: 2h
+  # The Agents (about 7 min), then four phases of 10 min of warm-up and 15 min of measurement, separated by three swaps
+  # of the images (about 3 min each), the ingestion of the last minute, and the teardown: about 2h, with some margin.
+  timeout: 2h 45m
   needs:
     - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - job: new-e2e-containers-benchmarkeks-init

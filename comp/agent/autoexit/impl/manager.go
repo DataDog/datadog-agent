@@ -26,8 +26,8 @@ type processes map[int32]string
 
 var (
 	defaultRegexps = []*regexp.Regexp{
-		regexp.MustCompile("pause|s6-svscan|s6-supervise"),
-		regexp.MustCompile("agent|process-agent|trace-agent|security-agent|system-probe|privateactionrunner"),
+		regexp.MustCompile("pause|s6-svscan|s6-supervise|dd-procmgrd"),
+		regexp.MustCompile("agent|process-agent|trace-agent|trace-loader|security-agent|system-probe|privateactionrunner|par-control"),
 	}
 	processFetcher = fetchProcesses
 )
