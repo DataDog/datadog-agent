@@ -64,12 +64,12 @@ dd_agent_go_test(
         "process_test.go",
         "system_probe_test.go",
     ],
+    data = ["//pkg/config/schema:core_schema_subfiles"],
     embed = [":setup"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/mock",
-        "//comp/core/schema/impl",
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",

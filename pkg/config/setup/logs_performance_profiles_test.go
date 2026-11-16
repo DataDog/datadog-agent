@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
-	schemaimpl "github.com/DataDog/datadog-agent/comp/core/schema/impl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -269,18 +269,28 @@ func TestLogsPerformanceProfileOffWritesNothing(t *testing.T) {
 }
 
 func TestLogsPerformanceProfileSchemaEnumMatchesCatalog(t *testing.T) {
-	validator := schemaimpl.NewComponent().Comp
-	validate := func(profile string) []*pkgconfigmodel.Violation {
-		violations, err := validator.ValidateYAML([]byte("logs_config:\n  profile: '"+profile+"'\n"), pkgconfigmodel.CoreSchema)
-		require.NoError(t, err)
-		return violations
+	raw, err := os.ReadFile("../schema/yaml/logs_config.yaml")
+	require.NoError(t, err)
+	var schema struct {
+		Properties struct {
+			Profile struct {
+				Enum []*string `yaml:"enum"`
+			} `yaml:"profile"`
+		} `yaml:"properties"`
 	}
+	require.NoError(t, yaml.Unmarshal(raw, &schema))
 
-	assert.Empty(t, validate(""))
-	for _, p := range logsPerformanceProfiles {
-		assert.Emptyf(t, validate(p.name), "schema enum must accept profile %q", p.name)
+	var enum []string
+	for _, v := range schema.Properties.Profile.Enum {
+		if v != nil && *v != "" {
+			enum = append(enum, *v)
+		}
 	}
-	assert.NotEmpty(t, validate("High-Throughput"))
+	var names []string
+	for _, p := range logsPerformanceProfiles {
+		names = append(names, p.name)
+	}
+	assert.ElementsMatch(t, names, enum)
 }
 
 type batchWaitViolationValidator struct{}
