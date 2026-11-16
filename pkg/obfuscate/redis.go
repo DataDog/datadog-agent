@@ -337,6 +337,31 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			}
 		}
 
+	case "ZRANGEBYLEX", "ZREVRANGEBYLEX", "ZLEXCOUNT", "ZREMRANGEBYLEX":
+		// Obfuscate the lexicographical range, made of member values.
+		// • ZRANGEBYLEX key min max [LIMIT offset count]
+		// • ZREVRANGEBYLEX key max min [LIMIT offset count]
+		// • ZLEXCOUNT key min max
+		// • ZREMRANGEBYLEX key min max
+		obfuscateRedisArgN(args, 1)
+		obfuscateRedisArgN(args, 2)
+
+	case "ZRANGE", "ZRANGESTORE":
+		// Obfuscate the range when it is lexicographical.
+		// • ZRANGE key start stop [BYSCORE|BYLEX] [REV] [LIMIT offset count] [WITHSCORES]
+		// • ZRANGESTORE dst src min max [BYSCORE|BYLEX] [REV] [LIMIT offset count]
+		start := 1 // skip key
+		if strings.ToUpper(cmd) == "ZRANGESTORE" {
+			start = 2 // skip dst and src
+		}
+		for i := start + 2; i < len(args); i++ {
+			if strings.ToUpper(args[i]) == "BYLEX" {
+				obfuscateRedisArgN(args, start)
+				obfuscateRedisArgN(args, start+1)
+				break
+			}
+		}
+
 	case "ZADD":
 		// Obfuscate every 2nd argument after potential optional ones.
 		// • ZADD key [NX|XX] [GT|LT] [CH] [INCR] score member [score member ...]

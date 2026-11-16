@@ -666,6 +666,54 @@ func TestRedisObfuscator(t *testing.T) {
 			"BITFIELD key SET i8 0 ? SET u4 4 ?",
 		},
 		{
+			"ZRANGEBYLEX key [aaa (g LIMIT 0 10",
+			"ZRANGEBYLEX key ? ? LIMIT 0 10",
+		},
+		{
+			"zrevrangebylex key (g [aaa",
+			"zrevrangebylex key ? ?",
+		},
+		{
+			"ZLEXCOUNT key - +",
+			"ZLEXCOUNT key ? ?",
+		},
+		{
+			"ZREMRANGEBYLEX key [alpha [omega",
+			"ZREMRANGEBYLEX key ? ?",
+		},
+		{
+			"ZRANGEBYLEX key",
+			"ZRANGEBYLEX key",
+		},
+		{
+			"ZRANGE key [aaa (g BYLEX LIMIT 0 10",
+			"ZRANGE key ? ? BYLEX LIMIT 0 10",
+		},
+		{
+			"zrange key (g [aaa bylex rev",
+			"zrange key ? ? bylex rev",
+		},
+		{
+			"ZRANGE key 0 -1 WITHSCORES",
+			"ZRANGE key 0 -1 WITHSCORES",
+		},
+		{
+			"ZRANGE key 0 10 BYSCORE",
+			"ZRANGE key 0 10 BYSCORE",
+		},
+		{
+			"ZRANGESTORE dst src [aaa (g BYLEX",
+			"ZRANGESTORE dst src ? ? BYLEX",
+		},
+		{
+			"ZRANGESTORE dst src 0 -1",
+			"ZRANGESTORE dst src 0 -1",
+		},
+		{
+			"ZRANGE key bylex bylex",
+			"ZRANGE key bylex bylex",
+		},
+		{
 			`
 CONFIG command
 SET k v
