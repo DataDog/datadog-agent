@@ -1,0 +1,19 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: uniq file operands must not follow symlinks that escape AllowedPaths.
+setup:
+  files:
+    - path: allowed/link.txt
+      symlink: ../secret/data.txt
+    - path: secret/data.txt
+      content: "secret\nsecret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    uniq allowed/link.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["path escapes"]
+  exit_code: 0

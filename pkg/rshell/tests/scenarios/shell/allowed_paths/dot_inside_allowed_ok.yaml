@@ -1,0 +1,15 @@
+description: Using . within the allowed path still resolves correctly.
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: allowed/sub/file.txt
+      content: "found"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cat allowed/./sub/./file.txt
+expect:
+  stdout: "found"
+  stderr: ""
+  exit_code: 0

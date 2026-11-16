@@ -1,0 +1,20 @@
+description: "test -d distinguishes directories from regular files"
+setup:
+  files:
+    - path: afile.txt
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -d .
+    echo "dot: $?"
+    test -d afile.txt
+    echo "file: $?"
+expect:
+  stdout: |
+    dot: 0
+    file: 1
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # uses allowed_paths which the bash harness does not support

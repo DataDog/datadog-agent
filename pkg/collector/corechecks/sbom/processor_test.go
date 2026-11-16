@@ -1388,6 +1388,30 @@ func TestHostSBOMWaitsForUsage(t *testing.T) {
 	})
 }
 
+// TestHostSBOMCCRID checks that every host SBOM, heartbeats and failures
+// included, carries the CCRID of the host.
+func TestHostSBOMCCRID(t *testing.T) {
+	const ccrid = "arn:aws:ec2:us-east-1:123456789012:instance/i-0123456789abcdef"
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostSBOM:              true,
+		hostname:              "host",
+		hostCCRID:             func() string { return ccrid },
+		hostHeartbeatValidity: time.Hour,
+	}
+	scanned := time.Unix(1700000000, 0)
+
+	p.processHostScanResult(newHostScan(scanned))
+	p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+	p.processHostScanResult(sbom.ScanResult{Error: errors.New("scan failed"), CreatedAt: scanned})
+
+	for _, wantHeartbeat := range []bool{false, true, false} {
+		entity := <-p.queue
+		assert.Equal(t, wantHeartbeat, entity.GetHeartbeat())
+		assert.Equal(t, ccrid, entity.GetCcrid())
+	}
+}
+
 const graceImageID = "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd"
 
 // graceImage returns the image graceImageID with an SBOM of the given status

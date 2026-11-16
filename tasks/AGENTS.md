@@ -77,7 +77,7 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 - **POSIX-only tools** — do the text manipulation in Python instead of piping through `sed`, `grep` or `cp`.
 - **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.
 
-To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`. `MockContext` matches command strings exactly, so its keys must carry the quoting `join_command` adds (`shlex` quotes `HEAD~1` as `'HEAD~1'`).
 
 ## Shelling Out to Pulumi
 
@@ -186,3 +186,7 @@ py_binary(
 > (2-4 lines each) and include *why* the idiom is needed.
 
 <!-- Add new idioms below this line -->
+
+- **A `py_binary` that runs `bazel` itself under `bazel run`** (e.g. `//tasks:write_go_tag_manifest`): run it in
+  `$BUILD_WORKSPACE_DIRECTORY` and drop `BAZEL_REAL` / `BAZELISK_SKIP_WRAPPER` from its environment. `bazel run`
+  passes them on, so the nested bazelisk would skip `tools/bazel` and lose the flags it adds (`--config=ci`, caches).

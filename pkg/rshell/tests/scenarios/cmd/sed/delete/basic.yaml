@@ -1,0 +1,13 @@
+description: The d command deletes lines matching an address.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2d' input.txt
+expect:
+  stdout: "line1\nline3\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: Continue inside if body within a for loop skips to next iteration.
+input:
+  script: |+
+    for i in a b c; do
+      if [ "$i" = "b" ]; then
+        continue
+      fi
+      echo $i
+    done
+expect:
+  stdout: |+
+    a
+    c
+  stderr: ""
+  exit_code: 0

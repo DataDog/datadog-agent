@@ -1,0 +1,20 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate rejects an unrecognized short flag with GNU getopt wording.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate -r -f app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    5
+  stderr: |+
+    logrotate: invalid option -- 'r'
+    Try 'logrotate --help' for more information.
+  exit_code: 0

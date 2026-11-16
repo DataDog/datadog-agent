@@ -204,6 +204,7 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 		uintptr(unsafe.Pointer(&PropertyCount)))
 	// EvtRenders returns C FALSE (0) on error
 	if r1 == 0 {
+		C.free(Buffer)
 		return nil, lastErr
 	}
 

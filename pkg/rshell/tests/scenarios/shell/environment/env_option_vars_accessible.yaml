@@ -1,0 +1,12 @@
+description: "Variables provided via interpreter_env (Env option) are accessible"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  interpreter_env:
+    MY_VAR: "hello"
+    OTHER_VAR: "world"
+  script: |
+    echo "$MY_VAR $OTHER_VAR"
+expect:
+  stdout: "hello world\n"
+  exit_code: 0

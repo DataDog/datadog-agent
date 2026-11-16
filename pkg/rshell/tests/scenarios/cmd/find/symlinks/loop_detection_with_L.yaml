@@ -1,0 +1,17 @@
+description: -L detects symlink loop and does not print loop entry.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: dir/a/loop
+      symlink: ..
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dir
+expect:
+  stdout_contains: ["dir/a/file.txt"]
+  stderr_contains: ["File system loop detected"]
+  exit_code: 1

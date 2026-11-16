@@ -1,0 +1,28 @@
+# test -a FILE — deprecated POSIX unary file existence test (synonym for -e)
+description: "test -a FILE works like test -e FILE for file existence"
+setup:
+  files:
+    - path: existing.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -a existing.txt
+    echo "exists: $?"
+    test -a nonexistent
+    echo "noexist: $?"
+    [ -a existing.txt ]
+    echo "bracket exists: $?"
+    [ -a nonexistent ]
+    echo "bracket noexist: $?"
+expect:
+  stdout: |
+    exists: 0
+    noexist: 1
+    bracket exists: 0
+    bracket noexist: 1
+  stderr: ""
+  exit_code: 0
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # uses allowed_paths which the bash harness does not support

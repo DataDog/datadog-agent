@@ -1,0 +1,11 @@
+# ip route change is a write operation and must be blocked.
+description: ip route change is a write operation that is rejected with exit 1.
+input:
+  script: |+
+    ip route change 10.0.0.0/8 via 192.168.1.1
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route: change: write operations are not permitted
+  exit_code: 1
+skip_assert_against_bash: true

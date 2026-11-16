@@ -1,0 +1,7 @@
+description: Star precision with no argument defaults to 0 precision.
+input:
+  script: |+
+    printf "%.*f\n"
+expect:
+  stdout: "0\n"
+  exit_code: 0

@@ -8,9 +8,13 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+# NOTE: do not re-enable `cancel-in-progress: true`: the backport bot's label burst
+# spawns concurrent runs, and a run cancelled after another succeeded leaves a
+# `cancelled` required check (skip-qa-check) on the head SHA, blocking the merge
+# queue (see #58439, #58926).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -21,6 +25,8 @@ jobs:
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       # Checkout base repo for trusted code (tasks, dda install)
       # NOTE: Do NOT use sparse-checkout here — reno uses dulwich which doesn't
@@ -94,6 +100,8 @@ jobs:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,6 +125,8 @@ jobs:
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

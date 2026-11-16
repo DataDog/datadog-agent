@@ -354,6 +354,11 @@ const (
 	MetricSourceRavendb
 	MetricSourceSglang
 	MetricSourcePanFirewall
+	MetricSourceKaiScheduler
+	MetricSourceKurrentdb
+	MetricSourceCrossplane
+	MetricSourceLlmD
+	MetricSourceDynamo
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1185,6 +1190,16 @@ func (ms MetricSource) String() string {
 		return "sglang"
 	case MetricSourcePanFirewall:
 		return "pan_firewall"
+	case MetricSourceKaiScheduler:
+		return "kai_scheduler"
+	case MetricSourceKurrentdb:
+		return "kurrentdb"
+	case MetricSourceCrossplane:
+		return "crossplane"
+	case MetricSourceLlmD:
+		return "llm_d"
+	case MetricSourceDynamo:
+		return "dynamo"
 	default:
 		return "<unknown>"
 	}
@@ -1903,6 +1918,16 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceSglang
 	case "pan_firewall":
 		return MetricSourcePanFirewall
+	case "kai_scheduler":
+		return MetricSourceKaiScheduler
+	case "kurrentdb":
+		return MetricSourceKurrentdb
+	case "crossplane":
+		return MetricSourceCrossplane
+	case "llm_d":
+		return MetricSourceLlmD
+	case "dynamo":
+		return MetricSourceDynamo
 	default:
 		return MetricSourceUnknown
 	}

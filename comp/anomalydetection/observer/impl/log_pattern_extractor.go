@@ -211,8 +211,8 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		e.activePatternCount -= gc.clustersEvicted
 	}
 	message := log.GetContent()
-	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
-	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
+	groupKey := tagGroupForPatternGrouping(log.Tags(), log.GetHostname())
+	groupHash, cluster, ok := e.taggedClusterer.Process(groupKey, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
 	// caps. Treated identically to GC evictions: drop engine context and decrement
 	// the active-pattern count. Done unconditionally so that whole-group evictions

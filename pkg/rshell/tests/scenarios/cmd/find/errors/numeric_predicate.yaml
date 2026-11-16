@@ -1,0 +1,15 @@
+description: numeric-looking tokens like -1 are rejected as unknown predicates.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -1
+expect:
+  stdout: ""
+  stderr_contains: ["unknown predicate"]
+  exit_code: 1

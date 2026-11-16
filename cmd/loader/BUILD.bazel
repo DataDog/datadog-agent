@@ -22,16 +22,8 @@ exports_files(
 pkg_files(
     name = "trace_loader_all_files",
     srcs = select({
-        "//packages/agent:linux_default": [
-            ":loader",
-        ],
-        "//packages/agent:linux_fips": [
-            ":loader",
-        ],
-        "@platforms//os:macos": [
-            ":loader",
-        ],
-        "//conditions:default": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":loader"],
     }),
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
@@ -50,6 +42,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -65,6 +58,7 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -80,6 +74,7 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -95,6 +90,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",

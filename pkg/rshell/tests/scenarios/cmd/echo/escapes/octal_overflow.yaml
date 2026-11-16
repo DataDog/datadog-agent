@@ -1,0 +1,9 @@
+description: Echo -e with octal overflow wraps to byte value (0477 octal = 319, wraps to 63 = '?').
+input:
+  script: |+
+    echo -e '\0477'
+expect:
+  stdout: |+
+    ?
+  stderr: ""
+  exit_code: 0

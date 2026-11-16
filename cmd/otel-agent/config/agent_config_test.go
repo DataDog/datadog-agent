@@ -769,7 +769,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
 
 	assert.Equal(t, "http://proxy.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
@@ -805,7 +805,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOnly() {
 
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
@@ -820,7 +820,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 	// ProxyURL from config should take precedence over environment variables
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
@@ -832,7 +832,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	// ProxyURL from OTLP config should override proxy.http and proxy.https from datadog config
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string{}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 // TestLogsEnabledViaEnvironmentVariable is a regression test for the issue where
@@ -880,6 +880,31 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
 	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+}
+
+// TestStandaloneTelemetryResourceClusterName verifies that, in standalone mode,
+// the k8s.cluster.name attribute of service.telemetry.resource, with its
+// ${env:...} references resolved, reaches the cluster name resolution even
+// without a dogtel extension.
+func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-cluster", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
+}
+
+// TestConnectedTelemetryResourceClusterName verifies that service.telemetry.resource
+// is ignored outside standalone mode, where the core Agent provides the cluster name.
+func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
 }
 
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
@@ -1050,6 +1075,70 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
+}
+
+func TestTelemetryResourceAttribute(t *testing.T) {
+	tests := []struct {
+		name      string
+		telemetry any
+		want      string
+	}{
+		{
+			name:      "inline map",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": "inline", "k8s.node.name": "node"}},
+			want:      "inline",
+		},
+		{
+			name: "attributes list",
+			telemetry: map[string]any{"resource": map[string]any{
+				"schema_url": "https://opentelemetry.io/schemas/1.27.0",
+				"attributes": []any{
+					map[string]any{"name": "k8s.node.name", "value": "node"},
+					map[string]any{"name": "k8s.cluster.name", "value": "listed"},
+				},
+			}},
+			want: "listed",
+		},
+		{
+			name: "the attributes list wins over the inline map",
+			telemetry: map[string]any{"resource": map[string]any{
+				"k8s.cluster.name": "inline",
+				"attributes":       []any{map[string]any{"name": "k8s.cluster.name", "value": "listed"}},
+			}},
+			want: "listed",
+		},
+		{
+			name:      "a null inline value leaves it unset",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": nil}},
+			want:      "",
+		},
+		{
+			name:      "whitespace is trimmed",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": " spaced \n"}},
+			want:      "spaced",
+		},
+		{
+			name:      "not set",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.node.name": "node"}},
+			want:      "",
+		},
+		{
+			name:      "no resource",
+			telemetry: map[string]any{"logs": map[string]any{"level": "debug"}},
+			want:      "",
+		},
+		{
+			name:      "no telemetry section",
+			telemetry: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, telemetryResourceAttribute(tt.telemetry, "k8s.cluster.name"))
+		})
+	}
 }
 
 // TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig

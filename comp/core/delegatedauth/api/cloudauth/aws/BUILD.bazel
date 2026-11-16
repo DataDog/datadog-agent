@@ -28,9 +28,11 @@ dd_agent_go_test(
         "aws_test.go",
         "resolve_credentials_providers_test.go",
         "resolve_credentials_test.go",
+        "workload_test.go",
     ],
     embed = [":aws"],
     deps = [
+        "//comp/core/delegatedauth/common",
         "//pkg/config/mock",
         "//pkg/util/aws/creds",
         "@com_github_stretchr_testify//assert",

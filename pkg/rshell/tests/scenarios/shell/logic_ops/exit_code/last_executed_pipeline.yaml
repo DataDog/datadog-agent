@@ -1,0 +1,10 @@
+description: Exit status is from the last executed pipeline in an and-or list.
+input:
+  script: |+
+    false && exit 1 || true || exit 1
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

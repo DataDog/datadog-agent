@@ -30,7 +30,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
-from tasks.schema.generate import schema_codegen
+from tasks.schema.generate import GENERATED_SETTINGS_DIR, schema_codegen
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -244,7 +244,8 @@ def reset(ctx):
 @task
 def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
-    for mod in get_default_modules().values():
+    modules = get_default_modules()
+    for mod in modules.values():
         with ctx.cd(mod.path):
             go_sum = os.path.join(mod.full_path(), "go.sum")
             if not os.path.exists(go_sum):
@@ -253,9 +254,14 @@ def check_go_mod_replaces(ctx, fix=False):
                 for line in f:
                     if "github.com/datadog/datadog-agent" in line.lower():
                         err_mod = line.split()[0]
-                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        err_mod_path = err_mod.removeprefix("github.com/DataDog/datadog-agent/")
+                        if (Path(err_mod_path) / "go.mod").exists():
                             if fix:
-                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                # Point to the directory go.work uses, or `go work sync` reports conflicting replacements
+                                target = (
+                                    modules[err_mod_path].workspace_dir() if err_mod_path in modules else err_mod_path
+                                )
+                                relative_path = os.path.relpath(target, mod.path)
                                 ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
                             else:
                                 errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
@@ -299,11 +305,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             errors_found.append("modules dependencies are out of sync, please run go work sync")
 
         for mod in get_default_modules().values():
-            with ctx.cd(mod.full_path()):
+            with ctx.cd(mod.full_workspace_dir()):
                 ctx.run("go mod tidy")
 
                 files = "go.mod"
-                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                if os.path.exists(os.path.join(mod.full_workspace_dir(), "go.sum")):
                     # if the module has no dependency, no go.sum file will be created
                     files += " go.sum"
 
@@ -342,7 +348,12 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     time: report how long each of tidy's subtasks took.
     """
-    _check_valid_mods()
+    # Pre-Bazel branches have modules whose root is not a package (e.g. Agent 6's pkg/security/seclwin)
+    if is_bazel_workspace():
+        _check_valid_mods()
+    # `go mod tidy` in the in-repo generatedsettings module needs its generated code
+    if os.path.isdir(GENERATED_SETTINGS_DIR):
+        schema_codegen(ctx)
     timings = []
     use_bazel = shutil.which("bazel") and is_bazel_workspace()
     (_bazel_tidy if use_bazel else _go_only_tidy)(ctx, verbose, timings if time else None)
@@ -379,7 +390,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
     def _tidy_all_modules():
         promises = []
         for mod in get_default_modules().values():
-            with ctx.cd(mod.full_path()):
+            # tidy the go.mod go.work uses, as `go mod tidy` in Bazel's //:go_mod_tidy_all does
+            with ctx.cd(mod.full_workspace_dir()):
                 # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
                 promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
@@ -422,6 +434,16 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
+
+
+@task
+def write_tag_manifest(_):
+    """
+    Regenerate bazel/go_tags/closure_tags.bzl: the build tags each go_library's closure reads.
+    """
+    bazel("run", "//tasks:write_go_tag_manifest")
 
 
 @task(autoprint=True)
@@ -432,7 +454,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.10 linux/amd64"
+    # result is like "go version go1.26.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -452,7 +474,7 @@ def go_fix(ctx, fix=None):
     oslist = ["linux", "windows", "darwin"]
 
     for mod in get_default_modules().values():
-        with ctx.cd(mod.full_path()):
+        with ctx.cd(mod.full_workspace_dir()):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")

@@ -1,0 +1,10 @@
+description: tr -d with [:alpha:] class deletes all alphabetic characters.
+input:
+  script: |+
+    cat <<'EOF' | tr -d '[:alpha:]'
+    abc123DEF456
+    EOF
+expect:
+  stdout: "123456\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Negation of failed command captured in exit status variable.
+input:
+  script: |+
+    ! false
+    echo "$?"
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

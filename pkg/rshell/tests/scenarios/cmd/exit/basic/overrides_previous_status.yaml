@@ -1,0 +1,9 @@
+description: Exit with explicit code overrides previous command status.
+input:
+  script: |+
+    false
+    exit 0
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

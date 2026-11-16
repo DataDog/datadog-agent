@@ -1,0 +1,7 @@
+description: Large hex value parsed correctly for unsigned format.
+input:
+  script: |+
+    printf "%u\n" 0x7FFFFFFFFFFFFFFF
+expect:
+  stdout: "9223372036854775807\n"
+  exit_code: 0

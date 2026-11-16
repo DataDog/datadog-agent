@@ -1,0 +1,33 @@
+description: Continue 1 in nested for loop only continues the inner loop.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        continue 1
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    in 1 b
+    in 1 c
+    out 1
+    in 2
+    in 2 a
+    in 2 b
+    in 2 c
+    out 2
+    in 3
+    in 3 a
+    in 3 b
+    in 3 c
+    out 3
+    done 0
+  stderr: ""
+  exit_code: 0

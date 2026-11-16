@@ -1,0 +1,13 @@
+description: tail +N where N exceeds file line count outputs nothing.
+setup:
+  files:
+    - path: small.txt
+      content: "line1\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n +100 small.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

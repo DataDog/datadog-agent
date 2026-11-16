@@ -1,0 +1,11 @@
+description: And-or lists separated by semicolons on the same line are independent.
+input:
+  script: |+
+    true && echo a; false || echo b; true && echo c
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

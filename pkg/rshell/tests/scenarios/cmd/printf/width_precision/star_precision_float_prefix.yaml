@@ -1,0 +1,8 @@
+description: Printf star precision extracts numeric prefix from float arg (bash compat).
+input:
+  script: |+
+    printf "%.*s\n" 3.14 hello
+expect:
+  stdout: "hel\n"
+  stderr_contains: ["printf:"]
+  exit_code: 1

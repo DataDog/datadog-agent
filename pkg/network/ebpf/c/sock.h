@@ -115,7 +115,6 @@ static u16 read_dport(struct sock *skp) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(&dport, sizeof(dport), ((char*)skp) + offset_dport());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    bpf_probe_read_kernel(&dport, sizeof(dport), &skp->sk_dport);
     BPF_CORE_READ_INTO(&dport, skp, sk_dport);
     if (dport == 0) {
         BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport);
@@ -160,7 +159,7 @@ static __always_inline void read_saddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(&in6, skp, sk_v6_rcv_saddr);
 #endif
-    read_in6_addr(addr_h, addr_l, &in6);
+    copy_in6_addr_from_stack(addr_h, addr_l, &in6);
 }
 
 static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *addr_l) {
@@ -170,7 +169,7 @@ static __always_inline void read_daddr_v6(struct sock *skp, u64 *addr_h, u64 *ad
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(&in6, skp, sk_v6_daddr);
 #endif
-    read_in6_addr(addr_h, addr_l, &in6);
+    copy_in6_addr_from_stack(addr_h, addr_l, &in6);
 }
 
 static __always_inline u16 _sk_family(struct sock *skp) {
@@ -187,14 +186,16 @@ static __always_inline u16 _sk_family(struct sock *skp) {
  * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
  * are not overwritten. Returns 1 success, 0 otherwise.
  */
-static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type, const bool read_netns) {
     int err = 0;
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    t->netns = get_netns_from_sock(skp);
+    if (read_netns) {
+        t->netns = get_netns_from_sock(skp);
+    }
     u16 family = _sk_family(skp);
     // Retrieve addresses
     if (family == AF_INET) {
@@ -267,12 +268,22 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     return err ? 0 : 1;
 }
 
+static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, true);
+}
+
 /**
  * Reads values into a `conn_tuple_t` from a `sock`. Initializes all values in conn_tuple_t to `0`. Returns 1 success, 0 otherwise.
  */
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     bpf_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
+}
+
+// Same as read_conn_tuple, but leaves netns zeroed, for callers that would discard it.
+static __maybe_unused __always_inline int read_conn_tuple_no_netns(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    bpf_memset(t, 0, sizeof(conn_tuple_t));
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, false);
 }
 
 static __always_inline int get_proto(conn_tuple_t *t) {
