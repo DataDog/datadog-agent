@@ -482,6 +482,14 @@ func TestRedisObfuscator(t *testing.T) {
 			"georadiusbymember_ro key ? 10 km",
 		},
 		{
+			"SMISMEMBER key member1 member2",
+			"SMISMEMBER key ?",
+		},
+		{
+			"smismember key member",
+			"smismember key ?",
+		},
+		{
 			`
 CONFIG command
 SET k v
