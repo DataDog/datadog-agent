@@ -258,6 +258,34 @@ func TestNetNSMountRegistration(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
+	// a namespace deleted right after it's added is released while its mount request may still be snapshotting it
+	defer func() {
+		_ = exec.Command(executable, "netns", "delete", "wpnsfs_quick").Run()
+	}()
+	var quick []uint32
+	for range 20 {
+		run("netns", "add", "wpnsfs_quick")
+		quick = append(quick, nsInode(t, "/var/run/netns/wpnsfs_quick"))
+		run("netns", "delete", "wpnsfs_quick")
+	}
+	err = retry(t, func() error {
+		for _, id := range quick {
+			ns := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(id)
+			if ns == nil {
+				continue
+			}
+			// a late device event can track the namespace again, but only a handle keeps it alive
+			if handle, err := ns.GetNamespaceHandleDup(); err == nil {
+				_ = handle.Close()
+				return fmt.Errorf("namespace %d still has a handle", id)
+			}
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(10*time.Second))
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 var _ = declare(TestTCFilters, testOpts{networkIngressEnabled: true})
