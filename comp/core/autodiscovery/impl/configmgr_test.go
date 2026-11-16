@@ -802,3 +802,59 @@ type notReadyService struct {
 }
 
 func (notReadyService) IsReady() bool { return false }
+
+// Regression test for AGENTRUN-1588: removing, in a single batch, a pod's
+// annotation logs template and its container_collect_all template must not
+// leave a container_collect_all config scheduled downstream.
+func TestDelConfigsBatchDoesNotLeakContainerCollectAll(t *testing.T) {
+	for _, annotationFirst := range []bool{true, false} {
+		t.Run(fmt.Sprintf("annotationFirst=%v", annotationFirst), func(t *testing.T) {
+			// downstream view, applied like AutoConfig.applyChanges/schedulers:
+			// all unschedules first, then all schedules.
+			downstream := map[string]integration.Config{}
+			publish := func(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
+				for _, c := range changes.Unschedule {
+					delete(downstream, c.Digest())
+				}
+				for _, c := range changes.Schedule {
+					downstream[c.Digest()] = c
+				}
+			}
+			cm := newReconcilingConfigManager(&MockSecretResolver{}, nil, nil, nil, nil, publish)
+
+			svc := &dummyService{ID: "containerd://abc", ADIdentifiers: []string{"containerd://abc"}}
+			// same rule as WorkloadService.filterTemplatesContainerCollectAll
+			svc.filterTemplates = func(configs map[string]integration.Config) {
+				var cca string
+				found := false
+				for d, c := range configs {
+					if c.Name == "container_collect_all" {
+						cca = d
+					} else if c.LogsConfig != nil {
+						found = true
+					}
+				}
+				if found && cca != "" {
+					delete(configs, cca)
+				}
+			}
+			annotation := integration.Config{Name: "", ADIdentifiers: []string{"containerd://abc"}, LogsConfig: []byte(`[{"source":"app"}]`)}
+			cca := integration.Config{Name: "container_collect_all", ADIdentifiers: []string{"containerd://abc"}, LogsConfig: []byte("[{}]")}
+
+			cm.processNewService(svc)
+			cm.processNewConfig(annotation)
+			cm.processNewConfig(cca)
+			require.Len(t, downstream, 1, "only the annotation config should be scheduled")
+
+			batch := []integration.Config{annotation, cca}
+			if !annotationFirst {
+				batch = []integration.Config{cca, annotation}
+			}
+			cm.processDelConfigs(batch)
+			require.Empty(t, downstream, "configs remain scheduled downstream after their templates were removed")
+
+			cm.processDelService(svc)
+			require.Empty(t, downstream, "configs remain scheduled downstream after the service was removed")
+		})
+	}
+}
