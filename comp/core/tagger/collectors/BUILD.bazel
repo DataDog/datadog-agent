@@ -26,7 +26,6 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/discovery/tracermetadata/model",
-        "//pkg/errors",
         "//pkg/status/health",
         "//pkg/util/containers",
         "//pkg/util/containers/image",

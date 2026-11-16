@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -485,42 +484,6 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
-// GetKubernetesKueueWorkloadForPod implements Component#GetKubernetesKueueWorkloadForPod.
-func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod) (*wmdef.KubernetesKueueWorkload, error) {
-	// Jobs admitted by Kueue can propagate the Workload name to their pods.
-	// Prebuilt Workloads and plain Pod groups also provide explicit name references.
-	if name := kueue.WorkloadName(pod); name != "" {
-		return w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
-	}
-
-	// This resolver is called for every pod during tag extraction. Only pods
-	// managed by the plain Pod integration need the UID-based scan.
-	if !kueue.IsManagedPod(pod) || pod.ID == "" {
-		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
-	}
-
-	// The plain Pod integration can create a Workload owned by an existing pod
-	// without adding its name back to the pod. Its job-uid label identifies that
-	// pod. Scan the stored Workloads rather than maintaining a separate index.
-	w.storeMut.RLock()
-	defer w.storeMut.RUnlock()
-	var match *wmdef.KubernetesKueueWorkload
-	for _, entity := range w.store[wmdef.KindKubernetesKueueWorkload] {
-		workload := entity.cached.(*wmdef.KubernetesKueueWorkload)
-		if !kueue.WorkloadMatchesPod(workload, pod) {
-			continue
-		}
-		if match != nil {
-			return nil, fmt.Errorf("multiple Kueue Workloads for pod %s/%s", pod.Namespace, pod.ID)
-		}
-		match = workload
-	}
-	if match == nil {
-		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
-	}
-	return match, nil
-}
-
 // GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup
 func (w *workloadmeta) GetKubernetesKAIPodGroup(id string) (*wmdef.KubernetesKAIPodGroup, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesKAIPodGroup, id)
@@ -926,6 +889,13 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
+		// Keep the old merged claim until the update is applied, including
+		// partial source unsets. The index always follows the merged store.
+		var previousKueueWorkload *wmdef.KubernetesKueueWorkload
+		if ok && entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			previousKueueWorkload = cachedEntity.cached.(*wmdef.KubernetesKueueWorkload)
+		}
+
 		switch ev.Type {
 		case wmdef.EventTypeSet:
 			if !ok {
@@ -996,6 +966,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 		default:
 			w.log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
+		}
+
+		if entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			var current *wmdef.KubernetesKueueWorkload
+			if stored := entitiesOfKind[entityID.ID]; stored != nil {
+				current = stored.cached.(*wmdef.KubernetesKueueWorkload)
+			}
+			w.updateKueueWorkloadIndex(previousKueueWorkload, current)
 		}
 
 		for _, sub := range w.subscribers {

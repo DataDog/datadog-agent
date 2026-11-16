@@ -2436,3 +2436,56 @@ func TestKueuePodWorkloadSourceLifecycle(t *testing.T) {
 	_, err = s.GetKubernetesKueueWorkloadForPod(pod)
 	require.Error(t, err)
 }
+
+// The UID index must reflect the merged entity after source changes, rather
+// than whichever collector event happened to arrive last.
+func TestKueueWorkloadIndexMergedLifecycle(t *testing.T) {
+	s := newWorkloadmetaObject(t)
+	workload := func(name, uid string) *wmdef.KubernetesKueueWorkload {
+		return &wmdef.KubernetesKueueWorkload{
+			EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesKueueWorkload, ID: "team-a/" + name},
+			EntityMeta: wmdef.EntityMeta{Name: name, Namespace: "team-a", Labels: map[string]string{kubernetes.KueueJobUIDLabelKey: uid}},
+		}
+	}
+	check := func(uid, want string) {
+		t.Helper()
+		pod := &wmdef.KubernetesPod{EntityID: wmdef.EntityID{ID: uid}, EntityMeta: wmdef.EntityMeta{Namespace: "team-a", Labels: map[string]string{kubernetes.KueueManagedLabelKey: "true"}}}
+		got, err := s.GetKubernetesKueueWorkloadForPod(pod)
+		if want == "" {
+			require.Error(t, err)
+			require.Nil(t, got)
+			return
+		}
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, want, got.Name)
+	}
+	set := func(source wmdef.Source, name, uid string) {
+		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: source, Entity: workload(name, uid)}})
+	}
+	unset := func(source wmdef.Source, name string) {
+		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: source, Entity: &wmdef.KubernetesKueueWorkload{EntityID: workload(name, "").EntityID}}})
+	}
+	set(fooSource, "first", "foo-uid")
+	check("foo-uid", "first")
+	// bar has alphabetical priority over foo, even when foo reports again.
+	set(barSource, "first", "bar-uid")
+	set(fooSource, "first", "updated-foo-uid")
+	check("foo-uid", "")
+	check("updated-foo-uid", "")
+	check("bar-uid", "first")
+	unset(barSource, "first")
+	check("bar-uid", "")
+	check("updated-foo-uid", "first")
+	// Ambiguity clears when a claim moves to another UID.
+	set(fooSource, "second", "updated-foo-uid")
+	check("updated-foo-uid", "")
+	set(fooSource, "second", "second-uid")
+	check("updated-foo-uid", "first")
+	check("second-uid", "second")
+	// Removing a label must remove the claim, even if the entity remains.
+	set(fooSource, "second", "")
+	check("second-uid", "")
+	unset(fooSource, "first")
+	require.Empty(t, s.kueueWorkloadsByJob)
+}

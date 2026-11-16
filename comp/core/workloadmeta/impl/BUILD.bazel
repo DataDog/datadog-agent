@@ -9,6 +9,7 @@ go_library(
         "doc.go",
         "dump.go",
         "flare_provider.go",
+        "kueue.go",
         "store.go",
         "workloadmeta.go",
         "workloadmeta_mock.go",

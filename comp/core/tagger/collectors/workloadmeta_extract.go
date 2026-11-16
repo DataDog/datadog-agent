@@ -22,7 +22,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
-	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -1548,11 +1547,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
 	}
-	// Missing Workloads are expected, including for pods not managed by Kueue.
-	// Ambiguous associations need investigation; keep queue-only tags below.
-	if !pkgerrors.IsNotFound(err) {
-		log.Warnf("Unable to resolve Kueue Workload for pod %s/%s: %v", pod.Namespace, pod.Name, err)
-	}
+	// Missing Workloads are expected. Workloadmeta logs ambiguity when it
+	// first appears, so repeated retags do not repeat the warning.
 
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
 	localQueueName := pod.Labels[kubernetes.KueueLocalQueueNameLabelKey]
@@ -1585,14 +1581,14 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 	tagList.AddOrchestrator(tags.SchedulerWorkload, workloadName)
 }
 
-func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	// The managed label covers plain Pods with only a UID association. Keep
-	// explicit references and queue labels for controller-created pods and
-	// queue-only tagging, which do not require that label.
-	return kueue.IsManagedPod(pod) || kueue.WorkloadName(pod) != "" ||
-		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
-		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
-		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
+// podHasKueueWorkload excludes queue-only pods and unresolved UID claims from
+// flavor refreshes: those pods cannot inherit Workload PodSetAssignments.
+func (c *WorkloadMetaCollector) podHasKueueWorkload(pod *workloadmeta.KubernetesPod) bool {
+	if kueue.WorkloadName(pod) == "" && !kueue.IsManagedPod(pod) {
+		return false
+	}
+	_, err := c.store.GetKubernetesKueueWorkloadForPod(pod)
+	return err == nil
 }
 
 // retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
@@ -1603,7 +1599,7 @@ func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Enti
 	}
 
 	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
-		return kueueEntityAffectsPod(entity, pod)
+		return c.kueueEntityAffectsPod(entity, pod)
 	})
 }
 
@@ -1651,17 +1647,22 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 
 // kueueEntityAffectsPod reports whether the tags of the pod can depend on the
 // given Kueue entity.
-func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
+func (c *WorkloadMetaCollector) kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
 		return kueue.WorkloadMatchesPod(e, pod)
 	case *workloadmeta.KubernetesKueueQueue:
-		// Pods can reach a queue through their Workload, so matching them
-		// exactly would need a Workload lookup per pod. Queue events are rare,
-		// so match every Kueue pod that can use the queue instead.
-		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
+		if e.QueueType != workloadmeta.KueueClusterQueue && pod.Namespace != e.Namespace {
+			return false
+		}
+		// Queue labels support queue-only tagging. Other pods are affected
+		// only if their Workload resolves, including through the UID index.
+		return pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
+			pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
+			pod.Labels[kubernetes.KueueQueueNameLabelKey] != "" ||
+			c.podHasKueueWorkload(pod)
 	case *workloadmeta.KubernetesKueueResourceFlavor:
-		return podHasKueueInfo(pod)
+		return c.podHasKueueWorkload(pod)
 	default:
 		return false
 	}

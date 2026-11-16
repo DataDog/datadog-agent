@@ -46,5 +46,11 @@ func WorkloadMatchesPod(workload *workloadmeta.KubernetesKueueWorkload, pod *wor
 	if name := WorkloadName(pod); name != "" {
 		return workload.Name == name
 	}
-	return IsManagedPod(pod) && pod.ID != "" && workload.Labels[kubernetes.KueueJobUIDLabelKey] == pod.ID
+	return IsManagedPod(pod) && pod.ID != "" && JobUID(workload) == pod.ID
+}
+
+// JobUID returns the UID of the job owning the Workload. The plain Pod
+// integration records the owning pod UID in this label.
+func JobUID(workload *workloadmeta.KubernetesKueueWorkload) string {
+	return workload.Labels[kubernetes.KueueJobUIDLabelKey]
 }

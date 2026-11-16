@@ -7345,6 +7345,18 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 				check(process(workloadmeta.EventTypeSet, workload), true)
 			}
 
+			// Unresolved managed pods cannot inherit queue or flavor tags; queue-only
+			// pods can inherit queue tags but never Workload flavor assignments.
+			for id, labels := range map[string]map[string]string{
+				"unresolved": {kubernetes.KueueManagedLabelKey: "true"},
+				"queue-only": {kubernetes.KueueQueueNameLabelKey: "batch"},
+			} {
+				store.Set(&workloadmeta.KubernetesPod{
+					EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: id},
+					EntityMeta: workloadmeta.EntityMeta{Namespace: "team-a", Labels: labels},
+				})
+			}
+
 			// A managed pod without name or queue labels still needs retagging
 			// when its Workload's queue or ResourceFlavor arrives later.
 			queue := &workloadmeta.KubernetesKueueQueue{
@@ -7355,6 +7367,8 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			}
 			queueInfos := process(workloadmeta.EventTypeSet, queue)
 			check(queueInfos, true)
+			assert.NotContains(t, queueInfos, types.NewEntityID(types.KubernetesPodUID, "unresolved"))
+			assert.Contains(t, queueInfos, types.NewEntityID(types.KubernetesPodUID, "queue-only"))
 			for _, info := range queueInfos {
 				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
 					assert.Contains(t, info.LowCardTags, "kueue_cluster_queue:cluster-batch")
@@ -7367,6 +7381,8 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			}
 			flavorInfos := process(workloadmeta.EventTypeSet, flavor)
 			check(flavorInfos, true)
+			assert.NotContains(t, flavorInfos, types.NewEntityID(types.KubernetesPodUID, "unresolved"))
+			assert.NotContains(t, flavorInfos, types.NewEntityID(types.KubernetesPodUID, "queue-only"))
 			for _, info := range flavorInfos {
 				if info.EntityID.GetID() == pod.ID || info.EntityID.GetID() == "container-id" {
 					assert.Contains(t, info.LowCardTags, "gpu_architecture:ampere")
