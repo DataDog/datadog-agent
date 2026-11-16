@@ -13,7 +13,7 @@ go_library(
         "//pkg/compliance/types",
         "//pkg/compliance/utils",
         "@com_github_shirou_gopsutil_v4//process",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 

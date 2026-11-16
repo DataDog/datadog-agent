@@ -18,7 +18,7 @@ go_library(
         "//pkg/snmp/utils",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 
@@ -30,6 +30,6 @@ dd_agent_go_test(
         "//pkg/collector/corechecks/network-devices/versa/client",
         "//pkg/networkdevice/metadata",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )

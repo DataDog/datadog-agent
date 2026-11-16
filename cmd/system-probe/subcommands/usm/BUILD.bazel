@@ -30,7 +30,7 @@ go_library(
         "//pkg/config/fetcher/sysprobe",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
@@ -79,13 +79,13 @@ dd_agent_go_test(
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/process/procutil",
-            "@in_yaml_go_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v4//:yaml",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/process/procutil",
-            "@in_yaml_go_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v4//:yaml",
         ],
         "//conditions:default": [],
     }),

@@ -51,7 +51,7 @@ go_library(
         "//pkg/util/scrubber",
         "//pkg/version",
         "@com_github_google_uuid//:uuid",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -143,7 +143,7 @@ dd_agent_go_test(
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@org_uber_go_fx//:fx",
     ],
 )

@@ -44,7 +44,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@io_k8s_apiextensions_apiserver//pkg/apihelpers",
         "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
         "@io_k8s_apiextensions_apiserver//pkg/client/informers/externalversions",

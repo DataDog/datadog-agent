@@ -87,7 +87,7 @@ dd_agent_go_test(
             "//pkg/dyninst/rcjson",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_yaml_go_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v4//:yaml",
             "@org_uber_go_goleak//:goleak",
         ],
         "@rules_go//go/platform:linux": [
@@ -98,7 +98,7 @@ dd_agent_go_test(
             "//pkg/dyninst/rcjson",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@in_yaml_go_yaml_v3//:yaml",
+            "@in_yaml_go_yaml_v4//:yaml",
             "@org_uber_go_goleak//:goleak",
         ],
         "//conditions:default": [],

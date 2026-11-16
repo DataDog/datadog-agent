@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/testutil/flake",
     tags = ["test"],
     visibility = ["//visibility:public"],
-    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+    deps = ["@in_yaml_go_yaml_v4//:yaml"],
 )
 
 dd_agent_go_test(

@@ -21,7 +21,7 @@ go_library(
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_shirou_gopsutil_v4//cpu",
         "@com_github_shirou_gopsutil_v4//process",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 

@@ -27,7 +27,7 @@ go_library(
         "//pkg/privateactionrunner/bundle-support",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/privateactionrunner/adapters/logging",
@@ -145,7 +145,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",

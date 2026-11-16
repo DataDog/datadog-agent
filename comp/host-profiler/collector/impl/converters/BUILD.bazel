@@ -36,7 +36,7 @@ dd_agent_go_test(
         "//pkg/util/confmaputils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
         "@org_uber_go_zap//:zap",

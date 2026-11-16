@@ -48,7 +48,7 @@ go_library(
         "@com_github_masterminds_semver_v3//:semver",
         "@com_github_skydive_project_go_debouncer//:go-debouncer",
         "@com_github_spf13_cast//:cast",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [
@@ -107,7 +107,7 @@ dd_agent_go_test(
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_hashicorp_go_multierror//:go-multierror",
         "@com_github_stretchr_testify//assert",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/security/secl/compiler/parser",

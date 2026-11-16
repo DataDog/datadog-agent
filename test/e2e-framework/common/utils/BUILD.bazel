@@ -27,7 +27,7 @@ go_library(
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )
 
@@ -51,6 +51,6 @@ dd_agent_go_test(
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
     ],
 )

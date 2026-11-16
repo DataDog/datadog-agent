@@ -45,7 +45,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@org_uber_go_atomic//:atomic",
     ],
 )

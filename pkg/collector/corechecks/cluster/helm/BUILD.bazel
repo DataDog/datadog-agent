@@ -27,7 +27,7 @@ go_library(
         "//pkg/util/kubernetes/helminformers",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@in_yaml_go_yaml_v3//:yaml",
+        "@in_yaml_go_yaml_v4//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
