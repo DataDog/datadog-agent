@@ -498,6 +498,30 @@ func TestRedisObfuscator(t *testing.T) {
 			"zmscore key ?",
 		},
 		{
+			"GEOSEARCH key FROMMEMBER member BYRADIUS 10 km ASC",
+			"GEOSEARCH key FROMMEMBER ? BYRADIUS 10 km ASC",
+		},
+		{
+			"geosearch key bybox 10 20 km frommember member",
+			"geosearch key bybox 10 20 km frommember ?",
+		},
+		{
+			"GEOSEARCH key FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+			"GEOSEARCH key FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCHSTORE dest src FROMMEMBER member BYRADIUS 10 km STOREDIST",
+			"GEOSEARCHSTORE dest src FROMMEMBER ? BYRADIUS 10 km STOREDIST",
+		},
+		{
+			"GEOSEARCHSTORE frommember src FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+			"GEOSEARCHSTORE frommember src FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER",
+			"GEOSEARCH key FROMMEMBER",
+		},
+		{
 			`
 CONFIG command
 SET k v
