@@ -153,6 +153,11 @@ dd_pkg_rpm(
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
+    # brp-strip corrupts eBPF objects, and fails on the read-only files that
+    # pkg_rpm copies from TreeArtifacts (Python extension modules).
+    defines = {
+        "__strip": "/bin/true",
+    },
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
