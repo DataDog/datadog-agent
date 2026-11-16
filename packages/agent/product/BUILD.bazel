@@ -45,8 +45,7 @@ pkg_filegroup(
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
-        # TODO: system-probe
-        # TODO: system-probe - eBPF
+        # TODO: system-probe - FIPS binary, minimized BTFs
 
         # TODO: //pkg/discovery/module/rust
         # TODO: cacerts
@@ -55,6 +54,7 @@ pkg_filegroup(
         "@platforms//os:linux": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
@@ -63,6 +63,7 @@ pkg_filegroup(
         "//packages/agent:linux_fips": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -318,7 +319,7 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
-# Not wired into :all_files or Omnibus. FIPS omits the binary.
+# FIPS omits the binary until Bazel has a FIPS Go toolchain.
 pkg_filegroup(
     name = "system_probe_install_dir_files",
     srcs = [
