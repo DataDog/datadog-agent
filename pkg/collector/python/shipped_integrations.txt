@@ -2,7 +2,9 @@
 # the datadog_checks namespace per line. Frames of any other package in that
 # namespace (partner, marketplace or customer wheels) are treated as customer
 # code and redacted, so the list fails closed: an integration missing here only
-# loses its detail.
+# loses its detail. Residual risk: classification is path based, so a wheel that
+# installs into an allowlisted directory (for example a customer override of
+# datadog_checks/redisdb) is still treated as shipped.
 #
 # Snapshot of the datadog_checks directories of an Agent 7.85.0 install. There is
 # no list of shipped integrations in this repository (the packaged set is chosen

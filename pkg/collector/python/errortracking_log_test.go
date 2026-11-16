@@ -92,7 +92,7 @@ func TestParseTraceback(t *testing.T) {
 
 func TestShippedIntegrationsList(t *testing.T) {
 	require.NotEmpty(t, shippedIntegrations, "the embedded list must not be empty")
-	assert.Greater(t, len(shippedIntegrations), 100, "the snapshot looks truncated")
+	assert.Greater(t, len(shippedIntegrations), 200, "the snapshot looks truncated")
 
 	valid := regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	for name := range shippedIntegrations {
