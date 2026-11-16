@@ -403,7 +403,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 	var prodTags []string
 	err := b.retry(func() error {
 		var err error
-		prodTags, err = getImagesTags("install.datadoghq.com/agent-package")
+		prodTags, err = getReleasedImageTags("install.datadoghq.com/agent-package")
 		return err
 	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
@@ -641,10 +641,17 @@ func getImageVersion(ref string) (string, error) {
 	return version, nil
 }
 
-func getImagesTags(src string) ([]string, error) {
+func getReleasedImageTags(src string) ([]string, error) {
 	tags, err := crane.ListTags(src)
 	if err != nil {
 		return nil, err
 	}
-	return tags, nil
+	var releases []string
+	for _, tag := range tags {
+		// Production also contains aliases and non-release test images.
+		if releasedPackageVersion.MatchString(tag) {
+			releases = append(releases, tag)
+		}
+	}
+	return releases, nil
 }

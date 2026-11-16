@@ -6,11 +6,27 @@
 package backend
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetReleasedImageTags(t *testing.T) {
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/" {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"agent-package","tags":["7.85.2-2","7","7.85","7.85.2-1","7.54.0-crash-1","7.86.0-rc.1-1"]}`))
+	}))
+	t.Cleanup(registry.Close)
+	tags, err := getReleasedImageTags(strings.TrimPrefix(registry.URL, "http://") + "/agent-package")
+	require.NoError(t, err)
+	require.Equal(t, []string{"7.85.2-2", "7.85.2-1"}, tags)
+}
 
 func TestCatalogLatestMinus(t *testing.T) {
 	catalog := Catalog{packages: []catalogEntry{
