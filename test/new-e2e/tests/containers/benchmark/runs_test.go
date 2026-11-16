@@ -46,11 +46,10 @@ func TestCompareRunTimes(t *testing.T) {
 		require.NoError(t, err)
 		return points
 	}
-	c, err := Compare(
-		Phase{Window: testWindow, Baseline: points(testWindow, runTime(40, 0)), Comparison: points(testWindow, runTime(1.2*34, 1))},
-		Phase{Window: testSwappedWindow, Baseline: points(testSwappedWindow, runTime(1.2*40, 2)), Comparison: points(testSwappedWindow, runTime(34, 3))},
-		Thresholds{Relative: 0.1, Absolute: 5},
-	)
+	c, err := Compare([]Phase{
+		{Window: testWindow, Baseline: points(testWindow, runTime(40, 0)), Comparison: points(testWindow, runTime(1.2*34, 1))},
+		{Window: testSwappedWindow, Baseline: points(testSwappedWindow, runTime(1.2*40, 2)), Comparison: points(testSwappedWindow, runTime(34, 3))},
+	}, Thresholds{Relative: 0.1, Absolute: 5})
 	require.NoError(t, err)
 	assert.Equal(t, VerdictImprovement, c.Verdict)
 	assert.InDelta(t, -0.15, c.RelativeChange, 0.02)

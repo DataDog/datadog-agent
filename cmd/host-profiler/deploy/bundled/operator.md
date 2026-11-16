@@ -10,40 +10,25 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-Your Datadog Agent must be managed by the Datadog Operator version **1.25.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Your Datadog Agent must be managed by the Datadog Operator version **1.32.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
-Update your existing `DatadogAgent` Custom Resource with the following annotations and host-profiler container override. Merge this snippet into your existing resource rather than replacing unrelated fields:
+Update your existing `DatadogAgent` Custom Resource with the following Host Profiler feature and image override. Merge this snippet into your existing resource rather than replacing unrelated fields:
 
 ```yaml
 metadata:
   annotations:
-    # Enable the Host Profiler sidecar and set the preview Host Profiler image.
-    agent.datadoghq.com/host-profiler-enabled: "true"
     experimental.agent.datadoghq.com/image-override-config: |
       {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
 spec:
+  features:
+    hostProfiler:
+      enabled: true
   override:
     nodeAgent:
       containers:
         host-profiler:
-          # Required for current Datadog Operator versions.
-          # Future Operator versions are expected to configure the Host Profiler
-          # security context automatically.
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              # Drop default capabilities and add only the ones the Host Profiler needs.
-              drop: ["ALL"]
-              add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
-            # Keep AppArmor unconfined so it does not block cross-process access.
-            appArmorProfile:
-              type: Unconfined
-            # Use spc_t, or an equivalent type, so SELinux permits the required host and process access.
-            seLinuxOptions:
-              type: spc_t
           # Explicit zero requests avoid reserving CPU or memory on every node,
           # while limits cap runaway usage.
           resources:
@@ -54,6 +39,7 @@ spec:
               cpu: "500m"
               memory: "1Gi"
 ```
+
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
 
@@ -67,27 +53,37 @@ After you apply the updated Custom Resource, the Operator rolls out a new Agent 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
-## Seccomp (optional)
+## Seccomp
 
-Seccomp provides extra hardening by restricting the syscalls available to the Host Profiler container. The Host Profiler does not require seccomp to run in this preview.
+The Operator installs a localhost seccomp profile for the Host Profiler, along with an init container that copies the profile to each node, and enables it by default. The profile restricts the syscalls available to the Host Profiler container beyond what its capabilities allow.
 
-Current Operator versions do not install or configure the Host Profiler seccomp profile automatically. A future Operator version is expected to configure seccomp by default.
-
-Use this section only if you already manage node-local seccomp profiles or want to add the extra hardening manually. The profile is available at `/etc/dd-host-profiler/seccomp.json` inside the Host Profiler image and must be copied to `/var/lib/kubelet/seccomp/host-profiler.json` on every node.
-
-Then add `seccompProfile` to the same host-profiler container override in your `DatadogAgent` Custom Resource:
+To run the Host Profiler without the seccomp profile, or to use the variant that also permits logging syscalls:
 
 ```yaml
 spec:
-  override:
-    nodeAgent:
-      containers:
-        host-profiler:
-          securityContext:
-            seccompProfile:
-              type: Localhost
-              localhostProfile: host-profiler.json
+  features:
+    hostProfiler:
+      seccomp:
+        # false runs the host-profiler container Unconfined (no profile, no init container).
+        enabled: false
+        # true uses the seccomp profile that also permits logging syscalls.
+        loggingEnabled: true
 ```
+
+`loggingEnabled` has no effect when the seccomp profile is disabled.
+
+## SELinux
+
+The Datadog Operator configures the Host Profiler with the `spc_t` SELinux type by default. If `spc_t` is not available in your environment, set `spec.features.hostProfiler.seLinuxType` to an equivalent type supported by your distribution and security policy:
+
+```yaml
+spec:
+  features:
+    hostProfiler:
+      seLinuxType: <SELINUX_TYPE>
+```
+
+The Operator applies this type to the Host Profiler and its seccomp setup init container. The replacement must provide the host and process access required by the Host Profiler.
 
 ## AppArmor (optional)
 
@@ -107,3 +103,21 @@ spec:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Migrating from annotations
+
+Earlier Operator versions configured the Host Profiler with `agent.datadoghq.com/host-profiler-*` annotations. The Datadog Operator version **1.32.0** replaces them with the `spec.features.hostProfiler` fields used in this guide.
+
+If both are present, the Custom Resource takes precedence for each field it defines; annotations only fill in fields left unset in the spec. The Operator reports leftover annotations as deprecated in the `DatadogAgent` status, visible with `kubectl describe datadogagent`, and in its logs.
+
+Move each annotation to its replacement, then remove the annotation:
+
+| Annotation | Replacement |
+|:------------|:-------------|
+| `agent.datadoghq.com/host-profiler-enabled` | `spec.features.hostProfiler.enabled` |
+| `agent.datadoghq.com/host-profiler-seccomp-enabled` | `spec.features.hostProfiler.seccomp.enabled` |
+| `agent.datadoghq.com/host-profiler-logging-seccomp-enabled` | `spec.features.hostProfiler.seccomp.loggingEnabled` |
+| `agent.datadoghq.com/host-profiler-non-root-enabled` | `spec.features.hostProfiler.runAsRoot` (inverted: the annotation's `"true"` maps to `runAsRoot: false`) |
+| `agent.datadoghq.com/host-profiler-selinux-type` | `spec.features.hostProfiler.seLinuxType` |
+
+The `experimental.agent.datadoghq.com/image-override-config` annotation has no replacement yet; keep using it to set the preview Host Profiler image.

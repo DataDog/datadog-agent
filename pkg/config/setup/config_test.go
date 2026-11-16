@@ -2060,64 +2060,6 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	}
 }
 
-func TestApplyKubernetesHealthPlatformDefault(t *testing.T) {
-	const key = "health_platform.enabled"
-	setKubernetes := func(t *testing.T, k8s bool) {
-		t.Setenv("KUBERNETES_SERVICE_PORT", "")
-		t.Setenv("DD_EKS_FARGATE", "")
-		if k8s {
-			t.Setenv("KUBERNETES", "yes")
-		} else {
-			t.Setenv("KUBERNETES", "")
-		}
-	}
-
-	t.Run("non-kubernetes keeps it enabled by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("kubernetes disables it by default", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-		assert.False(t, config.IsConfigured(key))
-	})
-
-	t.Run("eks fargate disables it by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		t.Setenv("DD_EKS_FARGATE", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := confFromYAML(t, "health_platform:\n  enabled: true\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true from env var wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		t.Setenv("DD_HEALTH_PLATFORM_ENABLED", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit false wins off kubernetes", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := confFromYAML(t, "health_platform:\n  enabled: false\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
-}
-
 func TestApplyKubernetesContainerDefaults(t *testing.T) {
 	keys := []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"}
 

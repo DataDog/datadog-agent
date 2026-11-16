@@ -283,6 +283,113 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 
 	assert.Empty(t, s.DeploymentID())
 	assert.Empty(t, s.ClusterID())
+	assert.Empty(t, s.DeploymentIDNonBlocking())
+	assert.Empty(t, s.ClusterIDNonBlocking())
+}
+
+func TestIdentityNonBlockingSharesResolutionAndCachesResult(t *testing.T) {
+	unsetEnv(t, podNameEnvVar)
+	for _, test := range []struct {
+		name    string
+		resolve func(*SelfIdent) string
+	}{
+		{"deployment", (*SelfIdent).DeploymentIDNonBlocking},
+		{"cluster", (*SelfIdent).ClusterIDNonBlocking},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				mockStore := newMockStore(t)
+				setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{{Kind: "DaemonSet", ID: "identity"}})
+				setSelfContainer(mockStore)
+				s := New(mockStore)
+				release := make(chan struct{})
+				calls := 0
+				s.selfContainerID = func() (string, error) {
+					calls++
+					<-release
+					return testContainerID, nil
+				}
+				stubClusterIDFuncs(t, func() (string, error) {
+					calls++
+					<-release
+					return "identity", nil
+				}, func() (string, error) { return "", errors.New("unused") })
+
+				start := time.Now()
+				results := make(chan string, 16)
+				for range cap(results) {
+					go func() { results <- test.resolve(s) }()
+				}
+				for range cap(results) {
+					assert.Empty(t, <-results)
+				}
+				synctest.Wait()
+				assert.Zero(t, time.Since(start), "callers must not wait for resolution")
+				assert.Equal(t, 1, calls, "concurrent callers must share the lookup")
+
+				close(release)
+				synctest.Wait()
+				assert.Equal(t, "identity", test.resolve(s))
+				synctest.Wait()
+				assert.Equal(t, 1, calls, "a cached identity must not trigger another lookup")
+			})
+		})
+	}
+}
+
+func TestDeploymentIDNonBlockingRetriesWhenPodBecomesReady(t *testing.T) {
+	t.Setenv(podNameEnvVar, testPodName)
+	for _, test := range []struct {
+		name       string
+		readyDelay time.Duration
+	}{
+		{"during resolution", defaultResolveRetryDelay},
+		{"after timeout", 2 * defaultResolveTimeout},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				mockStore := newMockStore(t)
+				s := New(mockStore)
+				start := time.Now()
+				assert.Empty(t, s.DeploymentIDNonBlocking())
+				assert.Zero(t, time.Since(start))
+				synctest.Wait()
+				time.Sleep(test.readyDelay)
+				synctest.Wait()
+				assert.Nil(t, s.deploymentID.Load(), "a transient miss must remain retryable")
+
+				setSelfPod(mockStore, []workloadmeta.KubernetesPodOwner{{Kind: "DaemonSet", ID: "identity"}})
+				assert.Empty(t, s.DeploymentIDNonBlocking())
+				time.Sleep(s.resolveRetryDelay)
+				synctest.Wait()
+				assert.Equal(t, "identity", s.DeploymentIDNonBlocking())
+			})
+		})
+	}
+}
+
+func TestClusterIDNonBlockingRetriesAfterFailure(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	synctest.Test(t, func(t *testing.T) {
+		calls := 0
+		stubClusterIDFuncs(t, func() (string, error) {
+			calls++
+			if calls == 1 {
+				return "", errors.New("not ready")
+			}
+			return "identity", nil
+		}, func() (string, error) { return "", errors.New("unused") })
+		s := New(nil)
+
+		assert.Empty(t, s.ClusterIDNonBlocking())
+		synctest.Wait()
+		assert.Equal(t, 1, calls)
+		assert.Nil(t, s.clusterID.Load())
+		assert.Empty(t, s.ClusterIDNonBlocking())
+		synctest.Wait()
+		assert.Equal(t, "identity", s.ClusterIDNonBlocking())
+		assert.Equal(t, 2, calls)
+	})
 }
 
 func TestIdentityWithContextWaitsForReadiness(t *testing.T) {
