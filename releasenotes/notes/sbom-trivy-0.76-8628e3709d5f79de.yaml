@@ -19,6 +19,10 @@ fixes:
     GOEXPERIMENT suffix, such as ``v1.26.10-X:loopvar`` for ``v1.26.10``.
 other:
   - |
-    The PURLs of modular RPM packages in SBOMs write the colons of their
-    ``modularitylabel`` qualifier as they are, which the package URL
-    specification allows, where they wrote ``%3A`` before.
+    The PURLs in SBOMs follow the character encoding of the package URL
+    specification: a colon is written as is, where it was written ``%3A``,
+    and a space in a qualifier is written ``%20``, where it was written
+    ``+``. This changes the PURL of container images, such as
+    ``pkg:oci/golang@sha256:91eda977...``, the ``distro`` qualifier of
+    Amazon Linux 1 and 2 packages, such as ``distro=amazon-2%20%28Karoo%29``,
+    and the ``modularitylabel`` qualifier of modular RPM packages.
