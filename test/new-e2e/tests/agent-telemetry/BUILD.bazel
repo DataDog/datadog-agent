@@ -6,6 +6,7 @@ dd_agent_go_test(
         "errortracking_cluster_agent_test.go",
         "errortracking_identity_test.go",
         "errortracking_otel_agent_test.go",
+        "errortracking_team_test.go",
         "errortracking_test.go",
     ],
     data = [
@@ -15,6 +16,8 @@ dd_agent_go_test(
         "testdata/errortracking-enabled.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/errortracking-team-logs.yaml",
+        "testdata/errortracking-team.yaml",
     ],
     embedsrcs = [
         "testdata/error_check.py",
@@ -26,6 +29,8 @@ dd_agent_go_test(
         "testdata/errortracking-otel-agent-collector-config.yaml",
         "testdata/errortracking-security-agent.yaml",
         "testdata/errortracking-system-probe.yaml",
+        "testdata/errortracking-team-logs.yaml",
+        "testdata/errortracking-team.yaml",
     ],
     tags = ["manual"],
     deps = [

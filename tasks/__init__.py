@@ -38,6 +38,7 @@ from tasks import (
     ebpf,
     emacs,
     epforwarder,
+    errortracking_owners,
     fakeintake,
     files_inventory,
     fips,
@@ -280,6 +281,7 @@ ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
+ns.add_collection(errortracking_owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)

@@ -54,6 +54,21 @@ lint_components:
   script:
     - dda inv -- -e lint-components lint-fxutil-oneshot-test
 
+lint_errortracking_owners:
+  extends: .lint
+  rules:
+    - !reference [.on_main]
+    - changes:
+        paths:
+          - .github/CODEOWNERS
+          - comp/core/agenttelemetry/impl/errortracking_owners_gen.go
+          - comp/core/agenttelemetry/impl/testdata/errortracking_owners_parity.tsv
+          - tasks/errortracking_owners.py
+          - tasks/libs/owners/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - dda inv -- -e errortracking-owners.generate --check
+
 lint_gopls_plugin:
   extends: .lint
   script:
