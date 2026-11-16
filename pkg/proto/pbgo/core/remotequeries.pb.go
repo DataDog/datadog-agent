@@ -190,14 +190,13 @@ func (x *RemoteQueryUploadLimits) GetTimeoutMs() int64 {
 // session handle, and the effective limits. The session is identified solely by
 // upload_id and authorized by the org API/application keys plus the intake's
 // org binding, so no upload credential crosses the AgentSecure boundary; the
-// Agent forwards base_url to the integration check, which performs the HTTP
-// upload itself, and bulk result bytes never traverse AgentSecure.
+// Agent resolves the upload destination from local configuration and the
+// integration performs the HTTP upload. Bulk result bytes never traverse AgentSecure.
 type RemoteQueryResultDelivery struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
 	RunId         string                   `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	TaskId        string                   `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	UploadId      string                   `protobuf:"bytes,4,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	BaseUrl       string                   `protobuf:"bytes,5,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	Limits        *RemoteQueryUploadLimits `protobuf:"bytes,8,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -250,13 +249,6 @@ func (x *RemoteQueryResultDelivery) GetTaskId() string {
 func (x *RemoteQueryResultDelivery) GetUploadId() string {
 	if x != nil {
 		return x.UploadId
-	}
-	return ""
-}
-
-func (x *RemoteQueryResultDelivery) GetBaseUrl() string {
-	if x != nil {
-		return x.BaseUrl
 	}
 	return ""
 }
@@ -914,15 +906,14 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"\x10max_schema_bytes\x18\x05 \x01(\x03R\x0emaxSchemaBytes\x12\x1b\n" +
 	"\tmax_pages\x18\x06 \x01(\x03R\bmaxPages\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\x9a\x02\n" +
+	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\x8f\x02\n" +
 	"\x19RemoteQueryResultDelivery\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x1b\n" +
-	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
-	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12F\n" +
-	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x03\x10\x04J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\t\x10\n" +
+	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12F\n" +
+	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
-	"\x10\vR\x10artifact_versionR\bprotocolR\x13scan_sensitive_data\"~\n" +
+	"\x10\vR\x10artifact_versionR\bbase_urlR\bprotocolR\x13scan_sensitive_data\"~\n" +
 	"\x17RemoteQueryTraceContext\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\x04R\atraceId\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\x04R\bparentId\x12+\n" +

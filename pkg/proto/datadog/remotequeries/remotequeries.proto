@@ -30,15 +30,17 @@ message RemoteQueryUploadLimits {
 // session handle, and the effective limits. The session is identified solely by
 // upload_id and authorized by the org API/application keys plus the intake's
 // org binding, so no upload credential crosses the AgentSecure boundary; the
-// Agent forwards base_url to the integration check, which performs the HTTP
-// upload itself, and bulk result bytes never traverse AgentSecure.
+// Agent resolves the upload destination from local configuration and the
+// integration performs the HTTP upload. Bulk result bytes never traverse AgentSecure.
 message RemoteQueryResultDelivery {
     string run_id = 1;
     string task_id = 2;
     reserved 3;
     reserved "artifact_version";
     string upload_id = 4;
-    string base_url = 5;
+    // The upload destination is owned by the core Agent, never the caller.
+    reserved 5;
+    reserved "base_url";
     // 6 was the per-session upload token: the session is identified solely by
     // upload_id and authorized by the org API/application keys plus the intake's
     // org binding, so no upload credential crosses the AgentSecure boundary.

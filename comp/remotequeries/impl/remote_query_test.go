@@ -788,7 +788,7 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 // validDeliveryJSON is a compact, fully valid backend-injected result delivery. The
 // values mirror the POC defaults: 32 MiB pages, 10 GiB total cap (below the 100 GiB
 // hard ceiling), 1024 columns, 1 MiB schema, 128 pages, 30s timeout.
-const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
+const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","uploadId":"upload-proof","limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
 
 // deliveryJSONObject returns the valid delivery JSON with one field overridden. Nested
 // limit fields use the "limits.<field>" path.
@@ -851,7 +851,6 @@ func TestParseExecuteRequestBuildsTypedPagedJSONRequest(t *testing.T) {
 	assert.Equal(t, "run-proof", parsed.ResultDelivery.RunID)
 	assert.Equal(t, "task-proof", parsed.ResultDelivery.TaskID)
 	assert.Equal(t, "upload-proof", parsed.ResultDelivery.UploadID)
-	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", parsed.ResultDelivery.BaseURL)
 	require.NotNil(t, parsed.ResultDelivery.Limits)
 	assert.Equal(t, &RemoteQueryUploadLimits{
 		MaxFileBytes:   32 << 20,
@@ -948,7 +947,7 @@ func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testi
 }
 
 func TestParseExecuteRequestRejectsRetiredDeliveryVariants(t *testing.T) {
-	for _, field := range []string{`"protocol":"sessionless-v1"`, `"scanSensitiveData":false`, `"artifactVersion":1`, `"session_info":{}`} {
+	for _, field := range []string{`"baseUrl":"https://api.datad0g.com/api/unstable/its-agent-intake"`, `"baseUrl":null`, `"baseUrl":""`, `"protocol":"sessionless-v1"`, `"scanSensitiveData":false`, `"artifactVersion":1`, `"session_info":{}`} {
 		delivery := strings.Replace(validDeliveryJSON, "{", "{"+field+",", 1)
 		body := `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1","resultDelivery":` + delivery + `}`
 		req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
@@ -973,7 +972,6 @@ func TestParseExecuteRequestRejectsOmittedResultDeliveryFields(t *testing.T) {
 		{name: "missing runId", delivery: deliveryJSONWithout(t, "runId"), wantError: "result_delivery.runId is required"},
 		{name: "missing taskId", delivery: deliveryJSONWithout(t, "taskId"), wantError: "result_delivery.taskId is required"},
 		{name: "missing uploadId", delivery: deliveryJSONWithout(t, "uploadId"), wantError: "result_delivery.uploadId is required"},
-		{name: "missing baseUrl", delivery: deliveryJSONWithout(t, "baseUrl"), wantError: "result_delivery.baseUrl is required"},
 		{name: "missing limits", delivery: deliveryJSONWithout(t, "limits"), wantError: "result_delivery.limits is required"},
 		{name: "missing maxFileBytes", delivery: deliveryJSONWithout(t, "limits.maxFileBytes"), wantError: "result_delivery.limits.maxFileBytes is required"},
 		{name: "missing maxResultBytes", delivery: deliveryJSONWithout(t, "limits.maxResultBytes"), wantError: "result_delivery.limits.maxResultBytes is required"},
@@ -1020,7 +1018,6 @@ func pagedTestDelivery() *RemoteQueryResultDelivery {
 		RunID:    "run-proof",
 		TaskID:   "task-proof",
 		UploadID: "upload-proof",
-		BaseURL:  "https://dd.datad0g.com/api/unstable/its-agent-intake",
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   32 << 20,
 			MaxResultBytes: 10 << 30,
@@ -1071,7 +1068,6 @@ func TestNewRemoteQueryExecuteRequestValidation(t *testing.T) {
 		{name: "missing taskId", mutate: func(d *RemoteQueryResultDelivery) { d.TaskID = "" }, wantErr: "result_delivery.taskId is required"},
 		{name: "missing uploadId", mutate: func(d *RemoteQueryResultDelivery) { d.UploadID = "" }, wantErr: "result_delivery.uploadId is required"},
 		{name: "uploadId with separators", mutate: func(d *RemoteQueryResultDelivery) { d.UploadID = "upload/proof" }, wantErr: "result_delivery.uploadId contains invalid characters"},
-		{name: "missing baseUrl", mutate: func(d *RemoteQueryResultDelivery) { d.BaseURL = "" }, wantErr: "result_delivery.baseUrl is required"},
 		{name: "nil limits", mutate: func(d *RemoteQueryResultDelivery) { d.Limits = nil }, wantErr: "result_delivery.limits is required"},
 		{name: "zero maxFileBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = 0 }, wantErr: "result_delivery.limits.maxFileBytes must be at least 1"},
 		{name: "maxFileBytes above 128 MiB ceiling", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryUploadMaxFileBytes)},
@@ -1158,7 +1154,7 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 			"runId": "run-proof",
 			"taskId": "task-proof",
 			"uploadId": "upload-proof",
-			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"baseUrl": "https://api.datad0g.com/api/unstable/its-agent-intake",
 			"limits": {"maxFileBytes": 33554432, "maxResultBytes": 10737418240, "maxRowBytes": 33554432, "maxColumns": 1024, "maxSchemaBytes": 1048576, "maxPages": 128, "timeoutMs": 30000}
 		}
 	}`, runner.streamSeen)

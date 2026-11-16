@@ -263,7 +263,6 @@ type ResultDeliveryInputs struct {
 	RunID    string                `json:"runId"`
 	TaskID   string                `json:"taskId"`
 	UploadID string                `json:"uploadId"`
-	BaseURL  string                `json:"baseUrl"`
 	Limits   *DeliveryLimitsInputs `json:"limits"`
 }
 
@@ -533,7 +532,6 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs, traceContext *pb.
 			RunId:    delivery.RunID,
 			TaskId:   delivery.TaskID,
 			UploadId: delivery.UploadID,
-			BaseUrl:  delivery.BaseURL,
 		}
 		if limits := delivery.Limits; limits != nil {
 			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{

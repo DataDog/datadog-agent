@@ -59,7 +59,6 @@ func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
 		RunId:    "run-proof",
 		TaskId:   "task-proof",
 		UploadId: "upload-proof",
-		BaseUrl:  "https://dd.datad0g.com/api/unstable/its-agent-intake",
 		Limits: &pb.RemoteQueryUploadLimits{
 			MaxFileBytes:   128 << 20,
 			MaxResultBytes: 100 << 30,
@@ -92,9 +91,6 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing
 	assert.Equal(t, "run-proof", req.ResultDelivery.RunID)
 	assert.Equal(t, "task-proof", req.ResultDelivery.TaskID)
 	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
-	// The baseUrl handle crosses the boundary opaquely: the intake mints and owns
-	// the URL, and the Agent performs no allowlisting and no logging.
-	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", req.ResultDelivery.BaseURL)
 	require.NotNil(t, req.ResultDelivery.Limits)
 	assert.Equal(t, &remotequeriesimpl.RemoteQueryUploadLimits{
 		MaxFileBytes:   128 << 20,

@@ -574,11 +574,9 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 	return execReq, nil
 }
 
-// remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
-// Agent forwards baseUrl opaquely: the intake mints and owns the URL, and it is never
-// logged. The session-id contract has no per-session upload token: the session is
-// identified solely by upload_id and the proto surface carries no token field, so no
-// upload credential can cross the AgentSecure boundary.
+// remoteQueryResultDeliveryFromProto maps the backend-owned identity and limits.
+// Neither an upload destination nor credentials cross the AgentSecure boundary;
+// the core Agent resolves the destination from local configuration.
 func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
 	if delivery == nil {
 		return nil
@@ -587,7 +585,6 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 		RunID:    delivery.GetRunId(),
 		TaskID:   delivery.GetTaskId(),
 		UploadID: delivery.GetUploadId(),
-		BaseURL:  delivery.GetBaseUrl(),
 	}
 	if limits := delivery.GetLimits(); limits != nil {
 		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{

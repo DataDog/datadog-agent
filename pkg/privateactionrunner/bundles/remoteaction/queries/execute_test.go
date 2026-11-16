@@ -58,7 +58,6 @@ func resultDeliveryInputs() map[string]interface{} {
 		"runId":    testRunID,
 		"taskId":   testTaskID,
 		"uploadId": testUploadID,
-		"baseUrl":  testBaseURL,
 		"limits": map[string]interface{}{
 			"maxFileBytes":   33554432,
 			"maxResultBytes": 107374182400, // 100 GiB, the backend-owned result cap.
@@ -93,7 +92,7 @@ func finalEvent(sequence uint64, attributes map[string]string) *pb.RemoteQueryEx
 }
 
 func TestExecuteActionRejectsRetiredDeliveryVariantsBeforeRPC(t *testing.T) {
-	for _, variant := range []string{"session_info", "protocol", "scanSensitiveData", "artifactVersion", "unknownLimit"} {
+	for _, variant := range []string{"baseUrl", "empty baseUrl", "null baseUrl", "session_info", "protocol", "scanSensitiveData", "artifactVersion", "unknownLimit"} {
 		t.Run(variant, func(t *testing.T) {
 			inputs := map[string]interface{}{
 				"integration":    "postgres",
@@ -104,6 +103,12 @@ func TestExecuteActionRejectsRetiredDeliveryVariantsBeforeRPC(t *testing.T) {
 			}
 			delivery := inputs["resultDelivery"].(map[string]interface{})
 			switch variant {
+			case "baseUrl":
+				delivery[variant] = testBaseURL
+			case "empty baseUrl":
+				delivery["baseUrl"] = ""
+			case "null baseUrl":
+				delivery["baseUrl"] = nil
 			case "session_info":
 				inputs["session_info"] = map[string]interface{}{"arbitrary": true}
 			case "protocol":
@@ -164,7 +169,10 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, testRunID, delivery.GetRunId())
 	assert.Equal(t, testTaskID, delivery.GetTaskId())
 	assert.Equal(t, testUploadID, delivery.GetUploadId())
-	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
+	deliveryDescriptor := delivery.ProtoReflect().Descriptor()
+	assert.Nil(t, deliveryDescriptor.Fields().ByName("base_url"))
+	assert.True(t, deliveryDescriptor.ReservedNames().Has("base_url"))
+	assert.True(t, deliveryDescriptor.ReservedRanges().Has(5))
 	require.NotNil(t, delivery.GetLimits())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
 	assert.Equal(t, int64(107374182400), delivery.GetLimits().GetMaxResultBytes())
@@ -174,13 +182,12 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, int64(128), delivery.GetLimits().GetMaxPages())
 	assert.Equal(t, int64(30000), delivery.GetLimits().GetTimeoutMs())
 
-	// The delivery handle carries the base URL; the session has no upload token, so no
-	// token key appears anywhere in the AgentSecure request, and the private credential
-	// tokens never reach it either.
+	// Neither a destination nor upload credentials cross the AgentSecure boundary.
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(requestEvidence), "token")
-	assert.Contains(t, string(requestEvidence), testBaseURL)
+	assert.NotContains(t, string(requestEvidence), "base_url")
+	assert.NotContains(t, string(requestEvidence), "baseUrl")
 	assert.NotContains(t, string(requestEvidence), "secret-value")
 
 	out, ok := output.(map[string]interface{})
@@ -330,7 +337,7 @@ func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
 		{name: "missing delivery", resultDelivery: nil},
 		{name: "missing limits", resultDelivery: map[string]interface{}{
 			"runId": testRunID, "taskId": testTaskID,
-			"uploadId": testUploadID, "baseUrl": testBaseURL,
+			"uploadId": testUploadID,
 		}},
 	}
 	for _, tt := range tests {

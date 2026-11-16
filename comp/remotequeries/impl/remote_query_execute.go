@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -194,21 +193,14 @@ type RemoteQueryUploadLimits struct {
 	TimeoutMs      int
 }
 
-// RemoteQueryResultDelivery carries the backend-injected upload-session instructions for
-// one run: the authoritative run/task identity used by every page envelope and the
-// scoped its-agent-intake session handle (including the base URL), and the effective
-// limits. The session has one identifier, upload_id: there
-// is no per-session upload token, so the Agent has no token to forward. The Agent
-// forwards the handle, including BaseURL, to the integration check, which performs the
-// HTTP upload to its-agent-intake itself and authenticates it with the Agent's org API
-// and application keys; the Agent therefore only forwards a BaseURL that is on the
-// Agent's own site (see validateResultDeliveryBaseURL), performs no HTTP transport, and
-// never logs the handle.
+// RemoteQueryResultDelivery carries the backend-owned run/task identity, upload-session
+// identifier and effective limits. It carries no destination or credential. The core
+// Agent resolves the upload destination from its local site before calling the
+// integration, which performs the HTTP upload with credentials from Agent config.
 type RemoteQueryResultDelivery struct {
 	RunID    string
 	TaskID   string
 	UploadID string
-	BaseURL  string
 	Limits   *RemoteQueryUploadLimits
 }
 
@@ -231,9 +223,8 @@ type RemoteQueryExecuteRequest struct {
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
 // The handle is required: every run uploads bounded JSON page files directly to
 // its-agent-intake. This function checks the handle's shape and the forwarding caps
-// fail-closed and never logs the handle. The base URL's site binding needs the Agent
-// config, so it is enforced separately by validateResultDeliveryBaseURL before the
-// handle is forwarded (ExecuteStream).
+// fail-closed and never logs the handle. The upload destination is resolved separately
+// from local Agent configuration, not from these instructions.
 func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*RemoteQueryResultDelivery, error) {
 	if delivery == nil {
 		return nil, errors.New("result_delivery is required")
@@ -249,9 +240,6 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	}
 	if !remoteQueryUploadIDPattern.MatchString(delivery.UploadID) {
 		return nil, errors.New("result_delivery.uploadId contains invalid characters")
-	}
-	if delivery.BaseURL == "" {
-		return nil, errors.New("result_delivery.baseUrl is required")
 	}
 	limits := delivery.Limits
 	if limits == nil {
@@ -293,47 +281,23 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	return delivery, nil
 }
 
-// validateResultDeliveryBaseURL fails closed unless baseURL is safe to receive the
-// Agent's org API and application keys: an absolute https URL with no userinfo, query or
-// fragment, no port or port 443, whose host is the Agent's site or a subdomain of it. The
-// path is not constrained. Errors name the field and the reason but never echo the URL:
-// the handle is never logged, and url.Parse errors embed the input so they are not wrapped.
-func validateResultDeliveryBaseURL(baseURL string, site string) error {
-	const field = "result_delivery.baseUrl"
-	if site == "" {
-		return fmt.Errorf("%s cannot be checked: the Agent site is not configured", field)
-	}
-	if strings.ContainsAny(baseURL, "\\?#") || strings.ContainsFunc(baseURL, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
-		return fmt.Errorf("%s must not contain a query, fragment, backslash, whitespace or control characters", field)
-	}
-	u, err := url.Parse(baseURL)
-	if err != nil || !u.IsAbs() || u.Opaque != "" {
-		return fmt.Errorf("%s must be an absolute URL", field)
-	}
-	if u.Scheme != "https" {
-		return fmt.Errorf("%s must use the https scheme", field)
-	}
-	if u.User != nil {
-		return fmt.Errorf("%s must not contain userinfo", field)
-	}
-	if port := u.Port(); port != "" && port != "443" {
-		return fmt.Errorf("%s must not use a port other than 443", field)
-	}
-	host := strings.ToLower(u.Hostname())
-	if host == "" || (host != site && !strings.HasSuffix(host, "."+site)) {
-		return fmt.Errorf("%s must be on the Agent's site", field)
-	}
-	return nil
-}
-
-// site returns the Agent's configured site, trimmed and lower-cased. The config component
-// defaults it to datadoghq.com; it is empty only when no config is available or the site
-// was explicitly cleared, in which case validateResultDeliveryBaseURL fails closed.
-func (s *RemoteQueryExecuteService) site() string {
+// resultDeliveryBaseURL resolves the public intake endpoint from the local Agent site.
+// Public API hosts follow the intake's site mapping, not the metrics dd_url setting.
+// An explicit site allowlist prevents malformed or unsupported local sites from
+// receiving the integration's credentials. No task-supplied destination is accepted.
+func (s *RemoteQueryExecuteService) resultDeliveryBaseURL() (string, error) {
 	if s == nil || s.cfg == nil {
-		return ""
+		return "", errors.New("remote query upload destination requires an Agent site")
 	}
-	return strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
+	site := strings.ToLower(strings.TrimSpace(s.cfg.GetString("site")))
+	var host string
+	switch site {
+	case "datad0g.com", "datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com", "ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com", "ddog-gov.com", "us2.ddog-gov.com", "datad0g.eu", "us3.datad0g.com":
+		host = "api." + site
+	default:
+		return "", errors.New("remote query upload destination is unavailable for the Agent site")
+	}
+	return "https://" + host + "/api/unstable/its-agent-intake", nil
 }
 
 // NewRemoteQueryExecuteRequest validates and normalizes a typed paged-JSON request.
@@ -390,6 +354,8 @@ type remoteQueryExecuteRequest struct {
 	IncludeSchema  bool
 	ResultDelivery *RemoteQueryResultDelivery
 	TraceContext   *RemoteQueryTraceContext
+	// deliveryBaseURL is populated only by the core Agent from local configuration.
+	deliveryBaseURL string
 }
 
 type remoteQueryExecuteRequestJSON struct {
@@ -407,7 +373,6 @@ type remoteQueryResultDeliveryRequestJSON struct {
 	RunID    string                              `json:"runId"`
 	TaskID   string                              `json:"taskId"`
 	UploadID string                              `json:"uploadId"`
-	BaseURL  string                              `json:"baseUrl"`
 	Limits   *remoteQueryUploadLimitsRequestJSON `json:"limits"`
 }
 
@@ -472,7 +437,7 @@ func mapResultDeliveryTypeError(err error) error {
 	switch typeErr.Field {
 	case "limits":
 		return errLimitsMustBeObject
-	case "runId", "taskId", "uploadId", "baseUrl":
+	case "runId", "taskId", "uploadId":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be a string", typeErr.Field)}
 	default:
 		return err
@@ -510,8 +475,8 @@ type remoteQueryTraceContextJSON struct {
 }
 
 // remoteQueryResultDeliveryJSON is the result-delivery handle forwarded to the
-// integration check inside the request JSON. It carries baseUrl so the integration
-// can perform the HTTP page uploads to its-agent-intake directly; the session has one
+// integration check inside the request JSON. Its baseUrl is resolved by the core
+// Agent from local config so the integration can upload directly; the session has one
 // identifier, upload_id, and no upload token, so the handle cannot carry one.
 type remoteQueryResultDeliveryJSON struct {
 	RunID    string                      `json:"runId"`
@@ -638,7 +603,6 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 		RunID:    delivery.RunID,
 		TaskID:   delivery.TaskID,
 		UploadID: delivery.UploadID,
-		BaseURL:  delivery.BaseURL,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   *limits.MaxFileBytes,
 			MaxResultBytes: *limits.MaxResultBytes,
@@ -658,8 +622,8 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 }
 
 // ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
-// Agent is a control-plane forwarder: it carries the backend-injected upload instructions
-// through to the integration request JSON and passes the emit callback straight through.
+// Agent carries the backend-owned identity and limits, adds the upload destination from
+// local configuration, and passes the emit callback straight through.
 // The integration uploads bounded JSON page files itself; only progress metadata, the
 // final status, and errors come back through the stream.
 func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
@@ -675,16 +639,16 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	if req.Query == "" {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is required")
 	}
-	if req.ResultDelivery == nil {
-		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
-	}
-	// The integration sends the Agent's org API and application keys to baseUrl, so it
-	// must be on the Agent's own site; reject before target resolution or any forwarding.
-	if err := validateResultDeliveryBaseURL(req.ResultDelivery.BaseURL, s.site()); err != nil {
+	if _, err := validateRemoteQueryResultDelivery(req.ResultDelivery); err != nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
+	}
+	baseURL, err := s.resultDeliveryBaseURL()
+	if err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, err.Error())
 	}
 
 	internal := req.internal()
+	internal.deliveryBaseURL = baseURL
 	match, result := s.resolveExecutionTarget(internal)
 	if result.Error != nil {
 		return result
@@ -810,7 +774,7 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 			RunID:    req.ResultDelivery.RunID,
 			TaskID:   req.ResultDelivery.TaskID,
 			UploadID: req.ResultDelivery.UploadID,
-			BaseURL:  req.ResultDelivery.BaseURL,
+			BaseURL:  req.deliveryBaseURL,
 			Limits: remoteQueryUploadLimitsJSON{
 				MaxFileBytes:   limits.MaxFileBytes,
 				MaxResultBytes: limits.MaxResultBytes,

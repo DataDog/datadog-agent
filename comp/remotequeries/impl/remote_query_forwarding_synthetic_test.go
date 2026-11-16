@@ -17,10 +17,10 @@ import (
 
 // Synthetic producer proof for the M3 Agent role in the paged-JSON contract.
 //
-// The Agent is a control-plane forwarder only: it carries the backend-injected upload
-// instructions (including baseUrl) through to the integration request JSON, and the
-// org API key and POC application key are read by the integration via
-// datadog_agent.get_config, so they never appear on the request wire. The session has
+// The Agent carries the backend-owned upload identity and limits to the integration
+// request JSON and adds a locally resolved baseUrl. The integration reads the org API
+// key and POC application key via datadog_agent.get_config, so they never appear on
+// the request wire. The session has
 // one identifier, upload_id, and no per-session upload token, so the integration
 // request cannot carry one. The integration
 // uploads bounded JSON page files directly to its-agent-intake over HTTP; only
@@ -48,7 +48,6 @@ const (
 	syntheticForwardRunID    = "run-243021"
 	syntheticForwardTaskID   = "task-243021"
 	syntheticForwardUploadID = "upload-243021"
-	syntheticForwardBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
 )
 
 func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
@@ -63,7 +62,6 @@ func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 		RunID:    syntheticForwardRunID,
 		TaskID:   syntheticForwardTaskID,
 		UploadID: syntheticForwardUploadID,
-		BaseURL:  syntheticForwardBaseURL,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   32 << 20, // 32 MiB page cap
 			MaxResultBytes: 32 << 20, // 32 MiB total cap
@@ -119,7 +117,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 			"runId": "run-243021",
 			"taskId": "task-243021",
 			"uploadId": "upload-243021",
-			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"baseUrl": "https://api.datad0g.com/api/unstable/its-agent-intake",
 			"limits": {
 				"maxFileBytes": 33554432,
 				"maxResultBytes": 33554432,
