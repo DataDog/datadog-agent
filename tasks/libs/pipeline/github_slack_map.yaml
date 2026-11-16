@@ -323,8 +323,8 @@
     id: 'C06UEUW9A75'
 '@datadog/kubernetes-experiences':
   notification:
-    name: '#kxp-ops'
-    id: 'C0135179MGA'
+    name: '#kxp-deployments'
+    id: 'C0AGJFBQH5G'
   review:
     name: '#kxp-prs'
     id: 'C03LTNY5Q5N'
