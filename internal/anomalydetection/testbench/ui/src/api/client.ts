@@ -77,6 +77,7 @@ export interface StatusResponse {
     windowEndSec?: number;
     mutedSeries?: string[];
     detectors?: BaselineDetectorStatus[];
+    replayWindow?: { startSec: number; endSec: number };
   };
 }
 
@@ -87,6 +88,7 @@ export interface BaselineDetectorStatus {
   baselineEndSec?: number;
   completed: boolean;
   mutedCount: number;
+  readyAtEnd?: boolean;
 }
 
 export interface ScenarioInfo {

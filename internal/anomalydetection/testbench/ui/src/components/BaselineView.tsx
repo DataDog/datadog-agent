@@ -50,8 +50,8 @@ export function BaselineTimelineWidget({ status, phaseMarkers = [] }: { status: 
   return (
     <section className="rounded-lg border border-slate-700 bg-slate-800 overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-700 flex flex-wrap justify-between gap-3">
-        <div><h2 className="text-sm font-medium text-slate-200">Detector baselines</h2><p className="mt-0.5 text-xs text-slate-500">Full scenario timeline · qualification window: {Math.round(baseline.durationSec / 60)}m</p></div>
-        <div className="flex flex-wrap gap-2 text-xs text-slate-300"><Legend className="border-slate-600 bg-slate-700/50" label="Before analysis" /><Legend className="border-blue-400 bg-blue-500/20" label="Warmup" /><Legend className="border-emerald-400 bg-emerald-500/20" label="Baseline" /><Legend className="border-purple-400 bg-purple-500/20" label="Detection" /></div>
+        <div><h2 className="text-sm font-medium text-slate-200">Detector baselines</h2><p className="mt-0.5 text-xs text-slate-500">{baseline.replayWindow ? `Shared learning window · first third of healthy baseline · ${formatDuration(baseline.replayWindow.endSec - baseline.replayWindow.startSec)}` : `Full scenario timeline · qualification window: ${Math.round(baseline.durationSec / 60)}m`}</p></div>
+        <div className="flex flex-wrap gap-2 text-xs text-slate-300"><Legend className="border-slate-600 bg-slate-700/50" label="Before analysis" />{!baseline.replayWindow && <Legend className="border-blue-400 bg-blue-500/20" label="Warmup" />}<Legend className="border-emerald-400 bg-emerald-500/20" label={baseline.replayWindow ? "Learning" : "Baseline"} /><Legend className="border-purple-400 bg-purple-500/20" label={baseline.replayWindow ? "Evaluation" : "Detection"} /></div>
       </div>
       <div className="p-4">
         <div className="relative ml-40 h-3 text-[9px] font-mono">
@@ -63,7 +63,7 @@ export function BaselineTimelineWidget({ status, phaseMarkers = [] }: { status: 
         <div className="ml-40 flex justify-between pb-2 text-xs text-slate-500 tabular-nums"><span>{formatTime(timeline.start)}</span><span>{formatTime(midpoint)}</span><span>{formatTime(timeline.end)}</span></div>
         <div className="relative">
           <div className="space-y-3">
-            {detectors.map(detector => <DetectorLane key={detector.name} detector={detector} analysisStart={baseline.startSec!} analyzedThrough={baseline.analyzedThroughSec ?? timeline.end} start={timeline.start} end={timeline.end} />)}
+            {detectors.map(detector => <DetectorLane key={detector.name} detector={detector} analysisStart={baseline.startSec!} analyzedThrough={baseline.analyzedThroughSec ?? timeline.end} start={timeline.start} end={timeline.end} replayWindow={baseline.replayWindow} />)}
           </div>
           <div className="absolute inset-y-0 left-40 right-0 pointer-events-none">
             {visibleMarkers.map(marker => {
@@ -94,9 +94,15 @@ export function BaselineTimelineWidget({ status, phaseMarkers = [] }: { status: 
   );
 }
 
-function DetectorLane({ detector, analysisStart, analyzedThrough, start, end }: { detector: BaselineDetectorStatus; analysisStart: number; analyzedThrough: number; start: number; end: number }) {
+function DetectorLane({ detector, analysisStart, analyzedThrough, start, end, replayWindow }: { detector: BaselineDetectorStatus; analysisStart: number; analyzedThrough: number; start: number; end: number; replayWindow?: { startSec: number; endSec: number } }) {
   const before = percent(analysisStart, start, end);
   const observedEnd = Math.max(analysisStart, Math.min(analyzedThrough, end));
+  if (replayWindow) {
+    const learning = percent(Math.min(replayWindow.endSec, observedEnd), start, end) - before;
+    const detection = detector.completed ? 100 - before - learning : 0;
+    const detail = detector.readyAtEnd === false ? 'not ready before cutoff' : detector.completed ? `${detector.mutedCount} muted` : 'learning';
+    return <div className="grid grid-cols-[9rem_minmax(28rem,1fr)] items-stretch gap-4"><div className="py-2"><div className="text-sm font-medium text-slate-200">{detector.name}</div><div className="mt-1 text-xs text-slate-500">{detail}</div></div><div className="flex min-w-0 gap-1" aria-label={`${detector.name} baseline timeline`}>{before > 0 && <PhaseBox className="border-slate-600 bg-slate-700/50" width={before} title="Before analysis" detail={formatDuration(analysisStart - start)} />}<PhaseBox className="border-emerald-400 bg-emerald-500/20" width={learning} title="Learning" detail={formatDuration(Math.min(replayWindow.endSec, observedEnd) - replayWindow.startSec)} />{detector.completed && <PhaseBox className="border-purple-400 bg-purple-500/20" width={detection} title="Evaluation" detail={formatDuration(end - replayWindow.endSec)} />}</div></div>;
+  }
   if (!detector.ready || detector.warmupEndSec === undefined || detector.baselineEndSec === undefined) {
     return <div className="grid grid-cols-[9rem_minmax(28rem,1fr)] items-stretch gap-4"><div className="py-2"><div className="text-sm font-medium text-slate-200">{detector.name}</div><div className="mt-1 text-xs text-slate-500">waiting for readiness</div></div><div className="flex min-w-0 gap-1" aria-label={`${detector.name} baseline timeline`}><PhaseBox className="border-slate-600 bg-slate-700/50" width={before} title="Before analysis" detail={formatDuration(analysisStart - start)} /><PhaseBox className="border-blue-400 bg-blue-500/20" width={100 - before} title="Warmup" detail={`${formatDuration(observedEnd - analysisStart)} · waiting`} /></div></div>;
   }

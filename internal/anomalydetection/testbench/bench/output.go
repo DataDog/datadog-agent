@@ -25,10 +25,12 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
-	UseMetricPipeline   bool     `json:"use_metric_pipeline"`
-	Scenario            string   `json:"scenario"`
-	TimelineStart       int64    `json:"timeline_start"`
-	TimelineEnd         int64    `json:"timeline_end"`
+	UseMetricPipeline bool   `json:"use_metric_pipeline"`
+	Scenario          string `json:"scenario"`
+	TimelineStart     int64  `json:"timeline_start"`
+	TimelineEnd       int64  `json:"timeline_end"`
+	// EvaluationStart excludes the shared learning interval from scoring.
+	EvaluationStart     int64    `json:"evaluation_start,omitempty"`
 	DetectorsEnabled    []string `json:"detectors_enabled"`
 	CorrelatorsEnabled  []string `json:"correlators_enabled"`
 	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
@@ -118,6 +120,10 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	replayStats := tb.replayStats
+	var evaluationStart int64
+	if window := tb.settings.Baseline.ReplayWindow; window != nil {
+		evaluationStart = window.EndSec
+	}
 	var detectorAnomalies []DetectorOutputAnomaly
 	if tb.config.IncludeDetectorAnomalies {
 		detectorAnomalies = make([]DetectorOutputAnomaly, 0)
@@ -189,6 +195,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 		Scenario:            scenario,
 		TimelineStart:       timelineStart,
 		TimelineEnd:         timelineEnd,
+		EvaluationStart:     evaluationStart,
 		DetectorsEnabled:    detectorNames,
 		CorrelatorsEnabled:  correlatorNames,
 		TotalAnomalyPeriods: len(outCorrelations),

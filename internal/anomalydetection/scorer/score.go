@@ -62,6 +62,7 @@ type ScoreResult struct {
 	RecoveryQuietDurationSeconds int64   `json:"recovery_quiet_duration_seconds"`
 	Sigma                        float64 `json:"sigma"`
 	BaselineDurationSeconds      int64   `json:"baseline_duration_seconds"`
+	EvaluationStart              int64   `json:"evaluation_start,omitempty"`
 	// Alpha is the false positive rate during the baseline phase:
 	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
 	Alpha float64 `json:"alpha"`
@@ -363,6 +364,21 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		}
 	}
 
+	// New replay outputs declare their common learning cutoff explicitly. Old
+	// outputs retain the original labeled-baseline scoring contract.
+	evaluationStart := baselineStart
+	if cutoff := output.Metadata.EvaluationStart; cutoff != 0 {
+		if cutoff < baselineStart || (baselineEnd > 0 && cutoff >= baselineEnd) {
+			return nil, errors.New("evaluation_start must fall inside the labeled baseline")
+		}
+		for _, gt := range groundTruthTimestamps {
+			if cutoff >= gt {
+				return nil, errors.New("evaluation_start must be before disruption onset")
+			}
+		}
+		evaluationStart = cutoff
+	}
+
 	var predictions []int64
 	var numFilteredWarmup int
 	var numFilteredNonHigh int
@@ -374,7 +390,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 			numFilteredNonHigh++
 			continue
 		}
-		if baselineStart > 0 && period.PeriodStart < baselineStart {
+		if evaluationStart > 0 && period.PeriodStart < evaluationStart {
 			numFilteredWarmup++
 			continue
 		}
@@ -389,9 +405,10 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumFilteredNonHigh = numFilteredNonHigh
+	result.EvaluationStart = output.Metadata.EvaluationStart
 
 	if baselineStart > 0 && baselineEnd > baselineStart {
-		result.BaselineDurationSeconds = baselineEnd - baselineStart
+		result.BaselineDurationSeconds = baselineEnd - evaluationStart
 		result.Alpha = float64(result.NumBaselineFPs) / float64(result.BaselineDurationSeconds)
 	} else {
 		result.Alpha = -1

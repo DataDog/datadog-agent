@@ -1196,9 +1196,11 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 		kind:      eventBaselineCompleted,
 		timestamp: upToSec,
 		baselineCompleted: &baselineCompletedEvent{
-			detectorName:    detectorName,
-			mutedHashes:     e.baseline.mutedHashes,
-			snapshotChanged: snapshotChanged,
+			detectorName: detectorName,
+			mutedHashes:  e.baseline.mutedHashes,
+			// Replay may disable muting after the live observer subscribed its
+			// ingestion filter. Observe-only qualification must not update it.
+			snapshotChanged: snapshotChanged && e.baseline.config.MuteNoisyMetrics,
 			mutedRefs:       refs,
 			allComplete:     allComplete,
 		},
