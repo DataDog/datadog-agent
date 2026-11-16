@@ -397,7 +397,7 @@ require (
 	github.com/tinylib/msgp v1.6.5
 	github.com/twmb/franz-go v1.22.3
 	github.com/twmb/franz-go/pkg/kadm v1.20.0
-	github.com/twmb/franz-go/pkg/kmsg v1.15.1
+	github.com/twmb/franz-go/pkg/kmsg/v2 v2.0.1
 	github.com/twmb/murmur3 v1.2.2
 	github.com/ulikunitz/xz v0.5.17
 	github.com/uptrace/bun v1.3.0
