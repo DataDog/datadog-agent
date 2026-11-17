@@ -32,7 +32,7 @@ func TestApplyInstallEnvLogsEnabled(t *testing.T) {
 			original := "site: datadoghq.com\n" + existing
 			require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte(original), 0o600))
 
-			require.NoError(t, applyInstallEnv(conf, installEnv{"DD_LOGS_ENABLED": value}))
+			require.NoError(t, applyInstallEnv(openConfRoot(t, conf), installEnv{"DD_LOGS_ENABLED": value}))
 
 			content, err := os.ReadFile(filepath.Join(conf, "datadog.yaml"))
 			require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestApplyInstallEnvSetsTheInstallScriptsSettings(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte("api_key: APIKEY\n# site: datadoghq.com\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(conf, "ai_usage_native_host.yaml"), []byte("# chrome_extension_id: abc\n"), 0o600))
 
-	require.NoError(t, applyInstallEnv(conf, installEnv{
+	require.NoError(t, applyInstallEnv(openConfRoot(t, conf), installEnv{
 		"DD_API_KEY":                      "0123",
 		"DD_SITE":                         "datad0g.com",
 		"DD_INFRASTRUCTURE_MODE":          "basic",
@@ -81,7 +81,7 @@ func TestApplyInstallEnvIgnoresAnInvalidChromeExtensionID(t *testing.T) {
 		original := "# chrome_extension_id: abc\n"
 		require.NoError(t, os.WriteFile(filepath.Join(conf, "ai_usage_native_host.yaml"), []byte(original), 0o600))
 
-		require.NoError(t, applyInstallEnv(conf, installEnv{"DD_AI_USAGE_CHROME_EXTENSION_ID": id}))
+		require.NoError(t, applyInstallEnv(openConfRoot(t, conf), installEnv{"DD_AI_USAGE_CHROME_EXTENSION_ID": id}))
 
 		nativeHost, err := os.ReadFile(filepath.Join(conf, "ai_usage_native_host.yaml"))
 		require.NoError(t, err)
@@ -569,4 +569,90 @@ func TestSecureConfigReachesNothingOutsideTheTree(t *testing.T) {
 				"no access control list may be applied to an entry that was not secured")
 		}
 	}
+}
+
+// openConfRoot opens dir as the os.Root the configuration steps work through, for the rest of the
+// test.
+func openConfRoot(t *testing.T, dir string) *os.Root {
+	t.Helper()
+
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+	t.Cleanup(func() { root.Close() })
+	return root
+}
+
+// TestSetUpConfigDoesNotWriteThroughLinks pins that the configuration set-up never writes through
+// an entry of the configuration: a link and a file linked from elsewhere are replaced by files of
+// their own, and what they pointed to is left as it was.
+func TestSetUpConfigDoesNotWriteThroughLinks(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf := layout.confDir()
+	outside := t.TempDir()
+	linkedTo := filepath.Join(outside, "native-host.yaml")
+	hardLinked := filepath.Join(outside, "install_info")
+	for _, path := range []string{linkedTo, hardLinked} {
+		require.NoError(t, os.WriteFile(path, []byte("untouched\n"), 0o600))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(conf, "ai_usage_native_host.yaml.example"), []byte("# trace_agent_url: x\n"), 0o644))
+	require.NoError(t, os.Symlink(linkedTo, filepath.Join(conf, "ai_usage_native_host.yaml")))
+	require.NoError(t, os.Link(hardLinked, filepath.Join(conf, "install_info")))
+
+	require.NoError(t, setUpConfig(t.Context(), layout, installEnv{}))
+
+	for _, path := range []string{linkedTo, hardLinked} {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "untouched\n", string(content), "%s was written through", path)
+	}
+	for _, name := range []string{"ai_usage_native_host.yaml", "install_info"} {
+		info, err := os.Lstat(filepath.Join(conf, name))
+		require.NoError(t, err)
+		assert.True(t, info.Mode().IsRegular(), "%s is not a file of its own", name)
+	}
+}
+
+// TestSetUpConfigLeavesALinkedDatadogYAMLAlone pins that a datadog.yaml that is a link is neither
+// read nor written through: the install settings are not applied to it.
+func TestSetUpConfigLeavesALinkedDatadogYAMLAlone(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf := layout.confDir()
+	target := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(target, []byte("api_key: kept\n"), 0o600))
+	require.NoError(t, os.Symlink(target, filepath.Join(conf, "datadog.yaml")))
+
+	require.NoError(t, setUpConfig(t.Context(), layout, installEnv{"DD_API_KEY": "replaced"}))
+
+	content, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, "api_key: kept\n", string(content))
+}
+
+// TestSetUpConfigRestoresTheSavedConfigurationInsideTheTree pins that restoring the saved
+// configuration writes nothing outside it, even where a directory of the configuration has been
+// replaced by a link, and that saved links are restored as links rather than followed.
+func TestSetUpConfigRestoresTheSavedConfigurationInsideTheTree(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf := layout.confDir()
+	saved := layout.savedConfDir()
+	outside := t.TempDir()
+	secret := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(secret, []byte("secret\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(saved, "conf.d", "check.d"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(saved, "datadog.yaml"), []byte("api_key: saved\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(saved, "conf.d", "check.d", "conf.yaml"), []byte("instances: []\n"), 0o600))
+	require.NoError(t, os.Symlink(secret, filepath.Join(saved, "system-probe.yaml")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(conf, "conf.d")))
+
+	require.NoError(t, setUpConfig(t.Context(), layout, installEnv{}))
+
+	entries, err := os.ReadDir(outside)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "the restore wrote through the conf.d link")
+	destination, err := os.Readlink(filepath.Join(conf, "system-probe.yaml"))
+	require.NoError(t, err, "a saved link must be restored as a link")
+	assert.Equal(t, secret, destination)
+	content, err := os.ReadFile(filepath.Join(conf, "datadog.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "api_key: saved")
 }
