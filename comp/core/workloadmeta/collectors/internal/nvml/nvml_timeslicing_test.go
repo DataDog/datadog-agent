@@ -29,9 +29,9 @@ import (
 // sharing.timeSlicing.replicas=4.
 func timeSlicedGPUTestLabels() map[string]string {
 	return map[string]string{
-		gfdSharingStrategyLabel:  "time-slicing",
-		gfdReplicasLabel:         "4",
-		"nvidia.com/gpu.product": "NVIDIA-A10G-SHARED",
+		"nvidia.com/gpu.sharing-strategy": "time-slicing",
+		"nvidia.com/gpu.replicas":         "4",
+		"nvidia.com/gpu.product":          "NVIDIA-A10G-SHARED",
 	}
 }
 
@@ -113,7 +113,7 @@ func TestGetNodeGPULabels(t *testing.T) {
 	// The next successful read replaces them.
 	c.nodeGPULabelsAt = time.Now().Add(-nodeGPULabelsRefreshInterval)
 	readErr = nil
-	labels = map[string]string{gfdSharingStrategyLabel: "mps"}
+	labels = map[string]string{"nvidia.com/gpu.sharing-strategy": "mps"}
 	assert.Equal(t, labels, c.getNodeGPULabels(t.Context()))
 	assert.Equal(t, 3, reads)
 }
@@ -132,9 +132,9 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		want := map[string]int{testutil.GPUUUIDs[0]: 1}
 		assert.Equal(t, want, ts.byContainer["gpu-burner-0"])
-		assert.Contains(t, ts.shared, testutil.GPUUUIDs[0])
-		assert.Equal(t, workloadmeta.GPUSharingModeTimeSlicing, ts.mode)
-		assert.Equal(t, 4, ts.replicas)
+		assert.Equal(t, map[string]gpuSharing{
+			testutil.GPUUUIDs[0]: {mode: workloadmeta.GPUSharingModeTimeSlicing, replicas: 4},
+		}, ts.shared)
 	})
 
 	t.Run("a container holding several replicas of the same GPU", func(t *testing.T) {
@@ -154,15 +154,44 @@ func TestResolveTimeSlices(t *testing.T) {
 	})
 
 	t.Run("time-sliced allocation under a renamed resource", func(t *testing.T) {
-		// renameByDefault keeps the device IDs, renames the resource.
+		// renameByDefault keeps the device IDs, renames the resource, and
+		// GPU Feature Discovery labels it under its original name.
 		store := testutil.GetWorkloadMetaMock(t)
 		store.Set(timeSlicedContainer("gpu-burner-1", allocatedResource{"nvidia.com/gpu.shared", replicaID}))
 		c := newTimeSliceCollector(store, labels)
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Equal(t, workloadmeta.GPUSharingModeTimeSlicing, ts.mode)
+		assert.Equal(t, gpuSharing{mode: workloadmeta.GPUSharingModeTimeSlicing, replicas: 4}, ts.shared[testutil.GPUUUIDs[0]])
 		assert.Contains(t, ts.byContainer["gpu-burner-1"], testutil.GPUUUIDs[0])
+	})
+
+	t.Run("mixed MIG strategy: each MIG profile has its own labels", func(t *testing.T) {
+		// Labels as GPU Feature Discovery reports them for a GPU split into
+		// one 2g.48gb and two 1g.24gb devices, the 2g.48gb profile
+		// time-sliced into 4 replicas and the 1g.24gb one into 2. Full GPUs
+		// are not shared.
+		const mig2g, mig1gA, mig1gB = "MIG-9c178886-4313-5409-a6f1-9b9216b212cb", "MIG-ce2a47ad-d053-57df-8e3c-f51ce368f577", "MIG-9634e88a-8536-5636-bcbc-ccc0a270335f"
+		migLabels := map[string]string{
+			"nvidia.com/gpu.sharing-strategy":         "none",
+			"nvidia.com/gpu.replicas":                 "0",
+			"nvidia.com/mig-2g.48gb.sharing-strategy": "time-slicing",
+			"nvidia.com/mig-2g.48gb.replicas":         "4",
+			"nvidia.com/mig-1g.24gb.sharing-strategy": "time-slicing",
+			"nvidia.com/mig-1g.24gb.replicas":         "2",
+		}
+		store := testutil.GetWorkloadMetaMock(t)
+		store.Set(timeSlicedContainer("burner-2g", allocatedResource{"nvidia.com/mig-2g.48gb", mig2g + "::3"}))
+		store.Set(timeSlicedContainer("burner-1g", allocatedResource{"nvidia.com/mig-1g.24gb.shared", mig1gA + "::1"}))
+		store.Set(timeSlicedContainer("exclusive-1g", allocatedResource{"nvidia.com/mig-1g.24gb", mig1gB}))
+		c := newTimeSliceCollector(store, migLabels)
+
+		ts := c.resolveTimeSlices(t.Context())
+
+		assert.Equal(t, map[string]gpuSharing{
+			mig2g:  {mode: workloadmeta.GPUSharingModeTimeSlicing, replicas: 4},
+			mig1gA: {mode: workloadmeta.GPUSharingModeTimeSlicing, replicas: 2},
+		}, ts.shared)
 	})
 
 	t.Run("without a node label the sharing is unknown, not absent", func(t *testing.T) {
@@ -172,21 +201,19 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Contains(t, ts.shared, testutil.GPUUUIDs[0])
-		assert.Equal(t, workloadmeta.GPUSharingModeUnknown, ts.mode)
-		assert.Zero(t, ts.replicas)
+		assert.Equal(t, gpuSharing{mode: workloadmeta.GPUSharingModeUnknown}, ts.shared[testutil.GPUUUIDs[0]])
 	})
 
 	t.Run("MPS allocations use the same IDs, the label disambiguates", func(t *testing.T) {
 		mpsLabels := timeSlicedGPUTestLabels()
-		mpsLabels[gfdSharingStrategyLabel] = "mps"
+		mpsLabels["nvidia.com/gpu.sharing-strategy"] = "mps"
 		store := testutil.GetWorkloadMetaMock(t)
 		store.Set(timeSlicedContainer("mps-workload", allocatedResource{string(gpuutil.GpuNvidiaGeneric), replicaID}))
 		c := newTimeSliceCollector(store, mpsLabels)
 
 		ts := c.resolveTimeSlices(t.Context())
 
-		assert.Equal(t, workloadmeta.GPUSharingModeMPS, ts.mode)
+		assert.Equal(t, workloadmeta.GPUSharingModeMPS, ts.shared[testutil.GPUUUIDs[0]].mode)
 	})
 
 	t.Run("exclusive allocations are not replicas", func(t *testing.T) {
@@ -198,7 +225,7 @@ func TestResolveTimeSlices(t *testing.T) {
 
 		assert.Empty(t, ts.byContainer)
 		assert.Empty(t, ts.shared)
-		assert.Empty(t, ts.mode, "the node labels are not read without a replica")
+		assert.True(t, c.nodeGPULabelsAt.IsZero(), "the node labels are not read without a replica")
 	})
 
 	t.Run("non-NVIDIA suffixed allocations are not replicas", func(t *testing.T) {

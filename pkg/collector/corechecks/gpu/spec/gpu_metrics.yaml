@@ -400,7 +400,9 @@ metrics:
         Number of replicas of the GPU, when it is shared by replication
         (time-slicing or MPS), as described by the gpu_sharing_mode tag: how
         many workloads can share the GPU. Read from the GPU Feature Discovery
-        nvidia.com/gpu.replicas node label, so not reported without it.
+        replicas node label of the GPU's resource (e.g. nvidia.com/gpu.replicas,
+        or nvidia.com/mig-1g.10gb.replicas for a MIG profile), so not reported
+        without it.
       aggregation: absolute_usage
     optional: true
     tagsets:

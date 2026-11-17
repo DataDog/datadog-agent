@@ -457,12 +457,12 @@ func (c *collector) Pull(ctx context.Context) error {
 			uuid := dev.GetDeviceInfo().UUID
 			if _, shared := kai.sharedGPUs[uuid]; shared {
 				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
-			} else if _, shared := timeSlices.shared[uuid]; shared {
+			} else if sharing, shared := timeSlices.shared[uuid]; shared {
 				// KAI does not support the device plugin's replicas setting,
 				// so a GPU is never both:
 				// https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/gpu-sharing/README.md#device-plugin-replicas-setting
-				gpu.SharingMode = timeSlices.mode
-				gpu.SharingReplicas = timeSlices.replicas
+				gpu.SharingMode = sharing.mode
+				gpu.SharingReplicas = sharing.replicas
 			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
