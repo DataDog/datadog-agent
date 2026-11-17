@@ -108,7 +108,7 @@ func runningExperiment(t *testing.T) (*liveLaunchd, string, string) {
 	shortFailSafeBackoff(t)
 	dirs := stubConfigExperimentDirs(t)
 	deployExperimentConfig(t, dirs)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 	return l, deadlinePath, dirs.ExperimentPath
 }
 
@@ -173,7 +173,7 @@ func TestFailSafeRevertLeavesAFinishedExperimentAlone(t *testing.T) {
 	l, _, _ := runningExperiment(t)
 	token, err := experimentDeadline().Read()
 	require.NoError(t, err)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	require.NoError(t, failSafeRevert(context.Background(), experimentDeadline(), token, errors.New("injected")))
 	for _, label := range agentJobs {
@@ -227,7 +227,7 @@ func TestResumeFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
 	stubDeadlinePath(t)
 	watchers := stubConfigExperimentWatcher(t)
 	stubConfigExperimentDirs(t)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 
