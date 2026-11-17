@@ -500,8 +500,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.31.4
-	istio.io/client-go v1.31.4
+	istio.io/api v1.32.0
+	istio.io/client-go v1.32.0
 	k8s.io/api v0.37.2
 	k8s.io/apiextensions-apiserver v0.37.2
 	k8s.io/apimachinery v0.37.2
@@ -523,13 +523,6 @@ require (
 	sigs.k8s.io/gateway-api v1.6.3
 	sigs.k8s.io/karpenter v1.14.0
 	sigs.k8s.io/yaml v1.6.0
-)
-
-require (
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding v0.165.1 // indirect
-	go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper v0.165.0 // indirect
-	go.opentelemetry.io/contrib/detectors/aws/ec2/v2 v2.6.0 // indirect
-	go.opentelemetry.io/contrib/detectors/openshift v0.19.0 // indirect
 )
 
 require (
@@ -828,6 +821,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/dbauth v0.165.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.165.1 // indirect
@@ -1024,11 +1018,13 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.165.0 // indirect
+	go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.165.0 // indirect
 	go.opentelemetry.io/collector/scraper v0.165.0 // indirect
 	go.opentelemetry.io/collector/scraper/scraperhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.165.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.21.0 // indirect
+	go.opentelemetry.io/contrib/detectors/aws/ec2/v2 v2.6.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/ecs v1.47.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/eks v1.47.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/elasticbeanstalk v0.19.0 // indirect
@@ -1040,6 +1036,7 @@ require (
 	go.opentelemetry.io/contrib/detectors/hetzner v0.19.0 // indirect
 	go.opentelemetry.io/contrib/detectors/ibmcloud/vpc v0.19.0 // indirect
 	go.opentelemetry.io/contrib/detectors/kubeadm v0.19.0 // indirect
+	go.opentelemetry.io/contrib/detectors/openshift v0.19.0 // indirect
 	go.opentelemetry.io/contrib/detectors/vultr v0.19.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.71.0 // indirect

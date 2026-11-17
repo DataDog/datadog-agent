@@ -2,8 +2,6 @@ module github.com/DataDog/datadog-agent/pkg/rshell
 
 go 1.26.0
 
-toolchain go1.26.2
-
 require (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.78.0
