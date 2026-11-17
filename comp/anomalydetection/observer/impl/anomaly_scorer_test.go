@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -20,12 +21,13 @@ import (
 )
 
 type scorerConfigReader struct {
-	ints map[string]int
+	ints   map[string]int
+	floats map[string]float64
 }
 
 func (r scorerConfigReader) GetBool(string) bool              { return false }
 func (r scorerConfigReader) GetInt(key string) int            { return r.ints[key] }
-func (r scorerConfigReader) GetFloat64(string) float64        { return 0 }
+func (r scorerConfigReader) GetFloat64(key string) float64    { return r.floats[key] }
 func (r scorerConfigReader) GetString(string) string          { return "" }
 func (r scorerConfigReader) GetDuration(string) time.Duration { return 0 }
 func (r scorerConfigReader) IsConfigured(string) bool         { return false }
@@ -1589,4 +1591,74 @@ func TestEpisodeListsRepeatedFailureEvidenceOnce(t *testing.T) {
 	require.Equal(t, []string{LogFailureDetectorName, LogFailureDetectorName, "bocpd"}, detectors,
 		"each failure series is listed once, leaving room for other detectors")
 	require.Equal(t, int64(1031), correlations[0].LastUpdated)
+}
+
+func failureAnomaly(ref observer.SeriesRef, ts int64) observer.Anomaly {
+	a := makeAnomaly(LogFailureDetectorName, ts, nil)
+	a.Source.Name = fmt.Sprintf("series-%d", ref)
+	a.Evidence = observer.EvidenceFailure
+	a.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage}
+	return a
+}
+
+func TestFailureWeightFloorsInputWhileEvidenceIsFresh(t *testing.T) {
+	inputAt := func(weight float64, anomalies ...observer.Anomaly) []float64 {
+		cfg := DefaultAnomalyScorerConfig()
+		cfg.Alpha = 0.999999 // the EWMA tracks the per-second input
+		cfg.FailureWeight = weight
+		s := newAnomalyScorerBase(cfg)
+		s.Advance(999)
+		for _, a := range anomalies {
+			s.ProcessAnomaly(a)
+		}
+		var scores []float64
+		for _, sec := range []int64{1000, 1000 + cfg.WindowSecs - 1, 1000 + cfg.WindowSecs} {
+			s.Advance(sec)
+			scores = append(scores, s.LastScore())
+		}
+		return scores
+	}
+	medium := 1 - math.Exp(-1.0/5)
+	floor := defaultFailureWeight * medium
+
+	boosted := inputAt(defaultFailureWeight, failureAnomaly(1, 1000))
+	require.InDelta(t, floor, boosted[0], 1e-4, "fresh failure evidence is floored at the failure weight")
+	require.Greater(t, boosted[0], DefaultAnomalyScorerConfig().HighThreshold, "the default floor exceeds the High threshold")
+	require.InDelta(t, floor, boosted[1], 1e-4, "the floor lasts while the evidence is in the window")
+	require.InDelta(t, 0, boosted[2], 1e-4, "the floor ends once the evidence leaves the window")
+
+	require.InDelta(t, medium, inputAt(0, failureAnomaly(1, 1000))[0], 1e-4, "zero keeps the ordinary Medium contribution")
+	require.InDelta(t, floor, inputAt(defaultFailureWeight, failureAnomaly(1, 1000), failureAnomaly(2, 1000))[0], 1e-4,
+		"more failing series cannot raise the floor")
+	require.InDelta(t, medium, inputAt(defaultFailureWeight, makeAnomaly("bocpd", 1000, nil))[0], 1e-4,
+		"statistical evidence is not boosted")
+}
+
+func TestFailureWeightConfig(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+	read := func(weight float64) float64 {
+		return readAnomalyScorerConfig(scorerConfigReader{floats: map[string]float64{prefix + "failure_weight": weight}}, prefix).FailureWeight
+	}
+	require.Equal(t, 0.0, read(0), "zero disables the boost")
+	require.Equal(t, 6.0, read(6))
+	require.Equal(t, defaultFailureWeight, read(-1))
+	require.Equal(t, defaultFailureWeight, read(maxFailureWeight+1))
+	require.Equal(t, defaultFailureWeight, newAnomalyScorerBase(AnomalyScorerConfig{
+		AnomalyScorerConfig: observer.AnomalyScorerConfig{FailureWeight: math.NaN()},
+	}).config.FailureWeight)
+
+	entry := defaultCatalog().entries
+	var parse func(any, []byte) (any, error)
+	for _, e := range entry {
+		if e.name == "anomaly_scorer" {
+			parse = e.parseJSON
+		}
+	}
+	require.NotNil(t, parse)
+	parsed, err := parse(DefaultAnomalyScorerConfig(), []byte(`{"enabled":true}`))
+	require.NoError(t, err)
+	require.Equal(t, defaultFailureWeight, parsed.(AnomalyScorerConfig).FailureWeight, "replay configs default to the boost")
+	parsed, err = parse(DefaultAnomalyScorerConfig(), []byte(`{"failure_weight":0}`))
+	require.NoError(t, err)
+	require.Equal(t, 0.0, parsed.(AnomalyScorerConfig).FailureWeight, "replay configs can disable it")
 }

@@ -466,6 +466,10 @@ type Correlator interface {
 type AnomalyScorerConfig struct {
 	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
 	Alpha float64 `json:"alpha"`
+	// FailureWeight sets a minimum scorer input while failure evidence is in the
+	// window. Repeated evidence refreshes one floor; it never adds one
+	// contribution per log, series or detector. Zero disables it.
+	FailureWeight float64 `json:"failure_weight"`
 	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
 	// Calibrated against the window count (unique anomalous series), not per-second count.
 	SaturationK float64 `json:"saturation_k"`

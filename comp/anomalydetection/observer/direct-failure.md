@@ -37,8 +37,12 @@ Statistical detectors exclude these error-count series before creating models
 when `log_failure` is enabled. Other log-derived and native metric detection
 continues normally, including the kind-routed metric pipeline. Statistical
 baseline qualification and noisy-series muting do not suppress direct evidence.
-Emissions carry `EvidenceFailure` and receive the ordinary scorer contribution.
-Repeated emissions refresh the same contributor rather than adding one per log.
+Emissions carry `EvidenceFailure`. While failure evidence is in the scorer
+window, `anomaly_detection.anomaly_scorer.failure_weight` (default 3, maximum
+10, 0 disables) floors the scorer input at `weight × (1 − e^(−1/k))`. The default
+floor (≈0.54) exceeds the High threshold, so sustained failure evidence can reach High
+on its own. The floor does not grow with more failing
+series. Repeated emissions refresh the same contributor rather than adding one per log.
 An open scorer episode lists each failure series once, so repeats do not crowd
 other detectors out of its capped member list.
 

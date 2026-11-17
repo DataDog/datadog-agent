@@ -162,6 +162,9 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
+	if a.Evidence == observerdef.EvidenceFailure && cfg.FailureWeight > 0 {
+		return math.Max(cfg.FailureWeight, levelWeights[anomalyLevel(a, cfg)])
+	}
 	if a.LevelChange != nil {
 		return levelWeights[anomalyLevel(a, cfg)]
 	}
@@ -219,7 +222,16 @@ const (
 	contributorBufferMultiplier = 10
 	minMaxReportedItems         = 10
 	maxMaxReportedItems         = 1000
+	// defaultFailureWeight floors fresh failure evidence above the High
+	// threshold (3 × (1 − e^(−1/5)) ≈ 0.54 > 0.40). It has no effect unless a
+	// failure detector such as log_failure is enabled.
+	defaultFailureWeight = 3.0
+	maxFailureWeight     = 10.0
 )
+
+func validFailureWeight(weight float64) bool {
+	return !math.IsNaN(weight) && weight >= 0 && weight <= maxFailureWeight
+}
 
 // topAnomaly is one storage-backed anomaly occurrence retained for scorer
 // episode attribution. It deliberately stores no source descriptor, tags, or
@@ -420,6 +432,7 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
 			Alpha:         0.014,
+			FailureWeight: defaultFailureWeight,
 			SaturationK:   5.0,
 			WindowSecs:    window,
 			LowThreshold:  0.15,
@@ -481,6 +494,14 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 	ewma.LowThreshold = r.GetFloat64(prefix + "low_threshold")
 	ewma.HighThreshold = r.GetFloat64(prefix + "high_threshold")
 	ewma.MarginPct = r.GetFloat64(prefix + "margin_pct")
+
+	key = prefix + "failure_weight"
+	v = r.GetFloat64(key)
+	if !validFailureWeight(v) {
+		logging.Warnf("anomaly scorer: %s must be in [0, %g], got %g — using default %g", key, maxFailureWeight, v, defaults.FailureWeight)
+		v = defaults.FailureWeight
+	}
+	ewma.FailureWeight = v
 
 	outPrefix := prefix + "output."
 	cfg.Logs = r.GetBool(outPrefix + "logs")
@@ -585,6 +606,9 @@ type anomalyScorer struct {
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
 	// Entries are evicted once lastSeenSec falls outside the window.
 	windowMap map[string]windowEntry
+	// lastFailureSec is the latest second with failure evidence; it drives the
+	// failure-weight floor while it remains inside the scorer window.
+	lastFailureSec int64
 	// topAnomalies retains bounded five-minute attribution only when
 	// correlation events are enabled.
 	topAnomalies *topAnomalyBuffer
@@ -655,6 +679,10 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	}
 	if cfg.SaturationK <= 0 {
 		cfg.SaturationK = defaults.SaturationK
+	}
+	if !validFailureWeight(cfg.FailureWeight) {
+		logging.Warnf("anomaly scorer: failure_weight must be in [0, %g], got %g — using default %g", maxFailureWeight, cfg.FailureWeight, defaults.FailureWeight)
+		cfg.FailureWeight = defaults.FailureWeight
 	}
 	if cfg.MaxReportedItems < minMaxReportedItems {
 		cfg.MaxReportedItems = minMaxReportedItems
@@ -981,6 +1009,7 @@ func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
+	s.lastFailureSec = 0
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
 	}
@@ -1097,6 +1126,9 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
+		if a.Evidence == observerdef.EvidenceFailure {
+			s.lastFailureSec = sec
+		}
 		sid := seriesID(a)
 		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
 		entry := s.windowMap[sid]
@@ -1148,6 +1180,13 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	if count > 0 {
 		meanWeight := weightSum / float64(count)
 		input = meanWeight * (1 - math.Exp(-float64(count)/s.config.SaturationK))
+	}
+
+	// Fresh failure evidence sets a floor rather than adding to the input, so
+	// overlapping log-pattern and failure detections are not double counted,
+	// and more failing scopes cannot raise the floor further.
+	if s.config.FailureWeight > 0 && s.lastFailureSec > 0 && s.lastFailureSec >= windowStart {
+		input = math.Max(input, s.config.FailureWeight*(1-math.Exp(-1/s.config.SaturationK)))
 	}
 
 	s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma

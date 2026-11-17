@@ -5406,6 +5406,13 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+          failure_weight:
+            node_type: setting
+            type: number
+            default: 3
+            description: |
+              Minimum scorer weight while failure evidence (for example from log_failure) is in the scorer window.
+              The default floors fresh failure evidence above the High threshold. 0 disables it; maximum 10.
           high_threshold:
             node_type: setting
             type: number
