@@ -192,7 +192,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		containerMappingFailurePct: tm.NewGauge(CheckName, "container_gpu_mapping_failure_pct", nil, "Percentage of GPU containers whose devices could not be fully matched in the last check run"),
-		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
+		deviceCount:                tm.NewGauge(CheckName, "device_total", append([]string{"gpu_sharing_mode"}, nvidia.DeviceTelemetryTagNames...), "Number of physical GPU devices"),
 	}
 }
 
@@ -400,7 +400,7 @@ func (c *Check) Run() error {
 			c.resolveNvmlIssues("")
 			c.nvmlIssueID = ""
 		}
-		c.telemetry.metrics.deviceCount.Set(0)
+		c.updateDeviceCountTelemetry(nil)
 		return nil
 	}
 
@@ -479,14 +479,11 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
 
-	deviceCount, err := c.deviceCache.Count()
-	if err != nil {
-		if logLimitCheck.ShouldLog() {
-			log.Warnf("failed to get device count: %v", err)
-		}
-		deviceCount = 0
+	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	if err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("failed to get physical devices: %v", err)
 	}
-	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
+	c.updateDeviceCountTelemetry(physicalDevices)
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
@@ -1119,5 +1116,23 @@ func (c *Check) reacquireNVML(force bool) {
 	c.releaseWindowStart = time.Time{}
 	if err := c.pushNvmlStateToSysprobe(gpumodel.NvmlStateAcquired); err != nil {
 		log.Warnf("error ending the system-probe NVML release lease (it will expire on its own): %v", err)
+	}
+}
+
+// updateDeviceCountTelemetry partitions the NVML physical inventory using the
+// collector device labels plus sharing mode. MIG children and device-plugin
+// replicas never increase this physical-device count.
+func (c *Check) updateDeviceCountTelemetry(devices []ddnvml.Device) {
+	// Rebuild the counts so removed devices and changed tags leave no stale series.
+	c.telemetry.metrics.deviceCount.DeletePartialMatch(nil)
+	for _, device := range devices {
+		mode := workloadmeta.GPUSharingModeNone
+		// Sharing detection is asynchronous. Missing state means no sharing
+		// detected; unknown is reserved for known replication of unknown strategy.
+		if gpu, err := c.wmeta.GetGPU(device.GetDeviceInfo().UUID); err == nil && gpu.SharingMode != "" {
+			mode = gpu.SharingMode
+		}
+		tags := append([]string{string(mode)}, nvidia.DeviceTelemetryTags(device)...)
+		c.telemetry.metrics.deviceCount.Inc(tags...)
 	}
 }
