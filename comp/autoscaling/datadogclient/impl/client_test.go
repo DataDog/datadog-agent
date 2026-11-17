@@ -17,6 +17,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
@@ -45,6 +46,32 @@ func TestNewFallbackClient(t *testing.T) {
 	fallbackCl, ok := datadogClient.(*datadogFallbackClient)
 	assert.True(t, ok)
 	assert.False(t, fallbackCl == (*datadogFallbackClient)(nil))
+}
+
+func TestClientsHaveTheirOwnHTTPClientWithTimeout(t *testing.T) {
+	cfg := config.NewMock(t)
+	logger := logmock.New(t)
+	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.SetInTest(metricsRedundantEndpointConfig, []map[string]interface{}{{"site": "api.datadoghq.eu", "url": "https://api.datadoghq.eu", "api_key": "12345", "app_key": "67890"}})
+
+	datadogClient, err := createDatadogClient(cfg, logger)
+	require.NoError(t, err)
+	fallbackCl, ok := datadogClient.(*datadogFallbackClient)
+	require.True(t, ok)
+	require.Len(t, fallbackCl.clients, 2)
+
+	httpClients := map[*http.Client]bool{}
+	for _, c := range fallbackCl.clients {
+		httpClient := c.client.HttpClient
+		assert.NotSame(t, http.DefaultClient, httpClient)
+		assert.Equal(t, queryTimeout, httpClient.Timeout)
+		assert.NotNil(t, httpClient.Transport)
+		httpClients[httpClient] = true
+	}
+	assert.Len(t, httpClients, 2)
+	// The shared default client is left as it was.
+	assert.Nil(t, http.DefaultClient.Transport)
 }
 
 func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 type datadogIndividualClient struct {
@@ -60,7 +59,7 @@ func newDatadogFallbackClient(config configComponent.Component, logger logComp.C
 	}
 	for _, e := range endpoints {
 		client := datadog.NewClient(e.APIKey, e.APPKey)
-		client.HttpClient.Transport = httputils.CreateHTTPTransport(config)
+		client.HttpClient = newHTTPClient(config)
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(e.URL)

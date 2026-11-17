@@ -7,6 +7,7 @@ package datadogclientimpl
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"time"
 
@@ -17,6 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+// queryTimeout bounds each request to the Datadog API, including the time to
+// read the response body. Without it a stalled connection blocks the query,
+// and the external metrics refresh that waits for it, indefinitely.
+const queryTimeout = 30 * time.Second
+
+// newHTTPClient returns the HTTP client of a Datadog API client. Each client
+// gets its own: datadog.NewClient uses http.DefaultClient, which has no
+// timeout and is shared with the rest of the process.
+func newHTTPClient(cfg configComponent.Component) *http.Client {
+	return &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfg),
+		Timeout:   queryTimeout,
+	}
+}
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 // datadog.Client struct is defined in gopkg.in/zorkian/go-datadog-api.v2, provides apis of QueryMetrics and GetRateLimitStats
@@ -50,7 +66,7 @@ func newDatadogSingleClient(cfg configComponent.Component, logger logComp.Compon
 	logger.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport(cfg)
+	client.HttpClient = newHTTPClient(cfg)
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 	client.SetBaseUrl(ddEndpoint)

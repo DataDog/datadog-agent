@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Requests to the Datadog API for external metrics now time out after 30 seconds.
+    Before, a stalled connection could block the query indefinitely, and with it
+    the refresh of every external metric. The Datadog client also no longer changes
+    the transport of Go's shared ``http.DefaultClient``.
