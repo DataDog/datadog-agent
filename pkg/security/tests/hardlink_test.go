@@ -218,7 +218,7 @@ func TestHardlinkBusybox(t *testing.T) {
 	defer test.CloseTest()
 
 	// busybox uses hardlinks
-	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	wrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "busybox", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}

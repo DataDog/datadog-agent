@@ -8,9 +8,10 @@ package process
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
-	ttyFallbackEnabled    bool
-	envsResolutionEnabled bool
-	envsWithValue         map[string]bool
+	ttyFallbackEnabled         bool
+	envsResolutionEnabled      bool
+	envsWithValue              map[string]bool
+	ecsTaskIDResolutionEnabled bool
 }
 
 // WithEnvsValue specifies envs with value
@@ -30,6 +31,12 @@ func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
 // WithEnvsResolutionEnabled enables the envs resolution
 func (o *ResolverOpts) WithEnvsResolutionEnabled() *ResolverOpts {
 	o.envsResolutionEnabled = true
+	return o
+}
+
+// WithECSTaskIDResolutionEnabled enables the resolution of the ECS task ID from the cgroup
+func (o *ResolverOpts) WithECSTaskIDResolutionEnabled() *ResolverOpts {
+	o.ecsTaskIDResolutionEnabled = true
 	return o
 }
 
