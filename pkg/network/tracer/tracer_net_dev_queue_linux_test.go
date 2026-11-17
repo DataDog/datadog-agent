@@ -25,6 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -168,13 +169,16 @@ func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFElig
 	})
 }
 
-// tpBTFExpected reports whether the kernel should load tp_btf/net_dev_queue: 5.9+ with kernel BTF, on
-// an architecture whose BPF JIT has exception tables.
+// tpBTFExpected reports whether the kernel should load tp_btf/net_dev_queue. It must on 5.9+ with kernel
+// BTF on amd64 or arm64; older kernels, such as RHEL 8, can have it backported, so the trial decides there.
 func tpBTFExpected(t *testing.T) bool {
 	kv, err := kernel.HostVersion()
 	require.NoError(t, err)
 	_, err = os.Stat("/sys/kernel/btf/vmlinux")
-	return kv >= kernel.VersionCode(5, 9, 0) && err == nil && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64")
+	if kv >= kernel.VersionCode(5, 9, 0) && err == nil && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+		return true
+	}
+	return ddfeatures.SupportsTPBTFProbeMem("net_dev_queue") == nil
 }
 
 // startEchoServer starts a TCP echo server and returns its port.
