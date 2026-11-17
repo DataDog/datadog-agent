@@ -144,7 +144,8 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		return nil, ErrInvalidClusterName
 	}
 	base.RawQuery, base.ForceQuery = "", false
-	reqURL := base.JoinPath("clusters", clusterName).String() //nolint:gosec // G125: clusterName is validated above
+	// #nosec G125 -- clusterName is validated above
+	reqURL := base.JoinPath("clusters", clusterName).String() //nolint:gosec // G125, see above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
 	// and one more attempt after a transport error, a 429 or a 5xx when there is time left. The rest
