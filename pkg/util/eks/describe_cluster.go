@@ -224,7 +224,7 @@ func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (
 		return nil, &transportError{fmt.Errorf("read DescribeCluster response: %w", err)}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, parseAPIError(resp, body)
+		return nil, parseAPIError(resp.StatusCode, resp.Header, body)
 	}
 
 	out := &describeClusterOutput{}
@@ -267,7 +267,7 @@ func (c *signedDescribeClusterClient) correctClockSkew(apiErr *apiError) bool {
 // X-Amzn-ErrorType header first, then from the code or __type body field (matched without case,
 // like the SDK's JSON decoder), sanitized by sanitizeErrorCode. Without any code it is
 // UnknownError, the SDK's default.
-func parseAPIError(resp *http.Response, body []byte) error {
+func parseAPIError(statusCode int, header http.Header, body []byte) error {
 	var payload struct {
 		Code    string `json:"code"`
 		Type    string `json:"__type"`
@@ -275,7 +275,7 @@ func parseAPIError(resp *http.Response, body []byte) error {
 	}
 	_ = json.Unmarshal(body, &payload)
 
-	code := resp.Header.Get("X-Amzn-ErrorType")
+	code := header.Get("X-Amzn-ErrorType")
 	if code == "" {
 		code = payload.Code
 	}
@@ -287,16 +287,16 @@ func parseAPIError(resp *http.Response, body []byte) error {
 		code = "UnknownError"
 	}
 	return &apiError{
-		StatusCode: resp.StatusCode,
+		StatusCode: statusCode,
 		Code:       code,
 		Message:    payload.Message,
-		RequestID:  resp.Header.Get("X-Amzn-RequestId"),
-		serverTime: serverTime(resp),
+		RequestID:  header.Get("X-Amzn-RequestId"),
+		serverTime: serverTime(header),
 	}
 }
 
-func serverTime(resp *http.Response) time.Time {
-	t, err := http.ParseTime(resp.Header.Get("Date"))
+func serverTime(header http.Header) time.Time {
+	t, err := http.ParseTime(header.Get("Date"))
 	if err != nil {
 		return time.Time{}
 	}

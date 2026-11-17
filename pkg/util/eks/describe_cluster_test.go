@@ -277,12 +277,16 @@ func TestDescribeClusterKeepsEndpointPathAndQuery(t *testing.T) {
 }
 
 func TestParseAPIErrorMatchesSDKSanitizing(t *testing.T) {
-	resp := func(header string) *http.Response {
-		r := &http.Response{StatusCode: 400, Header: http.Header{}}
-		if header != "" {
-			r.Header.Set("X-Amzn-ErrorType", header)
+	resp := func(errorType string) (int, http.Header) {
+		header := http.Header{}
+		if errorType != "" {
+			header.Set("X-Amzn-ErrorType", errorType)
 		}
-		return r
+		return http.StatusBadRequest, header
+	}
+	parseErr := func(errorType string, body []byte) error {
+		status, header := resp(errorType)
+		return parseAPIError(status, header, body)
 	}
 	code := func(err error) string {
 		var apiErr *apiError
@@ -290,11 +294,11 @@ func TestParseAPIErrorMatchesSDKSanitizing(t *testing.T) {
 		return apiErr.ErrorCode()
 	}
 	// The SDK keeps the text before the first ':' and then after the first '#'.
-	assert.Equal(t, "InvalidParameterException", code(parseAPIError(resp("InvalidParameterException:http://x/"), nil)))
-	assert.Equal(t, "Outer#Inner", code(parseAPIError(resp("ns#Outer#Inner"), nil)))
-	assert.Equal(t, "ResourceNotFoundException", code(parseAPIError(resp(""), []byte(`{"code":"com.amazonaws.eks#ResourceNotFoundException"}`))))
+	assert.Equal(t, "InvalidParameterException", code(parseErr("InvalidParameterException:http://x/", nil)))
+	assert.Equal(t, "Outer#Inner", code(parseErr("ns#Outer#Inner", nil)))
+	assert.Equal(t, "ResourceNotFoundException", code(parseErr("", []byte(`{"code":"com.amazonaws.eks#ResourceNotFoundException"}`))))
 	// No code anywhere.
-	assert.Equal(t, "UnknownError", code(parseAPIError(resp(""), []byte(`not json`))))
+	assert.Equal(t, "UnknownError", code(parseErr("", []byte(`not json`))))
 }
 
 func TestResolveEndpointTakesFirstIgnoreConfiguredEndpointsSetting(t *testing.T) {
