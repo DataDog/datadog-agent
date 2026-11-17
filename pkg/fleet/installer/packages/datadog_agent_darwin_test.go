@@ -559,7 +559,7 @@ func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
 	t.Cleanup(func() { stopSurvivingWatchers = originalStop })
 	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 	for _, label := range experimentJobs {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte("leftover"), 0o644))
 	}

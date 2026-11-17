@@ -473,7 +473,7 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 	}
 	stubJobDir(t)
 	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
 	require.Error(t, err)
@@ -492,7 +492,7 @@ func TestRestoreStableClearsTheDeadlineOnceTheStableSetIsBack(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
 
@@ -919,10 +919,10 @@ func TestRevertIsANoopForANewerExperiment(t *testing.T) {
 	deployExperimentConfig(t, dirs)
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	stale, err := deadline.Read()
 	require.NoError(t, err)
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 
 	reverted, err := revertExperimentIfStillPending(context.Background(), configExperimentJobSet(), deadline, stale, "stale exit")
 	require.NoError(t, err)
@@ -967,7 +967,7 @@ func TestWatcherRevertWaitsForARunningInstallerCommand(t *testing.T) {
 	release := holdInstallerLock(t, stubConfigExperimentLock(t))
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1009,7 +1009,7 @@ func TestWatcherRevertTakesTheInstallerLock(t *testing.T) {
 	lockPath := stubConfigExperimentLock(t)
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1039,10 +1039,10 @@ func TestWatcherStopsWaitingWhenTheExperimentIsReplaced(t *testing.T) {
 	t.Cleanup(func() { installerLockPoll = original })
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	stale, err := deadline.Read()
 	require.NoError(t, err)
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 
 	reverted, err := revertFromWatcher(context.Background(), deadline, stale, "stale exit")
 	require.NoError(t, err)
@@ -1155,7 +1155,7 @@ func TestHandBackLeavesTheDaemonToANewerExperiment(t *testing.T) {
 	stubJobDir(t)
 	stubDeadlinePath(t)
 	stubConfigExperimentLock(t)
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	require.NoError(t, handBackInstaller(context.Background()))
 	assert.Empty(t, *calls, "the hand-back touched launchd during a newer experiment")
@@ -1174,7 +1174,7 @@ func TestHandOverWaitsForTheInstallerCommandThenStartsTheExperimentDaemon(t *tes
 	t.Cleanup(func() { installerLockPoll = original })
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1224,7 +1224,7 @@ func TestHandOverIsANoopWhenTheExperimentIsOver(t *testing.T) {
 	stubConfigExperimentLock(t)
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 	require.NoError(t, deadline.Clear())
@@ -1244,7 +1244,7 @@ func TestHandOverRevertsEverythingWhenTheSwapFails(t *testing.T) {
 	deployExperimentConfig(t, dirs)
 
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1468,7 +1468,7 @@ func TestHandOverStopsTheDaemonWithTheLockReleased(t *testing.T) {
 	stubJobDir(t)
 	stubDeadlinePath(t)
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1507,7 +1507,7 @@ func TestHandOverHandsBackAnExperimentStoppedDuringTheSwap(t *testing.T) {
 		require.NoError(t, deadline.Clear())
 	})
 	stubJobDir(t)
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1534,7 +1534,7 @@ func TestHandOverWaitsForTheExperimentDaemonToLaunchTheWatcher(t *testing.T) {
 	}
 	t.Cleanup(func() { handOverWatcherPoll, watcherRunning = originalPoll, originalRunning })
 	deadline := experimentDeadline()
-	require.NoError(t, deadline.Write(time.Hour))
+	require.NoError(t, deadline.Write(configExperimentDeadlineWindow))
 	token, err := deadline.Read()
 	require.NoError(t, err)
 
@@ -1558,7 +1558,7 @@ func TestInstallerHandOverRevertsWhenNoWatcherAppears(t *testing.T) {
 	originalTimeout, originalPoll := handOverWatcherTimeout, handOverWatcherPoll
 	handOverWatcherTimeout, handOverWatcherPoll = 30*time.Millisecond, time.Millisecond
 	t.Cleanup(func() { handOverWatcherTimeout, handOverWatcherPoll = originalTimeout, originalPoll })
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	err := runInstallerHandOver(context.Background())
 	require.Error(t, err)
@@ -1607,7 +1607,7 @@ func TestInstallerHandOverRevertsAtOnceWhenTheExperimentDaemonExits(t *testing.T
 	originalTimeout := handOverWatcherTimeout
 	handOverWatcherTimeout = time.Hour
 	t.Cleanup(func() { handOverWatcherTimeout = originalTimeout })
-	require.NoError(t, experimentDeadline().Write(time.Hour))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
 	start := time.Now()
 	err := runInstallerHandOver(context.Background())
