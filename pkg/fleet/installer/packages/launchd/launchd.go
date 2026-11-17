@@ -353,8 +353,10 @@ func exitCode(err error) (int, bool) {
 }
 
 var (
-	pidRe  = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
-	exitRe = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\s*$`)
+	pidRe = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
+	// exitRe matches the recorded exit code. launchd appends the sysexits name to codes 64-78
+	// ("last exit code = 78: EX_CONFIG"), so anything after the number is allowed.
+	exitRe = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\b.*$`)
 	// signalRe matches a job launchd recorded as killed by a signal, which it prints instead of an
 	// exit code: "last terminating signal = Killed: 9".
 	signalRe = regexp.MustCompile(`(?m)^\s*last terminating signal\s*=\s*.*:\s*(\d+)\s*$`)
