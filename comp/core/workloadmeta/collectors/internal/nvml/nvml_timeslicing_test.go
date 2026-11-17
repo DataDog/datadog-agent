@@ -305,7 +305,32 @@ func TestCreateContainerGPUEventsPublishesTimeSlices(t *testing.T) {
 	require.Len(t, events, 1, "one event for the one time-sliced container")
 	container, ok := events[0].Entity.(*workloadmeta.Container)
 	require.True(t, ok)
-	assert.Equal(t, []string{testutil.GPUUUIDs[0]}, container.GPUDeviceIDs, "the base GPU UUID, without the replica suffix")
+	assert.Empty(t, container.GPUDeviceIDs, "replicas are resolved from the kubelet allocation, not the mapping")
 	want := map[string]int{testutil.GPUUUIDs[0]: 1}
 	assert.Equal(t, want, container.GPUDeviceReplicas)
+}
+
+func TestCreateContainerGPUEventsKeepsReplicasOutOfTheDRAMapping(t *testing.T) {
+	// A container holding a replica and a DRA GPU whose CDI resolution
+	// fails. GPU attribution counts the GPUDeviceIDs as resolved DRA devices,
+	// so publishing the replica's base UUID there would make the DRA
+	// allocation look resolved and drop its GPU.
+	nvmltestutil.SetupMockNVML(t, testutil.WithDeviceCount(2))
+	store := testutil.GetWorkloadMetaMock(t)
+	container := timeSlicedContainer("mixed", allocatedResource{string(gpuutil.GpuNvidiaGeneric), testutil.GPUUUIDs[0] + "::1"})
+	container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, workloadmeta.ContainerAllocatedResource{
+		Name:       nvidiaDRADriver,
+		ID:         "gpu-1",
+		CdiDevices: []string{"k8s.gpu.nvidia.com/unresolvable"},
+	})
+	store.Set(container)
+	c := newTimeSliceCollector(store, timeSlicedGPUTestLabels())
+
+	events := c.createContainerGPUEvents(nil, kaiFractions{}, c.resolveTimeSlices(t.Context()))
+
+	require.Len(t, events, 1)
+	published, ok := events[0].Entity.(*workloadmeta.Container)
+	require.True(t, ok)
+	assert.Empty(t, published.GPUDeviceIDs, "the unresolved DRA GPU leaves the mapping empty")
+	assert.Equal(t, map[string]int{testutil.GPUUUIDs[0]: 1}, published.GPUDeviceReplicas)
 }

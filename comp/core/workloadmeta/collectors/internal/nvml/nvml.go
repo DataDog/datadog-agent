@@ -682,14 +682,6 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 				uuids = append(uuids, uuid)
 			}
 		}
-		// A replica holder sees its whole base device. These UUIDs come
-		// straight from the kubelet allocation, so they never make the
-		// mapping partial.
-		for _, uuid := range slices.Sorted(maps.Keys(timeSlices.byContainer[container.ID])) {
-			if !slices.Contains(uuids, uuid) {
-				uuids = append(uuids, uuid)
-			}
-		}
 		if _, incomplete := kai.partial[container.ID]; incomplete {
 			// The pod shares more GPUs than this pull could resolve. Fall into
 			// the same guard the DRA path uses below, so that the smaller set
@@ -697,7 +689,12 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 			allResolved = false
 		}
 
-		if len(uuids) == 0 {
+		// Shared replicas are not merged into the UUIDs: GPU attribution
+		// resolves them from the kubelet allocation, and counts the UUIDs as
+		// resolved DRA devices, so a replica would hide an unresolved DRA
+		// allocation of the same container.
+		replicas := timeSlices.byContainer[container.ID]
+		if len(uuids) == 0 && len(replicas) == 0 {
 			continue
 		}
 		if !allResolved {
@@ -739,7 +736,7 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 				// to the container whole. Shared replicas carry their own
 				// allocation info, from the kubelet-allocated IDs.
 				GPUShares:         kai.sharesByContainer[container.ID],
-				GPUDeviceReplicas: timeSlices.byContainer[container.ID],
+				GPUDeviceReplicas: replicas,
 			},
 		})
 		published[container.ID] = uuids
