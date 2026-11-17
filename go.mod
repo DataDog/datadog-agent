@@ -226,7 +226,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.4
-	github.com/Microsoft/hcsshim v0.15.0-rc.4
+	github.com/Microsoft/hcsshim v0.15.0
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/acobaugh/osrelease v0.1.0
@@ -259,7 +259,7 @@ require (
 	github.com/cloudfoundry/go-cfclient/v3 v3.0.0-beta.1
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.3.5
+	github.com/containerd/containerd/v2 v2.3.6
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.1
