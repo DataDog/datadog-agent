@@ -22,7 +22,10 @@ dd_agent_go_test(
     embed = [":api"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/proto/pbgo/core",
         "@com_github_coreos_go_semver//semver",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
     ],
 )

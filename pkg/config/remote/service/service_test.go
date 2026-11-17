@@ -1674,3 +1674,18 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	assert.NotNil(t, service)
 	service.Stop()
 }
+
+func TestNewServiceUsesInjectedAPI(t *testing.T) {
+	client := &mockAPI{}
+	client.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{Enabled: true, Authorized: true}, nil).Once()
+	service, err := NewService(configmock.New(t), "embedding", "https://unused.invalid", "test-host", nil,
+		&telemetryReporter{}, agentVersion, WithAPIKey("embedding-key"), WithAPIClient(client),
+		uptaneFactoryOption(&mockCoreAgentUptane{}))
+	require.NoError(t, err)
+	service.orgStatusPoller.poll(service.api, "embedding", service.status)
+	status := service.orgStatusPoller.getPreviousStatus()
+	require.NotNil(t, status)
+	require.True(t, status.Enabled)
+	require.True(t, status.Authorized)
+	client.AssertExpectations(t)
+}

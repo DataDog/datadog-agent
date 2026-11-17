@@ -75,8 +75,16 @@ type HTTPClient struct {
 	header     http.Header
 }
 
+// HTTPClientOption configures the backend API client.
+type HTTPClientOption func(*HTTPClient)
+
+// WithHTTPClient supplies an HTTP client owned and configured by the caller.
+func WithHTTPClient(client *http.Client) HTTPClientOption {
+	return func(c *HTTPClient) { c.client = client }
+}
+
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, error) {
+func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL, options ...HTTPClientOption) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
 	}
@@ -112,11 +120,18 @@ func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, 
 	if transport.TLSClientConfig.InsecureSkipVerify && !cfg.GetBool("remote_configuration.no_tls_validation") {
 		return nil, errors.New("remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection")
 	}
-	return &HTTPClient{
+	client := &HTTPClient{
 		client:  httpClient,
 		header:  header,
 		baseURL: baseURL.String(),
-	}, nil
+	}
+	for _, option := range options {
+		option(client)
+	}
+	if client.client == nil {
+		return nil, errors.New("HTTP client must not be nil")
+	}
+	return client, nil
 }
 
 // Fetch remote configuration

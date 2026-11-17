@@ -16,8 +16,11 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func TestUserAgent(t *testing.T) {
@@ -68,4 +71,31 @@ func TestUserAgent(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("timeout waiting for user agent string")
 	}
+}
+
+func TestWithHTTPClientUsesCallerTLSConfiguration(t *testing.T) {
+	want := &pbgo.OrgDataResponse{Uuid: "test-org"}
+	body, err := proto.Marshal(want)
+	require.NoError(t, err)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, []string{"collector-secret"}, r.Header.Values("DD-API-KEY"))
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(server.Close)
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	supplied := server.Client()
+	t.Cleanup(supplied.CloseIdleConnections)
+	client, err := NewHTTPClient(Auth{APIKey: "collector-secret"}, mock.New(t), endpoint, WithHTTPClient(supplied))
+	require.NoError(t, err)
+	got, err := client.FetchOrgData(t.Context())
+	require.NoError(t, err)
+	require.True(t, proto.Equal(want, got))
+}
+
+func TestWithHTTPClientRejectsNil(t *testing.T) {
+	endpoint, err := url.Parse("https://config.datadoghq.com")
+	require.NoError(t, err)
+	_, err = NewHTTPClient(Auth{}, mock.New(t), endpoint, WithHTTPClient(nil))
+	require.ErrorContains(t, err, "HTTP client must not be nil")
 }
