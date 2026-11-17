@@ -2273,3 +2273,21 @@ func TestSendLinkStatusMetricsBucketsAndDedupe(t *testing.T) {
 	s.SendLinkStatusMetrics("tenant-1", status, nil)
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2)
 }
+
+func TestSendTunnelMetricsBucketsAndDedupe(t *testing.T) {
+	TimeNow = mockTimeNow
+	const start = int64(1704067200000)
+	tunnels := []client.TunnelMetrics{
+		{DrillKey: "appliance-001,10.0.0.1", Appliance: "appliance-001", LocalIP: "10.0.0.1", RemoteIP: "10.1.0.1", VpnProfName: "profile-a", VolumeTx: 5, Timestamp: start},
+	}
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s := NewSender(mockSender, "default")
+
+	s.SendTunnelMetrics("tenant-1", tunnels, nil)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", versaMetricPrefix+"tunnel.volume_tx", 5.0, "", mock.Anything, float64(start)/1000)
+	s.SendTunnelMetrics("tenant-1", tunnels, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2)
+	s.SendTunnelMetrics("tenant-2", tunnels, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 4)
+}

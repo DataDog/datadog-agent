@@ -386,3 +386,47 @@ func TestWarnLimiterHoldsAcrossClients(t *testing.T) {
 	assert.Equal(t, 1, warnings)
 	assert.Equal(t, 1, debugs)
 }
+
+var tunnelMetricNames = []string{"volume-tx", "volume-rx"}
+
+func tunnelTableRow(key, appliance, local, peer, profile string) []any {
+	return []any{key, appliance, local, peer, profile, 9.0, 9.0}
+}
+
+func TestGetTunnelMetricsTimeseriesJoinsAttributes(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "tunnelstats(",
+		tableBody(t, [][]any{
+			tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.1", "profile-a"),
+			// Two tunnels sharing an appliance and local IP: their attributes conflict.
+			tunnelTableRow("appliance-002,10.0.0.2", "appliance-002", "10.0.0.2", "10.1.0.2", "profile-a"),
+			tunnelTableRow("appliance-002,10.0.0.2", "appliance-002", "10.0.0.2", "10.1.0.3", "profile-b"),
+		}),
+		timeseriesBody(t, []string{"appliance-001,10.0.0.1", "appliance-002,10.0.0.2"}, tunnelMetricNames, 100), counts)
+
+	metrics, err := client.GetTunnelMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+	// Values keep the requested metric order, so they land in the same fields as for
+	// tableData.
+	assert.Equal(t, TunnelMetrics{
+		DrillKey: "appliance-001,10.0.0.1", Appliance: "appliance-001", LocalIP: "10.0.0.1",
+		RemoteIP: "10.1.0.1", VpnProfName: "profile-a",
+		VolumeRx: 100, VolumeTx: 110, Timestamp: bandwidthBuckets[0],
+	}, metrics[0])
+	assert.Equal(t, bandwidthBuckets[1], metrics[1].Timestamp)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+}
+
+func TestTunnelTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "tunnelstats(",
+		tableBody(t, [][]any{tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.1", "profile-a")}),
+		timeseriesBody(t, []string{"appliance-001,10.0.0.1,10.1.0.1,profile-a"}, tunnelMetricNames, 100), counts)
+
+	metrics, err := client.GetTunnelMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Zero(t, metrics[0].Timestamp)
+	assert.Equal(t, "10.1.0.1", metrics[0].RemoteIP)
+}

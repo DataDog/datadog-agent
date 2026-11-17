@@ -41,6 +41,7 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "interface", fixture: fixtures.GetAnalyticsInterfaceMetrics, layout: interfaceTimeseriesLayout, metricCount: 8, parserWidth: 12},
 		{name: "link status", fixture: fixtures.GetLinkStatusMetrics, layout: linkStatusTimeseriesLayout, metricCount: 1, parserWidth: 4},
 		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
+		{name: "tunnel", fixture: fixtures.GetTunnelMetrics, layout: tunnelTimeseriesLayout, metricCount: 2, parserWidth: 7},
 		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
 

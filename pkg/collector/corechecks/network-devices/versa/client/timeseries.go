@@ -69,6 +69,11 @@ var (
 	// usage(site,accckt,accckt.ip): keyed on site,accckt,ip in tableData; site, accckt and
 	// ip are still taken from tableData so a differently ordered key cannot mislabel them.
 	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, attributeColumns: 3, strictKeyParts: true}
+	// tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName): keyed on
+	// appliance,ipsecLocalIp in tableData, so the peer IP and VPN profile come from
+	// tableData. Tunnels sharing an appliance and local IP but with different peers have
+	// conflicting attributes and are skipped.
+	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true}
 )
 
 // keyPartsMismatch returns the first series name that does not split into the layout's
