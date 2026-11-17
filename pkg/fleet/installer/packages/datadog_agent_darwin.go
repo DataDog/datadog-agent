@@ -353,14 +353,15 @@ func postInstallDMG(ctx HookContext) error {
 
 // collapseConfigExperiment discards whatever is left of a configuration experiment before the
 // install, so running the post-install twice is harmless: it stops a surviving watcher, which would
-// read the experiment going away as a crash and revert on top of the install, and clears the
+// read the experiment going away as a crash and revert on top of the install, and any hand-over or
+// hand-back still pending, which would swap the installer daemon under the install, and clears the
 // deadline, so the next daemon does not resume it. setUpDMGInstall then discards the experiment
 // configuration (restExperimentConfig), and unloadExperimentJobs its jobs.
 //
 // The .dmg's preinstall script already does this on an upgrade; this repeats it for a host it did
 // not run on or did not finish on. Every step is allowed to fail.
 func collapseConfigExperiment(ctx HookContext) {
-	if err := stopSurvivingWatchers(ctx); err != nil {
+	if err := stopSurvivingHelpers(ctx); err != nil {
 		log.Warnf("could not stop a surviving experiment watcher: %v", err)
 	}
 	if err := experimentDeadline().Clear(); err != nil {
