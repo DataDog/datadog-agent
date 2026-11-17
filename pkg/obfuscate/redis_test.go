@@ -714,6 +714,18 @@ func TestRedisObfuscator(t *testing.T) {
 			"ZRANGE key bylex bylex",
 		},
 		{
+			"XADD stream KEEPREF * field value",
+			"XADD stream KEEPREF * field ?",
+		},
+		{
+			"xadd stream nomkstream delref maxlen ~ 10 * f1 v1 f2 v2",
+			"xadd stream nomkstream delref maxlen ~ 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD stream ACKED MINID 0 * field value",
+			"XADD stream ACKED MINID 0 * field ?",
+		},
+		{
 			`
 CONFIG command
 SET k v

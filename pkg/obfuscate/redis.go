@@ -243,12 +243,12 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 
 	case "XADD":
 		// Every 2nd argument after the entry ID, skipping potential optional ones.
-		// • XADD key [NOMKSTREAM] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
+		// • XADD key [NOMKSTREAM] [KEEPREF|DELREF|ACKED] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
 		i := 1
 	xaddOptions:
 		for i < len(args) {
 			switch strings.ToUpper(args[i]) {
-			case "NOMKSTREAM":
+			case "NOMKSTREAM", "KEEPREF", "DELREF", "ACKED":
 				i++
 			case "MAXLEN", "MINID":
 				i++
