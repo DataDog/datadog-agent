@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -470,4 +472,29 @@ func (f *flakyHTTPClient) Do(r *http.Request) (*http.Response, error) {
 		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 	}
 	return http.DefaultClient.Do(r)
+}
+
+func TestResolveEndpointFromSharedConfigServicesSection(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "config")
+	require.NoError(t, os.WriteFile(configFile, []byte(`[profile eks-test]
+region = us-west-2
+services = custom
+
+[services custom]
+eks =
+  endpoint_url = https://shared-config.example
+`), 0o600))
+	t.Setenv("AWS_CONFIG_FILE", configFile)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(dir, "credentials"))
+	t.Setenv("AWS_PROFILE", "eks-test")
+	t.Setenv("AWS_ENDPOINT_URL", "")
+	t.Setenv("AWS_ENDPOINT_URL_EKS", "")
+	t.Setenv("AWS_REGION", "")
+
+	cfg, err := awsconfig.LoadDefaultConfig(t.Context())
+	require.NoError(t, err)
+	got, err := resolveEndpoint(t.Context(), cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "https://shared-config.example", got)
 }

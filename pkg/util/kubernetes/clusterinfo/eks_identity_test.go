@@ -232,38 +232,38 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T
 }
 
 func TestGetClusterAgentEKSIdentityTagsWithRetryReusesSuccess(t *testing.T) {
-	original := getEKSClusterIdentity
-	t.Cleanup(func() { getEKSClusterIdentity = original })
-	resetStartupIdentity(t)
-	release := make(chan struct{})
-	var calls int
-	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-		calls++
-		<-release
-		return ordersIdentity, nil
-	}
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		release := make(chan struct{})
+		var calls int
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			<-release
+			return ordersIdentity, nil
+		}
 
-	results := make([][]string, 3)
-	var wg sync.WaitGroup
-	for i := range results {
-		wg.Go(func() {
-			tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-			assert.NoError(t, err)
-			results[i] = tags
-		})
-	}
-	close(release)
-	wg.Wait()
+		results := make([][]string, 3)
+		var wg sync.WaitGroup
+		for i := range results {
+			wg.Go(func() {
+				tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+				assert.NoError(t, err)
+				results[i] = tags
+			})
+		}
+		// Every caller is now either inside the one lookup or waiting for it.
+		synctest.Wait()
+		assert.Equal(t, 1, calls, "concurrent callers share one lookup")
+		close(release)
+		wg.Wait()
 
-	assert.Equal(t, 1, calls)
-	for _, tags := range results {
-		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
-	}
-
-	results[0][0] = "mutated"
-	tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-	require.NoError(t, err)
-	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
+		assert.Equal(t, 1, calls)
+		for _, tags := range results {
+			assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
+		}
+	})
 }
 
 func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
