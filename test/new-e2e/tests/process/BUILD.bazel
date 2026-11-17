@@ -42,7 +42,6 @@ go_library(
     ],
 )
 
-# gazelle:exclude testing_test.go
 dd_agent_go_test(
     name = "process_test",
     srcs = [
@@ -52,6 +51,7 @@ dd_agent_go_test(
         "infra_mode_test.go",
         "k8s_test.go",
         "linux_test.go",
+        "testing_test.go",
         "windows_test.go",
     ],
     data = [
@@ -101,17 +101,5 @@ dd_agent_go_test(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes",
-    ],
-)
-
-dd_agent_go_test(
-    name = "testing_test",
-    srcs = ["testing_test.go"],
-    embed = [":process"],
-    deps = [
-        "//test/fakeintake/aggregator",
-        "@com_github_datadog_agent_payload_v5//process",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )
