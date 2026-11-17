@@ -98,6 +98,8 @@
     E2E_IMAGE_PULL_USERNAME: AWS,_json_key
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
+    PULUMI_SKIP_CHECKPOINTS: "true"
+    PULUMI_DIY_BACKEND_DISABLE_CHECKPOINT_BACKUPS: "true"
   script:
     - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS

@@ -70,7 +70,6 @@
 /CHANGELOG-DCA.rst                              @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst                    @DataDog/agent-delivery
 /*.md                                           @DataDog/agent-devx
-/CHANGELOG-AIX.md                               @DataDog/agent-runtimes
 /AGENTS.md                                      @DataDog/agent-devx
 /CLAUDE.md                                      @DataDog/agent-devx
 /NOTICE                                         @DataDog/agent-delivery
@@ -889,6 +888,7 @@
 /pkg/util/prometheus                                                  @DataDog/container-integrations
 /pkg/util/quantile/                                                   @DataDog/opentelemetry-agent
 /pkg/util/tags/                                                       @DataDog/container-platform
+/pkg/util/telemetry/                                                  @DataDog/fleet-remediation
 /pkg/util/tmplvar/                                                    @DataDog/container-platform
 /pkg/util/trivy/                                                      @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                                                       @DataDog/agent-runtimes
