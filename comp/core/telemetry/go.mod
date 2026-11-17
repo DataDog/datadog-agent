@@ -5,7 +5,7 @@ go 1.21.9
 replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.2-rc.19.0.20261112132505-188d35bb5f54
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.2-rc.19.0.20261112165249-a030ddec33b0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
 	github.com/stretchr/testify v1.10.0
