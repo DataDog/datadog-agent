@@ -1,0 +1,27 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+  datadog:
+    api:
+      key: exporter-key
+      site: datadoghq.com
+
+extensions:
+  datadog:
+    hostname: test-host
+  dogtel/dd-autoconfigured:
+
+service:
+  extensions: [datadog, dogtel/dd-autoconfigured]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]
