@@ -172,6 +172,7 @@ func TestGetClusterIdentityThroughSignedClient(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	resetIdentityCache(t)
 	origLoad := loadAWSConfig
 	t.Cleanup(func() { loadAWSConfig = origLoad })
 	loadAWSConfig = func(context.Context) (aws.Config, error) { return testAWSConfig(srv.URL), nil }

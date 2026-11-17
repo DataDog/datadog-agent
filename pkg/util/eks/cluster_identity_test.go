@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 type mockEKSClient struct {
@@ -114,8 +116,17 @@ func TestGetClusterIdentityAcceptsNumericPrefix(t *testing.T) {
 	assert.True(t, clusterNamePattern.MatchString("123-orders"))
 }
 
-func stubAWS(t *testing.T, client *mockEKSClient) {
+// resetIdentityCache drops every cached resolution, so a test (or a -count>1 rerun) never sees
+// a result cached by an earlier one.
+func resetIdentityCache(t *testing.T) {
 	t.Helper()
+	cache.Cache.Flush()
+	t.Cleanup(cache.Cache.Flush)
+}
+
+func stubAWS(t *testing.T, client describeClusterAPI) {
+	t.Helper()
+	resetIdentityCache(t)
 	origLoad, origNew := loadAWSConfig, newDescribeClusterAPI
 	t.Cleanup(func() { loadAWSConfig, newDescribeClusterAPI = origLoad, origNew })
 	loadAWSConfig = func(context.Context) (aws.Config, error) { return aws.Config{Region: "us-west-2"}, nil }
