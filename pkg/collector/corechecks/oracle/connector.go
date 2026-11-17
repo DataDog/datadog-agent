@@ -110,12 +110,9 @@ type cancelableGoOraConn struct {
 	sockets []net.Conn
 }
 
-// go-ora v2.9.0 stops watching QueryContext before later Next calls. Own
-// cancellation through Rows.Close, interrupting the socket instead of invoking
-// driver.Close concurrently with a read. Do not run its asynchronous break
-// watcher as well: it is not joined by EndContext and can outlive the operation.
-// Closing the transport interrupts client I/O; it does not establish when Oracle
-// finishes the abandoned operation. Recovery disposes of the affected pool.
+// go-ora stops watching for cancellation before all rows are fetched.
+// Keep our watcher active until rows are closed, so deadlines can interrupt
+// blocked reads.
 func (c *cancelableGoOraConn) watch(ctx context.Context) func() {
 	done := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
