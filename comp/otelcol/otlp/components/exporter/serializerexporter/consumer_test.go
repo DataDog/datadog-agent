@@ -529,6 +529,9 @@ func TestInvalidExplicitHistogram(t *testing.T) {
 		{name: "NaN", bounds: []float64{math.NaN()}, counts: []uint64{1, 2}, invalid: true},
 		{name: "+Inf", bounds: []float64{1, math.Inf(1)}, counts: []uint64{1, 2, 3}, invalid: true},
 		{name: "-Inf", bounds: []float64{math.Inf(-1), 1}, counts: []uint64{1, 2, 3}, invalid: true},
+		{name: "bucket count at limit", bounds: []float64{1}, counts: []uint64{1, math.MaxInt32}},
+		{name: "bucket count above limit", bounds: []float64{1}, counts: []uint64{1, math.MaxInt32 + 1}, invalid: true},
+		{name: "single bucket above limit", bounds: nil, counts: []uint64{math.MaxUint64}, invalid: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -574,6 +577,20 @@ func TestInvalidExponentialHistogram(t *testing.T) {
 		}, invalid: true},
 		{name: "+Inf zero threshold", set: func(p pmetric.ExponentialHistogramDataPoint) {
 			p.SetZeroThreshold(math.Inf(1))
+		}, invalid: true},
+		{name: "counts at limit", set: func(p pmetric.ExponentialHistogramDataPoint) {
+			p.SetZeroCount(math.MaxInt32)
+			p.Positive().BucketCounts().FromRaw([]uint64{math.MaxInt32})
+			p.Negative().BucketCounts().FromRaw([]uint64{math.MaxInt32})
+		}},
+		{name: "zero count above limit", set: func(p pmetric.ExponentialHistogramDataPoint) {
+			p.SetZeroCount(math.MaxInt32 + 1)
+		}, invalid: true},
+		{name: "positive count above limit", set: func(p pmetric.ExponentialHistogramDataPoint) {
+			p.Positive().BucketCounts().FromRaw([]uint64{1, math.MaxInt32 + 1})
+		}, invalid: true},
+		{name: "negative count above limit", set: func(p pmetric.ExponentialHistogramDataPoint) {
+			p.Negative().BucketCounts().FromRaw([]uint64{math.MaxInt32 + 1})
 		}, invalid: true},
 	}
 	for _, tt := range tests {

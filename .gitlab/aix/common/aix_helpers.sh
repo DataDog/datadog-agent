@@ -42,7 +42,7 @@ aix_refresh_github_token() {
     now=$(date +%s)
     if [ -z "${AIX_GITHUB_TOKEN_MINTED_AT:-}" ] \
         || [ $((now - AIX_GITHUB_TOKEN_MINTED_AT)) -ge "$AIX_GITHUB_TOKEN_MAX_AGE" ]; then
-        if new_token=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read 2>/dev/null) \
+        if new_token=$(dd-octo-sts token --scope "${CI_PROJECT_PATH}" --policy self.gitlab.read 2>/dev/null) \
             && [ -n "$new_token" ]; then
             export GITHUB_TOKEN="$new_token"
             export AIX_GITHUB_TOKEN_MINTED_AT="$now"
