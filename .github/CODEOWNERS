@@ -867,6 +867,7 @@
 /pkg/util/ddot/                                                       @DataDog/opentelemetry-agent
 /pkg/util/docker/                                                     @DataDog/container-integrations
 /pkg/util/ecs/                                                        @DataDog/ecs-experiences
+/pkg/util/eks/                                                        @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/fargate/                                                    @DataDog/ecs-experiences
 /pkg/util/filesystem/                                                 @DataDog/agent-runtimes
 /pkg/util/filesystem/rights_*.go                                      @DataDog/fleet-automation
