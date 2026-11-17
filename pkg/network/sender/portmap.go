@@ -35,7 +35,7 @@ var (
 // fetchService, which is invoked sequentially by the direct sender.
 func getListeningPortToPIDMap() map[listenKey]int32 {
 	portPollerOnce.Do(func() {
-		portPoller = &portlist.Poller{IncludeLocalhost: true, TCPOnly: true, TCPListeners: sockdiag.TCPListeners}
+		portPoller = portlist.NewTCPPoller(true, sockdiag.TCPListeners)
 	})
 
 	ports, changed, err := portPoller.Poll()

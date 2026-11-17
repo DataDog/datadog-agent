@@ -6,7 +6,7 @@
 //go:build linux
 
 // Package sockdiag lists TCP listening sockets with a netlink sock_diag dump,
-// for use as portlist.Poller.TCPListeners.
+// for use as the source passed to portlist.NewTCPPoller.
 package sockdiag
 
 import (

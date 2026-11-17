@@ -35,11 +35,7 @@ func TestTCPListenersReplaceProcNet(t *testing.T) {
 	for _, includeLocalhost := range []bool{true, false} {
 		t.Run(fmt.Sprintf("includeLocalhost=%v", includeLocalhost), func(t *testing.T) {
 			ls := src
-			p := &Poller{
-				IncludeLocalhost: includeLocalhost,
-				TCPOnly:          true,
-				TCPListeners:     func() ([]TCPListener, error) { return ls, nil },
-			}
+			p := NewTCPPoller(includeLocalhost, func() ([]TCPListener, error) { return ls, nil })
 			got, _, err := p.Poll()
 			if err != nil {
 				t.Fatal(err)
@@ -68,7 +64,7 @@ func TestTCPListenersReplaceProcNet(t *testing.T) {
 	}
 }
 
-func TestTCPOnlyFallsBackToProcNet(t *testing.T) {
+func TestTCPPollerFallsBackToProcNet(t *testing.T) {
 	l, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +85,7 @@ func TestTCPOnlyFallsBackToProcNet(t *testing.T) {
 
 	var diff string
 	for attempt := 0; attempt < 5; attempt++ {
-		got, _, err := (&Poller{IncludeLocalhost: true, TCPOnly: true, TCPListeners: failing}).Poll()
+		got, _, err := NewTCPPoller(true, failing).Poll()
 		if err != nil {
 			t.Fatal(err)
 		}

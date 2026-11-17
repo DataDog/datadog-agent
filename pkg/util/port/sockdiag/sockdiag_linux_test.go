@@ -241,13 +241,13 @@ func dumpByInode(t *testing.T) map[string]portlist.TCPListener {
 	return out
 }
 
-// pollList runs one TCPOnly poll, via sock_diag or /proc/net only.
+// pollList runs one TCP-only poll, via sock_diag or /proc/net only.
 func pollList(t *testing.T, includeLocalhost, useSockDiag bool) []string {
 	t.Helper()
-	p := &portlist.Poller{IncludeLocalhost: includeLocalhost, TCPOnly: true}
+	var src func() ([]portlist.TCPListener, error)
 	if useSockDiag {
 		resetSockDiagLatch(t)
-		p.TCPListeners = func() ([]portlist.TCPListener, error) {
+		src = func() ([]portlist.TCPListener, error) {
 			ls, err := TCPListeners()
 			if err != nil {
 				t.Fatalf("sock_diag dump failed: %v", err)
@@ -255,6 +255,7 @@ func pollList(t *testing.T, includeLocalhost, useSockDiag bool) []string {
 			return ls, nil
 		}
 	}
+	p := portlist.NewTCPPoller(includeLocalhost, src)
 	ports, _, err := p.Poll()
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
@@ -761,9 +762,12 @@ func BenchmarkTCPListeners(b *testing.B) {
 			for _, mode := range []string{"procfs-all", "procfs-tcp", "sockdiag"} {
 				b.Run("mode="+mode, func(b *testing.B) {
 					setTCPDiagPresent(b, true)
-					p := &portlist.Poller{IncludeLocalhost: true, TCPOnly: mode != "procfs-all"}
-					if mode == "sockdiag" {
-						p.TCPListeners = TCPListeners
+					p := &portlist.Poller{IncludeLocalhost: true}
+					switch mode {
+					case "procfs-tcp":
+						p = portlist.NewTCPPoller(true, nil)
+					case "sockdiag":
+						p = portlist.NewTCPPoller(true, TCPListeners)
 					}
 					// Warm the inode cache so the loop measures enumeration only.
 					if _, _, err := p.Poll(); err != nil {
