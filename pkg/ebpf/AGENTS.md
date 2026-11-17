@@ -9,8 +9,9 @@ How to test a change to system-probe or eBPF code, and what you may claim afterw
 Run `uname -sm` before planning any testing. Results only hold for the OS, kernel, and architecture they
 ran on.
 
-- **Linux and eBPF code needs a Linux kernel.** Never load eBPF programs or run `linux_bpf` tests on
-  macOS or Windows.
+- **Linux and eBPF code needs a Linux kernel.** Never load eBPF programs or run `bpf`-tagged tests on
+  macOS or Windows. The tag is `bpf` (`//go:build linux && bpf`), not the old `linux_bpf`; with the old
+  tag a test run reports `[no tests to run]` and exits 0, which looks like a pass.
 - **Windows system-probe code is tested on Windows.** The Windows implementation (`*_windows.go`, the
   network tracer built on the Windows driver) runs its tests natively with `dda inv system-probe.test`;
   macOS can only typecheck it.
@@ -32,14 +33,17 @@ ran on.
   `bazel run --platforms=//bazel/platforms:linux_<x86_64|arm64> //pkg/ebpf/bytecode:tracer_verify`
   writes `tracer.go` (one `<bundle>_verify` target per bundle in `pkg/ebpf/bytecode/BUILD.bazel`).
 - Typechecking proves the Go compiles for Linux. It doesn't compile the eBPF C code or load anything.
+- Building the objects (`system-probe.object-files`) proves the C compiles. The verifier only runs when
+  a program loads, so verifier acceptance needs a load on a real kernel, ideally including the oldest
+  kernel the program targets; clang can, for example, optimize away a bounds mask the verifier needs.
 
 ## Use the lowest layer that proves the claim
 
 | Layer | Proves | Doesn't prove |
 | --- | --- | --- |
-| Any host | Typechecks; Gazelle and buildifier are clean; tests with no Linux build constraint pass | Anything about eBPF or the kernel |
+| Any host | Typechecks; Gazelle and buildifier are clean; tests with no Linux build constraint pass | Anything about eBPF or the kernel. Bazel never runs `bpf`-tagged tests (`bazel/configs/go_tests.bazelrc` filters `tagset_bpf`), so a green `bazel test //pkg/...` says nothing about eBPF code |
 | Linux VM you control | Behavior on that VM's kernel and architecture, in each build mode that kernel supports; verifier output; object disassembly; per-program `bpf_stats` | Other kernels, other architectures, and modes that kernel can't run |
-| KMT in CI | The distro and kernel matrix (old kernels through current), x86_64 and arm64, prebuilt | Cluster-level behavior |
+| KMT in CI | The KMT image kernels (old through recent; see `dda inv kmt.ls`), x86_64 and arm64, in every mode each kernel supports, including prebuilt | Kernels or patch levels not in the images (a distro patch can break a tracer on a kernel the image predates); cluster-level behavior |
 | E2E and manual QA | Behavior in Kubernetes and cloud environments (DaemonSets, service meshes, real intake) | Per-kernel correctness |
 
 - **Linux VM:** build the objects with `dda inv system-probe.object-files`, then run
@@ -47,6 +51,14 @@ ran on.
   - Both tasks need `GOPATH` set.
   - Both use `sudo` to write and read `/opt/datadog-agent`, so a non-interactive session hangs on a
     password prompt; confirm sudo works without one, or ask the user, before starting.
+- **Misleading local results:**
+  - **Stale objects:** tests load objects from `/opt/datadog-agent/embedded/share/system-probe/ebpf`, not
+    from the tree. `file content hash does not match expected value` (runtime) or `couldn't find map ...
+    unknown section` (CO-RE), with every mode failing in under a second, means rebuild the objects, not
+    debug the code.
+  - **Stale test binary:** if new subtests are missing from the output, the binary predates the change.
+  - **Environment through sudo:** `sudo` can reset the environment, so check that `TEST_*_OVERRIDE`
+    variables reach the test (the subtest names show which modes ran).
 - **KMT VMs locally:** `tasks/kernel_matrix_testing/README.md` covers setup, including macOS hosts. It
   pulls build images from Datadog's internal registry, so outside contributors should use any Linux VM
   instead.
@@ -55,24 +67,36 @@ ran on.
 
 ## Build modes and kernels
 
-- **List the modes the change touches** before testing: prebuilt, runtime-compiled, CO-RE, fentry, and
-  ebpfless. Report evidence for each one, or mark it not run. Most mode- and kernel-specific bugs pass
+- **List the modes the change touches** before testing: prebuilt, runtime-compiled, CO-RE, fentry, SK,
+  and ebpfless. These are two axes: the object build (prebuilt, runtime-compiled, CO-RE) and the
+  tracer (kprobe, fentry, SK, ebpfless); fentry and SK are CO-RE builds with a different tracer. Report
+  evidence for each one, or mark it not run. Most mode- and kernel-specific bugs pass
   in every other mode: a CO-RE loader can drop an option the runtime loader keeps, a verifier on an old
   kernel can reject a program a newer one accepts, a runtime compile can fail `-Werror` on one distro's
   headers, and a program can exceed `optmem_max` on one kernel only.
+  - **`optmem_max`:** a socket filter is charged its size after JIT constant blinding, which
+    `net.core.bpf_jit_harden=2` (set on some hardened distros) can nearly double. Size socket filters
+    with `sysctl net.core.bpf_jit_harden=2` as well as the default.
+  - **Runtime `-Werror`:** old kernel headers (CentOS 7's 3.10) don't mark `inline` functions
+    `__maybe_unused`, so a static inline helper that loses its last caller fails the runtime compile
+    there and nowhere else.
 - **Read which modes actually ran.** Tests that call `ebpftest.SupportedBuildModes` (in
   `pkg/ebpf/ebpftest/`) get a per-host list; tests that pass a fixed list run only those modes.
   - Prebuilt is skipped where `prebuilt.IsDeprecated()` is true, unless `TEST_PREBUILT_OVERRIDE=true`.
   - Fentry runs only when the kernel supports it (probed at runtime, since support depends on the patch
     level), never on RHEL 8 based distributions, and never without the `bpf` build tag, unless
     `TEST_FENTRY_OVERRIDE=true`.
-  - Ebpfless runs only with `TEST_EBPFLESS_OVERRIDE=true`.
+  - Ebpfless is added by `SupportedBuildModes` only with `TEST_EBPFLESS_OVERRIDE=true`, but some suites
+    add modes themselves: `TestTracerSuite` always adds ebpfless and adds SK when the kernel supports
+    it, and USM's `testutil.SupportedBuildModes` leaves out fentry, which only
+    `SupportedBuildModesForConnectionTracer` adds.
 
   Check the subtest names in the output instead of assuming a mode ran.
 - **Ask for equivalence, not one mode.** If a change must behave the same in every mode, test runtime
   compiled and CO-RE at least, not only CO-RE.
-- **Protocol classification is off on RHEL 9+ family kernels** (5.14 and later, including Amazon
-  Linux 2023), in both the kprobe and fentry tracers. Classifier changes show no effect there; test
+- **Protocol classification is off on RHEL-family hosts with kernel 5.14 or later** (`kernel.Family()`
+  reports `rhel` for RHEL, CentOS, Rocky, Amazon Linux, Oracle and others), in both the kprobe and
+  fentry tracers. Classifier changes show no effect there; test
   them on another distro.
 - **Prebuilt on a modern VM:** forcing prebuilt can fail for reasons unrelated to your change, such as
   offset guessing on newer kernels. Say so and rely on KMT for prebuilt.
@@ -94,10 +118,20 @@ maintainer for the results.
   test runs.
 - **Check which jobs ran before reading a result.** A red pipeline where KMT never started says nothing
   about your change, and a pending status can be a lost status update rather than a running job.
+- **Read results from the job's JUnit artifact, not its log.** KMT job logs can hit GitLab's log size
+  limit (verifier output alone can do it), and tests don't run with `-v`.
+- **Long verifier logs get truncated** before the failing instruction in Go's test output. To see the
+  whole log, write `fmt.Sprintf("%+v", verr)` of the `*ebpf.VerifierError` to a file.
+- **A pipeline created through the API** (not by a push) posts per-job statuses but not
+  `dd-gitlab/default-pipeline`, so an older failure stays the PR's latest status until the next push.
 - **KMT tests only `TEST_PACKAGES_LIST`** in `tasks/system_probe.py` for system-probe; CWS has its own
   KMT jobs. A root-only test in a package outside that list never runs in system-probe KMT.
-- **Flaky tests:** rerun once (in CI, a maintainer retries the job), record both results, and report
-  the test as inconclusive. Never retry until it's green.
+- **Flaky tests:** KMT already reruns failing tests twice (`RETRY` in `.kmt_run_tests`) and tolerates
+  tests in `flakes.yaml`, so a green job can hide a flake; check the JUnit artifact for retried tests.
+  To rerun KMT, trigger a new pipeline (maintainers can also use `dda inv kmt.retry-failed-pipeline`);
+  retrying a single KMT job fails once its VM is gone. Locally, measure a failure rate (5 to 10 runs,
+  alone and inside the full suite) on both the base and your branch before attributing a failure to
+  your change. Report it as inconclusive, and never retry until it's green.
 
 ## Evidence and honest claims
 
@@ -121,7 +155,11 @@ maintainer for the results.
   with one agreed lock, for example `flock -o -x /tmp/system-probe-test.lock dda inv system-probe.test ...`.
   Keep `-o`: without it the Bazel server started by the build inherits the lock and holds it after the
   command exits.
-  Stop processes by PID, never by name, and never reboot a VM without asking.
+  An alternative is a private object directory: copy the build output to a directory root owns (the
+  CO-RE and fentry loaders reject objects with "incorrect permissions") and pass
+  `DD_SYSTEM_PROBE_BPF_DIR=<dir>` to the test through `sudo -E env`. `object-files` updates `/opt` only
+  on the machine it runs on, so a tree shared between two VMs leaves the other VM on its old objects.
+- Stop processes by PID, never by name, and never reboot a VM without asking.
 
 ## Performance claims
 
@@ -133,6 +171,17 @@ maintainer for the results.
 - **Across nodes:** rotate variants so each runs on every node (a Latin square), restart system-probe
   per run, let it settle, and confirm the load hit its target rate. Measure kprobe and fentry
   separately.
+- **Normalize by work done.** On a saturated node, lower overhead shows up as more throughput, not less
+  CPU; check that the achieved load (calls/s, MB/s) matches between variants.
+- **Keep `kernel.bpf_stats_enabled` the same in every arm.** It adds tens of nanoseconds to every BPF
+  call, node-wide.
+- **Confirm you measured the code you built.** The loaded program's tag should differ between variants,
+  and the tracer that loaded should match the configuration on every node.
+- **BPF run-time counters miss kprobe dispatch** (trampolines, the kretprobe instance pool) and the
+  softirq cost of socket filters, so `bpf_stats` undercounts kprobe overhead compared with fentry; use
+  `perf` for the gap.
+- **Loopback** runs the send and receive hooks on the same CPUs, and socket filters see each packet
+  twice: fine for per-call comparisons, not for node-level percentages.
 - **Overhead includes the application's kernel time.** eBPF programs run in the context of the process
   that triggers them, so system-probe's own CPU metrics can miss most of the cost.
 
