@@ -48,6 +48,12 @@ func TestScriptProcess(t *testing.T) {
 		child.Stdout, child.Stderr = os.Stdout, os.Stderr
 	}
 	require.NoError(t, child.Start())
+	// On Windows the script is the PowerShell wrapper that launched this process.
+	scriptPid := os.Getpid()
+	if runtime.GOOS == "windows" {
+		scriptPid = os.Getppid()
+	}
+	require.NoError(t, os.WriteFile(scriptPidFile(args[1]), []byte(strconv.Itoa(scriptPid)), 0600))
 	require.NoError(t, os.WriteFile(args[1], []byte(strconv.Itoa(child.Process.Pid)), 0600))
 	if args[0] == "wait" {
 		_ = child.Wait()
@@ -99,6 +105,8 @@ func TestScriptCommandInheritedPipes(t *testing.T) {
 		})
 	}
 }
+
+func scriptPidFile(pidFile string) string { return pidFile + ".script" }
 
 func waitForTestChild(t *testing.T, pidFile string) *os.Process {
 	t.Helper()

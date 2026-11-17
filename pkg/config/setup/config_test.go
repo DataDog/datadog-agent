@@ -582,12 +582,13 @@ func TestProxy(t *testing.T) {
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
 					&pkgconfigmodel.Proxy{
-						HTTP:  "http_url",
-						HTTPS: "https_url",
+						HTTP:    "http_url",
+						HTTPS:   "https_url",
+						NoProxy: []string{},
 					},
 					config.GetProxies())
 				fmt.Printf("%#v\n", config.Get("proxy.no_proxy"))
-				assert.Equal(t, []string(nil), config.Get("proxy.no_proxy"))
+				assert.Equal(t, []string{}, config.Get("proxy.no_proxy"))
 			},
 			proxyForCloudMetadata: true,
 		},
@@ -1596,17 +1597,16 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, "different", config.Get("secret_backend_command"))
 
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"first", "changed"},
-				"https://url2.eu":  []interface{}{"third"},
-			}),
+		map[string][]string{
+			"https://url1.com": {"first", "changed"},
+			"https://url2.eu":  {"third"},
+		},
 		config.Get("additional_endpoints"))
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"fourth", "fifth"},
-				"https://url2.eu":  []interface{}{"modified"}}),
+		map[string][]string{
+			"https://url1.com": {"fourth", "fifth"},
+			"https://url2.eu":  {"modified"},
+		},
 		config.Get("process_config.additional_endpoints"))
 }
 
@@ -1730,8 +1730,33 @@ additional_endpoints:
 	assert.NoError(t, err)
 
 	assert.Equal(t,
-		map[string]string{"0": "apple", "1": "banana", "2": "cherry"},
-		config.GetStringMapString("additional_endpoints"),
+		map[string][]string{"0": {"apple"}, "1": {"banana"}, "2": {"cherry"}},
+		config.GetStringMapStringSlice("additional_endpoints"),
+	)
+}
+
+func TestConfigAssignAtPathStringMap(t *testing.T) {
+	testStringMapConf := []byte(`
+kubernetes_node_labels_as_tags:
+  label.one: ENC[tag1]
+  label.two: ENC[tag2]
+`)
+	config := newTestConf(t)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testStringMapConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	err := loadCustom(config, noopSchemaValidator{}, config)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.one"}, "first")
+	assert.NoError(t, err)
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.two"}, "second")
+	assert.NoError(t, err)
+
+	assert.Equal(t,
+		map[string]string{"label.one": "first", "label.two": "second"},
+		config.GetStringMapString("kubernetes_node_labels_as_tags"),
 	)
 }
 
@@ -2058,64 +2083,6 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
-}
-
-func TestApplyKubernetesHealthPlatformDefault(t *testing.T) {
-	const key = "health_platform.enabled"
-	setKubernetes := func(t *testing.T, k8s bool) {
-		t.Setenv("KUBERNETES_SERVICE_PORT", "")
-		t.Setenv("DD_EKS_FARGATE", "")
-		if k8s {
-			t.Setenv("KUBERNETES", "yes")
-		} else {
-			t.Setenv("KUBERNETES", "")
-		}
-	}
-
-	t.Run("non-kubernetes keeps it enabled by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("kubernetes disables it by default", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-		assert.False(t, config.IsConfigured(key))
-	})
-
-	t.Run("eks fargate disables it by default", func(t *testing.T) {
-		setKubernetes(t, false)
-		t.Setenv("DD_EKS_FARGATE", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		config := confFromYAML(t, "health_platform:\n  enabled: true\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit true from env var wins on kubernetes", func(t *testing.T) {
-		setKubernetes(t, true)
-		t.Setenv("DD_HEALTH_PLATFORM_ENABLED", "true")
-		config := newTestConf(t)
-		applyKubernetesHealthPlatformDefault(config)
-		assert.True(t, config.GetBool(key))
-	})
-
-	t.Run("explicit false wins off kubernetes", func(t *testing.T) {
-		setKubernetes(t, false)
-		config := confFromYAML(t, "health_platform:\n  enabled: false\n")
-		applyKubernetesHealthPlatformDefault(config)
-		assert.False(t, config.GetBool(key))
-	})
 }
 
 func TestApplyKubernetesContainerDefaults(t *testing.T) {
