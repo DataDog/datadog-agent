@@ -265,3 +265,45 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryReusesSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 }
+
+func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
+	original, originalAWS := getEKSClusterIdentity, isAWSHost
+	t.Cleanup(func() { getEKSClusterIdentity, isAWSHost = original, originalAWS })
+	calls := 0
+	answer := func(id *identity.ClusterIdentity, err error) {
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) { calls++; return id, err }
+	}
+
+	t.Run("node not on AWS makes no call", func(t *testing.T) {
+		calls = 0
+		isAWSHost = func() bool { return false }
+		answer(ordersIdentity, nil)
+		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+		require.NoError(t, err, "an empty success, so the provider is not retried or logged")
+		assert.Empty(t, tags)
+		assert.Equal(t, 0, calls)
+	})
+
+	t.Run("not found is an empty success", func(t *testing.T) {
+		isAWSHost = func() bool { return true }
+		answer(nil, &clusteragent.StatusError{StatusCode: http.StatusNotFound, Err: pkgerrors.NewRemoteServiceError("dca", "404 Not Found")})
+		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+		require.NoError(t, err)
+		assert.Empty(t, tags)
+	})
+
+	t.Run("identity on AWS", func(t *testing.T) {
+		isAWSHost = func() bool { return true }
+		answer(ordersIdentity, nil)
+		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+		require.NoError(t, err)
+		assert.Len(t, tags, 3)
+	})
+
+	t.Run("other failures are still errors", func(t *testing.T) {
+		isAWSHost = func() bool { return true }
+		answer(nil, errors.New("connection refused"))
+		_, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+		assert.Error(t, err)
+	})
+}

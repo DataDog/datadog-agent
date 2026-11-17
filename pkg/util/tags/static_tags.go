@@ -14,8 +14,6 @@ import (
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -38,9 +36,9 @@ var (
 		return clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry()
 	}
 	getClusterAgentEKSIdentity = func(context.Context) []string { return nil }
-	// Reads only local DMI, so it costs no network call. A node that DMI can't place on GCE or
-	// Azure (EC2, on-prem, DMI unavailable) still asks the Cluster Agent.
-	isKnownNonAWSHost = func() bool { return gce.IsRunningOnDMI() || azure.IsRunningOnDMI() }
+	// Reads only local DMI, so it costs no network call. Only a node that DMI identifies as EC2
+	// asks the Cluster Agent, so on-prem, OpenShift, kind and other clouds never wait on it.
+	isAWSHost = clusterinfo.IsAWSHost
 )
 
 // SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
@@ -127,9 +125,9 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) (tags 
 	}
 
 	// Regular Kubernetes node Agents receive authoritative EKS identity from the
-	// Cluster Agent. Sidecars use getFargateStaticTags above. Nodes known to run on
-	// another cloud skip the lookup, so an unreachable Cluster Agent can't delay their startup.
-	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") && !isKnownNonAWSHost() {
+	// Cluster Agent. Sidecars use getFargateStaticTags above. Only nodes on EC2 ask, so an
+	// unreachable Cluster Agent can't delay startup anywhere else.
+	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") && isAWSHost() {
 		eksIdentityTags, err := getClusterAgentEKSIdentityTags(ctx)
 		if err == nil {
 			tags = append(tags, eksIdentityTags...)

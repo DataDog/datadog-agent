@@ -8,11 +8,13 @@ package clusterinfo
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/cenkalti/backoff/v7"
 )
@@ -34,6 +36,32 @@ var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity
 		return nil, err
 	}
 	return client.GetEKSClusterIdentity(ctx)
+}
+
+// isAWSHost reports whether local DMI identifies this node as an EC2 instance. It makes no
+// network call. EKS nodes on EC2 always pass, so nodes that do not (on-prem, OpenShift, kind,
+// other clouds) skip the Cluster Agent call. EKS Fargate has no DMI and uses its own path.
+var isAWSHost = ec2.IsRunningOnDMI
+
+// IsAWSHost reports whether a node Agent should ask the Cluster Agent for EKS identity.
+func IsAWSHost() bool {
+	return isAWSHost()
+}
+
+// GetClusterAgentEKSIdentityHostTags is GetClusterAgentEKSIdentityTags for the host-tags
+// provider. It refreshes on its own interval, so answers that will not change are an empty
+// success rather than an error that is logged on every refresh: a node not on AWS, and a 404
+// from a Cluster Agent on a cluster that is not EKS, or one too old to serve identity.
+func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
+	if !isAWSHost() {
+		return nil, nil
+	}
+	tags, err := GetClusterAgentEKSIdentityTags(ctx)
+	var statusErr *clusteragent.StatusError
+	if errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	return tags, err
 }
 
 // GetClusterAgentEKSIdentityTags returns authoritative EKS identity as low-cardinality tags.

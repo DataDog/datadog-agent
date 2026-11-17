@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/tagger/tags",
         "//pkg/util/clusteragent",
+        "//pkg/util/ec2",
         "//pkg/util/eks/identity",
         "//pkg/util/kubernetes/clustername",
         "@com_github_cenkalti_backoff_v7//:backoff",
