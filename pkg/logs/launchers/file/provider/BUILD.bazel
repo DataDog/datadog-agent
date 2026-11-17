@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//comp/logs/auditor/def",
         "//pkg/config/setup",
@@ -25,6 +26,7 @@ dd_agent_go_test(
     embed = [":provider"],
     deps = select({
         "@rules_go//go/platform:aix": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -38,6 +40,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:android": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -51,6 +54,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -64,6 +68,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:dragonfly": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -77,6 +82,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -90,6 +96,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:illumos": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -103,6 +110,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -116,6 +124,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:js": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -129,6 +138,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -142,6 +152,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:netbsd": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -155,6 +166,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:openbsd": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -168,6 +180,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:osx": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -181,6 +194,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:plan9": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -194,6 +208,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:qnx": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",
@@ -207,6 +222,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:solaris": [
+            "//comp/logs-library/metrics",
             "//comp/logs/agent/config",
             "//comp/logs/auditor/mock",
             "//pkg/config/mock",

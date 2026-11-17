@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    The Agent now reports an Agent Health issue when its log configurations
+    match more files than ``logs_config.open_files_limit`` lets it tail. Logs
+    written to the files left out are not collected, and are lost if those files
+    rotate away before the Agent can tail them. The issue is reported once per
+    host with the limit, the number of matching and untailed files, and the most
+    affected log sources, and clears an hour after the limit was last reached.

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -262,6 +264,73 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 		},
 		status.Get(false).Warnings,
 	)
+}
+
+// The Agent Health issue for the open files limit reads what the scan left out.
+func (suite *ProviderTestSuite) TestLimitRecordsUntailedFiles() {
+	metrics.ResetUntailedFilesForTest()
+	suite.T().Cleanup(metrics.ResetUntailedFilesForTest)
+	mockConfig := configmock.New(suite.T())
+
+	path := suite.testDir + "/*/*.log"
+	logSources := []*sources.LogSource{sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType, Path: path, Source: "nginx", Service: "web",
+	})}
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
+	files := NewFileProvider(suite.filesLimit, WildcardUseFileName).
+		FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	suite.Len(files, suite.filesLimit)
+
+	state, ok := metrics.CurrentUntailedFiles()
+	suite.Require().True(ok)
+	suite.Equal(suite.filesLimit, state.Limit)
+	suite.Equal(suite.filesLimit, state.Tailed)
+	suite.Equal(2, state.Untailed)
+	suite.Require().Len(state.Sources, 1)
+	suite.Equal(metrics.UntailedFilesSource{Source: "nginx", Service: "web", Path: path, Matched: 5, Untailed: 2}, state.Sources[0])
+}
+
+func (suite *ProviderTestSuite) TestUnderLimitRecordsNothing() {
+	metrics.ResetUntailedFilesForTest()
+	suite.T().Cleanup(metrics.ResetUntailedFilesForTest)
+	mockConfig := configmock.New(suite.T())
+
+	logSources := suite.newLogSources(suite.testDir + "/1/*.log")
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
+	files := NewFileProvider(10, WildcardUseFileName).
+		FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	suite.Len(files, 3)
+
+	_, ok := metrics.CurrentUntailedFiles()
+	suite.False(ok)
+}
+
+// Global selection ranks every wildcard match together; the count must still land on
+// the right sources.
+func (suite *ProviderTestSuite) TestLimitRecordsUntailedFilesByModificationTime() {
+	metrics.ResetUntailedFilesForTest()
+	suite.T().Cleanup(metrics.ResetUntailedFilesForTest)
+	mockConfig := configmock.New(suite.T())
+
+	logSources := []*sources.LogSource{
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/1/*.log", Source: "one"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/2/*.log", Source: "two"}),
+	}
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
+	files := NewFileProvider(suite.filesLimit, WildcardUseFileModTime).
+		FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
+	suite.Len(files, suite.filesLimit)
+
+	state, ok := metrics.CurrentUntailedFiles()
+	suite.Require().True(ok)
+	suite.Equal(2, state.Untailed, "5 matches, 3 tailed")
+	want := map[string]int{"one": 3, "two": 2}
+	untailed := 0
+	for _, s := range state.Sources {
+		suite.Equal(want[s.Source], s.Matched, "source %s matched", s.Source)
+		untailed += s.Untailed
+	}
+	suite.Equal(2, untailed)
 }
 
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
@@ -1020,4 +1089,35 @@ func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	assert.True(t, paths[fs.path("gamma/g.log")], "gamma should be included")
 	// Excluded by pattern
 	assert.False(t, paths[fs.path("alpha/beta/ab.log")], "alpha subtree should be excluded by ExcludePaths")
+}
+
+// A file past the limit that belongs to another container would never be tailed,
+// so it must not count as left out by the limit.
+func TestUntailedCountSkipsIgnoredFiles(t *testing.T) {
+	origDir := ContainersLogsDir
+	ContainersLogsDir = t.TempDir()
+	t.Cleanup(func() { ContainersLogsDir = origDir })
+	status.InitStatus(configmock.New(t), testutils.CreateSources(nil))
+	t.Cleanup(status.Clear)
+
+	logDir := t.TempDir()
+	podLog := filepath.Join(logDir, "pod.log")
+	require.NoError(t, os.WriteFile(podLog, nil, 0o644))
+	// The /var/log/containers entry for that file names a different container.
+	require.NoError(t, os.Symlink(podLog, filepath.Join(ContainersLogsDir, "app_ns_app-"+strings.Repeat("b", 64)+".log")))
+
+	podSource := sources.NewLogSource("pod", &config.LogsConfig{Type: config.FileType, Path: podLog, Identifier: strings.Repeat("a", 64)})
+	podSource.SetSourceType(sources.DockerSourceType)
+	fileSource := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: filepath.Join(logDir, "app.log")})
+
+	files := []*tailer.File{
+		{Path: podLog, Source: sources.NewReplaceableSource(podSource)},
+		{Path: filepath.Join(logDir, "app.log"), Source: sources.NewReplaceableSource(fileSource)},
+	}
+	wildcards := newWildcardFileCounter()
+	var untailed untailedFileCounter
+	NewFileProvider(0, WildcardUseFileName).addFilesToTailList(true, NewContainerLogSymlinkResolver(), files, nil, &wildcards, &untailed, auditor.NewMockAuditor())
+
+	assert.NotContains(t, untailed.untailed, podSource, "another container's file is ignored, not left out")
+	assert.Equal(t, 1, untailed.untailed[fileSource])
 }
