@@ -124,9 +124,22 @@ func resetIdentityCache(t *testing.T) {
 	t.Cleanup(cache.Cache.Flush)
 }
 
+// resetDescribeClient drops the client built from a previous test's AWS configuration.
+func resetDescribeClient(t *testing.T) {
+	t.Helper()
+	reset := func() {
+		describeClient.Lock()
+		describeClient.client, describeClient.region = nil, ""
+		describeClient.Unlock()
+	}
+	reset()
+	t.Cleanup(reset)
+}
+
 func stubAWS(t *testing.T, client describeClusterAPI) {
 	t.Helper()
 	resetIdentityCache(t)
+	resetDescribeClient(t)
 	origLoad, origNew := loadAWSConfig, newDescribeClusterAPI
 	t.Cleanup(func() { loadAWSConfig, newDescribeClusterAPI = origLoad, origNew })
 	loadAWSConfig = func(context.Context) (aws.Config, error) { return aws.Config{Region: "us-west-2"}, nil }
@@ -290,4 +303,51 @@ func TestFailureTTLClassifiesCredentialErrorsAsTransient(t *testing.T) {
 		})
 	}
 	assert.Equal(t, failureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", &operationError{&codedError{"AccessDenied"}})))
+}
+
+func TestGetClusterIdentityLoadsAWSConfigOnce(t *testing.T) {
+	stubAWS(t, &mockEKSClient{output: clusterOutput("orders-a", "arn:aws:eks:us-west-2:123456789012:cluster/orders-a")})
+	loads, clients := 0, 0
+	loadAWSConfig = func(context.Context) (aws.Config, error) { loads++; return aws.Config{Region: "us-west-2"}, nil }
+	newDescribeClusterAPI = func(aws.Config) describeClusterAPI {
+		clients++
+		return describeFunc(func(name string) (*describeClusterOutput, error) {
+			return clusterOutput(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name), nil
+		})
+	}
+
+	for _, name := range []string{"orders-a", "orders-b", "orders-c"} {
+		_, err := GetClusterIdentity(t.Context(), name)
+		require.NoError(t, err)
+	}
+	assert.Equal(t, 1, loads, "the AWS configuration and its credentials cache are built once")
+	assert.Equal(t, 1, clients, "the client, and the clock skew it learned, are kept")
+}
+
+func TestGetClusterIdentityRetriesFailedAWSConfigLoad(t *testing.T) {
+	stubAWS(t, nil)
+	loads := 0
+	loadAWSConfig = func(context.Context) (aws.Config, error) {
+		loads++
+		if loads == 1 {
+			return aws.Config{}, errors.New("IMDS unavailable")
+		}
+		return aws.Config{Region: "us-west-2"}, nil
+	}
+	newDescribeClusterAPI = func(aws.Config) describeClusterAPI {
+		return describeFunc(func(name string) (*describeClusterOutput, error) {
+			return clusterOutput(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name), nil
+		})
+	}
+
+	_, err := GetClusterIdentity(t.Context(), "orders-a")
+	require.Error(t, err)
+	_, err = GetClusterIdentity(t.Context(), "orders-b")
+	require.NoError(t, err, "a failed load is not kept")
+}
+
+type describeFunc func(name string) (*describeClusterOutput, error)
+
+func (f describeFunc) DescribeCluster(_ context.Context, name string) (*describeClusterOutput, error) {
+	return f(name)
 }

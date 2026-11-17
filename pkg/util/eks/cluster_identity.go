@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -145,22 +146,46 @@ func lookupCache(cacheKey string) (*ClusterIdentity, bool, error) {
 // pointer is the cached value; callers copy before handing it out.
 // ctx is the resolve's own context, already bounded by identityTimeout.
 func resolveAndCache(ctx context.Context, clusterName, cacheKey string) (*ClusterIdentity, error) {
-	cfg, err := loadAWSConfig(ctx)
+	client, region, err := getDescribeClient(ctx)
 	if err != nil {
-		err = fmt.Errorf("load AWS configuration: %w", err)
 		cacheFailure(cacheKey, err)
 		return nil, err
 	}
-	// A FIPS pseudo Region (us-east-1-fips) names the real Region the ARN must carry.
-	cfg = normalizeFIPSRegion(cfg)
 
-	id, err := resolveClusterIdentity(ctx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
+	id, err := resolveClusterIdentity(ctx, clusterName, region, client)
 	if err != nil {
 		cacheFailure(cacheKey, err)
 		return nil, err
 	}
 	cache.Cache.Set(cacheKey, id, cache.NoExpiration)
 	return id, nil
+}
+
+// describeClient holds the DescribeCluster client built from the first successful AWS
+// configuration load. Loading the configuration builds a new credentials cache, so doing it on
+// every miss would fetch new credentials (an STS call with IRSA) each time. The credentials
+// cache refreshes itself, and the client keeps the clock skew it learned. A failed load is not
+// kept, so the next miss tries again.
+var describeClient struct {
+	sync.Mutex
+	client describeClusterAPI
+	region string
+}
+
+func getDescribeClient(ctx context.Context) (describeClusterAPI, string, error) {
+	describeClient.Lock()
+	defer describeClient.Unlock()
+	if describeClient.client != nil {
+		return describeClient.client, describeClient.region, nil
+	}
+	cfg, err := loadAWSConfig(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("load AWS configuration: %w", err)
+	}
+	// A FIPS pseudo Region (us-east-1-fips) names the real Region the ARN must carry.
+	cfg = normalizeFIPSRegion(cfg)
+	describeClient.client, describeClient.region = newDescribeClusterAPI(cfg), cfg.Region
+	return describeClient.client, describeClient.region, nil
 }
 
 // cacheFailure negatively caches a resolution failure. Node Agents query the Cluster Agent
