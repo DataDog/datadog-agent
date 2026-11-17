@@ -132,12 +132,6 @@ func TestReportVerdictSummary(t *testing.T) {
 	}
 }
 
-func TestVersionSummary(t *testing.T) {
-	assert.Equal(t, "<code>01234567</code>", Version{Commit: "0123456789abcdef"}.summary())
-	assert.Equal(t, "<code>registry/agent:7.84.0&lt;x&gt;</code>", Version{Images: []Image{{Image: "registry/agent:7.84.0<x>"}}}.summary())
-	assert.Equal(t, "unknown", Version{}.summary())
-}
-
 func TestReportMarkdownFourPhases(t *testing.T) {
 	report := testReport(VerdictRegression)
 	report.Phases = testWindows(4, 15*time.Minute)

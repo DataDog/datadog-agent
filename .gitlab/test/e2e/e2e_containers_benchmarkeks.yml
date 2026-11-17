@@ -9,17 +9,11 @@
 # images. The comparison is the Agent of the pipeline, the baseline the one of a commit of the base branch chosen like
 # SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
 #
-# The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches, and only on demand, not to add
-# an EKS cluster to every pull request changing the code it measures, but for the changes of the benchmark itself:
-# - every push of a branch changing the benchmark runs it automatically, even before its pull request is opened;
-# - a pull request changing the code it measures gets a comment with a button to run it, from its push pipelines;
-# - any other pipeline can still run it, without a comment until it is run.
-# To run it, play new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it
-# is played, and then runs them after it.
-#
-# A single comment of the pull request follows the benchmark, which its jobs update as it progresses (see
-# `dda inv new-e2e-tests.benchmarkeks-comment`): the button to run it, that it runs, then its results, every time. Only
-# the jobs of the pipeline of the head commit of the pull request update it.
+# The benchmark keeps an EKS cluster for its whole run, so it only runs on dev branches: automatically for the changes of
+# the benchmark itself, on demand otherwise (see doc/how-to/test/e2e/benchmarkeks/index.md). To run it, play
+# new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it is played, and
+# then runs them after it. Its jobs update a single pull request comment (see
+# `dda inv new-e2e-tests.benchmarkeks-comment`).
 
 # Pipelines the benchmark never runs in. Shared by all the benchmark jobs, so that they always exist together.
 .except_benchmarkeks_unsupported:
@@ -63,10 +57,8 @@
     - pkg/util/prometheus/**/*
   compare_to: $COMPARE_TO_BRANCH
 
-# Automatic run of new-e2e-containers-benchmarkeks-baseline, on the changes of the benchmark itself. Only in push
-# pipelines, not to run the benchmark again in a pipeline started from the UI or the API, e.g. to retry other jobs of a
-# commit whose push pipeline ran it. Not only for the branches of a pull request, which GitLab can't tell apart, and as
-# the first push of a branch usually comes before its pull request.
+# Automatic run, on the changes of the benchmark itself. Only in push pipelines, not to run the benchmark again in a
+# pipeline started from the UI or the API on a commit whose push pipeline ran it.
 .if_benchmarkeks_automatic_run: &if_benchmarkeks_automatic_run
   if: $CI_PIPELINE_SOURCE == "push"
   changes: *benchmarkeks_test_changes
@@ -95,12 +87,10 @@ new-e2e-containers-benchmarkeks-instructions:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # The benchmark runs automatically (see .if_benchmarkeks_automatic_run), and new-e2e-containers-benchmarkeks-baseline
-    # comments that it runs
+    # The benchmark runs automatically
     - <<: *if_benchmarkeks_automatic_run
       when: never
-    # Only in push pipelines too: the button of a pipeline started from the UI or the API would replace the results of
-    # the benchmark of the push pipeline of the same commit
+    # Push pipelines only, like the automatic run, not to replace the results of a run with the button
     - if: $CI_PIPELINE_SOURCE == "push"
       changes: *benchmarkeks_component_changes
       when: on_success
@@ -115,7 +105,7 @@ new-e2e-containers-benchmarkeks-instructions:
 
 # Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
 # pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.
-# It also starts the benchmark, manually or automatically: it shows in the pull request comment that the benchmark runs.
+# It starts the benchmark, and shows in the pull request comment that it runs.
 new-e2e-containers-benchmarkeks-baseline:
   extends:
     - .docker_publish_job_definition
@@ -129,8 +119,7 @@ new-e2e-containers-benchmarkeks-baseline:
       allow_failure: true
     - !reference [.manual]
   needs:
-    # Only needs images of the base branch. When the button of the pull request comment links to this job, it can only
-    # be played once the comment is posted, which it would otherwise overwrite.
+    # Only needs images of the base branch, and waits for the comment with the button to run it, which it updates
     - job: new-e2e-containers-benchmarkeks-instructions
       optional: true
       artifacts: false
@@ -165,7 +154,7 @@ new-e2e-containers-benchmarkeks-init:
   needs:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
-    # Not to create a cluster when there is no baseline (e.g. on a branch too old), and to follow it on a manual run
+    # Not to create a cluster when there is no baseline (e.g. on a branch too old), and to start after it
     - new-e2e-containers-benchmarkeks-baseline
   rules:
     - !reference [.except_benchmarkeks_unsupported]
@@ -229,15 +218,12 @@ new-e2e-containers-benchmarkeks-pr-comment:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # Automatic run, under the conditions of .if_benchmarkeks_automatic_run: whatever the result of the benchmark, a
-    # failure being how it reports a regression, even when it was canceled, so that the comment doesn't keep saying that
-    # the benchmark runs
+    # Automatic run: whatever the result of the benchmark, even canceled, a failure being how it reports a regression
     - <<: *if_benchmarkeks_automatic_run
       when: always
       allow_failure: true
-    # Manual run: the benchmark is allowed to fail, so this job runs after it whatever its result, unless it is skipped
-    # or canceled, e.g. when a build of the images of the pipeline failed, which leaves the comment saying that it runs.
-    # Not `always`, which would run this job before new-e2e-containers-benchmarkeks-baseline is played.
+    # Manual run: after the benchmark, which is allowed to fail. Not `always`, which would run this job before
+    # new-e2e-containers-benchmarkeks-baseline is played.
     - !reference [.after_benchmarkeks_baseline]
   needs:
     - job: new-e2e-containers-benchmarkeks

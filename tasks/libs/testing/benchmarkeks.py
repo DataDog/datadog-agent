@@ -49,16 +49,12 @@ _MISSING_IMAGE_ERRORS = ("MANIFEST_UNKNOWN", "NAME_UNKNOWN", "404 Not Found")
 # The cluster-agent amd64 build tags, from which the pipelines that built a commit are found
 _CLUSTER_AGENT_BUILD_TAG_RE = re.compile(rf"^v(\d+)-([0-9a-f]{{{SHORT_SHA_LENGTH}}})-amd64$")
 
-# The CI job starting the benchmark, manual unless the push changes the benchmark itself: the other jobs of the
-# benchmark need it
+# The CI job starting the benchmark: the other jobs of the benchmark need it
 BASELINE_JOB_NAME = "new-e2e-containers-benchmarkeks-baseline"
 # The CI job running the benchmark, whose log ends with its report
 BENCHMARK_JOB_NAME = "new-e2e-containers-benchmarkeks"
 # The title of the pull request comment, which identifies it: the CI jobs of the benchmark update the same comment
-COMMENT_TITLE = "Agent performance benchmark (benchmarkeks)"
-# The title of the comment of the results of the benchmark before the comment above followed it, deleted when it is
-# updated. TODO: remove once the pull requests whose benchmark ran before are closed.
-LEGACY_COMMENT_TITLE = "Agent performance comparison (benchmarkeks)"
+COMMENT_TITLE = "Container and Kubernetes monitoring performance (benchmarkeks)"
 # The states of the benchmark the comment shows: to start, running, done
 COMMENT_STATES = ("pending", "running", "done")
 # The reports the benchmark writes, JSONReportFile and MarkdownReportFile of test/new-e2e/tests/containers/benchmark
@@ -317,15 +313,15 @@ class Button:
         return f"[![{self.text}]({self.badge_url()})]({url})"
 
 
-# The benchmark is to be started, in the purple of Datadog
+# The benchmark is to be started
 RUN_BUTTON = Button("\N{BLACK RIGHT-POINTING TRIANGLE} Run the benchmark", "632CA6")
-# The benchmark runs: an hourglass whose sand is still flowing, in yellow
+# The benchmark runs
 RUNNING_BUTTON = Button("\N{HOURGLASS WITH FLOWING SAND} Benchmark running", "DFB317")
-# The benchmark completed: no metric regressed, whether some improved or not
+# No metric regressed
 PASSED_BUTTON = Button("\N{WHITE HEAVY CHECK MARK} No regression", "2EA44F")
-# The benchmark completed, and a metric regressed
+# A metric regressed
 REGRESSION_BUTTON = Button("\N{CROSS MARK} Regression", "E05D44")
-# The benchmark completed, but some metrics couldn't be compared
+# Some metrics couldn't be compared
 INCOMPLETE_BUTTON = Button("\N{WARNING SIGN}\N{VARIATION SELECTOR-16} Incomplete comparison", "FE7D37")
 # The benchmark failed before comparing the versions
 FAILED_BUTTON = Button("\N{WARNING SIGN}\N{VARIATION SELECTOR-16} Benchmark failed", "FE7D37")
@@ -395,15 +391,12 @@ def done_comment(
 
 def read_reports(report_dir: str) -> tuple[dict | None, str | None]:
     """
-    Returns the JSON and Markdown reports of the benchmark in report_dir, each None if the benchmark didn't write it,
-    or left it unreadable, e.g. truncated in the middle of the JSON or of a character.
+    Returns the JSON and Markdown reports of the benchmark in report_dir, each None if it is missing or unreadable,
+    e.g. truncated.
     """
-    if not report_dir:
-        return None, None
 
     def read(name: str, load: Callable):
-        # The reports are UTF-8, with emojis, whatever the locale of the job. OSError covers a missing or unreadable
-        # file, ValueError the errors of JSON and of UTF-8 decoding.
+        # UTF-8 whatever the locale of the job: the reports have emojis
         try:
             with open(os.path.join(report_dir, name), encoding="utf-8") as f:
                 return load(f)

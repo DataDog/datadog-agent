@@ -1026,16 +1026,14 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
 @task(
     help={
         "state": "State of the benchmark the comment shows: pending (to start), running or done",
-        "report_dir": "Directory of the reports of the benchmark, for the done state",
-        "dry_run": "Print the comment instead of posting it",
+        "report_dir": "Directory of the reports of the benchmark, required for the done state",
     }
 )
-def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = "", dry_run: bool = False):
+def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = ""):
     """
     Update the pull request comment of the benchmarkeks suite (TestBenchmarkEKSSuite) to the state of the benchmark in
-    the current pipeline: pending, with a button linking to its manual job, running, or done, with its results. The CI
-    jobs of the benchmark update the same comment, created by the first of them. A pipeline whose commit is no longer
-    the head of the pull request leaves it to the pipeline of the head.
+    the current pipeline: pending, with a button linking to its manual job, running, or done, with its results. A
+    pipeline whose commit is no longer the head of the pull request leaves the comment to the pipeline of the head.
     """
     from tasks.github_tasks import pr_commenter
     from tasks.libs.ciproviders.github_api import GithubAPI
@@ -1044,7 +1042,6 @@ def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = "", dry_run
         BENCHMARK_JOB_NAME,
         COMMENT_STATES,
         COMMENT_TITLE,
-        LEGACY_COMMENT_TITLE,
         SHORT_SHA_LENGTH,
         done_comment,
         pending_comment,
@@ -1055,25 +1052,25 @@ def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = "", dry_run
     if state not in COMMENT_STATES:
         message = f"Invalid state {state}: expected one of {', '.join(COMMENT_STATES)}"
         raise Exit(color_message(message, Color.RED), code=1)
-    sha = os.environ["CI_COMMIT_SHA"]
+    if state == "done" and not report_dir:
+        raise Exit(color_message("--report-dir is required for the done state", Color.RED), code=1)
 
-    # Before looking up the jobs of the pipeline, which it may not need. A pipeline of an older commit, e.g. one whose
-    # benchmark starts when a new commit is pushed, mustn't overwrite the comment of the pipeline of the new one.
-    if not dry_run:
-        branch = os.environ["CI_COMMIT_BRANCH"]
-        prs = list(GithubAPI().get_pr_for_branch(branch))
-        if len(prs) != 1:
-            print(color_message(f"Found {len(prs)} pull requests for branch {branch}, not commenting", Color.ORANGE))
-            return
-        pr = prs[0]
-        if pr.head.sha != sha:
-            head = pr.head.sha[:SHORT_SHA_LENGTH]
-            print(
-                color_message(
-                    f"The head of the pull request is now {head}, leaving the comment to its pipeline", Color.ORANGE
-                )
+    # Before looking up the jobs, which a superseded pipeline doesn't need
+    sha = os.environ["CI_COMMIT_SHA"]
+    branch = os.environ["CI_COMMIT_BRANCH"]
+    prs = list(GithubAPI().get_pr_for_branch(branch))
+    if len(prs) != 1:
+        print(color_message(f"Found {len(prs)} pull requests for branch {branch}, not commenting", Color.ORANGE))
+        return
+    pr = prs[0]
+    if pr.head.sha != sha:
+        head = pr.head.sha[:SHORT_SHA_LENGTH]
+        print(
+            color_message(
+                f"The head of the pull request is now {head}, leaving the comment to its pipeline", Color.ORANGE
             )
-            return
+        )
+        return
 
     pipeline_url = os.environ["CI_PIPELINE_URL"]
     commit = sha[:SHORT_SHA_LENGTH]
@@ -1085,13 +1082,7 @@ def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = "", dry_run
             body = running_comment(benchmark_job_url, pipeline_url, commit, datetime.datetime.now(datetime.UTC))
         else:
             body = done_comment(benchmark_job_url, pipeline_url, commit, *read_reports(report_dir))
-
-    if dry_run:
-        print(body)
-    else:
-        pr_commenter(ctx, title=COMMENT_TITLE, body=body, pr=pr)
-        # Not to leave the results of a former run next to the comment
-        pr_commenter(ctx, title=LEGACY_COMMENT_TITLE, pr=pr, force_delete=True, verbose=False)
+    pr_commenter(ctx, title=COMMENT_TITLE, body=body, pr=pr)
 
 
 def _pipeline_job_url(name: str) -> str | None:

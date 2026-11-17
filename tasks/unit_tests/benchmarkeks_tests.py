@@ -5,7 +5,7 @@ import time
 import unittest
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from invoke import MockContext, Result
 from invoke.exceptions import Exit
@@ -14,7 +14,6 @@ from tasks.libs.testing.benchmarkeks import (
     COMMENT_TITLE,
     FAILED_BUTTON,
     INCOMPLETE_BUTTON,
-    LEGACY_COMMENT_TITLE,
     PASSED_BUTTON,
     REGRESSION_BUTTON,
     RUN_BUTTON,
@@ -266,7 +265,7 @@ def job(name, web_url=None):
 
 class TestButton(unittest.TestCase):
     def test_badge_url(self):
-        # The current button, whose URL the comments of past runs link to
+        # The emoji and the spaces are percent-encoded
         self.assertEqual(
             RUN_BUTTON.badge_url(),
             "https://img.shields.io/badge/%E2%96%B6%20Run%20the%20benchmark-632CA6?style=for-the-badge",
@@ -360,7 +359,6 @@ class TestReadReports(unittest.TestCase):
 
     def test_missing(self):
         self.assertEqual(read_reports(self.tmpdir.name), (None, None))
-        self.assertEqual(read_reports(""), (None, None))
 
     def test_truncated(self):
         # The benchmark was killed while writing them
@@ -380,35 +378,26 @@ class TestReadReports(unittest.TestCase):
     },
 )
 class TestBenchmarkeksCommentTask(unittest.TestCase):
-    def setUp(self):
-        self.tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmpdir.cleanup)
-
-    def comment(self, repo, state, prs, report_dir="", dry_run=False):
+    def comment(self, repo, state, prs, report_dir=""):
         """Runs the task in state, with the pipeline jobs of repo and the pull requests prs of the branch, and returns
-        the mocks of GithubAPI and pr_commenter."""
+        the mock of pr_commenter."""
         with (
             patch("tasks.new_e2e_tests.get_gitlab_repo", return_value=repo),
             patch("tasks.libs.ciproviders.github_api.GithubAPI") as github,
             patch("tasks.github_tasks.pr_commenter") as pr_commenter,
+            patch("builtins.print"),
         ):
             github.return_value.get_pr_for_branch.return_value = iter(prs)
-            benchmarkeks_comment(MockContext(), state=state, report_dir=report_dir, dry_run=dry_run)
-        return github, pr_commenter
+            benchmarkeks_comment(MockContext(), state=state, report_dir=report_dir)
+        github.return_value.get_pr_for_branch.assert_called_once_with("lenaic/benchmark")
+        return pr_commenter
 
     def run_task(self, repo, state, report_dir=""):
-        """Returns the body the task posts in state, with the pipeline jobs of repo, on the pull request of the
-        commit."""
+        """Returns the body the task posts in state on the pull request of the commit, with the pipeline jobs of repo."""
         pr = SimpleNamespace(head=SimpleNamespace(sha=SHA_A))
-        github, pr_commenter = self.comment(repo, state, [pr], report_dir)
-        self.assertEqual(github.return_value.get_pr_for_branch.call_args.args, ("lenaic/benchmark",))
-        post, delete_legacy = pr_commenter.call_args_list
-        self.assertIs(post.kwargs["pr"], pr)
-        self.assertEqual(post.kwargs["title"], COMMENT_TITLE)
-        self.assertEqual(
-            delete_legacy.kwargs, {"title": LEGACY_COMMENT_TITLE, "pr": pr, "force_delete": True, "verbose": False}
-        )
-        return post.kwargs["body"]
+        pr_commenter = self.comment(repo, state, [pr], report_dir)
+        pr_commenter.assert_called_once_with(ANY, title=COMMENT_TITLE, body=ANY, pr=pr)
+        return pr_commenter.call_args.kwargs["body"]
 
     def repo(self, *jobs):
         repo = MagicMock()
@@ -419,7 +408,7 @@ class TestBenchmarkeksCommentTask(unittest.TestCase):
         repo = self.repo(job("new-e2e-containers-benchmarkeks-baseline", JOB_URL))
         self.assertEqual(self.run_task(repo, "pending"), pending_comment(JOB_URL, PIPELINE_URL))
         self.assertEqual(repo.pipelines.get.call_args.args, ("150947315",))
-        # Whatever its status: the job waits for the comment before being manual
+        # Whatever their status: the baseline job is still created when the comment is posted
         self.assertNotIn("scope", repo.pipelines.get.return_value.jobs.list.call_args.kwargs)
 
     def test_pending_job_not_found(self):
@@ -442,48 +431,29 @@ class TestBenchmarkeksCommentTask(unittest.TestCase):
         self.assertTrue(body.startswith(RUNNING_BUTTON.markdown(PIPELINE_URL)))
 
     def test_done(self):
-        write_file(self.tmpdir.name, "report.json", json.dumps(report("unchanged")))
-        write_file(self.tmpdir.name, "report.md", "Report\n")
         repo = self.repo(job("new-e2e-containers-benchmarkeks", JOB_URL))
-        self.assertEqual(
-            self.run_task(repo, "done", report_dir=self.tmpdir.name),
-            done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", report("unchanged"), "Report\n"),
-        )
+        with tempfile.TemporaryDirectory() as report_dir:
+            write_file(report_dir, "report.json", json.dumps(report("unchanged")))
+            write_file(report_dir, "report.md", "Report\n")
+            self.assertEqual(
+                self.run_task(repo, "done", report_dir=report_dir),
+                done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", report("unchanged"), "Report\n"),
+            )
 
-    def test_done_without_report(self):
-        repo = self.repo(job("new-e2e-containers-benchmarkeks", JOB_URL))
-        self.assertEqual(
-            self.run_task(repo, "done", report_dir=self.tmpdir.name),
-            done_comment(JOB_URL, PIPELINE_URL, "a6c0b31b", None, None),
-        )
+    def test_not_commenting(self):
+        # Without the jobs looked up
+        for name, prs in [
+            # A new commit was pushed: its pipeline owns the comment
+            ("superseded pipeline", [SimpleNamespace(head=SimpleNamespace(sha=SHA_B))]),
+            ("no pull request", []),
+        ]:
+            with self.subTest(name):
+                repo = self.repo()
+                self.comment(repo, "running", prs).assert_not_called()
+                repo.pipelines.get.assert_not_called()
 
-    def test_superseded_pipeline(self):
-        # A new commit was pushed: its pipeline owns the comment
-        repo = self.repo()
-        with patch("builtins.print") as print_:
-            _, pr_commenter = self.comment(repo, "done", [SimpleNamespace(head=SimpleNamespace(sha=SHA_B))])
-        pr_commenter.assert_not_called()
-        # Nor are the jobs of the pipeline looked up
-        repo.pipelines.get.assert_not_called()
-        # The first call: the invoke logger may print after the task
-        self.assertIn("The head of the pull request is now 73f0a2f0", print_.call_args_list[0].args[0])
-
-    def test_no_pull_request(self):
-        repo = self.repo()
-        with patch("builtins.print"):
-            _, pr_commenter = self.comment(repo, "running", [])
-        pr_commenter.assert_not_called()
-        repo.pipelines.get.assert_not_called()
-
-    def test_invalid_state(self):
+    def test_invalid_arguments(self):
         with self.assertRaisesRegex(Exit, "Invalid state started"):
             benchmarkeks_comment(MockContext(), state="started")
-
-    def test_dry_run(self):
-        repo = self.repo(job("new-e2e-containers-benchmarkeks-baseline", JOB_URL))
-        with patch("builtins.print") as print_:
-            github, pr_commenter = self.comment(repo, "pending", [], dry_run=True)
-        # No pull request needed
-        github.assert_not_called()
-        pr_commenter.assert_not_called()
-        print_.assert_any_call(pending_comment(JOB_URL, PIPELINE_URL))
+        with self.assertRaisesRegex(Exit, "--report-dir is required"):
+            benchmarkeks_comment(MockContext(), state="done")

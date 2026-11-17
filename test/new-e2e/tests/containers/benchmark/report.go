@@ -8,7 +8,6 @@ package benchmark
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -194,9 +193,8 @@ func (r *Report) Write(dir string) error {
 	return os.WriteFile(filepath.Join(dir, MarkdownReportFile), []byte(r.Markdown()), 0o644)
 }
 
-// Markdown renders the report in the Markdown of GitHub, to be posted as a pull request comment: the
-// results and the versions are in sections collapsed by default, whose summaries tell the verdicts
-// and the commits.
+// Markdown renders the report in the Markdown of GitHub, for the pull request comment of the
+// benchmark.
 func (r *Report) Markdown() string {
 	var b strings.Builder
 	// No heading: whoever publishes the report, e.g. as a pull request comment, adds its own.
@@ -293,8 +291,8 @@ func (r *Report) Markdown() string {
 	return b.String()
 }
 
-// openDetails starts a section collapsed by default, whose summary, in HTML, is always shown. Like
-// the blank lines around its content, which GitHub needs to render it as Markdown.
+// openDetails starts a collapsed section with summary, in HTML: the blank lines let GitHub render
+// its content as Markdown.
 func openDetails(b *strings.Builder, summary string) {
 	fmt.Fprintf(b, "<details>\n\n<summary>%s</summary>\n\n", summary)
 }
@@ -335,13 +333,10 @@ func verdictCount(verdict Verdict, n int) string {
 // summary names the version in the summary of the versions, in HTML: its commit if known, else
 // the image of its first component.
 func (v Version) summary() string {
-	switch {
-	case v.Commit != "":
+	if v.Commit != "" {
 		return fmt.Sprintf("<code>%.8s</code>", v.Commit)
-	case len(v.Images) > 0:
-		return "<code>" + html.EscapeString(v.Images[0].Image) + "</code>"
 	}
-	return "unknown"
+	return "<code>" + lo.FirstOrEmpty(v.Images).Image + "</code>"
 }
 
 // formatSignificance describes the p-value under which a change is significant.
