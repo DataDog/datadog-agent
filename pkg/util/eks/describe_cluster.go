@@ -183,7 +183,8 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 // throttleRetryDelay is the wait before retrying a throttled request: 100ms to 300ms, jittered
 // so the Cluster Agents of one account do not retry in step. Variable for tests.
 var throttleRetryDelay = func() time.Duration {
-	return 100*time.Millisecond + rand.N(200*time.Millisecond)
+	// #nosec G404 -- jitter for a retry delay, not a secret
+	return 100*time.Millisecond + rand.N(200*time.Millisecond) //nolint:gosec // G404, see above
 }
 
 // sleepCtx waits for d, or less when ctx is done first. It reports whether d elapsed.

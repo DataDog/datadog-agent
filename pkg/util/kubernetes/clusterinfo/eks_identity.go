@@ -66,7 +66,8 @@ var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity
 
 // serviceAccountTokenPath is where Kubernetes mounts the pod's service account token, on Linux
 // and Windows nodes alike. It is the path rest.InClusterConfig reads.
-const serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+// #nosec G101 -- a path, not a credential
+const serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec // G101, see above
 
 // eksIssuerPattern matches the service account issuer EKS sets for every cluster, its OIDC
 // provider URL, for example https://oidc.eks.us-west-2.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE.
@@ -98,7 +99,8 @@ var serviceAccountTokenIsEKS = sync.OnceValue(func() bool {
 })
 
 func isEKSServiceAccountToken(path string) bool {
-	token, err := os.ReadFile(path)
+	// #nosec G304 -- only called with serviceAccountTokenPath (or a test path)
+	token, err := os.ReadFile(path) //nolint:gosec // G304, see above
 	if err != nil {
 		return false
 	}
@@ -266,7 +268,8 @@ func (s *sharedCall[T]) Do(ctx context.Context, fn func(context.Context) (T, err
 	if c == nil {
 		c = &callResult[T]{done: make(chan struct{})}
 		s.call = c
-		go func() {
+		// #nosec G118 -- detached on purpose: callers select on their own ctx, see sharedCall
+		go func() { //nolint:gosec // G118, see above
 			callCtx, cancel := context.WithTimeout(context.Background(), attemptTimeout)
 			defer cancel()
 			c.val, c.err = fn(callCtx)
