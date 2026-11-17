@@ -85,7 +85,7 @@ const schemasQueryTemplate = `WITH ranked_columns AS (
 		COUNT(*) OVER (PARTITION BY c.con_id, c.owner, c.table_name) AS total_columns
 	FROM cdb_tab_cols c
 	WHERE c.owner IN (/*OWNERS*/)
-		AND /*COLUMN_RELATIONS*/
+		AND /*COLUMN_FILTER*/
 		AND NOT (c.hidden_column = 'YES' AND c.user_generated = 'NO')
 )
 SELECT
@@ -122,7 +122,7 @@ SELECT
 FROM cdb_tables t
 LEFT JOIN ranked_columns c
 	ON c.con_id = t.con_id AND c.owner = t.owner AND c.table_name = t.table_name
-WHERE /*RELATIONS*/
+WHERE /*OBJECT_FILTER*/
 	AND NOT EXISTS (
 		SELECT 1 FROM cdb_object_tables ot
 		WHERE ot.con_id = t.con_id AND ot.owner = t.owner AND ot.table_name = t.table_name
@@ -163,7 +163,7 @@ SELECT
 FROM cdb_object_tables t
 LEFT JOIN ranked_columns c
 	ON c.con_id = t.con_id AND c.owner = t.owner AND c.table_name = t.table_name
-WHERE /*RELATIONS*/ AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
+WHERE /*OBJECT_FILTER*/ AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
 ORDER BY con_id, owner, table_name, internal_column_id`
 
 const viewsQueryTemplate = `WITH ranked_columns AS (
@@ -174,7 +174,7 @@ const viewsQueryTemplate = `WITH ranked_columns AS (
 		ROW_NUMBER() OVER (PARTITION BY c.con_id, c.owner, c.table_name ORDER BY c.internal_column_id) AS col_rn,
 		COUNT(*) OVER (PARTITION BY c.con_id, c.owner, c.table_name) AS total_columns
 	FROM cdb_tab_cols c
-	WHERE /*COLUMN_RELATIONS*/
+	WHERE /*COLUMN_FILTER*/
 		AND NOT (c.hidden_column = 'YES' AND c.user_generated = 'NO')
 )
 SELECT v.con_id, v.owner, v.view_name AS table_name,
@@ -190,23 +190,20 @@ SELECT v.con_id, v.owner, v.view_name AS table_name,
 FROM cdb_views v
 LEFT JOIN ranked_columns c
 	ON c.con_id = v.con_id AND c.owner = v.owner AND c.table_name = v.view_name
-WHERE /*RELATIONS*/ AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
+WHERE /*OBJECT_FILTER*/ AND (c.col_rn <= /*MAX_COLUMNS*/ OR c.col_rn IS NULL)
 ORDER BY v.con_id, v.owner, v.view_name, c.internal_column_id`
 
 const viewDefinitionsQuery = `SELECT con_id, owner, view_name, text_vc
-FROM cdb_views WHERE /*RELATIONS*/`
-
-const viewObjectsQuery = `SELECT con_id, owner, object_name, created, last_ddl_time
-FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
+FROM cdb_views WHERE /*OBJECT_FILTER*/`
 
 // These optional, separately granted views were backported in 19.10 and 19.11.
 const blockchainTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention, hash_algorithm, /*TABLE_VERSION*/ AS table_version
-FROM cdb_blockchain_tables WHERE /*RELATIONS*/`
+FROM cdb_blockchain_tables WHERE /*OBJECT_FILTER*/`
 
 const immutableTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention
-FROM cdb_immutable_tables WHERE /*RELATIONS*/`
+FROM cdb_immutable_tables WHERE /*OBJECT_FILTER*/`
 
 const partTablesQuery = `SELECT pt.con_id, pt.owner, pt.table_name, pt.partitioning_type,
 	pt.subpartitioning_type, pt.partition_count, pkc.column_name
@@ -214,22 +211,22 @@ FROM cdb_part_tables pt
 LEFT JOIN cdb_part_key_columns pkc
 	ON pkc.con_id = pt.con_id AND pkc.owner = pt.owner AND pkc.name = pt.table_name
 	AND pkc.object_type = 'TABLE'
-WHERE /*RELATIONS*/
+WHERE /*OBJECT_FILTER*/
 ORDER BY pt.con_id, pt.owner, pt.table_name, pkc.column_position`
 
 const tableCommentsQuery = `SELECT con_id, owner, table_name, comments
-FROM cdb_tab_comments WHERE comments IS NOT NULL AND /*RELATIONS*/`
+FROM cdb_tab_comments WHERE comments IS NOT NULL AND /*OBJECT_FILTER*/`
 
 // ROWNUM prevents stale statistics from turning each comment batch into a large dictionary scan.
 const columnCommentsQuery = `SELECT con_id, owner, table_name, column_name, comments
 FROM (
 	SELECT con_id, owner, table_name, column_name, comments
-	FROM cdb_col_comments WHERE /*RELATIONS*/ AND ROWNUM > 0
+	FROM cdb_col_comments WHERE /*OBJECT_FILTER*/ AND ROWNUM > 0
 )
 WHERE comments IS NOT NULL`
 
 const columnDefaultsQuery = `SELECT c.con_id, c.owner, c.table_name, c.column_name, /*DEFAULT_COL*/ AS data_default
-FROM cdb_tab_cols c WHERE /*RELATIONS*/ AND c.default_length > 0`
+FROM cdb_tab_cols c WHERE /*OBJECT_FILTER*/ AND c.default_length > 0`
 
 // UNION ALL lets join indexes include columns from tables outside this batch.
 const indexesQuery = `SELECT con_id, table_owner, table_name, index_owner, index_name, uniqueness, index_type, column_name
@@ -239,14 +236,14 @@ SELECT i.con_id, i.table_owner, i.table_name, i.owner AS index_owner, i.index_na
 FROM cdb_indexes i
 JOIN cdb_ind_columns ic
 	ON ic.con_id = i.con_id AND ic.index_owner = i.owner AND ic.index_name = i.index_name
-WHERE NVL(i.join_index, 'NO') <> 'YES' AND /*RELATIONS*/ AND /*INDEX_COLUMNS*/
+WHERE NVL(i.join_index, 'NO') <> 'YES' AND /*OBJECT_FILTER*/ AND /*INDEX_COLUMNS*/
 UNION ALL
 SELECT i.con_id, i.table_owner, i.table_name, i.owner AS index_owner, i.index_name, i.uniqueness, i.index_type,
 	ic.column_name, ic.column_position
 FROM cdb_indexes i
 JOIN cdb_ind_columns ic
 	ON ic.con_id = i.con_id AND ic.index_owner = i.owner AND ic.index_name = i.index_name
-WHERE i.join_index = 'YES' AND /*RELATIONS*/
+WHERE i.join_index = 'YES' AND /*OBJECT_FILTER*/
 )
 ORDER BY con_id, table_owner, table_name, index_owner, index_name, column_position`
 
@@ -263,17 +260,17 @@ WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C'
 		AND EXISTS (SELECT 1 FROM cdb_tab_cols tc
 			WHERE tc.con_id = c.con_id AND tc.owner = c.owner AND tc.table_name = c.table_name
 				AND tc.column_name = cc.column_name AND tc.nullable = 'N'))))
-	AND /*RELATIONS*/
+	AND /*OBJECT_FILTER*/
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position, cc.column_name`
 
 const referencedConstraintsQuery = `SELECT c.con_id, c.owner, c.constraint_name, c.table_name
 FROM cdb_constraints c
-WHERE /*RELATIONS*/
+WHERE /*OBJECT_FILTER*/
 ORDER BY c.con_id, c.owner, c.constraint_name`
 
 const referencedConstraintColumnsQuery = `SELECT cc.con_id, cc.owner, cc.constraint_name, cc.table_name, cc.column_name
 FROM cdb_cons_columns cc
-WHERE /*RELATIONS*/ AND cc.constraint_name IN (/*CONSTRAINTS*/)
+WHERE /*OBJECT_FILTER*/ AND cc.constraint_name IN (/*CONSTRAINTS*/)
 ORDER BY cc.con_id, cc.owner, cc.constraint_name, cc.position, cc.column_name`
 
 const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_name,
@@ -281,13 +278,13 @@ const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_
 FROM cdb_external_tables et
 LEFT JOIN cdb_external_locations el
 	ON el.con_id = et.con_id AND el.owner = et.owner AND el.table_name = et.table_name
-WHERE /*RELATIONS*/
+WHERE /*OBJECT_FILTER*/
 ORDER BY et.con_id, et.owner, et.table_name`
 
 // Materialized views also appear in CDB_TABLES and need separate classification.
 const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), NVL(refresh_method, '-'),
 	NVL(staleness, '-'), last_refresh_date
-FROM cdb_mviews WHERE /*RELATIONS*/`
+FROM cdb_mviews WHERE /*OBJECT_FILTER*/`
 
 // A missing SYS user can mean lost access rather than an empty database.
 const containerNamesQuery = `SELECT con_id, name FROM v$containers
@@ -455,16 +452,12 @@ type viewObject struct {
 	Owner      string         `json:"owner"`
 	Definition string         `json:"definition,omitempty"`
 	Comment    string         `json:"comment,omitempty"`
-	CreateDate string         `json:"create_date,omitempty"`
-	ModifyDate string         `json:"modify_date,omitempty"`
 	Columns    []schemaColumn `json:"columns"`
 }
 
 type viewDetails struct {
 	Definition string
 	Comment    string
-	CreateDate string
-	ModifyDate string
 }
 
 type containerObject struct {
@@ -628,7 +621,6 @@ func (c *schemaSnapshotCoordinator) completeContainer(conID int64, truncated boo
 func (c *schemaSnapshotCoordinator) abortContainer(conID int64) error {
 	snapshot := c.snapshots[strconv.FormatInt(conID, 10)]
 	if snapshot != nil && snapshot.pending != nil {
-		c.emitEvent(*snapshot.pending)
 		snapshot.pending = nil
 	}
 	return c.err
@@ -641,7 +633,6 @@ func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) erro
 	}
 	if c.validate != nil {
 		if err := c.validate(containerID); err != nil {
-			c.emitEvent(*snapshot.pending)
 			snapshot.pending = nil
 			return err
 		}
@@ -806,7 +797,6 @@ func (s *schemaCollector) addView(r schemaRowDB) {
 		v := &viewObject{Name: r.TableName, Owner: r.Owner}
 		if d := s.views[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
 			v.Definition, v.Comment = d.Definition, d.Comment
-			v.CreateDate, v.ModifyDate = d.CreateDate, d.ModifyDate
 		}
 		s.currentSchema.Views = append(s.currentSchema.Views, v)
 		s.currentView = v
@@ -1314,7 +1304,7 @@ func schemaColumnDefaultQueries(allowed map[columnKey]struct{}) []schemaSQL {
 					named := arg.(sql.NamedArg)
 					query.args = append(query.args, sql.Named(prefix+named.Name, named.Value))
 				}
-				branches = append(branches, strings.Replace(template, "/*RELATIONS*/", predicate, 1))
+				branches = append(branches, strings.Replace(template, "/*OBJECT_FILTER*/", predicate, 1))
 			}
 			query.text = strings.Join(branches, " UNION ALL ")
 			queries = append(queries, query)
@@ -1347,7 +1337,7 @@ func schemaReferencedConstraintColumnQueries(targets map[constraintKey]tableKey)
 		filters := objectFilterChunks(tables, schemaObjectColumns{conID: "cc.con_id", owner: "cc.owner", name: "cc.table_name"})
 		for _, filter := range filters {
 			constraintNames := filter.stringList("targetConstraint", names[start:end], schemaTablePageSize)
-			filter.text = strings.NewReplacer("/*RELATIONS*/", filter.text, "/*CONSTRAINTS*/", constraintNames).Replace(referencedConstraintColumnsQuery)
+			filter.text = strings.NewReplacer("/*OBJECT_FILTER*/", filter.text, "/*CONSTRAINTS*/", constraintNames).Replace(referencedConstraintColumnsQuery)
 			queries = append(queries, filter)
 		}
 	}
@@ -1361,7 +1351,7 @@ func schemaIndexQueries(allowed map[tableKey]struct{}) []schemaSQL {
 		schemaObjectColumns{conID: "ic.con_id", owner: "ic.table_owner", name: "ic.table_name"})
 	for i := range filters {
 		filters[i].text = strings.NewReplacer(
-			"/*RELATIONS*/", filters[i].text,
+			"/*OBJECT_FILTER*/", filters[i].text,
 			"/*INDEX_COLUMNS*/", columnFilters[i].text,
 		).Replace(indexesQuery)
 	}
@@ -1444,7 +1434,7 @@ func truncateLongValue(s string) string {
 func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []schemaSQL, scan func(*sqlx.Rows) error) error {
 	queries := make([]schemaSQL, len(filters))
 	for i, filter := range filters {
-		queries[i] = schemaSQL{text: strings.Replace(template, "/*RELATIONS*/", filter.text, 1), args: filter.args}
+		queries[i] = schemaSQL{text: strings.Replace(template, "/*OBJECT_FILTER*/", filter.text, 1), args: filter.args}
 	}
 	return c.queryDetailQueries(ctx, name, queries, scan)
 }
@@ -1549,7 +1539,7 @@ func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKe
 		schemaObjectColumns{conID: "cc.con_id", owner: "cc.owner", name: "cc.table_name"})
 	queries := make([]schemaSQL, len(filters))
 	for i, filter := range filters {
-		queries[i] = schemaSQL{text: strings.Replace(query, "/*RELATIONS*/", filter.text, 1), args: filter.args, positional: true}
+		queries[i] = schemaSQL{text: strings.Replace(query, "/*OBJECT_FILTER*/", filter.text, 1), args: filter.args, positional: true}
 	}
 	constraintsErr := c.queryDetailQueries(ctx, "constraints", queries, func(rows *sqlx.Rows) error {
 		var conID int64
@@ -1673,7 +1663,7 @@ func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKe
 func (c *Check) loadSchemaColumnDetails(ctx context.Context, commentFilters, defaultQueries []schemaSQL, at func(columnKey) *tableDetails) {
 	commentQueries := make([]schemaSQL, len(commentFilters))
 	for i, filter := range commentFilters {
-		commentQueries[i] = schemaSQL{text: strings.Replace(columnCommentsQuery, "/*RELATIONS*/", filter.text, 1), args: filter.args, positional: true}
+		commentQueries[i] = schemaSQL{text: strings.Replace(columnCommentsQuery, "/*OBJECT_FILTER*/", filter.text, 1), args: filter.args, positional: true}
 	}
 	_ = c.queryDetailQueries(ctx, "column comments", commentQueries, func(rows *sqlx.Rows) error {
 		var key columnKey
@@ -2010,8 +2000,8 @@ func (c *Check) viewPageRows(ctx context.Context, keys []tableKey, maxColumns in
 	columnFilters := objectFilterChunks(allowed, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"})
 	var pageRows []schemaRowDB
 	for i, filter := range filters {
-		query := strings.ReplaceAll(viewsQueryTemplate, "/*RELATIONS*/", filter.text)
-		query = strings.ReplaceAll(query, "/*COLUMN_RELATIONS*/", columnFilters[i].text)
+		query := strings.ReplaceAll(viewsQueryTemplate, "/*OBJECT_FILTER*/", filter.text)
+		query = strings.ReplaceAll(query, "/*COLUMN_FILTER*/", columnFilters[i].text)
 		query = strings.ReplaceAll(query, "/*MAX_COLUMNS*/", ":max_columns")
 		args := append([]any{sql.Named("max_columns", maxColumns)}, filter.args...)
 		if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
@@ -2050,22 +2040,6 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		at(conID, owner, name).Definition = value.String
 		return nil
 	})
-	_ = c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "object_name"}, func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, name string
-		var created, modified sql.NullTime
-		if err := rows.Scan(&conID, &owner, &name, &created, &modified); err != nil {
-			return err
-		}
-		d := at(conID, owner, name)
-		if created.Valid {
-			d.CreateDate = created.Time.UTC().Format(time.RFC3339)
-		}
-		if modified.Valid {
-			d.ModifyDate = modified.Time.UTC().Format(time.RFC3339)
-		}
-		return nil
-	})
 	_ = c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, comment string
@@ -2088,8 +2062,8 @@ func (c *Check) queryTablePageRows(ctx context.Context, keys []tableKey, maxColu
 	for i, filter := range filters {
 		ownerList := ownerListForKeys(keys)
 		query := strings.ReplaceAll(schemasQueryTemplate, "/*OWNERS*/", ownerList.text)
-		query = strings.ReplaceAll(query, "/*RELATIONS*/", filter.text)
-		query = strings.ReplaceAll(query, "/*COLUMN_RELATIONS*/", columnFilters[i].text)
+		query = strings.ReplaceAll(query, "/*OBJECT_FILTER*/", filter.text)
+		query = strings.ReplaceAll(query, "/*COLUMN_FILTER*/", columnFilters[i].text)
 		query = strings.ReplaceAll(query, "/*MAX_COLUMNS*/", ":max_columns")
 		args := append([]any{sql.Named("max_columns", maxColumns)}, filter.args...)
 		args = append(args, ownerList.args...)

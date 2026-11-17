@@ -59,10 +59,10 @@ func TestSchemaForeignKeysAcrossWindowsAgainstDatabase(t *testing.T) {
 			var queriedRows []*sqlx.Rows
 			c.schemaQueryError = nil
 			c.schemaQueryer = schemaQueryFunc(func(ctx context.Context, query string, args ...any) (*sqlx.Rows, error) {
-				if strings.HasPrefix(query, strings.Split(referencedConstraintsQuery, "/*RELATIONS*/")[0]) {
+				if strings.HasPrefix(query, strings.Split(referencedConstraintsQuery, "/*OBJECT_FILTER*/")[0]) {
 					definitions++
 				}
-				if strings.HasPrefix(query, strings.Split(referencedConstraintColumnsQuery, "/*RELATIONS*/")[0]) {
+				if strings.HasPrefix(query, strings.Split(referencedConstraintColumnsQuery, "/*OBJECT_FILTER*/")[0]) {
 					columns++
 				}
 				rows, err := c.db.QueryxContext(ctx, query, args...)
@@ -785,8 +785,6 @@ func TestSchemaCollectionViews(t *testing.T) {
 	require.NotNil(t, view, "the fixture view was not collected")
 	assert.Equal(t, "Schema collection view fixture", view.Comment)
 	assert.Contains(t, strings.ToUpper(view.Definition), "DD_ORDERS")
-	assert.NotEmpty(t, view.CreateDate)
-	assert.NotEmpty(t, view.ModifyDate)
 
 	columns := columnMap(view.Columns)
 	require.Contains(t, columns, "ORDER_ID")

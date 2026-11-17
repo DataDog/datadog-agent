@@ -188,13 +188,7 @@ func TestSchemaCollectionUnavailableContainerDoesNotComplete(t *testing.T) {
 				require.NoError(t, err)
 				mockSender, ok := sender.(*mocksender.MockSender)
 				require.True(t, ok)
-				for _, call := range mockSender.Calls {
-					if call.Method == "EventPlatformEvent" {
-						var event schemaEvent
-						require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-						require.Zero(t, event.CollectionPayloadsCount)
-					}
-				}
+				mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 0)
 				require.NoError(t, dbMock.ExpectationsWereMet())
 			})
 		}
@@ -249,11 +243,11 @@ func TestSchemaSnapshotValidationFailureKeepsOtherContainers(t *testing.T) {
 		coordinator.add(schemaEvent{CollectionStartedAt: 123, Metadata: []containerObject{{ID: id}}})
 	}
 	require.ErrorIs(t, coordinator.complete(), unavailable)
-	require.Len(t, events, 2)
-	require.Zero(t, events[0].CollectionPayloadsCount)
-	require.Equal(t, 1, events[1].CollectionPayloadsCount)
+	require.Len(t, events, 1)
+	require.Equal(t, "4", events[0].Metadata[0].ID)
+	require.Equal(t, 1, events[0].CollectionPayloadsCount)
 	require.NoError(t, coordinator.complete())
-	require.Len(t, events, 2)
+	require.Len(t, events, 1)
 }
 
 func TestContainerNamesExcludesUnavailablePDBs(t *testing.T) {
@@ -1041,7 +1035,7 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 	assert.Equal(t, 2, views.CollectionPayloadsCount)
 }
 
-func TestViewCollectionFailureKeepsTables(t *testing.T) {
+func TestViewCollectionFailureDropsBufferedTables(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -1065,25 +1059,7 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 
 	require.Error(t, c.SchemaCollection())
 
-	var kinds []string
-	for _, call := range sender.Calls {
-		if call.Method != "EventPlatformEvent" {
-			continue
-		}
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &e))
-		kinds = append(kinds, e.Kind)
-	}
-	assert.Equal(t, []string{"oracle_databases"}, kinds)
-
-	var event schemaEvent
-	for _, call := range sender.Calls {
-		if call.Method == "EventPlatformEvent" {
-			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-		}
-	}
-	assert.Zero(t, event.CollectionPayloadsCount,
-		"a table payload must not complete a snapshot when view collection fails")
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 0)
 	sender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -2157,7 +2133,7 @@ func TestSchemaCollectorKeepsTableWithNoEligibleColumns(t *testing.T) {
 	assert.Empty(t, table.Columns)
 }
 
-func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
+func TestSchemaCollectionDiscardsBufferedChunkAfterNextPageFails(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -2201,7 +2177,7 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 	}
 
 	require.ErrorContains(t, c.SchemaCollection(), "second page failed")
-	sender.AssertNumberOfCalls(t, "EventPlatformEvent", schemaTablePageSize/50)
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", schemaTablePageSize/50-1)
 	sender.AssertNumberOfCalls(t, "Commit", 1)
 	for _, call := range sender.Calls {
 		if call.Method != "EventPlatformEvent" {
@@ -2600,20 +2576,12 @@ func TestViewDetailsAreScopedToPage(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "VIEW_NAME", "TEXT_VC"}).
 			AddRow(3, "APP", "V1", "SELECT 1 FROM dual").
 			AddRow(3, "APP", "V2", "SELECT 2 FROM dual"))
-	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	modified := created.Add(time.Hour)
-	dbMock.ExpectQuery("SELECT con_id, owner, object_name, created, last_ddl_time").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "OBJECT_NAME", "CREATED", "LAST_DDL_TIME"}).
-			AddRow(3, "APP", "V1", created, modified).
-			AddRow(3, "APP", "V2", created, modified))
 	dbMock.ExpectQuery("cdb_tab_comments").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COMMENTS"}))
 
 	details := c.viewDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}})
 	require.Len(t, details, 1)
 	assert.Equal(t, "SELECT 1 FROM dual", details[key].Definition)
-	assert.Equal(t, created.Format(time.RFC3339), details[key].CreateDate)
-	assert.Equal(t, modified.Format(time.RFC3339), details[key].ModifyDate)
 	assert.NotContains(t, details, tableKey{conID: 3, owner: "APP", table: "V2"})
 	require.NoError(t, dbMock.ExpectationsWereMet())
 }
@@ -3521,8 +3489,8 @@ func TestSchemaConstraintWindowPreservesSuccessfulEmptyCollections(t *testing.T)
 }
 
 func TestSchemaSparseDefaultQueriesKeepBothVersionPaths(t *testing.T) {
-	require.Contains(t, columnDefaultsQuery, "WHERE /*RELATIONS*/ AND c.default_length > 0")
-	require.Contains(t, localColumnValuesQuery, "WHERE /*RELATIONS*/ AND c.default_length > 0")
+	require.Contains(t, columnDefaultsQuery, "WHERE /*OBJECT_FILTER*/ AND c.default_length > 0")
+	require.Contains(t, localColumnValuesQuery, "WHERE /*OBJECT_FILTER*/ AND c.default_length > 0")
 	require.Contains(t, localColumnValuesQuery, "c.data_default")
 	require.Contains(t, localColumnValuesQuery, schemaIndexExpressionColumn)
 }
@@ -3814,7 +3782,7 @@ func TestSchemaReferencedConstraintColumnQueriesBoundNamesAndTables(t *testing.T
 			require.Len(t, queries, 2)
 			seenNames := make(map[string]int)
 			for _, query := range queries {
-				require.NotContains(t, query.text, "/*RELATIONS*/")
+				require.NotContains(t, query.text, "/*OBJECT_FILTER*/")
 				require.NotContains(t, query.text, "/*CONSTRAINTS*/")
 				require.Contains(t, query.text, "ORDER BY cc.con_id, cc.owner, cc.constraint_name, cc.position, cc.column_name")
 				args := make(map[string]any)
@@ -4613,18 +4581,19 @@ func TestSchemaSnapshotAllOversizedObjectsKeepsCompletionPolicy(t *testing.T) {
 					}
 					require.ErrorIs(t, coordinator.completeContainer(3, false), failure)
 				}
-				require.Len(t, events, 1)
-				require.Equal(t, "3", events[0].Metadata[0].ID)
-				require.Equal(t, "PDB", events[0].Metadata[0].Name)
-				require.Empty(t, events[0].Metadata[0].Schemas)
-				require.True(t, events[0].Truncated)
 				if outcome == "complete" {
+					require.Len(t, events, 1)
+					require.Equal(t, "3", events[0].Metadata[0].ID)
+					require.Equal(t, "PDB", events[0].Metadata[0].Name)
+					require.Empty(t, events[0].Metadata[0].Schemas)
+					require.True(t, events[0].Truncated)
 					require.Equal(t, 1, events[0].CollectionPayloadsCount)
 				} else {
-					require.Zero(t, events[0].CollectionPayloadsCount)
+					require.Empty(t, events)
 				}
+				count := len(events)
 				require.NoError(t, coordinator.complete())
-				require.Len(t, events, 1)
+				require.Len(t, events, count)
 			})
 		}
 	}

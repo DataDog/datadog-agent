@@ -32,7 +32,7 @@ const schemaIndexExpressionColumn = "c.hidden_column = 'YES' AND c.virtual_colum
 const localColumnValuesQuery = `SELECT TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')),
 c.owner, c.table_name, c.column_name,
 CASE WHEN ` + schemaIndexExpressionColumn + ` THEN 'YES' ELSE 'NO' END, c.data_default
-FROM dba_tab_cols c WHERE /*RELATIONS*/ AND c.default_length > 0`
+FROM dba_tab_cols c WHERE /*OBJECT_FILTER*/ AND c.default_length > 0`
 
 type schemaContainerSession interface {
 	schemaQueryer
@@ -118,7 +118,7 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 		err := c.withSchemaContainer(ctx, id, func() error {
 			filters := columnFilterChunks(byContainer[id], schemaObjectColumns{conID: schemaCurrentContainerID, owner: "c.owner", name: "c.table_name"}, "c.column_name")
 			for _, filter := range filters {
-				query := strings.Replace(localColumnValuesQuery, "/*RELATIONS*/", filter.text, 1)
+				query := strings.Replace(localColumnValuesQuery, "/*OBJECT_FILTER*/", filter.text, 1)
 				if err := c.queryMetadata(ctx, query, scan, filter.args...); err != nil {
 					return err
 				}

@@ -449,7 +449,7 @@ func TestSchemaBindingsHydrationSuppliesEveryNamedArgument(t *testing.T) {
 	for _, view := range []bool{false, true} {
 		c.schemaQueryer = schemaQueryFunc(func(_ context.Context, query string, args ...any) (*sqlx.Rows, error) {
 			require.NotContains(t, query, "O'RDER")
-			require.NotContains(t, query, "/*RELATIONS*/")
+			require.NotContains(t, query, "/*OBJECT_FILTER*/")
 			provided := make(map[string]bool)
 			for _, arg := range args {
 				named := arg.(sql.NamedArg)
@@ -488,7 +488,7 @@ func TestSchemaColumnDefaultQueriesKeepSingleOwnerUnchanged(t *testing.T) {
 		require.Len(t, queries, len(filters))
 		for i, filter := range filters {
 			template := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
-			require.Equal(t, strings.Replace(template, "/*RELATIONS*/", filter.text, 1), queries[i].text)
+			require.Equal(t, strings.Replace(template, "/*OBJECT_FILTER*/", filter.text, 1), queries[i].text)
 			require.Equal(t, filter.args, queries[i].args)
 		}
 	}
@@ -588,7 +588,7 @@ func TestSchemaColumnDefaultQueriesKeepExactHeterogeneousBranches(t *testing.T) 
 			expectedArgs = append(expectedArgs, sql.Named(prefix+arg.Name, arg.Value))
 		}
 		template := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
-		expectedBranches = append(expectedBranches, strings.Replace(template, "/*RELATIONS*/", strings.ReplaceAll(filter.text, ":", ":"+prefix), 1))
+		expectedBranches = append(expectedBranches, strings.Replace(template, "/*OBJECT_FILTER*/", strings.ReplaceAll(filter.text, ":", ":"+prefix), 1))
 	}
 	require.Equal(t, expectedArgs, queries[0].args)
 	require.Equal(t, strings.Join(expectedBranches, " UNION ALL "), queries[0].text)
