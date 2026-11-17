@@ -10,10 +10,10 @@ mode: daemonset
 nodeSelector:
   kubernetes.io/os: linux
 
-# Host Profiler preview image. Update the tag when using a newer preview build.
+# Host Profiler image. Update the tag when using a newer release.
 image:
   repository: registry.datadoghq.com/ddot-ebpf
-  tag: 7.81.0-preview-host-profiler-1.0
+  tag: "7.86"
 
 # Environment variables used by helm/collector-config-values.yaml.
 extraEnvs:

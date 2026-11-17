@@ -36,7 +36,7 @@ kubectl describe pod -n <NAMESPACE> <POD_NAME>
 
 Common causes:
 
-- **Image pull errors:** verify that the preview image tag in your values or manifests is correct and that the cluster can pull from `registry.datadoghq.com`.
+- **Image pull errors:** verify that the image tag in your values or manifests is correct and that the cluster can pull from `registry.datadoghq.com`.
 - **Missing API key secret:** for the example OpenTelemetry deployment paths, make sure the `datadog-secret` Secret exists in the same namespace as the Host Profiler and contains the `api-key` key. To check that the key exists without displaying its value:
 
   ```shell
@@ -49,7 +49,7 @@ Common causes:
 - **Cluster security policy:** host-wide eBPF profiling requires host-level access, including `hostPID: true`, host kernel mounts, and eBPF-related Linux capabilities. If your cluster uses Pod Security Admission, OPA Gatekeeper, Kyverno, or another admission controller, make sure it allows the settings from the deployment guide you are using. The Host Profiler does not run as a privileged container.
 - **SELinux profile errors:** the deployment examples use the `spc_t` SELinux type. If that type is unavailable in your environment, replace it with an equivalent type supported by your distribution and security policy. See the [Datadog Helm](bundled/helm.md) and [Datadog Operator](bundled/operator.md) guides, or the [OpenTelemetry Helm](standalone/helm/collector-values.yaml) and [OpenTelemetry Operator](standalone/operator/collector.yaml) configuration. The replacement must allow the host and process access required by the Host Profiler.
 - **Seccomp or AppArmor profile errors:** an init container installs the seccomp profile automatically in all deployment paths. If the pod is stuck in init, inspect the init container logs. AppArmor is optional; if you enable it, make sure the profile is loaded on every node where the Host Profiler can run.
-- **Unsupported environment:** this preview requires Kubernetes nodes that support host-level DaemonSets. Serverless, virtual-node, and restricted-node environments are not supported. See [Supported environments](README.md#supported-environments).
+- **Unsupported environment:** the Host Profiler requires Kubernetes nodes that support host-level DaemonSets. Serverless, virtual-node, and restricted-node environments are not supported. See [Supported environments](README.md#supported-environments).
 
 ## Profiles do not appear in Datadog
 
