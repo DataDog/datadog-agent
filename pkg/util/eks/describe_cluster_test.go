@@ -333,3 +333,15 @@ func TestFIPSPseudoRegions(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribeClusterSendsUserAgent(t *testing.T) {
+	var got *http.Request
+	srv := httptest.NewServer(okClusterHandler("orders", func(r *http.Request) { got = r }))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	ua := got.Header.Get("User-Agent")
+	assert.True(t, strings.HasPrefix(ua, "datadog-cluster-agent/"), ua)
+	assert.Contains(t, ua, " aws-sdk-go-v2/"+aws.SDKVersion)
+}

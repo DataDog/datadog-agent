@@ -20,6 +20,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // This file is a minimal client for the single EKS API call the resolver needs,
@@ -122,6 +124,9 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		return nil, fmt.Errorf("build DescribeCluster request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	// Identify the caller in CloudTrail the way the Cluster Agent's Kubernetes client does, plus
+	// the SDK version that signs the request. The SigV4 signer does not sign User-Agent.
+	req.Header.Set("User-Agent", userAgent())
 
 	creds, err := c.cfg.Credentials.Retrieve(ctx)
 	if err != nil {
@@ -196,6 +201,10 @@ func sanitizeErrorCode(code string) string {
 		code = after
 	}
 	return code
+}
+
+func userAgent() string {
+	return "datadog-cluster-agent/" + version.AgentVersion + " aws-sdk-go-v2/" + aws.SDKVersion
 }
 
 // partitionEndpoint describes the DNS suffixes of an AWS partition. The table mirrors the
