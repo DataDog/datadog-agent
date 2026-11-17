@@ -117,16 +117,28 @@ func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		defer cancel()
 		return resolve(resolveCtx)
 	})
+	// The resolve's own ctx bounds the steps that honor it. Not all do: HostNodeName connects
+	// through GetAPIClient, which takes no ctx. So each caller also stops waiting after
+	// resolveBudget, and the resolve goes on in the background for the next request.
+	budget := time.NewTimer(resolveBudget)
+	defer budget.Stop()
+	var res singleflight.Result
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case res := <-results:
-		if res.Err != nil {
-			return nil, finalAfterStartup(res.Err)
+	case res = <-results:
+	case <-budget.C:
+		select {
+		case res = <-results:
+		default:
+			return nil, finalAfterStartup(fmt.Errorf("%w: %w", ErrNotDetermined, context.DeadlineExceeded))
 		}
-		id := *res.Val.(*eks.ClusterIdentity)
-		return &id, nil
 	}
+	if res.Err != nil {
+		return nil, finalAfterStartup(res.Err)
+	}
+	id := *res.Val.(*eks.ClusterIdentity)
+	return &id, nil
 }
 
 // resolveGroup coalesces concurrent Resolve calls.

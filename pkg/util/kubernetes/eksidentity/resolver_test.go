@@ -315,6 +315,8 @@ func TestResolveStaysWithinNodeRequestTimeout(t *testing.T) {
 		assert.ErrorIs(t, err, ErrNotDetermined)
 		assert.Equal(t, resolveBudget, time.Since(start))
 		assert.Less(t, resolveBudget, 3*time.Second)
+		// Let the resolve end in the background before stubbing again.
+		synctest.Wait()
 
 		stub(t, "eks", "", nil, "orders")
 		ec2ClusterName = func(ctx context.Context) (string, error) {
@@ -329,6 +331,7 @@ func TestResolveStaysWithinNodeRequestTimeout(t *testing.T) {
 		_, err = Resolve(t.Context())
 		require.Error(t, err)
 		assert.LessOrEqual(t, time.Since(start), resolveBudget)
+		synctest.Wait()
 	})
 }
 
@@ -512,4 +515,23 @@ func TestResolveIsNoLongerNotDeterminedAfterStartup(t *testing.T) {
 	cache.Cache.Delete(distributionFailureKey)
 	_, err = Resolve(t.Context())
 	assert.ErrorIs(t, err, ErrNotDetermined)
+}
+
+func TestResolveBoundIsHardWhenAStepIgnoresItsContext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// HostNodeName connects through GetAPIClient, which does not take a ctx. The node's
+		// request still gets an answer at resolveBudget.
+		stub(t, "eks", "orders", nil, "orders")
+		detectDistribution = func(context.Context) (string, error) {
+			time.Sleep(10 * time.Second)
+			return "eks", nil
+		}
+		start := time.Now()
+		_, err := Resolve(t.Context())
+		assert.ErrorIs(t, err, ErrNotDetermined)
+		assert.Equal(t, resolveBudget, time.Since(start))
+		// Let the background resolve end before the bubble does.
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+	})
 }
