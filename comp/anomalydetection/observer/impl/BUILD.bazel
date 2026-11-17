@@ -82,7 +82,6 @@ dd_agent_go_test(
         "bench_lazy_text_test.go",
         "bench_log_ingestion_test.go",
         "bench_main_test.go",
-        "bench_recorded_log_ingestion_test.go",
         "bench_storage_listing_test.go",
         "component_catalog_test.go",
         "component_test.go",

@@ -39,10 +39,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesStorage(t *testing.T) {
 		})
 	}
 
-	// Without the storage-side eviction, count would be 3 (every shape ever
-	// seen leaves a series behind). With it, the LRU eviction during the 3rd
-	// ingest removes cluster #1 from storage before cluster #3's series is
-	// added, so count is 2.
+	// The third pattern evicts the oldest series before admitting its replacement.
 	require.Equal(t, 2, storage.TotalSeriesCount(),
 		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
 
@@ -54,15 +51,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesStorage(t *testing.T) {
 	}
 }
 
-// TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState extends
-// TestEngine_LogMetricsPatternLRUEvictionFreesStorage to cover the detector side.
-// Storage frees the evicted series via RemoveSeriesByKeys, but stateful
-// detectors keep parallel per-series maps (BOCPD posterior, ScanMW/ScanWelch
-// segment trackers, seriesDetectorAdapter.lastVisibleCount) keyed by the
-// SeriesRef they observed during Detect(). Without engine.fanOutSeriesRemoval
-// those maps grow with the cumulative number of series ever seen, defeating
-// the LRU caps on the upstream extractors. This test checks that BOCPD's map
-// shrinks back in lockstep with storage.
+// Eviction must release detector state as well as storage series.
 func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	cfg := DefaultLogMetricsExtractorConfig()
 	cfg.MaxPatternsPerGroup = 2
@@ -80,11 +69,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	scanwelchCfg.MinSegment = 1
 	scanwelch := NewScanWelchDetector(scanwelchCfg)
 
-	// Stateless detector that does NOT implement SeriesRemover. Registering it
-	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
-	// fast-path: detectors without per-series state must be silently skipped, never
-	// invoked with RemoveSeries (which would panic since they don't implement it),
-	// and never block the eviction broadcast to the stateful detectors that follow.
+	// Cleanup must skip detectors that do not implement SeriesRemover.
 	stateless := &logMetricsStatelessTestDetector{name: "stateless"}
 
 	storage := newTimeSeriesStorage()
@@ -116,8 +101,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 		storage.AddWithKeyAndHostComposite(meta.Namespace, meta.Name, meta.Host, 1, 1_002, meta.Tags, testStorageKeyForMetric(meta.Namespace, &metricObs{name: meta.Name, host: meta.Host, tags: meta.Tags}), meta.MetricType)
 	}
 
-	// Drive Detect() so the detectors observe the series and populate their
-	// per-series state maps. dataTime needs to be ahead of the last point.
+	// Populate detector state before triggering eviction.
 	bocpd.Detect(storage, 1_002, observerdef.DetectionFilter{})
 	scanmw.Detect(storage, 1_002, observerdef.DetectionFilter{})
 	scanwelch.Detect(storage, 1_002, observerdef.DetectionFilter{})
@@ -129,9 +113,7 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	require.Greater(t, scanmwBefore, 0, "ScanMW should have observed the series before eviction")
 	require.Greater(t, scanwelchBefore, 0, "ScanWelch should have observed the series before eviction")
 
-	// Trigger LRU eviction by ingesting a third pattern that pushes the
-	// oldest cluster out. After the fix, the engine fans the freed refs
-	// out to every detector and the per-series maps shrink accordingly.
+	// A third pattern evicts the oldest series and its detector state.
 	e.IngestLog("src", &logObs{
 		content:     "WARN x y z w",
 		status:      "warn",
@@ -139,20 +121,10 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 		timestampMs: 1_002_000,
 	})
 
-	// Storage shrunk to two series (LRU cap), so detector maps must now
-	// have at most two entries per agg too. Without the fan-out, they
-	// would still hold three entries (one per series ever observed).
+	// Storage and detector maps must both remain bounded by the surviving series.
 	require.Equal(t, 2, storage.TotalSeriesCount(), "LRU should keep storage bounded")
 
-	// Each detector defaults to 2 aggregations (Average, Count). Before the
-	// fan-out fix, the maps held 3 series × 2 aggs = 6 entries even though
-	// only 2 series remained live. After the fix the engine drops the evicted
-	// ref's entries, so we expect at most 2 × 2 = 4 (and certainly fewer than
-	// the pre-eviction count, which had to grow first to detect the leak).
-	// Before the fan-out fix the maps held bocpdBefore entries (2 series ×
-	// 2 aggs = 4) and stayed there even after one of the series was evicted,
-	// because storage cleanup didn't propagate to detector state. After the
-	// fix, fanOutSeriesRemoval drops exactly the evicted ref's entries.
+	// Each detector retains at most one entry per surviving series and aggregation.
 	require.Less(t, len(bocpd.series), bocpdBefore,
 		"BOCPD per-series map must shrink when storage evicts a series; without the fan-out it stays at %d", bocpdBefore)
 	require.LessOrEqual(t, len(bocpd.series), 2*len(defaultAggregations),
@@ -166,19 +138,11 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	require.LessOrEqual(t, len(scanwelch.series), 2*len(defaultAggregations),
 		"ScanWelch per-series map must not exceed live series \u00d7 aggregations")
 
-	// Sanity check the stateless detector: registering it alongside the
-	// stateful ones means the eviction fan-out above iterated over it. The
-	// SeriesRemover type-assertion in fanOutSeriesRemoval is what keeps that
-	// safe — if it ever regresses (e.g. someone replaces the optional check
-	// with a hard call), this test panics on the runtime type-assertion
-	// failure during the eviction triggered above.
+	// The registered stateless detector must survive the same cleanup pass.
 	_ = stateless
 }
 
-// logMetricsStatelessTestDetector is a minimal observerdef.Detector that intentionally
-// does NOT implement observerdef.SeriesRemover. Used to verify that the
-// engine's eviction fan-out doesn't assume every detector tracks per-series
-// state.
+// logMetricsStatelessTestDetector has no per-series state or SeriesRemover method.
 type logMetricsStatelessTestDetector struct {
 	name string
 }
