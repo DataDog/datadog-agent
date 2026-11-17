@@ -61,6 +61,16 @@ const exitedPrintOutput = `system/com.datadoghq.agent-exp = {
 }
 `
 
+// configErrorPrintOutput is real `launchctl print` output (macOS 26) for a job that exited with a
+// sysexits code: launchd appends the code's name.
+const configErrorPrintOutput = `system/com.datadoghq.agent-exp = {
+	path = /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+	state = not running
+	exit timeout = 5
+	last exit code = 78: EX_CONFIG
+}
+`
+
 // killedPrintOutput is real `launchctl print` output for a job that was killed by a signal: launchd
 // prints the signal and no exit code.
 const killedPrintOutput = `system/com.datadoghq.agent-exp = {
@@ -131,6 +141,11 @@ func TestParsePrint(t *testing.T) {
 			name: "running job",
 			out:  runningPrintOutput,
 			want: JobStatus{Label: "com.datadoghq.agent", PID: 395, LastExitStatus: 0, Loaded: true},
+		},
+		{
+			name: "job that exited with a named sysexits code",
+			out:  configErrorPrintOutput,
+			want: JobStatus{Label: "com.datadoghq.agent", PID: 0, LastExitStatus: 78, HasExited: true, Loaded: true},
 		},
 		{
 			name: "job that exited non-zero",
