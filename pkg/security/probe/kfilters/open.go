@@ -31,6 +31,7 @@ var openFlagsCapabilities = rules.FieldCapabilities{
 	{
 		Field:        "open.file.in_upper_layer",
 		TypeBitmask:  eval.ScalarValueType,
+		ValidateFnc:  validateInUpperLayerFilter,
 		FilterMode:   rules.ApproverOnlyMode,
 		FilterWeight: 50,
 	},

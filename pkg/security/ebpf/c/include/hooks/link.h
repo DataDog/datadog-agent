@@ -93,9 +93,8 @@ TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
         return 0;
     }
 
-    // do not pop, we want to invalidate the inode even if the syscall is discarded
-    apply_dentry_resolution_outcome(syscall, EVENT_LINK);
-
+    // do not pop, we want to invalidate the inode even if the syscall is discarded.
+    // the source resolution outcome is applied in sys_link_ret, after the approvers.
     return 0;
 }
 

@@ -331,9 +331,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) chmod_approvers(struct 
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_CHMOD);
     }
-    if (state == DISCARDED) {
-        state = approve_by_in_upper_layer(EVENT_CHMOD, &syscall->setattr.file);
-    }
 
     return state;
 }
@@ -342,9 +339,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) chown_approvers(struct 
     enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_CHOWN);
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_CHOWN);
-    }
-    if (state == DISCARDED) {
-        state = approve_by_in_upper_layer(EVENT_CHOWN, &syscall->setattr.file);
     }
 
     return state;
@@ -696,9 +690,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) utime_approvers(struct 
     enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_UTIME);
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_UTIME);
-    }
-    if (state == DISCARDED) {
-        state = approve_by_in_upper_layer(EVENT_UTIME, &syscall->setattr.file);
     }
     return state;
 }

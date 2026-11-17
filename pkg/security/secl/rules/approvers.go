@@ -396,6 +396,10 @@ func fieldNeutralNotValue(values []eval.FieldValue) (interface{}, error) {
 	return notValue, nil
 }
 
+// getMultiFieldApprovers returns approvers spread over several fields for a rule that no single field
+// can approve, e.g. `a == x || b == y`. Every value of a kept field has to match the rule with the other
+// candidate fields set to a non-matching value: a value only matching along with another field, e.g.
+// `a == x && b == y`, would not be approved by any single kernel approver.
 func getMultiFieldApprovers(rule *Rule, event eval.Event, ctx *eval.Context, fieldCaps FieldCapabilities) (Approvers, FilterMode, error) {
 	var candidateCaps FieldCapabilities
 	var candidateFields []eval.Field
@@ -452,13 +456,14 @@ CAP_LOOP:
 				if err != nil {
 					return nil, DefaultMode, err
 				}
-				if ok {
-					filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
-					if !fieldCap.Validate(filterValue) {
-						continue CAP_LOOP
-					}
-					filterValues = filterValues.Merge(filterValue)
+				if !ok {
+					continue CAP_LOOP
 				}
+				filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
+				if !fieldCap.Validate(filterValue) {
+					continue CAP_LOOP
+				}
+				filterValues = filterValues.Merge(filterValue)
 			case eval.BitmaskValueType:
 				bitmasks = append(bitmasks, value.Value.(int))
 			}
@@ -469,13 +474,14 @@ CAP_LOOP:
 			if err != nil {
 				return nil, DefaultMode, err
 			}
-			if ok {
-				filterValue := FilterValue{Field: field, Value: bitmask, Type: eval.BitmaskValueType, Mode: fieldCap.FilterMode}
-				if !fieldCap.Validate(filterValue) {
-					continue CAP_LOOP
-				}
-				filterValues = filterValues.Merge(filterValue)
+			if !ok {
+				continue CAP_LOOP
 			}
+			filterValue := FilterValue{Field: field, Value: bitmask, Type: eval.BitmaskValueType, Mode: fieldCap.FilterMode}
+			if !fieldCap.Validate(filterValue) {
+				continue CAP_LOOP
+			}
+			filterValues = filterValues.Merge(filterValue)
 		}
 
 		if len(filterValues) == 0 {

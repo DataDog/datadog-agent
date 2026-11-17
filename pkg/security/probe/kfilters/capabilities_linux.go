@@ -73,11 +73,20 @@ func validateNameFilter(value rules.FilterValue) bool {
 	return false
 }
 
+// validateInUpperLayerFilter only accepts `true`: the kernel approver passes upper layer files, whatever the value
+func validateInUpperLayerFilter(value rules.FilterValue) bool {
+	isTrue, ok := value.Value.(bool)
+	return ok && isTrue
+}
+
+// buildInUpperLayerCapabilities must not be used for events whose hook runs before the overlayfs
+// copy-up (chmod, chown, utimes): the file is still in the lower layer when the approver is checked.
 func buildInUpperLayerCapabilities(event string) rules.FieldCapabilities {
 	return rules.FieldCapabilities{
 		{
 			Field:        event + ".file.in_upper_layer",
 			TypeBitmask:  eval.ScalarValueType,
+			ValidateFnc:  validateInUpperLayerFilter,
 			FilterMode:   rules.ApproverOnlyMode,
 			FilterWeight: 50,
 		},
@@ -134,15 +143,15 @@ func mergeCapabilities(caps ...rules.FieldCapabilities) rules.FieldCapabilities 
 }
 
 func init() {
-	allCapabilities["chmod"] = mergeCapabilities(buildFileCapabilities("chmod", "file"), buildInUpperLayerCapabilities("chmod"), processCapabilities)
-	allCapabilities["chown"] = mergeCapabilities(buildFileCapabilities("chown", "file"), buildInUpperLayerCapabilities("chown"), processCapabilities)
+	allCapabilities["chmod"] = mergeCapabilities(buildFileCapabilities("chmod", "file"), processCapabilities)
+	allCapabilities["chown"] = mergeCapabilities(buildFileCapabilities("chown", "file"), processCapabilities)
 	allCapabilities["link"] = mergeCapabilities(buildFileCapabilities("link", "file", "file.destination"), processCapabilities)
 	allCapabilities["mkdir"] = mergeCapabilities(buildFileCapabilities("mkdir", "file"), processCapabilities)
 	allCapabilities["open"] = mergeCapabilities(buildFileCapabilities("open", "file"), openFlagsCapabilities, processCapabilities)
 	allCapabilities["rename"] = mergeCapabilities(buildFileCapabilities("rename", "file", "file.destination"), processCapabilities)
 	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), buildInUpperLayerCapabilities("rmdir"), processCapabilities)
 	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), buildInUpperLayerCapabilities("unlink"), processCapabilities)
-	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), buildInUpperLayerCapabilities("utimes"), processCapabilities)
+	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), processCapabilities)
 	allCapabilities["mmap"] = mergeCapabilities(buildFileCapabilities("mmap", "file"), mmapCapabilities, processCapabilities)
 	allCapabilities["mprotect"] = mprotectCapabilities
 	allCapabilities["splice"] = mergeCapabilities(buildFileCapabilities("splice", "file"), spliceCapabilities, processCapabilities)

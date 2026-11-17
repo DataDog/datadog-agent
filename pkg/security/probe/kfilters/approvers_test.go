@@ -977,6 +977,17 @@ func TestApproverMultiFieldLinkAndRename(t *testing.T) {
 		}
 		assert.Empty(t, approvers)
 	})
+
+	t.Run("link-conjunction-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `link.file.path == "/etc/a" || link.file.destination.path == "/etc/b" || (link.file.path == "/etc/c" && link.file.destination.path == "/etc/d")`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
 }
 
 func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {
@@ -1007,29 +1018,53 @@ func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {
 		assert.Empty(t, approvers["open.flags"])
 	})
 
-	t.Run("chmod-and-unlink-in-upper-layer", func(t *testing.T) {
+	t.Run("chmod-in-upper-layer-no-approver", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-		rules.AddTestRuleExpr(t, rs, `chmod.file.in_upper_layer && chmod.file.destination.mode & S_IXUSR > 0`, `unlink.file.in_upper_layer`)
+		rules.AddTestRuleExpr(t, rs, `chmod.file.in_upper_layer && chmod.file.destination.mode & S_IXUSR > 0`)
 
-		chmodApprovers, _, chmodNoDiscarder, err := rs.GetEventTypeApprovers("chmod", allCapabilities["chmod"])
+		approvers, _, _, err := rs.GetEventTypeApprovers("chmod", allCapabilities["chmod"])
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Len(t, chmodApprovers["chmod.file.in_upper_layer"], 1)
-		assert.Len(t, chmodNoDiscarder, 1)
-
-		kfilters, handled, err := KFilterGetters["chmod"](chmodApprovers)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, []eval.Field{"chmod.file.in_upper_layer"}, handled)
-		assert.Len(t, kfilters, 1)
-
-		unlinkApprovers, _, unlinkNoDiscarder, err := rs.GetEventTypeApprovers("unlink", allCapabilities["unlink"])
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Len(t, unlinkApprovers["unlink.file.in_upper_layer"], 1)
-		assert.Len(t, unlinkNoDiscarder, 1)
+		assert.Empty(t, approvers)
 	})
+
+	t.Run("unlink-in-upper-layer", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `unlink.file.in_upper_layer`)
+
+		approvers, _, noDiscarder, err := rs.GetEventTypeApprovers("unlink", allCapabilities["unlink"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Len(t, approvers["unlink.file.in_upper_layer"], 1)
+		assert.Len(t, noDiscarder, 1)
+
+		kfilters, handled, err := KFilterGetters["unlink"](approvers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, []eval.Field{"unlink.file.in_upper_layer"}, handled)
+		assert.Len(t, kfilters, 1)
+	})
+
+	for _, tc := range []struct {
+		eventType string
+		expr      string
+	}{
+		{"unlink", `unlink.file.in_upper_layer == false`},
+		{"open", `open.file.in_upper_layer == false`},
+		{"unlink", `unlink.file.path == "/etc/passwd" || unlink.file.in_upper_layer == false`},
+	} {
+		t.Run("in-upper-layer-false-no-approver/"+tc.expr, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			rules.AddTestRuleExpr(t, rs, tc.expr)
+
+			approvers, _, _, err := rs.GetEventTypeApprovers(tc.eventType, allCapabilities[tc.eventType])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Empty(t, approvers)
+		})
+	}
 }
