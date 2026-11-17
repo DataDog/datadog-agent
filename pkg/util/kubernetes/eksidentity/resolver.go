@@ -8,6 +8,7 @@ package eksidentity
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -133,6 +134,11 @@ func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		return nil, ErrClusterNameUnavailable
 	}
 	clusterCA, err := readClusterCA()
+	if err == nil && !containsCertificate(clusterCA) {
+		// An empty or PEM-less file cannot verify anything. Treat it as unreadable rather than
+		// failing every lookup as a mismatch.
+		err = errors.New("the cluster CA file holds no certificate")
+	}
 	if err != nil {
 		if !discovered.fromEC2 {
 			if discovered.timedOut {
@@ -143,7 +149,27 @@ func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		log.Debugf("Cannot read the cluster CA to verify the EKS cluster, using the EC2 tag cluster name: %v", err)
 		clusterCA = nil
 	}
-	return resolveIdentityByKey(ctx, discovered.name, clusterCA)
+	id, err := resolveIdentityByKey(ctx, discovered.name, clusterCA)
+	if errors.Is(err, eks.ErrClusterMismatch) && discovered.fromEC2 {
+		// The EC2 tag name is otherwise cached for good. Look it up again next time, in case
+		// the node's tags change.
+		cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
+	}
+	return id, err
+}
+
+// containsCertificate reports whether a PEM bundle holds at least one certificate.
+func containsCertificate(bundle []byte) bool {
+	for {
+		var block *pem.Block
+		block, bundle = pem.Decode(bundle)
+		if block == nil {
+			return false
+		}
+		if block.Type == "CERTIFICATE" {
+			return true
+		}
+	}
 }
 
 func discoverClusterName(ctx context.Context) discoveredName {

@@ -8,6 +8,7 @@ package eksidentity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -334,4 +335,43 @@ func TestResolveRecoversPanics(t *testing.T) {
 	assert.Nil(t, identity)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestResolveDropsEC2NameAfterClusterMismatch(t *testing.T) {
+	// An EC2 tag name that verifies against another cluster's CA must not stay cached forever.
+	state := stub(t, "eks", "Orders_Old", nil, "orders")
+	resolveIdentityByKey = func(_ context.Context, name string, _ []byte) (*eks.ClusterIdentity, error) {
+		state.requested = name
+		return nil, fmt.Errorf("verify %s: %w", name, eks.ErrClusterMismatch)
+	}
+	_, err := Resolve(t.Context())
+	require.ErrorIs(t, err, eks.ErrClusterMismatch)
+	_, err = Resolve(t.Context())
+	require.ErrorIs(t, err, eks.ErrClusterMismatch)
+	assert.Equal(t, 2, state.ec2Lookups, "the name is looked up again")
+}
+
+func TestResolveTreatsCertificateLessCAAsUnreadable(t *testing.T) {
+	for name, ca := range map[string][]byte{
+		"empty":       {},
+		"no PEM":      []byte("not a certificate"),
+		"other block": []byte("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			// With the EC2 tag name, the identity is resolved without the CA check rather
+			// than failing every lookup as a mismatch.
+			state := stub(t, "eks", "Orders_Prod", nil, "orders")
+			readClusterCA = func() ([]byte, error) { return ca, nil }
+			_, err := Resolve(t.Context())
+			require.NoError(t, err)
+			assert.Nil(t, state.requestedCA)
+
+			// With only the configured name, it cannot be verified.
+			state = stub(t, "eks", "", errors.New("no ec2 tags"), "orders")
+			readClusterCA = func() ([]byte, error) { return ca, nil }
+			_, err = Resolve(t.Context())
+			assert.ErrorIs(t, err, ErrClusterUnverified)
+			assert.Equal(t, 0, state.resolveCall)
+		})
+	}
 }
