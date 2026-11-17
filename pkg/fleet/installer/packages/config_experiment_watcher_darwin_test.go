@@ -326,3 +326,96 @@ func TestStopLoadsAStoppedProcessManager(t *testing.T) {
 	assert.True(t, l.isLoaded(procmgrJob))
 	assert.FileExists(t, filepath.Join(dir, procmgrJob+".plist"))
 }
+
+func shortStartupPoll(t *testing.T) {
+	t.Helper()
+
+	original := startupPollTimeout
+	startupPollTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { startupPollTimeout = original })
+}
+
+// spawnScheduledOutput is what launchctl prints for a job it was told to start but has not yet
+// spawned: no pid, and no recorded exit.
+func spawnScheduledOutput(target string) []byte {
+	return []byte(target + " = {\n\tstate = spawn scheduled\n\tlast exit code = (never exited)\n}\n")
+}
+
+// stubLaunchdWithPendingJob reports every experiment job as running, except pending, which never
+// gets a pid until started is set.
+func stubLaunchdWithPendingJob(t *testing.T, pending string, started *bool) {
+	t.Helper()
+
+	stubLaunchdScript(t, func(args []string) ([]byte, error, bool) {
+		if args[0] != "print" {
+			return nil, nil, false
+		}
+		target := args[len(args)-1]
+		if target == "system/"+pending && (started == nil || !*started) {
+			if started != nil {
+				*started = true
+			}
+			return spawnScheduledOutput(target), nil, true
+		}
+		return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, os.Getpid())), nil, true
+	})
+}
+
+// TestResolveExperimentPidsFailsAJobThatNeverStarts pins the fail-closed rule: a job with no pid
+// and no recorded exit once the startup bound is up failed to start, whether or not it is
+// essential, since the exit observer could never watch it if it started later.
+func TestResolveExperimentPidsFailsAJobThatNeverStarts(t *testing.T) {
+	for _, label := range []string{agentJob, "com.datadoghq.sysprobe"} {
+		t.Run(label, func(t *testing.T) {
+			shortStartupPoll(t)
+			stubLaunchdWithPendingJob(t, label+"-exp", nil)
+
+			_, exited, err := resolveExperimentPids(context.Background(), configExperimentJobSet())
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), label+"-exp")
+			assert.Nil(t, exited)
+		})
+	}
+}
+
+// TestResolveExperimentPidsWaitsForAJobThatIsStillForking pins that the bound only fails a job that
+// never comes up: one that gets its pid on a later poll is watched like the others.
+func TestResolveExperimentPidsWaitsForAJobThatIsStillForking(t *testing.T) {
+	started := false
+	stubLaunchdWithPendingJob(t, agentJob+"-exp", &started)
+
+	pids, exited, err := resolveExperimentPids(context.Background(), configExperimentJobSet())
+
+	require.NoError(t, err)
+	assert.Nil(t, exited)
+	assert.Contains(t, pids, os.Getpid())
+}
+
+// TestWatcherRevertsAnExperimentWhoseAgentNeverStarts covers the whole path: the watcher cannot
+// arm on an Agent that never started, so it reverts the experiment instead of leaving it
+// unsupervised until the deadline.
+func TestWatcherRevertsAnExperimentWhoseAgentNeverStarts(t *testing.T) {
+	shortStartupPoll(t)
+	l, _, experimentPath := runningExperiment(t)
+	live := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := live()
+		run := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			target := args[len(args)-1]
+			if args[0] == "print" && target == "system/"+agentJob+"-exp" && l.isLoaded(agentJob+"-exp") {
+				return spawnScheduledOutput(target), nil
+			}
+			return run(ctx, name, args...)
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = live })
+
+	err := watchExperiment(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "did not start")
+	assertReverted(t, l, experimentPath)
+}

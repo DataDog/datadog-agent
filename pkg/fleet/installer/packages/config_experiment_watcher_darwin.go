@@ -38,14 +38,14 @@ const watcherFailSafeAttempts = 3
 var watcherFailSafeBackoff = 5 * time.Second
 
 // startupPollInterval and startupPollTimeout bound how long watchExperiment waits for a job that
-// Kickstart was already told to start, but that launchd has not yet reported a pid for, before
-// treating it as failed to launch. This process is spawned detached, after the jobs have been
-// started, so a healthy job can legitimately still be forking when this runs; the bound exists
-// only to distinguish that from a job that will never come up.
-const (
-	startupPollInterval = 100 * time.Millisecond
-	startupPollTimeout  = 5 * time.Second
-)
+// Kickstart was already told to start, but that launchd has not yet reported a pid for. This
+// process is spawned detached, after the jobs have been started, so a healthy job can legitimately
+// still be forking when this runs. A job still without a pid or a recorded exit once the bound is
+// up failed to start, and fails the experiment: the exit observer only watches the pids it is armed
+// with, so a job that started later would crash unnoticed until the deadline.
+const startupPollInterval = 100 * time.Millisecond
+
+var startupPollTimeout = 5 * time.Second
 
 // installerLockPoll bounds each wait for the installer's lock, so a watcher whose experiment was
 // stopped, promoted or replaced meanwhile notices and exits instead of waiting out a long operation.
@@ -116,9 +116,9 @@ func superviseExperiment(ctx context.Context, deadline launchd.Deadline, token s
 		return err
 	}
 	if len(jobPIDs) == 0 {
-		// Every job in the set failed to come up at all within the startup grace period,
-		// and none of them recorded an exit either -- Kickstart was accepted but nothing
-		// ever ran. Treat that as a failed launch, same as a crash.
+		// Every job in the set exited cleanly without failing the experiment before the
+		// watcher could observe it: nothing is left running to supervise. Treat that as a
+		// failed launch, same as a crash.
 		_, err := revertFromWatcher(ctx, deadline, token, "experiment never started")
 		return err
 	}
@@ -314,7 +314,8 @@ func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string
 // only covers the gap between that request and this process actually getting to check.
 //
 // It returns the running jobs' pids, each mapped to its label without the variant suffix, which is
-// what exitFailsExperiment is keyed on.
+// what exitFailsExperiment is keyed on. A job still pending once startupPollTimeout is up is an
+// error: it failed to start, and it could not be watched if it started later.
 //
 // A job that launchd itself recorded as having exited in a way that fails the experiment
 // (exitFailsExperiment) stops the wait immediately and is returned in exited, regardless of its
@@ -333,7 +334,7 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs ma
 			return nil, nil, err
 		}
 		jobPIDs = make(map[int]string, len(statuses))
-		pending := false
+		var pending []string
 		for i, status := range statuses {
 			label := strings.TrimSuffix(status.Label, string(launchd.Experiment))
 			if status.PID != 0 {
@@ -346,10 +347,13 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs ma
 			if status.HasExited {
 				continue
 			}
-			pending = true
+			pending = append(pending, status.Label)
 		}
-		if !pending || time.Now().After(giveUp) {
+		if len(pending) == 0 {
 			return jobPIDs, nil, nil
+		}
+		if time.Now().After(giveUp) {
+			return nil, nil, fmt.Errorf("experiment jobs %s did not start within %s", strings.Join(pending, ", "), startupPollTimeout)
 		}
 		select {
 		case <-ctx.Done():
