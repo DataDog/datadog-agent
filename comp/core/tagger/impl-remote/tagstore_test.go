@@ -7,6 +7,7 @@ package remoteimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,7 +155,18 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
 
-	initialBatch := <-sub.EventsChan()
+	nextBatch := func() []types.EntityEvent {
+		t.Helper()
+		select {
+		case batch := <-sub.EventsChan():
+			return batch
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for subscription batch")
+			return nil
+		}
+	}
+
+	initialBatch := nextBatch()
 	require.Len(t, initialBatch, 1)
 	assert.Equal(t, types.EventTypeAdded, initialBatch[0].EventType)
 	assert.Equal(t, entityID, initialBatch[0].Entity.ID)
@@ -171,8 +183,29 @@ func TestSubscribe(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	updateBatch := <-sub.EventsChan()
+	updateBatch := nextBatch()
 	require.Len(t, updateBatch, 1)
 	assert.Equal(t, types.EventTypeModified, updateBatch[0].EventType)
 	assert.Equal(t, []string{"image_name:nginx", "image_tag:1.27"}, updateBatch[0].Entity.OrchestratorCardinalityTags)
+
+	err = store.processEvents([]types.EntityEvent{
+		{
+			EventType: types.EventTypeAdded,
+			Entity: types.Entity{
+				ID:                          anotherEntityID,
+				OrchestratorCardinalityTags: []string{"image_name:redis", "image_tag:7.2"},
+			},
+		},
+	}, true)
+	require.NoError(t, err)
+
+	deletedBatch := nextBatch()
+	require.Len(t, deletedBatch, 1)
+	assert.Equal(t, types.EventTypeDeleted, deletedBatch[0].EventType)
+	assert.Equal(t, entityID, deletedBatch[0].Entity.ID)
+
+	replacedBatch := nextBatch()
+	require.Len(t, replacedBatch, 1)
+	assert.Equal(t, types.EventTypeAdded, replacedBatch[0].EventType)
+	assert.Equal(t, anotherEntityID, replacedBatch[0].Entity.ID)
 }

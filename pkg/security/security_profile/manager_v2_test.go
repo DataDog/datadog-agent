@@ -1162,10 +1162,18 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 			resumedProfile, resumedInserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		}()
 
-		<-lookupDone
+		select {
+		case <-lookupDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile lookup")
+		}
 		m.cleanupPendingProfiles()
 		close(resumeInsertion)
-		<-insertDone
+		select {
+		case <-insertDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile insertion")
+		}
 
 		require.True(t, resumedInserted)
 		assert.Same(t, p, resumedProfile)
@@ -1575,11 +1583,10 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 
 		selector, err := m.buildWorkloadSelector(ev)
 		require.NoError(t, err)
-		p, err := m.getOrCreateProfile(selector, ev)
-		require.NoError(t, err)
 		workload := m.getOrCreateWorkload(ev, selector, getWorkloadIDFromEvent(ev))
 		require.NotNil(t, workload)
-		m.linkWorkloadToProfile(p, workload)
+		p, err := m.getOrCreateProfile(selector, ev, workload)
+		require.NoError(t, err)
 		return m, p, workload, ev
 	}
 
@@ -1692,14 +1699,23 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 		Entity:    types.Entity{ID: containerEntityID},
 	}}
 
-	<-nopTriggered
+	waitForNop := func() {
+		t.Helper()
+		select {
+		case <-nopTriggered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for nop wakeup")
+		}
+	}
+
+	waitForNop()
 	tagger.ch <- []types.EntityEvent{{
 		EventType: types.EventTypeModified,
 		Entity:    types.Entity{ID: containerEntityID},
 	}}
-	<-nopTriggered
+	waitForNop()
 	m.DrainPendingEvents()
-	assert.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
+	require.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
 
 	m.nopWakeupPending.Store(true)
 	m.DrainPendingEvents()
@@ -1716,11 +1732,11 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 		Entity:    types.Entity{ID: imageEntityID},
 	}}
 
-	<-nopTriggered
+	waitForNop()
 	m.DrainPendingEvents()
 
-	assert.Equal(t, uint64(0), m.queueSize.Load())
-	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	require.Equal(t, uint64(0), m.queueSize.Load())
+	require.Equal(t, uint64(0), m.pendingProfiles.Load())
 	assert.Empty(t, m.resolvedCgroups)
 
 	p := m.profiles[testSelector]
@@ -1731,4 +1747,42 @@ func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing
 	require.Len(t, *anomalies, 1)
 	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
 	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
+}
+
+type lateFirstLookupTagger struct {
+	calls int
+	tags  []string
+}
+
+func (f *lateFirstLookupTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	f.calls++
+	if f.calls == 1 {
+		return nil, nil
+	}
+	return f.tags, nil
+}
+
+func (f *lateFirstLookupTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func TestManagerV2_ProcessEventDrainsWhenTagsResolveDuringInitialQueue(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &lateFirstLookupTagger{
+		tags: []string{"image_name:" + testImageName, "image_tag:v1"},
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	assert.Equal(t, uint64(0), m.queueSize.Load())
+	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Contains(t, m.resolvedCgroups, ev.ProcessContext.Process.CGroup.CGroupID)
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
 }

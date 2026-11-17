@@ -765,7 +765,9 @@ func (m *ManagerV2) onTagsUpdated() {
 
 // DrainPendingEvents resolves and drains any pending profile events whose workload tags have become available
 func (m *ManagerV2) DrainPendingEvents() {
-	m.nopWakeupPending.Store(false)
+	if m.nopWakeupPending.Load() {
+		m.nopWakeupPending.Store(false)
+	}
 	if !m.pendingEventsReady.Load() || !m.pendingEventsReady.Swap(false) {
 		return
 	}
@@ -836,16 +838,24 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
-	if m.isWorkloadActive(getWorkloadIDFromEvent(event)) {
-		m.resolvedCgroupsLock.Lock()
-		m.resolvedCgroups[cgroupID] = struct{}{}
-		m.resolvedCgroupsLock.Unlock()
-	}
+	m.recordResolvedCgroup(cgroupID, getWorkloadIDFromEvent(event))
 
 	m.drainPendingEventsForCgroup(cgroupID, event.ProcessContext.Process.ContainerContext.Tags)
 
 	// Process the current event
 	m.onEventTagsResolved(event)
+}
+
+func (m *ManagerV2) recordResolvedCgroup(cgroupID containerutils.CGroupID, workloadID containerutils.WorkloadID) {
+	m.resolvedCgroupsLock.Lock()
+	_, exists := m.resolvedCgroups[cgroupID]
+	m.resolvedCgroupsLock.Unlock()
+	if exists || !m.isWorkloadActive(workloadID) {
+		return
+	}
+	m.resolvedCgroupsLock.Lock()
+	m.resolvedCgroups[cgroupID] = struct{}{}
+	m.resolvedCgroupsLock.Unlock()
 }
 
 func (m *ManagerV2) drainPendingEventsForCgroup(cgroupID containerutils.CGroupID, workloadTags []string) {
@@ -862,11 +872,7 @@ func (m *ManagerV2) drainPendingEventsForCgroup(cgroupID containerutils.CGroupID
 		return
 	}
 
-	if m.isWorkloadActive(pendingEvents.workloadID) {
-		m.resolvedCgroupsLock.Lock()
-		m.resolvedCgroups[cgroupID] = struct{}{}
-		m.resolvedCgroupsLock.Unlock()
-	}
+	m.recordResolvedCgroup(cgroupID, pendingEvents.workloadID)
 
 	latency := time.Since(pendingEvents.firstSeen)
 	if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
@@ -1214,8 +1220,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
+
 	// Get or create the profile for this workload
-	secprof, err := m.getOrCreateProfile(selector, event)
+	secprof, err := m.getOrCreateProfile(selector, event, workload)
 	if err != nil {
 		return nil, false
 	}
@@ -1236,7 +1244,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Evict surplus versions before the size check, since eviction can free enough space.
 	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
-	if workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event)); workload != nil {
+	if workload != nil {
 		m.seedMountsForWorkload(secprof, workload, event)
 	}
 
@@ -1348,26 +1356,23 @@ func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool 
 	return m.getCacheEntryForWorkload(workloadID) != nil
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
-func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
+func (m *ManagerV2) addWorkloadInstance(prof *profile.Profile, workload *tags.Workload) bool {
 	if workload == nil {
-		return
+		return false
 	}
 
 	prof.InstancesLock.Lock()
-	// Check if already tracked
+	defer prof.InstancesLock.Unlock()
+
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
-			prof.InstancesLock.Unlock()
-			return
+			return false
 		}
 	}
 
 	prof.Instances = append(prof.Instances, workload)
-	prof.InstancesLock.Unlock()
-
-	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
+	return true
 }
 
 // baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
@@ -1504,9 +1509,18 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
 // It first tries to load the profile from local storage, and if not found, creates a new one.
-func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
-	workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
+func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event, workload *tags.Workload) (*profile.Profile, error) {
+	secprof, linked, err := m.getOrCreateProfileLocked(selector, event, workload)
+	if err != nil {
+		return nil, err
+	}
+	if linked {
+		m.resolveAndSaveSecurityContext(secprof, workload.GCroupCacheEntry.GetContainerID())
+	}
+	return secprof, nil
+}
 
+func (m *ManagerV2) getOrCreateProfileLocked(selector cgroupModel.WorkloadSelector, event *model.Event, workload *tags.Workload) (*profile.Profile, bool, error) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
@@ -1515,13 +1529,13 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
 		if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
 			seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
-			return nil, errors.New("workload excluded")
+			return nil, false, errors.New("workload excluded")
 		}
 
 		imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 		if m.imageExcluder.IsExcluded(imageName, imageTag) {
 			seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
-			return nil, errors.New("workload excluded")
+			return nil, false, errors.New("workload excluded")
 		}
 
 		// Try to load from local storage first
@@ -1538,6 +1552,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		m.profiles[selector] = secprof
 	}
 
+	linked := false
 	if secprof.IsEnabled() {
 		activeWorkload := workload != nil && !workload.GCroupCacheEntry.IsDeleted()
 		m.pendingProfileRemovalsLock.Lock()
@@ -1552,11 +1567,11 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		m.pendingProfileRemovalsLock.Unlock()
 
 		if activeWorkload {
-			m.linkWorkloadToProfile(secprof, workload)
+			linked = m.addWorkloadInstance(secprof, workload)
 		}
 	}
 
-	return secprof, nil
+	return secprof, linked, nil
 }
 
 // pathPatternConfig returns the path-pattern merging configuration of v2
