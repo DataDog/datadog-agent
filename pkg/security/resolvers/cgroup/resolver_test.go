@@ -353,3 +353,51 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 
 	mockFS.AssertExpectations(t)
 }
+
+func TestMultiCGroupContainer(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+
+	const cid = containerutils.ContainerID("c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad")
+	rootCGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 100},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	childCGroup := model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/kubepods.slice/cri-containerd-" + string(cid) + ".scope/init.scope"),
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 200},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+
+	var deleted []*cgroupModel.CacheEntry
+	require.NoError(t, resolver.RegisterListener(CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
+		deleted = append(deleted, cgce)
+	}))
+
+	rootEntry := resolver.AddPID(10, rootCGroup)
+	require.NotNil(t, rootEntry)
+	childEntry := resolver.AddPID(20, childCGroup)
+	require.NotNil(t, childEntry)
+	assert.Equal(t, int64(2), resolver.addedCgroups.Load())
+
+	assert.Same(t, rootEntry, resolver.AddPID(11, rootCGroup))
+	assert.Same(t, childEntry, resolver.AddPID(21, childCGroup))
+	assert.Equal(t, int64(2), resolver.addedCgroups.Load())
+
+	mockFS.On("GetCGroupPids", string(childCGroup.CGroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(20)
+	resolver.DelPID(21)
+	assert.Empty(t, deleted)
+	assert.True(t, childEntry.IsDeleted())
+	assert.False(t, rootEntry.IsDeleted())
+	assert.Same(t, rootEntry, resolver.GetCacheEntryContainerID(cid))
+
+	mockFS.On("GetCGroupPids", string(rootCGroup.CGroupID)).Return([]uint32{}, nil).Once()
+	resolver.DelPID(10)
+	resolver.DelPID(11)
+	require.Len(t, deleted, 1)
+	assert.Same(t, rootEntry, deleted[0])
+	assert.Nil(t, resolver.GetCacheEntryContainerID(cid))
+
+	mockFS.AssertExpectations(t)
+}

@@ -1214,6 +1214,12 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 
 	if cacheEntry == nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByInode(inode)
+		}
+	}
+
+	if cacheEntry == nil {
 		return nil
 	}
 

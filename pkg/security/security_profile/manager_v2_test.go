@@ -1073,6 +1073,37 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m.pendingProfileRemovals[testSelector] = queuedAt.Add(-2 * cleanupDelay)
 	m.cleanupPendingProfiles()
 	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
+
+	t.Run("multi-cgroup container stays linked when a child cgroup is deleted", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+
+		childCGroup := model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + testContainerID + "/init.scope"),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		}
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(childCGroup))
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.Len(t, p.Instances, 1)
+
+		m.resolvers.CGroupResolver.Delete(childCGroup.CGroupPathKey.Inode)
+		assert.Len(t, p.Instances, 1)
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+
+		nextEvent := newTestEventV2(model.DNSEventType, "v1", "new")
+		nextEvent.ProcessCacheEntry.Pid = 99
+		nextEvent.ProcessCacheEntry.FileEvent.Inode = 99
+		nextEvent.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
+		_, inserted = m.insertEventIntoProfile(nextEvent)
+		assert.True(t, inserted)
+		assert.Zero(t, m.insertionErrors[insertionErrorKey{eventType: model.DNSEventType, errorType: activity_tree.InsertionErrorProcessNodeNotCreated}].Load())
+
+		m.resolvers.CGroupResolver.Delete(4242)
+		assert.Empty(t, p.Instances)
+		assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	})
 }
 
 // TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,

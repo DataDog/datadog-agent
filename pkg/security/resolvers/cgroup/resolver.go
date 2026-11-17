@@ -116,12 +116,26 @@ func (cr *Resolver) Start(_ context.Context) {
 }
 
 func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
-	cr.hostCacheEntries.Remove(cacheEntry.GetCGroupID())
-	if !cacheEntry.IsContainerContextNull() {
-		cr.containerCacheEntries.Remove(cacheEntry.GetContainerID())
-	}
-
 	cr.cacheEntriesByPathKey.Remove(cacheEntry.GetCGroupPathKey().Inode)
+	cr.hostCacheEntries.Remove(cacheEntry.GetCGroupID())
+
+	if !cacheEntry.IsContainerContextNull() {
+		containerID := cacheEntry.GetContainerID()
+		var replacement *cgroupModel.CacheEntry
+		for _, entry := range cr.cacheEntriesByPathKey.Values() {
+			if entry.GetContainerID() == containerID {
+				replacement = entry
+				break
+			}
+		}
+		if replacement != nil {
+			cr.containerCacheEntries.Add(containerID, replacement)
+			cacheEntry.CallReleaseCallbacks()
+			cacheEntry.SetAsDeleted()
+		} else {
+			cr.containerCacheEntries.Remove(containerID)
+		}
+	}
 
 	cr.deletedCgroups.Inc()
 }
@@ -345,13 +359,7 @@ func (cr *Resolver) AddPID(pid uint32, cgroupContext model.CGroupContext) *cgrou
 }
 
 func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
-	if slices.ContainsFunc(cr.hostCacheEntries.Values(), cb) {
-		return
-	}
-
-	if slices.ContainsFunc(cr.containerCacheEntries.Values(), cb) {
-		return
-	}
+	slices.ContainsFunc(cr.cacheEntriesByPathKey.Values(), cb)
 }
 
 // IterateCacheEntries iterates over the cache entries
@@ -417,11 +425,7 @@ func (cr *Resolver) DelPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	for _, cacheEntry := range cr.containerCacheEntries.Values() {
-		cr.deleteCacheEntryPID(pid, cacheEntry)
-	}
-
-	for _, cacheEntry := range cr.hostCacheEntries.Values() {
+	for _, cacheEntry := range cr.cacheEntriesByPathKey.Values() {
 		cr.deleteCacheEntryPID(pid, cacheEntry)
 	}
 }
