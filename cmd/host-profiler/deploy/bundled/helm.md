@@ -20,7 +20,7 @@ Deploy the Datadog Agent with the Datadog Helm chart version **3.240.2** or late
 datadog:
   hostProfiler:
     enabled: true
-    image: "registry.datadoghq.com/ddot-ebpf:7.86"
+    image: "registry.datadoghq.com/ddot-ebpf:7.86.0"
 agents:
   containers:
     hostProfiler:

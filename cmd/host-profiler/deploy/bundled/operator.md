@@ -20,7 +20,7 @@ Update your existing `DatadogAgent` Custom Resource with the following Host Prof
 metadata:
   annotations:
     experimental.agent.datadoghq.com/image-override-config: |
-      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.86"}}
+      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.86.0"}}
 spec:
   features:
     hostProfiler:
