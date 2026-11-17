@@ -3066,11 +3066,10 @@ func TestHealthPlatformMetricsInChecksProfile(t *testing.T) {
 		metrics[metric.Name] = metric.PreserveTags
 	}
 	for name, tags := range map[string][]string{
-		"health_platform.issues_detected":               {"issue_type", "severity"},
-		"health_platform.active_issues":                 {"issue_type"},
-		"health_platform.reports_sent":                  {"status", "error_type"},
-		"health_platform.issues_resolved":               {"issue_type"},
-		"health_platform.issue_active_duration_seconds": {"issue_type"},
+		"health_platform.issues_detected": {"issue_type", "severity"},
+		"health_platform.active_issues":   {"issue_type"},
+		"health_platform.reports_sent":    {"status", "error_type"},
+		"health_platform.issues_resolved": {"issue_type"},
 	} {
 		require.Contains(t, metrics, name)
 		assert.ElementsMatch(t, tags, metrics[name], name)
@@ -3084,7 +3083,6 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 	tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, "").Set(2, "test_issue")
 	tel.NewCounter("health_platform", "reports_sent", []string{"status", "error_type"}, "").Inc("error", "http_4xx")
 	tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, "").Inc("test_issue")
-	tel.NewHistogram("health_platform", "issue_active_duration_seconds", []string{"issue_type"}, "", []float64{900, 3600, 21600, 86400, 604800, 2592000}).Observe(1800, "test_issue")
 
 	sender := &senderMock{}
 	runner := newRunnerMock()
@@ -3093,7 +3091,7 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 	a.start()
 	runner.(*runnerMock).run()
 
-	require.Len(t, sender.sentMetrics, 4)
+	require.Len(t, sender.sentMetrics, 3)
 	for _, payload := range sender.sentMetrics {
 		require.Len(t, payload.metrics, 1, payload.name)
 		metric := payload.metrics[0]
@@ -3106,11 +3104,6 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 			labels = map[string]string{"status": "error", "error_type": "http_4xx", "emitter": "agent"}
 		case "health_platform.issues_resolved":
 			assert.Equal(t, 1.0, metric.GetCounter().GetValue())
-		case "health_platform.issue_active_duration_seconds":
-			buckets := metric.GetHistogram().GetBucket()
-			require.Len(t, buckets, 6)
-			assert.Equal(t, 3600.0, buckets[1].GetUpperBound())
-			assert.Equal(t, uint64(1), buckets[1].GetCumulativeCount())
 		default:
 			t.Fatalf("unexpected metric: %s", payload.name)
 		}

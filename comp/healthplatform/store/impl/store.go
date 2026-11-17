@@ -103,10 +103,9 @@ type healthPlatformImpl struct {
 }
 
 type telemetryMetrics struct {
-	issuesCounter       telemetry.Counter
-	activeIssues        telemetry.Gauge
-	issuesResolved      telemetry.Counter
-	issueActiveDuration telemetry.Histogram
+	issuesCounter  telemetry.Counter
+	activeIssues   telemetry.Gauge
+	issuesResolved telemetry.Counter
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -324,9 +323,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 			"health_platform", "active_issues", []string{"issue_type"}, "Number of active health issue instances"),
 		issuesResolved: reqs.Telemetry.NewCounter(
 			"health_platform", "issues_resolved", []string{"issue_type"}, "Number of health issue instances resolved"),
-		issueActiveDuration: reqs.Telemetry.NewHistogram(
-			"health_platform", "issue_active_duration_seconds", []string{"issue_type"}, "Duration of resolved health issues in seconds",
-			[]float64{900, 3600, 21600, 86400, 604800, 2592000}),
 	}
 
 	// Return the component wrapped in Provides with API endpoints.
@@ -543,15 +539,6 @@ func metricIssueType(issueType string) string {
 
 func (h *healthPlatformImpl) recordResolution(persisted *PersistedIssue) {
 	h.metrics.issuesResolved.Inc(metricIssueType(persisted.ProtoIssueType))
-	firstSeen, err := time.Parse(time.RFC3339, persisted.FirstSeen)
-	if err != nil {
-		return
-	}
-	resolvedAt, err := time.Parse(time.RFC3339, persisted.ResolvedAt)
-	if err != nil || resolvedAt.Before(firstSeen) {
-		return
-	}
-	h.metrics.issueActiveDuration.Observe(resolvedAt.Sub(firstSeen).Seconds(), metricIssueType(persisted.ProtoIssueType))
 }
 
 // ResolveAllIssues marks every active issue as resolved.

@@ -129,9 +129,8 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
 				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
-			activeIssues:        tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, ""),
-			issuesResolved:      tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, ""),
-			issueActiveDuration: tel.NewHistogram("health_platform", "issue_active_duration_seconds", []string{"issue_type"}, "", []float64{900, 3600, 21600, 86400, 604800, 2592000}),
+			activeIssues:   tel.NewGauge("health_platform", "active_issues", []string{"issue_type"}, ""),
+			issuesResolved: tel.NewCounter("health_platform", "issues_resolved", []string{"issue_type"}, ""),
 		},
 	}
 }
@@ -596,7 +595,6 @@ func TestIssueLifecycleTelemetry(t *testing.T) {
 		other := &healthplatformpayload.Issue{Id: "other:1", IssueName: "Other Issue", IssueType: "other_issue"}
 		gauge := h.metrics.activeIssues.WithValues("test_issue")
 		resolved := h.metrics.issuesResolved.WithValues("test_issue")
-		histogram := h.metrics.issueActiveDuration.WithValues("test_issue")
 
 		require.NoError(t, h.ReportIssue(first))
 		assert.Equal(t, 1.0, gauge.Get())
@@ -611,41 +609,23 @@ func TestIssueLifecycleTelemetry(t *testing.T) {
 		h.ResolveIssue(first.Id)
 		assert.Equal(t, 1.0, gauge.Get())
 		assert.Equal(t, 1.0, resolved.Get())
-		observation := histogram.Get()
-		assert.Equal(t, uint64(1), observation.Count)
-		assert.Equal(t, 3600.0, observation.Sum)
-		require.Len(t, observation.Buckets, 6)
-		for i, upperBound := range []float64{900, 3600, 21600, 86400, 604800, 2592000} {
-			assert.Equal(t, upperBound, observation.Buckets[i].UpperBound)
-			if i == 0 {
-				assert.Zero(t, observation.Buckets[i].Count)
-			} else {
-				assert.Equal(t, uint64(1), observation.Buckets[i].Count)
-			}
-		}
 
 		h.ResolveIssue(first.Id)
 		h.ResolveIssue("unknown")
 		assert.Equal(t, 1.0, resolved.Get())
-		assert.Equal(t, uint64(1), histogram.Get().Count)
 
 		h.ResolveAllIssues()
 		assert.Zero(t, gauge.Get())
 		assert.Zero(t, h.metrics.activeIssues.WithValues("other_issue").Get())
 		assert.Equal(t, 2.0, resolved.Get())
 		assert.Equal(t, 1.0, h.metrics.issuesResolved.WithValues("other_issue").Get())
-		assert.Equal(t, uint64(2), histogram.Get().Count)
-		assert.Equal(t, 7200.0, histogram.Get().Sum)
 		h.ResolveAllIssues()
 		assert.Equal(t, 2.0, resolved.Get())
-		assert.Equal(t, uint64(2), histogram.Get().Count)
 
 		require.NoError(t, h.ReportIssue(first))
 		assert.Equal(t, 1.0, gauge.Get())
-		time.Sleep(15 * time.Minute)
 		h.ResolveIssue(first.Id)
 		assert.Equal(t, 3.0, resolved.Get())
-		assert.Equal(t, 8100.0, histogram.Get().Sum)
 	})
 }
 
@@ -664,7 +644,6 @@ func TestRestoreActiveIssuesTelemetry(t *testing.T) {
 	assert.Equal(t, 1.0, h.metrics.activeIssues.WithValues("other_issue").Get())
 	assert.Zero(t, h.metrics.activeIssues.WithValues("resolved_issue").Get())
 	assert.Zero(t, h.metrics.issuesResolved.WithValues("resolved_issue").Get())
-	assert.Zero(t, h.metrics.issueActiveDuration.WithValues("resolved_issue").Get().Count)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "test:1", IssueName: "Test Issue", IssueType: "test_issue"}))
 	assert.Equal(t, 2.0, h.metrics.activeIssues.WithValues("test_issue").Get())
@@ -673,33 +652,6 @@ func TestRestoreActiveIssuesTelemetry(t *testing.T) {
 	h.ResolveAllIssues()
 	assert.Zero(t, h.metrics.activeIssues.WithValues("test_issue").Get())
 	assert.Zero(t, h.metrics.activeIssues.WithValues("other_issue").Get())
-}
-
-func TestResolutionDurationValidation(t *testing.T) {
-	for _, test := range []struct {
-		name, firstSeen, resolvedAt string
-		wantCount                   uint64
-		wantSum                     float64
-	}{
-		{name: "valid", firstSeen: "2026-11-17T00:00:00Z", resolvedAt: "2026-11-17T01:00:00Z", wantCount: 1, wantSum: 3600},
-		{name: "zero", firstSeen: "2026-11-17T00:00:00Z", resolvedAt: "2026-11-17T00:00:00Z", wantCount: 1},
-		{name: "bad first seen", firstSeen: "invalid", resolvedAt: "2026-11-17T01:00:00Z"},
-		{name: "bad resolved at", firstSeen: "2026-11-17T00:00:00Z", resolvedAt: "invalid"},
-		{name: "negative", firstSeen: "2026-11-17T01:00:00Z", resolvedAt: "2026-11-17T00:00:00Z"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			h := newTestStore(t)
-			h.recordResolution(&PersistedIssue{
-				ProtoIssueType: "test_issue",
-				FirstSeen:      test.firstSeen,
-				ResolvedAt:     test.resolvedAt,
-			})
-			assert.Equal(t, 1.0, h.metrics.issuesResolved.WithValues("test_issue").Get())
-			observation := h.metrics.issueActiveDuration.WithValues("test_issue").Get()
-			assert.Equal(t, test.wantCount, observation.Count)
-			assert.Equal(t, test.wantSum, observation.Sum)
-		})
-	}
 }
 
 func TestActiveGaugeTracksProtoTypeChanges(t *testing.T) {
