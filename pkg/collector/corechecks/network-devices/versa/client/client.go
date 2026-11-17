@@ -922,7 +922,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
-		nil,
+		tunnelTimeseriesLayout,
 		parseTunnelMetrics,
 	)
 }

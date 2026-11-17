@@ -425,7 +425,7 @@ func (v *VersaCheck) Run() error {
 				continue
 			}
 			tunnelMetrics = filterAnalyticsMetricsByDevice(tunnelMetrics, monitoredDevices, func(m client.TunnelMetrics) string { return m.Appliance })
-			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
+			v.metricsSender.SendTunnelMetrics(org.Name, tunnelMetrics, deviceNameToIDMap)
 		}
 
 		// Collect per access circuit QoS metrics if enabled

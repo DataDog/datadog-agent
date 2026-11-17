@@ -125,13 +125,13 @@ instances:
     ## volatile than with tableData, so review monitor thresholds before switching.
     ##
     ## timeseries applies to SLA, QoS, circuit QoS, interface utilization, SDWAN link
-    ## status and usage, and DIA metrics. Link usage and DIA also run the same query as
-    ## tableData on each collection, paging up to max_pages, to take their attribute tags
-    ## (type, media, IP, ISP) from it; an entity with no matching tableData row, or with
+    ## status and usage, tunnel, and DIA metrics. Link usage, tunnel and DIA also run the
+    ## same query as tableData on each collection, paging up to max_pages, to take their
+    ## attribute tags (type, media, IP, ISP, peer IP, VPN profile) from it; an entity with no matching tableData row, or with
     ## rows that disagree on those tags, is skipped with a warning. Every other endpoint
     ## stays on tableData regardless of this setting.
     ##
-    ## Interface, link status, link usage and DIA timeseries are validated with synthetic
+    ## Interface, link status, link usage, tunnel and DIA timeseries are validated with synthetic
     ## Versa responses, and validation against customer provided responses is pending.
     ## They fall back to tableData, with a warning, when a response does not match the
     ## expected layout. DIA always queries a 1 day window, so its timeseries response is

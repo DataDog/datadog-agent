@@ -24,10 +24,11 @@ features:
     the current one is still accumulating.
 
     Interface utilization (``collect_interface_metrics``), SDWAN link status and usage
-    (``collect_link_metrics``) and DIA (``collect_dia_metrics``) metrics are
+    (``collect_link_metrics``), tunnel (``collect_tunnel_metrics``) and DIA
+    (``collect_dia_metrics``) metrics are
     also collected per bucket when ``timeseries`` is set, with the same timestamps,
-    hold-back and per tenant deduplication. Link usage and DIA take their attribute tags
-    (such as type, media, IP and ISP) from the same query run as ``tableData``, paging up
+    hold-back and per tenant deduplication. Link usage, tunnel and DIA take their attribute
+    tags (such as type, media, IP, ISP, peer IP and VPN profile) from the same query run as ``tableData``, paging up
     to ``max_pages``, joined on the entity key, and skip any entity with no matching row
     or with rows that disagree on those tags. Each of these
     falls back to ``tableData`` for a collection when a response does not match the

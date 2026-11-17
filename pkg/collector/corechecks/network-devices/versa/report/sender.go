@@ -327,7 +327,9 @@ func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, devi
 }
 
 // SendTunnelMetrics sends tunnel metrics retrieved from Versa Analytics
-func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendTunnelMetrics(tenant string, tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, tunnelMetric := range tunnelMetrics {
 		var tags = []string{
 			"appliance:" + tunnelMetric.Appliance,
@@ -338,9 +340,16 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(tunnelMetric.Appliance)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"tunnel.volume_tx", tunnelMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"tunnel.volume_rx", tunnelMetric.VolumeRx, "", tags)
+
+		ts, send := s.bucketTimestamp("tunnel_metrics", tenant, tunnelMetric.DrillKey, tunnelMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+		s.sendBucketGauge("tunnel.volume_tx", tunnelMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("tunnel.volume_rx", tunnelMetric.VolumeRx, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendPathQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
