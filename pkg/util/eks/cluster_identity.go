@@ -240,12 +240,6 @@ func cacheFailure(cacheKey string, err error) {
 	cache.Cache.Set(cacheKey, err, ttl)
 }
 
-// IsTransient reports whether a resolution failure can clear on its own (it is cached with the
-// short TTL), as opposed to one that is stable for the cluster's configuration.
-func IsTransient(err error) bool {
-	return failureTTL(err) == transientFailureCacheTTL
-}
-
 // failureTTL classifies a resolution error so that failures which can clear on their own are
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
 // The resolve's own deadline, HTTP 429 and the codes in transientErrorCodes are transient, and

@@ -14,15 +14,21 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	identitytypes "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -127,16 +133,56 @@ func TestGetEKSClusterIdentityNotDeterminedYetIsRetryable(t *testing.T) {
 	assert.Equal(t, "true", recorder.Header().Get(identitytypes.RetryLaterHeader))
 }
 
-func TestGetEKSClusterIdentityTransientFailureIsRetryable(t *testing.T) {
-	// A throttled or timed out DescribeCluster is cached for 30s and can clear within a node's
-	// startup budget. A missing permission is final.
-	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", context.DeadlineExceeded))
-	recorder, _ := serveEKSIdentity(t)
-	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-	assert.Equal(t, "true", recorder.Header().Get(identitytypes.RetryLaterHeader))
+func TestGetEKSClusterIdentityCachedFailureIsFinal(t *testing.T) {
+	// A throttled DescribeCluster is cached for 30s, longer than any node's startup budget, so
+	// answering it as retryable would only make nodes ask again for nothing. A missing
+	// permission is final too.
+	for _, err := range []error{
+		fmt.Errorf("describe: %w", throttlingError{}),
+		errors.New("api error AccessDeniedException"),
+	} {
+		stubEKSIdentityResolver(t, nil, err)
+		recorder, _ := serveEKSIdentity(t)
+		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+		assert.Empty(t, recorder.Header().Get(identitytypes.RetryLaterHeader))
+	}
+}
 
-	stubEKSIdentityResolver(t, nil, errors.New("api error AccessDeniedException"))
-	recorder, _ = serveEKSIdentity(t)
-	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-	assert.Empty(t, recorder.Header().Get(identitytypes.RetryLaterHeader))
+// throttlingError is a throttled DescribeCluster as the AWS retry classifier sees it.
+type throttlingError struct{}
+
+func (throttlingError) Error() string       { return "api error ThrottlingException: Rate exceeded" }
+func (throttlingError) ErrorCode() string   { return "ThrottlingException" }
+func (throttlingError) HTTPStatusCode() int { return http.StatusBadRequest }
+
+func TestGetEKSClusterIdentityNodeStopsOnCachedFailure(t *testing.T) {
+	// The real handler behind a TLS listener, and the real node client and startup retry.
+	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", throttlingError{}))
+	var requests atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/version":
+			_, _ = w.Write([]byte(`{"Major":7,"Minor":60,"Patch":0}`))
+		case "/api/v1/cluster/eks-identity":
+			requests.Add(1)
+			getEKSClusterIdentity(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	cfg := configmock.New(t)
+	cfg.SetInTest("cluster_agent.enabled", true)
+	cfg.SetInTest("cluster_agent.url", srv.URL)
+	cfg.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
+	ipcmock.New(t)
+	clusteragent.ResetGlobalClusterAgentClientForTest()
+	t.Cleanup(clusteragent.ResetGlobalClusterAgentClientForTest)
+	clusterinfo.SetupStartupForTest(t, 3*time.Second, 500*time.Millisecond, true)
+
+	start := time.Now()
+	_, err := clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), time.Second, "the node must not spend its budget on a cached answer")
+	assert.Equal(t, int32(1), requests.Load())
 }

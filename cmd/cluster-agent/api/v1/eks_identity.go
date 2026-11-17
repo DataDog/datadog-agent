@@ -13,7 +13,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	identitytypes "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,10 +41,11 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		// Not determined yet (the Cluster Agent is still starting), or a failure that can
-		// clear on its own: the node may try again within its startup budget. Every other
-		// failure, a missing eks:DescribeCluster permission for one, stays final for nodes.
-		if errors.Is(err, eksidentity.ErrNotDetermined) || eks.IsTransient(err) {
+		// Not determined yet (the Cluster Agent is still starting): the node may try again
+		// within its startup budget. Every other failure is final for nodes, including one
+		// that can clear on its own: it is cached on this side for longer than any node's
+		// startup budget, so asking again would only get the same answer.
+		if errors.Is(err, eksidentity.ErrNotDetermined) {
 			w.Header().Set(identitytypes.RetryLaterHeader, "true")
 			log.Debugf("EKS cluster identity is not available yet: %v", err)
 			http.Error(w, "EKS cluster identity not available yet", http.StatusServiceUnavailable)
