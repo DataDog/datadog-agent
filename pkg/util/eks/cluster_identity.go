@@ -203,14 +203,19 @@ func failureTTL(err error) time.Duration {
 }
 
 // transientErrorCodes are error codes the SDK retryer does not classify as retryable but that
-// clear on their own: expired or not yet valid credentials (a rotated IRSA token) and a
-// temporarily unreachable OIDC identity provider.
+// clear on their own: expired or not yet valid credentials (a rotated IRSA token), a temporarily
+// unreachable OIDC identity provider, and signatures rejected for the signing time (a clock
+// that is being corrected).
 var transientErrorCodes = map[string]bool{
-	"ExpiredToken":          true,
-	"ExpiredTokenException": true,
-	"RequestExpired":        true,
-	"InvalidIdentityToken":  true,
-	"IDPCommunicationError": true,
+	"ExpiredToken":              true,
+	"ExpiredTokenException":     true,
+	"RequestExpired":            true,
+	"InvalidIdentityToken":      true,
+	"IDPCommunicationError":     true,
+	"InvalidSignatureException": true,
+	"SignatureDoesNotMatch":     true,
+	"RequestTimeTooSkewed":      true,
+	"RequestInTheFuture":        true,
 }
 
 // retryableClassifier reuses the AWS SDK's standard retryable-error set so that throttling, 5xx,

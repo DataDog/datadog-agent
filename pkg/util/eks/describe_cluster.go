@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -66,6 +67,8 @@ type apiError struct {
 	Code       string
 	Message    string
 	RequestID  string
+	// serverTime is the response Date header, used to correct clock skew.
+	serverTime time.Time
 }
 
 func (e *apiError) Error() string {
@@ -93,6 +96,9 @@ type signedDescribeClusterClient struct {
 	endpoint string
 	signer   *v4.Signer
 	now      func() time.Time
+	// clockSkew is the server clock minus the local clock, in nanoseconds, learned from a
+	// rejected signature. It is added to the signing time of every later request.
+	clockSkew atomic.Int64
 }
 
 func newSignedDescribeClusterClient(cfg aws.Config) describeClusterAPI {
@@ -117,9 +123,24 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	}
 	// JoinPath keeps any path prefix and query of a configured endpoint, as the SDK does. The
 	// name is already restricted to [A-Za-z0-9_-] by the caller.
-	reqURL := base.JoinPath("clusters", clusterName)
+	reqURL := base.JoinPath("clusters", clusterName).String()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	skewCorrected := false
+	for {
+		out, err := c.send(ctx, reqURL)
+		var apiErr *apiError
+		if !skewCorrected && errors.As(err, &apiErr) && c.correctClockSkew(apiErr) {
+			// Re-sign once with the corrected time, as the SDK's retryer does.
+			skewCorrected = true
+			continue
+		}
+		return out, err
+	}
+}
+
+// send signs and sends one DescribeCluster request.
+func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (*describeClusterOutput, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build DescribeCluster request: %w", err)
 	}
@@ -132,7 +153,8 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	if err != nil {
 		return nil, fmt.Errorf("retrieve AWS credentials: %w", err)
 	}
-	if err := c.signer.SignHTTP(ctx, creds, req, emptyPayloadHash, eksSigningName, c.cfg.Region, c.now()); err != nil {
+	signingTime := c.now().Add(time.Duration(c.clockSkew.Load()))
+	if err := c.signer.SignHTTP(ctx, creds, req, emptyPayloadHash, eksSigningName, c.cfg.Region, signingTime); err != nil {
 		return nil, fmt.Errorf("sign DescribeCluster request: %w", err)
 	}
 
@@ -159,6 +181,35 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		return nil, fmt.Errorf("%w: decode DescribeCluster response: %v", ErrInvalidClusterIdentity, err)
 	}
 	return out, nil
+}
+
+// clockSkewCodes are the error codes AWS returns when a signature is rejected because of the
+// signing time. They are the codes the SDK's clock skew correction reacts to.
+var clockSkewCodes = map[string]bool{
+	"InvalidSignatureException": true,
+	"SignatureDoesNotMatch":     true,
+	"RequestTimeTooSkewed":      true,
+	"RequestExpired":            true,
+	"RequestInTheFuture":        true,
+}
+
+// skewThreshold is the clock difference above which the signing time is corrected. It is the
+// SDK's value (aws/retry skewThreshold); AWS rejects signatures more than 5 minutes off.
+const skewThreshold = 4 * time.Minute
+
+// correctClockSkew records the offset between the local clock and the server's Date header when
+// a signature was rejected for its time and the clocks differ by more than skewThreshold. It
+// reports whether the request should be re-signed.
+func (c *signedDescribeClusterClient) correctClockSkew(apiErr *apiError) bool {
+	if !clockSkewCodes[apiErr.Code] || apiErr.serverTime.IsZero() {
+		return false
+	}
+	skew := apiErr.serverTime.Sub(c.now())
+	if skew > -skewThreshold && skew < skewThreshold {
+		return false
+	}
+	c.clockSkew.Store(int64(skew))
+	return true
 }
 
 // parseAPIError reads the error code the way the AWS SDK REST-JSON protocol does: from the
@@ -189,7 +240,16 @@ func parseAPIError(resp *http.Response, body []byte) error {
 		Code:       code,
 		Message:    payload.Message,
 		RequestID:  resp.Header.Get("X-Amzn-RequestId"),
+		serverTime: serverTime(resp),
 	}
+}
+
+func serverTime(resp *http.Response) time.Time {
+	t, err := http.ParseTime(resp.Header.Get("Date"))
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // sanitizeErrorCode mirrors restjson.SanitizeErrorCode in aws-sdk-go-v2: keep the text before

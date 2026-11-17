@@ -345,3 +345,64 @@ func TestDescribeClusterSendsUserAgent(t *testing.T) {
 	assert.True(t, strings.HasPrefix(ua, "datadog-cluster-agent/"), ua)
 	assert.Contains(t, ua, " aws-sdk-go-v2/"+aws.SDKVersion)
 }
+
+func skewedServer(t *testing.T, serverNow time.Time, code string, attempts *int) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*attempts++
+		signed, err := time.Parse("20060102T150405Z", r.Header.Get("X-Amz-Date"))
+		require.NoError(t, err)
+		if d := signed.Sub(serverNow); d > 5*time.Minute || d < -5*time.Minute {
+			w.Header().Set("Date", serverNow.Format(http.TimeFormat))
+			w.Header().Set("X-Amzn-ErrorType", code)
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"Signature expired"}`))
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+}
+
+func TestDescribeClusterCorrectsClockSkew(t *testing.T) {
+	clientNow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	for _, code := range []string{"InvalidSignatureException", "SignatureDoesNotMatch", "RequestTimeTooSkewed", "RequestExpired", "RequestInTheFuture"} {
+		t.Run(code, func(t *testing.T) {
+			attempts := 0
+			srv := skewedServer(t, clientNow.Add(20*time.Minute), code, &attempts)
+			defer srv.Close()
+
+			client := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).(*signedDescribeClusterClient)
+			client.now = func() time.Time { return clientNow }
+
+			out, err := client.DescribeCluster(t.Context(), "orders")
+			require.NoError(t, err)
+			assert.Equal(t, "orders", aws.ToString(out.Cluster.Name))
+			assert.Equal(t, 2, attempts, "one re-signed attempt")
+
+			// The offset is kept, so the next call is signed correctly the first time.
+			_, err = client.DescribeCluster(t.Context(), "orders")
+			require.NoError(t, err)
+			assert.Equal(t, 3, attempts)
+		})
+	}
+}
+
+func TestDescribeClusterDoesNotCorrectSmallSkew(t *testing.T) {
+	clientNow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	attempts := 0
+	// A server 2 minutes ahead is within the threshold, so a signature error is real.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.Header().Set("Date", clientNow.Add(2*time.Minute).Format(http.TimeFormat))
+		w.Header().Set("X-Amzn-ErrorType", "InvalidSignatureException")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+	client := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).(*signedDescribeClusterClient)
+	client.now = func() time.Time { return clientNow }
+
+	_, err := client.DescribeCluster(t.Context(), "orders")
+	require.Error(t, err)
+	assert.Equal(t, 1, attempts)
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(err), "signature and clock errors use the short TTL")
+}
