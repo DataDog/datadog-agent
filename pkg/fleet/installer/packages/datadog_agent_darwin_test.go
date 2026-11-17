@@ -74,13 +74,19 @@ func stubUninstall(t *testing.T) *[][]string {
 	t.Helper()
 
 	var commands [][]string
-	originalLayout, originalCommand := defaultUninstallLayout, hostCommand
+	originalLayout, originalCommand, originalAgentCommand := defaultUninstallLayout, hostCommand, agentCommand
 	defaultUninstallLayout = uninstallLayout{}
 	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		commands = append(commands, append([]string{name}, args...))
 		return nil, nil
 	}
-	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
+	agentCommand = func(_ context.Context, _, _ int, name string, args ...string) ([]byte, error) {
+		commands = append(commands, append([]string{name}, args...))
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		defaultUninstallLayout, hostCommand, agentCommand = originalLayout, originalCommand, originalAgentCommand
+	})
 	return &commands
 }
 

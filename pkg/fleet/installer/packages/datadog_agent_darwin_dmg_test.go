@@ -476,3 +476,96 @@ func TestWriteNativeHostManifestDoesNotFollowLinks(t *testing.T) {
 		assert.Empty(t, entries, "nothing must be created through a linked home")
 	})
 }
+
+// agentCommandCall is one command secureConfig ran as an account.
+type agentCommandCall struct {
+	uid, gid int
+	args     []string
+}
+
+// recordAgentCommands replaces agentCommand with one that records each call and runs nothing.
+func recordAgentCommands(t *testing.T) *[]agentCommandCall {
+	t.Helper()
+
+	var calls []agentCommandCall
+	original := agentCommand
+	agentCommand = func(_ context.Context, uid, gid int, name string, args ...string) ([]byte, error) {
+		calls = append(calls, agentCommandCall{uid: uid, gid: gid, args: append([]string{name}, args...)})
+		return nil, nil
+	}
+	t.Cleanup(func() { agentCommand = original })
+	return &calls
+}
+
+// TestSecureConfigSetsTheAccessControlListsAsTheAgent pins that the access control lists, which
+// are applied by path, are applied by the Agent's account rather than by root.
+func TestSecureConfigSetsTheAccessControlListsAsTheAgent(t *testing.T) {
+	layout := stubDmgLayout(t)
+	commands := stubUninstall(t)
+	calls := recordAgentCommands(t)
+	datadogYAML := filepath.Join(layout.confDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogYAML, nil, 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(layout.confDir(), "conf.d"), 0o755))
+
+	require.NoError(t, secureConfig(t.Context(), layout.confDir()))
+
+	require.Len(t, *calls, 2)
+	for _, call := range *calls {
+		assert.Equal(t, os.Getuid(), call.uid)
+		assert.Equal(t, os.Getgid(), call.gid)
+		assert.Equal(t, []string{"/bin/chmod", "+a"}, call.args[:2])
+	}
+	assert.Equal(t, []string{"/bin/chmod", "+a", confDirACL, layout.confDir(), filepath.Join(layout.confDir(), "conf.d")}, (*calls)[0].args)
+	assert.Contains(t, (*calls)[1].args, datadogYAML)
+	for _, command := range *commands {
+		assert.NotEqual(t, "chmod", command[0], "no access control list may be applied as root")
+	}
+	info, err := os.Stat(datadogYAML)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o660), info.Mode().Perm())
+	info, err = os.Stat(layout.confDir())
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o770), info.Mode().Perm())
+}
+
+// TestSecureConfigReachesNothingOutsideTheTree pins that the ownership and mode pass changes only
+// the configuration's own entries: a file linked in from elsewhere, a link to an outside file and
+// a directory replaced by a link are all left as they are, along with what they point to.
+func TestSecureConfigReachesNothingOutsideTheTree(t *testing.T) {
+	layout := stubDmgLayout(t)
+	calls := recordAgentCommands(t)
+	outside := t.TempDir()
+	hardLinked := filepath.Join(outside, "hard.yaml")
+	linkedTo := filepath.Join(outside, "linked.yaml")
+	outsideDir := filepath.Join(outside, "dir")
+	inDir := filepath.Join(outsideDir, "inside.yaml")
+	require.NoError(t, os.Mkdir(outsideDir, 0o700))
+	for _, path := range []string{hardLinked, linkedTo, inDir} {
+		require.NoError(t, os.WriteFile(path, nil, 0o600))
+	}
+	require.NoError(t, os.Link(hardLinked, filepath.Join(layout.confDir(), "hard.yaml")))
+	require.NoError(t, os.Symlink(linkedTo, filepath.Join(layout.confDir(), "linked.yaml")))
+	require.NoError(t, os.Symlink(outsideDir, filepath.Join(layout.confDir(), "conf.d")))
+
+	outsidePaths := []string{hardLinked, linkedTo, inDir, outsideDir}
+	before := map[string]os.FileMode{}
+	for _, path := range outsidePaths {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		before[path] = info.Mode()
+	}
+
+	require.NoError(t, secureConfig(t.Context(), layout.confDir()))
+
+	for _, path := range outsidePaths {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, before[path], info.Mode(), "%s was changed", path)
+	}
+	for _, call := range *calls {
+		for _, arg := range call.args {
+			assert.NotContains(t, []string{filepath.Join(layout.confDir(), "hard.yaml"), filepath.Join(layout.confDir(), "linked.yaml"), filepath.Join(layout.confDir(), "conf.d")}, arg,
+				"no access control list may be applied to an entry that was not secured")
+		}
+	}
+}

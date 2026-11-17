@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -594,6 +595,15 @@ var defaultUninstallLayout = uninstallLayout{
 // pkill, who and the like. Indirected so the hook tests can run without them.
 var hostCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return telemetry.CommandContext(ctx, name, args...).Output()
+}
+
+// agentCommand runs a system command as the Agent's account, with no supplementary groups. It is
+// for the steps that act on that account's files by path, so a link it swaps in can only redirect
+// them to what it could already change. Indirected so the hook tests can run without it.
+var agentCommand = func(ctx context.Context, uid, gid int, name string, args ...string) ([]byte, error) {
+	cmd := telemetry.CommandContext(ctx, name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}}
+	return cmd.Output()
 }
 
 // uninstallAgent stops the GUI for every logged-in user and removes what the install left besides
