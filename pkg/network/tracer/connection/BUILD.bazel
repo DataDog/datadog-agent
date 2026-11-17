@@ -12,6 +12,7 @@ go_library(
         "darwin_tuple_matcher.go",
         "dump.go",
         "ebpf_tracer.go",
+        "ebpf_tracer_testutil.go",
         "ebpf_tracer_unsupported.go",
         "ebpfless_tracer.go",
         "ebpfless_tracer_darwin.go",
