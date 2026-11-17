@@ -48,6 +48,9 @@ const (
 
 var globalClusterAgentClient *DCAClient
 
+// globalClusterAgentClientMu guards the creation of globalClusterAgentClient.
+var globalClusterAgentClientMu sync.Mutex
+
 type metadataNames []string
 
 // Metadata represents the metadata of a kubernetes resource including its name, namespace, annotations and labels
@@ -129,26 +132,39 @@ type DCAClient struct {
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
 // It is ONLY to be used for tests
 func resetGlobalClusterAgentClient() {
+	globalClusterAgentClientMu.Lock()
+	defer globalClusterAgentClientMu.Unlock()
 	globalClusterAgentClient = nil
 }
 
-// GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (*DCAClient, error) {
+// getGlobalClusterAgentClient returns the global DCAClient, creating it on first use. Startup
+// components (the tagger, DogStatsD, OTLP) can make their first call concurrently, so creation is
+// guarded. A mutex rather than sync.Once, since tests reset the global.
+func getGlobalClusterAgentClient() *DCAClient {
+	globalClusterAgentClientMu.Lock()
+	defer globalClusterAgentClientMu.Unlock()
 	if globalClusterAgentClient == nil {
-		globalClusterAgentClient = &DCAClient{}
-		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+		client := &DCAClient{}
+		client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "clusterAgentClient",
-			AttemptMethod:     globalClusterAgentClient.init,
+			AttemptMethod:     client.init,
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 1 * time.Second,
 			MaxRetryDelay:     5 * time.Minute,
 		})
+		globalClusterAgentClient = client
 	}
-	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
+	return globalClusterAgentClient
+}
+
+// GetClusterAgentClient returns or init the DCAClient
+func GetClusterAgentClient() (*DCAClient, error) {
+	client := getGlobalClusterAgentClient()
+	if err := client.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("Cluster Agent init error: %v", err)
 		return nil, err
 	}
-	return globalClusterAgentClient, nil
+	return client, nil
 }
 
 func (c *DCAClient) init() error {

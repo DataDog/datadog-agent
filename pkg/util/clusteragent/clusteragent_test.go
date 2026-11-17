@@ -995,3 +995,26 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 	}
 	wg.Wait()
 }
+
+func TestGetClusterAgentClientConcurrentFirstUse(t *testing.T) {
+	// The tagger, DogStatsD and OTLP all fetch EKS identity at startup, so the first
+	// GetClusterAgentClient calls can run concurrently. With -race this catches an unlocked
+	// lazy init, and every caller must get the same client.
+	configmock.New(t)
+	resetGlobalClusterAgentClient()
+	defer resetGlobalClusterAgentClient()
+
+	const callers = 8
+	clients := make([]*DCAClient, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() {
+			_, _ = GetClusterAgentClient() // fails without an endpoint; the client is still shared
+			clients[i] = getGlobalClusterAgentClient()
+		})
+	}
+	wg.Wait()
+	for _, c := range clients {
+		assert.Same(t, clients[0], c)
+	}
+}
