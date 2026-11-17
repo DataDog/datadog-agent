@@ -135,11 +135,13 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	if err != nil {
 		return nil, fmt.Errorf("parse EKS endpoint: %w", err)
 	}
-	// JoinPath keeps any path prefix and query of a configured endpoint, as the SDK does. The
-	// name is checked here as well as by the caller, so it can only hold [A-Za-z0-9_-].
+	// JoinPath keeps the path prefix of a configured endpoint. The generated client drops the
+	// query, so this does too. The name is checked here as well as by the caller, so it can only
+	// hold [A-Za-z0-9_-].
 	if !identity.IsValidClusterName(clusterName) {
 		return nil, ErrInvalidClusterName
 	}
+	base.RawQuery, base.ForceQuery = "", false
 	reqURL := base.JoinPath("clusters", clusterName).String() // #nosec G125 -- clusterName is validated above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
@@ -370,7 +372,16 @@ var awsPartition = partitions[0]
 // the FIPS and dual-stack settings.
 func resolveEndpoint(ctx context.Context, cfg aws.Config) (string, error) {
 	cfg = normalizeFIPSRegion(cfg)
+	useFIPS, useDualStack := endpointVariants(ctx, cfg.ConfigSources)
 	if endpoint, ok := configuredEndpoint(ctx, cfg); ok {
+		// The generated client refuses these instead of ignoring the variant (endpoints.go
+		// resolveResult cases 1 and 2), so a FIPS setting is never dropped silently.
+		switch {
+		case useFIPS:
+			return "", errors.New("endpoint rule error, Invalid Configuration: FIPS and custom endpoint are not supported")
+		case useDualStack:
+			return "", errors.New("endpoint rule error, Invalid Configuration: Dualstack and custom endpoint are not supported")
+		}
 		return endpoint, nil
 	}
 
@@ -378,7 +389,6 @@ func resolveEndpoint(ctx context.Context, cfg aws.Config) (string, error) {
 	if region == "" || !hostLabelPattern.MatchString(region) {
 		return "", fmt.Errorf("invalid AWS Region %q for the EKS endpoint", region)
 	}
-	useFIPS, useDualStack := endpointVariants(ctx, cfg.ConfigSources)
 	p := partitionFor(region)
 
 	switch {
@@ -399,12 +409,14 @@ func resolveEndpoint(ctx context.Context, cfg aws.Config) (string, error) {
 }
 
 // normalizeFIPSRegion handles the FIPS pseudo Regions (us-east-1-fips, fips-us-east-1) the way
-// the generated client does: the fips part is stripped, the stripped Region is used for the
-// endpoint host and the signature, and the FIPS endpoint is forced on.
+// the generated client does (endpoints.go finalizeClientEndpointResolverOptions): -fips-, fips-
+// and -fips are matched and removed anywhere in the Region, and the FIPS endpoint is forced on.
+// One difference: the stripped Region is also used for the signature and the ARN check, while
+// the generated client signs with the pseudo Region as given.
 func normalizeFIPSRegion(cfg aws.Config) aws.Config {
 	const fipsInfix, fipsPrefix, fipsSuffix = "-fips-", "fips-", "-fips"
 	region := cfg.Region
-	if !strings.Contains(region, fipsInfix) && !strings.HasPrefix(region, fipsPrefix) && !strings.HasSuffix(region, fipsSuffix) {
+	if !strings.Contains(region, fipsInfix) && !strings.Contains(region, fipsPrefix) && !strings.Contains(region, fipsSuffix) {
 		return cfg
 	}
 	cfg.Region = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(region, fipsInfix, "-"), fipsPrefix, ""), fipsSuffix, "")

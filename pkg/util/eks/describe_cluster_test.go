@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -264,7 +265,7 @@ func okClusterHandler(name string, record func(*http.Request)) http.HandlerFunc 
 	}
 }
 
-func TestDescribeClusterKeepsEndpointPathAndQuery(t *testing.T) {
+func TestDescribeClusterKeepsEndpointPath(t *testing.T) {
 	var got *http.Request
 	srv := httptest.NewServer(okClusterHandler("orders", func(r *http.Request) { got = r }))
 	defer srv.Close()
@@ -273,7 +274,7 @@ func TestDescribeClusterKeepsEndpointPathAndQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "/prefix/clusters/orders", got.URL.Path)
-	assert.Equal(t, "x=1", got.URL.RawQuery)
+	assert.Empty(t, got.URL.RawQuery)
 }
 
 func TestParseAPIErrorMatchesSDKSanitizing(t *testing.T) {
@@ -314,22 +315,78 @@ func TestResolveEndpointTakesFirstIgnoreConfiguredEndpointsSetting(t *testing.T)
 	assert.Equal(t, "https://eks.example", got)
 }
 
+func TestResolveEndpointRejectsCustomEndpointWithVariants(t *testing.T) {
+	// The generated client (service/eks v1.105.5) refuses these combinations instead of
+	// silently ignoring FIPS or dual-stack, and so does the signed client.
+	fips := awsconfig.EnvConfig{UseFIPSEndpoint: aws.FIPSEndpointStateEnabled}
+	dualStack := awsconfig.EnvConfig{UseDualStackEndpoint: aws.DualStackEndpointStateEnabled}
+	both := awsconfig.EnvConfig{UseFIPSEndpoint: aws.FIPSEndpointStateEnabled, UseDualStackEndpoint: aws.DualStackEndpointStateEnabled}
+	for _, tc := range []struct {
+		name    string
+		region  string
+		sources []interface{}
+		want    string
+	}{
+		{"fips", "us-west-2", []interface{}{fips}, "Invalid Configuration: FIPS and custom endpoint are not supported"},
+		{"dualstack", "us-west-2", []interface{}{dualStack}, "Invalid Configuration: Dualstack and custom endpoint are not supported"},
+		{"both", "us-west-2", []interface{}{both}, "Invalid Configuration: FIPS and custom endpoint are not supported"},
+		{"fips pseudo Region", "us-east-1-fips", nil, "Invalid Configuration: FIPS and custom endpoint are not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := resolveEndpoint(t.Context(), aws.Config{Region: tc.region, BaseEndpoint: aws.String("https://custom.example"), ConfigSources: tc.sources})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			assert.Equal(t, failureCacheTTL, failureTTL(err), "a configuration error does not clear on its own")
+		})
+	}
+}
+
+func TestDescribeClusterDropsEndpointQuery(t *testing.T) {
+	// The generated client keeps a configured endpoint's path prefix and drops its query.
+	capture := &captureHTTPClient{}
+	cfg := testAWSConfig("https://custom.example/prefix?x=1")
+	cfg.HTTPClient = capture
+	_, _ = newSignedDescribeClusterClient(cfg).DescribeCluster(t.Context(), "orders")
+	require.NotNil(t, capture.req)
+	assert.Equal(t, "https://custom.example/prefix/clusters/orders", capture.req.URL.String())
+}
+
+// redirectHTTPClient sends every request to a test server, keeping the signed headers, so a
+// test can use a real AWS endpoint host without a custom endpoint.
+type redirectHTTPClient struct{ target string }
+
+func (c redirectHTTPClient) Do(r *http.Request) (*http.Response, error) {
+	target, err := url.Parse(c.target)
+	if err != nil {
+		return nil, err
+	}
+	out := r.Clone(r.Context())
+	out.URL.Scheme, out.URL.Host, out.Host = target.Scheme, target.Host, ""
+	out.RequestURI = ""
+	return http.DefaultClient.Do(out)
+}
+
 func TestFIPSPseudoRegions(t *testing.T) {
-	for _, region := range []string{"us-east-1-fips", "fips-us-east-1"} {
+	// The generated client matches -fips-, fips- and -fips anywhere in the Region.
+	for _, region := range []string{"us-east-1-fips", "fips-us-east-1", "us-fips-east-1"} {
 		t.Run(region, func(t *testing.T) {
 			got, err := resolveEndpoint(t.Context(), aws.Config{Region: region})
 			require.NoError(t, err)
 			assert.Equal(t, "https://fips.eks.us-east-1.amazonaws.com", got)
 
-			// The request is signed for, and the ARN checked against, the real Region.
+			// The request is signed for, and the ARN checked against, the real Region. (The
+			// generated client signs with the pseudo Region as given.)
 			var req *http.Request
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				req = r.Clone(context.Background())
 				_, _ = w.Write([]byte(`{"cluster":{"name":"orders","arn":"arn:aws:eks:us-east-1:123456789012:cluster/orders"}}`))
 			}))
 			defer srv.Close()
-			cfg := testAWSConfig(srv.URL)
-			cfg.Region = region
+			cfg := aws.Config{
+				Region:      region,
+				Credentials: testAWSConfig("").Credentials,
+				HTTPClient:  redirectHTTPClient{target: srv.URL},
+			}
 			stubAWS(t, nil)
 			loadAWSConfig = func(context.Context) (aws.Config, error) { return cfg, nil }
 			newDescribeClusterAPI = newSignedDescribeClusterClient
