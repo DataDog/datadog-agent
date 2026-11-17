@@ -58,20 +58,16 @@ func TestPodStore_AddDelete(t *testing.T) {
 
 	require.NoError(t, store.Add(pod))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetKubernetesPod("pod-uid")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetKubernetesPod("pod-uid")
+	require.NoError(t, err)
 
-	_, err := wlm.GetContainer("container-id")
+	_, err = wlm.GetContainer("container-id")
 	require.NoError(t, err)
 
 	require.NoError(t, store.Delete(pod))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetKubernetesPod("pod-uid")
-		return err != nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err = wlm.GetKubernetesPod("pod-uid")
+	require.Error(t, err)
 
 	_, err = wlm.GetContainer("container-id")
 	require.Error(t, err)
@@ -87,20 +83,16 @@ func TestPodStore_UpdateContainerRestart(t *testing.T) {
 	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
 	require.NoError(t, store.Add(pod))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetContainer("old-container-id")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetContainer("old-container-id")
+	require.NoError(t, err)
 
 	restarted := podWithContainer("test-pod", "pod-uid", "new-container-id")
 	require.NoError(t, store.Update(restarted))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetContainer("new-container-id")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err = wlm.GetContainer("new-container-id")
+	require.NoError(t, err)
 
-	_, err := wlm.GetContainer("old-container-id")
+	_, err = wlm.GetContainer("old-container-id")
 	require.Error(t, err)
 
 	_, err = wlm.GetKubernetesPod("pod-uid")
@@ -117,19 +109,16 @@ func TestPodStore_Update(t *testing.T) {
 	pod.Labels = map[string]string{"a": "b"}
 	require.NoError(t, store.Add(pod))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetKubernetesPod("pod-uid")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetKubernetesPod("pod-uid")
+	require.NoError(t, err)
 
 	updated := pod.DeepCopy()
 	updated.Labels["a"] = "c"
 	require.NoError(t, store.Update(updated))
 
-	require.Eventually(t, func() bool {
-		p, err := wlm.GetKubernetesPod("pod-uid")
-		return err == nil && p.Labels["a"] == "c"
-	}, eventuallyTimeout, eventuallyInterval)
+	p, err := wlm.GetKubernetesPod("pod-uid")
+	require.NoError(t, err)
+	require.Equal(t, "c", p.Labels["a"])
 }
 
 // TestPodStore_Replace verifies that Replace unsets pods (and their derived
@@ -142,20 +131,17 @@ func TestPodStore_Replace(t *testing.T) {
 	pod2 := podWithContainer("pod2", "uid2", "container2")
 
 	require.NoError(t, store.Add(pod1))
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetKubernetesPod("uid1")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetKubernetesPod("uid1")
+	require.NoError(t, err)
 
 	require.NoError(t, store.Replace([]interface{}{pod2}, ""))
 
-	require.Eventually(t, func() bool {
-		_, err1 := wlm.GetKubernetesPod("uid1")
-		_, err2 := wlm.GetKubernetesPod("uid2")
-		return err1 != nil && err2 == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err = wlm.GetKubernetesPod("uid1")
+	require.Error(t, err)
+	_, err = wlm.GetKubernetesPod("uid2")
+	require.NoError(t, err)
 
-	_, err := wlm.GetContainer("container1")
+	_, err = wlm.GetContainer("container1")
 	require.Error(t, err)
 	_, err = wlm.GetContainer("container2")
 	require.NoError(t, err)
@@ -179,22 +165,19 @@ func TestPodStore_ReplaceMirrorPodRecreated(t *testing.T) {
 	store := newPodStore(wlm, "test-node", false)
 
 	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-1", "container-id")}, ""))
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetKubernetesPod("static-pod-uid")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetKubernetesPod("static-pod-uid")
+	require.NoError(t, err)
 
-	// The label tells when the second Replace's events were handled.
+	// The label shows that the second Replace's events were handled.
 	recreated := mirrorPod("api-uid-2", "container-id")
 	recreated.Labels = map[string]string{"generation": "2"}
 	require.NoError(t, store.Replace([]interface{}{recreated}, ""))
 
-	require.Eventually(t, func() bool {
-		pod, err := wlm.GetKubernetesPod("static-pod-uid")
-		return err == nil && pod.Labels["generation"] == "2"
-	}, eventuallyTimeout, eventuallyInterval)
+	pod, err := wlm.GetKubernetesPod("static-pod-uid")
+	require.NoError(t, err)
+	require.Equal(t, "2", pod.Labels["generation"])
 
-	_, err := wlm.GetContainer("container-id")
+	_, err = wlm.GetContainer("container-id")
 	require.NoError(t, err)
 }
 
@@ -206,20 +189,17 @@ func TestPodStore_ReplaceMirrorPodRecreatedWithNewContainer(t *testing.T) {
 	store := newPodStore(wlm, "test-node", false)
 
 	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-1", "old-container-id")}, ""))
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetContainer("old-container-id")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetContainer("old-container-id")
+	require.NoError(t, err)
 
 	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-2", "new-container-id")}, ""))
 
-	require.Eventually(t, func() bool {
-		_, newErr := wlm.GetContainer("new-container-id")
-		_, oldErr := wlm.GetContainer("old-container-id")
-		return newErr == nil && oldErr != nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err = wlm.GetContainer("new-container-id")
+	require.NoError(t, err)
+	_, err = wlm.GetContainer("old-container-id")
+	require.Error(t, err)
 
-	_, err := wlm.GetKubernetesPod("static-pod-uid")
+	_, err = wlm.GetKubernetesPod("static-pod-uid")
 	require.NoError(t, err)
 }
 
@@ -234,20 +214,16 @@ func TestPodStore_ReplaceContainerRestart(t *testing.T) {
 	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
 	require.NoError(t, store.Replace([]interface{}{pod}, ""))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetContainer("old-container-id")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err := wlm.GetContainer("old-container-id")
+	require.NoError(t, err)
 
 	restarted := podWithContainer("test-pod", "pod-uid", "new-container-id")
 	require.NoError(t, store.Replace([]interface{}{restarted}, ""))
 
-	require.Eventually(t, func() bool {
-		_, err := wlm.GetContainer("new-container-id")
-		return err == nil
-	}, eventuallyTimeout, eventuallyInterval)
+	_, err = wlm.GetContainer("new-container-id")
+	require.NoError(t, err)
 
-	_, err := wlm.GetContainer("old-container-id")
+	_, err = wlm.GetContainer("old-container-id")
 	require.Error(t, err)
 
 	_, err = wlm.GetKubernetesPod("pod-uid")

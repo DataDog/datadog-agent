@@ -22,6 +22,10 @@ type scanner struct {
 	src string
 	// pos is the position of the next character to read.
 	pos ast.Position
+	// inString is whether the scanner is inside a string the parser looks
+	// into (see enterString), and holes the number of `%{` open in it.
+	inString bool
+	holes    int
 
 	errs *ErrorList
 }
@@ -34,9 +38,27 @@ func newScanner(source, src string, errs *ErrorList) *scanner {
 	}
 }
 
+// enterString moves the scanner back into a string it returned as a String
+// token, for the parser to look into it. The tokens that follow are its parts:
+// StringText, Variable for a `${name}`, FieldOpen for a `%{` followed by the
+// tokens of a name and its RBrace, and StringEnd for its closing quote.
+func (s *scanner) enterString(tok Token) {
+	s.pos = tok.Pos
+	s.advance(1) // opening quote
+	s.inString, s.holes = true, 0
+}
+
 // next returns the next token, skipping whitespaces and comments.
 func (s *scanner) next() Token {
-	s.skipWhitespacesAndComments()
+	if s.inString && s.holes == 0 {
+		return s.nextInString()
+	}
+	if s.inString {
+		// a `%{` holds a name, never a comment
+		s.skipWhitespaces()
+	} else {
+		s.skipWhitespacesAndComments()
+	}
 
 	start := s.pos
 	if s.eof() {
@@ -45,12 +67,25 @@ func (s *scanner) next() Token {
 
 	c := s.peek(0)
 	switch {
+	case s.inString && c == '"':
+		// the string ends in a `%{` left open
+		return s.endString(start)
+	case s.inString && c == '}':
+		s.advance(1)
+		s.holes--
+		return s.token(RBrace, start)
+	case c == '%' && s.peek(1) == '{':
+		s.advance(2)
+		if s.inString {
+			s.holes++
+		}
+		return s.token(FieldOpen, start)
 	case c == '"':
 		return s.scanQuoted(start, String)
-	case c == 'r' && s.peek(1) == '"':
+	case !s.inString && c == 'r' && s.peek(1) == '"':
 		s.advance(1)
 		return s.scanQuoted(start, Regexp)
-	case c == '~' && s.peek(1) == '"':
+	case !s.inString && c == '~' && s.peek(1) == '"':
 		s.advance(1)
 		return s.scanQuoted(start, Pattern)
 	case s.atIPv6():
@@ -61,11 +96,46 @@ func (s *scanner) next() Token {
 		return s.scanNumber(start)
 	case c == '$' && s.peek(1) == '{':
 		return s.scanDelimited(start, Variable, isVariablePart)
-	case c == '%' && s.peek(1) == '{':
-		return s.scanDelimited(start, FieldRef, isFieldRefPart)
 	}
 
 	return s.scanOperator(start)
+}
+
+// nextInString returns the next part of a string, out of its `%{`: its text up
+// to an interpolation or to its end, a `${name}`, a `%{`, or its closing quote.
+func (s *scanner) nextInString() Token {
+	start := s.pos
+	switch c, c1 := s.peek(0), s.peek(1); {
+	case c == '"':
+		return s.endString(start)
+	case c == '$' && c1 == '{':
+		return s.scanDelimited(start, Variable, isVariablePart)
+	case c == '%' && c1 == '{':
+		s.advance(2)
+		s.holes++
+		return s.token(FieldOpen, start)
+	}
+
+	// the string was scanned whole before, it is terminated
+	for {
+		switch c, c1 := s.peek(0), s.peek(1); {
+		case c == '\\':
+			// an escaped character is text, an escaped quote doesn't end the
+			// string
+			s.advance(2)
+			continue
+		case c == '"', (c == '$' || c == '%') && c1 == '{':
+			return s.token(StringText, start)
+		}
+		s.advance(1)
+	}
+}
+
+// endString returns the closing quote of the string the scanner is in.
+func (s *scanner) endString(start ast.Position) Token {
+	s.advance(1)
+	s.inString, s.holes = false, 0
+	return s.token(StringEnd, start)
 }
 
 // scanOperator scans operators and punctuation. Two character operators are
@@ -134,8 +204,12 @@ func (s *scanner) scanOperator(start ast.Position) Token {
 		return one(LBracket)
 	case ']':
 		return one(RBracket)
+	case '}':
+		return one(RBrace)
 	case ',':
 		return one(Comma)
+	case '.':
+		return one(Dot)
 	}
 
 	_, size := utf8.DecodeRuneInString(s.src[s.pos.Offset:])
@@ -167,40 +241,11 @@ func (s *scanner) scanQuoted(start ast.Position, kind Kind) Token {
 }
 
 // scanIdent scans an identifier, or a keyword.
-//
-// A `[` is only part of an identifier when it opens a subscript,
-// `ancestors[A]`, so that the identifiers of an array literal don't need
-// to be separated from the closing bracket: `[O_RDONLY, O_WRONLY]`.
 func (s *scanner) scanIdent(start ast.Position) Token {
-	for !s.eof() {
-		c := s.peek(0)
-		switch {
-		case isIdentPart(c) || c == '.':
-			s.advance(1)
-		case c == '[':
-			n := s.subscriptLen()
-			if n == 0 {
-				return s.identOrKeyword(start)
-			}
-			s.advance(n)
-		default:
-			return s.identOrKeyword(start)
-		}
+	for isIdentPart(s.peek(0)) {
+		s.advance(1)
 	}
 	return s.identOrKeyword(start)
-}
-
-// subscriptLen returns the length of the `[A]` subscript starting at the next
-// character, 0 if there is none.
-func (s *scanner) subscriptLen() int {
-	n := 1
-	for isIdentPart(s.peek(n)) {
-		n++
-	}
-	if n == 1 || s.peek(n) != ']' {
-		return 0
-	}
-	return n + 1
 }
 
 func (s *scanner) identOrKeyword(start ast.Position) Token {
@@ -278,8 +323,8 @@ func (s *scanner) scanIP(start ast.Position, n int) Token {
 	return s.token(CIDR, start)
 }
 
-// scanDelimited scans a `${name}` or a `%{name}`, the characters of name
-// being the ones accepted by isPart.
+// scanDelimited scans a `${name}`, the characters of name being the ones
+// accepted by isPart.
 func (s *scanner) scanDelimited(start ast.Position, kind Kind, isPart func(byte) bool) Token {
 	s.advance(2)
 
@@ -298,8 +343,8 @@ func (s *scanner) scanDelimited(start ast.Position, kind Kind, isPart func(byte)
 	return s.token(kind, start)
 }
 
-// unterminatedDelimited reports a `${` or a `%{` that isn't followed by a name
-// and a closing brace.
+// unterminatedDelimited reports a `${` that isn't followed by a name and a
+// closing brace.
 func (s *scanner) unterminatedDelimited(start ast.Position, kind Kind) Token {
 	s.errs.add(&Error{
 		Pos:  start,
@@ -308,6 +353,12 @@ func (s *scanner) unterminatedDelimited(start ast.Position, kind Kind) Token {
 		Hint: fmt.Sprintf("expected `%s{name}`", s.src[start.Offset:start.Offset+1]),
 	})
 	return s.token(Illegal, start)
+}
+
+func (s *scanner) skipWhitespaces() {
+	for c := s.peek(0); c == ' ' || c == '\t' || c == '\n'; c = s.peek(0) {
+		s.advance(1)
+	}
 }
 
 func (s *scanner) skipWhitespacesAndComments() {
@@ -384,8 +435,4 @@ func isHexDigit(c byte) bool {
 
 func isVariablePart(c byte) bool {
 	return isIdentPart(c) || c == '.'
-}
-
-func isFieldRefPart(c byte) bool {
-	return isIdentPart(c) || c == '.' || c == '[' || c == ']'
 }
