@@ -32,6 +32,7 @@ func resetStartupIdentity(t *testing.T) {
 		_ = startupIdentity.lock.Acquire(context.Background(), 1)
 		defer startupIdentity.lock.Release(1)
 		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
+		startupIdentity.lastErr, startupIdentity.lastErrAt = nil, time.Time{}
 	}
 	reset()
 	t.Cleanup(reset)
@@ -205,14 +206,23 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		assert.Equal(t, StartupRetryBudget, time.Since(start))
 		assert.Greater(t, calls, 1)
 
+		// Later startup callers (DogStatsD, OTLP) right after get the same answer at once,
+		// without asking the unreachable Cluster Agent again.
 		for range 2 {
 			callsBefore := calls
 			start = time.Now()
 			_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 			assert.ErrorIs(t, err, unreachable)
 			assert.Zero(t, time.Since(start))
-			assert.Equal(t, callsBefore+1, calls)
+			assert.Equal(t, callsBefore, calls)
 		}
+
+		// After a short while, a later caller makes one attempt again.
+		time.Sleep(startupFailureTTL)
+		callsBefore := calls
+		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		assert.ErrorIs(t, err, unreachable)
+		assert.Equal(t, callsBefore+1, calls)
 	})
 }
 
@@ -234,6 +244,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.Error(t, err)
 
+		time.Sleep(startupFailureTTL)
 		reachable = true
 		callsBefore := calls
 		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
@@ -507,6 +518,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T
 		require.Error(t, err)
 
 		// Once the budget is spent, a later caller makes one attempt with a short timeout.
+		time.Sleep(startupFailureTTL)
 		hang = true
 		start := time.Now()
 		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())

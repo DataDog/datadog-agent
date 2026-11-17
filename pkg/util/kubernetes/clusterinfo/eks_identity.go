@@ -32,6 +32,11 @@ const StartupRetryBudget = 10 * time.Second
 // later caller (another startup component) never waits long on a Cluster Agent that hangs.
 const laterAttemptTimeout = time.Second
 
+// startupFailureTTL is how long a failed startup lookup is reused. The tagger, DogStatsD and OTLP
+// compute their static tags within seconds of each other, so once the budget is spent the
+// callers right after it return the same failure at once instead of adding a second each.
+const startupFailureTTL = 5 * time.Second
+
 // startupIdentity is shared by every GetClusterAgentEKSIdentityTagsWithRetry caller in the process.
 // lock is a one-slot semaphore rather than a mutex so that a caller waiting for the in-flight
 // lookup can give up when its own ctx is done.
@@ -39,6 +44,8 @@ var startupIdentity = struct {
 	lock        *semaphore.Weighted
 	tags        []string
 	budgetSpent bool
+	lastErr     error
+	lastErrAt   time.Time
 }{lock: semaphore.NewWeighted(1)}
 
 var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
@@ -156,6 +163,9 @@ func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, err
 	if startupIdentity.tags != nil {
 		return slices.Clone(startupIdentity.tags), nil
 	}
+	if startupIdentity.lastErr != nil && time.Since(startupIdentity.lastErrAt) < startupFailureTTL {
+		return nil, startupIdentity.lastErr
+	}
 
 	budget := StartupRetryBudget
 	if startupIdentity.budgetSpent {
@@ -188,6 +198,10 @@ func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, err
 		}, backoff.WithBackOff(backoffPolicy))
 	}
 	if err != nil {
+		// A caller that stopped early (its own ctx) says nothing about the Cluster Agent.
+		if !errors.Is(err, context.Canceled) {
+			startupIdentity.lastErr, startupIdentity.lastErrAt = err, time.Now()
+		}
 		return nil, err
 	}
 	startupIdentity.tags = tags
