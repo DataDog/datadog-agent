@@ -36,6 +36,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
         ":agent_binary",
 
         # TODO: sysprobe - windows
@@ -107,6 +108,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
