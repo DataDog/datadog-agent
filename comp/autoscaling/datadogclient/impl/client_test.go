@@ -7,10 +7,12 @@ package datadogclientimpl
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -106,6 +108,43 @@ func TestClientsHaveRequestTimeout(t *testing.T) {
 
 	assert.Equal(t, defaultTransport, http.DefaultClient.Transport, "http.DefaultClient transport must not be modified")
 	assert.Equal(t, defaultTimeout, http.DefaultClient.Timeout, "http.DefaultClient timeout must not be modified")
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// When no endpoint answers, the error of the fallback client must still be recognizable as the
+// timeout that caused it, both when the endpoints are tried in order and when they are retried
+// after a backoff.
+func TestFallbackClientKeepsTimeoutErrors(t *testing.T) {
+	// The retries of go-datadog-api back off with timers, which only take virtual time here.
+	synctest.Test(t, func(t *testing.T) {
+		newIndividualClient := func(baseURL string) *datadogIndividualClient {
+			client := datadog.NewClient("api-key", "app-key")
+			client.SetBaseUrl(baseURL)
+			client.HttpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return nil, context.DeadlineExceeded
+			})}
+			client.RetryTimeout = time.Millisecond
+			return &datadogIndividualClient{client: client, lastQuerySucceeded: true, retryInterval: minRetryInterval}
+		}
+		fallbackCl := &datadogFallbackClient{
+			clients: []*datadogIndividualClient{newIndividualClient("http://primary.test"), newIndividualClient("http://backup.test")},
+			log:     logmock.New(t),
+		}
+
+		// Every endpoint is tried in order.
+		_, err := fallbackCl.QueryMetrics(0, 1, "avg:foo{*}")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+		// Both endpoints have just failed, so they are now skipped by the backoff policy and only
+		// queried again because nothing else succeeded.
+		_, err = fallbackCl.QueryMetrics(0, 1, "avg:foo{*}")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	})
 }
 
 func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
