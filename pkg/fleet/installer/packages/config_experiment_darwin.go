@@ -292,7 +292,10 @@ func runInstallerHandOver(ctx context.Context) error {
 //
 // With the lock released, a stop or promote can come in before the swap, or while the experiment
 // daemon starts. The deadline is read again then, and if the experiment is over, the daemon is
-// handed straight back.
+// handed straight back. One that the stable daemon is still running when the swap stops it is
+// killed partway through: the host recovers on its own -- it left the reverting marker, which the
+// experiment daemon hands back on and the stable one then reverts -- but that stop is never
+// reported as done. The window is the time between the deadline check and the swap.
 //
 // A failed swap may have left the host with no daemon at all, so it reverts every job, the daemon
 // included.

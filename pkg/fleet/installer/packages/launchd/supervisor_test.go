@@ -79,18 +79,18 @@ func TestDeadlineRefusesAnUntrustedFile(t *testing.T) {
 	})
 }
 
-func TestDeadlineWriteThenPresent(t *testing.T) {
+func TestDeadlineWriteThenRead(t *testing.T) {
 	d := testDeadline(t)
 
-	present, err := d.Present()
+	token, err := d.Read()
 	require.NoError(t, err)
-	assert.False(t, present, "a deadline that was never written must not report present")
+	assert.Empty(t, token, "a deadline that was never written must read empty")
 
 	require.NoError(t, d.Write(time.Hour))
 
-	present, err = d.Present()
+	token, err = d.Read()
 	require.NoError(t, err)
-	assert.True(t, present)
+	assert.NotEmpty(t, token)
 }
 
 func TestDeadlineClearIsIdempotent(t *testing.T) {
@@ -98,9 +98,9 @@ func TestDeadlineClearIsIdempotent(t *testing.T) {
 	require.NoError(t, d.Write(time.Hour))
 
 	require.NoError(t, d.Clear())
-	present, err := d.Present()
+	token, err := d.Read()
 	require.NoError(t, err)
-	assert.False(t, present)
+	assert.Empty(t, token)
 
 	// Clearing an already-absent deadline must still succeed: both a deliberate stop and a
 	// crash-recovery path may race to clear the same file.

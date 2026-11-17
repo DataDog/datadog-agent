@@ -8,12 +8,16 @@
 package config
 
 const (
-	// agentConfigUser owns the configuration files the Agent reads. macOS reserves the
-	// unprefixed namespace for the operating system, so the Agent's account is _dd-agent.
-	agentConfigUser = "_dd-agent"
-	// agentConfigGroup is the group of the configuration files the Agent reads, the one the
-	// installer's .dmg set-up (secureConfig) gives the whole configuration tree.
-	agentConfigGroup = "admin"
+	// AgentUser is the Agent's account on macOS, which owns the configuration files the Agent
+	// reads. macOS reserves the unprefixed namespace for the operating system, so it is _dd-agent.
+	// The installer's .dmg set-up uses it too: the files Fleet writes must match what it secures.
+	AgentUser = "_dd-agent"
+	// AgentGroup is the group of the configuration files the Agent reads, the one the installer's
+	// .dmg set-up (secureConfig) gives the whole configuration tree.
+	AgentGroup = "admin"
+
+	agentConfigUser  = AgentUser
+	agentConfigGroup = AgentGroup
 	// agentConfigFileMode is the mode of every configuration file, the one the
 	// installer's .dmg set-up (secureConfig) gives the whole configuration tree.
 	agentConfigFileMode = 0660

@@ -175,19 +175,6 @@ func (d Deadline) Clear() error {
 	return nil
 }
 
-// Present reports whether the deadline file still exists.
-//
-// A caller about to act on an exit event or a tick calls this immediately before acting: a
-// deliberate stop clears the file first, and racing that clear is how the watcher tells a
-// commanded stop apart from a real failure. There is no other signal between the two processes.
-func (d Deadline) Present() (bool, error) {
-	raw, err := d.readRaw()
-	if err != nil {
-		return false, err
-	}
-	return raw != "", nil
-}
-
 // Read returns the deadline exactly as persisted, or "" when the file is absent. No two Writes
 // persist the same value, so it also identifies the experiment the deadline bounds: a process that
 // read it earlier can tell its own experiment apart from one started since.
@@ -244,7 +231,7 @@ type ExitObserver struct {
 // not an error to surface.
 //
 // Residual, unclosable risk: pid recycling between the caller reading the pid (e.g. via
-// JobSet.Pids) and this function arming the filter. There is no way to close this window from
+// JobSet.Statuses) and this function arming the filter. There is no way to close this window from
 // user space; it is accepted, not fixed.
 func ArmExitObserver(pids []int) (*ExitObserver, <-chan ExitEvent, error) {
 	kq, err := unix.Kqueue()
