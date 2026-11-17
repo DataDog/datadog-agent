@@ -81,7 +81,7 @@ func TestDescribeClusterParsesAPIErrors(t *testing.T) {
 	}{
 		{
 			name: "access denied from header", status: 403,
-			header:   "AccessDeniedException:http://internal.amazon.com/coral/com.amazonaws.eks/",
+			header:   "AccessDeniedException:http://example.com/",
 			body:     `{"message":"User is not authorized to perform eks:DescribeCluster"}`,
 			wantCode: "AccessDeniedException", wantMsg: "User is not authorized to perform eks:DescribeCluster",
 			wantTTL: failureCacheTTL, requestID: "req-1",
