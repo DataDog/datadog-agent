@@ -144,11 +144,8 @@ func (p *installParams) pinnedStableEnvironment() map[string]string {
 	}
 }
 
-func (p *installParams) stableInstallerURL() string {
-	if p.stablePackageVersion == nil {
-		return windowsInstallerLatestURL
-	}
-	return fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", *p.stablePackageVersion)
+func (p *installParams) stableInstallerArtifactKey() string {
+	return fmt.Sprintf("fleet-automation/datadog-installer-%s-x86_64.exe", *p.stablePackageVersion)
 }
 
 // NativePackageVersion returns the installed package version, including its
@@ -257,7 +254,7 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
-	installerURL := params.stableInstallerURL()
+	installerURL := windowsInstallerLatestURL
 	if !params.stablePackages && params.stagingPackages == "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(params.pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
@@ -277,6 +274,20 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 	}
 	for name, value := range params.pinnedStableEnvironment() {
 		env[name] = value
+	}
+	if params.stablePackageVersion != nil {
+		installerPath, err := a.host.RemoteHost.Execute(`[System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [guid]::NewGuid().ToString() + ".exe")`)
+		if err != nil {
+			return fmt.Errorf("creating historical installer path: %w", err)
+		}
+		installerPath = strings.TrimSpace(installerPath)
+		artifactKey := params.stableInstallerArtifactKey()
+		if err := a.host.RemoteHost.HostArtifactClient.Get(artifactKey, installerPath); err != nil {
+			return fmt.Errorf("downloading historical installer %s from QA artifacts: %w", artifactKey, err)
+		}
+		quotedPath := strings.ReplaceAll(installerPath, "'", "''")
+		_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`try { & '%s' } finally { Remove-Item -LiteralPath '%s' -Force }`, quotedPath, quotedPath), client.WithEnvVariables(env))
+		return err
 	}
 	// Download the installer exe and run it directly, retrying the download since e2e VMs
 	// occasionally hit transient network errors right after boot.
