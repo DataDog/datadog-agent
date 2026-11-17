@@ -186,11 +186,19 @@ func TestRedisObfuscator(t *testing.T) {
 			"LPUSHX key ?",
 		},
 		{
+			"LPUSHX key value1 value2 value3",
+			"LPUSHX key ?",
+		},
+		{
 			"GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]",
 			"GEORADIUSBYMEMBER key ? radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]",
 		},
 		{
 			"RPUSHX key value",
+			"RPUSHX key ?",
+		},
+		{
+			"RPUSHX key value1 value2 value3",
 			"RPUSHX key ?",
 		},
 		{

@@ -289,6 +289,20 @@ profiles:
     start_after: 600
     iterations: 0
     period: 14400
+- name: forwarder_stats
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: forwarder.http_errors
+        preserve_tags:
+          - code
+          - endpoint
+          - forwarder
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
 - name: csi-driver
   metric:
     exclude:

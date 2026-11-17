@@ -19,6 +19,7 @@ import (
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -105,6 +106,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
+		DomainAllowlist:                    domainAllowlist(config),
 		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
@@ -135,6 +137,36 @@ func kubernetesAllowedCustomResources(config config.Component) []string {
 		return nil
 	}
 	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
+}
+
+// domainAllowlist returns nil when domain_allowlist is unset: HTTP actions then use
+// http_allowlist and other actions reach every domain. An explicit list, even
+// empty, allows only matching domains and replaces http_allowlist.
+func domainAllowlist(config config.Component) []string {
+	httpAllowlistSet := config.IsConfigured(par.HTTPAllowlist)
+	if !config.IsConfigured(par.DomainAllowlist) {
+		if httpAllowlistSet {
+			log.Warnf("%s is deprecated, use %s instead", par.HTTPAllowlist, par.DomainAllowlist)
+		}
+		return nil
+	}
+	if httpAllowlistSet {
+		log.Warnf("%s is ignored because %s is set", par.HTTPAllowlist, par.DomainAllowlist)
+	}
+	// Env values are split on commas without trimming, so "a, b" yields " b".
+	patterns := []string{}
+	for _, pattern := range config.GetStringSlice(par.DomainAllowlist) {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+		if err := httpdomain.ValidatePattern(pattern); err != nil {
+			log.Warnf("ignoring %s entry %q: expected a hostname, an IP address, or a *.domain pattern", par.DomainAllowlist, pattern)
+			continue
+		}
+		patterns = append(patterns, pattern)
+	}
+	return patterns
 }
 
 func makeActionsAllowlist(config config.Component) ActionsAllowlist {

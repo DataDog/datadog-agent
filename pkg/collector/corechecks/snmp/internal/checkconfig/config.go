@@ -164,12 +164,17 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+
+	// InventoryID is the device's id in the NDM inventory, set when the device is
+	// configured from Remote Configuration and reported back in its metadata.
+	InventoryID string `yaml:"inventory_id"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
 	Name            string
 	IPAddress       string
+	InventoryID     string
 	Port            uint16
 	CommunityString string
 	SnmpVersion     string
@@ -310,6 +315,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Name = instance.Name
 	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
+	c.InventoryID = instance.InventoryID
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
 
@@ -641,6 +647,7 @@ func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
 func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
+	newConfig.InventoryID = c.InventoryID
 	newConfig.Network = c.Network
 	newConfig.Port = c.Port
 	newConfig.CommunityString = c.CommunityString
