@@ -68,6 +68,7 @@ go_library(
         "//comp/healthplatform/issues/ad-misconfiguration",
         "//comp/healthplatform/store/def",
         "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup",

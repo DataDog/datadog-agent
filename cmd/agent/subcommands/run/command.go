@@ -192,6 +192,8 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
@@ -435,6 +437,7 @@ func newGPUReadiness(cfg config.Component) *gpu.Readiness {
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		fx.Provide(newContainerCredentials),
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.GetDefaultPyChecksPath(),
@@ -569,12 +572,7 @@ func getSharedFxOption() fx.Option {
 		process.Bundle(),
 		guifx.Module(),
 		agent.Bundle(jmxlogger.NewDefaultParams()),
-		fx.Provide(func(config config.Component) healthprobe.Options {
-			return healthprobe.Options{
-				Port:           config.GetInt("health_port"),
-				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
-			}
-		}),
+		fx.Provide(healthProbeOptions),
 		healthprobefx.Module(),
 		adschedulerfx.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
@@ -621,7 +619,30 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
-// startAgent Initializes the agent process
+// containerCredentials is provided only after resolved credentials are validated.
+type containerCredentials struct{}
+
+func newContainerCredentials(cfg config.Component) (containerCredentials, error) {
+	return containerCredentials{}, validateContainerCredentials(cfg)
+}
+
+func healthProbeOptions(cfg config.Component, _ containerCredentials) healthprobe.Options {
+	// Credential validation must finish before the readiness probe is constructed.
+	return healthprobe.Options{
+		Port:           cfg.GetInt("health_port"),
+		LogsGoroutines: cfg.GetBool("log_all_goroutines_when_unhealthy"),
+	}
+}
+
+// Validate resolved credentials when binaries run without the container init scripts.
+func validateContainerCredentials(cfg pkgconfigmodel.Reader) error {
+	if pkgconfigenv.IsContainerized() && cfg.GetString("api_key") == "" && cfg.GetString("delegated_auth.org_uuid") == "" {
+		return errors.New("the Agent container requires api_key or delegated_auth.org_uuid in its configuration")
+	}
+	return nil
+}
+
+// startAgent initializes the Agent process.
 func startAgent(
 	log log.Component,
 	flare flare.Component,

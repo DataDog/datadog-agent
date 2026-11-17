@@ -523,3 +523,87 @@ instances:
 	require.Equal(t, 0, len(configs))
 	require.Equal(t, 0, len(errors))
 }
+
+func TestAPIServerContainerDefault(t *testing.T) {
+	for _, tc := range []struct {
+		name, container, kubernetes, leaderElection string
+		defaultContent, customContent               *string
+		invalidExample                              bool
+		wantConfigs, wantErrors                     int
+		wantInstance                                string
+	}{
+		{name: "enabled", container: "yes", kubernetes: "yes", leaderElection: "true", wantConfigs: 1, wantInstance: "example"},
+		{name: "disabled", container: "yes", kubernetes: "yes", leaderElection: "false"},
+		{name: "requires literal true", container: "yes", kubernetes: "yes", leaderElection: "1"},
+		{name: "not kubernetes", container: "yes", leaderElection: "true"},
+		{name: "not containerized", kubernetes: "yes", leaderElection: "true"},
+		{name: "existing default", container: "yes", kubernetes: "yes", leaderElection: "true", defaultContent: stringPointer("instances: [{source: existing}]"), wantConfigs: 1, wantInstance: "existing"},
+		{name: "empty default disables example", container: "yes", kubernetes: "yes", leaderElection: "true", defaultContent: stringPointer("")},
+		{name: "customer override", container: "yes", kubernetes: "yes", leaderElection: "true", customContent: stringPointer("instances: [{source: customer}]"), wantConfigs: 1, wantInstance: "customer"},
+		{name: "invalid example", container: "yes", kubernetes: "yes", leaderElection: "true", invalidExample: true, wantErrors: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configmock.New(t)
+			t.Setenv("DOCKER_DD_AGENT", tc.container)
+			t.Setenv("KUBERNETES", tc.kubernetes)
+			t.Setenv("DD_LEADER_ELECTION", tc.leaderElection)
+			root := t.TempDir()
+			dir := filepath.Join(root, "kubernetes_apiserver.d")
+			require.NoError(t, os.Mkdir(dir, 0755))
+			example := "instances: [{source: example}]"
+			if tc.invalidExample {
+				example = "instances: ["
+			}
+			examplePath := filepath.Join(dir, "conf.yaml.example")
+			require.NoError(t, os.WriteFile(examplePath, []byte(example), 0444))
+			if tc.defaultContent != nil {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "conf.yaml.default"), []byte(*tc.defaultContent), 0444))
+			}
+			if tc.customContent != nil {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "custom.yaml"), []byte(*tc.customContent), 0444))
+			}
+			r := &configFilesReader{paths: []string{root}}
+			configs, _, errs := r.read(GetAll, true)
+			require.Len(t, configs, tc.wantConfigs)
+			require.Len(t, errs, tc.wantErrors)
+			if tc.wantConfigs > 0 {
+				require.Contains(t, string(configs[0].Instances[0]), tc.wantInstance)
+			}
+			// Reading must preserve the example and never create or rename files.
+			content, err := os.ReadFile(examplePath)
+			require.NoError(t, err)
+			require.Equal(t, example, string(content))
+			if tc.defaultContent == nil {
+				_, err = os.Stat(filepath.Join(dir, "conf.yaml.default"))
+				require.True(t, os.IsNotExist(err))
+			}
+		})
+	}
+}
+
+func TestSkipNetworkDefault(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "yes")
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing")
+	file := filepath.Join(root, "file")
+	require.NoError(t, os.WriteFile(file, nil, 0444))
+	for _, tc := range []struct {
+		name, integration, filename, procPath string
+		want                                  bool
+	}{
+		{"host proc mounted", "network", "conf.yaml.default", root, false},
+		{"host proc missing", "network", "conf.yaml.default", missing, true},
+		{"host proc is a file", "network", "conf.yaml.default", file, true},
+		{"customer config", "network", "custom.yaml", missing, false},
+		{"customer default", "network", "custom.yaml.default", missing, false},
+		{"another integration", "cpu", "conf.yaml.default", missing, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, skipNetworkDefault(tc.integration, tc.filename, tc.procPath))
+		})
+	}
+	t.Setenv("DOCKER_DD_AGENT", "")
+	require.False(t, skipNetworkDefault("network", "conf.yaml.default", missing))
+}
+
+func stringPointer(value string) *string { return &value }

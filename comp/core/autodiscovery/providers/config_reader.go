@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -401,6 +402,24 @@ func applyErrorAction(integrationErrors map[string]string, action errorAction) {
 	}
 }
 
+// Keep the container defaults equivalent to cont-init.d without changing files.
+func skipNetworkDefault(integrationName, fileName, hostProcPath string) bool {
+	if !pkgconfigenv.IsContainerized() || integrationName != "network" || fileName != "conf.yaml.default" {
+		return false
+	}
+	info, err := os.Stat(hostProcPath)
+	return err != nil || !info.IsDir()
+}
+
+func useAPIServerExample(dirPath, integrationName, fileName string) bool {
+	if !pkgconfigenv.IsContainerized() || os.Getenv("KUBERNETES") == "" || os.Getenv("DD_LEADER_ELECTION") != "true" ||
+		integrationName != "kubernetes_apiserver" || fileName != "conf.yaml.example" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dirPath, "conf.yaml.default"))
+	return errors.Is(err, os.ErrNotExist)
+}
+
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
 // its scrubbed config format is only built when withFormat is true
@@ -410,6 +429,15 @@ func collectEntry(file os.DirEntry, path string, integrationName string, withFor
 	ext := filepath.Ext(fileName)
 	entry := configEntry{}
 	absPath := filepath.Join(path, fileName)
+
+	if skipNetworkDefault(integrationName, fileName, "/host/proc") {
+		entry.err = errors.New("network default requires /host/proc in the Agent container")
+		return entry, nil
+	}
+	if useAPIServerExample(path, integrationName, fileName) {
+		entry.isDefault = true
+		ext = ".yaml"
+	}
 
 	// skip auto conf files based on the agent configuration
 	if fileName == "auto_conf.yaml" && containsString(pkgconfigsetup.Datadog().GetStringSlice("ignore_autoconf"), integrationName) {

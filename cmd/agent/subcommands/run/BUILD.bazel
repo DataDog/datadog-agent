@@ -200,6 +200,8 @@ go_library(
         "//pkg/collector/corechecks/snmp/status",
         "//pkg/collector/python",
         "//pkg/commonchecks",
+        "//pkg/config/env",
+        "//pkg/config/model",
         "//pkg/config/settings",
         "//pkg/config/utils",
         "//pkg/diagnose/connectivity",
@@ -236,65 +238,50 @@ go_library(
     ] + select({
         "@rules_go//go/platform:aix": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:android": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/notableevents/fx",
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/notableevents/fx",
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:js": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:osx": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/softwareinventory/fx",
-            "//pkg/config/model",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/checks/agentcrashdetect/def",
@@ -311,7 +298,6 @@ go_library(
             "//comp/trace/config/fx",
             "//comp/trace/etwtracer/def",
             "//comp/trace/etwtracer/fx",
-            "//pkg/config/model",
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows/svc",
         ],
@@ -332,14 +318,21 @@ dd_agent_go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/config",
+        "//comp/core/healthprobe/def",
+        "//comp/core/healthprobe/fx",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
         "//comp/core/pid/impl",
         "//pkg/collector/corechecks/gpu",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
-            "//comp/core/config",
             "//comp/core/tagger/def",
             "//comp/core/telemetry/impl",
             "//comp/core/workloadfilter/def",
@@ -353,7 +346,6 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
-            "//comp/core/config",
             "//comp/core/tagger/def",
             "//comp/core/telemetry/impl",
             "//comp/core/workloadfilter/def",
@@ -366,8 +358,6 @@ dd_agent_go_test(
             "//pkg/util/option",
         ],
         "@rules_go//go/platform:windows": [
-            "//pkg/config/mock",
-            "//pkg/config/model",
             "@com_github_stretchr_testify//assert",
             "@org_golang_x_sys//windows/svc",
         ],
