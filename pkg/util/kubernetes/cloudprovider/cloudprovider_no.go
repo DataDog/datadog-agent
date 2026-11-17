@@ -15,6 +15,6 @@ func DCAGetName(_ context.Context) string {
 }
 
 // DCAGetDistribution returns an empty, final answer in this build.
-func DCAGetDistribution(_ context.Context) (string, bool) {
-	return "", true
+func DCAGetDistribution(_ context.Context) (string, error) {
+	return "", nil
 }

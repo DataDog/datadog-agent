@@ -13,6 +13,7 @@ go_library(
         "//pkg/util/kubernetes/cloudprovider",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/api/errors",
         "@org_golang_x_sync//singleflight",
     ],
 )
@@ -37,5 +38,7 @@ dd_agent_go_test(
         "//pkg/util/kubernetes/cloudprovider",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )

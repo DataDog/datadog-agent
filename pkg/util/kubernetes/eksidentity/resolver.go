@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sync/singleflight"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // clusterNameRetryTTL bounds how often cluster name discovery is retried when the
@@ -118,7 +119,7 @@ func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		return nil, ctx.Err()
 	case res := <-results:
 		if res.Err != nil {
-			return nil, res.Err
+			return nil, finalAfterStartup(res.Err)
 		}
 		id := *res.Val.(*eks.ClusterIdentity)
 		return &id, nil
@@ -128,10 +129,67 @@ func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 // resolveGroup coalesces concurrent Resolve calls.
 var resolveGroup singleflight.Group
 
+// distributionFailureKey caches why the kube distribution is not known, so a burst of node
+// requests makes one API server lookup and logs at most once.
+var distributionFailureKey = cache.BuildAgentKey("eks", "distribution-failure")
+
+const (
+	// distributionFailureTTL is how long a final self-node failure (RBAC Forbidden, NotFound)
+	// is remembered.
+	distributionFailureTTL = clusterNameRetryTTL
+	// notDeterminedTTL is how long a distribution that is not known yet is remembered.
+	notDeterminedTTL = 3 * time.Second
+	// notDeterminedPeriod is how long after the Cluster Agent starts a missing answer is
+	// reported to nodes as not determined yet. After that it is not a startup state any more.
+	notDeterminedPeriod = time.Minute
+)
+
+// processStart is when this Cluster Agent started.
+var processStart = time.Now()
+
+// clusterAgentUptime is variable for tests.
+var clusterAgentUptime = func() time.Duration { return time.Since(processStart) }
+
+// kubeDistribution is the Cluster Agent's kube distribution. When it is not known, the reason is
+// remembered: a self node the Cluster Agent may not read (RBAC Forbidden) or that is gone
+// (NotFound) does not change within seconds and is final for nodes, anything else is not
+// determined yet.
+func kubeDistribution(ctx context.Context) (string, error) {
+	if cached, found := cache.Cache.Get(distributionFailureKey); found {
+		if err, ok := cached.(error); ok {
+			return "", err
+		}
+	}
+	distribution, err := detectDistribution(ctx)
+	if err == nil {
+		return distribution, nil
+	}
+	if apierrors.IsForbidden(err) || apierrors.IsNotFound(err) {
+		err = fmt.Errorf("kube distribution: %w", err)
+		log.Warnf("Unable to read the Cluster Agent's own node to check for EKS, retrying in %s: %v", distributionFailureTTL, err)
+		cache.Cache.Set(distributionFailureKey, err, distributionFailureTTL)
+		return "", err
+	}
+	err = fmt.Errorf("kube distribution: %w: %w", ErrNotDetermined, err)
+	log.Debugf("EKS cluster identity: %v", err)
+	cache.Cache.Set(distributionFailureKey, err, notDeterminedTTL)
+	return "", err
+}
+
+// finalAfterStartup turns a not determined answer into a final one once the Cluster Agent has
+// been up for notDeterminedPeriod: nodes then stop waiting for it, and pick the identity up
+// from their host tags when it is found.
+func finalAfterStartup(err error) error {
+	if errors.Is(err, ErrNotDetermined) && clusterAgentUptime() > notDeterminedPeriod {
+		return errors.New("EKS cluster identity not found since the Cluster Agent started: " + err.Error())
+	}
+	return err
+}
+
 func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
-	distribution, determined := detectDistribution(ctx)
-	if !determined {
-		return nil, fmt.Errorf("kube distribution: %w", ErrNotDetermined)
+	distribution, err := kubeDistribution(ctx)
+	if err != nil {
+		return nil, err
 	}
 	if distribution != "eks" {
 		return nil, ErrNotEKS

@@ -18,6 +18,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
@@ -35,14 +37,19 @@ var testClusterCA = []byte("-----BEGIN CERTIFICATE-----\nY2x1c3Rlcg==\n-----END 
 func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, configured string) *stubState {
 	t.Helper()
 	cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
+	cache.Cache.Delete(distributionFailureKey)
 	origDistribution, origEC2, origConfigured, origResolve, origCA := detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey, readClusterCA
+	origUptime := clusterAgentUptime
 	t.Cleanup(func() {
 		detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey, readClusterCA = origDistribution, origEC2, origConfigured, origResolve, origCA
+		clusterAgentUptime = origUptime
 		cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
+		cache.Cache.Delete(distributionFailureKey)
 	})
+	clusterAgentUptime = func() time.Duration { return 0 }
 
 	state := &stubState{}
-	detectDistribution = func(context.Context) (string, bool) { return distribution, true }
+	detectDistribution = func(context.Context) (string, error) { return distribution, nil }
 	ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return ec2Name, ec2Err }
 	configuredCluster = func(context.Context, string) string { return configured }
 	readClusterCA = func() ([]byte, error) { return testClusterCA, nil }
@@ -299,9 +306,9 @@ func TestResolveStaysWithinNodeRequestTimeout(t *testing.T) {
 		// Every step hangs. The whole resolve still answers before the node Agent's 3s
 		// ResponseHeaderTimeout, so the node gets an answer it can act on.
 		stub(t, "", "", nil, "orders")
-		detectDistribution = func(ctx context.Context) (string, bool) {
+		detectDistribution = func(ctx context.Context) (string, error) {
 			<-ctx.Done()
-			return "", false
+			return "", ctx.Err()
 		}
 		start := time.Now()
 		_, err := Resolve(t.Context())
@@ -424,4 +431,74 @@ func TestResolveOwnTimeoutIsNotDeterminedYet(t *testing.T) {
 	_, err := Resolve(t.Context())
 	assert.ErrorIs(t, err, ErrNotDetermined)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestResolveSelfNodeForbiddenOrNotFoundIsFinal(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		nodes := schema.GroupResource{Resource: "nodes"}
+		for name, nodeErr := range map[string]error{
+			"forbidden": apierrors.NewForbidden(nodes, "node-1", errors.New("RBAC: access denied")),
+			"not found": apierrors.NewNotFound(nodes, "node-1"),
+		} {
+			// The Cluster Agent's RBAC does not allow reading its node, or the node is gone.
+			// Asking again a second later gets the same answer, so it is final for nodes and
+			// remembered, not looked up on every node request.
+			stub(t, "eks", "orders", nil, "orders")
+			var lookups atomic.Int32
+			detectDistribution = func(context.Context) (string, error) {
+				lookups.Add(1)
+				return "", fmt.Errorf("self node: %w", nodeErr)
+			}
+			for range 3 {
+				_, err := Resolve(t.Context())
+				require.Error(t, err, name)
+				assert.NotErrorIs(t, err, ErrNotDetermined, name)
+			}
+			assert.Equal(t, int32(1), lookups.Load(), name)
+
+			time.Sleep(distributionFailureTTL + time.Millisecond)
+			_, _ = Resolve(t.Context())
+			assert.Equal(t, int32(2), lookups.Load(), name)
+		}
+	})
+}
+
+func TestResolveRemembersNotDeterminedBriefly(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The API server is not reachable yet. A burst of node requests makes one lookup.
+		stub(t, "eks", "orders", nil, "orders")
+		var lookups atomic.Int32
+		detectDistribution = func(context.Context) (string, error) {
+			lookups.Add(1)
+			return "", errors.New("node name from apiserver: could not connect to the apiserver")
+		}
+		for range 3 {
+			_, err := Resolve(t.Context())
+			assert.ErrorIs(t, err, ErrNotDetermined)
+		}
+		assert.Equal(t, int32(1), lookups.Load())
+
+		time.Sleep(notDeterminedTTL + time.Millisecond)
+		_, _ = Resolve(t.Context())
+		assert.Equal(t, int32(2), lookups.Load())
+		assert.Less(t, notDeterminedTTL, 5*time.Second)
+	})
+}
+
+func TestResolveIsNoLongerNotDeterminedAfterStartup(t *testing.T) {
+	// Once the Cluster Agent has been up for a while, a missing answer is not a startup state
+	// any more, and nodes stop waiting for it.
+	stub(t, "eks", "orders", nil, "orders")
+	clusterAgentUptime = func() time.Duration { return notDeterminedPeriod + time.Second }
+	detectDistribution = func(context.Context) (string, error) {
+		return "", errors.New("node name from apiserver: could not connect to the apiserver")
+	}
+	_, err := Resolve(t.Context())
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrNotDetermined)
+
+	clusterAgentUptime = func() time.Duration { return notDeterminedPeriod - time.Second }
+	cache.Cache.Delete(distributionFailureKey)
+	_, err = Resolve(t.Context())
+	assert.ErrorIs(t, err, ErrNotDetermined)
 }
