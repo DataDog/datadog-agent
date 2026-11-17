@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -132,33 +133,38 @@ func missingTracedLibraries(moduleName, programType string, pid int, libPrefixes
 // follows decides whether the listed libraries are traced.
 func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pid int, libPrefixes []string, traceManually TraceMethod) {
 	t.Helper()
-	waitForAll := func(timeout time.Duration) []string {
-		end := time.Now().Add(timeout)
-		for {
-			missing := missingTracedLibraries(moduleName, programType, pid, libPrefixes)
-			if len(missing) == 0 || !time.Now().Before(end) {
-				return missing
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
+	allTraced := func() bool {
+		return len(missingTracedLibraries(moduleName, programType, pid, libPrefixes)) == 0
+	}
+	// On timeout, EventuallyWithT reports the last tick's errors, i.e. the missing libraries.
+	requireAllTraced := func(msg string) {
+		t.Helper()
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.Empty(c, missingTracedLibraries(moduleName, programType, pid, libPrefixes), "libraries not traced")
+		}, librariesTracedTimeout, 50*time.Millisecond, "process %v is not traced by %v%v", pid, programType, msg)
 	}
 
-	missing := waitForAll(librariesTracedTimeout)
-	if len(missing) == 0 {
+	if !traceManually {
+		requireAllTraced("")
 		return
 	}
-	if !traceManually {
-		t.Fatalf("process %v is not traced by %v through %v", pid, programType, missing)
+	// The manual attach below handles a timeout here, so don't report it as a failure.
+	if assert.Eventually(discardT{}, allTraced, librariesTracedTimeout, 50*time.Millisecond) {
+		return
 	}
+	missing := missingTracedLibraries(moduleName, programType, pid, libPrefixes)
 	t.Logf("process %v is not traced by %v through %v, trying to attach manually", pid, programType, missing)
 
 	if err := attachManually(t, moduleName, programType, pid); err != nil {
 		t.Logf("manual attach of process %v returned an error: %v", pid, err)
 	}
-	if missing = waitForAll(librariesTracedTimeout); len(missing) != 0 {
-		t.Fatalf("process %v is not traced by %v through %v after manual attach", pid, programType, missing)
-	}
+	requireAllTraced(" after manual attach")
 }
+
+// discardT is an assert.TestingT that drops failures, for a wait whose timeout the caller handles.
+type discardT struct{}
+
+func (discardT) Errorf(string, ...interface{}) {}
 
 // WaitForPathToBeBlocked waits for the path to be blocked from tracing in the
 // registry (due to failing activation).
