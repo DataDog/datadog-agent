@@ -330,7 +330,7 @@ require (
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/kr/pretty v0.3.1
 	github.com/kraken-hpc/go-fork v0.1.1
-	github.com/landlock-lsm/go-landlock v0.11.0
+	github.com/landlock-lsm/go-landlock v0.11.1
 	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
@@ -1086,7 +1086,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098 // indirect
 	k8s.io/sample-controller v0.37.1 // indirect
 	k8s.io/streaming v0.37.2 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.78 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.58.0 // indirect
 	mvdan.cc/sh/v3 v3.14.1 // indirect
