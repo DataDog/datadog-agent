@@ -18,13 +18,13 @@ Both agent-platform suites pick their host with `macosProvisioner` and install y
 
 The config suite is in another package, so it can't share those helpers. It reads
 the same `LOCAL_VM`, `LOCAL_USER`, `LOCAL_ARCH` and `E2E_MACOS_LOCAL_DMG` variables in
-`TestFleetConfigMacOS`, starts its fakeintake with `configMacOSStartLocalFakeIntake`
-(pinned to the framework's fixed Remote Config signing seed, or the Agent's TUF root
-validation fails), and installs through `agent.Agent.Install`
+`TestFleetConfigMacOS`, starts its fakeintake through
+`byohost.LocalVMProvisioner(t, byohost.WithRemoteConfig())` (pinned to the framework's
+fixed Remote Config signing seed, or the Agent's TUF root validation fails), and installs through `agent.Agent.Install`
 (`test/new-e2e/tests/fleet/agent/install.go`). It clears the Remote Config
 store in `SetupSuite`, so a reused fakeintake (`E2E_DEV_MODE`) starts clean.
 
-Timings measured on an arm64 Parallels VM: install ~4.5 min (15 tests,
+Timings measured on an arm64 Parallels VM as of 2026-11: install ~4.5 min (15 tests,
 ~30 s of it installing the dmg); upgrade ~1.5 min. On the AWS pool, add
 Pulumi provisioning and, for a clean run, the root-volume replacement.
 
@@ -36,7 +36,7 @@ Pulumi provisioning and, for a clean run, the root-volume replacement.
 | `LOCAL_VM` | SSH host or IP of a pre-existing macOS host. Setting it switches from AWS to a static byohost descriptor (`provisioners.NewStaticStackProvisioner`), with no Pulumi and no cloud |
 | `LOCAL_USER` | SSH user on that host (default `$USER`) |
 | `LOCAL_ARCH` | `arm64` (default) or `x86_64`; it sets the descriptor architecture only |
-| `E2E_AWS_PRIVATE_KEY_PATH` | Key used for the test's own `ssh` calls that start fakeintake on a LOCAL_VM host (`macosSSHArgs`). `E2E_LOCAL_PRIVATE_KEY_PATH` is read first, but leave it unset for a passphrase-protected key: the framework's own SSH client then reads that file instead of using the agent, and fails with `this private key is passphrase protected` |
+| `E2E_AWS_PRIVATE_KEY_PATH` | Key used for the test's own `ssh` calls that start fakeintake on a LOCAL_VM host (`byohost.LocalVMProvisioner`). `E2E_LOCAL_PRIVATE_KEY_PATH` is read first, but leave it unset for a passphrase-protected key: the framework's own SSH client then reads that file instead of using the agent, and fails with `this private key is passphrase protected` |
 | `E2E_DEV_MODE` | `true` keeps the Pulumi stack after the run (AWS) |
 | `E2E_REVERT_BEFORE_RUN` | `true` reverts your AWS pool instance to its golden baseline before the tests start |
 | `E2E_STACK_NAME_SUFFIX` | Appended to the stack name, so your stacks stay distinct |
@@ -80,10 +80,12 @@ How a local (non-CI) pool run works. Source:
   runs through a `defer`), including in dev mode. Dev mode only skips the
   Pulumi stack destroy.
 
+`<aws-profile>` below is your E2E SSO profile, e.g. `sso-agent-sandbox-account-admin-8h`.
+
 ### Full clean run: revert the machine first
 
 ```bash
-aws-vault exec sso-agent-sandbox-account-admin-8h -- env \
+aws-vault exec <aws-profile> -- env \
   E2E_MACOS_LOCAL_DMG="$PWD/omnibus/pkg/<name>.x86_64.dmg" \
   E2E_DEV_MODE=true \
   E2E_REVERT_BEFORE_RUN=true \
@@ -106,7 +108,7 @@ state, or whenever a failure might be leftover state rather than your change.
 ### Fast run: reuse the machine as-is
 
 ```bash
-aws-vault exec sso-agent-sandbox-account-admin-8h -- env \
+aws-vault exec <aws-profile> -- env \
   E2E_MACOS_LOCAL_DMG="$PWD/omnibus/pkg/<name>.x86_64.dmg" \
   E2E_DEV_MODE=true \
   E2E_STACK_NAME_SUFFIX=<name> \

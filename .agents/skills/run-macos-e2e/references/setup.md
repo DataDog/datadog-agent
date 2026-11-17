@@ -159,7 +159,7 @@ spare Mac. It needs:
   to install the released Agent it upgrades from.
 
 The suites start a fakeintake container on the host (`docker run -p 0:80`)
-and point the Agent at `<vm-ip>:<published-port>` (`macosStartLocalFakeIntake`).
+and point the Agent at `<vm-ip>:<published-port>` (`byohost.LocalVMProvisioner`).
 
 Take a VM snapshot once the host is set up. LOCAL_VM never reverts the host,
 so restoring that snapshot is your clean run.

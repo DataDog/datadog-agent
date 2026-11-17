@@ -22,9 +22,9 @@ Load the references only when a step calls for them:
 
 | Suite | Test | `--targets` |
 |---|---|---|
-| install | `TestMacosInstallScript` (15 tests, LaunchDaemons ones included, ~4.5 min) | `./tests/agent-platform/tests` |
+| install | `TestMacosInstallScript` (15 tests as of 2026-11, LaunchDaemons ones included, ~4.5 min) | `./tests/agent-platform/tests` |
 | upgrade | `TestMacosInstallScriptUpgradeFromStable` (1 test, ~1.5 min) | `./tests/agent-platform/tests` |
-| config | `TestFleetConfigMacOS` (32 tests, the longest suite) | `./tests/fleet` |
+| config | `TestFleetConfigMacOS` (32 tests as of 2026-11, the longest suite) | `./tests/fleet` |
 
 The install suite's tests live in `macos_install_test.go` and
 `macos_launchdaemons_test.go`. The LaunchDaemons tests re-run the postinstall
@@ -46,8 +46,13 @@ that fakeintake as a container on the host, so Docker has to answer there too.
 | `local-vm` | an SSH-reachable macOS box you own (Parallels/UTM VM, spare Mac). Free and fast to iterate on | the host's arch, usually `arm64` |
 | `aws-pool` | you need the CI-like `mac1.metal` host. Your first run provisions your own Dedicated Host, which bills a **24-hour minimum**, so confirm with the user before the first run | `x86_64` for `mac1.metal` |
 
+**Every target is destructive.** The suites uninstall and reinstall the Agent and
+overwrite `/opt/datadog-agent/etc`, its launchd jobs and `/opt/datadog-packages`.
+Never point `local-vm` at a workstation you care about, and say so to the user
+before the first run on a host.
+
 Ask the user for anything they didn't give you. For `local-vm` that's the host
-IP, SSH user and key path; never guess these.
+IP, SSH user and key path; for `aws-pool` it's the AWS profile. Never guess these.
 
 ### Step 2 — Build the dmg (skip if the user already has one)
 
@@ -78,7 +83,9 @@ file /tmp/dmgcheck/datadog-agent-core.pkg/Payload/bin/agent/agent   # expect arm
 - **local-vm:** `ssh -i <ssh-key> <user>@<vm-ip> 'uname -m; eval "$(/opt/homebrew/bin/brew shellenv)"; docker ps'`.
   Fakeintake runs as a container on the host, so Docker has to answer. If SSH times out or
   Docker is down, go to [`references/troubleshooting.md`](references/troubleshooting.md).
-- **aws-pool:** `aws-vault exec sso-agent-sandbox-account-admin-8h -- aws sts get-caller-identity`.
+- **aws-pool:** `aws-vault exec <aws-profile> -- aws sts get-caller-identity`, where
+  `<aws-profile>` is the user's E2E SSO profile (for example
+  `sso-agent-sandbox-account-admin-8h`, see [`references/setup.md`](references/setup.md)).
   Then decide between a clean and a fast run (Step 4).
 
 ### Step 4 — Choose clean or fast (aws-pool)
