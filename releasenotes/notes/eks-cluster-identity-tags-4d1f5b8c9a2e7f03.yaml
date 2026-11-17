@@ -8,8 +8,10 @@
 ---
 features:
   - |
-    On Amazon EKS nodes running on EC2 and on EKS Fargate, container data (including APM
-    traces) and host metadata now carry the ``eks_cluster_arn``, ``eks_cluster_account``,
-    and ``eks_cluster_region`` tags. The node Agent gets them from the Cluster Agent, so they
-    require the Cluster Agent and its ``eks:DescribeCluster`` permission. The tags are omitted
-    when the identity is not available.
+    On Amazon EKS, including Windows nodes, EKS Hybrid nodes and EKS Fargate, container data
+    (including APM traces) and host metadata now carry the ``eks_cluster_arn``,
+    ``eks_cluster_account``, and ``eks_cluster_region`` tags. The node Agent gets them from the
+    Cluster Agent, so they require the Cluster Agent and its ``eks:DescribeCluster``
+    permission. The tags are omitted when the identity is not available. If the Cluster Agent
+    is not reachable when a node Agent starts, the node Agent waits for it up to 10 seconds,
+    except on nodes whose DMI rules out EC2.

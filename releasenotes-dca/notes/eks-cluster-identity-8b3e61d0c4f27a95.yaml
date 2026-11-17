@@ -17,10 +17,15 @@ features:
     This makes one outbound HTTPS call to the EKS API of the cluster's Region the first time the
     identity is needed, then caches the result. The call honors the standard AWS settings for
     credentials, Region, proxies, FIPS, dual-stack, and custom endpoints. The cluster name comes
-    from the ``kubernetes.io/cluster/<name>`` EC2 tag of the node, or from ``cluster_name``
-    when that tag is not available. The answer is used only when its certificate authority is
-    the cluster's own, so a stale or reused cluster name never tags data with another
-    cluster's ARN.
+    from the ``kubernetes.io/cluster/<name>`` EC2 tag of the Cluster Agent's node, or from
+    ``cluster_name`` when that tag is not available. When the cluster CA mounted in the Cluster
+    Agent pod can be read, the answer is used only if its certificate authority matches, so a
+    stale or reused cluster name does not tag data with another cluster's ARN. When the CA
+    cannot be read, only the EC2 tag name is used, without that check.
+
+    The endpoint answers 404 when the cluster is not EKS or no cluster name can be verified, and
+    503 when the identity cannot be resolved. A 503 that can clear on its own, for example while
+    the Cluster Agent is still starting, is marked so node Agents retry it during their startup.
 
     Grant ``eks:DescribeCluster`` on the cluster to the Cluster Agent's IAM role, with EKS Pod
     Identity or IAM Roles for Service Accounts (IRSA). The node instance role works only when
