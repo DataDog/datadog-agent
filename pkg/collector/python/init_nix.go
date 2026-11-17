@@ -8,5 +8,7 @@
 package python
 
 func initializePlatform() error {
+	// No platform-specific initialization is currently required on Unix.
+	// Core dumps are configured process-wide by pkg/util/coredump.
 	return nil
 }

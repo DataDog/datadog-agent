@@ -6144,10 +6144,6 @@ properties:
     node_type: setting
     type: string
     default: ''
-  c_core_dump:
-    node_type: setting
-    type: boolean
-    default: false
   cel_workload_exclude:
     node_type: setting
     type: array
