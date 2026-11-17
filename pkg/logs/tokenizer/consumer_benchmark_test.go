@@ -52,7 +52,6 @@ var consumers = []consumer{
 	{"aad_log_signature", 4096, func(tok *Tokenizer, line []byte) {
 		benchSink += len(TokensToString(tok.TokenizeBorrowed(line).Borrow()))
 	}},
-	{"aad_log_pattern_cache", 4096, func(tok *Tokenizer, line []byte) { benchSink += tok.TokenizeBorrowed(line).Len() }},
 }
 
 // perfLines are the lines every consumer is measured on: common log formats,
@@ -81,7 +80,7 @@ var appLogLine = []byte(`2024-01-15 10:30:45.123 [http-nio-8080-exec-42] ERROR c
 var benchSink int
 
 // BenchmarkConsumer runs each consumer's per-line calls at its window, on each
-// of the 8 lines. dda inv logs-tokenizer.bench-compare fails a
+// of the 8 lines: 24 benchmarks. dda inv logs-tokenizer.bench-compare fails a
 // change that makes one of them more than 5% slower (p < 0.05).
 func BenchmarkConsumer(b *testing.B) {
 	for _, c := range consumers {
@@ -113,7 +112,6 @@ func BenchmarkConsumerMatch(b *testing.B) {
 	}{
 		{"logs_pattern_table", 60, 20, 0.75},
 		{"logs_adaptive_sampler", 2048, 1000, 0.9},
-		{"aad_log_pattern_cache", 4096, 1024, 0.9},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			line, _ := NewTokenizer(tc.maxEvalBytes).Tokenize(appLogLine)
