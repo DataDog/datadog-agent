@@ -1,4 +1,7 @@
 datadog:
+  envDict:
+    # Extra lifecycle events (pod/container state transitions) asserted by TestContainerLifecycleEvents.
+    DD_CONTAINER_LIFECYCLE_EXTENDED_SET: "true"
   namespaceLabelsAsTags:
     related_team: team
   kubernetesResourcesAnnotationsAsTags:

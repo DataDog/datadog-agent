@@ -147,7 +147,10 @@ func (h *ContainerStateHandler) Handle(ev workloadmeta.Event) ([]LifecycleEvent,
 					NewState:            newState,
 					TransitionTimestamp: transitionTimestamp,
 					Precision:           precision,
-					MissedIntermediate:  containerMissedIntermediate(cs.state, newState),
+					// The kubelet polls the CRI, so a skipped state cannot prove a missed
+					// intermediate: a run that went waiting-running-terminated between polls
+					// looks identical to a start failure that never ran.
+					MissedIntermediate: contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE,
 				},
 			})
 
@@ -198,16 +201,6 @@ func transitionTime(exactTime time.Time) (int64, contlcycle.Precision) {
 		return time.Now().Unix(), contlcycle.Precision_PRECISION_APPROXIMATE
 	}
 	return exactTime.Unix(), contlcycle.Precision_PRECISION_EXACT
-}
-
-// containerMissedIntermediate reports PROVEN when a run skips from waiting to terminated, the only provable skip.
-func containerMissedIntermediate(prior, current *contlcycle.ContainerStateValue) contlcycle.MissedIntermediate {
-	if prior != nil &&
-		prior.GetKind() == contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_WAITING &&
-		current.GetKind() == contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_TERMINATED {
-		return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN
-	}
-	return contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE
 }
 
 // slotKey identifies a container slot within a pod by kind and name, so init, regular, and ephemeral containers never collide.

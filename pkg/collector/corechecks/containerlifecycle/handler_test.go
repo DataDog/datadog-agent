@@ -940,7 +940,7 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
 	})
 
-	t.Run("waiting to terminated proves the missed running state and carries the exit details", func(t *testing.T) {
+	t.Run("waiting to terminated stays unknowable and carries the exit details", func(t *testing.T) {
 		h := NewContainerStateHandler()
 		podID := "eva-lu-ator"
 		finishedAt := time.Now()
@@ -967,7 +967,35 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 		assert.Equal(t, int32(1), transition.GetNewState().GetExitCode())
 		assert.Equal(t, finishedAt.Unix(), transition.GetTransitionTimestamp())
 		assert.Equal(t, model.Precision_PRECISION_EXACT, transition.GetPrecision())
-		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_PROVEN, transition.GetMissedIntermediate())
+		// The kubelet polls the CRI, so this skip cannot prove a missed running state.
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
+	})
+
+	t.Run("a start failure that never ran looks the same as a brief run", func(t *testing.T) {
+		h := NewContainerStateHandler()
+		podID := "cy-d-effect"
+
+		_, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "", workloadmeta.KubernetesContainerState{Waiting: &workloadmeta.KubernetesContainerStateWaiting{Reason: "ContainerCreating"}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		les, err := h.Handle(podEvent(podID, func(p *workloadmeta.KubernetesPod) {
+			p.ContainerStatuses = []workloadmeta.KubernetesContainerStatus{
+				status("app", "docker://ben", workloadmeta.KubernetesContainerState{Terminated: &workloadmeta.KubernetesContainerStateTerminated{ExitCode: 1, Reason: "StartError", FinishedAt: time.Now()}}),
+			}
+		}))
+		require.NoError(t, err)
+
+		ctr := container(t, les, 0)
+		transition := ctr.GetTransition()
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetLastObservedState().GetKind())
+		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_TERMINATED, transition.GetNewState().GetKind())
+		assert.Equal(t, "StartError", transition.GetNewState().GetReason())
+		// A start failure that never ran and a brief run between polls are indistinguishable.
+		assert.Equal(t, model.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate())
 	})
 
 	t.Run("unchanged state emits nothing", func(t *testing.T) {
