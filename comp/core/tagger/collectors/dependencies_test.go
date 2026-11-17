@@ -203,6 +203,21 @@ func TestProcessLosingPromotableTagRetagsContainer(t *testing.T) {
 	assert.NotContains(t, containerTags.LowCardTags, "training_run_id:run-1")
 }
 
+func TestPodTaggedBeforeItsAutoscalerInTheSameBundle(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	pod := newTestAutoscaledPod("pod-a", "my-ns", "app-a")
+	hpa := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "my-ns", "my-hpa", workloadmeta.AutoscalerTargetDeployment, "app-a")
+	h.store.Set(pod)
+
+	// The pod is tagged first, and isn't re-tagged later in the bundle, so it
+	// must already see the autoscaler.
+	got := h.process(setEvent(pod), setEvent(hpa))
+
+	podTags := tagInfoFor(got, podTaggerID("pod-a"))
+	require.NotNil(t, podTags)
+	assert.Contains(t, podTags.LowCardTags, "kube_autoscaler_kind:horizontalpodautoscaler")
+}
+
 type dependencyTestHarness struct {
 	store     workloadmetamock.Mock
 	collector *WorkloadMetaCollector

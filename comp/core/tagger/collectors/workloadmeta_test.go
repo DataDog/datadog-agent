@@ -7206,15 +7206,18 @@ func TestRetagAutoscalerDependentPods(t *testing.T) {
 					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				),
 			)
+			var initial []workloadmeta.Event
 			for _, pod := range pods {
 				store.Set(pod)
+				initial = append(initial, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod})
+			}
+			for _, autoscaler := range test.autoscalers {
+				initial = append(initial, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: autoscaler})
 			}
 			processor := &recordingProcessor{}
 			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, processor)
-
-			for _, autoscaler := range test.autoscalers {
-				collector.updateAutoscalerIndex(workloadmeta.EventTypeSet, autoscaler)
-			}
+			collector.processEvents(workloadmeta.EventBundle{Events: initial, Ch: make(chan struct{})})
+			processor.tagInfos = nil
 
 			collector.processEvents(workloadmeta.EventBundle{Events: test.events, Ch: make(chan struct{})})
 
