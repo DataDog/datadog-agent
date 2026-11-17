@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"syscall"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -104,6 +105,10 @@ func testReadConnTupleSKBEquivalence(t *testing.T, coll *ebpf.Collection) {
 				// from validating the payload as IPv4 or IPv6, so every truncation length runs.
 				in := append(make([]byte, 14), f.data[:n]...)
 				_, err := prog.Run(&ebpf.RunOptions{Data: in})
+				if n == 0 && errors.Is(err, syscall.EINVAL) {
+					// Some kernels (6.0) reject a test-run skb with nothing after the Ethernet header.
+					continue
+				}
 				require.NoError(t, err, "test-run: %s len=%d", f.name, n)
 				out := make([]byte, outMap.ValueSize())
 				require.NoError(t, outMap.Lookup(&key, &out))
