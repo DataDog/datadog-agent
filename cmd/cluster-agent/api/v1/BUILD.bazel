@@ -73,6 +73,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
+        "//pkg/api/middleware",
         "//pkg/clusteragent/api",
         "//pkg/config/mock",
         "//pkg/proto/pbgo/core",

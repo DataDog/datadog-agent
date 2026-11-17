@@ -39,6 +39,14 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		tracer.ResourceName("eksClusterIdentity"),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+	// A panic reaches the server's RecoveryHandler, which answers 500 on this writer: mark it
+	// final, so nodes do not take it for a proxy error and retry it.
+	defer func() {
+		if r := recover(); r != nil {
+			w.Header().Set(identitytypes.RetryLaterHeader, "false")
+			panic(r)
+		}
+	}()
 
 	identity, err := resolveEKSClusterIdentity(r.Context())
 	if err != nil {

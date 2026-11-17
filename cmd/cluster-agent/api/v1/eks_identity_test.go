@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	stdlog "log"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	apimiddleware "github.com/DataDog/datadog-agent/pkg/api/middleware"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
@@ -290,4 +293,16 @@ func TestGetEKSClusterIdentityMarksARealCachedFailureByItsExpiry(t *testing.T) {
 		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		assert.Equal(t, mark, recorder.Header().Get(identitytypes.RetryLaterHeader), "cached for %s", ttl)
 	}
+}
+
+func TestGetEKSClusterIdentityPanicIsMarkedFinal(t *testing.T) {
+	// A panic in the handler reaches the server's RecoveryHandler, which answers 500. The
+	// answer is marked final, so nodes do not take it for a proxy error and retry it.
+	resolveEKSClusterIdentity = func(context.Context) (*eks.ClusterIdentity, error) { panic("boom") }
+	t.Cleanup(func() { resolveEKSClusterIdentity = eksidentity.Resolve })
+	recorder := httptest.NewRecorder()
+	handler := apimiddleware.RecoveryHandler(stdlog.New(io.Discard, "", 0))(http.HandlerFunc(getEKSClusterIdentity))
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/cluster/eks-identity", nil))
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "false", recorder.Header().Get(identitytypes.RetryLaterHeader))
 }
