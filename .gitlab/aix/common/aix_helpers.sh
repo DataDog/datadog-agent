@@ -107,6 +107,9 @@ _aix_transfer() {
             "$@" \
         && return 0
         echo "=== AIX: transfer attempt $attempt/3 failed" >&2
+        # Back off before retrying: stalls are often transient, and immediate
+        # retries tend to land in the same incident window.
+        if [ "$attempt" -lt 3 ]; then sleep $((attempt * 15)); fi
     done
     echo "=== AIX: transfer failed after 3 attempts" >&2
     return 1

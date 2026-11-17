@@ -60,9 +60,15 @@
 
     # Helpers for connecting to the AIX host.
     # rsync is used by the transfer helpers in aix_helpers.sh but is missing
-    # from the CI image; install it if needed.
+    # from the CI image; install it if needed. TODO: drop this once rsync is
+    # baked into datadog-agent-buildimages/linux.
     - command -v rsync >/dev/null || (apt-get update -qq && apt-get install -yqq rsync)
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
+
+    # The transfer helpers need rsync on the AIX host too, and the first
+    # transfer below runs before setup-host.sh installs it. Bootstrap it here
+    # so a fresh host (no rsync yet) can complete its first job.
+    - aix_run_cmd '[ -x /opt/freeware/bin/rsync ] || /opt/freeware/bin/dnf-3 -y install rsync'
 
     # Ensure the agent source is cloned on the AIX host at the commit under test.
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
