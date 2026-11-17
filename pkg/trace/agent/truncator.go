@@ -93,6 +93,48 @@ func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 
 		return newK, newV, modified
 	})
+
+	// Legacy spans hold these in Meta, so truncate them like Meta values. The env set by the
+	// tracer is already limited by normalizeV1, but global tags or span modifiers may set it later.
+	if e := s.Env(); len(e) > MaxMetaValLen {
+		s.SetEnv(normalize.TruncateUTF8(e, MaxMetaValLen) + "...")
+	}
+	if c := s.Component(); len(c) > MaxMetaValLen {
+		s.SetComponent(normalize.TruncateUTF8(c, MaxMetaValLen) + "...")
+	}
+	if v := s.Version(); len(v) > MaxMetaValLen {
+		s.SetVersion(normalize.TruncateUTF8(v, MaxMetaValLen) + "...")
+	}
+
+	truncateNonStringAttributeKeysV1(s)
+}
+
+// truncateNonStringAttributeKeysV1 truncates the keys of the span's non-string attributes,
+// as Truncate does for the keys of legacy Metrics. String attributes (legacy Meta) are handled
+// by MapStringAttributes. Bytes attributes are skipped: they hold legacy meta_struct entries,
+// whose keys Truncate leaves alone.
+func truncateNonStringAttributeKeysV1(s *idx.InternalSpan) {
+	attrs := s.Attributes()
+	var longKeys []uint32
+	for k, v := range attrs {
+		switch v.GetValue().(type) {
+		case nil, *idx.AnyValue_StringValueRef, *idx.AnyValue_BytesValue:
+			continue
+		}
+		if len(s.Strings.Get(k)) > MaxMetricsKeyLen {
+			longKeys = append(longKeys, k)
+		}
+	}
+	// Rekey after iterating so that newly added keys are not revisited. Unlike legacy, where Meta
+	// and Metrics are separate maps, a truncated key that collides with an existing attribute
+	// replaces it; this needs two keys over the limit sharing a prefix, so it is accepted.
+	for _, k := range longKeys {
+		key := s.Strings.Get(k)
+		log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, key)
+		v := attrs[k]
+		delete(attrs, k)
+		attrs[s.Strings.Add(normalize.TruncateUTF8(key, MaxMetricsKeyLen)+"...")] = v
+	}
 }
 
 const (

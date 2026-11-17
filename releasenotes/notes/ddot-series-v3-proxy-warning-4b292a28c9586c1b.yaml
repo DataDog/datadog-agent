@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The OTel Agent (DDOT) no longer prints a startup warning claiming that metric series stay
+    on the v2 intake. Series routing is unchanged and follows ``use_v3_api.series.enabled``:
+    with the default ``datadog_only``, series sent to Datadog use the v3 intake, with or
+    without a proxy, as in the core Agent.
