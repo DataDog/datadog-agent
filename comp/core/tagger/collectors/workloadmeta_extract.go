@@ -142,6 +142,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
 	tagged := make(map[workloadmeta.EntityID]struct{}, len(evBundle.Events))
+	var changed []dependency
 
 	for _, ev := range evBundle.Events {
 		entityID := ev.Entity.GetID()
@@ -151,6 +152,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// No tags. Ignore
 			continue
 		}
+
+		changed = append(changed, c.dependencies.changed(ev, dependencyKeys(ev.Entity))...)
 
 		if entityID.Kind == workloadmeta.KindKubernetesKAIPodGroup {
 			// PodGroups have no tags of their own
@@ -185,12 +188,10 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			tagInfos = append(tagInfos, c.tagEntity(ev)...)
-			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
 			c.dependencies.forget(entityID)
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
-			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -200,8 +201,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	// Workloadmeta updates its store with the whole bundle before sending it,
 	// so the entities tagged above already used the new state of the entities
 	// they depend on.
-	for _, ev := range evBundle.Events {
-		for _, readerID := range c.dependencies.readersOf(ev.Entity.GetID()) {
+	for _, dep := range changed {
+		for _, readerID := range c.dependencies.readersOf(dep) {
 			if _, ok := tagged[readerID]; ok {
 				continue
 			}
@@ -311,6 +312,8 @@ func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmet
 	var err error
 
 	switch id.Kind {
+	case workloadmeta.KindContainer:
+		entity, err = c.store.GetContainer(id.ID)
 	case workloadmeta.KindKubernetesPod:
 		entity, err = c.store.GetKubernetesPod(id.ID)
 	case workloadmeta.KindKubernetesKueueWorkload:
@@ -321,6 +324,19 @@ func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmet
 	}
 
 	return entity, err == nil
+}
+
+// dependencyKeys returns the keys that lookups by reference find the entity
+// by, recorded by readers with trackKey.
+func dependencyKeys(entity workloadmeta.Entity) []string {
+	switch e := entity.(type) {
+	case *workloadmeta.Process:
+		// Containers read the promotable tags of their processes
+		if containerID := e.GetContainerID(); containerID != "" && hasPromotableProcessTag(e) {
+			return []string{containerID}
+		}
+	}
+	return nil
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
@@ -523,35 +539,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 }
 
-// retagProcessContainer recomputes the tags of the container of the process,
-// as process changes do not generate an event for the container.
-func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity) []*types.TagInfo {
-	if !c.promoteProcessTags {
-		return nil
-	}
-
-	process, ok := entity.(*workloadmeta.Process)
-	if !ok || !hasPromotableProcessTag(process) {
-		return nil
-	}
-
-	containerID := process.GetContainerID()
-	if containerID == "" {
-		return nil
-	}
-
-	container, err := c.store.GetContainer(containerID)
-	if err != nil {
-		return nil
-	}
-
-	return c.handleContainer(workloadmeta.Event{
-		Type:       workloadmeta.EventTypeSet,
-		Entity:     container,
-		IsComplete: c.entityCompleteness[container.EntityID],
-	})
-}
-
 // Processes without a promotable tag cannot change the tags of their container.
 func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 	if process.Service == nil {
@@ -568,6 +555,7 @@ func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 }
 
 func (c *WorkloadMetaCollector) addPromotedProcessTags(containerID string, tagList *taglist.TagList) {
+	c.store.trackKey(workloadmeta.KindProcess, containerID)
 	processes := c.store.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
 		return process.GetContainerID() == containerID
 	})

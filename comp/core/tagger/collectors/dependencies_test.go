@@ -28,17 +28,17 @@ import (
 
 func TestDependencyIndex(t *testing.T) {
 	pod := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod"}
-	workload := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job"}
-	flavor := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"}
+	workload := entityDependency(workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job"})
+	flavor := entityDependency(workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"})
 
 	d := newDependencyIndex()
 
-	d.replace(pod, map[workloadmeta.EntityID]struct{}{workload: {}, flavor: {}}, true)
+	d.replace(pod, map[dependency]struct{}{workload: {}, flavor: {}}, true)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(workload))
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(flavor))
 	assert.True(t, d.isComplete(pod))
 
-	d.replace(pod, map[workloadmeta.EntityID]struct{}{flavor: {}}, false)
+	d.replace(pod, map[dependency]struct{}{flavor: {}}, false)
 	assert.Empty(t, d.readersOf(workload))
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(flavor))
 	assert.False(t, d.isComplete(pod))
@@ -47,6 +47,32 @@ func TestDependencyIndex(t *testing.T) {
 	assert.Empty(t, d.readersOf(flavor))
 	assert.Empty(t, d.readers)
 	assert.Empty(t, d.tagged)
+}
+
+func TestDependencyIndexChangedIncludesPreviousKeys(t *testing.T) {
+	process := &workloadmeta.Process{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "1"}}
+	processID := entityDependency(process.EntityID)
+	d := newDependencyIndex()
+
+	set := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: process}
+	assert.ElementsMatch(t, []dependency{processID, keyDependency(workloadmeta.KindProcess, "ctr-a")}, d.changed(set, []string{"ctr-a"}))
+
+	// The process moved to another container: readers of both are affected.
+	assert.ElementsMatch(t, []dependency{
+		processID,
+		keyDependency(workloadmeta.KindProcess, "ctr-a"),
+		keyDependency(workloadmeta.KindProcess, "ctr-b"),
+	}, d.changed(set, []string{"ctr-b"}))
+
+	// The process lost its key: readers of the old one are still affected.
+	assert.ElementsMatch(t, []dependency{processID, keyDependency(workloadmeta.KindProcess, "ctr-b")}, d.changed(set, nil))
+	assert.Empty(t, d.keys)
+
+	d.changed(set, []string{"ctr-a"})
+	unset := workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: process}
+	assert.ElementsMatch(t, []dependency{processID, keyDependency(workloadmeta.KindProcess, "ctr-a")}, d.changed(unset, nil))
+	assert.Empty(t, d.keys)
+
 }
 
 func TestTrackingStoreRecordsLookupsOnlyWhileTracking(t *testing.T) {
@@ -61,9 +87,9 @@ func TestTrackingStoreRecordsLookupsOnlyWhileTracking(t *testing.T) {
 	_, _ = s.GetKubernetesKueueResourceFlavor("a100")
 	reads := s.stopTracking()
 
-	assert.Equal(t, map[workloadmeta.EntityID]struct{}{
-		{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job"}: {},
-		{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"}:  {},
+	assert.Equal(t, map[dependency]struct{}{
+		entityDependency(workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "default/job"}): {},
+		entityDependency(workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueResourceFlavor, ID: "a100"}):  {},
 	}, reads)
 
 	_, _ = s.GetKubernetesKueueWorkload("default/untracked")
@@ -138,7 +164,7 @@ func TestDeletedPodIsNotRetagged(t *testing.T) {
 
 	h.store.Unset(pod)
 	h.process(unsetEvent(pod))
-	assert.Empty(t, h.collector.dependencies.readersOf(workload.EntityID))
+	assert.Empty(t, h.collector.dependencies.readersOf(entityDependency(workload.EntityID)))
 
 	got := h.add(newKueueWorkload("job-a", "h100"))
 	assert.Nil(t, tagInfoFor(got, podTaggerID("pod-a")))
@@ -159,6 +185,22 @@ func TestEntityInBundleIsTaggedOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, count)
+}
+
+func TestProcessLosingPromotableTagRetagsContainer(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	h.collector.promoteProcessTags = true
+
+	h.add(newContainer("ctr-a"))
+	got := h.add(newProcessWithTags(1, "ctr-a", "training_run_id:run-1"))
+	assert.Contains(t, tagInfoFor(got, containerTaggerID("ctr-a")).LowCardTags, "training_run_id:run-1")
+
+	// The process no longer has the tag. Its new state has no key, but the
+	// container read the key the process had.
+	got = h.add(newProcessWithTags(1, "ctr-a", "foo:bar"))
+	containerTags := tagInfoFor(got, containerTaggerID("ctr-a"))
+	require.NotNil(t, containerTags, "ctr-a was not re-tagged")
+	assert.NotContains(t, containerTags.LowCardTags, "training_run_id:run-1")
 }
 
 type dependencyTestHarness struct {
