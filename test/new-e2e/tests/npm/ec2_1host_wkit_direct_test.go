@@ -102,7 +102,7 @@ func (v *ec2VMWKitDirectSuite) Test00FakeIntakeNPM_HostRequests() {
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - looking for a complete multi-chunk group with at least 600 connections
 func (v *ec2VMWKitDirectSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 

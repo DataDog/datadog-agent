@@ -76,7 +76,7 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 	// Dump info for test1HostFakeIntakeNPM600cnxBucket
 	for _, h := range hostnameNetID {
 		for _, cc := range cnx.GetPayloadsByName(h) {
-			t.Logf("hostname+networkID %v time %v connections %d", h, cc.GetCollectedTime(), len(cc.Connections))
+			t.Logf("hostname+networkID %v time %v group %d size %d connections %d", h, cc.GetCollectedTime(), cc.GroupId, cc.GroupSize, len(cc.Connections))
 		}
 	}
 }
@@ -122,10 +122,9 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 	}, 150*time.Second, time.Second, "not enough connections received")
 }
 
-// test1HostFakeIntakeNPM600cnxBucket Validate the agent can communicate with the (fake) backend and send connections
-// every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+// test1HostFakeIntakeNPM600cnxBucket validates that a complete multi-chunk connection
+// group reaches the fakeintake with at least 600 connections in total and at most
+// 600 connections per payload.
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
@@ -144,37 +143,20 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
 	}, 60*time.Second, time.Second, "no connections received")
 
-	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 200ms
+	// Group metadata identifies chunks from the same check run independently of
+	// forwarder/network delays and later check runs arriving at the fakeintake.
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
-		assert.NoError(c, err)
-
-		if !assert.GreaterOrEqualf(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+		if !assert.NoError(c, err) {
 			return
 		}
 
 		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, _ string) {
-			assert.LessOrEqualf(c, len(cnx.Connections), 600, "too many payloads")
+			assert.LessOrEqualf(c, len(cnx.Connections), 600, "too many connections in one payload")
 		})
 
 		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
-		lastTwoPayloads := hostPayloads[len(hostPayloads)-2:]
-
-		totalConnections := 0
-		// the last two should have 600+ connections. The benchmark is set to send 1500 connections,
-		// so if the connections check happens to occur exactly at the same time as the benchmark,
-		// one side or the other will have 600+ connections.
-		for _, payload := range lastTwoPayloads {
-			totalConnections += len(payload.Connections)
-		}
-		assert.GreaterOrEqualf(c, totalConnections, 600, "can't find enough connections 600+")
-		cnx600PayloadTime := lastTwoPayloads[0].GetCollectedTime()
-		latestPayloadTime := lastTwoPayloads[1].GetCollectedTime()
-
-		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
-		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
-
-		assert.Greater(c, 0.2, dt, "delta between collection is higher than 200ms")
+		assert.True(c, hasCompleteConnectionGroup(hostPayloads), "no complete multi-chunk group with 600+ connections")
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
