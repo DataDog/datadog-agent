@@ -9,12 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
+	agentmacos "github.com/DataDog/datadog-agent/cmd/agent/macos"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
 
@@ -414,17 +413,14 @@ func (a *Agent) installMacOSLocalDMG(localDMG string) error {
 	if _, err := os.Stat(localDMG); err != nil {
 		return fmt.Errorf("%s does not name a readable .dmg: %w", MacOSLocalDMGEnvVar, err)
 	}
-	installScript, err := repoFile("cmd", "agent", "macos", "install_mac_os.sh")
-	if err != nil {
-		return err
-	}
-
 	const (
 		remoteDMG    = "/tmp/e2e-local-agent.dmg"
 		remoteScript = "/tmp/e2e-install-mac-os.sh"
 	)
 	a.host.RemoteHost.CopyFile(localDMG, remoteDMG)
-	a.host.RemoteHost.CopyFile(installScript, remoteScript)
+	// The script is embedded in the test binary: a path into the source tree is not reachable
+	// under bazel test or -trimpath, where the binary's source paths are relative.
+	a.host.RemoteHost.CopyFileFromFS(agentmacos.Scripts, agentmacos.InstallScriptPath, remoteScript)
 
 	// Same shape as the pipeline invocation below: the variables prefix the `bash` command rather
 	// than the whole compound statement, which a shell prefix cannot apply to.
@@ -435,22 +431,6 @@ func (a *Agent) installMacOSLocalDMG(localDMG string) error {
 		return fmt.Errorf("failed to install the local .dmg %s: %w", localDMG, err)
 	}
 	return nil
-}
-
-// repoFile resolves a path relative to the repository root, which the test binary's working
-// directory (test/new-e2e) is not.
-func repoFile(elem ...string) (string, error) {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("cannot locate the repository root: runtime.Caller failed")
-	}
-	// <root>/test/new-e2e/tests/fleet/agent/install.go
-	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..")
-	path := filepath.Join(append([]string{root}, elem...)...)
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("cannot read %s from the repository: %w", filepath.Join(elem...), err)
-	}
-	return path, nil
 }
 
 // configureMacOS applies the option-driven parts of the macOS install by appending to the Agent
