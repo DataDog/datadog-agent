@@ -30,8 +30,10 @@ features:
     and per tenant deduplication. Link usage, site, tunnel and DIA take their attribute
     tags (such as type, media, IP, ISP, address, coordinates, peer IP and VPN profile)
     from the same query run as ``tableData``, paging up to ``max_pages``, joined on the
-    entity key, and skip any entity with no matching row or with rows that disagree on
-    those tags. Each of these falls back to ``tableData`` for a collection when a
+    entity key, and skip any entity with no matching row. When several rows share an
+    entity key but differ in those tags, such as tunnels with different peers on one
+    appliance and local IP, that collection uses ``tableData``. Each of these falls back to ``tableData`` for a collection when a
     response does not match the expected layout, logging a warning. They are validated
     with synthetic Versa responses; validation against customer provided responses is
-    pending. Applications by appliance and top users stay on ``tableData``.
+    pending, including the tunnel ``tableData`` column order for ``volume-tx`` and
+    ``volume-rx``. Applications by appliance and top users stay on ``tableData``.

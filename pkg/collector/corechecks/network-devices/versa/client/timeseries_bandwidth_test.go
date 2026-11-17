@@ -175,13 +175,13 @@ func TestJoinAttributes(t *testing.T) {
 		{timestamp: 1, row: []interface{}{"site-002,circuit-b", "site-002", "circuit-b", 2.0}},
 	}
 	layout := &timeseriesLayout{drillKeyFields: 2, attributeColumns: 3}
-	joined, missing, conflicting := joinAttributes(rows, [][]interface{}{
+	joined, missing, ambiguous := joinAttributes(rows, [][]interface{}{
 		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 9.0},
-		// An identical duplicate row is not a conflict.
+		// An identical duplicate row is not ambiguous.
 		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 8.0},
 	}, layout)
 	assert.Equal(t, 1, missing)
-	assert.Zero(t, conflicting)
+	assert.Zero(t, ambiguous)
 	require.Len(t, joined, 1)
 	assert.Equal(t, []interface{}{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 1.0}, joined[0].row)
 }
@@ -215,27 +215,27 @@ func TestLinkStatusTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) 
 	assert.Equal(t, 99.5, metrics[0].Availability)
 }
 
-// Two tableData rows for one entity that disagree on an attribute make the entity
-// unusable: its buckets are skipped rather than tagged from whichever row came last.
-func TestJoinAttributesSkipsConflictingEntities(t *testing.T) {
+// Two tableData rows for one key that disagree on an attribute make the key ambiguous:
+// no rows are joined and the number of ambiguous keys is returned, so the caller can use
+// tableData instead of tagging from whichever row came last.
+func TestJoinAttributesReportsAmbiguousKeys(t *testing.T) {
 	rows := []timeseriesRow{
 		{timestamp: 1, row: []interface{}{"site-001,circuit-a", "site-001", "circuit-a", 1.0}},
-		{timestamp: 2, row: []interface{}{"site-001,circuit-a", "site-001", "circuit-a", 2.0}},
 		{timestamp: 1, row: []interface{}{"site-002,circuit-b", "site-002", "circuit-b", 3.0}},
 	}
 	layout := &timeseriesLayout{drillKeyFields: 2, attributeColumns: 3}
-	joined, missing, conflicting := joinAttributes(rows, [][]interface{}{
+	joined, _, ambiguous := joinAttributes(rows, [][]interface{}{
 		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 9.0},
 		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.2", 9.0},
 		{"site-002,circuit-b", "site-002", "circuit-b", "10.0.0.3", 9.0},
 	}, layout)
-	assert.Zero(t, missing)
-	assert.Equal(t, 2, conflicting)
-	require.Len(t, joined, 1)
-	assert.Equal(t, "10.0.0.3", joined[0].row[3])
+	assert.Equal(t, 1, ambiguous)
+	assert.Empty(t, joined)
 }
 
-func TestGetLinkUsageMetricsTimeseriesSkipsConflictingAttributes(t *testing.T) {
+// An ambiguous key makes the whole call use tableData, so every entity tableData reports
+// is still reported, with its own tags.
+func TestGetLinkUsageMetricsTimeseriesAmbiguousKeyFallsBackToTableData(t *testing.T) {
 	counts := map[string]int{}
 	client := bandwidthServer(t, "linkusage(",
 		tableBody(t, [][]any{
@@ -247,11 +247,14 @@ func TestGetLinkUsageMetricsTimeseriesSkipsConflictingAttributes(t *testing.T) {
 
 	metrics, err := client.GetLinkUsageMetrics("datadog")
 	require.NoError(t, err)
-	require.Len(t, metrics, 2)
+	require.Len(t, metrics, 3)
+	var ips []string
 	for _, m := range metrics {
-		assert.Equal(t, "site-002,circuit-b", m.DrillKey)
-		assert.Equal(t, "10.0.0.3", m.IP)
+		assert.Zero(t, m.Timestamp)
+		ips = append(ips, m.IP)
 	}
+	assert.Equal(t, []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"}, ips)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
 }
 
 // One wrong part count among otherwise valid series is enough to use tableData for the
@@ -398,24 +401,48 @@ func TestGetTunnelMetricsTimeseriesJoinsAttributes(t *testing.T) {
 	client := bandwidthServer(t, "tunnelstats(",
 		tableBody(t, [][]any{
 			tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.1", "profile-a"),
-			// Two tunnels sharing an appliance and local IP: their attributes conflict.
 			tunnelTableRow("appliance-002,10.0.0.2", "appliance-002", "10.0.0.2", "10.1.0.2", "profile-a"),
-			tunnelTableRow("appliance-002,10.0.0.2", "appliance-002", "10.0.0.2", "10.1.0.3", "profile-b"),
 		}),
+		// volume-tx is 100 and volume-rx 110 in the first bucket.
 		timeseriesBody(t, []string{"appliance-001,10.0.0.1", "appliance-002,10.0.0.2"}, tunnelMetricNames, 100), counts)
 
 	metrics, err := client.GetTunnelMetrics("datadog")
 	require.NoError(t, err)
-	require.Len(t, metrics, 2)
-	// Values keep the requested metric order, so they land in the same fields as for
-	// tableData.
+	require.Len(t, metrics, 4)
+	// Each named series lands in the field of the same name, whatever the parser's
+	// column positions.
 	assert.Equal(t, TunnelMetrics{
 		DrillKey: "appliance-001,10.0.0.1", Appliance: "appliance-001", LocalIP: "10.0.0.1",
 		RemoteIP: "10.1.0.1", VpnProfName: "profile-a",
-		VolumeRx: 100, VolumeTx: 110, Timestamp: bandwidthBuckets[0],
+		VolumeTx: 100, VolumeRx: 110, Timestamp: bandwidthBuckets[0],
 	}, metrics[0])
 	assert.Equal(t, bandwidthBuckets[1], metrics[1].Timestamp)
+	assert.Equal(t, "10.1.0.2", metrics[2].RemoteIP)
 	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+}
+
+// Several peers on one appliance and local IP share a timeseries key, so the call uses
+// tableData and every tunnel is reported with its own tags.
+func TestTunnelTimeseriesSharedKeyFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "tunnelstats(",
+		tableBody(t, [][]any{
+			tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.1", "profile-a"),
+			tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.2", "profile-a"),
+			tunnelTableRow("appliance-001,10.0.0.1", "appliance-001", "10.0.0.1", "10.1.0.3", "profile-b"),
+		}),
+		timeseriesBody(t, []string{"appliance-001,10.0.0.1"}, tunnelMetricNames, 100), counts)
+
+	metrics, err := client.GetTunnelMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 3)
+	var peers []string
+	for _, m := range metrics {
+		assert.Zero(t, m.Timestamp)
+		assert.Equal(t, "appliance-001", m.Appliance)
+		peers = append(peers, m.RemoteIP+"/"+m.VpnProfName)
+	}
+	assert.Equal(t, []string{"10.1.0.1/profile-a", "10.1.0.2/profile-a", "10.1.0.3/profile-b"}, peers)
 }
 
 func TestTunnelTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
@@ -442,13 +469,9 @@ func siteTableRow(site, address string) []any {
 func TestGetSiteMetricsTimeseriesJoinsAttributes(t *testing.T) {
 	counts := map[string]int{}
 	client := bandwidthServer(t, "linkusage(site,site.address",
-		tableBody(t, [][]any{
-			siteTableRow("site-001", "1 Example Street"),
-			siteTableRow("site-002", "2 Example Street"),
-			siteTableRow("site-002", "3 Example Street"),
-		}),
-		// site-002 conflicts and site-003 has no tableData row; both are skipped.
-		timeseriesBody(t, []string{"site-001", "site-002", "site-003"}, siteMetricNames, 10), counts)
+		tableBody(t, [][]any{siteTableRow("site-001", "1 Example Street")}),
+		// site-003 has no tableData row, so its buckets are skipped.
+		timeseriesBody(t, []string{"site-001", "site-003"}, siteMetricNames, 10), counts)
 
 	metrics, err := client.GetSiteMetrics("datadog")
 	require.NoError(t, err)
@@ -473,4 +496,17 @@ func TestSiteTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
 	require.Len(t, metrics, 1)
 	assert.Zero(t, metrics[0].Timestamp)
 	assert.Equal(t, "1 Example Street", metrics[0].Address)
+}
+
+func TestSiteTimeseriesAmbiguousKeyFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkusage(site,site.address",
+		tableBody(t, [][]any{siteTableRow("site-001", "1 Example Street"), siteTableRow("site-001", "2 Example Street")}),
+		timeseriesBody(t, []string{"site-001"}, siteMetricNames, 10), counts)
+
+	metrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+	assert.Zero(t, metrics[0].Timestamp)
+	assert.Equal(t, "2 Example Street", metrics[1].Address)
 }

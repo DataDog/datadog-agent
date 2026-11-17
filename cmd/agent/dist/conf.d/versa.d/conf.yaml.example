@@ -128,8 +128,11 @@ instances:
     ## status and usage, site, tunnel, and DIA metrics. Link usage, site, tunnel and DIA
     ## also run the same query as tableData on each collection, paging up to max_pages,
     ## to take their attribute tags (type, media, IP, ISP, address, coordinates, peer IP,
-    ## VPN profile) from it; an entity with no matching tableData row, or with rows that
-    ## disagree on those tags, is skipped with a warning. Applications and top users stay
+    ## VPN profile) from it. An entity with no matching tableData row is skipped with a
+    ## warning. When several tableData rows share an entity key but differ in those tags
+    ## (for example tunnels with different peers on one appliance and local IP), the
+    ## timeseries response cannot tell them apart, so that collection uses tableData and
+    ## logs a warning. Applications and top users stay
     ## on tableData regardless of this setting.
     ##
     ## Interface, link status, link usage, site, tunnel and DIA timeseries are validated
