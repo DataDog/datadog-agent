@@ -35,6 +35,7 @@ const (
 	NoisyNeighborModule          ModuleName = "noisy_neighbor"
 	LogonDurationModule          ModuleName = "logon_duration"
 	PacketCaptureModule          ModuleName = "packet_capture"
+	VDIModule                    ModuleName = "vdi"
 )
 
 // Config represents the configuration options for the system-probe

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "vdi",
     srcs = [
+        "avd_windows.go",
         "catalog.go",
         "check_windows.go",
         "stub.go",
@@ -76,10 +77,14 @@ go_library(
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
+            "//pkg/config/setup",
             "//pkg/metrics/servicecheck",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
             "//pkg/util/option",
             "//pkg/util/pdhutil",
+            "//pkg/vdi/model",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "//conditions:default": [],
@@ -89,9 +94,21 @@ go_library(
 dd_agent_go_test(
     name = "vdi_test",
     srcs = [
+        "avd_windows_test.go",
         "catalog_test.go",
         "check_windows_test.go",
     ],
     embed = [":vdi"],
-    deps = ["@com_github_stretchr_testify//require"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "//pkg/metrics/servicecheck",
+            "//pkg/vdi/model",
+            "@com_github_stretchr_testify//mock",
+        ],
+        "//conditions:default": [],
+    }),
 )
