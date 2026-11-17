@@ -14,7 +14,7 @@ pub mod proto {
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::caller_auth::CallerPolicy;
+    use super::caller_auth::{CallerPolicy, peer_uid};
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
@@ -39,8 +39,11 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
-        start_test_server_with_catalog(LoadedCatalog::valid(defs), CallerPolicy::from_process())
-            .await
+        start_test_server_with_catalog(
+            LoadedCatalog::valid(defs),
+            CallerPolicy::from_enforce(false),
+        )
+        .await
     }
 
     async fn start_test_server_with_catalog(
@@ -337,7 +340,7 @@ mod tests {
             }],
         };
         let (mut client, _shutdown) =
-            start_test_server_with_catalog(catalog, CallerPolicy::from_process()).await;
+            start_test_server_with_catalog(catalog, CallerPolicy::from_enforce(false)).await;
         let resp = client
             .get_config(proto::GetConfigRequest {})
             .await
@@ -1160,6 +1163,57 @@ mod tests {
             return true;
         }
         false
+    }
+
+    #[tokio::test]
+    async fn test_server_sees_peer_uid_over_uds() {
+        let dir = tempfile::tempdir().unwrap();
+        let sock_path = dir.path().join("peer.sock");
+        let uds_stream = UnixListenerStream::new(UnixListener::bind(&sock_path).unwrap());
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(LoadedCatalog::valid(
+                vec![],
+            ))),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
+        let (cmd_tx, _cmd_rx) = mpsc::channel::<Command>(1);
+        let svc = ProcessManagerService::with_caller_policy(
+            mgr,
+            cmd_tx,
+            CallerPolicy::from_enforce(false),
+        );
+
+        let seen = Arc::new(std::sync::Mutex::new(None));
+        let seen_in = seen.clone();
+        let pm_service = proto::process_manager_server::ProcessManagerServer::with_interceptor(
+            svc,
+            move |req: tonic::Request<()>| {
+                *seen_in.lock().unwrap() = Some(peer_uid(&req));
+                Ok(req)
+            },
+        );
+
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(pm_service)
+                .serve_with_incoming_shutdown(uds_stream, async {
+                    let _ = shutdown_rx.await;
+                })
+                .await
+                .unwrap();
+        });
+
+        let channel = dd_procmgr_client::connect(&sock_path).await.unwrap();
+        ProcessManagerClient::new(channel)
+            .list(proto::ListRequest {})
+            .await
+            .unwrap();
+        let _ = shutdown_tx.send(());
+        server.await.unwrap();
+
+        let euid = nix::unistd::Uid::effective().as_raw();
+        assert_eq!(*seen.lock().unwrap(), Some(Some(euid)));
     }
 
     #[tokio::test]
