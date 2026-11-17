@@ -47,6 +47,19 @@ func TestExtractClusterName(t *testing.T) {
 			out: "",
 			err: errors.New("unable to parse cluster name from EC2 tags"),
 		},
+		{
+			// A node can carry several kubernetes.io/cluster tags (a migrated node group, a tag
+			// copied from another cluster). The tags come in no fixed order, so the pick must not
+			// depend on it.
+			name: "several cluster tags pick the same name every time",
+			in: []string{
+				"kubernetes.io/cluster/zeta:shared",
+				"Name:node",
+				"kubernetes.io/cluster/alpha:owned",
+			},
+			out: "alpha",
+			err: nil,
+		},
 	}
 
 	for i, test := range testCases {
