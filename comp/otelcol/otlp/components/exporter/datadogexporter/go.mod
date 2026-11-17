@@ -27,6 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-go/v5 v5.9.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -35,6 +36,7 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.70.0
 	go.opentelemetry.io/collector/consumer v1.70.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.164.0
+	go.opentelemetry.io/collector/consumer/consumertest v0.164.0 // indirect
 	go.opentelemetry.io/collector/exporter v1.70.0
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.164.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.164.0
@@ -213,7 +215,6 @@ require (
 	go.opentelemetry.io/collector/config/configopaque v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.70.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.70.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.164.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.164.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.164.0 // indirect
 	go.opentelemetry.io/collector/extension v1.70.0 // indirect
@@ -439,3 +440,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../../../test/otel
 )
+
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44

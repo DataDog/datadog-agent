@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/metrics",
         "//pkg/util/hostname/validate",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog_di//:di",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
         "@io_opentelemetry_go_collector_config_confignet//:confignet",

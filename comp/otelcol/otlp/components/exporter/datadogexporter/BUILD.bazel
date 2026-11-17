@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "datadogexporter",
     srcs = [
+        "di_export.go",
         "factory.go",
         "hostname.go",
         "metadata.go",
@@ -30,6 +31,7 @@ go_library(
         "//pkg/proto/pbgo/trace",
         "//pkg/serializer",
         "//pkg/util/otel",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog_di//:di",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
         "@io_opentelemetry_go_collector_config_configretry//:configretry",
@@ -48,6 +50,7 @@ go_library(
 dd_agent_go_test(
     name = "datadogexporter_test",
     srcs = [
+        "di_export_test.go",
         "factory_test.go",
         "host_metadata_test.go",
         "hostname_test.go",
@@ -56,6 +59,7 @@ dd_agent_go_test(
         "traces_exporter_test.go",
     ],
     embed = [":datadogexporter"],
+    gotags_sets = [["otlp"]],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
@@ -89,6 +93,7 @@ dd_agent_go_test(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_config_confignet//:confignet",
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",

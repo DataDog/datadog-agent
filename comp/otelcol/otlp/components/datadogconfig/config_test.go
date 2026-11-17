@@ -1013,3 +1013,10 @@ func TestOverrideEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestDIRequiresSignalExport(t *testing.T) {
+	cfg := CreateDefaultConfig().(*Config)
+	cfg.OnlyMetadata = true
+	cfg.DynamicInstrumentation.Enabled = true
+	assert.ErrorContains(t, cfg.Validate(), "dynamic_instrumentation")
+}

@@ -374,9 +374,13 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+	diOption := logsagentexporter.WithConsumerDecorator(diDecorator(cfg))
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter, diOption)
 	timeout := exporterhelper.TimeoutConfig{Timeout: 0}
 	retry := configretry.NewDefaultBackOffConfig()
+	if cfg.DynamicInstrumentation.Enabled {
+		retry = cfg.BackOffConfig
+	}
 	queue := cfg.QueueSettings
 	if logsagentexporter.IsSyncSenderEnabled() {
 		syncSender, err := f.newLogsSyncSender()
@@ -387,7 +391,7 @@ func (f *factory) createLogsExporter(
 			if f.coreCfg != nil && f.coreCfg.GetBool("multi_region_failover.enabled") {
 				set.Logger.Warn("multi_region_failover is enabled but the " + logsagentexporter.SyncSenderGateID + " feature gate does not support it: logs are not sent to the failover region")
 			}
-			lf = logsagentexporter.NewFactoryWithSyncSender(syncSender, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+			lf = logsagentexporter.NewFactoryWithSyncSender(syncSender, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter, diOption)
 			timeout = exporterhelper.TimeoutConfig{Timeout: cfg.ClientConfig.Timeout}
 			retry = cfg.BackOffConfig
 			queue = logsagentexporter.SyncSenderQueueConfig(queue, f.logsSenderConcurrency(), f.logsBatchSize(), cfg.IsQueueNumConsumersSet())
@@ -430,7 +434,11 @@ func (f *factory) createLogsExporter(
 			Enabled:  orchestratorEnabled,
 		},
 	}
-	return lf.CreateLogs(ctx, set, lc)
+	logs, err := lf.CreateLogs(ctx, set, lc)
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
 }
 
 const (

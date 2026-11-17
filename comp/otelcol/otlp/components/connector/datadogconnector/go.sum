@@ -86,6 +86,8 @@ github.com/lightstep/go-expohisto v1.0.0 h1:UPtTS1rGdtehbbAF7o/dhkWLTDI73UifG8Lb
 github.com/lightstep/go-expohisto v1.0.0/go.mod h1:xDXD0++Mu2FOaItXtdDfksfgxfV0z1TMPa+e/EUd0cs=
 github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 h1:eveIIGn4BGM3qknO74omf6HYr30/exH+eVUTuAgwjZ0=
 github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5/go.mod h1:autxFIvghDt3jPTLoqZ9OZ7s9qTGNAWmYCjVFWPX/zg=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44 h1:pxAdRqzqZ+HrVtOPoE8mi6JK1A4Xl4t5vFL4Xf7deqw=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44/go.mod h1:6xkfkTA6CZ1WoapK1/VIVy07FR7Y7Uv+nA8uchZlt10=
 github.com/mdlayher/socket v0.8.0 h1:1lIVvHAs3sT623kPkPDa+I0nLVusskwnpWzp6ZUcNyc=
 github.com/mdlayher/socket v0.8.0/go.mod h1:EhNb63aXqexVoTJDblxvDOSuIGIJinC4H5ZktnaJ6Rk=
 github.com/mdlayher/vsock v1.4.0 h1:5hqdkMCC/S1ToCjSKYEHjGcLpZFmdGmwQtLl3EzQm2s=

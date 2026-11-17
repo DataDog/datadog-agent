@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
+	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -62,7 +63,19 @@ type OrchestratorConfig struct {
 	Endpoint string
 }
 
+// ConsumerDecorator adds a signal adapter inside the exporter's queue boundary.
+type ConsumerDecorator func(exp.Settings, consumer.ConsumeLogsFunc) (consumer.ConsumeLogsFunc, component.Component, error)
+
+// FactoryOption configures a logs agent exporter factory.
+type FactoryOption func(*factory)
+
+// WithConsumerDecorator installs a caller-owned adapter inside queueing and retries.
+func WithConsumerDecorator(decorate ConsumerDecorator) FactoryOption {
+	return func(f *factory) { f.decorateConsumer = decorate }
+}
+
 type factory struct {
+	decorateConsumer  ConsumerDecorator
 	logsAgentChannel  chan *message.Message
 	syncSender        SyncSender
 	gatewayUsage      otel.GatewayUsage
@@ -76,13 +89,13 @@ func NewFactoryWithType(
 	typ component.Type,
 	gatewayUsage otel.GatewayUsage,
 	coatGwUsageMetric telemetry.Gauge,
-	reporter *inframetadata.Reporter) exp.Factory {
+	reporter *inframetadata.Reporter, options ...FactoryOption) exp.Factory {
 	return newFactory(&factory{
 		logsAgentChannel:  logsAgentChannel,
 		gatewayUsage:      gatewayUsage,
 		coatGwUsageMetric: coatGwUsageMetric,
 		reporter:          reporter,
-	}, typ)
+	}, typ, options...)
 }
 
 // NewFactoryWithSyncSender creates a logsagentexporter factory with the given type whose exporters
@@ -92,16 +105,19 @@ func NewFactoryWithSyncSender(
 	typ component.Type,
 	gatewayUsage otel.GatewayUsage,
 	coatGwUsageMetric telemetry.Gauge,
-	reporter *inframetadata.Reporter) exp.Factory {
+	reporter *inframetadata.Reporter, options ...FactoryOption) exp.Factory {
 	return newFactory(&factory{
 		syncSender:        syncSender,
 		gatewayUsage:      gatewayUsage,
 		coatGwUsageMetric: coatGwUsageMetric,
 		reporter:          reporter,
-	}, typ)
+	}, typ, options...)
 }
 
-func newFactory(f *factory, typ component.Type) exp.Factory {
+func newFactory(f *factory, typ component.Type, options ...FactoryOption) exp.Factory {
+	for _, option := range options {
+		option(f)
+	}
 	return exp.NewFactory(
 		typ,
 		func() component.Config {
@@ -147,17 +163,35 @@ func (f *factory) createLogsExporter(
 	exporter.syncSender = f.syncSender
 
 	ctx, cancel := context.WithCancel(ctx)
+	pusher := exporter.ConsumeLogs
+	var delivery component.Component
+	if f.decorateConsumer != nil {
+		pusher, delivery, err = f.decorateConsumer(set, pusher)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	}
 	// cancel() runs on shutdown
 	return exporterhelper.NewLogs(
 		ctx,
 		set,
 		c,
-		exporter.ConsumeLogs,
+		pusher,
+		exporterhelper.WithStart(func(ctx context.Context, host component.Host) error {
+			if delivery != nil {
+				return delivery.Start(ctx, host)
+			}
+			return nil
+		}),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		exporterhelper.WithRetry(cfg.RetryConfig),
 		exporterhelper.WithQueue(cfg.QueueSettings),
-		exporterhelper.WithShutdown(func(context.Context) error {
-			cancel()
+		exporterhelper.WithShutdown(func(ctx context.Context) error {
+			defer cancel()
+			if delivery != nil {
+				return delivery.Shutdown(ctx)
+			}
 			return nil
 		}),
 	)

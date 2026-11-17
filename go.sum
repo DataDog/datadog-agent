@@ -1018,6 +1018,10 @@ github.com/lxn/walk v0.0.0-20210112085537-c389da54e794/go.mod h1:E23UucZGqpuUANJ
 github.com/lxn/win v0.0.0-20210218163916-a377121e959e h1:H+t6A/QJMbhCSEH5rAuRxh+CtW96g0Or0Fxa9IKr4uc=
 github.com/lxn/win v0.0.0-20210218163916-a377121e959e/go.mod h1:KxxjdtRkfNoYDCUP5ryK7XJJNTnpC8atvtmTheChOtk=
 github.com/lyft/protoc-gen-star/v2 v2.0.1/go.mod h1:RcCdONR2ScXaYnQC5tUzxzlpA3WVYF7/opLeUgcQs/o=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44 h1:pxAdRqzqZ+HrVtOPoE8mi6JK1A4Xl4t5vFL4Xf7deqw=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44/go.mod h1:6xkfkTA6CZ1WoapK1/VIVy07FR7Y7Uv+nA8uchZlt10=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/remoteconfig v0.0.0-20261117181312-01f7e5ed12d3 h1:kISlf03nRJlxd6gu+8wO2obhb2IO09JTvFXPGMOJ0S0=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/remoteconfig v0.0.0-20261117181312-01f7e5ed12d3/go.mod h1:Q0hz0W/YurXeBi39IlwWps7anVm5LfyTr8cot+r2zIw=
 github.com/magefile/mage v1.15.0 h1:BvGheCMAsG3bWUDbZ8AyXXpCNwU9u5CB6sM+HNb9HYg=
 github.com/magefile/mage v1.15.0/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/magiconair/properties v1.8.10 h1:s31yESBquKXCV9a/ScB3ESkOjUYYv+X0rg8SYxI99mE=
