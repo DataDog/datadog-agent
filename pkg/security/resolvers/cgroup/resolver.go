@@ -38,9 +38,9 @@ const (
 	// CGroupCreated new croup created
 	CGroupCreated
 
-	maxhostWorkloadEntries      = 1024
-	maxContainerWorkloadEntries = 1024
-	maxCacheEntries             = 2048
+	maxhostWorkloadEntries      = 3072
+	maxContainerWorkloadEntries = 3072
+	maxCacheEntries             = 6144
 )
 
 // FSInterface defines the interface for CGroupFS operations
