@@ -251,7 +251,7 @@
 ## 1.7.1
 [Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.7.1)
 
-* Fix [CVE-2023-4039](https://ubuntu.com/security/CVE-2023-4039) in [#1802](https://github.com/GoogleContainerTools/distroless/issues/1802)
+* Fix [CVE-2023-4039](https://avd.aquasec.com/nvd/2023/cve-2023-4039/) in [#1802](https://github.com/GoogleContainerTools/distroless/issues/1802)
 
 ## 1.7.0
 [Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.7.0)
