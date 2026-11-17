@@ -8,6 +8,8 @@ package eks
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -514,7 +516,7 @@ func TestDescribeClusterDoesNotCorrectSmallSkew(t *testing.T) {
 	_, err := client.DescribeCluster(t.Context(), "orders")
 	require.Error(t, err)
 	assert.Equal(t, 1, attempts)
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(err), "signature and clock errors use the short TTL")
+	assert.Equal(t, failureCacheTTL, failureTTL(err), "a bad signature with the clocks in sync is not a clock problem")
 }
 
 type flakyHTTPClient struct {
@@ -715,4 +717,104 @@ func TestDescribeClusterRejectsUnsafeNames(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidClusterName, name)
 	}
 	assert.Nil(t, capture.req, "no request is sent")
+}
+
+func stubThrottleDelay(t *testing.T, d time.Duration) {
+	t.Helper()
+	orig := throttleRetryDelay
+	t.Cleanup(func() { throttleRetryDelay = orig })
+	throttleRetryDelay = func() time.Duration { return d }
+}
+
+func TestDescribeClusterRetriesThrottlingCodesOn400(t *testing.T) {
+	// EKS answers some throttling with a 400 and a throttling code, as the SDK expects.
+	stubThrottleDelay(t, 0)
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("X-Amzn-ErrorType", "ThrottlingException")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
+func TestDescribeClusterWaitsBeforeThrottleRetry(t *testing.T) {
+	stubThrottleDelay(t, 200*time.Millisecond)
+	var times []time.Time
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		times = append(times, time.Now())
+		if len(times) == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	require.Len(t, times, 2)
+	assert.GreaterOrEqual(t, times[1].Sub(times[0]), 200*time.Millisecond)
+
+	// The time left is measured after the wait: 600ms minus 200ms is not enough for a retry.
+	times = nil
+	ctx, cancel := context.WithTimeout(t.Context(), 600*time.Millisecond)
+	defer cancel()
+	throttled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		times = append(times, time.Now())
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer throttled.Close()
+	_, err = newSignedDescribeClusterClient(testAWSConfig(throttled.URL)).DescribeCluster(ctx, "orders")
+	require.Error(t, err)
+	assert.Len(t, times, 1)
+}
+
+func TestThrottleRetryDelayIsJittered(t *testing.T) {
+	seen := map[time.Duration]bool{}
+	for range 50 {
+		d := throttleRetryDelay()
+		assert.GreaterOrEqual(t, d, 100*time.Millisecond)
+		assert.Less(t, d, 300*time.Millisecond)
+		seen[d] = true
+	}
+	assert.Greater(t, len(seen), 1)
+}
+
+func TestDescribeClusterRetriesOnlyTransient5xx(t *testing.T) {
+	for status, wantAttempts := range map[int]int{500: 2, 502: 2, 503: 2, 504: 2, 501: 1, 505: 1} {
+		attempts := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts++
+			w.WriteHeader(status)
+		}))
+		_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+		srv.Close()
+		require.Error(t, err)
+		assert.Equal(t, wantAttempts, attempts, "status %d", status)
+	}
+}
+
+func TestFailureTTLTruncatedBodyIsTransient(t *testing.T) {
+	for _, cause := range []error{io.ErrUnexpectedEOF, io.EOF} {
+		err := fmt.Errorf("describe: %w", &transportError{fmt.Errorf("read DescribeCluster response: %w", cause)})
+		assert.Equal(t, transientFailureCacheTTL, failureTTL(err))
+	}
+}
+
+func TestFailureTTLSignatureErrorsNeedSkew(t *testing.T) {
+	for _, code := range []string{"InvalidSignatureException", "SignatureDoesNotMatch"} {
+		assert.Equal(t, failureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: code}), code)
+		assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: code, skewChanged: true}), code)
+	}
+	// A clock error says so whatever the observed skew.
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: "RequestTimeTooSkewed"}))
 }

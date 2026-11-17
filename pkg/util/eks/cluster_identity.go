@@ -257,6 +257,19 @@ func failureTTL(err error) time.Duration {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return deadlineFailureCacheTTL
 	}
+	// No answer at all, a body cut short included: nothing is known about the cluster.
+	var tErr *transportError
+	if errors.As(err, &tErr) {
+		return transientFailureCacheTTL
+	}
+	// A rejected signature is a clock problem only when the answer showed the clocks apart.
+	var apiErr *apiError
+	if errors.As(err, &apiErr) && signatureCodes[apiErr.Code] {
+		if apiErr.skewChanged {
+			return transientFailureCacheTTL
+		}
+		return failureCacheTTL
+	}
 	// HTTP 429 is throttling whatever error code accompanies it.
 	var withStatus interface{ HTTPStatusCode() int }
 	if errors.As(err, &withStatus) && withStatus.HTTPStatusCode() == http.StatusTooManyRequests {
@@ -276,18 +289,23 @@ func failureTTL(err error) time.Duration {
 
 // transientErrorCodes are error codes the SDK retryer does not classify as retryable but that
 // clear on their own: expired or not yet valid credentials (a rotated IRSA token), a temporarily
-// unreachable OIDC identity provider, and signatures rejected for the signing time (a clock
-// that is being corrected).
+// unreachable OIDC identity provider, and a signing time the server rejects (a clock that is
+// being corrected).
 var transientErrorCodes = map[string]bool{
-	"ExpiredToken":              true,
-	"ExpiredTokenException":     true,
-	"RequestExpired":            true,
-	"InvalidIdentityToken":      true,
-	"IDPCommunicationError":     true,
+	"ExpiredToken":          true,
+	"ExpiredTokenException": true,
+	"RequestExpired":        true,
+	"InvalidIdentityToken":  true,
+	"IDPCommunicationError": true,
+	"RequestTimeTooSkewed":  true,
+	"RequestInTheFuture":    true,
+}
+
+// signatureCodes are rejected signatures. They are transient only when the answer showed clock
+// skew (see failureTTL); with the clocks in sync, the signature is simply wrong.
+var signatureCodes = map[string]bool{
 	"InvalidSignatureException": true,
 	"SignatureDoesNotMatch":     true,
-	"RequestTimeTooSkewed":      true,
-	"RequestInTheFuture":        true,
 }
 
 // retryableClassifier reuses the AWS SDK's standard retryable-error set so that throttling, 5xx,

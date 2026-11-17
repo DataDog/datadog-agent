@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
@@ -148,9 +150,10 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	reqURL := base.JoinPath("clusters", clusterName).String() //nolint:gosec // G125, see above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
-	// and one more attempt after a transport error, a 429 or a 5xx when there is time left. The rest
-	// of the policy is the caller's failure cache, which retries transient failures after 30
-	// seconds instead of retrying in a loop while node Agents wait.
+	// and one more attempt after a transport error, a throttle or a 500/502/503/504 when there is
+	// time left. A throttle waits a short jittered delay first. The rest of the policy is the
+	// caller's failure cache, which retries transient failures after 30 seconds instead of
+	// retrying in a loop while node Agents wait.
 	skewCorrected, retried := false, false
 	for {
 		out, err := c.send(ctx, reqURL)
@@ -163,11 +166,38 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 			skewCorrected = true
 			continue
 		}
-		if !retried && isRetryable(err) && hasTimeForRetry(ctx) {
+		if !retried && isRetryable(err) {
 			retried = true
-			continue
+			if isThrottle(err) && !sleepCtx(ctx, throttleRetryDelay()) {
+				return nil, err
+			}
+			// Measured after the wait.
+			if hasTimeForRetry(ctx) {
+				continue
+			}
 		}
 		return nil, err
+	}
+}
+
+// throttleRetryDelay is the wait before retrying a throttled request: 100ms to 300ms, jittered
+// so the Cluster Agents of one account do not retry in step. Variable for tests.
+var throttleRetryDelay = func() time.Duration {
+	return 100*time.Millisecond + rand.N(200*time.Millisecond)
+}
+
+// sleepCtx waits for d, or less when ctx is done first. It reports whether d elapsed.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
@@ -194,8 +224,29 @@ func isRetryable(err error) bool {
 	if errors.As(err, &tErr) {
 		return true
 	}
+	if isThrottle(err) {
+		return true
+	}
 	var apiErr *apiError
-	return errors.As(err, &apiErr) && (apiErr.StatusCode >= http.StatusInternalServerError || apiErr.StatusCode == http.StatusTooManyRequests)
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.StatusCode {
+	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+// isThrottle reports whether EKS throttled the request: a 429, or a throttling code the SDK
+// retryer knows (EKS also sends ThrottlingException with a 400).
+func isThrottle(err error) bool {
+	var apiErr *apiError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	_, throttleCode := retry.DefaultThrottleErrorCodes[apiErr.Code]
+	return apiErr.StatusCode == http.StatusTooManyRequests || throttleCode
 }
 
 // send signs and sends one DescribeCluster request.
