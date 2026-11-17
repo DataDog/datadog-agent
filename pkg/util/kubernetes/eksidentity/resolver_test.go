@@ -583,3 +583,25 @@ func TestResolveWarnsOnceAboutItsOwnNode(t *testing.T) {
 		assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
 	})
 }
+
+func TestResolveOwnTimeoutIsFinalAfterStartup(t *testing.T) {
+	// After the Cluster Agent's first minute nothing is "not determined yet", the resolve's own
+	// timeout included, although pkg/util/eks asks EKS again 2s later: nodes do not wait for a
+	// Cluster Agent that has been up for a while. Its expiry is not passed on, so the handler
+	// marks the answer final.
+	stub(t, "eks", "orders", nil, "orders")
+	eks.CacheFailureForTest(t, "orders", testClusterCA, fmt.Errorf("describe EKS cluster: %w", context.DeadlineExceeded), 2*time.Second)
+	resolveIdentityByKey = eks.GetClusterIdentity
+
+	_, err := Resolve(t.Context())
+	require.ErrorIs(t, err, ErrNotDetermined, "in the first minute")
+	_, cached := eks.RetryIn(err)
+	assert.True(t, cached)
+
+	clusterAgentUptime = func() time.Duration { return notDeterminedPeriod + time.Second }
+	_, err = Resolve(t.Context())
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrNotDetermined)
+	_, cached = eks.RetryIn(err)
+	assert.False(t, cached, "final after the first minute")
+}

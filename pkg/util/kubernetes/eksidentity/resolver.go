@@ -201,7 +201,9 @@ func kubeDistribution(ctx context.Context) (string, error) {
 
 // finalAfterStartup turns a not determined answer into a final one once the Cluster Agent has
 // been up for notDeterminedPeriod: nodes then stop waiting for it, and pick the identity up
-// from their host tags when it is found.
+// from their host tags when it is found. This includes the resolve's own timeout, although
+// pkg/util/eks asks EKS again 2s later: the error is rebuilt without its chain on purpose, so
+// the handler does not mark it retry from its cache expiry.
 func finalAfterStartup(err error) error {
 	if errors.Is(err, ErrNotDetermined) && clusterAgentUptime() > notDeterminedPeriod {
 		return errors.New("EKS cluster identity not found since the Cluster Agent started: " + err.Error())
