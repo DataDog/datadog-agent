@@ -8,13 +8,16 @@ package clusterinfo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/sync/semaphore"
 )
@@ -44,22 +47,59 @@ var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity
 	return client.GetEKSClusterIdentity(ctx)
 }
 
-// isAWSHost reports whether local DMI identifies this node as an EC2 instance. It makes no
-// network call. EKS nodes on EC2 always pass, so nodes that do not (on-prem, OpenShift, kind,
-// other clouds) skip the Cluster Agent call. EKS Fargate has no DMI and uses its own path.
-var isAWSHost = ec2.IsRunningOnDMI
+// getNodeDistribution is the node's kube distribution, the value of its kube_distribution tag
+// (cloudprovider.GetName): from the node's kubelet version (v1.31.0-eks-...) and its labels
+// (eks.amazonaws.com/nodegroup, eks.amazonaws.com/compute-type, set on managed, Auto Mode,
+// Fargate and hybrid nodes), read through the Cluster Agent once and cached for the process.
+// It is the evidence that a node is on EKS. It does not read DMI or call IMDS, so it works on
+// Windows nodes, with ec2_use_dmi: false and on EKS Hybrid nodes, and it is not fooled by kops,
+// self-managed Kubernetes, ROSA or kind on EC2.
+var getNodeDistribution = cloudprovider.GetName
 
-// IsAWSHost reports whether a node Agent should ask the Cluster Agent for EKS identity.
-func IsAWSHost() bool {
-	return isAWSHost()
+// hostMayBeAWS reports false only when local DMI says the node is not an EC2 instance. It is
+// used only while the Cluster Agent cannot be reached yet, to decide whether waiting for it is
+// worth the startup budget. Without DMI (Windows, a container without /sys) it cannot tell, so
+// it says yes. It reads only local files.
+var hostMayBeAWS = defaultHostMayBeAWS
+
+func defaultHostMayBeAWS() bool {
+	vendor := dmi.GetBoardVendor()
+	return vendor == "" || vendor == ec2.DMIBoardVendor || ec2.IsRunningOnDMI()
+}
+
+// errNotEKSNode is returned when the node's distribution is known and is not EKS.
+var errNotEKSNode = errors.New("node is not on EKS")
+
+// checkEKSNode returns nil when the node is on EKS. Answers that will not change within the
+// startup budget are backoff.Permanent: a known non-EKS distribution, a client configuration
+// error, or a Cluster Agent that cannot be reached from a node DMI places off EC2.
+func checkEKSNode(ctx context.Context) error {
+	distribution, err := getNodeDistribution(ctx)
+	if err != nil {
+		if clusteragent.IsConfigError(err) {
+			return backoff.Permanent(err)
+		}
+		if !hostMayBeAWS() {
+			return backoff.Permanent(fmt.Errorf("cannot reach the Cluster Agent and the node is not on EC2: %w", err))
+		}
+		return err
+	}
+	if distribution != "eks" {
+		return backoff.Permanent(errNotEKSNode)
+	}
+	return nil
 }
 
 // GetClusterAgentEKSIdentityHostTags is GetClusterAgentEKSIdentityTags for the host-tags
 // provider. It refreshes on its own interval, so answers that will not change are an empty
-// success rather than an error that is logged on every refresh: a node not on AWS, and a 404
-// from a Cluster Agent on a cluster that is not EKS, or one too old to serve identity.
+// success rather than an error that is logged on every refresh: a node not on EKS, and a 404
+// from a Cluster Agent that is not on EKS, or one too old to serve identity.
 func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
-	if !isAWSHost() {
+	distribution, err := getNodeDistribution(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if distribution != "eks" {
 		return nil, nil
 	}
 	tags, err := GetClusterAgentEKSIdentityTags(ctx)
@@ -121,11 +161,18 @@ func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, err
 	var tags []string
 	var err error
 	if startupIdentity.budgetSpent {
-		tags, err = GetClusterAgentEKSIdentityTags(ctx)
+		if err = checkEKSNode(ctx); err == nil {
+			tags, err = GetClusterAgentEKSIdentityTags(ctx)
+		}
 	} else {
 		startupIdentity.budgetSpent = true
 		backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
 		tags, err = backoff.Retry(ctx, func() ([]string, error) {
+			// Without EKS evidence the budget is not spent: kops or kind on EC2, other clouds
+			// and on-prem clusters never wait on the Cluster Agent here.
+			if err := checkEKSNode(ctx); err != nil {
+				return nil, err
+			}
 			tags, err := GetClusterAgentEKSIdentityTags(ctx)
 			var statusErr *clusteragent.StatusError
 			if (errors.As(err, &statusErr) && !statusErr.RetryLater) || errors.Is(err, errIncompleteIdentity) {

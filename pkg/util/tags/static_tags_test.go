@@ -154,15 +154,7 @@ func stubEKSIdentity(t *testing.T, tags []string, err error) *int {
 		*calls++
 		return tags, err
 	}
-	stubAWSHost(t, true)
 	return calls
-}
-
-func stubAWSHost(t *testing.T, onAWS bool) {
-	t.Helper()
-	original := isAWSHost
-	t.Cleanup(func() { isAWSHost = original })
-	isAWSHost = func() bool { return onAWS }
 }
 
 var eksIdentityTags = []string{
@@ -197,16 +189,6 @@ func TestStaticTagsSliceEKSIdentityOnNodeAgent(t *testing.T) {
 		mockConfig.SetInTest("cluster_agent.enabled", true)
 		stubEKSIdentity(t, nil, errors.New("cluster is not EKS"))
 		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
-	})
-
-	t.Run("node not on AWS does not query identity", func(t *testing.T) {
-		// On-prem, OpenShift, kind and other clouds: no local signal says EC2, so the node
-		// Agent makes no call and its startup does not wait on the Cluster Agent.
-		mockConfig.SetInTest("cluster_agent.enabled", true)
-		calls := stubEKSIdentity(t, eksIdentityTags, nil)
-		stubAWSHost(t, false)
-		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
-		assert.Equal(t, 0, *calls)
 	})
 
 	t.Run("cluster agent flavor never queries itself", func(t *testing.T) {

@@ -76,7 +76,7 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 		// Authoritative EKS identity (cluster ARN) resolved once by the Cluster Agent. It is
 		// only reachable through the DCA, so register it only when the DCA is enabled;
 		// otherwise it is a provider that can never succeed. A single attempt is enough. A
-		// node not on EC2 makes no call, and a "not found" answer (not EKS, or an older DCA)
+		// node not on EKS makes no identity call, and a "not found" answer (not EKS, or an older DCA)
 		// is an empty success, so most Kubernetes installs see no latency or log noise.
 		if conf.GetBool("cluster_agent.enabled") {
 			providers["kubernetes_cluster_agent_eks_identity"] = &providerDef{1, clusterinfo.GetClusterAgentEKSIdentityHostTags}

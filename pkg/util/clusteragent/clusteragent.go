@@ -172,12 +172,12 @@ func (c *DCAClient) init() error {
 
 	endpoint, err := utils.GetClusterAgentEndpoint()
 	if err != nil {
-		return err
+		return &configError{err}
 	}
 
 	authToken, err := security.GetClusterAgentAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
-		return err
+		return &configError{err}
 	}
 
 	headers := http.Header{}
@@ -234,7 +234,7 @@ func (c *DCAClient) initHTTPClient() error {
 	// Get Cross Node Client TLS Config
 	tlsConfig, err := pkgapiutil.GetCrossNodeClientTLSConfig()
 	if err != nil {
-		return fmt.Errorf("failed to get cross-node client TLS config: %w", err)
+		return &configError{fmt.Errorf("failed to get cross-node client TLS config: %w", err)}
 	}
 
 	// Copy of http.DefaulTransport with adapted settings
@@ -345,6 +345,21 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 	}
 
 	return c.clusterAgentAPIClient
+}
+
+// configError is a client setup failure that comes from the node Agent's own configuration (no
+// endpoint, no auth token, no cross-node TLS configuration). Retrying it within seconds does
+// not help. Its message is the underlying error's.
+type configError struct{ err error }
+
+func (e *configError) Error() string { return e.err.Error() }
+func (e *configError) Unwrap() error { return e.err }
+
+// IsConfigError reports whether err, from GetClusterAgentClient or a query, comes from the
+// client's configuration rather than from reaching the Cluster Agent.
+func IsConfigError(err error) bool {
+	var cfgErr *configError
+	return nativeerrors.As(err, &cfgErr)
 }
 
 // StatusError is returned when the Cluster Agent answered a query with a non-200 HTTP status,
