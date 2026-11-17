@@ -3719,14 +3719,18 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
 		// Require the closed entry: after delNetem the queued data is
-		// retransmitted, so the active entry is also reported and carries
-		// the same monotonic rto_count.
-		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if ok && conn.IsClosed {
-			closedConn = conn
-			return true
-		}
-		return false
+		// retransmitted, so the active entry may also be reported and
+		// carries the same monotonic rto_count. Filter on IsClosed rather
+		// than checking the first tuple match, so an active entry ahead of
+		// the closed one can't hide it. If an active entry with the same
+		// cookie lands in the same fetch, the state merge
+		// (mergeConnectionStats in state.go) still sets the closed entry's
+		// counters to the max of the two, so this check can't fully rule
+		// out a broken close-event copy.
+		closedConn = network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
+			return c.IsClosed
+		})
+		return closedConn != nil
 	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
 
 	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
