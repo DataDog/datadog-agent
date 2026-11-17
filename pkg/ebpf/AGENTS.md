@@ -79,7 +79,11 @@ ran on.
     with `sysctl net.core.bpf_jit_harden=2` as well as the default.
   - **Runtime `-Werror`:** old kernel headers (CentOS 7's 3.10) don't mark `inline` functions
     `__maybe_unused`, so a static inline helper that loses its last caller fails the runtime compile
-    there and nowhere else.
+    there and nowhere else. To reproduce on a modern kernel, temporarily add `-DKBUILD_EXTRA_WARN1` (kernel
+    headers 5.4 to 6.17) and `-DKBUILD_EXTRA_WARN2` (6.18 and later) to `defaultFlags` in
+    `pkg/ebpf/bytecode/runtime/runtime_compilation_helpers.go`, run the runtime-compiled tests, and
+    revert; either define drops the `__maybe_unused` the kernel adds to `inline`. Only runtime
+    compilation hits this: it compiles a flattened source, so header helpers count as unused functions.
 - **Read which modes actually ran.** Tests that call `ebpftest.SupportedBuildModes` (in
   `pkg/ebpf/ebpftest/`) get a per-host list; tests that pass a fixed list run only those modes.
   - Prebuilt is skipped where `prebuilt.IsDeprecated()` is true, unless `TEST_PREBUILT_OVERRIDE=true`.
