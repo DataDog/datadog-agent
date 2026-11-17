@@ -56,8 +56,8 @@ aix_refresh_github_token() {
 #   aix_run_cmd <<EOF
 #     ...
 #   EOF
-# A lost connection (ssh exit 255) is retried up to 3 times; any other exit
-# code is the remote command's own status and is not retried.
+# A lost connection (ssh exit 255) triggers up to 3 attempts in total; any
+# other exit code is the remote command's own status and is not retried.
 aix_run_cmd() {
     local script rc attempt
     if [ "$#" -gt 0 ]; then
