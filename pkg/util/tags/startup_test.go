@@ -7,7 +7,12 @@ package tags
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -150,4 +155,56 @@ func TestStartupRecoversFromProxyErrors(t *testing.T) {
 			assert.Less(t, elapsed, testBudget+slack)
 		})
 	}
+}
+
+func TestStartupProxyThatAnswers502Forever(t *testing.T) {
+	// A proxy answers the identity call with 502 forever. Startup retries it within the budget
+	// about once a second and no more, later callers send nothing, the host-tags provider makes
+	// one request per refresh, and no goroutine is left behind.
+	var identityHits atomic.Int64
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/version":
+			_, _ = w.Write([]byte(`{"Major":7,"Minor":60,"Patch":0}`))
+		case r.URL.Path == "/api/v1/cluster/eks-identity":
+			identityHits.Add(1)
+			http.Error(w, "upstream connect error", http.StatusBadGateway)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	cfg := setupStartupNode(t, srv.URL, false)
+	setupStartupTest(t, true)
+	before := runtime.NumGoroutine()
+
+	start := time.Now()
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() { GetStaticTagsSlice(context.TODO(), cfg) })
+	}
+	wg.Wait()
+	assert.Less(t, time.Since(start), testBudget+slack)
+	startupHits := identityHits.Load()
+	// One attempt, then one per second, jittered by up to 20%.
+	assert.LessOrEqual(t, startupHits, int64(testBudget/(800*time.Millisecond))+1)
+	assert.GreaterOrEqual(t, startupHits, int64(2), "a 502 is retried")
+
+	start = time.Now()
+	for range 50 {
+		GetStaticTagsSlice(context.TODO(), cfg)
+	}
+	assert.Less(t, time.Since(start), 100*time.Millisecond)
+	assert.Equal(t, startupHits, identityHits.Load(), "later callers send nothing")
+
+	for i := range 5 {
+		_, err := clusterinfo.GetClusterAgentEKSIdentityHostTags(context.TODO())
+		assert.Error(t, err, "an unmarked 502 is retried on the next refresh")
+		assert.Equal(t, startupHits+int64(i+1), identityHits.Load(), "one request per refresh")
+	}
+
+	// Keep-alive connections hold a few goroutines on both sides; close them first.
+	srv.CloseClientConnections()
+	assert.Eventually(t, func() bool { return runtime.NumGoroutine() <= before+2 }, 2*time.Second, 50*time.Millisecond,
+		"goroutines return to baseline: %d before, %d now", before, runtime.NumGoroutine())
 }
