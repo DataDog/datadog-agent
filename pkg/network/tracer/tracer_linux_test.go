@@ -557,8 +557,8 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err)
 }
 
-// This test ensures that conntrack lookups are retried for short-lived
-// connections when the first lookup fails
+// This test ensures that the tracer retries the conntrack lookup of an active
+// connection on a later fetch when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
 	cfg := testConfig()
@@ -587,8 +587,18 @@ func (s *TracerSuite) TestConntrackDelays() {
 	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
-	_, err = c.Write([]byte("ping"))
+
+	// SetupDNAT rewrites 2.2.2.2 to 1.1.1.1 without changing the port, so the
+	// reply tuple runs from the server (1.1.1.1:port) back to the client.
+	laddr := c.LocalAddr().(*net.TCPAddr)
+	serverPort, err := strconv.ParseUint(port, 10, 16)
 	require.NoError(t, err)
+	expectedTranslation := &network.IPTranslation{
+		ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+		ReplDstIP:   util.AddressFromNetIP(laddr.IP),
+		ReplSrcPort: uint16(serverPort),
+		ReplDstPort: uint16(laddr.Port),
+	}
 
 	// The tracer looks up the NAT translation of every active connection on each
 	// fetch, and the delayedConntracker makes its first lookup miss, so the test
@@ -610,6 +620,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 			sawMiss = conn.IPTranslation == nil
 		}
 		require.NotNil(collect, conn.IPTranslation, "connection reported without NAT translation")
+		require.Equal(collect, expectedTranslation, conn.IPTranslation, "unexpected NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 	require.True(t, sawMiss, "the tracer's first translation lookup should have been delayed")
 
