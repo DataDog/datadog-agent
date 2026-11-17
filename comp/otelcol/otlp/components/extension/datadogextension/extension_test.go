@@ -53,7 +53,7 @@ func testFactory(t *testing.T, metadata, rc *child) (*factory, *Config) {
 		func(_ context.Context, _ extension.Settings, c component.Config) (extension.Extension, error) {
 			require.Equal(t, "collector-secret", string(c.(*upstream.Config).API.Key))
 			return metadata, nil
-		}, base.Stability()), newRC: func(_ extension.Settings, c *remoteconfig.Config, r model.Reader) (extension.Extension, error) {
+		}, base.Stability()), newSDK: func(_ extension.Settings, c *remoteconfig.SDKConfig, r model.Reader) (extension.Extension, error) {
 		require.Equal(t, "collector-secret", string(c.API.Key))
 		require.Equal(t, "datadoghq.eu", c.API.Site)
 		require.Equal(t, "collector-secret", r.GetString("api_key"))
@@ -173,4 +173,19 @@ func TestBackendCredentialsCannotBeOverridden(t *testing.T) {
 	require.NoError(t, c.Validate())
 	c.RemoteConfig.Enabled = true
 	require.ErrorContains(t, c.Validate(), "api.key for backend authentication")
+}
+
+func TestSDKTelemetryOptInWithoutRCCache(t *testing.T) {
+	metadata, sdk := &child{}, &child{}
+	f, c := testFactory(t, metadata, sdk)
+	c.RemoteConfig.CacheDirectory = ""
+	c.InstrumentationTelemetry.Enabled = true
+	c.SDKEndpoint = "127.0.0.1:0"
+	set := extension.Settings{ID: component.NewID(component.MustNewType("datadog")), TelemetrySettings: componenttest.NewNopTelemetrySettings()}
+	ext, err := f.create(t.Context(), set, c)
+	require.NoError(t, err)
+	require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
+	require.Equal(t, 1, sdk.starts)
+	require.NoError(t, ext.Shutdown(t.Context()))
+	require.Equal(t, 1, sdk.stops)
 }

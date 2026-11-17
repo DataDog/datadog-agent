@@ -8,3 +8,7 @@ features:
     DDOT can export named Dynamic Instrumentation OTLP log events to existing
     debugger intakes. Enable ``exporters.datadog.dynamic_instrumentation.enabled``.
     Delivery uses the exporter queue and remains independent of Remote Configuration.
+  - |
+    The Datadog extension can forward SDK instrumentation telemetry independently
+    of Remote Configuration. Enable ``instrumentation_telemetry.enabled`` and
+    configure the shared ``sdk_endpoint`` listener.

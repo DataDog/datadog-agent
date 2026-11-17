@@ -91,6 +91,13 @@ extensions:
       read_header_timeout: 1m0s
       transport: tcp
       write_timeout: 30s
+    instrumentation_telemetry:
+      enabled: false
+      endpoint: ""
+      max_concurrent_requests: 20
+      max_inflight_bytes: 26214400
+      max_request_bytes: 5242880
+      timeout: 10s
     keepalive:
       idle_conn_timeout: 1m30s
       max_idle_conns: 100
@@ -107,6 +114,8 @@ extensions:
       request_timeout: 5s
       transport: tcp
       write_timeout: 30s
+    sdk_endpoint: ""
+    sdk_http: null
   ddflare/dd-autoconfigured:
     endpoint: localhost:7777
     read_header_timeout: 0s

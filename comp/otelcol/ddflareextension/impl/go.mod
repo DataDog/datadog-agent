@@ -356,7 +356,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.164.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117191135-b8938aa6f76c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/expohisto v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile v0.164.1 // indirect
@@ -736,4 +736,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ../../../../test/otel
 )
 
-replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117191135-b8938aa6f76c

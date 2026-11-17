@@ -5,7 +5,7 @@
 
 //go:build !aix && !freebsd && !solaris
 
-// Package datadogextension adds optional Agent-protocol RC to the contrib Datadog extension.
+// Package datadogextension adds optional Agent-protocol RC and SDK telemetry to the contrib Datadog extension.
 package datadogextension
 
 import (
@@ -24,8 +24,8 @@ import (
 type wrappedFactory struct{ extension.Factory }
 
 type factory struct {
-	base  extension.Factory
-	newRC func(extension.Settings, *remoteconfig.Config, model.Reader) (extension.Extension, error)
+	base   extension.Factory
+	newSDK func(extension.Settings, *remoteconfig.SDKConfig, model.Reader) (extension.Extension, error)
 }
 
 // WrapFactory replaces an existing factory without adding another component identity.
@@ -39,14 +39,14 @@ func WrapFactory(factories map[component.Type]extension.Factory) {
 	}
 }
 
-// NewFactory preserves upstream behavior unless remote_config.enabled is true.
+// NewFactory preserves upstream behavior unless an SDK capability is enabled.
 func NewFactory(base extension.Factory) extension.Factory {
-	f := &factory{base: base, newRC: remoteconfig.New}
+	f := &factory{base: base, newSDK: remoteconfig.NewSDKServer}
 	return &wrappedFactory{Factory: extension.NewFactory(base.Type(), f.defaultConfig, f.create, base.Stability())}
 }
 
 func (f *factory) defaultConfig() component.Config {
-	return &Config{Datadog: *f.base.CreateDefaultConfig().(*upstream.Config), RemoteConfig: remoteconfig.DefaultConfig()}
+	return &Config{Datadog: *f.base.CreateDefaultConfig().(*upstream.Config), RemoteConfig: remoteconfig.DefaultConfig(), InstrumentationTelemetry: remoteconfig.DefaultInstrumentationTelemetryConfig()}
 }
 
 func (f *factory) create(ctx context.Context, set extension.Settings, config component.Config) (extension.Extension, error) {
@@ -58,13 +58,13 @@ func (f *factory) create(ctx context.Context, set extension.Settings, config com
 	if err != nil {
 		return nil, err
 	}
-	if c.RemoteConfig == nil || !c.RemoteConfig.Enabled {
+	if !c.sdkConfig().Enabled() {
 		return metadata, nil
 	}
 	// Upstream keeps its Agent config private; both adapters use the same resolved credentials.
 	cfg := &datadogconfig.Config{API: c.Datadog.API, ClientConfig: c.Datadog.ClientConfig}
 	reader := agentcomponents.NewConfigComponent(agentcomponents.WithAPIConfig(cfg), agentcomponents.WithProxy(cfg), agentcomponents.WithTLSSetting(cfg))
-	rc, err := f.newRC(set, c.rcConfig(), reader)
+	rc, err := f.newSDK(set, c.sdkConfig(), reader)
 	if err != nil {
 		return nil, err
 	}
