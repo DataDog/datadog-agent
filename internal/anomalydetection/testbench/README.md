@@ -19,6 +19,31 @@ Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
+### Metric workflow
+
+Legacy detectors remain the default. Add `--use-metric-pipeline` to select the
+kind-routed workflow at startup, in either the binary or Python wrapper:
+
+```bash
+# Interactive: legacy / pipeline
+dda inv anomalydetection.launch-testbench
+dda inv anomalydetection.launch-testbench --use-metric-pipeline
+
+# Headless: same scenario and parameter file, different workflows
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/legacy.json
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/pipeline.json --use-metric-pipeline
+```
+
+The workflows are mutually exclusive. The pipeline owns its detector defaults;
+legacy detector toggles and parameters do not configure it. Baseline and scorer
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). The UI does not switch workflows.
+
+Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
+`eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
+Local reports identify the workflow, and resume never reuses another workflow's
+results. Remote DDEval does not support pipeline selection.
+
 ### Manual launch
 
 ```bash
@@ -173,6 +198,12 @@ profile; an enabled-only entry preserves the replay defaults.
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
+The Scorer tab defaults to **Detection time**, which shows the original replay
+with the scorer's effective input seconds and cooldown-filtered transitions.
+**Change-point time** recomputes the same anomaly set at detector change-point
+timestamps, including scan-detector lookback, so the two views intentionally
+differ when detection is delayed.
+
 ### Extractors
 
 Extractors are always enabled and convert raw observations into timeseries:
@@ -324,6 +355,15 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 - `"enabled"` is optional — omit to use the catalog default.
 - Hyperparameter fields are optional — omitted fields keep their default values.
+
+An optional top-level `log_time_buckets` object enables regular log-count inputs
+for replay. For example, add `"log_time_buckets": {"enabled": true}` beside
+`components` to use five-second buckets, a 300-second idle TTL, and 600-second
+retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
+`retention_seconds`; an explicit zero idle TTL is supported. When omitted, replay
+preserves the current bucket setting, initially configured by the Agent and
+disabled by default.
+This setting changes detector inputs; keep it identical across binary comparisons.
 
 ### Example
 

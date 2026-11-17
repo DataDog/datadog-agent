@@ -61,6 +61,14 @@ exports_files(
 # purpose: the script resolves them via $BUILD_WORKSPACE_DIRECTORY (set by
 # `bazel run`) so it reads the live workspace, not the bazel sandbox. Adding
 # them as data deps would silently shadow the real files.
+# bazel run //tasks:write_go_tag_manifest  — regenerates bazel/go_tags/closure_tags.bzl.
+# It runs `bazel query` itself, which `bazel run` allows: the server lock is released before the binary starts.
+py_binary(
+    name = "write_go_tag_manifest",
+    srcs = ["libs/build/go_tags.py"],
+    main = "libs/build/go_tags.py",
+)
+
 py_binary(
     name = "check_renovate_bazel_coverage",
     srcs = ["renovate.py"],

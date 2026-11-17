@@ -31,9 +31,7 @@ def build(
     if enable_bazel:
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
-        build_binary_with_bazel("//cmd/loader:loader", bin_path=BIN_PATH)
+        build_binary_with_bazel("//cmd/loader:loader", bin_path=BIN_PATH, fips_backend=fips_backend)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
