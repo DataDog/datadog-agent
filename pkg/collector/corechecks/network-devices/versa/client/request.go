@@ -333,7 +333,14 @@ func getTimeseriesAnalytics[T any](
 		log.Warnf("Timeseries query %q returned %d entities, at or above max_count %d: raise max_count, results may be truncated", query, entities, cfg.MaxCount)
 	}
 
-	rows, dropped := flattenTimeseries(resp.Data, metrics, layout.drillKeyFields)
+	// The parser reads metric values by position; a layout may list them in the parser's
+	// order when that differs from the requested order, so each named series lands in the
+	// field of the same name.
+	valueOrder := metrics
+	if layout.valueOrder != nil {
+		valueOrder = layout.valueOrder
+	}
+	rows, dropped := flattenTimeseries(resp.Data, valueOrder, layout.drillKeyFields)
 	if dropped > 0 {
 		if len(rows) == 0 {
 			// Every bucket was unusable. Most likely a requested metric is not returned
@@ -350,13 +357,20 @@ func getTimeseriesAnalytics[T any](
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics tableData for timeseries attributes: %v", err)
 		}
-		var missing, conflicting int
-		rows, missing, conflicting = joinAttributes(rows, tableRows, layout)
+		var missing, ambiguousKeys int
+		rows, missing, ambiguousKeys = joinAttributes(rows, tableRows, layout)
+		if ambiguousKeys > 0 {
+			// The timeseries response cannot tell apart the entities behind an ambiguous
+			// key, so report exactly what tableData reports for this call.
+			client.warnRateLimited("joinambiguous:"+query, "Timeseries query %q has %d entity keys matching tableData rows with differing attributes, using tableData for it instead", query, ambiguousKeys)
+			parsed, err := parser(tableRows)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse analytics tableData: %v", err)
+			}
+			return parsed, nil
+		}
 		if missing > 0 {
 			client.warnRateLimited("join:"+query, "Skipped %d timeseries buckets for query %q whose entity has no tableData row to take its attributes from", missing, query)
-		}
-		if conflicting > 0 {
-			client.warnRateLimited("joinconflict:"+query, "Skipped %d timeseries buckets for query %q whose entity has tableData rows with differing attributes", conflicting, query)
 		}
 	}
 

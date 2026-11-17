@@ -46,6 +46,9 @@ type timeseriesLayout struct {
 	// instead of a drill key column. Its joined rows start with the attribute columns,
 	// whose first value is the entity key.
 	noDrillKeyColumn bool
+	// valueOrder, when set, lists the requested metrics in the order the parser reads
+	// their values, for a parser whose positions differ from the request order.
+	valueOrder []string
 }
 
 // Layouts for the endpoints verified against real timeseries responses. Adding one for a
@@ -75,9 +78,14 @@ var (
 	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, attributeColumns: 3, strictKeyParts: true}
 	// tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName): keyed on
 	// appliance,ipsecLocalIp in tableData, so the peer IP and VPN profile come from
-	// tableData. Tunnels sharing an appliance and local IP but with different peers have
-	// conflicting attributes and are skipped.
-	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true}
+	// tableData. When tunnels share an appliance and local IP but differ in peer or
+	// profile, the key is ambiguous and the call uses tableData.
+	//
+	// parseTunnelMetrics reads VolumeRx before VolumeTx while the query requests volume-tx
+	// first. The tableData column order is to be confirmed against a customer response, so
+	// tableData is left as is; timeseries series are named, so valueOrder places each one
+	// in the field of the same name.
+	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true, valueOrder: []string{"volume-rx", "volume-tx"}}
 	// linkusage(site,site.address,site.latitude,site.longitude,site.locationSource) with
 	// jq siteStatus: keyed on site, and parseSiteMetrics has no drill key column, so the
 	// joined row is the site, address, latitude, longitude and location source from
@@ -98,11 +106,12 @@ func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (s
 
 // joinAttributes replaces the drill key fields of each flattened row with the leading
 // columns of the tableData row for the same entity: the drill key and attributeColumns
-// attribute values. Attribute tags therefore always come from Versa's own response. An
-// entity is skipped when it has no tableData row, or when its tableData rows disagree on
-// those columns, since either choice would make the tags depend on row order; identical
-// duplicate rows are fine. The counts of buckets skipped for each reason are returned.
-func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, conflicting int) {
+// attribute values, so attribute tags always come from Versa's own response. Buckets of
+// an entity with no tableData row are dropped and counted in missing. A key whose
+// tableData rows disagree on those columns is ambiguous, since the timeseries response
+// cannot tell its entities apart; the number of such keys is returned and the caller
+// uses tableData instead. Identical duplicate rows are not ambiguous.
+func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, ambiguousKeys int) {
 	prefix := 1 + layout.attributeColumns
 	if layout.noDrillKeyColumn {
 		prefix = layout.attributeColumns
@@ -123,13 +132,12 @@ func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *tim
 		}
 		byKey[key] = row[:prefix]
 	}
+	if len(conflicts) > 0 {
+		return nil, 0, len(conflicts)
+	}
 	joined = rows[:0]
 	for _, r := range rows {
 		key, _ := r.row[0].(string)
-		if conflicts[key] {
-			conflicting++
-			continue
-		}
 		attrs, ok := byKey[key]
 		if !ok {
 			missing++
@@ -141,7 +149,7 @@ func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *tim
 		row = append(row, values...)
 		joined = append(joined, timeseriesRow{timestamp: r.timestamp, row: row})
 	}
-	return joined, missing, conflicting
+	return joined, missing, 0
 }
 
 // flattenTimeseries converts the per metric series of a timeseries response into
