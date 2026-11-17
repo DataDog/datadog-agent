@@ -94,7 +94,7 @@ single_machine_performance-kjob:
   after_script:
     - mkdir -p outputs
     - |
-      python3 test/regression/kjob/pr_comment.py --outputs outputs --commit "${CI_COMMIT_SHA}" --job-url "${CI_JOB_URL}" --output outputs/pr_comment.json || echo "WARNING: the KJob PR comment payload could not be written"
+      python3 test/regression/kjob/pr_comment.py --outputs outputs --commit "${CI_COMMIT_SHA}" --job-url "${CI_JOB_URL}" --started-at "${CI_JOB_STARTED_AT:-}" --output outputs/pr_comment.json || echo "WARNING: the KJob PR comment payload could not be written"
 
 # Post the result of the KJob job on the PR, also when the KJob job fails.
 # This follows single-machine-performance-regression_detector-pr-comment in

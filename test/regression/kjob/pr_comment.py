@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -20,9 +21,15 @@ from urllib.parse import quote
 HEADER = "K8s Regression Detector Results"
 LOGS_URL = (
     "https://app.datadoghq.com/logs?query={query}&index=single-machine-performance-target-logs"
-    "&messageDisplay=inline&stream_sort=time%2Cdesc&viz=stream"
+    "&messageDisplay=inline&stream_sort=time%2Cdesc&viz=stream&from_ts={from_ms}&to_ts={to_ms}&live=false"
 )
+# The KJob Run Metrics Explorer notebook has a job_id template variable.
+METRICS_URL = (
+    "https://app.datadoghq.com/notebook/15648287?tpl_var_job_id={job_id}&from_ts={from_ms}&to_ts={to_ms}&live=false"
+)
+COMMIT_URL = "https://github.com/DataDog/datadog-agent/commit/{commit}"
 MIB = 1024 * 1024
+NANO = 1_000_000_000
 
 
 def read_json(path: Path) -> Any:
@@ -41,14 +48,18 @@ def read_text(path: Path) -> str | None:
 
 
 def format_value(value: Any, series: str) -> str:
-    """Show bytes in MiB for memory series. Report values use native units."""
+    """Show bytes in MiB for memory series, and CPU time per second in cores. Report values use native units."""
     if value is None:
         return "—"
-    if isinstance(value, int | float) and "memory" in series:
-        return f"{value / MIB:.1f} MiB"
-    if isinstance(value, float):
-        return f"{value:.4g}"
-    return str(value)
+    if not isinstance(value, int | float):
+        return str(value)
+    if "memory" in series:
+        return f"{value / MIB:,.1f} MiB"
+    if "usage_nanocores" in series or ("usage_core_nanoseconds" in series and series.startswith("rate(")):
+        return f"{value / NANO:,.3f} cores"
+    if abs(value) >= 1000:
+        return f"{value:,.0f}"
+    return f"{value:.4g}"
 
 
 def bound_text(check: dict[str, Any]) -> str:
@@ -79,12 +90,21 @@ def replicates_text(check: dict[str, Any]) -> str:
 
 
 def failed_check_line(experiment: str, check: dict[str, Any]) -> str:
+    series = check.get("series", "")
     expected, passed = check.get("expected_replicates"), check.get("passed_replicates")
     failed = expected - passed if isinstance(expected, int) and isinstance(passed, int) else "?"
-    return (
-        f"- ❌ `{experiment}`: `{check.get('name')}` failed in {failed} of {expected} replicates, "
-        f"{observed_text(check)}, bound {bound_text(check)}"
-    )
+    lower, upper = check.get("lower_bound"), check.get("upper_bound")
+    low, high = check.get("min_observed"), check.get("max_observed")
+    if upper is not None and lower is None:
+        relation = f"max {format_value(high, series)} > {format_value(upper, series)}"
+    elif lower is not None and upper is None:
+        relation = f"min {format_value(low, series)} < {format_value(lower, series)}"
+    else:
+        relation = f"observed {observed_text(check)}, bound {bound_text(check)}"
+    reasons = check.get("reasons") or []
+    if "no_data" in reasons:
+        relation = "no data"
+    return f"- ❌ `{experiment}`: `{check.get('name')}` failed in {failed} of {expected} replicates, {relation}"
 
 
 def check_table(rows: list[tuple[str, dict[str, Any]]]) -> list[str]:
@@ -101,12 +121,14 @@ def check_table(rows: list[tuple[str, dict[str, Any]]]) -> list[str]:
     return lines
 
 
-def failed_runs(status: Any) -> tuple[list[str], list[str]]:
-    """Return one terse line for each experiment with failed replicates, and the raw errors."""
-    lines, errors = [], []
+def failed_runs(status: Any) -> tuple[list[str], list[str], int, int]:
+    """Return one terse line for each experiment with failed replicates, the raw errors, and the run counts."""
+    lines, errors, failed_count, total_count = [], [], 0, 0
     for experiment in status.get("experiments", []) if isinstance(status, dict) else []:
         replicates = experiment.get("replicates", [])
         failed = [r for r in replicates if r.get("state") == "failed"]
+        total_count += len(replicates)
+        failed_count += len(failed)
         if not failed:
             continue
         name = experiment.get("name")
@@ -114,16 +136,32 @@ def failed_runs(status: Any) -> tuple[list[str], list[str]]:
         for replicate in failed:
             message = (replicate.get("error_message") or "no error message").replace("\n", " ")
             errors.append(f"- `{name}` replicate {replicate.get('index')}: {message}")
-    return lines, errors
+    return lines, errors, failed_count, total_count
 
 
-def status_line(result_code: str | None, report: Any, state: str | None, submitted: bool) -> str:
-    if result_code in ("0", "1") and state == "failed":
-        return "**❌ Failed**"
-    if result_code == "0" and isinstance(report, dict) and report.get("passed") is True:
-        return "**✅ Passed**"
-    if result_code == "1" and isinstance(report, dict):
-        return "**❌ Failed**"
+def bounds_count(checks: list[tuple[str, dict[str, Any]]]) -> str:
+    if not checks:
+        return "no bounds checks"
+    return f"{sum(1 for _, c in checks if c.get('passed'))}/{len(checks)} bounds checks passed"
+
+
+def status_line(
+    result_code: str | None,
+    report: Any,
+    checks: list[tuple[str, dict[str, Any]]],
+    run_counts: tuple[int, int],
+    submitted: bool,
+) -> str:
+    failed_replicates, total_replicates = run_counts
+    if result_code in ("0", "1") and isinstance(report, dict):
+        details = []
+        # A replicate that did not complete matters more than its checks, so name it first.
+        if failed_replicates:
+            details.append(f"{failed_replicates} of {total_replicates} replicates did not complete")
+        if not failed_replicates or any(not c.get("passed") for _, c in checks):
+            details.append(bounds_count(checks))
+        passed = result_code == "0" and report.get("passed") is True and not failed_replicates
+        return f"**{'✅ Passed' if passed else '❌ Failed'}** - {', '.join(details)}"
     if result_code == "3":
         return "**⚠️ No result:** the run did not finish before the time limit."
     if result_code is not None:
@@ -133,7 +171,28 @@ def status_line(result_code: str | None, report: Any, state: str | None, submitt
     return "**⚠️ No result:** the CI job failed before the run started."
 
 
-def render(outputs: Path, job_url: str, commit: str) -> str:
+def time_range(started_at: str | None, now: datetime) -> tuple[int, int]:
+    """Fixed time range of the job, so that the links still work later."""
+    try:
+        start = datetime.fromisoformat(started_at) if started_at else now - timedelta(hours=3)
+    except ValueError:
+        start = now - timedelta(hours=3)
+    # KJob delivers the log archives and captures after the run, so keep one hour after the comment.
+    return int((start - timedelta(minutes=30)).timestamp() * 1000), int((now + timedelta(hours=1)).timestamp() * 1000)
+
+
+def telemetry_line(job_id: str, started_at: str | None, now: datetime) -> str:
+    from_ms, to_ms = time_range(started_at, now)
+    logs = LOGS_URL.format(query=quote(f"job_id:{job_id}"), from_ms=from_ms, to_ms=to_ms)
+    metrics = METRICS_URL.format(job_id=quote(job_id), from_ms=from_ms, to_ms=to_ms)
+    return f"**Available Telemetry:** [Target Logs]({logs}) · [Metrics]({metrics})"
+
+
+def plural(count: int, word: str) -> str:
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def render(outputs: Path, job_url: str, commit: str, started_at: str | None, now: datetime) -> str:
     submit = read_json(outputs / "submit.json")
     status = read_json(outputs / "status.json")
     report = read_json(outputs / "report.v1.json")
@@ -142,45 +201,36 @@ def render(outputs: Path, job_url: str, commit: str) -> str:
         report = None
 
     job_id = submit.get("id") if isinstance(submit, dict) else None
-    state = status.get("state") if isinstance(status, dict) else None
+    experiments = report.get("experiments", []) if report is not None else []
+    checks = [(e.get("name"), c) for e in experiments for c in e.get("checks", [])]
+    run_lines, run_errors, *run_counts = failed_runs(status)
 
-    lines = [status_line(result_code, report, state, job_id is not None)]
+    lines = [status_line(result_code, report, checks, (run_counts[0], run_counts[1]), job_id is not None)]
 
-    run_lines, run_errors = failed_runs(status)
-    if run_lines:
-        lines += ["", *run_lines, "", "<details>", "<summary>Run errors</summary>", "", *run_errors, "", "</details>"]
+    failed = [(name, check) for name, check in checks if not check.get("passed")]
+    failure_lines = run_lines + [failed_check_line(name, check) for name, check in failed]
+    if failure_lines:
+        lines += ["", *failure_lines]
+    if run_errors:
+        lines += ["", "<details>", "<summary>Run errors</summary>", "", *run_errors, "", "</details>"]
 
     if report is not None:
-        checks = [(e.get("name"), c) for e in report.get("experiments", []) for c in e.get("checks", [])]
-        failed = [(name, check) for name, check in checks if not check.get("passed")]
-        if failed:
-            lines += ["", *[failed_check_line(name, check) for name, check in failed]]
         if checks:
-            lines += [
-                "",
-                "<details>",
-                "<summary>Detailed Bounds Checks</summary>",
-                "",
-                *check_table(checks),
-                "",
-                "</details>",
-            ]
+            summary = f"Detailed Bounds Checks ({plural(len(experiments), 'experiment')})"
+            body = check_table(checks)
+            without_checks = sorted(e.get("name") for e in experiments if not e.get("checks"))
+            if without_checks:
+                body += ["", "Experiments without bounds checks: " + ", ".join(f"`{name}`" for name in without_checks)]
         else:
-            lines += [
-                "",
-                "<details open>",
-                "<summary>Detailed Bounds Checks</summary>",
-                "",
-                "There are no bounds checks in the experiments run.",
-                "",
-                "</details>",
-            ]
+            summary = f"Detailed Bounds Checks ({plural(len(experiments), 'experiment')})"
+            body = ["There are no bounds checks in the experiments run."]
+        lines += ["", "<details>", f"<summary>{summary}</summary>", "", *body, "", "</details>"]
 
     if job_id:
-        logs = LOGS_URL.format(query=quote(f"job_id:{job_id}"))
-        lines += ["", "Available Telemetry:", "", f"- [Target Logs]({logs})"]
+        lines += ["", telemetry_line(job_id, started_at, now)]
 
-    lines += ["", f"<sub><i>Commit {commit} · <a href=\"{job_url}\">CI job</a></i></sub>"]
+    commit_link = f'<a href="{COMMIT_URL.format(commit=commit)}">{commit[:11]}</a>'
+    lines += ["", f'<sub><i>Commit {commit_link} · <a href="{job_url}">CI job</a></i></sub>']
     return "\n".join(lines)
 
 
@@ -189,6 +239,7 @@ def main() -> None:
     parser.add_argument("--outputs", type=Path, required=True, help="Directory with the outputs of the KJob CI job.")
     parser.add_argument("--commit", required=True, help="Commit SHA that the pr-commenter service uses to find the PR.")
     parser.add_argument("--job-url", required=True, help="URL of the KJob CI job.")
+    parser.add_argument("--started-at", help="Start time of the KJob CI job in ISO 8601, such as CI_JOB_STARTED_AT.")
     parser.add_argument("--output", type=Path, required=True, help="Where to write the payload.")
     args = parser.parse_args()
 
@@ -197,7 +248,7 @@ def main() -> None:
         "repo": "datadog-agent",
         "commit": args.commit,
         "header": HEADER,
-        "message": render(args.outputs, args.job_url, args.commit),
+        "message": render(args.outputs, args.job_url, args.commit, args.started_at, datetime.now(UTC)),
     }
     args.output.write_text(json.dumps(payload), encoding="utf-8")
 
