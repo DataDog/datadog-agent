@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Autoexit now treats ``trace-loader`` and ``par-control`` as excluded processes, so a container with no traces or split private action runner work can still exit when ``auto_exit.noprocess.enabled`` is set.

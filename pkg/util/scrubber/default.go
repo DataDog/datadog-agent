@@ -203,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ string, _ any) (bool, any) {
+		scrubber.walk(&data, "", func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -287,13 +287,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
 	additionalEndpointsYaml := Replacer{
 		YAMLKeyRegex: regexp.MustCompile(`^(orchestrator_)?additional_endpoints$`),
-		ProcessValue: func(data any) any {
+		processValueAtPath: func(data any, path string) any {
 			switch data.(type) {
 			case map[string]interface{}, map[interface{}]interface{}:
 				return scrubAllLeafValues(data)
 			case []interface{}:
 				wrapped := data
-				scrubber.ScrubDataObj(&wrapped)
+				scrubber.scrubDataObjAt(&wrapped, path)
 				return wrapped
 			}
 			return data
@@ -303,9 +303,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	privateActionRunnerYaml := Replacer{
 		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
-		ProcessValue: func(data any) any {
+		processValueAtPath: func(data any, path string) any {
 			wrapped := data
-			scrubber.ScrubDataObj(&wrapped)
+			scrubber.scrubDataObjAt(&wrapped, path)
 			scrubPrivateActionRunnerCredentialValues(wrapped)
 			return wrapped
 		},
@@ -698,8 +698,8 @@ func AddStrippedKeys(strippedKeys []string) {
 	}
 }
 
-// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
-// default scrubber.
+// GetStrippedKeys returns the paths of the settings whose values were scrubbed by ScrubDataObj (and so ScrubYaml and
+// ScrubJSON) on the default scrubber.
 func GetStrippedKeys() []string {
 	return DefaultScrubber.GetStrippedKeys()
 }

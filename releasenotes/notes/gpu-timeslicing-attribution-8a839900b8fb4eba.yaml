@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    GPU metrics are now attributed to pods whose GPU is shared by the
+    NVIDIA device plugin (time-slicing, MPS).

@@ -364,6 +364,7 @@ LIBMPDEC_SRCS = [
 
 # The expat bundled with CPython, used by pyexpat.
 LIBEXPAT_SRCS = [
+    "Modules/expat/xcs.c",
     "Modules/expat/xmlparse.c",
     "Modules/expat/xmlrole.c",
     "Modules/expat/xmltok.c",

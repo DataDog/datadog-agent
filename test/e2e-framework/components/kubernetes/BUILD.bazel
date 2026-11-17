@@ -31,6 +31,7 @@ go_library(
         "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
     ],
 )
 

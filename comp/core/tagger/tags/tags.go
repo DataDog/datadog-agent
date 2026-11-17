@@ -127,8 +127,8 @@ const (
 	SchedulerWorkload = "kube_scheduler_workload"
 	// SchedulerQueue is the tag for the queue that manages the quota of a pod's scheduling unit
 	SchedulerQueue = "kube_scheduler_queue"
-	// KAIWorkload is the tag for the KAI PodGroup name
-	KAIWorkload = "kai_workload"
+	// KAIPodGroup is the tag for the KAI PodGroup name
+	KAIPodGroup = "kai_pod_group"
 	// KAIQueue is the tag for the KAI queue name
 	KAIQueue = "kai_queue"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
