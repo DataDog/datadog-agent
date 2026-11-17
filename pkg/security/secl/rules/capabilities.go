@@ -61,10 +61,3 @@ func (fcs FieldCapabilities) GetFields() []eval.Field {
 	}
 	return fields
 }
-
-// Clone returns a copy of the FieldCapabilities
-func (fcs *FieldCapabilities) Clone() FieldCapabilities {
-	clone := make(FieldCapabilities, len(*fcs))
-	copy(clone, *fcs)
-	return clone
-}

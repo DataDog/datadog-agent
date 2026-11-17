@@ -11,6 +11,7 @@ concept mapping between the two systems.
 
 ```
 packages/
+├── BUILD.bazel          ← Targets shared across packages
 ├── agent/               ← Main agent (replaces omnibus/config/projects/agent.rb)
 │   ├── BUILD.bazel      ← Flavor flags and config_setting groups
 │   ├── dependencies/    ← Third-party runtime deps (replaces datadog-agent-dependencies.rb)

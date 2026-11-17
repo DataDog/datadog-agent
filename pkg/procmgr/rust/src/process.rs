@@ -296,7 +296,10 @@ impl ManagedProcess {
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
-        let profile = SpawnProfile::profile_for(&name);
+        let profile = match origin {
+            ProcessOrigin::Runtime => SpawnProfile::Agent,
+            ProcessOrigin::Config => SpawnProfile::profile_for(&name),
+        };
         #[cfg(windows)]
         let (user, agent_credential) = platform::initial_spawn_identity(&name, profile);
         #[cfg(not(windows))]
@@ -2310,5 +2313,52 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "without stop_requested, non-zero exit should be Failed"
         );
+    }
+
+    #[test]
+    fn test_runtime_privileged_names_use_agent_profile() {
+        for name in ["datadog-agent-process", "datadog-agent-sysprobe"] {
+            let runtime = ManagedProcess::new_runtime(
+                name.into(),
+                test_helpers::test_uuid(),
+                ProcessConfig::default(),
+            );
+            assert_eq!(runtime.profile(), SpawnProfile::Agent);
+
+            let config = ManagedProcess::new_config(
+                name.into(),
+                test_helpers::test_uuid(),
+                ProcessConfig::default(),
+            );
+            let expected = if cfg!(windows) {
+                SpawnProfile::Privileged
+            } else {
+                SpawnProfile::Agent
+            };
+            assert_eq!(config.profile(), expected);
+
+            #[cfg(windows)]
+            {
+                assert!(runtime.agent_credential().is_some());
+                assert!(config.agent_credential().is_none());
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_runtime_privileged_names_spawn_and_exit() {
+        for name in ["datadog-agent-process", "datadog-agent-sysprobe"] {
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut proc = ManagedProcess::new_runtime(
+                name.into(),
+                test_helpers::test_uuid(),
+                test_helpers::make_config(cmd, args),
+            );
+            let mut exit_rx = spawn_ok(&mut proc);
+            let status = exit_rx.recv().await.expect("exit event").status;
+            assert!(status.success());
+            proc.set_last_status(status);
+        }
     }
 }
