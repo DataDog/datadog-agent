@@ -364,41 +364,48 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
-	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
-	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
-	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
-	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
-	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
-	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderTokenReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
-	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
-	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
-	scrubber.AddReplacer(SingleLine, privateKeyReplacer)
-	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
-	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
-	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
-	scrubber.AddReplacer(SingleLine, appKeyReplacer)
-	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
-	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
-	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
-	scrubber.AddReplacer(SingleLine, passwordReplacer)
-	scrubber.AddReplacer(SingleLine, tokenReplacer)
-	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
-	scrubber.AddReplacer(SingleLine, secretReplacer)
-	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
-	scrubber.AddReplacer(SingleLine, snmpReplacer)
-	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
-	scrubber.AddReplacer(SingleLine, scanningRulesPatternReplacer)
+	for _, replacer := range []Replacer{
+		delaFallbackReplacer,
+		hintedAPIKeyReplacer,
+		hintedAPPKeyReplacer,
+		prefixedAPPKeyReplacer,
+		hintedBearerReplacer,
+		hintedBearerInvalidReplacer,
+		httpHeaderKeyReplacer,
+		httpHeaderTokenReplacer,
+		httpHeaderAuthReplacer,
+		httpHeaderSecretReplacer,
+		exactKeyReplacer,
+		privateKeyReplacer,
+		apiKeyReplacerYAML,
+		apiKeyReplacer,
+		appKeyReplacerYAML,
+		appKeyReplacer,
+		rcAppKeyReplacer,
+		uriPasswordReplacer,
+		yamlPasswordReplacer,
+		passwordReplacer,
+		tokenReplacer,
+		consumerKeyAndTokenIDReplacer,
+		secretReplacer,
+		accessKeyReplacer,
+		snmpReplacer,
+		scanningRulesYaml,
+		scanningRulesPatternReplacer,
+		apiKeyYaml,
+		appKeyYaml,
+		additionalEndpointsYaml,
+		privateActionRunnerYaml,
+	} {
+		scrubber.AddReplacer(SingleLine, replacer)
+	}
 
-	scrubber.AddReplacer(SingleLine, apiKeyYaml)
-	scrubber.AddReplacer(SingleLine, appKeyYaml)
-	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
-	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
-
-	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
-	scrubber.AddReplacer(MultiLine, certReplacer)
+	for _, replacer := range []Replacer{
+		snmpMultilineReplacer,
+		certReplacer,
+	} {
+		scrubber.AddReplacer(MultiLine, replacer)
+	}
 
 	dynamicReplacersMutex.Lock()
 	for _, r := range dynamicReplacers {
