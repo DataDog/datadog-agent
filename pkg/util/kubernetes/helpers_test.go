@@ -79,6 +79,27 @@ func TestResolvePodRootOwner(t *testing.T) {
 			expectedName: "backup",
 		},
 		{
+			name:         "workflow created by a cronworkflow resolves to cronworkflow",
+			ownerKind:    WorkflowKind,
+			ownerName:    "hello-world-1697040000",
+			expectedKind: CronWorkflowKind,
+			expectedName: "hello-world",
+		},
+		{
+			name:         "workflow with a generated name stays unchanged",
+			ownerKind:    WorkflowKind,
+			ownerName:    "hello-world-tj6fe",
+			expectedKind: WorkflowKind,
+			expectedName: "hello-world-tj6fe",
+		},
+		{
+			name:         "standalone workflow stays unchanged",
+			ownerKind:    WorkflowKind,
+			ownerName:    "whalesay",
+			expectedKind: WorkflowKind,
+			expectedName: "whalesay",
+		},
+		{
 			name:         "direct owner stays unchanged",
 			ownerKind:    StatefulSetKind,
 			ownerName:    "database",
@@ -173,6 +194,26 @@ func TestParseCronJobForJob(t *testing.T) {
 				string
 				int
 			}{cronjobName, id})
+		})
+	}
+}
+
+func TestParseCronWorkflowForWorkflow(t *testing.T) {
+	for in, out := range map[string]string{
+		"hello-world-1697040000": "hello-world",
+		"job-2024-1697040000":    "job-2024",
+		"hello-world-tj6fe":      "",
+		"build-123":              "",
+		"foo-169704000":          "",    // 9 digits
+		"foo-16970400000":        "foo", // 11 digits
+		"foo-169704000a":         "",
+		"foo-":                   "",
+		"helloworld":             "",
+		"-1697040000":            "",
+		"":                       "",
+	} {
+		t.Run("case: "+in, func(t *testing.T) {
+			assert.Equal(t, out, ParseCronWorkflowForWorkflow(in))
 		})
 	}
 }

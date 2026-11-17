@@ -147,13 +147,14 @@ func TestCollectionIntervalsAndIdentityUUID(t *testing.T) {
 		interval := p.Provider.Callback(t.Context())
 		require.Len(t, s.payloads, 1)
 		firstUUID := s.payloads[0].UUID
-		for range 2 {
+		// Unchanged data is resent after a jittered delay between the min (2s) and max (6s) intervals.
+		first := time.Now()
+		for len(s.payloads) == 1 {
 			time.Sleep(interval)
 			interval = p.Provider.Callback(t.Context())
-			assert.Len(t, s.payloads, 1, "unchanged data waits for max interval")
+			require.LessOrEqual(t, time.Since(first), 6*time.Second, "unchanged data is resent within max interval")
 		}
-		time.Sleep(interval)
-		p.Provider.Callback(t.Context())
+		assert.GreaterOrEqual(t, time.Since(first), 2*time.Second, "unchanged data waits for min interval")
 		require.Len(t, s.payloads, 2)
 		assert.Equal(t, firstUUID, s.payloads[1].UUID)
 		assert.Equal(t, "periodic", s.payloads[1].Metadata["report_reason"])
