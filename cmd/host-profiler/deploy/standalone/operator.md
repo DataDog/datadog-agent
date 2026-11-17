@@ -81,6 +81,18 @@ After you apply the manifests, the OpenTelemetry Operator reconciles the Custom 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as the `dd-agent` user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`operator/collector.yaml`](operator/collector.yaml):
+
+```yaml
+securityContext:
+  # ... existing fields ...
+  runAsUser: 100
+  runAsGroup: 100
+  runAsNonRoot: true
+```
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
