@@ -60,8 +60,6 @@ Open `http://localhost:5173` in your browser.
 
 ## UI Controls
 
-- The shared **Scenario** dropdown replaces the scenario list in each view. **Reload**
-  reruns the selected recording.
 - Scenarios start with no metric groups selected. Select groups from the sidebar
   to load their charts, or click **Show up to 50 most anomalous metrics** to select
   recorded metric groups ranked by detections from enabled detectors. The button
