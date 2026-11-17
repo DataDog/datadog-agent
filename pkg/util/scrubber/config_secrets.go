@@ -27,17 +27,91 @@ type ConfigSecret struct {
 	Handle string `json:"handle,omitempty"`
 }
 
-// recordRawSecret returns true when the replacement is covered by a field-level
-// reference, so its descendants do not need additional raw references.
-func recordRawSecret(secrets *[]ConfigSecret, path string, before, after any) bool {
+func recordRawSecret(secrets *[]ConfigSecret, path string, before, after any) {
 	if secrets == nil || !mayHoldCredential(before) || reflect.DeepEqual(before, after) {
-		return false
+		return
 	}
 	if value, ok := before.(string); ok && (IsEnc(value) || value == defaultReplacement) {
-		return false
+		return
 	}
 	*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindRaw})
-	return true
+}
+
+// recordYamlRawSecrets compares a replaced subtree with its fully scrubbed result.
+// Descend where keys and indexes still match; otherwise reference the whole field.
+func (c *Scrubber) recordYamlRawSecrets(secrets *[]ConfigSecret, path string, before, after *yaml.Node) {
+	if secrets == nil {
+		return
+	}
+	if before.Kind == after.Kind && len(before.Content) == len(after.Content) {
+		switch before.Kind {
+		case yaml.SequenceNode:
+			for i, child := range before.Content {
+				c.recordYamlRawSecrets(secrets, joinPath(path, strconv.Itoa(i)), child, after.Content[i])
+			}
+			return
+		case yaml.MappingNode:
+			if children, paths, ok := c.matchYamlSecretChildren(before, after); ok {
+				for i, child := range children {
+					c.recordYamlRawSecrets(secrets, joinPath(path, paths[i]), before.Content[2*i+1], child)
+				}
+				return
+			}
+		}
+	}
+
+	// Decode values so formatting changes, such as 0x1f90 becoming 8080,
+	// do not create secret declarations.
+	var original, scrubbed any
+	if before.Decode(&original) != nil {
+		return
+	}
+	if after.Decode(&scrubbed) != nil {
+		// Scrubbed keys may collide. Retain the field reference when the
+		// rewritten mapping cannot be decoded for a finer comparison.
+		scrubbed = nil
+	}
+	recordRawSecret(secrets, path, original, scrubbed)
+}
+
+// matchYamlSecretChildren matches mapping values independently of YAML key order.
+// Scrub string keys before matching and exposing them in metadata paths. If keys
+// collide after scrubbing, use the parent reference instead of guessing a match.
+func (c *Scrubber) matchYamlSecretChildren(before, after *yaml.Node) ([]*yaml.Node, []string, bool) {
+	decodeKey := func(node *yaml.Node) (any, string, bool) {
+		var key any
+		if err := node.Decode(&key); err != nil || (key != nil && !reflect.TypeOf(key).Comparable()) {
+			return nil, "", false
+		}
+		path := node.Value
+		if str, ok := key.(string); ok {
+			path = str
+			key = c.scrubYamlText(str)
+		}
+		return key, c.scrubYamlText(path), true
+	}
+
+	values := make(map[any]*yaml.Node, len(after.Content)/2)
+	for i := 0; i+1 < len(after.Content); i += 2 {
+		key, _, ok := decodeKey(after.Content[i])
+		if _, duplicate := values[key]; !ok || duplicate {
+			return nil, nil, false
+		}
+		values[key] = after.Content[i+1]
+	}
+	children := make([]*yaml.Node, 0, len(before.Content)/2)
+	paths := make([]string, 0, len(before.Content)/2)
+	for i := 0; i+1 < len(before.Content); i += 2 {
+		key, path, ok := decodeKey(before.Content[i])
+		child, found := values[key]
+		if !ok || !found {
+			return nil, nil, false
+		}
+		delete(values, key)
+		children = append(children, child)
+		paths = append(paths, path)
+	}
+	return children, paths, true
 }
 
 // Collect ENC references from validated YAML before replacements can hide them.

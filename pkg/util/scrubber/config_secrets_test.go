@@ -52,7 +52,7 @@ token: {second: raw-secret, first: 'ENC[shared]', nested: {42: {password: 'ENC[s
 			"sanitized keys", `additional_endpoints:
   https://user:url-secret@endpoint.example: [raw-secret, 'ENC[shared]']
 `, []ConfigSecret{
-				{Path: "additional_endpoints", Kind: "raw"},
+				{Path: "additional_endpoints.https://user:********@endpoint.example.0", Kind: "raw"},
 				{Path: "additional_endpoints.https://user:********@endpoint.example.1", Kind: "enc", Handle: "shared"},
 			},
 		},
@@ -68,12 +68,49 @@ scanning_rules:
     pattern: raw-secret
     proximity_keywords: {included_keywords: [raw-secret, 'ENC[shared]']}
 `, []ConfigSecret{
-				{Path: "logs_config.additional_endpoints", Kind: "raw"},
+				{Path: "logs_config.additional_endpoints.0.api_key", Kind: "raw"},
 				{Path: "logs_config.additional_endpoints.1.api_key", Kind: "enc", Handle: "shared"},
-				{Path: "private_action_runner", Kind: "raw"},
+				{Path: "private_action_runner.credentials.values.z_last.value", Kind: "raw"},
 				{Path: "private_action_runner.credentials.values.a_first.value", Kind: "enc", Handle: "shared"},
-				{Path: "scanning_rules", Kind: "raw"},
+				{Path: "scanning_rules.0.pattern", Kind: "raw"},
+				{Path: "scanning_rules.0.proximity_keywords", Kind: "raw"},
 				{Path: "scanning_rules.0.proximity_keywords.included_keywords.1", Kind: "enc", Handle: "shared"},
+			},
+		},
+		{
+			"repeated raw values", `logs_config:
+  additional_endpoints:
+    - {host: first.example.com, api_key: raw-secret}
+    - {host: second.example.com, api_key: raw-secret}
+`, []ConfigSecret{
+				{Path: "logs_config.additional_endpoints.0.api_key", Kind: "raw"},
+				{Path: "logs_config.additional_endpoints.1.api_key", Kind: "raw"},
+			},
+		},
+		{
+			"text scrubbing after a structured replacement", `scanning_rules:
+  - id: https://user:url-secret@example.com
+    license: visible-license
+    pattern: raw-secret
+`, []ConfigSecret{
+				{Path: "scanning_rules.0.id", Kind: "raw"},
+				{Path: "scanning_rules.0.pattern", Kind: "raw"},
+			},
+		},
+		{
+			"non-string keys retain their original spelling", `additional_endpoints:
+  0x2a: [raw-secret, 'ENC[shared]']
+`, []ConfigSecret{
+				{Path: "additional_endpoints.0x2a.0", Kind: "raw"},
+				{Path: "additional_endpoints.0x2a.1", Kind: "enc", Handle: "shared"},
+			},
+		},
+		{
+			"colliding scrubbed keys retain a parent reference", `additional_endpoints:
+  https://user:raw-secret@endpoint.example: [raw-secret]
+  https://user:url-secret@endpoint.example: [raw-secret]
+`, []ConfigSecret{
+				{Path: "additional_endpoints", Kind: "raw"},
 			},
 		},
 		{
