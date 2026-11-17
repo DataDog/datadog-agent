@@ -16,7 +16,7 @@ func FormatAnomaly(a Anomaly) (title, description string) {
 		return fallbackAnomalyTitle(a, source), ""
 	}
 
-	switch a.DetectorName {
+	switch a.DetectorAlgorithm() {
 	case "scanmw":
 		direction := "increased"
 		if debug.CurrentValue < debug.BaselineMedian {

@@ -87,6 +87,8 @@ pkg_filegroup(
     name = "whole_distro",
     srcs = [
         ":installed_distro",
+        "//cmd/agent/dist:dd_agent_stub",
+        "//packages:log_dir",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
@@ -113,7 +115,6 @@ dd_pkg_deb(
     conflicts = ["datadog-iot-agent"],
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
-    # vendor = "Datadog <package@datadoghq.com>",
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package_file_name = "{product_name}_{version}-1_{arch_deb}.deb",
@@ -153,6 +154,11 @@ dd_pkg_rpm(
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
+    # brp-strip corrupts eBPF objects, and fails on the read-only files that
+    # pkg_rpm copies from TreeArtifacts (Python extension modules).
+    defines = {
+        "__strip": "/bin/true",
+    },
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
