@@ -18,6 +18,8 @@ import (
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths"
 )
 
 func (r *Runner) fillExpandConfig(ctx context.Context) {
@@ -119,6 +121,8 @@ func (r *Runner) cmdSubst(w io.Writer, cs *syntax.CmdSubst) error {
 			r.lastExit = r.lastExpandExit
 			return nil
 		}
+		// Close on ctx end: a read from a FIFO with no writer only returns on Close.
+		f = allowedpaths.WithContextClose(r.ectx, f)
 		defer f.Close()
 		// If the path is a directory, silently produce empty output (matches bash).
 		if st, ok := f.(interface{ Stat() (fs.FileInfo, error) }); ok {
@@ -130,6 +134,11 @@ func (r *Runner) cmdSubst(w io.Writer, cs *syntax.CmdSubst) error {
 		}
 		var buf bytes.Buffer
 		_, err = io.Copy(&buf, io.LimitReader(f, maxCmdSubstOutput))
+		// A source closed by ctx reads as EOF; report the cancellation, not a short read.
+		if ctxErr := r.ectx.Err(); ctxErr != nil {
+			r.exit.fatal(ctxErr)
+			return ctxErr
+		}
 		var exitCode uint8
 		if err != nil {
 			exitCode = 1

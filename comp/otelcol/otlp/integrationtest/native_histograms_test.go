@@ -78,11 +78,12 @@ var explicitCases = []explicitCase{
 	{name: "explicit.no_sum", bounds: []float64{0, 10}, counts: []uint64{1, 2, 3}, count: 6, min: optional(-5), max: optional(20)},
 	{name: "explicit.zero_sum_negative", bounds: []float64{-10, 0, 10}, counts: []uint64{2, 3, 1, 0}, count: 6, sum: optional(0), min: optional(-15), max: optional(7)},
 	{name: "explicit.summary_only", count: 3, sum: optional(6)},
-	{name: "explicit.full_width_count", counts: []uint64{math.MaxUint64}, count: math.MaxUint64},
+	{name: "explicit.full_width_count", count: math.MaxUint64},
 	{name: "explicit.nan", bounds: []float64{1}, counts: []uint64{1, 0}, count: 1, sum: optional(math.NaN()), min: optional(math.NaN()), max: optional(math.NaN())},
 	{name: "explicit.sum_overflow", bounds: []float64{1e300}, counts: []uint64{0, 2}, count: 2, sum: optional(math.Inf(1)), min: optional(1.5e308), max: optional(1.7e308)},
 	{name: "explicit.unsorted_bounds", bounds: []float64{2, 1}, counts: []uint64{1, 1, 1}, count: 3, dropped: true},
 	{name: "explicit.no_recorded_value", bounds: []float64{1}, counts: []uint64{1, 1}, count: 2, noRecorded: true, dropped: true},
+	{name: "explicit.bucket_count_above_limit", bounds: []float64{1}, counts: []uint64{1, math.MaxInt32 + 1}, count: math.MaxInt32 + 2, dropped: true},
 }
 
 var exponentialCases = []exponentialCase{
@@ -96,6 +97,7 @@ var exponentialCases = []exponentialCase{
 	{name: "exp.offset_overflow", posOffset: math.MaxInt32, positive: []uint64{1, 1}, count: 2, dropped: true},
 	{name: "exp.nan_zero_threshold", zeroThreshold: math.NaN(), zeroCount: 1, count: 1, dropped: true},
 	{name: "exp.no_recorded_value", positive: []uint64{1}, count: 1, dropped: true, dataPointFlags: pmetric.DefaultDataPointFlags.WithNoRecordedValue(true)},
+	{name: "exp.zero_count_above_limit", zeroCount: math.MaxInt32 + 1, count: math.MaxInt32 + 1, dropped: true},
 }
 
 func denseCounts(n int) []uint64 {
