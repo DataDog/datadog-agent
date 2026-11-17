@@ -55,11 +55,6 @@ require (
 )
 
 require (
-	go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper v0.165.0 // indirect
-	go.opentelemetry.io/contrib/detectors/aws/ec2/v2 v2.6.0 // indirect
-)
-
-require (
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
 	cloud.google.com/go/compute v1.75.0 // indirect
@@ -469,10 +464,12 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.165.0 // indirect
+	go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.165.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.165.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.21.0 // indirect
+	go.opentelemetry.io/contrib/detectors/aws/ec2/v2 v2.6.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/ecs v1.47.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/eks v1.47.0 // indirect
 	go.opentelemetry.io/contrib/detectors/azure/azurevm v0.19.0 // indirect
