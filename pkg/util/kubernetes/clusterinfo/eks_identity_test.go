@@ -325,13 +325,16 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 		assert.Len(t, tags, 3)
 	})
 
-	t.Run("a 404 is an empty success", func(t *testing.T) {
-		// Not EKS, or an older Cluster Agent: must not log on every refresh.
+	t.Run("final answers are an empty success", func(t *testing.T) {
+		// 404 (not EKS, an older Cluster Agent) and a final 503 (a missing eks:DescribeCluster
+		// permission, which the Cluster Agent logs itself) must not log on every refresh.
 		stubEvidence(t, true)
-		answer(nil, statusErr(http.StatusNotFound, false))
-		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
-		require.NoError(t, err)
-		assert.Empty(t, tags)
+		for _, err := range []error{statusErr(http.StatusNotFound, false), statusErr(http.StatusServiceUnavailable, false)} {
+			answer(nil, err)
+			tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+			require.NoError(t, err)
+			assert.Empty(t, tags)
+		}
 	})
 
 	t.Run("answers that can change are errors, retried on the next refresh", func(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"os"
 	"regexp"
 	"slices"
@@ -131,14 +130,15 @@ func HasEKSEvidence() bool {
 // GetClusterAgentEKSIdentityHostTags is GetClusterAgentEKSIdentityTags for the host-tags
 // provider. It refreshes on its own interval, so answers that will not change are an empty
 // success rather than an error that is logged on every refresh: a node without EKS evidence,
-// and a 404 from a Cluster Agent that is not on EKS, or one too old to serve identity.
+// a 404 from a Cluster Agent that is not on EKS or too old to serve identity, and a final 503
+// (for example a missing eks:DescribeCluster permission, which the Cluster Agent logs itself).
 func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
 	if !hasEKSEvidence() {
 		return nil, nil
 	}
 	tags, err := GetClusterAgentEKSIdentityTags(ctx)
 	var statusErr *clusteragent.StatusError
-	if errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusNotFound {
+	if errors.As(err, &statusErr) && !statusErr.RetryLater {
 		return nil, nil
 	}
 	return tags, err
