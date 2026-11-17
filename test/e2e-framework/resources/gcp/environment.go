@@ -166,9 +166,9 @@ func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
 }
 
-// DatadogPublicRegistry returns gcr.io/datadoghq: the registry a GCP customer pulls the Agent from.
+// DatadogPublicRegistry returns registry.datadoghq.com: the official Datadog registry (backed by Google Artifact Registry).
 func (e *Environment) DatadogPublicRegistry() string {
-	return "gcr.io/datadoghq"
+	return "registry.datadoghq.com"
 }
 
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {

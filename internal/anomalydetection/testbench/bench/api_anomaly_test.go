@@ -13,6 +13,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,9 @@ type anomalyAPIDebugView struct {
 }
 
 func (v anomalyAPIDebugView) StateView() observerimpl.StateView { return v.state }
+func (v anomalyAPIDebugView) StorageReader() observerdef.StorageReader {
+	return nil
+}
 
 type anomalyAPIStateView struct {
 	observerimpl.StateView
@@ -31,6 +35,7 @@ type anomalyAPIStateView struct {
 	series      observerdef.Series
 	anomaly     observerdef.Anomaly
 	correlation observerdef.ActiveCorrelation
+	scorer      observerimpl.ScorerHistory
 }
 
 func (v anomalyAPIStateView) ListSeries(observerdef.SeriesFilter) []observerdef.SeriesMeta {
@@ -48,6 +53,121 @@ func (v anomalyAPIStateView) ListDetectors() []observerimpl.ComponentStateInfo {
 }
 func (v anomalyAPIStateView) CorrelationHistory() []observerdef.ActiveCorrelation {
 	return []observerdef.ActiveCorrelation{v.correlation}
+}
+func (v anomalyAPIStateView) ScorerHistory() observerimpl.ScorerHistory {
+	return v.scorer
+}
+
+type scorerSnapshotStateView struct {
+	observerimpl.StateView
+	checkLocked func()
+}
+
+func (v scorerSnapshotStateView) ScorerHistory() observerimpl.ScorerHistory {
+	v.checkLocked()
+	return observerimpl.ScorerHistory{Available: true}
+}
+
+func (v scorerSnapshotStateView) ListDetectors() []observerimpl.ComponentStateInfo {
+	v.checkLocked()
+	return nil
+}
+
+type scorerSnapshotDebugView struct {
+	anomalyAPIDebugView
+	checkLocked func()
+}
+
+func (v scorerSnapshotDebugView) StorageReader() observerdef.StorageReader {
+	v.checkLocked()
+	return nil
+}
+
+func TestScoresSnapshotPreventsStorageReplacement(t *testing.T) {
+	tb := &Bench{}
+	checks := 0
+	checkLocked := func() {
+		t.Helper()
+		checks++
+		if tb.mu.TryLock() {
+			tb.mu.Unlock()
+			t.Fatal("scenario replacement must be blocked throughout the snapshot")
+		}
+	}
+	tb.debug = scorerSnapshotDebugView{
+		anomalyAPIDebugView: anomalyAPIDebugView{state: scorerSnapshotStateView{checkLocked: checkLocked}},
+		checkLocked:         checkLocked,
+	}
+
+	recorder := httptest.NewRecorder()
+	NewBenchAPI(tb).handleScores(recorder, httptest.NewRequest(http.MethodGet, "/api/scores", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, 3, checks)
+	require.True(t, tb.mu.TryLock(), "snapshot must release the lock")
+	tb.mu.Unlock()
+}
+
+func TestScoresAPIUsesOriginalScorerHistory(t *testing.T) {
+	anomaly := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Name: "cpu.user"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage},
+		DetectorName: "scanmw",
+		Timestamp:    900,
+	}
+	history := observerimpl.ScorerHistory{
+		Available: true,
+		Buckets: []observerdef.AnomalyScoreBucket{
+			{Second: 1000, Ewma: 0.1},
+			{Second: 1001, Ewma: 0.5},
+			{Second: 1002, Ewma: 0.2},
+		},
+		Events: []severityeventsdef.SeverityEvent{{
+			Timestamp: 1001,
+			FromLevel: severityeventsdef.SeverityLow,
+			ToLevel:   severityeventsdef.SeverityHigh,
+		}},
+		Inputs: []observerimpl.ScorerHistoryInput{{
+			ScoringSecond: 1001,
+			Anomaly:       anomaly,
+		}},
+		Config:       observerimpl.DefaultAnomalyScorerConfig().AnomalyScorerConfig,
+		CooldownSecs: 300,
+	}
+	history.Config.Alpha = 0.2
+	history.Config.HighThreshold = 0.3
+	history.Config.WindowSecs = 27
+	history.Config.DetectorThresholds = map[string][4]float64{"scanmw": {1, 2, 3, 4}}
+	history.CooldownSecs = 17
+	state := anomalyAPIStateView{
+		anomaly: anomaly,
+		scorer:  history,
+	}
+	api := NewBenchAPI(&Bench{debug: anomalyAPIDebugView{state: state}})
+	recorder := httptest.NewRecorder()
+	api.handleScores(recorder, httptest.NewRequest(http.MethodGet, "/api/scores", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var response struct {
+		Available    bool                              `json:"available"`
+		Buckets      []observerdef.AnomalyScoreBucket  `json:"buckets"`
+		Events       []severityeventsdef.SeverityEvent `json:"events"`
+		CooldownSecs int64                             `json:"cooldown_secs"`
+		Config       observerdef.AnomalyScorerConfig   `json:"config"`
+		Inputs       []struct {
+			ScoringSecond int64 `json:"scoringSecond"`
+			Timestamp     int64 `json:"timestamp"`
+		} `json:"inputs"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Available)
+	require.Len(t, response.Buckets, 3)
+	require.Equal(t, int64(1002), response.Buckets[2].Second)
+	require.Len(t, response.Events, 1)
+	require.Equal(t, history.CooldownSecs, response.CooldownSecs)
+	require.Equal(t, history.Config, response.Config)
+	require.Len(t, response.Inputs, 1)
+	require.Equal(t, int64(1001), response.Inputs[0].ScoringSecond)
+	require.Equal(t, int64(900), response.Inputs[0].Timestamp)
 }
 
 func TestAnomalyAPIEndpointsRenderTextAndKeepSourceMetadata(t *testing.T) {

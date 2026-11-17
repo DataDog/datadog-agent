@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fix Cloud Network Monitoring reporting the data sent by an unconnected
+    dual-stack UDP socket to an IPv4 peer, such as a DNS server listening on
+    ``[::]`` replying to IPv4 clients, as a separate IPv6 connection. The sent
+    data now stays on the IPv4 connection, and DNS timeouts for unanswered
+    queries sent from such sockets (for example by musl-based resolvers when
+    both IPv4 and IPv6 nameservers are configured) are no longer dropped for
+    lack of an IPv4 connection. This affected the default (kprobe-based)
+    network tracer.

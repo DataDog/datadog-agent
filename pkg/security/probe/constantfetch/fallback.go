@@ -52,6 +52,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetInodeMtime:                          104,
 		OffsetInodeCtime:                          120,
 		OffsetNameSuperBlockStructSFlags:          80,
+		OffsetNameSignalStructLive:                4,
 		OffsetNameBPFMapStructMapType:             24,
 		OffsetNameBPFProgStructType:               4,
 		OffsetNameBPFProgStructExpectedAttachType: 8,
@@ -101,6 +102,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 	return map[string]func(*kernel.Version) uint64{
 		SizeOfInode:                           getSizeOfStructInode,
 		OffsetNameSuperBlockStructSMagic:      getSuperBlockMagicOffset,
+		OffsetNameSignalStructGroupExitCode:   getSignalGroupExitCodeOffset,
+		OffsetNameSignalStructFlags:           getSignalFlagsOffset,
 		OffsetNameSignalStructStructTTY:       getSignalTTYOffset,
 		OffsetNameTTYStructStructName:         getTTYNameOffset,
 		OffsetNameCredStructUID:               getCredsUIDOffset,
@@ -276,6 +279,17 @@ func getNoHzOffset() uint64 {
 		return 0
 	}
 	return 8
+}
+
+func getSignalGroupExitCodeOffset(kv *kernel.Version) uint64 {
+	if kv.Code != 0 && kv.Code < kernel.Kernel5_1 {
+		return 88
+	}
+	return 96
+}
+
+func getSignalFlagsOffset(kv *kernel.Version) uint64 {
+	return getSignalGroupExitCodeOffset(kv) + 20
 }
 
 func getSignalTTYOffset(kv *kernel.Version) uint64 {

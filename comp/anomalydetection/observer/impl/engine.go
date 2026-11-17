@@ -1660,6 +1660,14 @@ func (e *engine) publishMetricKindTelemetry(t *observerTelemetry) {
 			}
 			for j := range p.registrations {
 				inner := &p.registrations[j]
+				if stable, ok := inner.detector.(*StablePipeline); ok {
+					t.recordGatedDetections(
+						inner.detector.Name(),
+						inner.kind.String(),
+						relativeChangeGateName,
+						stable.drainGatedRejections(),
+					)
+				}
 				inner.timing.publish(t, inner.detector.Name(), inner.kind.String())
 			}
 		} else if registration.timing != nil {
