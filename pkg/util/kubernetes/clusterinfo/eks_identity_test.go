@@ -6,12 +6,14 @@
 package clusterinfo
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func resetStartupIdentity(t *testing.T) {
@@ -314,6 +317,28 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 		}
 	})
 
+	t.Run("auth failures are logged once at Warn", func(t *testing.T) {
+		// A 401 or 403 means the node's token is wrong. Not an error to retry every refresh,
+		// but not silent either.
+		stubEvidence(t, true)
+		authWarned = sync.Once{}
+		t.Cleanup(func() { authWarned = sync.Once{} })
+		var buf bytes.Buffer
+		logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buf, log.WarnLvl)
+		require.NoError(t, err)
+		log.SetupLogger(logger, "warn")
+		t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+		for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnauthorized} {
+			answer(nil, statusErr(code, false))
+			tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+			require.NoError(t, err)
+			assert.Empty(t, tags)
+		}
+		log.Flush()
+		assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
+		assert.Contains(t, buf.String(), "Unauthorized")
+	})
+
 	t.Run("answers that can change are errors, retried on the next refresh", func(t *testing.T) {
 		stubEvidence(t, true)
 		answer(nil, statusErr(http.StatusServiceUnavailable, true))
@@ -341,11 +366,21 @@ func TestIsEKSServiceAccountToken(t *testing.T) {
 	}{
 		{"EKS", writeToken(t, `{"iss":"https://oidc.eks.us-west-2.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE","sub":"system:serviceaccount:datadog:datadog-agent"}`), true},
 		{"EKS in China", writeToken(t, `{"iss":"https://oidc.eks.cn-north-1.amazonaws.com.cn/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in GovCloud", writeToken(t, `{"iss":"https://oidc.eks.us-gov-west-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in iso", writeToken(t, `{"iss":"https://oidc.eks.us-iso-east-1.c2s.ic.gov/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in isob", writeToken(t, `{"iss":"https://oidc.eks.us-isob-east-1.sc2s.sgov.gov/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in isoe", writeToken(t, `{"iss":"https://oidc.eks.eu-isoe-west-1.cloud.adc-e.uk/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in isof", writeToken(t, `{"iss":"https://oidc.eks.us-isof-south-1.csp.hci.ic.gov/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"EKS in eusc", writeToken(t, `{"iss":"https://oidc.eks.eusc-de-east-1.amazonaws.eu/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
 		{"kops or kind", writeToken(t, `{"iss":"https://kubernetes.default.svc.cluster.local"}`), false},
 		{"GKE", writeToken(t, `{"iss":"https://container.googleapis.com/v1/projects/p/locations/us-central1/clusters/c"}`), false},
 		{"AKS", writeToken(t, `{"iss":"https://eastus.oic.prod-aks.azure.com/tenant/uuid/"}`), false},
 		{"legacy token", writeToken(t, `{"iss":"kubernetes/serviceaccount"}`), false},
 		{"lookalike host", writeToken(t, `{"iss":"https://oidc.eks.evil/id/x/y"}`), false},
+		{"lookalike domain", writeToken(t, `{"iss":"https://oidc.eks.evil.attacker.example/id/ABC123"}`), false},
+		{"AWS name as a subdomain", writeToken(t, `{"iss":"https://oidc.eks.x.s3.amazonaws.com.evil.io/id/A"}`), false},
+		{"region with dots", writeToken(t, `{"iss":"https://oidc.eks.us-west-2.evil.amazonaws.com/id/A"}`), false},
+		{"trailing slash", writeToken(t, `{"iss":"https://oidc.eks.us-west-2.amazonaws.com/id/A/"}`), false},
 		{"no token", filepath.Join(t.TempDir(), "missing"), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -356,6 +391,13 @@ func TestIsEKSServiceAccountToken(t *testing.T) {
 	garbage := filepath.Join(t.TempDir(), "garbage")
 	require.NoError(t, os.WriteFile(garbage, []byte("not a token"), 0o600))
 	assert.False(t, isEKSServiceAccountToken(garbage))
+
+	// A file over the read limit is not a token, even with an EKS issuer at the start.
+	big := filepath.Join(t.TempDir(), "big")
+	valid, err := os.ReadFile(writeToken(t, `{"iss":"https://oidc.eks.us-west-2.amazonaws.com/id/EXAMPLE"}`))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(big, append(valid, bytes.Repeat([]byte(" "), maxServiceAccountTokenSize)...), 0o600))
+	assert.False(t, isEKSServiceAccountToken(big))
 }
 
 func TestHasEKSEvidence(t *testing.T) {

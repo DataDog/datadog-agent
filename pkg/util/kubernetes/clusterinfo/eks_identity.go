@@ -10,6 +10,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
 	"os"
 	"regexp"
 	"slices"
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cenkalti/backoff/v7"
 )
 
@@ -69,11 +72,17 @@ const serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/t
 
 // eksIssuerPattern matches the service account issuer EKS sets for every cluster, its OIDC
 // provider URL, for example https://oidc.eks.us-west-2.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE.
-var eksIssuerPattern = regexp.MustCompile(`^https://oidc\.eks\.[a-z0-9-]+\.[a-z0-9.-]+/id/[A-Za-z0-9]+$`)
+// The host is anchored to the DNS suffixes of the AWS partitions: commercial and GovCloud, China,
+// the ISO partitions and the European Sovereign Cloud.
+var eksIssuerPattern = regexp.MustCompile(`^https://oidc\.eks\.[a-z0-9-]+\.(amazonaws\.com|amazonaws\.com\.cn|amazonaws\.eu|c2s\.ic\.gov|sc2s\.sgov\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)/id/[A-Za-z0-9]+$`)
 
-// hasEKSEvidence reports whether this node or sidecar positively runs on EKS, from local data
-// only. It makes no network call, so it costs nothing at startup on other clusters. Variable for
-// tests.
+// maxServiceAccountTokenSize bounds the token read.
+const maxServiceAccountTokenSize = 64 << 10
+
+// hasEKSEvidence reports whether local data hints that this node or sidecar runs on EKS. It
+// makes no network call, so it costs nothing at startup on other clusters. It is a hint, not a
+// proof: it only decides whether startup waits for the Cluster Agent, which checks the cluster
+// itself. Variable for tests.
 var hasEKSEvidence = func() bool {
 	// An EKS Fargate sidecar is on EKS by definition.
 	if env.IsFeaturePresent(env.EKSFargate) {
@@ -98,8 +107,14 @@ var serviceAccountTokenIsEKS = sync.OnceValue(func() bool {
 
 func isEKSServiceAccountToken(path string) bool {
 	// #nosec G304 -- only called with serviceAccountTokenPath (or a test path)
-	token, err := os.ReadFile(path) //nolint:gosec // G304, see above
+	f, err := os.Open(path) //nolint:gosec // G304, see above
 	if err != nil {
+		return false
+	}
+	defer f.Close()
+	// A projected token is about 1 KiB. Anything at the limit is not one.
+	token, err := io.ReadAll(io.LimitReader(f, maxServiceAccountTokenSize))
+	if err != nil || len(token) == maxServiceAccountTokenSize {
 		return false
 	}
 	parts := strings.Split(strings.TrimSpace(string(token)), ".")
@@ -119,10 +134,10 @@ func isEKSServiceAccountToken(path string) bool {
 	return eksIssuerPattern.MatchString(claims.Issuer)
 }
 
-// HasEKSEvidence reports whether local data, with no network call, shows that this node or
+// HasEKSEvidence reports whether local data, with no network call, hints that this node or
 // sidecar runs on EKS: an EKS Fargate sidecar, a kube distribution already resolved as eks, or a
-// service account token issued by an EKS cluster. Startup waits for the Cluster Agent's EKS
-// identity only when it does.
+// service account token whose issuer is an EKS OIDC provider. Startup waits for the Cluster
+// Agent's EKS identity only when it does.
 func HasEKSEvidence() bool {
 	return hasEKSEvidence()
 }
@@ -130,8 +145,10 @@ func HasEKSEvidence() bool {
 // GetClusterAgentEKSIdentityHostTags is GetClusterAgentEKSIdentityTags for the host-tags
 // provider. It refreshes on its own interval, so answers that will not change are an empty
 // success rather than an error that is logged on every refresh: a node without EKS evidence,
-// a 404 from a Cluster Agent that is not on EKS or too old to serve identity, and a final 503
-// (for example a missing eks:DescribeCluster permission, which the Cluster Agent logs itself).
+// and any answer that cannot change soon, a 404 from a Cluster Agent that is not on EKS or too
+// old to serve identity, or a final 503 (for example a missing eks:DescribeCluster permission,
+// which the Cluster Agent logs itself). A 401 or 403 is the node's own token failing: also final,
+// but logged once at Warn so the failure is visible.
 func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
 	if !hasEKSEvidence() {
 		return nil, nil
@@ -139,10 +156,18 @@ func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
 	tags, err := GetClusterAgentEKSIdentityTags(ctx)
 	var statusErr *clusteragent.StatusError
 	if errors.As(err, &statusErr) && !statusErr.RetryLater {
+		if statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden {
+			authWarned.Do(func() {
+				log.Warnf("The Cluster Agent refused the EKS identity request, eks_cluster_arn will be missing from host tags: %v", err)
+			})
+		}
 		return nil, nil
 	}
 	return tags, err
 }
+
+// authWarned makes the host-tags provider log a refused identity request once per process.
+var authWarned sync.Once
 
 // GetClusterAgentEKSIdentityTags returns authoritative EKS identity as low-cardinality tags.
 func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
