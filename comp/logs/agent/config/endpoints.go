@@ -35,9 +35,9 @@ type IntakeOrigin string
 
 const (
 	_ EPIntakeVersion = iota
-	// EPIntakeVersion1 is version 1 of the envets platform intake API
+	// EPIntakeVersion1 is version 1 of the events platform intake API
 	EPIntakeVersion1
-	// EPIntakeVersion2 is version 2 of the envets platform intake API
+	// EPIntakeVersion2 is version 2 of the events platform intake API
 	EPIntakeVersion2
 )
 
