@@ -1,0 +1,17 @@
+description: cd with an empty-string operand is a no-op (matches bash 5.2).
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    saved=$(pwd)
+    cd ""
+    if [ "$(pwd)" = "$saved" ]; then echo unchanged; else echo "moved: $(pwd)"; fi
+expect:
+  stdout: |+
+    unchanged
+  stderr: ""
+  exit_code: 0

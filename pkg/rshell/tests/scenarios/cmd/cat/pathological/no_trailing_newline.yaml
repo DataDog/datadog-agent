@@ -1,0 +1,14 @@
+description: cat passes through a file with no trailing newline verbatim, without adding a newline.
+setup:
+  files:
+    - path: file.txt
+      content: "no newline at end"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt
+expect:
+  stdout: "no newline at end"
+  stderr: ""
+  exit_code: 0

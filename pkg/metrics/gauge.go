@@ -36,3 +36,7 @@ func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 func (g *Gauge) isStateful() bool {
 	return false
 }
+
+func (g *Gauge) metricType() MetricType {
+	return GaugeType
+}

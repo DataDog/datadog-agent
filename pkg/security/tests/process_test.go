@@ -310,7 +310,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al", "--password", "secret", "--custom", "secret", "gh-1234567890"}
+		args := []string{"--password", "secret", "-al", "--custom", "secret", "gh-1234567890", "-H", "DD-API-KEY: headersecret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("ls", args, envs)

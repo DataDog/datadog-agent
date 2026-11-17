@@ -388,6 +388,7 @@ async fn cmd_describe(
             "after": detail.after,
             "before": detail.before,
             "skip_reasons": detail.skip_reasons,
+            "exit_with_supervisor": detail.exit_with_supervisor,
             "runtime_user": detail.runtime_user,
             "config_error": detail.config_error,
         });
@@ -430,6 +431,9 @@ async fn cmd_describe(
         println!("Last Exit:           {}", exit_str);
     }
     println!("Auto Start:          {}", detail.auto_start);
+    if detail.exit_with_supervisor {
+        println!("Exit w/ Supervisor:  true");
+    }
     println!("Stdout:              {}", detail.stdout);
     println!("Stderr:              {}", detail.stderr);
     if !detail.condition_path_exists.is_empty() {

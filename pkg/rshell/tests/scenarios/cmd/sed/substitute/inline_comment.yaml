@@ -1,0 +1,8 @@
+description: "Inline # comment after s/// flags is treated as comment (GNU sed compat)."
+input:
+  script: |+
+    echo hello | sed 's/hello/world/# this is a comment'
+expect:
+  stdout: "world\n"
+  stderr: ""
+  exit_code: 0

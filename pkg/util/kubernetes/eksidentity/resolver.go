@@ -22,9 +22,8 @@ import (
 // clusterNameRetryTTL bounds how often cluster name discovery is retried when the
 // EC2 kubernetes.io/cluster/<name> tag was not available. Both a missing name and a
 // configured-name fallback are cached with this TTL so a transient EC2 tag failure at
-// startup cannot pin the wrong name for the lifetime of the Cluster Agent. Variable so
-// tests can exercise expiry without sleeping.
-var clusterNameRetryTTL = 5 * time.Minute
+// startup cannot pin the wrong name for the lifetime of the Cluster Agent.
+const clusterNameRetryTTL = 5 * time.Minute
 
 // ErrNotEKS indicates the Cluster Agent is not running on an EKS cluster.
 var ErrNotEKS = errors.New("cluster is not EKS")

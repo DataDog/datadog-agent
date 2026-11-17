@@ -186,9 +186,9 @@ type workloadProfileAnomaly struct {
 var sentinelCounter atomic.Uint64
 
 // runUntilSentinel runs action, then executes a sentinel command in the container and returns once the sentinel
-// exec event has been dispatched. Events are dispatched in order and the workload profile manager processes each
-// event, and sends the anomaly it triggers, before the event reaches the probe event handlers: once the sentinel
-// is seen, every event of the action and every anomaly it triggered has already been delivered.
+// exec event reaches the probe event handlers. Events are dispatched sequentially, so once the sentinel is seen,
+// every event of the action (along with its workload profile processing and any anomaly it triggered) has already
+// been processed.
 // onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
 func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
 	t.Helper()
@@ -226,10 +226,17 @@ func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdW
 // collectAnomalies runs action in the container and returns the anomaly detection events it triggered
 func collectAnomalies(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) []workloadProfileAnomaly {
 	t.Helper()
+	anomalies, _ := collectAnomaliesAndRuleEvents(t, test, action, dockerInstance)
+	return anomalies
+}
+
+func collectAnomaliesAndRuleEvents(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) ([]workloadProfileAnomaly, []string) {
+	t.Helper()
 
 	var (
 		lock      sync.Mutex
 		anomalies []workloadProfileAnomaly
+		ruleIDs   []string
 	)
 	test.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
 		if rule.ID != events.AnomalyDetectionRuleID {
@@ -246,11 +253,18 @@ func collectAnomalies(t *testing.T, test *testModule, action func() error, docke
 	})
 	defer test.RegisterCustomSendEventHandler(nil)
 
+	test.RegisterSendEventHandler(func(rule *rules.Rule, _ *model.Event) {
+		lock.Lock()
+		ruleIDs = append(ruleIDs, rule.ID)
+		lock.Unlock()
+	})
+	defer test.RegisterSendEventHandler(nil)
+
 	runUntilSentinel(t, test, dockerInstance, action, nil)
 
 	lock.Lock()
 	defer lock.Unlock()
-	return append([]workloadProfileAnomaly(nil), anomalies...)
+	return append([]workloadProfileAnomaly(nil), anomalies...), append([]string(nil), ruleIDs...)
 }
 
 // workloadProfileEventType describes how to produce, in a container, an activity of a given event type, and how to
@@ -264,7 +278,9 @@ type workloadProfileEventType struct {
 	// trigger produces the activity of the variant in the container
 	trigger func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string)
 	// hasNode returns true if the profile contains the entry of the variant
-	hasNode func(p *profile.Profile, variant string) bool
+	hasNode        func(p *profile.Profile, variant string) bool
+	hasMatchedRule func(p *profile.Profile, variant string, ruleID string) bool
+	ruleExpression func(variant string) string
 	// matchAnomaly returns true if the anomaly was triggered by the activity of the variant
 	matchAnomaly func(anomaly workloadProfileAnomaly, variant string) bool
 }
@@ -339,8 +355,14 @@ func workloadProfileEventTypes() []workloadProfileEventType {
 			hasNode: func(p *profile.Profile, variant string) bool {
 				return profileHasFile(p, "wp-open-"+variant)
 			},
+			hasMatchedRule: func(p *profile.Profile, variant string, ruleID string) bool {
+				return profileFileHasMatchedRule(p, "wp-open-"+variant, ruleID)
+			},
+			ruleExpression: func(variant string) string {
+				return fmt.Sprintf(`open.file.path == "/tmp/wp-open-%s"`, variant)
+			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
-				return strings.Contains(anomaly.json, "wp-open-"+variant+`"`)
+				return strings.Contains(anomaly.json, `"wp-open-`+variant+`"`)
 			},
 		},
 		{
@@ -352,8 +374,14 @@ func workloadProfileEventTypes() []workloadProfileEventType {
 			hasNode: func(p *profile.Profile, variant string) bool {
 				return profileHasProcess(p, "wp-exec-"+variant)
 			},
+			hasMatchedRule: func(p *profile.Profile, variant string, ruleID string) bool {
+				return profileProcessHasMatchedRule(p, "wp-exec-"+variant, ruleID)
+			},
+			ruleExpression: func(variant string) string {
+				return fmt.Sprintf(`exec.file.name == "wp-exec-%s"`, variant)
+			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
-				return strings.Contains(anomaly.json, "wp-exec-"+variant+`"`)
+				return strings.Contains(anomaly.json, `"wp-exec-`+variant+`"`)
 			},
 		},
 		{
@@ -369,6 +397,12 @@ func workloadProfileEventTypes() []workloadProfileEventType {
 			hasNode: func(p *profile.Profile, variant string) bool {
 				return profileHasDNS(p, workloadProfileDNSDomains[variant])
 			},
+			hasMatchedRule: func(p *profile.Profile, variant string, ruleID string) bool {
+				return profileDNSHasMatchedRule(p, workloadProfileDNSDomains[variant], ruleID)
+			},
+			ruleExpression: func(variant string) string {
+				return fmt.Sprintf(`dns.question.name == "%s"`, workloadProfileDNSDomains[variant])
+			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
 				return strings.Contains(anomaly.json, `"`+workloadProfileDNSDomains[variant]+`"`)
 			},
@@ -381,6 +415,12 @@ func workloadProfileEventTypes() []workloadProfileEventType {
 			},
 			hasNode: func(p *profile.Profile, variant string) bool {
 				return profileHasSocket(p, uint16(workloadProfilePorts[variant]), true)
+			},
+			hasMatchedRule: func(p *profile.Profile, variant string, ruleID string) bool {
+				return profileSocketHasMatchedRule(p, uint16(workloadProfilePorts[variant]), true, ruleID)
+			},
+			ruleExpression: func(variant string) string {
+				return fmt.Sprintf(`bind.addr.port == %d`, workloadProfilePorts[variant])
 			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
 				return strings.Contains(anomaly.json, fmt.Sprintf(`"port":%d`, workloadProfilePorts[variant]))
@@ -395,6 +435,12 @@ func workloadProfileEventTypes() []workloadProfileEventType {
 			},
 			hasNode: func(p *profile.Profile, variant string) bool {
 				return profileHasSocket(p, uint16(workloadProfilePorts[variant]), false)
+			},
+			hasMatchedRule: func(p *profile.Profile, variant string, ruleID string) bool {
+				return profileSocketHasMatchedRule(p, uint16(workloadProfilePorts[variant]), false, ruleID)
+			},
+			ruleExpression: func(variant string) string {
+				return fmt.Sprintf(`connect.addr.port == %d`, workloadProfilePorts[variant])
 			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, variant string) bool {
 				return strings.Contains(anomaly.json, fmt.Sprintf(`"port":%d`, workloadProfilePorts[variant]))
@@ -448,6 +494,48 @@ func profileHasFileOpenedBy(p *profile.Profile, argv0 string, basename string) b
 	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
 		return node.Process.Argv0 == argv0 && hasFile(node.Files)
 	})) > 0
+}
+
+// profileDirChildren returns the file nodes below the directory dir, in the first process node of the profile that
+// holds files in it
+func profileDirChildren(p *profile.Profile, dir string) map[string]*activity_tree.FileNode {
+	components := strings.Split(strings.Trim(dir, "/"), "/")
+	for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+		children := node.Files
+		for _, component := range components {
+			file, ok := children[component]
+			if !ok {
+				children = nil
+				break
+			}
+			children = file.Children
+		}
+		if len(children) > 0 {
+			return children
+		}
+	}
+	return nil
+}
+
+// profileSyscallSeenTimes returns the seen timestamps of a syscall node, for the image tag, under the process node of argv0
+func profileSyscallSeenTimes(p *profile.Profile, argv0 string, syscall model.Syscall, imageTag string) (firstSeen time.Time, lastSeen time.Time, found bool) {
+	imageTagID := p.ActivityTree.GetImageTagID(imageTag)
+	if imageTagID == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+
+	for _, node := range walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return node.Process.Argv0 == argv0
+	}) {
+		syscallNode, ok := node.Syscalls[int(syscall)]
+		if !ok {
+			continue
+		}
+		if first, last, ok := syscallNode.GetSeenTimes(imageTagID); ok {
+			return time.Unix(0, first), time.Unix(0, last), true
+		}
+	}
+	return time.Time{}, time.Time{}, false
 }
 
 // profileFileSeenTimes returns the seen timestamps of a file node, for the image tag, under the process node of execBasename
@@ -515,6 +603,127 @@ func profileHasSocket(p *profile.Profile, port uint16, bind bool) bool {
 		}
 		return false
 	})) > 0
+}
+
+func matchedRulesContain(rules []*model.MatchedRule, ruleID string) bool {
+	return slices.ContainsFunc(rules, func(r *model.MatchedRule) bool {
+		return r.RuleID == ruleID
+	})
+}
+
+func profileProcessHasMatchedRule(p *profile.Profile, basename string, ruleID string) bool {
+	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return filepath.Base(node.Process.FileEvent.PathnameStr) == basename && matchedRulesContain(node.MatchedRules, ruleID)
+	})) > 0
+}
+
+func profileFileHasMatchedRule(p *profile.Profile, basename string, ruleID string) bool {
+	var checkFiles func(files map[string]*activity_tree.FileNode) bool
+	checkFiles = func(files map[string]*activity_tree.FileNode) bool {
+		for name, file := range files {
+			if (name == basename && matchedRulesContain(file.MatchedRules, ruleID)) || checkFiles(file.Children) {
+				return true
+			}
+		}
+		return false
+	}
+	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		return checkFiles(node.Files)
+	})) > 0
+}
+
+func profileDNSHasMatchedRule(p *profile.Profile, domain string, ruleID string) bool {
+	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		dnsNode, ok := node.DNSNames[domain]
+		return ok && matchedRulesContain(dnsNode.MatchedRules, ruleID)
+	})) > 0
+}
+
+func profileSocketHasMatchedRule(p *profile.Profile, port uint16, bind bool, ruleID string) bool {
+	return len(walkProfileProcesses(p, func(node *activity_tree.ProcessNode) bool {
+		for _, sock := range node.Sockets {
+			if sock.Family != "AF_INET" {
+				continue
+			}
+			if bind {
+				for _, b := range sock.Bind {
+					if b.Port == port && matchedRulesContain(b.MatchedRules, ruleID) {
+						return true
+					}
+				}
+				continue
+			}
+			for _, c := range sock.Connect {
+				if c.Port == port && matchedRulesContain(c.MatchedRules, ruleID) {
+					return true
+				}
+			}
+		}
+		return false
+	})) > 0
+}
+
+func anomalyMatchedRuleIDs(t *testing.T, anomaly workloadProfileAnomaly) []string {
+	t.Helper()
+	var payload struct {
+		Evt struct {
+			MatchedRules []struct {
+				ID string `json:"id"`
+			} `json:"matched_rules"`
+		} `json:"evt"`
+	}
+	if err := json.Unmarshal([]byte(anomaly.json), &payload); err != nil {
+		t.Fatalf("couldn't unmarshal the anomaly detection event: %v", err)
+	}
+	var ids []string
+	for _, r := range payload.Evt.MatchedRules {
+		ids = append(ids, r.ID)
+	}
+	return ids
+}
+
+// profileSyscalls holds the syscalls of the process nodes of a profile, by argv0
+type profileSyscalls map[string]map[int]bool
+
+// expect returns an error unless the process node of argv0 holds all the syscalls
+func (ps profileSyscalls) expect(argv0 string, syscalls ...model.Syscall) error {
+	got, ok := ps[argv0]
+	if !ok {
+		return fmt.Errorf("no process node for %s", argv0)
+	}
+	for _, s := range syscalls {
+		if !got[int(s)] {
+			return fmt.Errorf("%s missing from the syscalls of %s", s, argv0)
+		}
+	}
+	return nil
+}
+
+// expectProfileSyscalls waits until check accepts the syscalls of the profile of the selector
+func expectProfileSyscalls(t *testing.T, test *testModule, selector cgroupModel.WorkloadSelector, check func(profileSyscalls) error) {
+	t.Helper()
+	var checkErr error
+	_, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		syscalls := make(profileSyscalls)
+		for _, node := range walkProfileProcesses(p, func(*activity_tree.ProcessNode) bool { return true }) {
+			ids := syscalls[node.Process.Argv0]
+			if ids == nil {
+				ids = make(map[int]bool)
+				syscalls[node.Process.Argv0] = ids
+			}
+			for id := range node.Syscalls {
+				ids[id] = true
+			}
+		}
+		checkErr = check(syscalls)
+		return checkErr == nil
+	})
+	if err != nil {
+		if checkErr != nil {
+			err = checkErr
+		}
+		t.Error(err)
+	}
 }
 
 // workloadProfileEventTypeByName returns the event type of workloadProfileEventTypes with the provided name

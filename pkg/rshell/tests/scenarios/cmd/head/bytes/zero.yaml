@@ -1,0 +1,13 @@
+description: head -c 0 produces no output.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -c 0 file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

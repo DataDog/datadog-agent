@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
-	"go.uber.org/atomic"
 )
 
 var timeNow = time.Now
@@ -181,6 +182,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if flowToAdd.AdditionalFields != nil {
 		if aggFlow.flow.AdditionalFields == nil {
 			aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
+		}
+		if aggFlow.flow.ApplicationName == "" {
+			aggFlow.flow.ApplicationName = flowToAdd.ApplicationName
 		}
 
 		for field, value := range flowToAdd.AdditionalFields {

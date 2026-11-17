@@ -20,6 +20,7 @@ go_library(
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/containers/image",
+        "//pkg/util/kubernetes",
         "//pkg/util/scrubber",
         "@cat_dario_mergo//:mergo",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",

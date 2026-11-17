@@ -172,9 +172,22 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
+// UnmarshalBinary unmarshals the file_capabilities_t representation.
+func (e *FileCapabilities) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < FileCapabilitiesSize {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Permitted = binary.NativeEndian.Uint64(data[0:8])
+	e.Inheritable = binary.NativeEndian.Uint64(data[8:16])
+	e.Effective = binary.NativeEndian.Uint32(data[16:20]) == 1
+	e.Available = binary.NativeEndian.Uint32(data[20:24]) == 1
+	return FileCapabilitiesSize, nil
+}
+
 // UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
-	const size = 160
+	const size = ProcessEntrySize
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -205,6 +218,12 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += 16
+
+	n, err := e.FileCapabilities.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
 
 	return validateReadSize(size, read)
 }
@@ -246,7 +265,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = ProcessEntrySize + PidCacheEntrySize + PathKeySize + 28 // process_event_t starting at process_entry_t
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -1430,18 +1449,11 @@ func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 88 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
-
-	if e.EventReason == SampleReason {
-		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
-		// data[76:80] is C struct padding to 8-align the u64 sample_cookie
-		e.SampleCookie = binary.NativeEndian.Uint64(data[80:88])
-		return 88, nil
-	}
 
 	for i, b := range data[8:72] {
 		// compute the ID of the syscall
@@ -1451,7 +1463,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 88, nil
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1673,6 +1685,50 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
 
 	return read + 24, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SetNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.NSType = int(int32(binary.NativeEndian.Uint32(data[read : read+4])))
+	read += 4
+
+	n, err := e.Previous.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
+
+	n, err = e.NamespaceIDs.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	return read + n, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (n *NamespaceIDs) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 32 {
+		return 0, ErrNotEnoughData
+	}
+
+	n.MntNS = binary.NativeEndian.Uint32(data[0:4])
+	n.NetNS = binary.NativeEndian.Uint32(data[4:8])
+	n.PIDNS = binary.NativeEndian.Uint32(data[8:12])
+	n.UserNS = binary.NativeEndian.Uint32(data[12:16])
+	n.UTSNS = binary.NativeEndian.Uint32(data[16:20])
+	n.IPCNS = binary.NativeEndian.Uint32(data[20:24])
+	n.CgroupNS = binary.NativeEndian.Uint32(data[24:28])
+	n.TimeNS = binary.NativeEndian.Uint32(data[28:32])
+
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

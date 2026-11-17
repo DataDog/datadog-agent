@@ -4,7 +4,7 @@
 #include "helpers/rate_limiter.h"
 #include "baloum.h"
 
-// default value of event_sampling.{open,connect,syscalls}.rate
+// default value of event_sampling.{open,connect,bind}.rate
 #define WORKLOAD_PROFILE_RL_TEST_RATE 500
 #define WORKLOAD_PROFILE_RL_TEST_PERIODS 5
 
@@ -34,13 +34,13 @@ static __attribute__((always_inline)) int check_workload_profile_limiter(u32 key
 
 SEC("test/workload_profile_ratelimiter")
 int test_workload_profile_ratelimiter() {
-    if (check_workload_profile_limiter(OPEN_SAMPLE_LIMITER, CONNECT_SAMPLE_LIMITER, SYSCALLS_SAMPLE_LIMITER) != 0) {
+    if (check_workload_profile_limiter(OPEN_SAMPLE_LIMITER, CONNECT_SAMPLE_LIMITER, BIND_SAMPLE_LIMITER) != 0) {
         return -1;
     }
-    if (check_workload_profile_limiter(CONNECT_SAMPLE_LIMITER, OPEN_SAMPLE_LIMITER, SYSCALLS_SAMPLE_LIMITER) != 0) {
+    if (check_workload_profile_limiter(CONNECT_SAMPLE_LIMITER, OPEN_SAMPLE_LIMITER, BIND_SAMPLE_LIMITER) != 0) {
         return -1;
     }
-    if (check_workload_profile_limiter(SYSCALLS_SAMPLE_LIMITER, OPEN_SAMPLE_LIMITER, CONNECT_SAMPLE_LIMITER) != 0) {
+    if (check_workload_profile_limiter(BIND_SAMPLE_LIMITER, OPEN_SAMPLE_LIMITER, CONNECT_SAMPLE_LIMITER) != 0) {
         return -1;
     }
     return 1;

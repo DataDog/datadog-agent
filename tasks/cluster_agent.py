@@ -16,6 +16,7 @@ from tasks import doc, secret_generic_connector
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
+from tasks.flavor import FipsBackend
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.dependencies import get_effective_dependencies_env
 
@@ -37,6 +38,7 @@ def build(
     policies_version=None,
     force_policies_clone=True,
     enable_bazel=False,
+    fips_backend=FipsBackend.none,
 ):
     """
     Build Cluster Agent
@@ -49,6 +51,8 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
 
     build_common(
         ctx,
@@ -63,6 +67,7 @@ def build(
         skip_assets,
         cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         enable_bazel=enable_bazel,
+        fips_backend=fips_backend,
     )
 
     if policies_version is None:
@@ -81,9 +86,7 @@ def build(
         print(f"Reusing existing security-agent-policies at {policies_path}")
 
     # Build secret-generic-connector so it is shipped with the cluster agent.
-    # Use same flavor as cluster-agent: FIPS when GOEXPERIMENT=boringcrypto (CI FIPS jobs).
-    sgc_fips = os.environ.get("GOEXPERIMENT") == "boringcrypto"
-    secret_generic_connector.build(ctx, fips_mode=sgc_fips)
+    secret_generic_connector.build(ctx, fips_backend=fips_backend)
 
 
 @task

@@ -6,6 +6,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // discoveryKey is the config key guarding discovery service map mode.
@@ -281,7 +283,7 @@ func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")
 
-	cfg, err := New("", "")
+	cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
-	assert.True(t, cfg.ModuleIsEnabled(NetworkTracerModule))
+	assert.True(t, cfg.ModuleIsEnabled(types.NetworkTracerModule))
 }

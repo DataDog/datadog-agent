@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    When the Agent scans a host from its container, the ``OpenSCAP``
+    rpmverifypackage probe checks the dependencies of each package, where
+    it reported every package's dependencies as satisfied.
+  - |
+    When the Agent scans a host from its container, the ``OpenSCAP`` probes
+    that enter the host's root check their memory use against the Agent's
+    own memory and cgroup limit, where they read the host's.

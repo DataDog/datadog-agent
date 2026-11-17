@@ -9,7 +9,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata"])
 
-VERSION = "4.18.1"
+VERSION = "4.20.1"
 
 package_metadata(
     name = "package_metadata",
@@ -17,7 +17,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-{version}-release.tar.gz",
+        download_url = "https://github.com/rpm-software-management/rpm/releases/download/rpm-{version}-release/rpm-{version}.tar.bz2",
         package = "rpm",
         version = VERSION,
     ),
@@ -45,35 +45,68 @@ cc_library(
     hdrs = [
         ":copy_config_h",
     ],
+    includes = ["."],
 )
 
 FAKE_PREFIX = "/opt/datadog-agent/embedded"
 
 COMMON_DEFINES = [
     "HAVE_CONFIG_H",
-    'LOCALSTATEDIR=\\"/var\\"',
+    "_FILE_OFFSET_BITS=64",
+    "_GNU_SOURCE",
 ]
 
-PUBLIC_HEADERS = glob(["include/rpm/*.h"])
+cc_library(
+    name = "headers",
+    hdrs = glob(["include/rpm/*.h"]),
+    includes = ["include"],
+)
 
-COMMON_HEADERS = [
-    "system.h",
-    "debug.h",
-] + PUBLIC_HEADERS
+genrule(
+    name = "tagtbl_inc",
+    srcs = [
+        "include/rpm/rpmtag.h",
+    ],
+    outs = ["lib/tagtbl.inc"],
+    cmd = "AWK=$(execpath @gawk) $(execpath lib/gentagtbl.sh) $(execpath include/rpm/rpmtag.h) > $@",
+    tools = [
+        "lib/gentagtbl.sh",
+        "@gawk",
+    ],
+)
+
+# The headers CMake puts on the private include path of the libraries.
+cc_library(
+    name = "private_headers",
+    hdrs = glob([
+        "lib/*.h",
+        "lib/backend/*.h",
+        "misc/*.h",
+        "rpmio/*.h",
+    ]) + [":tagtbl_inc"],
+    includes = [
+        "lib",
+        "misc",
+        "rpmio",
+    ],
+    textual_hdrs = [
+        "misc/rpmhash.C",
+        "misc/rpmhash.H",
+        "rpmio/modemuncher.c",
+    ],
+)
 
 cc_library(
-    name = "misc",
-    srcs = [
-        "misc/fnmatch.c",
-        "misc/fnmatch.h",
-        "misc/fts.c",
-        "misc/rpmfts.h",
-    ] + COMMON_HEADERS,
+    name = "rpmpgp_legacy",
+    srcs = ["@libpgpr//:rpm_intree_srcs"],
     implementation_deps = [
         ":config_h",
+        ":headers",
+        ":private_headers",
+        "@openssl",
     ],
-    includes = ["include"],
-    local_defines = COMMON_DEFINES,
+    local_defines = COMMON_DEFINES + ["PGPR_RPM_INTREE"],
+    alwayslink = True,
 )
 
 cc_library(
@@ -85,25 +118,17 @@ cc_library(
         "rpmio/digest_openssl.c",
         "rpmio/expression.c",
         "rpmio/lposix.c",
-        "rpmio/lposix.h",
         "rpmio/macro.c",
         "rpmio/rgetopt.c",
         "rpmio/rpmfileutil.c",
         "rpmio/rpmglob.c",
         "rpmio/rpmhook.c",
-        "rpmio/rpmhook.h",
         "rpmio/rpmio.c",
-        "rpmio/rpmio_internal.h",
         "rpmio/rpmkeyring.c",
         "rpmio/rpmlog.c",
         "rpmio/rpmlua.c",
-        "rpmio/rpmlua.h",
-        "rpmio/rpmmacro_internal.h",
         "rpmio/rpmmalloc.c",
         "rpmio/rpmpgp.c",
-        "rpmio/rpmpgp_internal.c",
-        "rpmio/rpmpgp_internal.h",
-        "rpmio/rpmpgpval.h",
         "rpmio/rpmsq.c",
         "rpmio/rpmstring.c",
         "rpmio/rpmstrpool.c",
@@ -111,23 +136,18 @@ cc_library(
         "rpmio/rpmver.c",
         "rpmio/rpmvercmp.c",
         "rpmio/url.c",
-    ] + COMMON_HEADERS,
+    ],
     implementation_deps = [
         ":config_h",
-    ],
-    includes = [
-        ".",
-        "include",
+        ":private_headers",
     ],
     local_defines = COMMON_DEFINES + [
-        'RPMCONFIGDIR=\\"{}/lib/rpm\\"'.format(FAKE_PREFIX),
-    ],
-    textual_hdrs = [
-        "rpmio/modemuncher.c",
+        'RPM_CONFIGDIR=\\"{}/lib/rpm\\"'.format(FAKE_PREFIX),
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":misc",
+        ":headers",
+        ":rpmpgp_legacy",
         "@bzip2//:libbz2",
         "@lua//:liblua",
         "@openssl",
@@ -156,44 +176,23 @@ cc_shared_library(
     deps = [":librpmio"],
 )
 
-genrule(
-    name = "tagtbl_c",
-    srcs = [
-        "include/rpm/rpmtag.h",
-    ],
-    outs = ["lib/tagtbl.C"],
-    cmd = "AWK=$(execpath @gawk) $(execpath lib/gentagtbl.sh) $(execpath include/rpm/rpmtag.h) > $@",
-    tools = [
-        "lib/gentagtbl.sh",
-        "@gawk",
-    ],
-)
-
 cc_library(
     name = "librpm",
     srcs = [
         "lib/backend/bdb_ro.c",
         "lib/backend/dbi.c",
-        "lib/backend/dbi.h",
         "lib/backend/dbiset.c",
-        "lib/backend/dbiset.h",
         "lib/backend/dummydb.c",
         "lib/backend/sqlite.c",
         "lib/cpio.c",
-        "lib/cpio.h",
         "lib/depends.c",
         "lib/formats.c",
         "lib/fprint.c",
-        "lib/fprint.h",
         "lib/fsm.c",
-        "lib/fsm.h",
         "lib/header.c",
-        "lib/header_internal.h",
         "lib/headerfmt.c",
         "lib/headerutil.c",
         "lib/manifest.c",
-        "lib/manifest.h",
-        "lib/misc.h",
         "lib/order.c",
         "lib/package.c",
         "lib/poptALL.c",
@@ -203,65 +202,42 @@ cc_library(
         "lib/query.c",
         "lib/relocation.c",
         "lib/rpmal.c",
-        "lib/rpmal.h",
         "lib/rpmchecksig.c",
         "lib/rpmchroot.c",
-        "lib/rpmchroot.h",
         "lib/rpmdb.c",
-        "lib/rpmdb_internal.h",
         "lib/rpmds.c",
-        "lib/rpmds_internal.h",
         "lib/rpmfi.c",
-        "lib/rpmfi_internal.h",
         "lib/rpmfs.c",
-        "lib/rpmfs.h",
         "lib/rpmgi.c",
-        "lib/rpmgi.h",
         "lib/rpminstall.c",
         "lib/rpmlead.c",
-        "lib/rpmlead.h",
         "lib/rpmlock.c",
-        "lib/rpmlock.h",
-        "lib/rpmplugin.h",
         "lib/rpmplugins.c",
-        "lib/rpmplugins.h",
         "lib/rpmprob.c",
         "lib/rpmps.c",
         "lib/rpmrc.c",
         "lib/rpmscript.c",
-        "lib/rpmscript.h",
         "lib/rpmtd.c",
         "lib/rpmte.c",
-        "lib/rpmte_internal.h",
         "lib/rpmtriggers.c",
-        "lib/rpmtriggers.h",
         "lib/rpmts.c",
-        "lib/rpmts_internal.h",
         "lib/rpmug.c",
-        "lib/rpmug.h",
         "lib/rpmvs.c",
-        "lib/rpmvs.h",
         "lib/signature.c",
-        "lib/signature.h",
         "lib/tagexts.c",
         "lib/tagname.c",
         "lib/transaction.c",
         "lib/verify.c",
-    ] + COMMON_HEADERS,
-    hdrs = PUBLIC_HEADERS,
+    ],
     implementation_deps = [
         ":config_h",
+        ":private_headers",
     ],
-    includes = ["."],
     local_defines = COMMON_DEFINES + [
-        'LIBRPMALIAS_FILENAME=\\"rpmopt-{}\\"'.format(VERSION),
+        'LIBRPMALIAS_FILENAME=\\"rpmpopt-{}\\"'.format(VERSION),
         'LIBRPMALIAS_EXECPATH=\\"{}\\"'.format(FAKE_PREFIX),
+        'LOCALSTATEDIR=\\"/var\\"',
         'SYSCONFDIR=\\"{}/etc\\"'.format(FAKE_PREFIX),
-    ],
-    textual_hdrs = [
-        "lib/rpmhash.H",
-        "lib/rpmhash.C",
-        ":tagtbl_c",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -286,7 +262,7 @@ dd_agent_expand_template(
     name = "gen_rpmrc",
     out = "rpmrc",
     substitutions = {
-        "@RPMCONFIGDIR@": "{install_dir}/lib/rpm/rpmrc",
+        "@RPM_CONFIGDIR@": "{install_dir}/embedded/lib/rpm",
     },
     template = "rpmrc.in",
 )
@@ -295,15 +271,15 @@ dd_agent_expand_template(
     name = "gen_rpmpopt",
     out = "rpmpopt-{}".format(VERSION),
     substitutions = {
-        "@RPMCONFIGDIR@": "{install_dir}/lib/rpm/rpmrc",
-        "@VERSION@": VERSION,
+        "@RPM_CONFIGDIR@": "{install_dir}/embedded/lib/rpm",
+        "@PROJECT_VERSION@": VERSION,
     },
     template = "rpmpopt.in",
 )
 
 pkg_files(
     name = "hdr_files",
-    srcs = PUBLIC_HEADERS,
+    srcs = glob(["include/rpm/*.h"]),
     prefix = "embedded/include/rpm",
 )
 
@@ -320,7 +296,7 @@ dd_cc_packaged(
     name = "rpmio_pkg",
     dest_dir = "embedded/lib",
     input = ":rpmio",
-    version = "9.4.0",
+    version = "10.2.1",
     visibility = ["//visibility:public"],
 )
 
@@ -332,7 +308,7 @@ dd_cc_packaged(
     ],
     dest_dir = "embedded/lib",
     input = ":rpm",
-    version = "9.4.0",
+    version = "10.2.1",
     visibility = ["//visibility:public"],
 )
 

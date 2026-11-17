@@ -392,6 +392,36 @@ metrics:
         mig: true
         physical: true
         vgpu: true
+  # device.sharing_memory is only reported for containers assigned a share of
+  # a GPU, so it is optional: other workloads never produce it.
+  device.sharing_memory:
+    metadata:
+      metric_type: gauge
+      unit: byte
+      description: >-
+        GPU memory the container is allowed to use, when the GPU is shared
+        between containers that are each assigned a fraction of it, as described
+        by the gpu_sharing_mode tag (for example, kai_fraction for KAI Scheduler
+        GPU fractions). The GPU memory not assigned to any container can be
+        computed with `max:gpu.memory.limit{*} by {gpu_uuid} -
+        sum:gpu.device.sharing_memory{*} by {gpu_uuid}`. Not reported for
+        containers without an assigned fraction.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.total:
     metadata:
       metric_type: gauge
@@ -1011,21 +1041,27 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the GPU is unavailable for the reason in the unavailable_reason
-        tag. The lost reason means NVML reports the GPU as inaccessible
-        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        Whether the GPU is unavailable for the reason in unavailable_reason, 0 or
+        1, on physical GPUs (MIG parents included, slices excluded). A GPU has at
+        most one reason at 1, in this order: lost (NVML reports the GPU as
+        inaccessible), unhealthy (device plugin unhealthy or an NVML recovery
+        action), unschedulable (the node is cordoned, not Ready or matches a rule).
+        Series carry device tags but no workload tags. Only unschedulable series
+        carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
+        after the cause clears.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
       - unavailable_reason
+      - unschedulable_reason
+    optional: true
     validator:
       values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
   device.needs_recovery:

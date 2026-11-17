@@ -133,10 +133,11 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 			NextHop:        []byte{10, 10, 10, 30},
 		},
 		AdditionalFields: map[string]any{
-			"bytes":                  uint64(1000),
-			"datadog.application_id": uint64(443),
-			"custom_field":           "test",
-			"custom_byte_field":      []byte{1, 2, 3, 4},
+			"bytes":                    uint64(1000),
+			"datadog.application_id":   uint64(443),
+			"datadog.application_name": "ssl",
+			"custom_field":             "test",
+			"custom_byte_field":        []byte{1, 2, 3, 4},
 		},
 	}
 	expectedFlow := common.Flow{
@@ -164,7 +165,8 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 		OutputInterface:  20,
 		Tos:              3,
 		NextHop:          []byte{10, 10, 10, 30},
-		ApplicationID:    443, // moved out of AdditionalFields
+		ApplicationID:    443,   // moved out of AdditionalFields
+		ApplicationName:  "ssl", // moved out of AdditionalFields
 		AdditionalFields: map[string]any{"custom_field": "test", "custom_byte_field": "01020304"},
 	}
 	actualFlow, rev := ConvertFlowWithAdditionalFields(&srcFlow, "my-ns", false, true)

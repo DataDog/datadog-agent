@@ -9,6 +9,7 @@ import yaml
 
 import tasks.schema.codegen_init_settings as codegen
 from tasks.schema.codegen_init_settings import as_go_value, try_parse_duration
+from tasks.schema.generate import _remove_legacy_setup_files
 
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata", "schema_codegen")
 
@@ -74,6 +75,35 @@ class TestCodegenInitSettings(unittest.TestCase):
             generated = f.read()
         self.assertIn('config.BindEnvAndSetDefault("my_section.child", "abc")', generated)
         self.assertNotIn('old_section', generated)
+
+    def test_platform_default(self):
+        # Settings with a 'platform_default' resolve it at runtime through pkg/config/env, which must be imported
+        schema = {
+            'properties': {
+                'my_setting': {
+                    'node_type': 'setting',
+                    'type': 'string',
+                    'platform_default': {'windows': 'w', 'other': 'o'},
+                }
+            }
+        }
+        codegen.run_codegen(schema, self.tmpdir)
+        with open(os.path.join(self.tmpdir, 'all_settings.go')) as f:
+            generated = f.read()
+        self.assertIn('\tpkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"\n', generated)
+        self.assertIn('config.BindEnvAndSetDefault("my_setting", pkgconfigenv.GetPlatformDefault(', generated)
+
+    def test_remove_legacy_setup_files(self):
+        # Settings files codegen used to write into pkg/config/setup are removed, but a hand-written file is kept
+        legacy = os.path.join(self.tmpdir, 'all_settings.go')
+        with open(legacy, 'w') as f:
+            f.write(codegen.file_header)
+        handwritten = os.path.join(self.tmpdir, 'generated.go')
+        with open(handwritten, 'w') as f:
+            f.write('package setup\n')
+        _remove_legacy_setup_files(self.tmpdir)
+        self.assertFalse(os.path.exists(legacy))
+        self.assertTrue(os.path.exists(handwritten))
 
     def test_as_go_value(self):
         cases = [
@@ -213,6 +243,81 @@ class TestGenerateConst(unittest.TestCase):
     def test_no_tags_emits_nothing(self):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
         self.assertIsNone(codegen.gen_generate_const(core, {'properties': {}}))
+
+    def test_to_vartype(self):
+        # Array without a per-elemenet type
+        obj = {
+            'node_type': 'setting',
+            'type': 'array',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), '[]interface{}{}')
+
+        # Array of a given type
+        obj = {
+            'node_type': 'setting',
+            'type': 'array',
+            'items': {'type': 'string'},
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), '[]string{}')
+
+        # Scalar elements just return None
+        obj = {
+            'node_type': 'setting',
+            'type': 'boolean',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, ''), 'None')
+
+        # Map element
+        obj = {
+            'node_type': 'setting',
+            'type': 'object',
+            'env_parser': 'json',
+            'visibility': 'public',
+            'description': 'Test',
+        }
+        self.assertEqual(codegen.to_vartype(obj, '{}'), 'map[string]interface{}{}')
+
+    def test_dict_to_gotype(self):
+        res = codegen.dict_to_gotype({'type': 'integer'})
+        self.assertEqual(res, 'int')
+
+        res = codegen.dict_to_gotype({'type': 'number'})
+        self.assertEqual(res, 'float64')
+
+        res = codegen.dict_to_gotype({'type': 'string'})
+        self.assertEqual(res, 'string')
+
+        res = codegen.dict_to_gotype({'type': 'array'})
+        self.assertEqual(res, '[]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'array', 'items': {'type': 'integer'}})
+        self.assertEqual(res, '[]int')
+
+        res = codegen.dict_to_gotype({'type': 'array', 'items': {'type': 'string'}})
+        self.assertEqual(res, '[]string')
+
+        res = codegen.dict_to_gotype({'type': 'object'})
+        self.assertEqual(res, 'map[string]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': False})
+        self.assertEqual(res, 'map[string]interface{}')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'integer'}})
+        self.assertEqual(res, 'map[string]int')
+
+        res = codegen.dict_to_gotype({'type': 'object', 'additionalProperties': {'type': 'string'}})
+        self.assertEqual(res, 'map[string]string')
+
+        res = codegen.dict_to_gotype(
+            {'type': 'object', 'additionalProperties': {'type': 'object', 'additionalProperties': {'type': 'integer'}}}
+        )
+        self.assertEqual(res, 'map[string]map[string]int')
 
 
 if __name__ == "__main__":

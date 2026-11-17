@@ -59,5 +59,6 @@ dd_agent_go_test(
         "@com_github_gosnmp_gosnmp//:gosnmp",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

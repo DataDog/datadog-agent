@@ -1,0 +1,13 @@
+description: grep -c outputs only the count of matching lines.
+setup:
+  files:
+    - path: input.txt
+      content: "apple\nbanana\napricot\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c 'a' input.txt
+expect:
+  stdout: "3\n"
+  stderr: ""
+  exit_code: 0

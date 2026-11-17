@@ -624,15 +624,6 @@ func TestNormalizeTrace(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestIsValidStatusCode(t *testing.T) {
-	assert := assert.New(t)
-	assert.True(isValidStatusCode("100"))
-	assert.True(isValidStatusCode("599"))
-	assert.False(isValidStatusCode("99"))
-	assert.False(isValidStatusCode("600"))
-	assert.False(isValidStatusCode("Invalid status code"))
-}
-
 func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
 	assert := assert.New(t)
 	root := newTestSpan()

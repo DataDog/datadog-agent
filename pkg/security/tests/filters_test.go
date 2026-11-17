@@ -658,7 +658,8 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
 		var count atomic.Int32
 		runUntilSentinel(t, test, dockerInstance, func() error {
-			if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
+			cmd := dockerInstance.Command("sh", append([]string{"-c", `"$@" && true`, "--", syscallTester}, args...), []string{})
+			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", string(out), err)
 			}
 			return nil
@@ -753,8 +754,8 @@ func TestFilterOpenSampleRefreshWorkloadProfile(t *testing.T) {
 
 	// node eviction is disabled so the sample never goes stale: only the refresh of the second open can update the profile
 	testFile := "/tmp/wp-open-refresh"
-	args := []string{"open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
-	if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+	args := []string{"-c", `"$@" && true`, "--", workloadProfileSyscallTester, "open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
+	if out, err := dockerInstance.Command("sh", args, []string{}).CombinedOutput(); err != nil {
 		t.Fatalf("%s: %v", string(out), err)
 	}
 

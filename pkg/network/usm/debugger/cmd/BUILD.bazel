@@ -58,6 +58,7 @@ go_library(
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
     deps = [
+        "//comp/core/schema/noop-impl",
         "//pkg/config/setup",
         "//pkg/network/config",
         "//pkg/network/usm",

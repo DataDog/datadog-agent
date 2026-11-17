@@ -37,8 +37,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/rules",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/compiler/parser",
         "//pkg/security/secl/log",
         "//pkg/security/secl/model",
         "//pkg/security/secl/rules/filter",
@@ -94,7 +94,6 @@ dd_agent_go_test(
         "rule_filters_test.go",
         "ruleset_test.go",
     ],
-    # keep
     cgo = select({
         "@platforms//os:linux": True,
         "//conditions:default": False,
@@ -111,7 +110,7 @@ dd_agent_go_test(
         "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//pkg/security/secl/compiler/ast",
+            "//pkg/security/secl/compiler/parser",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/schemas",
             "@com_github_masterminds_semver_v3//:semver",
@@ -120,7 +119,7 @@ dd_agent_go_test(
             "@io_k8s_sigs_yaml//:yaml",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/security/secl/compiler/ast",
+            "//pkg/security/secl/compiler/parser",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/schemas",
             "@com_github_masterminds_semver_v3//:semver",

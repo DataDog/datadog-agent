@@ -1,0 +1,14 @@
+description: find -regex is blocked for sandbox safety.
+skip_assert_against_bash: true  # intentional: bash allows -regex; rshell blocks it (ReDoS risk)
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -regex '.*\.txt'
+expect:
+  stderr_contains: ["blocked"]
+  exit_code: 1

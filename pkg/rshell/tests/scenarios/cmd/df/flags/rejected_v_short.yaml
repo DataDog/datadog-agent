@@ -1,0 +1,11 @@
+description: df rejects -v (GNU short form of --version; a no-op in GNU df, not implemented here).
+skip_assert_against_bash: true
+input:
+  script: |+
+    df -v; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+  exit_code: 0

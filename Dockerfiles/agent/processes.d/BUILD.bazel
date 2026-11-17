@@ -1,0 +1,15 @@
+# gazelle:ignore
+
+exports_files(
+    [
+        "aio/datadog-agent-data-plane.yaml",
+        "aio/datadog-agent-otel.yaml",
+        "aio/datadog-agent-par-control.yaml",
+        "aio/datadog-agent-process.yaml",
+        "aio/datadog-agent-security.yaml",
+        "aio/datadog-agent-sysprobe.yaml",
+        "aio/datadog-agent-trace.yaml",
+        "aio/datadog-agent.yaml",
+    ],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)

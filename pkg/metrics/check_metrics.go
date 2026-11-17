@@ -21,11 +21,13 @@ var (
 	tlmCheckMetricsAdded   = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "created_total", []string{"stateful"}, "Count of new check metrics added")
 	tlmCheckMetricsExpired = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "expired_total", []string{"stateful"}, "Count of expired metrics")
 	tlmCheckMetricsRemoved = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "removed_total", []string{"stateful"}, "Count of removed metrics")
+	tlmChecksTypeMismatch  = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "checks_type_mismatch", "Count of check samples whose metric type differs from the existing metric for their context")
 
 	checkMetricsAddSampleTelemetry = &AddSampleTelemetry{
-		Total:     tlmCheckMetricsAdded.WithValues("sum"),
-		Stateful:  tlmCheckMetricsAdded.WithValues("true"),
-		Stateless: tlmCheckMetricsAdded.WithValues("false"),
+		Total:        tlmCheckMetricsAdded.WithValues("sum"),
+		Stateful:     tlmCheckMetricsAdded.WithValues("true"),
+		Stateless:    tlmCheckMetricsAdded.WithValues("false"),
+		TypeMismatch: tlmChecksTypeMismatch,
 	}
 	tlmCheckMetricsExpiredTotal     = tlmCheckMetricsExpired.WithValues("sum")
 	tlmCheckMetricsExpiredStateful  = tlmCheckMetricsExpired.WithValues("true")

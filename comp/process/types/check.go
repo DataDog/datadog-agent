@@ -16,7 +16,7 @@ import (
 // Payload defines payload from the check
 type Payload struct {
 	CheckName string
-	Message   []model.MessageBody
+	Messages  []model.MessageBody
 }
 
 // CheckComponent defines an interface implemented by checks

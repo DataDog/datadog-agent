@@ -23,6 +23,8 @@ dd_agent_go_test(
     srcs = ["eks_identity_test.go"],
     embed = [":clusterinfo"],
     deps = [
+        "//pkg/errors",
+        "//pkg/util/clusteragent",
         "//pkg/util/eks/identity",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

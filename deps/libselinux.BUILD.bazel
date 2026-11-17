@@ -13,7 +13,7 @@ package(
     ],
 )
 
-VERSION = "3.5"
+VERSION = "3.11"
 
 package_metadata(
     name = "package_metadata",
@@ -52,7 +52,6 @@ cc_library(
     ],
     local_defines = [
         "_LARGEFILE_SOURCE",
-        "FILE_OFFSET_BITS=64",
         "_GNU_SOURCE",
         "NO_ANDROID_BACKEND",
         "USE_PCRE2",

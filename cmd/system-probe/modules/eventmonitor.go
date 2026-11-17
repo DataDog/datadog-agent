@@ -22,7 +22,6 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -99,7 +98,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	// module was initialized by the network tracer module
 	// (this will happen only if the network consumer is enabled
 	// in config and the network tracer module is loaded successfully)
-	if module.IsLoaded(config.NetworkTracerModule) {
+	if module.IsLoaded(sysconfigtypes.NetworkTracerModule) {
 		if events.Initialized() {
 			network, err := events.NewNetworkConsumer(evm)
 			if err != nil {

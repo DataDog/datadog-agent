@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add global and per-source log tag filters. Use ``logs_config.tag_filters``
+    or an integration log configuration's ``tag_filters`` field to remove
+    selected tags before logs are sent to Datadog, reducing ingested log bytes.

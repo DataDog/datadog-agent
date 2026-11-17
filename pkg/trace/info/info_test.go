@@ -168,6 +168,7 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	conf.Proxy = nil
 	conf.EVPProxy.APIKey = "evp_api_key"
+	conf.EVPProxy.ApplicationKey = "evp_app_key"
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
@@ -511,6 +512,8 @@ func TestInfoConfig(t *testing.T) {
 	}
 	assert.Equal("", confCopy.EVPProxy.APIKey, "EVP API Key should *NEVER* be exported")
 	conf.EVPProxy.APIKey = ""
+	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "Application Key should *NEVER* be exported")
+	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
 	assert.Equal("", confCopy.DebuggerIntakeProxy.APIKey, "Debugger Intake Proxy API Key should *NEVER* be exported")

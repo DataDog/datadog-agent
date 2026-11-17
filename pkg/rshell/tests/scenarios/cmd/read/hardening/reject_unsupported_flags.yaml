@@ -1,0 +1,19 @@
+# vuln-hunt 2026-05-19-codex / read.
+skip_assert_against_bash: true
+description: read rejects unsupported flags that would expand its attack surface.
+input:
+  script: |+
+    printf 'x\n' | { read -u 3 X; echo "u=$? X=[$X]"; }
+    printf 'x\n' | { read -a ARR; echo "a=$? ARR=[$ARR]"; }
+    printf 'x\n' | { read -s X; echo "s=$? X=[$X]"; }
+    printf 'x\n' | { read -e X; echo "e=$? X=[$X]"; }
+    printf 'x\n' | { read -i seed X; echo "i=$? X=[$X]"; }
+expect:
+  stdout: |+
+    u=1 X=[]
+    a=1 ARR=[]
+    s=1 X=[]
+    e=1 X=[]
+    i=1 X=[]
+  stderr_contains: ["invalid option"]
+  exit_code: 0

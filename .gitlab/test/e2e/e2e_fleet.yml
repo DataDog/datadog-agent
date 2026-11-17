@@ -120,6 +120,8 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+    # EFD repeats the modified TestPackages parent, including the entire VM matrix.
+    DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED: "false"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestPackages/agent_"
@@ -151,6 +153,7 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+    DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED: "false"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestPackages/agent_"

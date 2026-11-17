@@ -92,6 +92,21 @@ env: "old_env"
 	}, datadog)
 }
 
+func TestMergeReplacesExistingEnv(t *testing.T) {
+	tempDir := t.TempDir()
+	writeInitialDatadogConfig(t, tempDir, "api_key: old_key\nenv: production\n")
+
+	config := Config{}
+	config.DatadogYAML.APIKey = "old_key"
+	config.DatadogYAML.Env = "staging"
+
+	require.NoError(t, WriteConfigs(config, tempDir))
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "old_key",
+		"env":     "staging",
+	}, readDatadogYAML(t, tempDir))
+}
+
 // Tests that writing a process_config toggle merges into an existing
 // process_config block rather than clobbering its other keys.
 func TestMergeProcessConfig(t *testing.T) {
@@ -773,4 +788,33 @@ func TestProcessConfigMarshal(t *testing.T) {
 	got = nil
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	assert.Empty(t, got)
+}
+
+func TestMergeNetworkConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	oldConfig := `---
+network_config:
+  dns_monitoring_ports:
+    - 53
+`
+	err := os.WriteFile(filepath.Join(tempDir, "system-probe.yaml"), []byte(oldConfig), 0644)
+	require.NoError(t, err)
+	config := Config{}
+	config.DatadogYAML.APIKey = "0987654321" // Required field
+	config.SystemProbeYAML = &SystemProbeConfig{}
+	config.SystemProbeYAML.NetworkConfig.Enabled = BoolToPtr(true)
+
+	err = WriteConfigs(config, tempDir)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(tempDir, "system-probe.yaml"))
+	require.NoError(t, err)
+	var systemProbe map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(data, &systemProbe))
+	assert.Equal(t, map[string]interface{}{
+		"network_config": map[string]interface{}{
+			"dns_monitoring_ports": []interface{}{53}, // pre-existing key preserved
+			"enabled":              true,              // newly added
+		},
+	}, systemProbe)
 }

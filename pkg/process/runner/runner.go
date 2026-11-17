@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,7 +105,7 @@ func NewRunner(
 	sysProbeCfg := &checks.SysProbeConfig{}
 	if sysCfg != nil && sysCfg.Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.EnabledModules[sysconfigtypes.ProcessModule]
 		sysProbeCfg.ProcessModuleEnabled = processModuleEnabled
 		sysProbeCfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
@@ -170,7 +169,7 @@ func (l *CheckRunner) runCheck(c checks.Check) {
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 
@@ -197,7 +196,7 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	msg := &types.Payload{
 		CheckName: c.Name(),
-		Message:   result.Payloads(),
+		Messages:  result.Payloads(),
 	}
 	l.Submitter.Submit(start, c.Name(), msg)
 	if options.RunStandard {
@@ -211,11 +210,11 @@ func (l *CheckRunner) runCheckWithRealTime(c checks.Check, options *checks.RunOp
 
 	rtName := checks.RTName(c.Name())
 	msg = &types.Payload{
-		Message: result.RealtimePayloads(),
+		Messages: result.RealtimePayloads(),
 	}
 	l.Submitter.Submit(start, rtName, msg)
 	if options.RunRealtime {
-		checks.StoreCheckOutput(rtName, msg.Message)
+		checks.StoreCheckOutput(rtName, msg.Messages)
 	}
 }
 

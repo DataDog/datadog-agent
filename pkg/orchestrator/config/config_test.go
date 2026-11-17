@@ -104,6 +104,19 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	}
 }
 
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorAdditionalEndpointsKeepConfigKey() {
+	var actualEndpoints []apicfg.Endpoint
+	mainURL, _ := url.Parse("https://orchestrator.datadoghq.com")
+
+	// A key relative to orchestrator_dd_url has no scheme; it must survive as written.
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints", `{"//orchestrator.second-org.datadoghq.com": ["key1"]}`)
+	suite.NoError(extractOrchestratorAdditionalEndpoints(mainURL, &actualEndpoints))
+
+	suite.Require().Len(actualEndpoints, 1)
+	suite.Equal("https://orchestrator.second-org.datadoghq.com", actualEndpoints[0].Endpoint.String())
+	suite.Equal("//orchestrator.second-org.datadoghq.com", actualEndpoints[0].ConfigKey)
+}
+
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	expected := make(map[string]string)
 	expected["key1"] = "orchestrator1.com"

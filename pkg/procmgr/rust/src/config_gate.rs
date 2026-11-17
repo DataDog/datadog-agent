@@ -113,6 +113,8 @@ enum GatedKey {
     ApmEnabled,
     ApmErrorTrackingStandalone,
     DataPlaneEnabled,
+    ComplianceConfig,
+    OtelCollector,
 }
 
 struct GatedKeySpec {
@@ -139,6 +141,8 @@ const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
 const APM_ENABLED_KEY: &str = "apm_config.enabled";
 const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
 const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
+const COMPLIANCE_CONFIG_KEY: &str = "compliance_config.enabled";
+const OTELCOLLECTOR_ENABLED_KEY: &str = "otelcollector.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -232,6 +236,20 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::DataPlaneEnabled,
         key: DATA_PLANE_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // The all-in-one security-agent also runs for compliance-only. Windows omits this key.
+    GatedKeySpec {
+        kind: GatedKey::ComplianceConfig,
+        key: COMPLIANCE_CONFIG_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // The all-in-one otel-agent. Absent from the Windows templates.
+    GatedKeySpec {
+        kind: GatedKey::OtelCollector,
+        key: OTELCOLLECTOR_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -2049,5 +2067,51 @@ process_config:
         let agent = fx.agent("# empty\n");
         fx.service_env(&[("DD_DATA_PLANE_ENABLED", "true")]);
         fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    // -------------------------------- all-in-one compliance and OTel keys
+
+    #[test]
+    fn compliance_config_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, false);
+    }
+
+    #[test]
+    fn compliance_config_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("compliance_config:\n  enabled: true\n");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, true);
+    }
+
+    #[test]
+    fn compliance_config_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("compliance_config:\n  enabled: false\n");
+        fx.env("DD_COMPLIANCE_CONFIG_ENABLED", "true");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, true);
+    }
+
+    #[test]
+    fn otelcollector_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn otelcollector_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("otelcollector:\n  enabled: true\n");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn otelcollector_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("otelcollector:\n  enabled: false\n");
+        fx.env("DD_OTELCOLLECTOR_ENABLED", "true");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
     }
 }

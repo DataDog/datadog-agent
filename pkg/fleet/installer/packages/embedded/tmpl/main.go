@@ -47,6 +47,11 @@ func generate(outputDir string) error {
 			return err
 		}
 	}
+	for _, lay := range launchdEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -67,6 +72,19 @@ type templateData struct {
 	installerTemplateData
 	AmbiantCapabilitiesSupported bool
 	Procmgr                      bool
+}
+
+// launchdTemplateData parameterises the launchd job definitions.
+type launchdTemplateData struct {
+	// ProgramDir is the install root the job's program is resolved under.
+	ProgramDir string
+	// EtcDir is the configuration directory the job reads. launchd cannot supply a
+	// configuration path at load time, so the definition names it itself.
+	EtcDir     string
+	RunDir     string
+	LogDir     string
+	AgentUser  string
+	AgentGroup string
 }
 
 type embeddedLayout struct {
@@ -110,6 +128,28 @@ func mustReadUnit(name string, data installerTemplateData, ambiantCapabilitiesSu
 
 func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false, true)
+}
+
+func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
+	tmpl, err := template.ParseFS(embedded, name+".tmpl")
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// jobSetLaunchd renders the launchd job set.
+func jobSetLaunchd(data launchdTemplateData) map[string][]byte {
+	return map[string][]byte{
+		"com.datadoghq.procmgr.plist":    mustRenderLaunchdJob("com.datadoghq.procmgr.plist", data),
+		"com.datadoghq.agent.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", data),
+		"com.datadoghq.sysprobe.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", data),
+		"com.datadoghq.data-plane.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", data),
+	}
 }
 
 func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
@@ -272,6 +312,17 @@ var (
 		{subdir: "pm/debrpm-nc", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, false)},
 		{subdir: "pm/processes.d", units: yamlSet()},
 	}
+	// macOS has a single install root: /opt/datadog-agent holds the binaries alongside etc, run
+	// and logs.
+	dataLaunchd = launchdTemplateData{
+		ProgramDir: "/opt/datadog-agent",
+		EtcDir:     "/opt/datadog-agent/etc",
+		RunDir:     "/opt/datadog-agent/run",
+		LogDir:     "/opt/datadog-agent/logs",
+		AgentUser:  "_dd-agent",
+		AgentGroup: "daemon",
+	}
+
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
@@ -282,5 +333,8 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-security.yaml", "datadog-agent-security-windows.yaml", windowsSecurityCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
+	}
+	launchdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "darwin", units: jobSetLaunchd(dataLaunchd)},
 	}
 )

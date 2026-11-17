@@ -8,8 +8,10 @@ package delegatedauthimpl
 
 import (
 	"context"
+	"errors"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -67,4 +69,9 @@ func (d *DelegatedAuthNoop) Text(_ bool, buffer io.Writer) error {
 func (d *DelegatedAuthNoop) HTML(_ bool, buffer io.Writer) error {
 	_, err := buffer.Write([]byte("<div class=\"stat\"><span class=\"stat_title\">Delegated Authentication</span><span class=\"stat_data\">Not enabled</span></div>\n"))
 	return err
+}
+
+// GetWorkloadToken reports that delegated authentication is disabled.
+func (d *DelegatedAuthNoop) GetWorkloadToken(_ context.Context, _ string, _ common.WorkloadTokenRequest) (string, error) {
+	return "", errors.New("delegated authentication is not enabled")
 }

@@ -175,6 +175,8 @@ type Reader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 	GetSequenceID() uint64
+	// GetSchemaID returns the ID of the schema the config follows
+	GetSchemaID() SchemaID
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
@@ -336,7 +338,10 @@ type Compound interface {
 	// NOTE: This method should not be used by any new callsites, it is needed
 	// currently because of the unique requirements of OTel's configuration.
 	RevertFinishedBackToBuilder() BuildableConfig
-	Validate()
+
+	// Validate checks the configuration, using validator to validate it against its schema. When enforceSchema is
+	// true, the settings that don't match the schema are reverted to their default.
+	Validate(validator SchemaValidator, enforceSchema bool)
 }
 
 // Config is an interface that can read/write the config after it has been

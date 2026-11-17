@@ -35,6 +35,7 @@ go_library(
         "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
         "//comp/otelcol/otlp/datatype",
         "//comp/trace/agent/def",
+        "//comp/trace/config/def",
         "//pkg/serializer",
         "//pkg/util/log/zap",
         "//pkg/util/option",

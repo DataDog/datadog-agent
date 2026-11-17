@@ -22,8 +22,8 @@ import (
 
 const (
 	emrInjectorVersion    = "0.71.2-1"
-	emrJavaTracerVersion  = "1.67.0-1"
-	emrAgentVersion       = "7.84.1-1"
+	emrJavaTracerVersion  = "1.68.1-1"
+	emrAgentVersion       = "7.84.6-1"
 	emrOpenLineageVersion = "1.49.0"
 	hadoopDriverFolder    = "/mnt/var/log/hadoop/steps/"
 )

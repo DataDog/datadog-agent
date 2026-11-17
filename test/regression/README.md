@@ -1,61 +1,26 @@
 # Regression Detection
 
-The Regression Detector, owned by Single Machine Performance, is a tool that
-detects if there are more-than-random performance changes to a target program --
-here, the Agent -- across a variety of experiments and goals. This directory
-contains the experiments for Agent. A similar one exists in [Vector]. Please do
-add your own experiments, instructions below. If you have any questions do
-contact #single-machine-performance; we'll be glad to help.
+The Regression Detector finds Agent performance changes with controlled experiments. The Single Machine Performance team owns this system.
 
-## Quality Gate Experiments
-Experiments prefixed with `quality_gate_` represent the strongest claims made
-about the Agent and its performance. These are discussed in more detail on
-[this
-page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4294836779/Performance+Quality+Gates)
+## Common tasks
 
-## Adding an Experiment
+* [Add an experiment and choose when it runs](experiment-selection-guide.md)
+* Install the SMP CLI with `dogbrew install smp`, then [run an experiment locally][smp-local]
+* [Understand the core Agent performance quality gates](container/quality_gates/README.md)
+* Ask `#single-machine-performance` for help
 
-In order for SMP's tooling to properly read a experiment directory please
-adhere to the following structure. Starting at the root:
+## How Agent CI selects experiments
 
-* `config.yaml` -- __Required__ Configuration that applies to all experiments.
-* `cases/` -- __Required__ The directory that contains each experiment.
-  Each sub-directory is a separate experiment and the name of the
-  directory is the name of the experiment, for instance
-  `tcp_syslog_to_blackhole`. We call these sub-directories 'cases'.
+Most experiments are under `container/` and use `container/selection.yaml`. Metal eBPF experiments use the separate `ebpf/` lane.
 
-The structure of each case is as follows:
+The selection manifest supports three modes:
 
-* `lading/lading.yaml` -- __Required__ The [lading] configuration inside its own
-  directory.
-* `datadog-agent/` -- __Required__ This is the configuration directory of your
-  program. Will be mounted read-only in the container build from `Dockerfile`
-  above at `/etc/datadog-agent`.
-* `experiment.yaml` -- __Required__ Set any experiment-specific configuration.
-  The "optimization goal" determines what metric the Regression Detector
-  will analyze at the conclusion of the experiment.
+* The `always` bucket runs on every pull request and every `main` commit. This selection does not control the nightly schedule.
+* The `codeowners` bucket maps a team slug to experiments. On pull requests, the experiments run when the team owns a changed file.
+* The `labels` bucket maps an exact label to experiments. On pull requests, the experiments run when the pull request has that label.
 
-  Eg:
-  ```yaml
-  optimization_goal: ingress_throughput
-  ```
+On `main`, Agent CI selects only the `always` bucket. Label and CODEOWNERS selection needs pull request context.
 
-  Supported values of `optimization_goal` are `ingress_throughput` and
-  `egress_throughput`.
+The [experiment selection guide](experiment-selection-guide.md) covers experiment structure, manifest syntax, optimization goals, and verification.
 
-[Vector]: https://github.com/vectordotdev/vector/tree/master/regression
-[lading]: https://github.com/DataDog/lading
-
-## Local Run
-In order to run a regression experiment locally, you need two CLI utilities
-available:
-- `smp` -- build from source [repo](https://github.com/DataDog/single-machine-performance/)
-- `lading` -- See the notes in the below documentation about architecture,
-  `lading` needs to be compatible with the architecture of the image being run.
-
-See full docs [here](https://github.com/DataDog/single-machine-performance/blob/main/smp/README.md#running-replicates-locally)
-
-An example command may look like this:
-```
-smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_dogstatsd_to_api --target-image datadog/agent-dev:nightly-main-fe13dead-py3
-```
+[smp-local]: https://github.com/ddoghq/single-machine-performance/blob/main/docs/guides/local-run.md

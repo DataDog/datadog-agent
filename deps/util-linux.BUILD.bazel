@@ -6,13 +6,16 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
-_VERSION = "2.39.2"
+_VERSION = "2.42.4"
 
 expand_template(
     name = "blkid_h",
     out = "blkid.h",
     substitutions = {
         "@LIBBLKID_DATE@": "REDACTED",
+        "@LIBBLKID_MAJOR_VERSION@": "2",
+        "@LIBBLKID_MINOR_VERSION@": "42",
+        "@LIBBLKID_PATCH_VERSION@": "4",
         "@LIBBLKID_VERSION@": _VERSION,
     },
     template = "libblkid/src/blkid.h.in",
@@ -31,6 +34,7 @@ cc_library(
         "lib/crc32.c",
         "lib/crc32c.c",
         "lib/crc64.c",
+        "lib/debug.c",
         "lib/encode.c",
         "lib/env.c",
         "lib/fileutils.c",
@@ -75,10 +79,13 @@ cc_library(
 
 cc_library(
     name = "libblkid",
-    srcs = glob([
-        "libblkid/src/**/*.c",
-        "libblkid/src/**/*.h",
-    ]) + ["generated/config.h"],
+    srcs = glob(
+        [
+            "libblkid/src/**/*.c",
+            "libblkid/src/**/*.h",
+        ],
+        exclude = ["libblkid/src/fuzz.c"],
+    ) + ["generated/config.h"],
     hdrs = [":blkid_h"],
     copts = [
         "-include generated/config.h",

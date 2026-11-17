@@ -284,6 +284,12 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 					hookFunc("hook_bprm_execve"),
 					hookFunc("hook_security_bprm_check"),
 				}},
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.AllOf{Selectors: []manager.ProbesSelector{
+						hookFunc("hook_get_vfs_caps_from_disk"),
+						hookFunc("rethook_get_vfs_caps_from_disk"),
+					}},
+				}},
 				hookFunc("hook_setup_new_exec_interp"),
 				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
 				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
@@ -678,8 +684,6 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_socket_setsockopt"),
 				hookFunc("hook_sk_attach_filter"),
-				hookFunc("hook_release_sock"),
-				hookFunc("rethook_release_sock"),
 			}},
 		},
 
@@ -782,6 +786,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		// Process context also uses the prctl syscall to notify userspace that we should try to resolve the given PID
 		"otel_process_ctx": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
+		},
+		"setns": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setns", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: nsInstallHookSelectors()},
 		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The Cloud Foundry Cluster Agent no longer uses the deprecated Cloud
+    Foundry API v2. Organization quotas now come from the v3 API, with
+    unlimited memory quotas still reported as ``-1``. Cloud Controller
+    requests now use the ``datadog-cluster-agent`` user agent and time out
+    after 15 minutes.

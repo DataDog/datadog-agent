@@ -27,7 +27,7 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -52,7 +52,7 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -77,7 +77,7 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -102,7 +102,7 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -132,7 +132,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -156,7 +156,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -180,7 +180,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -204,7 +204,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -248,7 +248,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -270,7 +270,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
@@ -290,7 +290,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
@@ -312,7 +312,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "")
 
 		e, err := CaseInsensitiveCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)

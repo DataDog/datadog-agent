@@ -1,0 +1,14 @@
+# Per RULES.md: count values must be clamped to prevent allocation attacks
+description: head accepts very large -n counts by clamping; does not OOM on small files.
+setup:
+  files:
+    - path: small.txt
+      content: "tiny\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 9999999999 small.txt
+expect:
+  stdout: "tiny\n"
+  stderr: ""
+  exit_code: 0

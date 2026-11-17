@@ -22,6 +22,8 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -75,9 +77,9 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\ndogstatsd_port: ENC[PRIVATE_UNRESOLVED_HANDLE]\n")
+			cfg := config.NewMockFromYAML(t, "dogstatsd_port: ENC[PRIVATE_UNRESOLVED_HANDLE]\n")
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.forwarder.dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.invalidconfig_check.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
@@ -85,14 +87,21 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("run_path", t.TempDir())
 			cfg.SetInTest("agent_ipc.port", "not-a-number")
 			cfg.SetInTest("forwarder_apikey_validation_interval", []int{61})
-			cfg.Set("logs_enabled", rawInvalidLogsEnabled, model.SourceSecret)
+			cfg.Set("logs_enabled", rawInvalidLogsEnabled, model.SourceAgentRuntime)
 			return cfg
 		}),
 		telemetrymock.Module(),
+		schemafx.Module(),
+		// validate the configurations like the Agent does when it loads them
+		fx.Invoke(func(schemaComp schema.Component, cfg config.Component, sysprobeCfg sysprobeconfig.Component) {
+			_, err := schemaComp.ValidateConfig(cfg)
+			require.NoError(t, err)
+			_, err = schemaComp.ValidateConfig(sysprobeCfg)
+			require.NoError(t, err)
+		}),
 		fx.Provide(func(t testing.TB) sysprobeconfig.Component {
 			cfg := sysprobeconfigmock.NewMock(t)
 			cfg.Set("system_probe_config.health_port", rawInvalidHealthPort, model.SourceFile)
-			cfg.Set("system_probe_config.health_port", 0, model.SourceAgentRuntime)
 			return cfg
 		}),
 		hostnameinterface.MockModule(),

@@ -1,0 +1,139 @@
+# Performance benchmark
+
+`benchmarkeks` is the performance non-regression test of the Agent on Kubernetes. It deploys two versions of the Agent side by side on one EKS cluster, has both monitor the same busy workload, and compares how much CPU and memory they use. It answers one question: does the Agent of a pull request cost more, or less, than the Agent of its base branch?
+
+The test is the `TestBenchmarkEKSSuite` suite of <<<repo("test/new-e2e/tests/containers/benchmarkeks_test.go")>>>.
+
+## What it compares
+
+The two versions of the Agent are:
+
+- the **baseline**, the Agent of the base branch;
+- the **comparison**, the Agent under test, built by the pipeline in CI.
+
+For each version, the test measures three components, each loaded by a different part of the workload:
+
+| Component | What loads it |
+|---|---|
+| Node Agent | The containers of its node, through the `kubelet`, `container` and `containerd` checks and Autodiscovery |
+| Cluster Agent | The objects of the Kubernetes API server it watches |
+| Cluster checks runner | The `kubernetes_state_core` (KSM) check its Cluster Agent dispatches to it, which watches the API server too |
+
+For each component, it compares [the CPU and memory usage](how-it-works.md#cpu-and-memory) of the container: `container.cpu.usage`, `container.memory.working_set` and `container.memory.rss`. It also compares [the run times](how-it-works.md#check-run-times) of the `kubelet` and `kubernetes_state_core` checks. Unlike other E2E tests, it has no fakeintake: the Agents report to dddev, the Datadog org of the E2E tests, and the test reads their metrics back from there.
+
+Each comparison gets a verdict: **unchanged**, **improvement**, **regression**, or **error** when it couldn't be measured. A regression or an error fails the test. Before measuring anything, the test [verifies that both versions work](how-it-works.md#the-guards).
+
+The next pages explain [how the test works](how-it-works.md) and [how it decides that a change is real](statistics.md).
+
+## Run it in CI
+
+The benchmark keeps an EKS cluster for about two hours, so it only runs on demand. When a pull request changes the benchmark or the code it measures, the job `new-e2e-containers-benchmarkeks-instructions` posts a comment on the pull request explaining how to run it.
+
+To run it, play the manual job `new-e2e-containers-benchmarkeks-baseline` of the pipeline. The other jobs of the benchmark wait for it, then start on their own:
+
+```text
+manual ▶ new-e2e-containers-benchmarkeks-baseline
+           │  finds the baseline commit and copies its images to agent-qa
+           ▼
+         new-e2e-containers-benchmarkeks-init
+           │  creates the EKS cluster, its node pools and KWOK,
+           │  while the pipeline builds the images of the Agent
+           ▼
+         new-e2e-containers-benchmarkeks  ◄── images of the pipeline
+              installs both Agents and the workload, runs the test,
+              keeps the report in its artifacts
+```
+
+The baseline commit is the merge base of the branch with the `base_branch` of `release.json`, which is `main`, or the release branch for a branch based on one. When no pipeline built images for that commit, it is the closest older commit of the base branch with images, up to <<<repo("tasks/libs/testing/benchmarkeks.py", "about 4 days old", match="^MAX_BASELINE_AGE =")>>>. Otherwise, the job fails and asks to rebase the branch on its base branch. The E2E tests pull their images from `agent-qa`, where images expire after a day, so the job copies the baseline images there again from the registry of the builds, which keeps them for months.
+
+/// note
+The benchmark jobs only exist in the full pipelines of development branches. Following <<<repo(".gitlab/test/e2e/e2e_containers_benchmarkeks.yml", "their rules", match="^\\.except_benchmarkeks_unsupported:")>>>, they don't exist in:
+
+- the pipelines of `main`, release branches, the merge queue and tags;
+- light pipelines, such as those of pull requests based on another branch than `main` or a release branch;
+- coverage pipelines, deploy pipelines, and pipelines run with `RUN_E2E_TESTS` set to `off`.
+
+They are allowed to fail for now: a regression shows as a failed `new-e2e-containers-benchmarkeks` job, but doesn't fail the pipeline.
+///
+
+### Read the result
+
+The job `new-e2e-containers-benchmarkeks` prints the report at the end of its log, and keeps it in its artifacts, in `e2e-output/benchmarkeks-report/`:
+
+- `report.json`, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;
+- `report.md`, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.
+
+The report gives the times of both phases, then a table like this one, from a CI run comparing two builds of the same Agent code:
+
+| Component | Metric | Baseline | Comparison | Change | p-value | Verdict |
+|---|---|--:|--:|--:|--:|---|
+| Node Agent | `container.cpu.usage` | 82.9 millicores | 81.9 millicores | -1.2% (-1.0 millicores) | 0.173 | unchanged |
+| Node Agent | `container.memory.working_set` | 192.4 MiB | 185.1 MiB | -3.8% (-7.3 MiB) | 0.002 | unchanged |
+| Node Agent | `container.memory.rss` | 187.1 MiB | 179.7 MiB | -3.9% (-7.3 MiB) | 0.002 | unchanged |
+| Cluster Agent | `container.cpu.usage` | 79.8 millicores | 79.7 millicores | -0.2% (-0.0 millicores) | 0.736 | unchanged |
+| Cluster Agent | `container.memory.working_set` | 257.4 MiB | 266.9 MiB | +3.7% (+9.5 MiB) | 0.011 | unchanged |
+| Cluster Agent | `container.memory.rss` | 255.1 MiB | 264.7 MiB | +3.8% (+9.5 MiB) | 0.011 | unchanged |
+| Cluster checks runner | `container.cpu.usage` | 275.1 millicores | 274.2 millicores | -0.3% (-0.9 millicores) | 0.475 | unchanged |
+| Cluster checks runner | `container.memory.working_set` | 746.5 MiB | 745.0 MiB | -0.2% (-1.5 MiB) | 0.685 | unchanged |
+| Cluster checks runner | `container.memory.rss` | 740.9 MiB | 739.3 MiB | -0.2% (-1.6 MiB) | 0.675 | unchanged |
+| Node Agent | `kubelet` check run time | 352.1 ms | 304.8 ms | -13.4% (-47.4 ms) | 0.001 | unchanged |
+| Cluster checks runner | `kubernetes_state_core` check run time | 1555.5 ms | 1542.1 ms | -0.9% (-13.4 ms) | 0.151 | unchanged |
+
+**Baseline** and **Comparison** are the averages of each version over both phases, and the value in parentheses in **Change** is their difference. The percentage comes from the ratios of both versions block by block, averaged over both phases, which [cancels out the machines](statistics.md#cancelling-out-the-machines): it can differ slightly from the ratio of the two columns. [How the test decides](statistics.md) explains the p-value and the verdict.
+
+In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the `kubelet` check (−13.4%, under 20%). Both builds run the same code: these are differences that [escape the p-value](statistics.md#limits), and that the thresholds absorb.
+
+The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.
+
+## Run it locally
+
+Follow the [one-time E2E setup](../index.md#one-time-setup) first. Because the test reads the metrics of the Agents back from dddev, your E2E configuration needs a dddev API key, and the test needs a dddev application key, set as for an [EKS cluster of manual QA](../../manual-qa/aws-eks.md#prerequisites).
+
+Set the images of both versions, for instance to compare two releases:
+
+```bash
+dda inv new-e2e-tests.run --targets=./tests/containers \
+  --run='^TestBenchmarkEKSSuite$' \
+  --configparams ddagent:baselineVersion=7.84.0 \
+  --configparams ddagent:baselineClusterAgentVersion=7.84.0 \
+  --configparams ddagent:comparisonVersion=7.85.0 \
+  --configparams ddagent:comparisonClusterAgentVersion=7.85.0
+```
+
+The parameters start with `ddagent:baseline` or `ddagent:comparison`, followed by:
+
+| Image | Full image path | Tag only, in the default repository |
+|---|---|---|
+| Node Agent, which the cluster checks runner also runs | `FullImagePath` | `Version` |
+| Cluster Agent | `ClusterAgentFullImagePath` | `ClusterAgentVersion` |
+
+/// warning
+Set the Cluster Agent image too: without it, both versions run the same default Cluster Agent image. Without an explicit image, the E2E framework picks one in its usual <<<repo("test/e2e-framework/components/datadog/agent/docker_image.go", "resolution order", match="^func DockerClusterAgentFullImagePath")>>>, which uses the images of the pipeline when `E2E_PIPELINE_ID` and `E2E_COMMIT_SHA` are set.
+///
+
+The test reads these environment variables:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `E2E_BENCHMARKEKS_WARMUP` | `10m` | How long the Agents run before each measurement phase starts |
+| `E2E_BENCHMARKEKS_DURATION` | `20m` | How long each of the two measurement phases lasts, a whole number of minutes, at least `3m` |
+| `E2E_BENCHMARKEKS_REPORT_DIR` | The output directory of the suite | Where the reports are written |
+| `E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE`, `E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE` | None | The node Agent and Cluster Agent images of the baseline, set by the CI jobs. They take precedence over the `ddagent:baseline*` parameters, so unset them to use those |
+| `E2E_BENCHMARKEKS_BASELINE_SHA` | None | The commit of the baseline images, shown in the report |
+
+Shorter durations make a quick try possible, at the cost of a less sensitive comparison: the [blocks](statistics.md#blocks) then shrink, down to 1 minute, so that each phase still holds at least 3 of them.
+
+To look around the cluster without running the test, `dda inv aws.create-benchmarkeks` deploys the same scenario, and `dda inv aws.destroy-benchmarkeks` deletes it: see <<<repo("tasks/e2e_framework/aws/benchmarkeks.py")>>> for their options, and the [stack lifecycle](../../manual-qa/index.md#stack-lifecycle) of manual QA.
+
+## Where the code lives
+
+| Path | Content |
+|---|---|
+| <<<repo("test/e2e-framework/scenarios/aws/benchmarkeks")>>> | The Pulumi scenario: the cluster, its node pools, the two Helm installations of the Agent |
+| <<<repo("test/e2e-framework/components/datadog/apps/churn")>>> | The deployment of the churn orchestrator, and the manifests of the workload |
+| <<<repo("test/e2e-framework/components/datadog/apps/kwok")>>> | The KWOK controller, which simulates the nodes |
+| <<<repo("test/e2e-framework/testing/provisioners/aws/kubernetes/benchmarkeks")>>> | The provisioner of the `BenchmarkEKS` environment |
+| <<<repo("test/new-e2e/tests/containers/benchmarkeks_test.go")>>> | The test suite |
+| <<<repo("test/new-e2e/tests/containers/benchmark")>>> | The statistics and the report |
+| <<<repo(".gitlab/test/e2e/e2e_containers_benchmarkeks.yml")>>> | The CI jobs |
+| <<<repo("tasks/libs/testing/benchmarkeks.py")>>> | The choice of the baseline |

@@ -27,7 +27,7 @@ const (
 // UsageObservedSinceProperty names the metadata property of a runtime usage
 // report holding when its usage started being recorded, as a unix timestamp.
 // MergeRuntimeProperties carries it onto the merged SBOM.
-const UsageObservedSinceProperty = "UsageObservedSince"
+const UsageObservedSinceProperty = "datadog:usage:ObservedSince"
 
 // normalizeVersion normalizes version strings to handle epoch differences
 // e.g., "1:4.4.36-4build1" and "4.4.36-4build1" should both map to "4.4.36-4build1"

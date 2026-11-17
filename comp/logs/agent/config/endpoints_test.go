@@ -1276,6 +1276,15 @@ func TestAwaitsDelegatedAuthKey(t *testing.T) {
 	pending := NewEndpoint(directive, "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
 	assert.True(t, pending.AwaitsDelegatedAuthKey(), "pending on the write-back setting")
 
+	for _, key := range []string{
+		model.DelaCWSEndpointsKey,
+		model.DelaComplianceEndpointsKey,
+		model.DelaActivityDumpEndpointsKey,
+	} {
+		pending := NewEndpoint(directive, key, "intake", 443, EmptyPathPrefix, true)
+		assert.True(t, pending.AwaitsDelegatedAuthKey(), "pending on the %s write-back setting", key)
+	}
+
 	other := NewEndpoint(directive, "database_monitoring.samples.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
 	assert.False(t, other.AwaitsDelegatedAuthKey(), "nothing writes keys back to this setting")
 

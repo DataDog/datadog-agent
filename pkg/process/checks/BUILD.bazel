@@ -78,7 +78,6 @@ go_library(
         "//pkg/process/util/coreagent",
         "//pkg/proto/pbgo/core",
         "//pkg/system-probe/api/client",
-        "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
         "//pkg/template/text",
         "//pkg/util/cloudproviders/network",
@@ -295,11 +294,9 @@ dd_agent_go_test(
             "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:darwin": [
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
         ],
         "@rules_go//go/platform:linux": [

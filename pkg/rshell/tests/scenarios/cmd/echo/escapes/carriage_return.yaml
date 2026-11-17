@@ -1,0 +1,8 @@
+description: Echo -e with \r (carriage return) escape sequence.
+input:
+  script: |+
+    echo -e '\r'
+expect:
+  stdout: "\r\n"
+  stderr: ""
+  exit_code: 0

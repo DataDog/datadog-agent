@@ -1,0 +1,12 @@
+description: Comments in and-or list after operators.
+input:
+  script: |+
+    echo foo &&###
+    echo bar ||###
+    echo baz
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

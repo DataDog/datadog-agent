@@ -90,7 +90,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	}
 
 	cacheKey := cache.BuildAgentKey("eks", "cluster-identity", clusterName)
-	if id, err, ok := lookupCache(cacheKey); ok {
+	if id, ok, err := lookupCache(cacheKey); ok {
 		return id, err
 	}
 
@@ -101,7 +101,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	v, err, _ := resolveGroup.Do(clusterName, func() (interface{}, error) {
 		// Re-check the cache inside the flight: the winner of a prior flight may have just
 		// populated it while this goroutine was waiting to enter.
-		if id, err, ok := lookupCache(cacheKey); ok {
+		if id, ok, err := lookupCache(cacheKey); ok {
 			return id, err
 		}
 		return resolveAndCache(ctx, clusterName, cacheKey)
@@ -119,19 +119,19 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 var resolveGroup singleflight.Group
 
 // lookupCache returns a cached identity (as a fresh copy) or cached error. ok is false on a miss.
-func lookupCache(cacheKey string) (*ClusterIdentity, error, bool) {
+func lookupCache(cacheKey string) (*ClusterIdentity, bool, error) {
 	cached, found := cache.Cache.Get(cacheKey)
 	if !found {
-		return nil, nil, false
+		return nil, false, nil
 	}
 	switch v := cached.(type) {
 	case *ClusterIdentity:
 		out := *v
-		return &out, nil, true
+		return &out, true, nil
 	case error:
-		return nil, v, true
+		return nil, true, v
 	}
-	return nil, nil, false
+	return nil, false, nil
 }
 
 // resolveAndCache performs the DescribeCluster resolve and populates the cache. The returned

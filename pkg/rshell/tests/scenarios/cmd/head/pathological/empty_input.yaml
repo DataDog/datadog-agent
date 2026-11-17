@@ -1,0 +1,13 @@
+description: head -n 10 on an empty file produces no output and exits 0.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n 10 empty.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

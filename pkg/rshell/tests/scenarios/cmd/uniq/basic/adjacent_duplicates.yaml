@@ -1,0 +1,13 @@
+description: uniq deduplicates adjacent identical lines.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq input.txt
+expect:
+  stdout: "a\n"
+  stderr: ""
+  exit_code: 0

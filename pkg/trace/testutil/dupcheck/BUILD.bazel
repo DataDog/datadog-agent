@@ -26,10 +26,10 @@ dd_agent_go_test(
         "pipeline_test.go",
         "spantypes_test.go",
     ],
-    data = ["//pkg/trace/agent:obfuscate.go"],  # keep
+    data = ["//pkg/trace/agent:obfuscate.go"],
     embed = [":dupcheck"],
     env = {
-        "DUPCHECK_OBFUSCATE_GO": "$(rlocationpath //pkg/trace/agent:obfuscate.go)",  # keep
+        "DUPCHECK_OBFUSCATE_GO": "$(rlocationpath //pkg/trace/agent:obfuscate.go)",
     },
     deps = [
         "//comp/trace/compression/impl-gzip",

@@ -84,10 +84,11 @@ func networkMock() (*network.Info, error) {
 		MacAddress:  "00:0c:29:b6:d2:32",
 		Interfaces: []network.Interface{
 			{
-				Name:       "bond0",
-				IPv4:       []string{"192.168.24.138"},
-				IPv6:       []string{"fe80::20c:29ff:feb6:d232"},
-				MacAddress: gohaiutils.NewValue("00:0c:29:b6:d2:32"),
+				Name:        "bond0",
+				IPv4:        []string{"192.168.24.138"},
+				IPv6:        []string{"fe80::20c:29ff:feb6:d232"},
+				IPv4Network: gohaiutils.NewValue("192.168.24.0/24"),
+				MacAddress:  gohaiutils.NewValue("00:0c:29:b6:d2:32"),
 			},
 			{
 				Name:       "bon1",
@@ -191,7 +192,7 @@ func TestGetPayload(t *testing.T) {
 		IPAddress:                    "192.168.24.138",
 		IPv6Address:                  "fe80::20c:29ff:feb6:d232",
 		MacAddress:                   "00:0c:29:b6:d2:32",
-		Interfaces:                   "[{\"name\":\"bond0\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"192.168.24.138\"],\"ipv6\":[\"fe80::20c:29ff:feb6:d232\"]},{\"name\":\"bon1\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"10.11.12.13\"],\"ipv6\":[\"2001:0db8:85a3:0370:7334\"]}]",
+		Interfaces:                   "[{\"ipv4\":[\"192.168.24.138\"],\"ipv4-network\":\"192.168.24.0/24\",\"ipv6\":[\"fe80::20c:29ff:feb6:d232\"],\"macaddress\":\"00:0c:29:b6:d2:32\",\"name\":\"bond0\"},{\"ipv4\":[\"10.11.12.13\"],\"ipv6\":[\"2001:0db8:85a3:0370:7334\"],\"macaddress\":\"00:0c:29:b6:d2:33\",\"name\":\"bon1\"}]",
 		AgentVersion:                 version.AgentVersion,
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",

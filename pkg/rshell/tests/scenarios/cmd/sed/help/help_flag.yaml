@@ -1,0 +1,10 @@
+description: sed --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    sed --help
+expect:
+  stdout_contains: ["Usage: sed"]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,20 @@
+description: Heredoc with mixed content including variables, special chars, and blank lines.
+input:
+  script: |+
+    X=val
+    cat <<EOF
+    text $X more
+    *glob* ?question
+    'single' "double"
+
+    end
+    EOF
+expect:
+  stdout: |+
+    text val more
+    *glob* ?question
+    'single' "double"
+
+    end
+  stderr: ""
+  exit_code: 0

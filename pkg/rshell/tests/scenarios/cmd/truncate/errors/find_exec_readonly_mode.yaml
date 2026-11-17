@@ -1,0 +1,25 @@
+# Security test: truncate invoked via find -exec must still be rejected
+# outside remediation mode, and no mutation may occur. find -exec builds a
+# separate child CallContext (see runner_exec.go's RunCommand closure)
+# rather than reusing the top-level dispatch path, so this exercises that
+# construction directly: child.Truncate is only wired up when
+# r.remediationMode is true, so truncate's own `callCtx.Truncate == nil`
+# guard must reject the call here exactly as it does for a direct
+# top-level invocation (see errors/readonly_mode.yaml).
+description: truncate invoked via find -exec without remediation mode fails with "capability not available" and does not truncate the file.
+setup:
+  files:
+    - path: big.log
+      content: "lots of log data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    find . -name "*.log" -exec truncate -s 0 {} \;
+    wc -c < big.log
+expect:
+  stdout: |+
+    16
+  stderr: |+
+    truncate: filesystem capability not available (remediation mode required)
+  exit_code: 0
+skip_assert_against_bash: true

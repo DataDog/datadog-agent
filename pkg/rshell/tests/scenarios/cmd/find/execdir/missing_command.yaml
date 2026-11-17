@@ -1,0 +1,17 @@
+description: find -execdir with \; immediately after flag (no command) is a parse error.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -execdir \;
+expect:
+  stderr_contains: ["-execdir"]
+  exit_code: 1

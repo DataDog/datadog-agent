@@ -107,6 +107,42 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 	s.Require().True(s.uninstallAgent(), "should uninstall the agent with NPM running")
 }
 
+// TestNPMInstallWithNetworkEnabledProperty tests that the DD_SYSTEM_PROBE_NETWORK_ENABLED
+// MSI property enables Cloud Network Monitoring on a fresh install, without editing
+// system-probe.yaml or restarting the Agent afterwards.
+func TestNPMInstallWithNetworkEnabledProperty(t *testing.T) {
+	s := &testNPMInstallWithNetworkEnabledPropertySuite{}
+	Run(t, s)
+}
+
+type testNPMInstallWithNetworkEnabledPropertySuite struct {
+	testNPMInstallSuite
+}
+
+func (s *testNPMInstallWithNetworkEnabledPropertySuite) TestNPMInstallWithNetworkEnabledProperty() {
+	host := s.Env().RemoteHost
+	_ = s.installAgentPackage(host,
+		s.AgentPackage,
+		windowsAgent.WithSystemProbeNetworkEnabled("true"),
+	)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(host), s.AgentPackage.AgentVersion())
+
+	// The MSI passes the property to the OCI package setup, which merges it into the
+	// system-probe.yaml the MSI wrote from its template.
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
+	s.Require().NoError(err)
+	config, err := s.readYamlConfig(host, filepath.Join(configRoot, "system-probe.yaml"))
+	s.Require().NoError(err)
+	s.Require().Contains(config, "network_config", "system-probe.yaml should contain network_config")
+	networkConfig, ok := config["network_config"].(map[string]any)
+	s.Require().True(ok, "network_config should be a map")
+	s.Require().Equal(true, networkConfig["enabled"], "network_config.enabled should be true")
+
+	// Setup runs before the MSI starts the services, so system-probe should be running
+	// with no restart.
+	s.testNPMFunctional()
+}
+
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
 // from a the original NPM beta version.
 //

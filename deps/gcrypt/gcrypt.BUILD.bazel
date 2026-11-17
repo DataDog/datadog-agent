@@ -13,7 +13,7 @@ package(
     default_visibility = ["//packages:__subpackages__"],
 )
 
-VERSION = "1.12.2"
+VERSION = "1.12.4"
 
 package_metadata(
     name = "package_metadata",
@@ -58,7 +58,7 @@ expand_template(
     out = "src/gcrypt.h",
     substitutions = {
         "@VERSION@": VERSION,
-        "@VERSION_NUMBER@": "0x010c02",
+        "@VERSION_NUMBER@": "0x010c04",
     },
     template = ":src/gcrypt.h.in",
 )
@@ -403,6 +403,7 @@ cc_library(
     ] + _CIPHER_COMMON_SRCS,
     copts = [
         "-mavx512f",
+        "-mavx512bw",
         "-O2",
     ],
     implementation_deps = [
@@ -631,6 +632,8 @@ cc_library(
                    "cipher/sm3-avx-bmi2-amd64.S",
                    "cipher/sm4-aesni-avx-amd64.S",
                    "cipher/sm4-aesni-avx2-amd64.S",
+                   "cipher/sm4-avx2-amd64.h",
+                   "cipher/sm4-avx512-amd64.h",
                    "cipher/sm4-gfni-avx2-amd64.S",
                    "cipher/sm4-gfni-avx512-amd64.S",
                    "cipher/twofish-amd64.S",
@@ -774,7 +777,7 @@ dd_cc_packaged(
     data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":gcrypt",
-    version = "20.7.2",
+    version = "20.8.9",
     visibility = ["//visibility:public"],
 )
 

@@ -1,0 +1,12 @@
+# skip: case statements are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Case with empty pattern body is blocked.
+input:
+  script: |+
+    case foo in
+      foo) ;;
+    esac
+expect:
+  stdout: ""
+  stderr: "case statements are not supported\n"
+  exit_code: 2

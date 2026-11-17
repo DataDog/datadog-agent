@@ -6,6 +6,11 @@
 // Package eval holds eval related files
 package eval
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
+)
+
 // MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	macros []*Macro
@@ -40,15 +45,6 @@ func (s *MacroStore) Get(id MacroID) *Macro {
 	return nil
 }
 
-// GetMacroEvaluator returns the macro evaluator associated with the macro ID
-func (s *MacroStore) GetMacroEvaluator(id MacroID) (*MacroEvaluator, bool) {
-	macro := s.Get(id)
-	if macro == nil {
-		return nil, false
-	}
-	return macro.evaluator, true
-}
-
 // Contains returns returns true is there is already a macro with this ID in the store
 func (s *MacroStore) Contains(id string) bool {
 	return s.Get(id) != nil
@@ -79,14 +75,14 @@ func (s *VariableStore) Get(name string) SECLVariable {
 // Opts are the options to be passed to the evaluator
 type Opts struct {
 	LegacyFields  map[Field]Field
-	Constants     map[string]interface{}
+	Constants     map[string]ast.Node
 	VariableStore *VariableStore
 	MacroStore    *MacroStore
 	Telemetry     *Telemetry
 }
 
 // WithConstants set constants
-func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
+func (o *Opts) WithConstants(constants map[string]ast.Node) *Opts {
 	o.Constants = constants
 	return o
 }
@@ -143,4 +139,22 @@ func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
 func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 	o.Telemetry = telemetry
 	return o
+}
+
+// passes returns the compilation passes run over the trees of the rules and of
+// the macros.
+func (o *Opts) passes() []pass.Pass {
+	return []pass.Pass{o.resolveIdents()}
+}
+
+// resolveIdents returns the pass replacing the references to the macros and to
+// the constants by their trees.
+func (o *Opts) resolveIdents() pass.Pass {
+	return pass.ResolveIdents(func(name string) (ast.Node, bool) {
+		if macro := o.MacroStore.Get(name); macro != nil {
+			return macro.ast.Root, true
+		}
+		value, ok := o.Constants[name]
+		return value, ok
+	})
 }

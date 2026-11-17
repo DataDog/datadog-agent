@@ -1428,6 +1428,12 @@ func (c *ntmConfig) GetSequenceID() uint64 {
 	return c.sequenceID
 }
 
+// GetSchemaID returns the ID of the schema the config follows. It is set at creation and never changes, so it
+// doesn't need the lock.
+func (c *ntmConfig) GetSchemaID() model.SchemaID {
+	return c.schemaID
+}
+
 // decodeJSONEnv decodes a JSON env value for a map- or list-of-maps-typed setting, so it is stored in the
 // same shape as when read from a config file; ok is false when the value isn't JSON of that shape.
 func decodeJSONEnv(envvar string, defaultValue interface{}) (interface{}, bool) {

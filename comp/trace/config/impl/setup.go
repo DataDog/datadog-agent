@@ -223,6 +223,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("dogstatsd_port") {
 		c.StatsdPort = core.GetInt("dogstatsd_port")
 	}
+	// Not guarded by IsConfigured, so the schema default applies too.
+	if size := core.GetInt("dogstatsd_buffer_size"); size > 0 {
+		c.StatsdBufferSize = size
+	}
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {
@@ -719,6 +723,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.api_key"; core.IsConfigured(k) {
 		c.EVPProxy.APIKey = core.GetString(k)
 	}
+	c.EVPProxy.ApplicationKey = utils.SanitizeAPIKey(core.GetString("app_key"))
 	if k := "evp_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
@@ -750,6 +755,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.OTelGateway = core.GetBool("otelcollector.gateway.mode")
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.DebugServerHost = pkgconfighelper.APMDebugHost(core)
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
 	return nil

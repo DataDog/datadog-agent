@@ -1,0 +1,11 @@
+description: Continue with non-numeric argument exits the shell and produces an error.
+input:
+  script: |+
+    for i in a b c; do
+      continue abc
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "continue: abc: numeric argument required"
+  exit_code: 128

@@ -40,7 +40,7 @@ const (
 // usage report, and of the SBOMs it enriches, holding when the usage started
 // being recorded, as a unix timestamp. A package seen running since then
 // carries the time it was last seen.
-const UsageObservedSinceProperty = "UsageObservedSince"
+const UsageObservedSinceProperty = "datadog:usage:ObservedSince"
 
 // IsEnriched reports whether bom went through runtime enrichment, i.e. whether
 // it holds the start of usage observation or any of its components carries the

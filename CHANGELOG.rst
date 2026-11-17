@@ -2,6 +2,33 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.6:
+
+7.84.6
+======
+
+.. _Release Notes_7.84.6_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-23
+
+- Please refer to the `7.84.6 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7846>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.6_Security Notes:
+
+Security Notes
+--------------
+
+- The embedded Python interpreter now rejects TLS certificate chains that
+  contain one of the compromised eMudhra intermediate CA keys, whichever
+  trust store the chain anchors in. This backports the CPython fix for
+  CVE-2026-115557. On Windows, Python checks no longer trust these chains
+  through the Windows certificate store.
+
+
 .. _Release Notes_7.84.5:
 
 7.84.5
@@ -334,6 +361,12 @@ Upgrade Notes
   example behind a proxy or on a connection-constrained network — set
   ``logs_config.batch_max_concurrent_send`` to a lower value (``1`` keeps a single sender
   per pipeline).
+
+- APM : The "v1.0" trace payload conversion, previously opt-in via the ``convert-traces``
+  feature flag, is now enabled by default. Traces now are sent in a string-indexed format to reduce payload size and improve performance.
+  They should not appear differently in the Trace Explorer or Datadog UI.
+  To revert to the previous behavior, add the feature flag ``disable-convert-traces`` to ``apm_config.features``. Note that in the future
+  we will remove this feature flag and make this the default behavior. If you run into any issues with the new format, please let us know by opening a support ticket.
 
 
 .. _Release Notes_7.84.0_New Features:

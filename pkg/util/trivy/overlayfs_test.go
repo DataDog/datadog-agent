@@ -8,12 +8,51 @@
 package trivy
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestCheckLayers(t *testing.T) {
+	empty := t.TempDir()
+	full := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(full, "os-release"), []byte("ID=alpine\n"), 0o644))
+	missing := filepath.Join(t.TempDir(), "missing")
+
+	assert.NoError(t, checkLayers([]string{empty, full}))
+
+	err := checkLayers([]string{full, missing})
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
+	assert.ErrorIs(t, err, sbom.ErrScanNotSupported)
+	assert.ErrorIs(t, err, fs.ErrNotExist)
+	assert.ErrorContains(t, err, missing)
+
+	// Any other failure, here a layer that is a file, stays retryable.
+	file := filepath.Join(full, "os-release")
+	err = checkLayers([]string{file})
+	assert.ErrorContains(t, err, file)
+	assert.NotErrorIs(t, err, sbom.ErrScanNotSupported)
+}
+
+func TestCheckLayersPermission(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a directory whatever its mode")
+	}
+	closed := t.TempDir()
+	require.NoError(t, os.Chmod(closed, 0))
+	t.Cleanup(func() { assert.NoError(t, os.Chmod(closed, 0o700)) })
+
+	err := checkLayers([]string{closed})
+	assert.ErrorIs(t, err, ErrLayerUnreadable)
+	assert.ErrorIs(t, err, fs.ErrPermission)
+}
 
 func TestFakeContainerLookups(t *testing.T) {
 	const snapshotsBase = "/host/root/var/lib/containerd/io.containerd.snapshotter.v1.nydus/snapshots"

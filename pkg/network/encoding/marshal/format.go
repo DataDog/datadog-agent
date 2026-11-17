@@ -63,6 +63,12 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		w.SetPort(int32(conn.SPort))
 		w.SetContainerId(containerID)
 	})
+	// tells process-agent the laddr container was reattributed, so it doesn't infer it from a PID map mismatch
+	if conn.NetNSOriginalContainerID != nil {
+		if originalID, _ := conn.NetNSOriginalContainerID.Get().(string); originalID != "" {
+			builder.SetNetnsOriginalContainerId(originalID)
+		}
+	}
 
 	containerID = ""
 	if conn.ContainerID.Dest != nil {

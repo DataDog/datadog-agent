@@ -35,6 +35,8 @@ var (
 	// build a sysctl snapshot is unavailable. Callers should disable snapshots
 	// rather than repeatedly retrying an unsupported host configuration.
 	ErrRequiredSysctlSnapshotFileNotFound = errors.New("required sysctl snapshot file not found")
+
+	errKernelConfigNotFound = errors.New("kernel config not found")
 )
 
 // readFileContent reads a file and processes its content based on the given rules.
@@ -295,15 +297,21 @@ func (s *Snapshot) getKernelConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	configPath := fmt.Sprintf(kernel.HostBoot("/config-%s"), strings.TrimSpace(string(kernelVersion)))
-	if _, err := os.Stat(configPath); err == nil {
-		return configPath, nil
+	return findKernelConfigPath(kernel.BootRoot(), kernel.ProcFSRoot(), strings.TrimSpace(kernelVersion))
+}
+
+func findKernelConfigPath(bootRoot string, procRoot string, kernelVersion string) (string, error) {
+	for _, configPath := range []string{
+		filepath.Join(bootRoot, "config-"+kernelVersion),
+		filepath.Join(procRoot, "config.gz"),
+		filepath.Join(procRoot, "1/root/boot", "config-"+kernelVersion),
+		filepath.Join(procRoot, "1/root/usr/lib/modules", kernelVersion, "config"),
+	} {
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
 	}
-	procConfigGZ := kernel.HostProc("/config.gz")
-	if _, err := os.Stat(procConfigGZ); err == nil {
-		return procConfigGZ, nil
-	}
-	return "", errors.New("kernel config not found")
+	return "", errKernelConfigNotFound
 }
 
 func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {
@@ -331,6 +339,9 @@ func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[str
 // snapshotKernelCompilationConfiguration tries to resolve and parse the kernel compilation configuration
 func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFlags map[string]uint8) error {
 	configPath, err := s.getKernelConfigPath()
+	if errors.Is(err, errKernelConfigNotFound) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("error finding kernel config: %w", err)
 	}
