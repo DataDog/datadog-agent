@@ -25,7 +25,7 @@ type Device struct {
 	PCIBusID           string    `json:"gpu_pci_bus_id,omitempty"`
 	PCIDeviceID        string    `json:"pci_device_id,omitempty"`
 	PCISubsystemID     string    `json:"pci_subsystem_id,omitempty"`
-	PCIePath           []string  `json:"pcie_path,omitempty"`
+	PCIePath           *[]string `json:"pcie_path,omitempty"` // empty when the GPU is on the root complex
 	NUMANode           *int      `json:"gpu_numa_node,omitempty"`
 	FabricGUID         string    `json:"gpu_fabric_guid,omitempty"`
 	FabricClusterUUID  string    `json:"gpu_fabric_cluster_uuid,omitempty"`

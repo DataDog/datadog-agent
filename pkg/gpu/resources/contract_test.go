@@ -53,7 +53,7 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 			MemoryTotalBytes: 16 << 30, MemoryBusWidth: 256, BAR1TotalBytes: 256 << 20,
 			DriverVersion: "580.1", VirtualizationMode: "none",
 			PCIBusID: "0000:01:00.0", PCIDeviceID: "1eb810de", PCISubsystemID: "12a210de",
-			PCIePath: []string{"0000:00:01.0"}, NUMANode: &numa,
+			PCIePath: &[]string{"0000:00:01.0"}, NUMANode: &numa,
 			FabricGUID: "0x0123456789abcdef", FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10",
 			FabricCliqueID: &clique, NVLinkDomain: "01020304-0506-0708-090a-0b0c0d0e0f10:4294967295",
 			NVLinkLinkCount: 18, BoardSerial: "board", ChassisSerial: "chassis",

@@ -9,7 +9,6 @@ package resources
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -67,8 +66,10 @@ func fillPlacement(d *Device, info *safenvml.DeviceInfo) {
 	if info.PCISubsystemID != 0 {
 		d.PCISubsystemID = fmt.Sprintf("%08x", info.PCISubsystemID)
 	}
-	if len(info.PCIePath) > 0 {
-		d.PCIePath = slices.Clone(info.PCIePath)
+	if info.PCIePath != nil {
+		// A known empty path (GPU on the root complex) is published as [].
+		path := append([]string{}, info.PCIePath...)
+		d.PCIePath = &path
 	}
 	if info.NUMANode != nil {
 		node := *info.NUMANode

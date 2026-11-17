@@ -102,7 +102,7 @@ func TestSnapshotPlacementFacts(t *testing.T) {
 	require.Equal(t, uint64(128<<30), d.BAR1TotalBytes)
 	require.Equal(t, 18, d.NVLinkLinkCount)
 	require.Equal(t, 1, *d.NUMANode)
-	require.Equal(t, []string{"0018:00:00.0"}, d.PCIePath)
+	require.Equal(t, []string{"0018:00:00.0"}, *d.PCIePath)
 	require.Equal(t, uint8(0), *d.SlotNumber, "slot 0 is valid")
 	require.Equal(t, uint8(4), *d.TrayIndex)
 	require.Equal(t, uint8(2), *d.ModuleID)
@@ -112,7 +112,7 @@ func TestSnapshotPlacementFacts(t *testing.T) {
 		PCIeMaxBandwidthBytesPerSecond: 121000000000, C2CLinkCount: 10, C2CMaxBandwidthMbps: 357696,
 	}, d.HostLink)
 	gb200.PCIePath[0] = "changed"
-	require.Equal(t, "0018:00:00.0", d.PCIePath[0], "the snapshot owns its path")
+	require.Equal(t, "0018:00:00.0", (*d.PCIePath)[0], "the snapshot owns its path")
 
 	encoded, err := json.Marshal(d)
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestSnapshotHGXHostWithoutChassis(t *testing.T) {
 	}}
 	d := Snapshot([]safenvml.Device{b200})[0]
 	require.Equal(t, 0, *d.NUMANode, "node 0 is valid")
-	require.Equal(t, []string{"0000:8b:01.0", "0000:8a:00.0", "0000:89:00.0"}, d.PCIePath)
+	require.Equal(t, []string{"0000:8b:01.0", "0000:8a:00.0", "0000:89:00.0"}, *d.PCIePath)
 	require.Nil(t, d.SlotNumber)
 	require.Nil(t, d.TrayIndex)
 	require.Nil(t, d.ModuleID)
@@ -162,4 +162,16 @@ func TestSnapshotUnknownPlacementFactsAreAbsent(t *testing.T) {
 	} {
 		require.NotContains(t, fields, name)
 	}
+}
+
+func TestSnapshotPublishesKnownEmptyPCIePath(t *testing.T) {
+	// A GPU directly on the root complex (e.g. VM passthrough) has no bridges.
+	d := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
+		UUID: testUUID, PCIBusID: "0000:00:05.0", PCIePath: []string{},
+	}}})[0]
+	encoded, err := json.Marshal(d)
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &fields))
+	require.Equal(t, []any{}, fields["pcie_path"], "no bridges is known, not unknown")
 }
