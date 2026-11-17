@@ -2747,7 +2747,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		{
 			name: "nonblocking kernel timeout",
 			makeConn: func(t *testing.T) net.Conn {
-				// returns once the connection has timed out (500ms)
+				// returns once the connection has timed out, after ~1s: TCP_USER_TIMEOUT (500ms) is only
+				// checked when the SYN retransmit timer fires, so the connect fails at the first SYN RTO
 				return makeConn(t, true, true)
 			},
 			checkConn: func(t assert.TestingT, conn *network.ConnectionStats) {
@@ -2793,7 +2794,10 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				t.Logf("error getting active connections: %s", err)
 				continue
 			}
-			// the tuple can match an open entry as well as the closed one, so look for the closed one
+			// GetDelta aggregates entries by tuple and direction, and merges a closed entry into an open
+			// one with the same tuple, keeping IsClosed=false. So this can't pick the closed entry over an
+			// open one. It keeps the checks to an entry the tracer reported as closed: an entry that isn't
+			// marked closed means the close wasn't reported, which is the case the retry below covers.
 			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
 				return c.IsClosed
 			})
@@ -2834,7 +2838,9 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				conn = findClosedConn(t, localAddr, 3*time.Second)
 				if conn == nil {
 					t.Logf("attempt %d/%d: failed connection %s -> %s was not reported", attempt, attempts, localAddr, remoteAddr)
-					// close it now so that it can't be reported during a later attempt or subtest
+					// Close it now rather than at test cleanup. Closing can still make the tracer report it
+					// during a later attempt's fetch, but that attempt normally gets a new local port, so
+					// findClosedConn won't match it.
 					c.Close()
 				}
 			}
