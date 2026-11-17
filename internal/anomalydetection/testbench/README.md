@@ -393,7 +393,7 @@ This setting changes detector inputs; keep it identical across binary comparison
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 40 | Points used to build the initial baseline (testbench replay profile) |
+| `warmup_points` | 20 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |
