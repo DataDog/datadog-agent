@@ -988,6 +988,30 @@ func TestApproverMultiFieldLinkAndRename(t *testing.T) {
 		}
 		assert.Empty(t, approvers)
 	})
+
+	t.Run("link-field-to-field-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `link.file.path == "/etc/a" || link.file.destination.path == "/etc/b" || (link.file.path != link.file.destination.path && process.file.path == "/bin/ln")`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("open-mixed-modes-keeps-discarders", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `(open.file.path == "/etc/passwd" || open.file.in_upper_layer) && process.file.path == "/usr/bin/cat"`)
+
+		approvers, _, noDiscarder, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Len(t, approvers["open.file.path"], 1)
+		assert.Len(t, approvers["open.file.in_upper_layer"], 1)
+		assert.Empty(t, noDiscarder)
+	})
 }
 
 func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {

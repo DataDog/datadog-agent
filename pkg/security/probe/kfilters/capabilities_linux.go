@@ -119,7 +119,8 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 					}
 					// otherwise only the parent directory basename can be pushed to the kernel, which is
 					// a coarse approver: weigh it below the flags approvers (open.flags is 100,
-					// open.file.in_upper_layer is 50) so a more selective field is preferred when available
+					// open.file.in_upper_layer is 50) so a more selective field is preferred when available,
+					// but above `open.flags == O_RDONLY` (1) which matches most of the opens
 					return 20
 				},
 			},

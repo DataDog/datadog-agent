@@ -432,7 +432,9 @@ func getMultiFieldApprovers(rule *Rule, event eval.Event, ctx *eval.Context, fie
 
 	multiApprovers := make(Approvers)
 	var acceptedFields []eval.Field
-	mode := DefaultMode
+	// the rule can only be excluded from the discarders if all its approvers are ApproverOnly, the
+	// other kernel approvers do not bypass the discarders
+	mode := ApproverOnlyMode
 
 CAP_LOOP:
 	for _, fieldCap := range candidateCaps {
@@ -490,8 +492,8 @@ CAP_LOOP:
 
 		multiApprovers[field] = filterValues
 		acceptedFields = append(acceptedFields, field)
-		if fieldCap.FilterMode == ApproverOnlyMode {
-			mode = ApproverOnlyMode
+		if fieldCap.FilterMode != ApproverOnlyMode {
+			mode = DefaultMode
 		}
 	}
 
@@ -501,6 +503,18 @@ CAP_LOOP:
 
 	resetCandidateFields()
 	isTrue, err := rule.PartialEval(ctx, acceptedFields...)
+	if err != nil || isTrue {
+		return nil, DefaultMode, err
+	}
+
+	// the string fields share the same neutral value, which hides field to field comparisons
+	// such as `a != b`, check again with a distinct value per field
+	for field, notVal := range notValues {
+		if _, ok := notVal.(string); ok {
+			_ = event.SetFieldValue(field, "<NOT>"+field)
+		}
+	}
+	isTrue, err = rule.PartialEval(ctx, acceptedFields...)
 	if err != nil || isTrue {
 		return nil, DefaultMode, err
 	}
