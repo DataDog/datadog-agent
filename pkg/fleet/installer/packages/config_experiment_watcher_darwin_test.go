@@ -419,3 +419,35 @@ func TestWatcherRevertsAnExperimentWhoseAgentNeverStarts(t *testing.T) {
 	assert.Contains(t, err.Error(), "did not start")
 	assertReverted(t, l, experimentPath)
 }
+
+// TestFailSafeRevertRetriesARestoreThatFailed pins that the fail-safe's retries actually retry: a
+// failed restore leaves the reverting marker in place of the experiment's token, and the next
+// attempt must read it as its own unfinished rollback, not as an experiment someone else ended.
+func TestFailSafeRevertRetriesARestoreThatFailed(t *testing.T) {
+	l, _, experimentPath := runningExperiment(t)
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	// Fail every stable Agent bootstrap of the first revert attempt, then let them through.
+	failures := 0
+	live := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := live()
+		run := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if args[0] == "bootstrap" && strings.HasSuffix(args[len(args)-1], "/"+agentJob+".plist") && failures < 4 {
+				failures++
+				return nil, errors.New("injected failure")
+			}
+			return run(ctx, name, args...)
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = live })
+
+	err = failSafeRevert(context.Background(), experimentDeadline(), token, errors.New("injected"))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "experiment reverted")
+	assert.Equal(t, 4, failures, "the first attempt should have exhausted its own restore retries")
+	assertReverted(t, l, experimentPath)
+}
