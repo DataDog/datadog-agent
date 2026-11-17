@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -149,15 +151,21 @@ func TestResolveDoesNotPinFallbackWhenCallerCancels(t *testing.T) {
 			return "", ctx.Err()
 		}
 
-		// The node that triggered discovery disconnects right away.
+		// The node that triggered discovery disconnects right away. The shared resolve goes on
+		// and its lookup times out.
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		_, _ = Resolve(ctx)
+		_, err := Resolve(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		// A second node joins the same shared resolve and waits for it.
+		_, _ = Resolve(t.Context())
+		assert.Equal(t, 1, state.ec2Lookups, "the second node shared the first lookup")
 
 		// EC2 tags are now reachable. A cancelled or timed out lookup must not have cached the
-		// configured name for clusterNameRetryTTL.
+		// configured name for clusterNameRetryTTL, only for the short timeout TTL.
 		ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return "OrdersProd", nil }
-		_, err := Resolve(t.Context())
+		time.Sleep(clusterNameTimeoutTTL + time.Second)
+		_, err = Resolve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "OrdersProd", state.requested)
 	})
@@ -235,4 +243,95 @@ func TestResolveTimedOutLookupWithoutCAIsNotDeterminedYet(t *testing.T) {
 		assert.ErrorIs(t, err, ErrNotDetermined)
 		assert.NotErrorIs(t, err, ErrClusterUnverified)
 	})
+}
+
+func TestResolveCoalescesColdRequests(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// 200 node Agents ask a Cluster Agent that just started. They share one EC2 tag
+		// lookup (IMDS, then DescribeTags) instead of making 200.
+		state := stub(t, "eks", "", nil, "orders")
+		release := make(chan struct{})
+		var lookups atomic.Int32
+		ec2ClusterName = func(context.Context) (string, error) {
+			lookups.Add(1)
+			<-release
+			return "Orders_Prod", nil
+		}
+
+		var wg sync.WaitGroup
+		for range 200 {
+			wg.Go(func() {
+				_, err := Resolve(t.Context())
+				assert.NoError(t, err)
+			})
+		}
+		synctest.Wait()
+		close(release)
+		wg.Wait()
+		assert.Equal(t, int32(1), lookups.Load())
+		assert.Equal(t, "Orders_Prod", state.requested)
+	})
+}
+
+func TestResolveCachesTimedOutLookupBriefly(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		stub(t, "eks", "", nil, "orders")
+		var lookups atomic.Int32
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			lookups.Add(1)
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+
+		_, _ = Resolve(t.Context())
+		_, _ = Resolve(t.Context())
+		assert.Equal(t, int32(1), lookups.Load(), "a timed out lookup is not repeated right away")
+
+		time.Sleep(clusterNameTimeoutTTL + time.Second)
+		_, _ = Resolve(t.Context())
+		assert.Equal(t, int32(2), lookups.Load(), "but it is tried again soon")
+	})
+}
+
+func TestResolveStaysWithinNodeRequestTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Every step hangs. The whole resolve still answers before the node Agent's 3s
+		// ResponseHeaderTimeout, so the node gets an answer it can act on.
+		stub(t, "", "", nil, "orders")
+		detectDistribution = func(ctx context.Context) (string, bool) {
+			<-ctx.Done()
+			return "", false
+		}
+		start := time.Now()
+		_, err := Resolve(t.Context())
+		assert.ErrorIs(t, err, ErrNotDetermined)
+		assert.Equal(t, resolveBudget, time.Since(start))
+		assert.Less(t, resolveBudget, 3*time.Second)
+
+		stub(t, "eks", "", nil, "orders")
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		resolveIdentityByKey = func(ctx context.Context, _ string, _ []byte) (*eks.ClusterIdentity, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		start = time.Now()
+		_, err = Resolve(t.Context())
+		require.Error(t, err)
+		assert.LessOrEqual(t, time.Since(start), resolveBudget)
+	})
+}
+
+func TestResolveRecoversPanics(t *testing.T) {
+	// singleflight.DoChan re-panics in a new goroutine, which would crash the Cluster Agent.
+	stub(t, "eks", "orders", nil, "orders")
+	resolveIdentityByKey = func(context.Context, string, []byte) (*eks.ClusterIdentity, error) {
+		panic("boom")
+	}
+	identity, err := Resolve(t.Context())
+	assert.Nil(t, identity)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }

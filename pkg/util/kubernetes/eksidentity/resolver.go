@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sync/singleflight"
 )
 
 // clusterNameRetryTTL bounds how often cluster name discovery is retried when the
@@ -27,9 +28,17 @@ import (
 // startup cannot pin the wrong name for the lifetime of the Cluster Agent.
 const clusterNameRetryTTL = 5 * time.Minute
 
-// clusterNameDiscoveryTimeout bounds the EC2 tag lookup (IMDS, then the EC2 API). Together with
-// the DescribeCluster budget it keeps a cold resolve close to the node Agent's request timeout.
+// clusterNameDiscoveryTimeout bounds the EC2 tag lookup (IMDS, then the EC2 API) inside the
+// resolve budget, leaving DescribeCluster the rest.
 const clusterNameDiscoveryTimeout = 1500 * time.Millisecond
+
+// clusterNameTimeoutTTL is how long a timed out EC2 tag lookup is remembered.
+const clusterNameTimeoutTTL = 5 * time.Second
+
+// resolveBudget bounds one whole resolve: the distribution check, the EC2 tag lookup and
+// DescribeCluster. It is below the node Agent client's 3s ResponseHeaderTimeout, so a cold
+// resolve answers the request that started it.
+const resolveBudget = 2500 * time.Millisecond
 
 // serviceAccountCAPath is where Kubernetes mounts the cluster CA into every pod, including
 // Fargate pods. It is the path rest.InClusterConfig reads.
@@ -79,6 +88,38 @@ type discoveredName struct {
 // check. When the CA cannot be read, only the EC2 tag name, which EKS sets on this cluster's
 // nodes, is used.
 func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
+	// Every node Agent asks at once after a Cluster Agent restart. They share one resolve, so
+	// they make one EC2 tag lookup and one DescribeCluster instead of one each. The resolve runs
+	// detached from the node request that started it, so that node disconnecting does not fail
+	// it for the others, and within resolveBudget, so it answers before the node gives up.
+	results := resolveGroup.DoChan("resolve", func() (v interface{}, err error) {
+		defer func() {
+			// DoChan re-panics in a new goroutine, which would crash the Cluster Agent.
+			if r := recover(); r != nil {
+				log.Errorf("EKS cluster identity resolution panicked: %v", r)
+				v, err = nil, fmt.Errorf("EKS cluster identity resolution panicked: %v", r)
+			}
+		}()
+		resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), resolveBudget)
+		defer cancel()
+		return resolve(resolveCtx)
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-results:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		id := *res.Val.(*eks.ClusterIdentity)
+		return &id, nil
+	}
+}
+
+// resolveGroup coalesces concurrent Resolve calls.
+var resolveGroup singleflight.Group
+
+func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 	distribution, determined := detectDistribution(ctx)
 	if !determined {
 		return nil, fmt.Errorf("kube distribution: %w", ErrNotDetermined)
@@ -115,10 +156,9 @@ func discoverClusterName(ctx context.Context) discoveredName {
 
 	// The EC2 tag carries the real EKS cluster name (which may contain upper-case
 	// characters the Datadog cluster name cannot). Only that source is cached permanently.
-	//
-	// The lookup runs on a context detached from the node request that triggered it, with its
-	// own short budget, so a disconnecting node cannot make it fail.
-	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), clusterNameDiscoveryTimeout)
+	// ctx is the shared resolve's own context (see Resolve), so a node disconnecting does not
+	// cut the lookup short.
+	lookupCtx, cancel := context.WithTimeout(ctx, clusterNameDiscoveryTimeout)
 	clusterName, err := ec2ClusterName(lookupCtx)
 	timedOut := lookupCtx.Err() != nil
 	cancel()
@@ -130,11 +170,13 @@ func discoverClusterName(ctx context.Context) discoveredName {
 
 	// Fallback to the configured Datadog cluster name. It may differ from the real EKS
 	// name, so it is only cached briefly and EC2 tag discovery is retried afterwards. A lookup
-	// that ran out of time says nothing about the EC2 tags, so its fallback is not cached.
+	// that ran out of time says nothing about the EC2 tags, so it is cached for a few seconds
+	// only, enough to keep a burst of node requests from repeating it.
 	discovered := discoveredName{name: configuredCluster(ctx, "")}
 	if timedOut {
-		log.Debugf("EKS cluster name lookup from EC2 tags timed out, using the configured cluster name for this request: %v", err)
+		log.Debugf("EKS cluster name lookup from EC2 tags timed out, retrying in %s: %v", clusterNameTimeoutTTL, err)
 		discovered.timedOut = true
+		cache.Cache.Set(cacheKey, discovered, clusterNameTimeoutTTL)
 		return discovered
 	}
 	log.Debugf("EKS cluster name is not available from EC2 tags (retry in %s), falling back to the configured cluster name: %v", clusterNameRetryTTL, err)
