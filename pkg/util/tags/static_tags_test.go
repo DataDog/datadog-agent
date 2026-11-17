@@ -8,14 +8,10 @@ package tags
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -156,7 +152,15 @@ func stubEKSIdentity(t *testing.T, tags []string, err error) *int {
 		*calls++
 		return tags, err
 	}
+	stubEKSEvidence(t, true)
 	return calls
+}
+
+func stubEKSEvidence(t *testing.T, onEKS bool) {
+	t.Helper()
+	original := hasEKSEvidence
+	t.Cleanup(func() { hasEKSEvidence = original })
+	hasEKSEvidence = func() bool { return onEKS }
 }
 
 var eksIdentityTags = []string{
@@ -191,6 +195,14 @@ func TestStaticTagsSliceEKSIdentityOnNodeAgent(t *testing.T) {
 		mockConfig.SetInTest("cluster_agent.enabled", true)
 		stubEKSIdentity(t, nil, errors.New("cluster is not EKS"))
 		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
+	})
+
+	t.Run("node without EKS evidence does not query identity", func(t *testing.T) {
+		mockConfig.SetInTest("cluster_agent.enabled", true)
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		stubEKSEvidence(t, false)
+		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
+		assert.Equal(t, 0, *calls)
 	})
 
 	t.Run("cluster agent flavor never queries itself", func(t *testing.T) {
@@ -231,33 +243,6 @@ func TestStaticTagsSliceEKSIdentityOnFargate(t *testing.T) {
 			assert.NotContains(t, staticTags, tag)
 		}
 	})
-}
-
-func TestStaticTagsSliceFargateUnreachableClusterAgentSharesOneBudget(t *testing.T) {
-	// The real static tags and identity calls against a Cluster Agent URL nothing listens on,
-	// with a real client. The sidecar's startup waits for one budget, not one per call.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.NoError(t, err)
-	closedPort := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
-
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("kubernetes_kubelet_nodename", "eksnode")
-	mockConfig.SetInTest("cluster_agent.enabled", true)
-	mockConfig.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", closedPort))
-	mockConfig.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
-	ipcmock.New(t)
-	env.SetFeatures(t, env.EKSFargate)
-
-	const budget = 2 * time.Second
-	ctx, cancel := context.WithTimeout(t.Context(), budget)
-	defer cancel()
-	start := time.Now()
-	staticTags := GetStaticTagsSlice(ctx, mockConfig)
-	elapsed := time.Since(start)
-
-	assert.Contains(t, staticTags, "kube_distribution:eks")
-	assert.Less(t, elapsed, budget+time.Second, "the identity call shares the static tags deadline")
 }
 
 func TestClusterAgentGlobalTagsEKSIdentity(t *testing.T) {

@@ -7,8 +7,11 @@ package clusterinfo
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -18,12 +21,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 )
 
 func resetStartupIdentity(t *testing.T) {
@@ -33,21 +35,17 @@ func resetStartupIdentity(t *testing.T) {
 		defer startupIdentity.lock.Release(1)
 		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
 		startupIdentity.lastErr, startupIdentity.lastErrAt = nil, time.Time{}
+		identityCall.reset()
 	}
 	reset()
 	t.Cleanup(reset)
-	// An EKS node by default. Tests of the EKS evidence override these.
-	stubNode(t, "eks", nil, true)
 }
 
-// stubNode sets what the node knows about itself: the distribution the Cluster Agent reports
-// for it (cloudprovider.GetName), and whether local DMI allows it to be on EC2.
-func stubNode(t *testing.T, distribution string, distributionErr error, mayBeAWS bool) {
+func stubEvidence(t *testing.T, onEKS bool) {
 	t.Helper()
-	origDistribution, origAWS := getNodeDistribution, hostMayBeAWS
-	t.Cleanup(func() { getNodeDistribution, hostMayBeAWS = origDistribution, origAWS })
-	getNodeDistribution = func(context.Context) (string, error) { return distribution, distributionErr }
-	hostMayBeAWS = func() bool { return mayBeAWS }
+	orig := hasEKSEvidence
+	t.Cleanup(func() { hasEKSEvidence = orig })
+	hasEKSEvidence = func() bool { return onEKS }
 }
 
 var ordersIdentity = &identity.ClusterIdentity{
@@ -204,6 +202,8 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		assert.ErrorIs(t, err, unreachable)
 		assert.Equal(t, StartupRetryBudget, time.Since(start))
+		// Let an attempt started at the deadline end in the background.
+		synctest.Wait()
 		assert.Greater(t, calls, 1)
 
 		// Later startup callers (DogStatsD, OTLP) right after get the same answer at once,
@@ -243,6 +243,8 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T
 
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.Error(t, err)
+		// Let an attempt started at the deadline end in the background.
+		synctest.Wait()
 
 		time.Sleep(startupFailureTTL)
 		reachable = true
@@ -300,11 +302,14 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 	answer := func(id *identity.ClusterIdentity, err error) {
 		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) { calls++; return id, err }
 	}
+	statusErr := func(code int, retryLater bool) error {
+		return &clusteragent.StatusError{StatusCode: code, RetryLater: retryLater, Err: pkgerrors.NewRemoteServiceError("dca", http.StatusText(code))}
+	}
 
-	t.Run("node not on EKS makes no identity call", func(t *testing.T) {
-		// kops, self-managed Kubernetes or ROSA on EC2, kind, other clouds.
+	t.Run("node without EKS evidence makes no identity call", func(t *testing.T) {
+		// kops, self-managed Kubernetes or ROSA on EC2, kind, AKS, GKE, on-prem.
 		calls = 0
-		stubNode(t, "", nil, true)
+		stubEvidence(t, false)
 		answer(ordersIdentity, nil)
 		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
 		require.NoError(t, err, "an empty success, so the provider is not retried or logged")
@@ -312,145 +317,88 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 		assert.Equal(t, 0, calls)
 	})
 
-	t.Run("not found is an empty success", func(t *testing.T) {
-		stubNode(t, "eks", nil, true)
-		answer(nil, &clusteragent.StatusError{StatusCode: http.StatusNotFound, Err: pkgerrors.NewRemoteServiceError("dca", "404 Not Found")})
-		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
-		require.NoError(t, err)
-		assert.Empty(t, tags)
-	})
-
-	t.Run("identity on an EKS node, Windows or hybrid included", func(t *testing.T) {
-		// The distribution comes from the Cluster Agent, not from DMI.
-		stubNode(t, "eks", nil, false)
+	t.Run("identity on an EKS node", func(t *testing.T) {
+		stubEvidence(t, true)
 		answer(ordersIdentity, nil)
 		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
 		require.NoError(t, err)
 		assert.Len(t, tags, 3)
 	})
 
-	t.Run("other failures are still errors", func(t *testing.T) {
-		stubNode(t, "eks", nil, true)
-		answer(nil, errors.New("connection refused"))
+	t.Run("a 404 is an empty success", func(t *testing.T) {
+		// Not EKS, or an older Cluster Agent: must not log on every refresh.
+		stubEvidence(t, true)
+		answer(nil, statusErr(http.StatusNotFound, false))
+		tags, err := GetClusterAgentEKSIdentityHostTags(t.Context())
+		require.NoError(t, err)
+		assert.Empty(t, tags)
+	})
+
+	t.Run("answers that can change are errors, retried on the next refresh", func(t *testing.T) {
+		stubEvidence(t, true)
+		answer(nil, statusErr(http.StatusServiceUnavailable, true))
 		_, err := GetClusterAgentEKSIdentityHostTags(t.Context())
 		assert.Error(t, err)
-
-		stubNode(t, "", errors.New("connection refused"), true)
+		answer(nil, errors.New("connection refused"))
 		_, err = GetClusterAgentEKSIdentityHostTags(t.Context())
-		assert.Error(t, err, "an unknown distribution is retried on the next refresh")
+		assert.Error(t, err)
 	})
 }
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryNeedsEKSEvidence(t *testing.T) {
-	notReachable := pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/tags/node", "dial tcp 10.0.0.1:5005: connect: connection refused")
+func writeToken(t *testing.T, claims string) string {
+	t.Helper()
+	enc := base64.RawURLEncoding.EncodeToString
+	path := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(path, []byte(enc([]byte(`{"alg":"RS256"}`))+"."+enc([]byte(claims))+".c2lnbmF0dXJl\n"), 0o600))
+	return path
+}
+
+func TestIsEKSServiceAccountToken(t *testing.T) {
 	for _, tc := range []struct {
-		name            string
-		distribution    string
-		distributionErr error
-		mayBeAWS        bool
-		wantIdentity    bool
-		wantElapsed     time.Duration
+		name  string
+		path  string
+		onEKS bool
 	}{
-		{name: "EKS node", distribution: "eks", mayBeAWS: true, wantIdentity: true},
-		{name: "EKS hybrid node on-prem", distribution: "eks", mayBeAWS: false, wantIdentity: true},
-		{name: "kops or kind on EC2", distribution: "", mayBeAWS: true},
-		{name: "GKE", distribution: "gke", mayBeAWS: false},
-		{name: "Cluster Agent not reachable, on-prem DMI", distributionErr: notReachable, mayBeAWS: false},
-		{name: "Cluster Agent not reachable, maybe EC2", distributionErr: notReachable, mayBeAWS: true, wantElapsed: StartupRetryBudget},
+		{"EKS", writeToken(t, `{"iss":"https://oidc.eks.us-west-2.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE","sub":"system:serviceaccount:datadog:datadog-agent"}`), true},
+		{"EKS in China", writeToken(t, `{"iss":"https://oidc.eks.cn-north-1.amazonaws.com.cn/id/EXAMPLED539D4633E53DE1B71EXAMPLE"}`), true},
+		{"kops or kind", writeToken(t, `{"iss":"https://kubernetes.default.svc.cluster.local"}`), false},
+		{"GKE", writeToken(t, `{"iss":"https://container.googleapis.com/v1/projects/p/locations/us-central1/clusters/c"}`), false},
+		{"AKS", writeToken(t, `{"iss":"https://eastus.oic.prod-aks.azure.com/tenant/uuid/"}`), false},
+		{"legacy token", writeToken(t, `{"iss":"kubernetes/serviceaccount"}`), false},
+		{"lookalike host", writeToken(t, `{"iss":"https://oidc.eks.evil/id/x/y"}`), false},
+		{"no token", filepath.Join(t.TempDir(), "missing"), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				original := getEKSClusterIdentity
-				t.Cleanup(func() { getEKSClusterIdentity = original })
-				resetStartupIdentity(t)
-				stubNode(t, tc.distribution, tc.distributionErr, tc.mayBeAWS)
-				calls := 0
-				getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-					calls++
-					return ordersIdentity, nil
-				}
-
-				start := time.Now()
-				tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-				assert.Equal(t, tc.wantElapsed, time.Since(start))
-				if tc.wantIdentity {
-					require.NoError(t, err)
-					assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
-					return
-				}
-				require.Error(t, err)
-				assert.Equal(t, 0, calls, "no identity call without EKS evidence")
-			})
+			assert.Equal(t, tc.onEKS, isEKSServiceAccountToken(tc.path))
 		})
 	}
+
+	garbage := filepath.Join(t.TempDir(), "garbage")
+	require.NoError(t, os.WriteFile(garbage, []byte("not a token"), 0o600))
+	assert.False(t, isEKSServiceAccountToken(garbage))
 }
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryWaitsForTheClusterAgentOnEKS(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		// The Cluster Agent is reachable after 3s. The distribution then says EKS, and the
-		// identity is fetched within the budget.
-		original := getEKSClusterIdentity
-		t.Cleanup(func() { getEKSClusterIdentity = original })
-		resetStartupIdentity(t)
-		start := time.Now()
-		getNodeDistribution = func(context.Context) (string, error) {
-			if time.Since(start) < 3*time.Second {
-				return "", errors.New("connection refused")
-			}
-			return "eks", nil
-		}
-		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) { return ordersIdentity, nil }
+func TestHasEKSEvidence(t *testing.T) {
+	origToken := serviceAccountTokenIsEKS
+	t.Cleanup(func() { serviceAccountTokenIsEKS = origToken })
+	key := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
+	t.Cleanup(func() { cache.Cache.Delete(key) })
 
-		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.NoError(t, err)
-		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
-		assert.Equal(t, 3*time.Second, time.Since(start))
-	})
-}
+	serviceAccountTokenIsEKS = func() bool { return false }
+	assert.False(t, HasEKSEvidence())
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnClientConfigError(t *testing.T) {
-	// A node Agent with the Cluster Agent enabled but no endpoint configured. The real client
-	// error is final, so the budget is not spent on it.
-	cfg := configmock.New(t)
-	cfg.SetInTest("cluster_agent.url", "")
-	cfg.SetInTest("cluster_agent.kubernetes_service_name", "")
-	_, configErr := clusteragent.GetClusterAgentClient()
-	require.Error(t, configErr)
-	require.True(t, clusteragent.IsConfigError(configErr), configErr.Error())
+	cache.Cache.Set(key, "eks", cache.NoExpiration)
+	assert.True(t, HasEKSEvidence(), "a distribution the host tags already resolved")
+	cache.Cache.Set(key, "gke", cache.NoExpiration)
+	assert.False(t, HasEKSEvidence())
+	cache.Cache.Delete(key)
 
-	synctest.Test(t, func(t *testing.T) {
-		original := getEKSClusterIdentity
-		t.Cleanup(func() { getEKSClusterIdentity = original })
-		resetStartupIdentity(t)
-		stubNode(t, "", configErr, true)
+	serviceAccountTokenIsEKS = func() bool { return true }
+	assert.True(t, HasEKSEvidence(), "an EKS service account token")
 
-		start := time.Now()
-		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.Error(t, err)
-		assert.Zero(t, time.Since(start))
-	})
-}
-
-func TestHostMayBeAWS(t *testing.T) {
-	cfg := configmock.New(t)
-	for _, tc := range []struct {
-		name     string
-		vendor   string
-		useDMI   bool
-		mayBeAWS bool
-	}{
-		{name: "EC2", vendor: "Amazon EC2", useDMI: true, mayBeAWS: true},
-		{name: "EC2 with ec2_use_dmi false", vendor: "Amazon EC2", useDMI: false, mayBeAWS: true},
-		{name: "no DMI, as on Windows", vendor: "", useDMI: true, mayBeAWS: true},
-		{name: "GCE", vendor: "Google", useDMI: true, mayBeAWS: false},
-		{name: "on-prem", vendor: "Dell Inc.", useDMI: true, mayBeAWS: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg.SetInTest("ec2_use_dmi", tc.useDMI)
-			dmi.SetupMock(t, "", "", "", tc.vendor)
-			assert.Equal(t, tc.mayBeAWS, defaultHostMayBeAWS())
-		})
-	}
+	serviceAccountTokenIsEKS = func() bool { return false }
+	env.SetFeatures(t, env.EKSFargate)
+	assert.True(t, HasEKSEvidence(), "an EKS Fargate sidecar")
 }
 
 func TestGetClusterAgentEKSIdentityTagsWithRetryHonorsCallerContext(t *testing.T) {
@@ -470,6 +418,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryHonorsCallerContext(t *testing.T
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(ctx)
 		require.Error(t, err)
 		assert.Equal(t, 2*time.Second, time.Since(start))
+		synctest.Wait()
 	})
 }
 
@@ -498,6 +447,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryWaiterHonorsItsContext(t *testin
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 		assert.Equal(t, time.Second, time.Since(start))
 		<-first
+		synctest.Wait()
 	})
 }
 
@@ -516,6 +466,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T
 		}
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.Error(t, err)
+		synctest.Wait()
 
 		// Once the budget is spent, a later caller makes one attempt with a short timeout.
 		time.Sleep(startupFailureTTL)
@@ -524,6 +475,8 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T
 		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.Error(t, err)
 		assert.Equal(t, laterAttemptTimeout, time.Since(start))
+		// Let the hanging shared call end before the bubble does.
+		time.Sleep(attemptTimeout)
 	})
 }
 
@@ -552,19 +505,4 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesNotDeterminedYet(t *testi
 		assert.Equal(t, 3, calls)
 		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 	})
-}
-
-func TestGetClusterAgentEKSIdentityTagsWithRetryOnFargate(t *testing.T) {
-	// The real distribution lookup is empty on an EKS Fargate sidecar (there is no Kubernetes
-	// node feature), but Fargate is EKS, so the identity is fetched.
-	env.SetFeatures(t, env.EKSFargate)
-	original := getEKSClusterIdentity
-	t.Cleanup(func() { getEKSClusterIdentity = original })
-	resetStartupIdentity(t)
-	getNodeDistribution = cloudprovider.GetName
-	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) { return ordersIdentity, nil }
-
-	tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-	require.NoError(t, err)
-	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 }

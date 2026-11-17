@@ -33,6 +33,8 @@ var (
 	getClusterAgentStaticTags      = clusterinfo.GetClusterAgentStaticTagsWithRetry
 	getClusterAgentEKSIdentityTags = clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry
 	getClusterAgentEKSIdentity     = func(context.Context) []string { return nil }
+	hasEKSEvidence                 = clusterinfo.HasEKSEvidence
+	fargateStartupBudget           = clusterinfo.StartupRetryBudget
 )
 
 // SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
@@ -80,9 +82,10 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
 			// Both Cluster Agent calls share one startup budget, so an unreachable Cluster
-			// Agent delays sidecar startup once. With DD_CLUSTER_ID set the static tags call
-			// does not contact the Cluster Agent, and the identity call gets the whole budget.
-			budgetCtx, cancel := context.WithTimeout(ctx, clusterinfo.StartupRetryBudget)
+			// Agent delays sidecar startup once. With DD_ORCHESTRATOR_CLUSTER_ID set the static
+			// tags call does not contact the Cluster Agent, and the identity call gets the whole
+			// budget.
+			budgetCtx, cancel := context.WithTimeout(ctx, fargateStartupBudget)
 			defer cancel()
 
 			clusterAgentStaticTags, err := getClusterAgentStaticTags(budgetCtx)
@@ -123,10 +126,11 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) (tags 
 		tags = append(tags, getFargateStaticTags(ctx, datadogConfig)...)
 	}
 
-	// Regular Kubernetes node Agents receive authoritative EKS identity from the
-	// Cluster Agent. Sidecars use getFargateStaticTags above. The fetch first checks that the
-	// node is on EKS, so other clusters never wait on the Cluster Agent here.
-	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") {
+	// Regular Kubernetes node Agents receive authoritative EKS identity from the Cluster Agent.
+	// Sidecars use getFargateStaticTags above. Only nodes with local EKS evidence (no network
+	// call) ask, so other clusters make no Cluster Agent call here, as before this feature. EKS
+	// nodes without that evidence get the identity from the host tags instead.
+	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") && hasEKSEvidence() {
 		eksIdentityTags, err := getClusterAgentEKSIdentityTags(ctx)
 		if err == nil {
 			tags = append(tags, eksIdentityTags...)

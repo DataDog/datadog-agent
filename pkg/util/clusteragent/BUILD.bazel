@@ -12,6 +12,7 @@ go_library(
         "endpointschecks.go",
         "instrumentationchecks.go",
         "leader_client.go",
+        "testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/clusteragent",
     visibility = ["//visibility:public"],

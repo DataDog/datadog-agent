@@ -22,14 +22,24 @@ go_library(
 
 dd_agent_go_test(
     name = "tags_test",
-    srcs = ["static_tags_test.go"],
+    srcs = [
+        "startup_probe_evidence_test.go",
+        "startup_probe_test.go",
+        "startup_test.go",
+        "static_tags_test.go",
+    ],
     embed = [":tags"],
     deps = [
         "//comp/core/ipc/mock",
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/cache",
+        "//pkg/util/clusteragent",
         "//pkg/util/flavor",
+        "//pkg/util/kubernetes/clusterinfo",
         "//pkg/util/kubernetes/clustername",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
