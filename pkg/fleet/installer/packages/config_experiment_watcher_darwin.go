@@ -233,7 +233,9 @@ func experimentConfigDeployed() bool {
 // watcher read on start, or "" when it could not read one.
 //
 // It reverts under the installer lock, like revertFromWatcher, and skips the revert when the
-// experiment is over by then -- the deadline cleared or holding another experiment's token. A
+// experiment is over by then -- the deadline cleared or holding another experiment's token. The
+// reverting marker does not count as over: it is what a failed restore leaves behind, including
+// this function's own previous attempt, so the next attempt restores again rather than giving up. A
 // deadline it cannot read does not stop it: an experiment nobody can tell the state of is reverted.
 // When the lock itself cannot be taken, for any reason other than a running command, no installer
 // command can run either, so the last attempt reverts without it.
@@ -246,6 +248,12 @@ func failSafeRevert(ctx context.Context, deadline launchd.Deadline, token string
 		current, err := deadline.Read()
 		if err != nil {
 			log.Warnf("watcher: could not read experiment deadline, reverting regardless: %v", err)
+			return true, nil
+		}
+		if current == launchd.DeadlineReverting {
+			// A restore that did not finish: this fail-safe's own earlier attempt, or a stop
+			// that failed partway. Either way the stable set is not back, and restoring it again
+			// is idempotent, so it is still this watcher's to finish.
 			return true, nil
 		}
 		if token == "" {
