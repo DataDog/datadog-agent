@@ -31,12 +31,34 @@ func newTestDirectories(t *testing.T) *Directories {
 	dirs := &Directories{
 		StablePath:     filepath.Join(root, "etc"),
 		ExperimentPath: filepath.Join(root, "etc-exp"),
+		StatePath:      filepath.Join(root, "state", StateFileName),
 	}
 	require.NoError(t, os.MkdirAll(filepath.Join(dirs.StablePath, "conf.d"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, "datadog.yaml"), []byte("log_level: warn\n"), 0640))
-	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, deploymentIDFile), []byte("stable-1"), 0640))
+	require.NoError(t, os.Mkdir(filepath.Dir(dirs.StatePath), 0755))
+	require.NoError(t, dirs.writeState(configState{StableDeploymentID: "stable-1"}))
 	require.NoError(t, dirs.experimentLink().Rest())
 	return dirs
+}
+
+// useTestStateDir points the default state file at a new directory for the rest of the test, as
+// the installer's own state directory is root-owned and may not exist on a development host.
+func useTestStateDir(t *testing.T, dir string) {
+	t.Helper()
+
+	require.NoError(t, os.Mkdir(dir, 0755))
+	original := defaultStatePath
+	defaultStatePath = filepath.Join(dir, StateFileName)
+	t.Cleanup(func() { defaultStatePath = original })
+}
+
+// readTestState returns the state file as recorded.
+func readTestState(t *testing.T, dirs *Directories) configState {
+	t.Helper()
+
+	state, err := dirs.readState()
+	require.NoError(t, err)
+	return state
 }
 
 func mergePatch(deploymentID string, patch string) Operations {
@@ -146,26 +168,25 @@ func TestWriteExperimentPublishesAPatchedCopy(t *testing.T) {
 	assertNoScratchLeftBehind(t, dirs)
 }
 
-func TestWriteExperimentDoesNotFollowDeploymentIDSymlink(t *testing.T) {
+// TestMarkersInTheTreeAreIgnored pins that the configuration tree carries no state: deployment
+// IDs and promote markers planted in it change nothing that is reported.
+func TestMarkersInTheTreeAreIgnored(t *testing.T) {
 	dirs := newTestDirectories(t)
-	sentinel := filepath.Join(t.TempDir(), "sentinel")
-	require.NoError(t, os.WriteFile(sentinel, []byte("untouched"), 0600))
-	idPath := filepath.Join(dirs.StablePath, deploymentIDFile)
-	require.NoError(t, os.Remove(idPath))
-	require.NoError(t, os.Symlink(sentinel, idPath))
+	for _, name := range []string{".deployment-id", ".promoting"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, name), []byte("planted"), 0640))
+	}
+
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "stable-1"}, state)
 
 	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
-
-	content, err := os.ReadFile(sentinel)
+	for _, name := range []string{".deployment-id", ".promoting"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dirs.ExperimentPath, name), []byte("planted"), 0640))
+	}
+	state, err = dirs.GetState()
 	require.NoError(t, err)
-	assert.Equal(t, "untouched", string(content), "deployment metadata must not overwrite a copied link's target")
-	info, err := os.Lstat(filepath.Join(dirs.ExperimentPath, deploymentIDFile))
-	require.NoError(t, err)
-	assert.True(t, info.Mode().IsRegular())
-	content, err = os.ReadFile(filepath.Join(dirs.ExperimentPath, deploymentIDFile))
-	require.NoError(t, err)
-	assert.Equal(t, "experiment-1", string(content))
-	assertNoScratchLeftBehind(t, dirs)
+	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-1"}, state)
 }
 
 // TestWriteExperimentLeavesNoTraceWhenItFails is the property the copy-then-publish order exists
@@ -199,22 +220,29 @@ func TestWriteExperimentRefusesToOverwriteALiveExperiment(t *testing.T) {
 	assert.Equal(t, "experiment-1", state.ExperimentDeploymentID, "the live experiment was replaced")
 }
 
-// TestGetStateReadsTheLinkBeforeTheDeploymentID guards the ordering in GetState. A resting link
-// resolves every path under it to the stable directory, so reading the experiment's deployment ID
-// first would report the stable one as an experiment's and make the daemon claim an experiment is
-// running when none is.
-func TestGetStateReadsTheLinkBeforeTheDeploymentID(t *testing.T) {
+// TestARecordWithNoPublishedDirectoryIsNotAnExperiment covers a crash between recording an
+// experiment and publishing it: the record names a directory found at neither path.
+func TestARecordWithNoPublishedDirectoryIsNotAnExperiment(t *testing.T) {
 	dirs := newTestDirectories(t)
-
-	// Through the resting link, this file is readable at the experiment path.
-	content, err := os.ReadFile(filepath.Join(dirs.ExperimentPath, deploymentIDFile))
+	scratch := filepath.Join(filepath.Dir(dirs.StablePath), incomingPrefix+"crashed")
+	require.NoError(t, os.Mkdir(scratch, 0700))
+	inode, ok, err := inodeOf(scratch)
 	require.NoError(t, err)
-	require.Equal(t, "stable-1", string(content))
+	require.True(t, ok)
+	require.NoError(t, dirs.writeState(configState{
+		StableDeploymentID: "stable-1",
+		Experiment:         &experimentRecord{DeploymentID: "experiment-1", Inode: inode},
+	}))
 
 	state, err := dirs.GetState()
 	require.NoError(t, err)
-	assert.Equal(t, "stable-1", state.StableDeploymentID)
-	assert.Empty(t, state.ExperimentDeploymentID)
+	assert.Equal(t, State{StableDeploymentID: "stable-1"}, state)
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-2", `{"log_level":"debug"}`)))
+	state, err = dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-2"}, state)
+	assertNoScratchLeftBehind(t, dirs)
 }
 
 // TestCopyDoesNotTraverseTheExperimentPath pins invariant 6 at the copy. The configuration layer
@@ -489,9 +517,6 @@ func TestCopyReproducesAccessControlLists(t *testing.T) {
 		assert.Equal(t, readACL(t, filepath.Join(dirs.StablePath, path)), readACL(t, filepath.Join(incoming, path)),
 			"access control list of %q", path)
 	}
-	// deploymentIDFile has no entries of its own, and must not pick any up from the root it is
-	// copied into.
-	assert.Empty(t, readACL(t, filepath.Join(incoming, deploymentIDFile)))
 }
 
 func TestDiscardSucceedsWhenTheCopyIsGone(t *testing.T) {
@@ -651,54 +676,80 @@ func TestAgentAccountIsTheMacOSOne(t *testing.T) {
 	assert.Equal(t, "admin", agentConfigGroup)
 }
 
-// TestReadDeploymentIDRefusesWhatItShouldNotRead pins the checks readDeploymentID makes before the
-// installer, running as root, reports a file from the Agent-writable configuration tree back
-// through the daemon's state.
-func TestReadDeploymentIDRefusesWhatItShouldNotRead(t *testing.T) {
+// TestReadStateRefusesWhatItShouldNotRead pins the checks made before the state file is trusted.
+func TestReadStateRefusesWhatItShouldNotRead(t *testing.T) {
 	secret := filepath.Join(t.TempDir(), "secret")
-	require.NoError(t, os.WriteFile(secret, []byte("hunter2"), 0600))
+	require.NoError(t, os.WriteFile(secret, []byte(`{"stable_deployment_id":"forged"}`), 0600))
 
 	for name, plant := range map[string]func(t *testing.T, path string){
 		"a symlink": func(t *testing.T, path string) {
 			require.NoError(t, os.Symlink(secret, path))
 		},
-		"a hard link": func(t *testing.T, path string) {
-			require.NoError(t, os.Link(secret, path))
-		},
 		"a directory": func(t *testing.T, path string) {
 			require.NoError(t, os.Mkdir(path, 0755))
 		},
-		"an oversized file": func(t *testing.T, path string) {
-			require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", maxDeploymentIDSize+1)), 0640))
+		"a file writable by others": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte(`{}`), 0644))
+			require.NoError(t, os.Chmod(path, 0666))
 		},
-		"a multi-line file": func(t *testing.T, path string) {
-			require.NoError(t, os.WriteFile(path, []byte("id\nmore"), 0640))
+		"a directory writable by others": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte(`{}`), 0644))
+			require.NoError(t, os.Chmod(filepath.Dir(path), 0777))
+		},
+		"an oversized file": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte(strings.Repeat(" ", maxStateSize+1)), 0644))
+		},
+		"malformed content": func(t *testing.T, path string) {
+			require.NoError(t, os.WriteFile(path, []byte("not json"), 0644))
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			plant(t, filepath.Join(dir, deploymentIDFile))
-			id, err := readDeploymentID(dir)
+			dirs := &Directories{StatePath: filepath.Join(t.TempDir(), "state", StateFileName)}
+			require.NoError(t, os.Mkdir(filepath.Dir(dirs.StatePath), 0755))
+			plant(t, dirs.StatePath)
+			_, err := dirs.readState()
 			assert.Error(t, err)
-			assert.Empty(t, id)
 		})
 	}
 }
 
-func TestReadDeploymentIDReadsAnID(t *testing.T) {
-	dir := t.TempDir()
-	id, err := readDeploymentID(dir)
-	require.NoError(t, err)
-	assert.Empty(t, id, "a directory with no deployment ID reports none")
+// TestReadStateRefusesAnotherOwner needs root: only root can create a file owned by another
+// account.
+func TestReadStateRefusesAnotherOwner(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to create a file with another owner")
+	}
+	dirs := &Directories{StatePath: filepath.Join(t.TempDir(), "state", StateFileName)}
+	require.NoError(t, os.Mkdir(filepath.Dir(dirs.StatePath), 0755))
+	require.NoError(t, dirs.writeState(configState{StableDeploymentID: "stable-1"}))
+	require.NoError(t, os.Chown(dirs.StatePath, 1, 1))
 
-	require.NoError(t, writeDeploymentID(dir, "jq-replace-tag:123-0"))
-	id, err = readDeploymentID(dir)
-	require.NoError(t, err)
-	assert.Equal(t, "jq-replace-tag:123-0", id)
+	_, err := dirs.readState()
+	assert.Error(t, err)
+}
 
-	id, err = readDeploymentID(filepath.Join(dir, "missing"))
+func TestReadStateRoundTrips(t *testing.T) {
+	dirs := &Directories{StatePath: filepath.Join(t.TempDir(), "state", StateFileName)}
+	state, err := dirs.readState()
 	require.NoError(t, err)
-	assert.Empty(t, id, "a missing directory reports no deployment ID")
+	assert.Equal(t, configState{}, state, "a missing state directory reports no state")
+
+	require.NoError(t, os.Mkdir(filepath.Dir(dirs.StatePath), 0755))
+	state, err = dirs.readState()
+	require.NoError(t, err)
+	assert.Equal(t, configState{}, state, "a missing state file reports no state")
+
+	want := configState{
+		StableDeploymentID: "jq-replace-tag:123-0",
+		Experiment:         &experimentRecord{DeploymentID: "experiment-1", Inode: 42},
+	}
+	require.NoError(t, dirs.writeState(want))
+	state, err = dirs.readState()
+	require.NoError(t, err)
+	assert.Equal(t, want, state)
+	info, err := os.Lstat(dirs.StatePath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 }
 
 // TestWriteExperimentDoesNotMigrateALegacyLayout pins that macOS, which never had the legacy
@@ -720,17 +771,15 @@ func TestWriteExperimentDoesNotMigrateALegacyLayout(t *testing.T) {
 	assert.Contains(t, string(content), "debug")
 }
 
-// TestAPromoteInterruptedAfterTheSwapIsNotReadAsAnExperiment covers a crash between the swap and
-// resting the link again: the experiment path then holds the previous stable configuration, with
-// its own deployment ID, and must not be reported as a deployed experiment, or recovery would run
-// that previous configuration as one.
-func TestAPromoteInterruptedAfterTheSwapIsNotReadAsAnExperiment(t *testing.T) {
+// TestAPromoteInterruptedAfterTheSwapIsReadAsPromoted covers a crash between the swap and recording
+// it: the recorded experiment directory is then at the stable path, and the experiment path holds
+// the previous stable configuration, which must not be reported as a deployed experiment.
+func TestAPromoteInterruptedAfterTheSwapIsReadAsPromoted(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
 	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
 
 	// PromoteExperiment up to and including the swap, then the crash.
-	require.NoError(t, writePromotingMarker(dirs.ExperimentPath))
 	require.NoError(t, renameSwap(dirs.ExperimentPath, dirs.StablePath))
 
 	state, err := dirs.GetState()
@@ -740,45 +789,79 @@ func TestAPromoteInterruptedAfterTheSwapIsNotReadAsAnExperiment(t *testing.T) {
 	// Recovery discards what is left, which finishes the promote.
 	require.NoError(t, dirs.RemoveExperiment(ctx))
 	assertResting(t, dirs)
-	assert.NoFileExists(t, filepath.Join(dirs.StablePath, promotingFile))
+	assert.Equal(t, configState{StableDeploymentID: "experiment-1"}, readTestState(t, dirs))
 	content, err := os.ReadFile(filepath.Join(dirs.StablePath, "datadog.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "debug", "the promoted configuration should be the stable one")
 }
 
-// TestPromoteLeavesNoMarkerBehind pins that a promote that runs to completion leaves the marker
-// nowhere, and that a stale one in the stable directory is not copied into the next experiment.
-func TestPromoteLeavesNoMarkerBehind(t *testing.T) {
+// TestAPromoteInterruptedBeforeRestingIsFinished covers a crash after the promote is recorded but
+// before the link is put back: the previous stable configuration still stands at the experiment
+// path, and is cleared by the next remove or write.
+func TestAPromoteInterruptedBeforeRestingIsFinished(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
 	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
+	// PromoteExperiment up to and including recording the promote, then the crash.
+	require.NoError(t, renameSwap(dirs.ExperimentPath, dirs.StablePath))
+	require.NoError(t, dirs.writeState(configState{StableDeploymentID: "experiment-1"}))
 
-	require.NoError(t, dirs.PromoteExperiment(ctx))
-	assertResting(t, dirs)
-	assert.NoFileExists(t, filepath.Join(dirs.StablePath, promotingFile))
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "experiment-1"}, state)
 
-	require.NoError(t, writePromotingMarker(dirs.StablePath))
-	require.NoError(t, dirs.RemoveExperiment(ctx))
-	require.NoError(t, writePromotingMarker(dirs.StablePath))
 	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-2", `{"log_level":"info"}`)))
-	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, promotingFile))
+	state, err = dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "experiment-1", ExperimentDeploymentID: "experiment-2"}, state)
+	assertNoScratchLeftBehind(t, dirs)
 }
 
-// TestPromoteClearsTheMarkerWhenTheSwapFails pins that a failed swap leaves the experiment exactly
-// as deployed as before: no marker that would make a later successful swap read as promoted early.
-func TestPromoteClearsTheMarkerWhenTheSwapFails(t *testing.T) {
+// TestARemoveInterruptedAfterRestingIsNotAnExperiment covers a crash between resting the link and
+// clearing the record: the record then names a directory that is gone.
+func TestARemoveInterruptedAfterRestingIsNotAnExperiment(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
 	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
-	original := renameSwap
-	renameSwap = func(string, string) error { return errors.New("boom") }
-	t.Cleanup(func() { renameSwap = original })
 
-	require.Error(t, dirs.PromoteExperiment(ctx))
-	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, promotingFile))
+	require.NoError(t, dirs.experimentLink().Rest())
+
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "stable-1"}, state)
+	require.NoError(t, dirs.RemoveExperiment(ctx))
+	assert.Equal(t, configState{StableDeploymentID: "stable-1"}, readTestState(t, dirs))
+}
+
+// TestWriteExperimentClearsAStrayExperimentDirectory pins that a real directory at the
+// experiment path that is not the recorded experiment does not block a new one.
+func TestWriteExperimentClearsAStrayExperimentDirectory(t *testing.T) {
+	dirs := newTestDirectories(t)
+	require.NoError(t, os.Remove(dirs.ExperimentPath))
+	require.NoError(t, os.Mkdir(dirs.ExperimentPath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.ExperimentPath, "stray"), nil, 0640))
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
+
+	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, "stray"))
 	state, err := dirs.GetState()
 	require.NoError(t, err)
 	assert.Equal(t, "experiment-1", state.ExperimentDeploymentID)
+}
+
+func TestRemoveExperimentWithNoStateDirectoryWritesNothing(t *testing.T) {
+	root := t.TempDir()
+	dirs := &Directories{
+		StablePath:     filepath.Join(root, "etc"),
+		ExperimentPath: filepath.Join(root, "etc-exp"),
+		StatePath:      filepath.Join(root, "state", StateFileName),
+	}
+	require.NoError(t, os.Mkdir(dirs.StablePath, 0755))
+
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+
+	assertResting(t, dirs)
+	assert.NoDirExists(t, filepath.Dir(dirs.StatePath))
 }
 
 func TestSplitListing(t *testing.T) {

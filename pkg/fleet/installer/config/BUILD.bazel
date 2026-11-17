@@ -38,6 +38,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/user",
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
             "@org_golang_x_sys//unix",
@@ -65,6 +66,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/user",
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
             "@org_golang_x_sys//unix",
@@ -141,6 +143,7 @@ dd_agent_go_test(
     srcs = [
         "config_darwin_test.go",
         "config_nix_test.go",
+        "config_other_test.go",
         "config_rollback_windows_test.go",
         "config_test.go",
         "config_windows_test.go",

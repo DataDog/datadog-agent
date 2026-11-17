@@ -638,6 +638,7 @@ func newTestConfigDirs(t *testing.T) (stableDir string, experimentDir string) {
 	root := t.TempDir()
 	stableDir = filepath.Join(root, "stable")
 	require.NoError(t, os.MkdirAll(stableDir, 0755))
+	useTestStateDir(t, filepath.Join(root, "state"))
 	return stableDir, filepath.Join(root, "experiment")
 }
 
