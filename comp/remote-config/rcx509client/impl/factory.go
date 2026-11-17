@@ -16,6 +16,7 @@ import (
 )
 
 const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/Ping"
+const prepareSecretDeliveryURI = "rc.x509.magic_tunnel.remote_config.rc_secrets.v1.SecretsService/PrepareSecretDelivery"
 
 // NewClientFactory returns the production adapter for the public libdd-rc Go
 // client. Keeping this boundary injectable lets the component test lifecycle
@@ -39,6 +40,14 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 				return nil, fmt.Errorf("register x509 debug ping handler: %w", err)
 			}
 			logger.Info("remote config x509 debug ping handler enabled for manual staging validation")
+		}
+
+		if config.PrepareSecretDelivery != nil {
+			if err := client.RegisterHandler(prepareSecretDeliveryURI, config.PrepareSecretDelivery); err != nil {
+				_ = client.Close()
+				return nil, fmt.Errorf("register x509 secret preparation handler: %w", err)
+			}
+			logger.Info("remote config x509 secret preparation handler enabled")
 		}
 
 		return client, nil
