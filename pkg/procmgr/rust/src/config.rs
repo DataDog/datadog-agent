@@ -264,6 +264,8 @@ pub struct ProcessConfig {
     pub restart_sec: Option<f64>,
     pub restart_max_delay_sec: Option<f64>,
     pub start_limit_burst: Option<u32>,
+    /// 0 disables the start limit, as `StartLimitIntervalSec=0` does in systemd, unless
+    /// `start_limit_burst` is 0, which blocks every restart.
     pub start_limit_interval_sec: Option<u64>,
     pub runtime_success_sec: Option<u64>,
     #[serde(default)]

@@ -1,4 +1,5 @@
-# Matches s6, not the fleet DDOT template.
+# Matches the s6 otel service: otel-agent decides enablement itself (exits 0 when disabled),
+# inherits the container PATH, and restarts every 2 seconds without a limit.
 description: Datadog OTel Agent
 command: /opt/datadog-agent/embedded/bin/otel-agent
 args:
@@ -6,15 +7,9 @@ args:
   - /etc/datadog-agent/otel-config.yaml
 auto_start: true
 condition_path_exists: /opt/datadog-agent/embedded/bin/otel-agent
-condition_config_any:
-  - path: /etc/datadog-agent/datadog.yaml
-    keys:
-      - otelcollector.enabled
 restart: on-failure
 restart_sec: 2
-start_limit_interval_sec: 10
-start_limit_burst: 5
+restart_max_delay_sec: 2
+start_limit_interval_sec: 0
 stdout: inherit
 stderr: inherit
-env:
-  PATH: /opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

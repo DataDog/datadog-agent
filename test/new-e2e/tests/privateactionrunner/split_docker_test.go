@@ -6,6 +6,7 @@
 package privateactionrunner
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+)
+
+const (
+	parSplitAgentContainer = "datadog-agent"
+	parSplitS6Container    = "datadog-agent-s6"
 )
 
 type dockerPARSplitSuite struct {
@@ -52,16 +58,45 @@ func TestDockerPARSplitSuite(t *testing.T) {
 }
 
 func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
+	s.runSplitTask(parSplitAgentContainer, "dd-procmgrd")
+}
+
+// s6 still nests dd-procmgrd for the PAR split while ENTRYPOINT=s6-all-in-one is supported.
+func (s *dockerPARSplitSuite) TestS6AllInOneTopologyExecutesTask() {
+	t := s.T()
+	// Both containers share one runner URN, so only one may poll fakeintake.
+	s.Env().RemoteHost.MustExecute("docker stop " + parSplitAgentContainer)
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker start "+parSplitAgentContainer)
+	})
+
+	// The env file keeps the suite's API key and runner key out of the command line.
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`bash -s <<'EOS'
+set -euo pipefail
+env_file=$(mktemp)
+trap 'rm -f "$env_file"' EXIT
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' %[1]s >"$env_file"
+image=$(docker inspect -f '{{.Config.Image}}' %[1]s)
+docker run -d --name %[2]s --env-file "$env_file" -e ENTRYPOINT=s6-all-in-one "$image"
+EOS
+`, parSplitAgentContainer, parSplitS6Container))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+parSplitS6Container)
+	})
+
+	s.runSplitTask(parSplitS6Container, "s6-svscan")
+}
+
+func (s *dockerPARSplitSuite) runSplitTask(container, mainComm string) {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR())
-	s.waitForContainerProcessState("datadog-agent", parControlProcess, "Running", 2*time.Minute)
-	// par-control is Running only after s6 stage 2, so the main process is s6-svscan.
+	s.waitForContainerProcessState(container, parControlProcess, "Running", 2*time.Minute)
 	// pid: host makes a PID 1 check meaningless. .State.Pid is the host PID.
 	pid := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
-		"docker inspect -f '{{.State.Pid}}' datadog-agent"))
+		"docker inspect -f '{{.State.Pid}}' " + container))
 	comm := strings.TrimSpace(s.Env().RemoteHost.MustExecute("cat /proc/" + pid + "/comm"))
-	s.Equal("s6-svscan", comm, "the default entrypoint's main process should be s6-svscan")
-	_, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr("datadog-agent", "/par-probe.sh")
+	s.Equal(mainComm, comm, "unexpected main process in %s", container)
+	_, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(container, "/par-probe.sh")
 	s.Require().NoError(err, stderr)
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
@@ -77,7 +112,7 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 		"command":         "echo par-split-docker-e2e",
 		"allowedCommands": []string{"rshell:echo"},
 	}))
-	s.waitForContainerProcessState("datadog-agent", parExecutorProcess, "Running", 2*time.Minute)
+	s.waitForContainerProcessState(container, parExecutorProcess, "Running", 2*time.Minute)
 	// Publish updates until the cold executor's RC subscription receives the key.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))

@@ -100,7 +100,6 @@ const AUXILIARIES: &[&str] = &[
     "datadog-agent-process",
     "datadog-agent-sysprobe",
     "datadog-agent-security",
-    "datadog-agent-otel",
     "datadog-agent-data-plane",
     "datadog-agent-par",
 ];
@@ -132,7 +131,6 @@ fn load_shipped_catalog() -> HashMap<String, ProcessConfig> {
 fn assert_shared_stdio(config: &ProcessConfig) {
     assert_eq!(config.stdout, "inherit");
     assert_eq!(config.stderr, "inherit");
-    assert_eq!(config.env.get("PATH").map(String::as_str), Some(PATH_ENV));
     assert!(config.after.is_empty(), "after: {:?}", config.after);
     assert!(config.before.is_empty(), "before: {:?}", config.before);
     assert_eq!(config.stop_timeout, None);
@@ -159,6 +157,7 @@ fn aio_core_agent_is_the_critical_process() {
     assert!(core.condition_config_none.is_empty());
     assert_eq!(core.restart_sec, None);
     assert_shared_stdio(core);
+    assert_eq!(core.env.get("PATH").map(String::as_str), Some(PATH_ENV));
 
     let critical: Vec<_> = configs
         .iter()
@@ -198,7 +197,41 @@ fn aio_auxiliaries_restart_on_failure() {
             config.command
         );
         assert_shared_stdio(config);
+        assert_eq!(
+            config.env.get("PATH").map(String::as_str),
+            Some(PATH_ENV),
+            "{name} PATH"
+        );
     }
+}
+
+#[test]
+fn aio_otel_matches_the_s6_service() {
+    let configs = load_shipped_catalog();
+    let otel = configs.get("datadog-agent-otel").expect("otel");
+
+    assert!(
+        otel.condition_config_any.is_empty() && otel.condition_config_none.is_empty(),
+        "otel-agent decides enablement itself, like the s6 service"
+    );
+    assert!(
+        !otel.env.contains_key("PATH"),
+        "otel-agent inherits the container PATH, like the s6 service"
+    );
+    assert_eq!(otel.restart, RestartPolicy::OnFailure);
+    assert_eq!(otel.restart_delay(), 2.0);
+    assert_eq!(otel.max_restart_delay(), 2.0);
+    assert_eq!(
+        otel.start_limit_interval_sec,
+        Some(0),
+        "s6 restarts otel-agent without a limit"
+    );
+    assert!(
+        otel.burst_limit() >= 1,
+        "a start_limit_burst of 0 blocks every restart"
+    );
+    assert!(!otel.exit_with_supervisor);
+    assert_shared_stdio(otel);
 }
 
 #[test]
@@ -779,11 +812,25 @@ fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
 }
 
 #[test]
-fn default_entrypoint_still_execs_init() {
-    assert!(ENTRYPOINT_DEFAULT.contains("exec /init"));
+fn default_entrypoint_execs_procmgr_all_in_one() {
     assert!(
-        !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
-        "_default must keep exec /init and must not exec dd-procmgrd"
+        ENTRYPOINT_DEFAULT
+            .lines()
+            .any(|line| line.trim() == "exec /opt/entrypoints/procmgr-all-in-one"),
+        "_default must exec the procmgr all-in-one entrypoint"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-x /opt/datadog-agent/embedded/bin/dd-procmgrd"),
+        "_default must check for dd-procmgrd before selecting it"
+    );
+    assert!(
+        ENTRYPOINT_DEFAULT.contains("-d /opt/datadog-agent/processes.d/aio"),
+        "_default must check for the all-in-one catalog before selecting procmgr"
+    );
+    assert_eq!(
+        ENTRYPOINT_DEFAULT.lines().last().map(str::trim),
+        Some("exec /opt/entrypoints/s6-all-in-one"),
+        "_default must fall back to s6 on bases without dd-procmgrd"
     );
 }
 

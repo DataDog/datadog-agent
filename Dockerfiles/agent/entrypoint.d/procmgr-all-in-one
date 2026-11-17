@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Opt-in all-in-one supervisor. Unset ENTRYPOINT still runs /opt/entrypoints/_default (s6).
+# All-in-one supervisor. Unset ENTRYPOINT runs /opt/entrypoints/_default, which execs this script.
+# ENTRYPOINT=s6-all-in-one selects s6 instead.
 set -euo pipefail
 
 # Stage executable copies: entries are mode 0644, often symlinks into a read-only
