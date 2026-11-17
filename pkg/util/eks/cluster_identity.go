@@ -31,9 +31,10 @@ import (
 )
 
 const (
-	// identityTimeout bounds the DescribeCluster call. It is kept below the Cluster Agent
-	// client's 3s ResponseHeaderTimeout so a cold resolve completes (and caches) within the
-	// node Agent's single request attempt rather than surfacing as a client timeout.
+	// identityTimeout bounds one resolve (AWS configuration and DescribeCluster). It is kept
+	// below the Cluster Agent client's 3s ResponseHeaderTimeout so a cold resolve usually
+	// completes within the node Agent's request. The resolve does not depend on that request, so
+	// when it takes longer the result is still cached for the node's next attempt.
 	identityTimeout = 2 * time.Second
 	// failureCacheTTL bounds how often a permanent failure (AccessDenied, ResourceNotFound,
 	// malformed ARN) is retried against the EKS API. These do not resolve on their own, so a
@@ -91,18 +92,31 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	// node Agent polls at once, and without this each would issue its own DescribeCluster and
 	// trip EKS throttling. singleflight collapses them into one resolve per cluster name; the
 	// shared result is then served from the cache by all waiters.
-	v, err, _ := resolveGroup.Do(clusterName, func() (interface{}, error) {
+	//
+	// The resolve runs on a context detached from the caller that started it: that caller is
+	// one node Agent's HTTP request, and its disconnect (restart, its own response timeout)
+	// must not fail the resolve for every other waiter. Each waiter still honors its own ctx.
+	results := resolveGroup.DoChan(clusterName, func() (interface{}, error) {
 		// Re-check the cache inside the flight: the winner of a prior flight may have just
 		// populated it while this goroutine was waiting to enter.
 		if id, ok, err := lookupCache(cacheKey); ok {
 			return id, err
 		}
-		return resolveAndCache(ctx, clusterName, cacheKey)
+		resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), identityTimeout)
+		defer cancel()
+		return resolveAndCache(resolveCtx, clusterName, cacheKey)
 	})
-	if err != nil {
-		return nil, err
+
+	var res singleflight.Result
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res = <-results:
 	}
-	id := v.(*ClusterIdentity)
+	if res.Err != nil {
+		return nil, res.Err
+	}
+	id := res.Val.(*ClusterIdentity)
 	// Return a copy so no caller aliases the value shared by the cache and the other waiters.
 	out := *id
 	return &out, nil
@@ -129,39 +143,46 @@ func lookupCache(cacheKey string) (*ClusterIdentity, bool, error) {
 
 // resolveAndCache performs the DescribeCluster resolve and populates the cache. The returned
 // pointer is the cached value; callers copy before handing it out.
+// ctx is the resolve's own context, already bounded by identityTimeout.
 func resolveAndCache(ctx context.Context, clusterName, cacheKey string) (*ClusterIdentity, error) {
-	resolveCtx, cancel := context.WithTimeout(ctx, identityTimeout)
-	defer cancel()
-
-	cfg, err := loadAWSConfig(resolveCtx)
+	cfg, err := loadAWSConfig(ctx)
 	if err != nil {
 		err = fmt.Errorf("load AWS configuration: %w", err)
-		cache.Cache.Set(cacheKey, err, failureTTL(err))
+		cacheFailure(cacheKey, err)
 		return nil, err
 	}
 
-	id, err := resolveClusterIdentity(resolveCtx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
+	id, err := resolveClusterIdentity(ctx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
 	if err != nil {
-		// Negative cache: node Agents query the Cluster Agent repeatedly at startup, and a
-		// missing eks:DescribeCluster permission must not turn into one API call per request.
-		// Transient failures use a short TTL so a blip does not strip the tag for 5 minutes.
-		cache.Cache.Set(cacheKey, err, failureTTL(err))
+		cacheFailure(cacheKey, err)
 		return nil, err
 	}
 	cache.Cache.Set(cacheKey, id, cache.NoExpiration)
 	return id, nil
 }
 
+// cacheFailure negatively caches a resolution failure. Node Agents query the Cluster Agent
+// repeatedly at startup, and a missing eks:DescribeCluster permission must not turn into one API
+// call per request. Transient failures use a short TTL so a blip does not strip the tag for 5
+// minutes. A cancellation never comes from the resolve's own budget, so it says nothing about
+// EKS and is not cached.
+func cacheFailure(cacheKey string, err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	cache.Cache.Set(cacheKey, err, failureTTL(err))
+}
+
 // failureTTL classifies a resolution error so that failures which can clear on their own are
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
-// A context deadline/cancellation, HTTP 429 and expired credentials (the common IRSA
+// The resolve's own deadline, HTTP 429 and expired credentials (the common IRSA
 // projected-token staleness) are transient, and the AWS SDK's retry classifier decides the rest:
 // it treats throttling codes, 5xx, timeouts, connection resets and DNS/TLS failures as
 // retryable, so those use the short TTL.
 // Everything the retryer considers terminal (AccessDenied, ResourceNotFound, malformed identity,
 // invalid name) uses the long TTL.
 func failureTTL(err error) time.Duration {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.DeadlineExceeded) {
 		return transientFailureCacheTTL
 	}
 	var apiErr *apiError

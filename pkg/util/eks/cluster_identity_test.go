@@ -8,7 +8,6 @@ package eks
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -189,7 +188,6 @@ func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 
 	// Transient: context deadline/cancellation and the SDK's retryable error codes.
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(context.DeadlineExceeded))
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", context.Canceled)))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "ThrottlingException"}))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "RequestLimitExceeded"}))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 429, Code: "TooManyRequestsException"}))
@@ -203,4 +201,68 @@ func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {
 	id, err := GetClusterIdentity(context.Background(), "a"+strings.Repeat("b", 100))
 	assert.Nil(t, id)
 	assert.ErrorIs(t, err, ErrInvalidClusterName)
+}
+
+// blockingEKSClient answers DescribeCluster only once release is closed, or fails when its own
+// ctx is done.
+type blockingEKSClient struct {
+	started chan struct{}
+	release chan struct{}
+	output  *describeClusterOutput
+}
+
+func (b *blockingEKSClient) DescribeCluster(ctx context.Context, _ string) (*describeClusterOutput, error) {
+	close(b.started)
+	select {
+	case <-b.release:
+		return b.output, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestGetClusterIdentityCallerCancelDoesNotFailOtherCallers(t *testing.T) {
+	name := "orders-cancel"
+	client := &blockingEKSClient{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		output:  clusterOutput(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name),
+	}
+	stubAWS(t, client)
+
+	// The first node disconnects while the resolve it started is still running.
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	firstErr := make(chan error, 1)
+	go func() {
+		_, err := GetClusterIdentity(firstCtx, name)
+		firstErr <- err
+	}()
+	<-client.started
+
+	// A second node is waiting on the same resolve.
+	secondResult := make(chan error, 1)
+	go func() {
+		_, err := GetClusterIdentity(t.Context(), name)
+		secondResult <- err
+	}()
+
+	cancelFirst()
+	require.ErrorIs(t, <-firstErr, context.Canceled, "a cancelled caller returns its own ctx error")
+
+	close(client.release)
+	require.NoError(t, <-secondResult, "a waiter must not inherit another caller's cancellation")
+
+	id, err := GetClusterIdentity(t.Context(), name)
+	require.NoError(t, err, "a caller's cancellation must not be cached")
+	assert.Equal(t, "arn:aws:eks:us-west-2:123456789012:cluster/"+name, id.ClusterARN)
+}
+
+func TestFailureTTLDoesNotCacheCancellation(t *testing.T) {
+	name := "orders-cancelled-error"
+	stubAWS(t, &mockEKSClient{err: context.Canceled})
+
+	_, err := GetClusterIdentity(t.Context(), name)
+	require.ErrorIs(t, err, context.Canceled)
+	_, found := cache.Cache.Get(cache.BuildAgentKey("eks", "cluster-identity", name))
+	assert.False(t, found, "context.Canceled must never be cached")
 }
