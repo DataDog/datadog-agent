@@ -60,6 +60,8 @@ var (
 var (
 	// intfUtil(site,accCkt,intf): plain arguments, so the series name holds every column.
 	interfaceTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, strictKeyParts: true}
+	// linkstatus(site,accckt): plain arguments, so the series name holds every column.
+	linkStatusTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, strictKeyParts: true}
 	// linkusage(site,accckt,accckt.uplinkBW,...): keyed on site,accckt; the parser also
 	// needs site, accckt, uplink and downlink BW, type, media, ip and isp.
 	linkUsageTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 8, strictKeyParts: true}

@@ -370,7 +370,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting link status metrics from organization %s: %v", org.Name, err)
 			} else {
 				linkStatusMetrics = filterAnalyticsMetricsByDevice(linkStatusMetrics, monitoredDevices, func(m client.LinkStatusMetrics) string { return m.Site })
-				v.metricsSender.SendLinkStatusMetrics(linkStatusMetrics, deviceNameToIDMap)
+				v.metricsSender.SendLinkStatusMetrics(org.Name, linkStatusMetrics, deviceNameToIDMap)
 			}
 
 			linkUsageMetrics, err := c.GetLinkUsageMetrics(org.Name)

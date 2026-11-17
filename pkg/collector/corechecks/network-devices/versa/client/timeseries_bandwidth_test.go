@@ -180,3 +180,32 @@ func TestJoinAttributes(t *testing.T) {
 	require.Len(t, joined, 1)
 	assert.Equal(t, []interface{}{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 1.0}, joined[0].row)
 }
+
+func TestGetLinkStatusMetricsTimeseries(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkstatus(", "",
+		timeseriesBody(t, []string{"site-001,circuit-a"}, []string{"availability"}, 97), counts)
+
+	metrics, err := client.GetLinkStatusMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+	assert.Equal(t, LinkStatusMetrics{
+		DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a",
+		Availability: 97, Timestamp: bandwidthBuckets[0],
+	}, metrics[0])
+	assert.Equal(t, 98.0, metrics[1].Availability)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1}, counts)
+}
+
+func TestLinkStatusTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkstatus(",
+		tableBody(t, [][]any{{"site-001,circuit-a", "site-001", "circuit-a", 99.5}}),
+		timeseriesBody(t, []string{"site-001"}, []string{"availability"}, 97), counts)
+
+	metrics, err := client.GetLinkStatusMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Zero(t, metrics[0].Timestamp)
+	assert.Equal(t, 99.5, metrics[0].Availability)
+}

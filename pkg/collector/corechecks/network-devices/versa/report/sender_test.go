@@ -1263,7 +1263,7 @@ func TestSendLinkStatusMetrics(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
-			s.SendLinkStatusMetrics(tt.linkStatusMetrics, tt.deviceNameToIDMap)
+			s.SendLinkStatusMetrics("datadog", tt.linkStatusMetrics, tt.deviceNameToIDMap)
 
 			for _, metric := range tt.expectedMetrics {
 				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
@@ -2255,4 +2255,21 @@ func TestSendBandwidthMetricsBucketsAndDedupe(t *testing.T) {
 	s.SendAnalyticsInterfaceMetrics("tenant-1", iface, nil)
 	s.SendAnalyticsInterfaceMetrics("tenant-1", iface, nil)
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 5*4+4+8)
+}
+
+func TestSendLinkStatusMetricsBucketsAndDedupe(t *testing.T) {
+	TimeNow = mockTimeNow
+	const start = int64(1704067200000)
+	status := []client.LinkStatusMetrics{
+		{DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a", Availability: 100, Timestamp: start},
+		{DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a", Availability: 50, Timestamp: start + 900000},
+	}
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s := NewSender(mockSender, "default")
+
+	s.SendLinkStatusMetrics("tenant-1", status, nil)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", versaMetricPrefix+"link.availability", 50.0, "", mock.Anything, float64(start+900000)/1000)
+	s.SendLinkStatusMetrics("tenant-1", status, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2)
 }

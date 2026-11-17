@@ -265,7 +265,9 @@ func (s *Sender) SendSiteMetrics(siteMetrics []client.SiteMetrics, deviceNameToI
 }
 
 // SendLinkStatusMetrics sends link status metrics retrieved from Versa Analytics
-func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendLinkStatusMetrics(tenant string, linkStatusMetrics []client.LinkStatusMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, linkMetric := range linkStatusMetrics {
 		var tags = []string{
 			"site:" + linkMetric.Site,
@@ -274,8 +276,15 @@ func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetr
 		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(linkMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"link.availability", linkMetric.Availability, "", tags)
+
+		ts, send := s.bucketTimestamp("link_status_metrics", tenant, linkMetric.DrillKey, linkMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+		s.sendBucketGauge("link.availability", linkMetric.Availability, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendApplicationsByApplianceMetrics sends applications by appliance metrics retrieved from Versa Analytics

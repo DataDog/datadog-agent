@@ -125,12 +125,12 @@ instances:
     ## volatile than with tableData, so review monitor thresholds before switching.
     ##
     ## timeseries applies to SLA, QoS, circuit QoS, interface utilization, SDWAN link
-    ## usage and DIA metrics. Link usage and DIA also make one tableData request per
+    ## status and usage, and DIA metrics. Link usage and DIA also make one tableData request per
     ## collection, to take their attribute tags (type, media, IP, ISP) from it. Every
     ## other endpoint stays on tableData regardless of this setting, because their
     ## responses do not follow the same layout.
     ##
-    ## Interface, link usage and DIA timeseries are validated with synthetic Versa
+    ## Interface, link status, link usage and DIA timeseries are validated with synthetic Versa
     ## responses, and validation against customer provided responses is pending. They fall
     ## back to tableData, with a warning, when a response does not match the expected
     ## layout. DIA always queries a 1 day window, so its timeseries response is large;
