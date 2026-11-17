@@ -31,6 +31,16 @@ type timeseriesLayout struct {
 	// which is also the number of columns the parser expects between the drill key and
 	// the first metric value.
 	drillKeyFields int
+	// attributeColumns, when non zero, is the number of string columns the parser expects
+	// between the drill key and the first metric value that a timeseries response cannot
+	// supply. Attribute arguments such as accckt.ip key on a subset of the query, so they
+	// are not in the series name; these columns are copied from the tableData row with the
+	// same drill key instead, and a bucket whose entity has no such row is skipped.
+	attributeColumns int
+	// strictKeyParts checks every series name splits into drillKeyFields parts before
+	// using the timeseries response, and falls back to tableData for the call when one
+	// does not. It is set for layouts not yet checked against a real timeseries response.
+	strictKeyParts bool
 }
 
 // Layouts for the endpoints verified against real timeseries responses. Adding one for a
@@ -41,6 +51,68 @@ var (
 	pathQoSTimeseriesLayout    = &timeseriesLayout{drillKeyFields: 2}
 	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
 )
+
+// Layouts for the bandwidth endpoints. Each follows the query's group by fields and its
+// tableData drill key; they are validated with synthetic responses, and confirmation
+// against customer provided Versa responses is pending. Until then each checks its key
+// part count and falls back to tableData when a response does not match the expected
+// layout, and the two with attribute arguments take those columns from tableData.
+var (
+	// intfUtil(site,accCkt,intf): plain arguments, so the series name holds every column.
+	interfaceTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, strictKeyParts: true}
+	// linkusage(site,accckt,accckt.uplinkBW,...): keyed on site,accckt; the parser also
+	// needs site, accckt, uplink and downlink BW, type, media, ip and isp.
+	linkUsageTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 8, strictKeyParts: true}
+	// usage(site,accckt,accckt.ip): keyed on site,accckt,ip in tableData; site, accckt and
+	// ip are still taken from tableData so a differently ordered key cannot mislabel them.
+	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, attributeColumns: 3, strictKeyParts: true}
+)
+
+// keyPartsMismatch returns the first series name that does not split into the layout's
+// drill key part count, if any.
+func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (string, bool) {
+	for _, s := range series {
+		if len(strings.Split(s.Name, ",")) != layout.drillKeyFields {
+			return s.Name, true
+		}
+	}
+	return "", false
+}
+
+// joinAttributes replaces the drill key fields of each flattened row with the leading
+// columns of the tableData row for the same entity: the drill key and attributeColumns
+// attribute values. Rows whose entity has no tableData row are dropped, so attribute
+// tags always come from Versa's own response, and their count is returned.
+func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) ([]timeseriesRow, int) {
+	prefix := 1 + layout.attributeColumns
+	byKey := make(map[string][]interface{}, len(tableRows))
+	for _, row := range tableRows {
+		if len(row) < prefix {
+			continue
+		}
+		key, ok := row[0].(string)
+		if !ok {
+			continue
+		}
+		byKey[key] = row[:prefix]
+	}
+	joined := rows[:0]
+	var missing int
+	for _, r := range rows {
+		key, _ := r.row[0].(string)
+		attrs, ok := byKey[key]
+		if !ok {
+			missing++
+			continue
+		}
+		values := r.row[1+layout.drillKeyFields:]
+		row := make([]interface{}, 0, prefix+len(values))
+		row = append(row, attrs...)
+		row = append(row, values...)
+		joined = append(joined, timeseriesRow{timestamp: r.timestamp, row: row})
+	}
+	return joined, missing
+}
 
 // flattenTimeseries converts the per metric series of a timeseries response into
 // tableData shaped rows, one per entity per time bucket: the drill key, then the group by

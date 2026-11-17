@@ -1832,7 +1832,7 @@ func TestSendAnalyticsInterfaceMetrics(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
-			s.SendAnalyticsInterfaceMetrics(tt.analyticsInterfaceMetrics, tt.deviceNameToIDMap)
+			s.SendAnalyticsInterfaceMetrics("datadog", tt.analyticsInterfaceMetrics, tt.deviceNameToIDMap)
 
 			for _, metric := range tt.expectedMetrics {
 				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
@@ -1866,7 +1866,7 @@ func TestSendAnalyticsInterfaceMetricsCaseInsensitiveDeviceLookup(t *testing.T) 
 	}
 
 	s := NewSender(mockSender, "default")
-	s.SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics, deviceNameToIDMap)
+	s.SendAnalyticsInterfaceMetrics("datadog", analyticsInterfaceMetrics, deviceNameToIDMap)
 
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"interface.rx_util", 15.7, "",
 		[]string{"site:BRANCH-1", "access_circuit:WAN-1", "interface:ge-0/0/0", "device_ip:10.0.0.1", "device_namespace:default"})
@@ -2217,4 +2217,42 @@ func TestPathQoSTimeseriesPercentDropEndToEnd(t *testing.T) {
 	}
 	// 10/2000 for the bucket with drops, and a real 0 for the bucket without.
 	require.Equal(t, []float64{0.005, 0}, percentDrops)
+}
+
+// The bandwidth senders submit timeseries entries at their bucket time and skip buckets an
+// earlier run already sent, keyed by tenant, as the SLA and QoS senders do.
+func TestSendBandwidthMetricsBucketsAndDedupe(t *testing.T) {
+	TimeNow = mockTimeNow
+	const start = int64(1704067200000)
+	link := func(first, count int) []client.LinkUsageMetrics {
+		var out []client.LinkUsageMetrics
+		for i := first; i < first+count; i++ {
+			out = append(out, client.LinkUsageMetrics{DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a", VolumeTx: float64(i), Timestamp: start + int64(i)*900000})
+		}
+		return out
+	}
+	dia := []client.DIAMetrics{{DrillKey: "site-001,circuit-a,10.0.0.1", Site: "site-001", AccessCircuit: "circuit-a", IP: "10.0.0.1", Timestamp: start}}
+	iface := []client.AnalyticsInterfaceMetrics{{DrillKey: "site-001,circuit-a,eth-1", Site: "site-001", AccessCkt: "circuit-a", Interface: "eth-1", Timestamp: start}}
+
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s := NewSender(mockSender, "default")
+
+	s.SendLinkUsageMetrics("tenant-1", link(0, 3), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 3*4)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", versaMetricPrefix+"link.volume_tx", 2.0, "", mock.Anything, float64(start+2*900000)/1000)
+	// Window slid by one bucket: two already sent, one new.
+	s.SendLinkUsageMetrics("tenant-1", link(1, 3), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 4*4)
+	// The same drill key under another tenant is not a resend.
+	s.SendLinkUsageMetrics("tenant-2", link(0, 1), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 5*4)
+
+	s.SendDIAMetrics("tenant-1", dia, nil)
+	s.SendDIAMetrics("tenant-1", dia, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 5*4+4)
+
+	s.SendAnalyticsInterfaceMetrics("tenant-1", iface, nil)
+	s.SendAnalyticsInterfaceMetrics("tenant-1", iface, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 5*4+4+8)
 }

@@ -146,6 +146,28 @@ type Client struct {
 	lookback            string
 	analyticsQueryType  string
 	analyticsGap        string
+	// warned records when a rate limited warning was last logged, by warning key.
+	warned   map[string]time.Time
+	warnedMu sync.Mutex
+}
+
+// warnRateLimited logs a warning at most once per hour for a key and at debug level
+// otherwise, so a problem that repeats on every run does not flood the log.
+func (client *Client) warnRateLimited(key string, format string, args ...interface{}) {
+	client.warnedMu.Lock()
+	last, seen := client.warned[key]
+	now := timeNow()
+	if !seen || now.Sub(last) >= time.Hour {
+		if client.warned == nil {
+			client.warned = make(map[string]time.Time)
+		}
+		client.warned[key] = now
+		client.warnedMu.Unlock()
+		log.Warnf(format, args...)
+		return
+	}
+	client.warnedMu.Unlock()
+	log.Debugf(format, args...)
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -773,7 +795,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-tx",
 			"bw-rx",
 		},
-		nil,
+		linkUsageTimeseriesLayout,
 		parseLinkUsageMetrics,
 	)
 }
@@ -896,7 +918,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 			"bw-tx",
 			"bw-rx",
 		},
-		nil,
+		diaTimeseriesLayout,
 		parseDIAMetrics,
 	)
 }
@@ -926,7 +948,7 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 			"bw-tx",
 			"bandwidth",
 		},
-		nil,
+		interfaceTimeseriesLayout,
 		parseAnalyticsInterfaceMetrics,
 	)
 }

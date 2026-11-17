@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -205,6 +206,22 @@ func getPaginatedAnalytics[T any](
 		}
 	}
 
+	return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+}
+
+// getTableDataAnalytics runs a tableData query, paging through the results.
+func getTableDataAnalytics[T any](
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
 	var allMetrics []T
 
 	// Paginate through the results
@@ -244,6 +261,23 @@ func getPaginatedAnalytics[T any](
 	return allMetrics, nil
 }
 
+// fetchTableDataRows returns the raw rows of a tableData query, paging through the
+// results, for joining attribute columns onto a timeseries response.
+func fetchTableDataRows(
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+) ([][]interface{}, error) {
+	return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics,
+		func(rows [][]interface{}) ([][]interface{}, error) { return rows, nil })
+}
+
 // getTimeseriesAnalytics runs the same query as getPaginatedAnalytics with qt=timeseries,
 // which returns a point per time bucket per entity instead of one aggregate row covering
 // the whole lookback window. The response is flattened back into tableData shaped rows so
@@ -263,8 +297,8 @@ func getTimeseriesAnalytics[T any](
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
 	// Deliberately a single request. A timeseries body is a list of series rather than of
-	// rows, and whether count and from-count slice it by entity, by series or not at all
-	// is not something we have been able to pin down against a real Director. Paging on
+	// rows, and how count and from-count apply to it (by entity, by series or not at all)
+	// is still to be confirmed against a customer Director. Paging on
 	// the wrong unit would either silently truncate the fleet or re-fetch and re-submit
 	// the same buckets on every page, so instead we ask for everything once and say so
 	// when the response looks like it was capped.
@@ -288,6 +322,13 @@ func getTimeseriesAnalytics[T any](
 		return nil, fmt.Errorf("failed to get analytics timeseries: %v", err)
 	}
 
+	if layout.strictKeyParts {
+		if name, mismatch := keyPartsMismatch(resp.Data, layout); mismatch {
+			client.warnRateLimited("keyparts:"+query, "Timeseries query %q returned an entity key with %d parts where %d were expected, using tableData for it instead", query, len(strings.Split(name, ",")), layout.drillKeyFields)
+			return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+		}
+	}
+
 	if entities := countEntities(resp.Data); entities >= cfg.MaxCount {
 		log.Warnf("Timeseries query %q returned %d entities, at or above max_count %d: raise max_count, results may be truncated", query, entities, cfg.MaxCount)
 	}
@@ -301,6 +342,18 @@ func getTimeseriesAnalytics[T any](
 			log.Warnf("Dropped all %d timeseries buckets for query %q, no metrics will be reported for it", dropped, query)
 		} else {
 			log.Debugf("Dropped %d incomplete timeseries buckets for query %q", dropped, query)
+		}
+	}
+
+	if layout.attributeColumns > 0 && len(rows) > 0 {
+		tableRows, err := fetchTableDataRows(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics tableData for timeseries attributes: %v", err)
+		}
+		var missing int
+		rows, missing = joinAttributes(rows, tableRows, layout)
+		if missing > 0 {
+			client.warnRateLimited("join:"+query, "Skipped %d timeseries buckets for query %q whose entity has no tableData row to take its attributes from", missing, query)
 		}
 	}
 
