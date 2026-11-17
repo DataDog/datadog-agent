@@ -138,6 +138,8 @@ type VersaCheck struct {
 	config            checkCfg
 	endpointOverrides map[client.Endpoint]client.EndpointConfig
 	metricsSender     *report.Sender
+	// warnings outlives the per run client, so rate limited warnings hold across runs.
+	warnings *client.WarnLimiter
 }
 
 // Run executes the check
@@ -577,9 +579,10 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	}
 
 	// Timeseries holds back the newest bucket of every entity, so a window that cannot
-	// hold two buckets publishes nothing. The bucket size behind a 1MINUTE gap is tenant
+	// hold two buckets publishes nothing. Only queries that use the configured lookback
+	// count: DIA, applications and top users always query a 1 day window. The bucket size behind a 1MINUTE gap is tenant
 	// dependent (often 15 minutes), so warn conservatively below 30 minutes.
-	if v.config.AnalyticsQueryType == client.QueryTypeTimeseries &&
+	if v.config.AnalyticsQueryType == client.QueryTypeTimeseries && v.collectsLookbackTimeseries() &&
 		v.config.LookbackTimeWindowMinutes > 0 && v.config.LookbackTimeWindowMinutes < minTimeseriesLookbackMinutes {
 		log.Warnf("lookback_time_window_minutes %d may not span two analytics buckets; timeseries queries hold back the newest bucket and may publish nothing. Use at least %d (45 or more preferred)",
 			v.config.LookbackTimeWindowMinutes, minTimeseriesLookbackMinutes)
@@ -590,8 +593,23 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	return nil
 }
 
+// collectsLookbackTimeseries reports whether any enabled query both uses
+// lookback_time_window_minutes and supports timeseries collection.
+func (v *VersaCheck) collectsLookbackTimeseries() bool {
+	for _, enabled := range []*bool{
+		v.config.CollectSLAMetrics, v.config.CollectQoSMetrics, v.config.CollectCircuitQoSMetrics,
+		v.config.CollectInterfaceMetrics, v.config.CollectLinkMetrics,
+		v.config.CollectTunnelMetrics, v.config.CollectSiteMetrics,
+	} {
+		if enabled != nil && *enabled {
+			return true
+		}
+	}
+	return false
+}
+
 func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
-	var clientOptions []client.ClientOptions
+	clientOptions := []client.ClientOptions{client.WithWarnLimiter(v.warnings)}
 
 	if v.config.Insecure || v.config.CAFile != "" {
 		options, err := client.WithTLSConfig(v.config.Insecure, v.config.CAFile)
@@ -892,5 +910,6 @@ func newCheck() check.Check {
 	return &VersaCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		interval:  defaultCheckInterval,
+		warnings:  client.NewWarnLimiter(),
 	}
 }

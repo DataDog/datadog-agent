@@ -6,6 +6,7 @@
 package client
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -83,11 +84,14 @@ func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (s
 
 // joinAttributes replaces the drill key fields of each flattened row with the leading
 // columns of the tableData row for the same entity: the drill key and attributeColumns
-// attribute values. Rows whose entity has no tableData row are dropped, so attribute
-// tags always come from Versa's own response, and their count is returned.
-func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) ([]timeseriesRow, int) {
+// attribute values. Attribute tags therefore always come from Versa's own response. An
+// entity is skipped when it has no tableData row, or when its tableData rows disagree on
+// those columns, since either choice would make the tags depend on row order; identical
+// duplicate rows are fine. The counts of buckets skipped for each reason are returned.
+func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, conflicting int) {
 	prefix := 1 + layout.attributeColumns
 	byKey := make(map[string][]interface{}, len(tableRows))
+	conflicts := make(map[string]bool)
 	for _, row := range tableRows {
 		if len(row) < prefix {
 			continue
@@ -96,12 +100,19 @@ func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *tim
 		if !ok {
 			continue
 		}
+		if existing, seen := byKey[key]; seen && !reflect.DeepEqual(existing, row[:prefix]) {
+			conflicts[key] = true
+			continue
+		}
 		byKey[key] = row[:prefix]
 	}
-	joined := rows[:0]
-	var missing int
+	joined = rows[:0]
 	for _, r := range rows {
 		key, _ := r.row[0].(string)
+		if conflicts[key] {
+			conflicting++
+			continue
+		}
 		attrs, ok := byKey[key]
 		if !ok {
 			missing++
@@ -113,7 +124,7 @@ func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *tim
 		row = append(row, values...)
 		joined = append(joined, timeseriesRow{timestamp: r.timestamp, row: row})
 	}
-	return joined, missing
+	return joined, missing, conflicting
 }
 
 // flattenTimeseries converts the per metric series of a timeseries response into

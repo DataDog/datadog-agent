@@ -28,11 +28,15 @@ func TestConfigureWarnsOnShortTimeseriesLookback(t *testing.T) {
 		instance string
 		warn     bool
 	}{
-		{"timeseries below 30", "analytics_query_type: timeseries\nlookback_time_window_minutes: 15\n", true},
-		{"timeseries at 30", "analytics_query_type: timeseries\nlookback_time_window_minutes: 30\n", false},
+		{"timeseries below 30", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 15\n", true},
+		{"timeseries below 30 with link metrics", "analytics_query_type: timeseries\ncollect_link_metrics: true\nlookback_time_window_minutes: 15\n", true},
+		// DIA, applications and top users always query a 1 day window.
+		{"timeseries below 30 with only fixed window queries", "analytics_query_type: timeseries\ncollect_dia_metrics: true\ncollect_applications_by_appliance_metrics: true\ncollect_top_user_metrics: true\nlookback_time_window_minutes: 15\n", false},
+		{"timeseries below 30 with no analytics queries", "analytics_query_type: timeseries\nlookback_time_window_minutes: 15\n", false},
+		{"timeseries at 30", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 30\n", false},
 		{"timeseries above 30", "analytics_query_type: timeseries\nlookback_time_window_minutes: 45\n", false},
 		{"timeseries lookback unset", "analytics_query_type: timeseries\n", false},
-		{"tableData below 30", "analytics_query_type: tableData\nlookback_time_window_minutes: 15\n", false},
+		{"tableData below 30", "analytics_query_type: tableData\ncollect_sla_metrics: true\nlookback_time_window_minutes: 15\n", false},
 		{"default query type below 30", "lookback_time_window_minutes: 15\n", false},
 	}
 	for _, tt := range tests {

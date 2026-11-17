@@ -350,10 +350,13 @@ func getTimeseriesAnalytics[T any](
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics tableData for timeseries attributes: %v", err)
 		}
-		var missing int
-		rows, missing = joinAttributes(rows, tableRows, layout)
+		var missing, conflicting int
+		rows, missing, conflicting = joinAttributes(rows, tableRows, layout)
 		if missing > 0 {
 			client.warnRateLimited("join:"+query, "Skipped %d timeseries buckets for query %q whose entity has no tableData row to take its attributes from", missing, query)
+		}
+		if conflicting > 0 {
+			client.warnRateLimited("joinconflict:"+query, "Skipped %d timeseries buckets for query %q whose entity has tableData rows with differing attributes", conflicting, query)
 		}
 	}
 
