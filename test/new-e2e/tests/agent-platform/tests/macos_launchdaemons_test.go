@@ -347,7 +347,7 @@ func (m *macosInstallSuite) TestZYPostinstFailsWhenTheInstallerFails() {
 	if localDMG := stdos.Getenv(macosLocalDMGEnvVar); localDMG != "" {
 		postinstall = macosExtractLocalPostinstall(m.T(), m.Env().RemoteHost, macosTestClient, localDMG)
 	} else {
-		params := installparams.NewParams(installparams.WithArch("x64"))
+		params := installparams.NewParams(installparams.WithArch(macosPipelineArch(m.Env().RemoteHost)))
 		if params.PipelineID == "" {
 			m.T().Skip("neither E2E_PIPELINE_ID nor " + macosLocalDMGEnvVar + " is set: there is no .dmg to extract the postinstall script from")
 		}

@@ -357,6 +357,7 @@ const (
 	macOSAgentConfigFile   = "/opt/datadog-agent/etc/datadog.yaml"
 	macOSInstallerRCDB     = "/opt/datadog-agent/run/remote-config-installer.db"
 	macOSInstallerJobLabel = "system/com.datadoghq.installer"
+	macOSAgentJobLabel     = "system/com.datadoghq.agent"
 )
 
 // installMacOSPipeline installs the pipeline build exactly the way a customer does -- the official
@@ -379,6 +380,11 @@ func (a *Agent) installMacOSPipeline(params *installParams) error {
 		return a.configureMacOS(params)
 	}
 
+	if params.pipelineID == "" {
+		// Without one the repository URL below names no build (pipeline--<arch>), and the install
+		// script fails far from the cause.
+		return fmt.Errorf("installing the Agent on macOS needs a build to install: set E2E_PIPELINE_ID or %s", MacOSLocalDMGEnvVar)
+	}
 	arch := macOSPipelineArch(a.host.RemoteHost.Architecture)
 	repoURL := fmt.Sprintf("%s/ci/datadog-agent/pipeline-%s-%s", macOSTestingBucket, params.pipelineID, arch)
 
@@ -388,7 +394,7 @@ func (a *Agent) installMacOSPipeline(params *installParams) error {
 	// entire command string) breaks with "parse error near `for'".
 	installScript := fmt.Sprintf(
 		`for i in 1 2 3 4 5; do curl -fsSL %s -o /tmp/e2e-install-mac-os.sh && break || sleep $i; done && `+
-			`DD_API_KEY=%s DD_SITE=datadoghq.com DD_REPO_URL=%s DD_INSTALL_ONLY=true bash /tmp/e2e-install-mac-os.sh`,
+			`DD_API_KEY=%s DD_SITE=datadoghq.com DD_REPO_URL=%s bash /tmp/e2e-install-mac-os.sh`,
 		macOSInstallScriptURL, apiKey(), repoURL)
 	if _, err := a.host.RemoteHost.Execute(installScript); err != nil {
 		return fmt.Errorf("failed to run the pipeline install script: %w", err)
@@ -425,7 +431,7 @@ func (a *Agent) installMacOSLocalDMG(localDMG string) error {
 	// Same shape as the pipeline invocation below: the variables prefix the `bash` command rather
 	// than the whole compound statement, which a shell prefix cannot apply to.
 	if _, err := a.host.RemoteHost.Execute(fmt.Sprintf(
-		`DD_API_KEY=%s DD_SITE=datadoghq.com DD_DMG_PATH=%s DD_INSTALL_ONLY=true bash %s`,
+		`DD_API_KEY=%s DD_SITE=datadoghq.com DD_DMG_PATH=%s bash %s`,
 		apiKey(), remoteDMG, remoteScript,
 	)); err != nil {
 		return fmt.Errorf("failed to install the local .dmg %s: %w", localDMG, err)
@@ -434,8 +440,8 @@ func (a *Agent) installMacOSLocalDMG(localDMG string) error {
 }
 
 // configureMacOS applies the option-driven parts of the macOS install by appending to the Agent
-// configuration the install script just wrote, then restarting the installer daemon so it picks
-// them up.
+// configuration the install script just wrote, then restarting the installer daemon and the Agent
+// so they pick them up.
 //
 // These are written here rather than passed to the install script as DD_REMOTE_UPDATES and
 // friends because the macOS script has no such option: cmd/agent/macos/install_mac_os.sh reads
@@ -508,6 +514,10 @@ remote_configuration.director_root: '%s'
 		`sudo rm -f %s && sudo launchctl kickstart -k %s`, macOSInstallerRCDB, macOSInstallerJobLabel,
 	)); err != nil {
 		return fmt.Errorf("failed to restart the installer daemon: %w", err)
+	}
+	// The install script already started the Agent, on the configuration before this block.
+	if _, err := a.host.RemoteHost.Execute(`sudo launchctl kickstart -k ` + macOSAgentJobLabel); err != nil {
+		return fmt.Errorf("failed to restart the Agent: %w", err)
 	}
 
 	return nil
