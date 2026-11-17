@@ -833,10 +833,14 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
 		{http.StatusInternalServerError, "", true},
 		{http.StatusTooManyRequests, "", true},
 		{http.StatusRequestTimeout, "", true},
-		// A Cluster Agent without the route, and the node's own token, are final.
+		// A Cluster Agent without the route, and the node's own token, are final, whatever
+		// mark an answer carries.
 		{http.StatusNotFound, "", false},
+		{http.StatusNotFound, "true", false},
 		{http.StatusUnauthorized, "", false},
+		{http.StatusUnauthorized, "true", false},
 		{http.StatusForbidden, "", false},
+		{http.StatusForbidden, "true", false},
 		{http.StatusBadRequest, "", false},
 	} {
 		status, mark = tc.status, tc.mark
