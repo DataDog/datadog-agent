@@ -509,25 +509,25 @@ func TestConvert(t *testing.T) {
 		// A user-declared datadog extension gets the resolved hostname in standalone
 		// mode, unless it sets one itself (OTAGENT-1445).
 		{
-			name:           "extensions/standalone/datadog-hostname",
-			provided:       "extensions/standalone/datadog-hostname/config.yaml",
-			expectedResult: "extensions/standalone/datadog-hostname/config-result.yaml",
-			agentConfig:    "extensions/standalone/datadog-hostname/acfg.yaml",
+			name:           "extensions/standalone/dd-hostname",
+			provided:       "extensions/standalone/dd-hostname/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname/acfg.yaml",
 		},
 		{
-			name:           "extensions/standalone/datadog-hostname-err",
-			provided:       "extensions/standalone/datadog-hostname-err/config.yaml",
-			expectedResult: "extensions/standalone/datadog-hostname-err/config-result.yaml",
-			agentConfig:    "extensions/standalone/datadog-hostname-err/acfg.yaml",
+			name:           "extensions/standalone/dd-hostname-err",
+			provided:       "extensions/standalone/dd-hostname-err/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-err/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-err/acfg.yaml",
 			hostnameErr:    true,
 		},
 		{
 			// An empty body still gets the hostname, and no API key from the
 			// exporter.
-			name:           "extensions/standalone/datadog-hostname-empty-body",
-			provided:       "extensions/standalone/datadog-hostname-empty-body/config.yaml",
-			expectedResult: "extensions/standalone/datadog-hostname-empty-body/config-result.yaml",
-			agentConfig:    "extensions/standalone/datadog-hostname-empty-body/acfg.yaml",
+			name:           "extensions/standalone/dd-hostname-empty",
+			provided:       "extensions/standalone/dd-hostname-empty/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-empty/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-empty/acfg.yaml",
 		},
 		// cumulativetodelta auto-injection (OTAGENT-1128).
 		{
