@@ -49,6 +49,7 @@ type Provides struct {
 // a component that always reports the default endpoints and runs nothing.
 func NewComponent(reqs Requires) Provides {
 	if !reqs.Config.GetBool(enabledKey) {
+		reqs.Log.Debugf("Intake routing is disabled (%s is false)", enabledKey)
 		return Provides{Comp: disabledComponent{}}
 	}
 
@@ -214,6 +215,8 @@ type route struct {
 	// keyCheckAt is when to read the API key again, to pick up a key that becomes ready or is
 	// rotated.
 	keyCheckAt time.Time
+	// keyWaiting is true while the API key is not ready. It limits the logs to one per change.
+	keyWaiting bool
 	// pendingCached is true when the route joined a group that already has an answer, and that
 	// answer must be applied to it on the next pass.
 	pendingCached bool
@@ -240,6 +243,7 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 	defer r.mu.Unlock()
 
 	if r.stopped {
+		r.log.Debugf("Intake routing: not routing %d endpoint(s) registered after the component stopped", len(reg.routes))
 		for _, rt := range reg.routes {
 			rt.decided = true
 		}
@@ -251,9 +255,11 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 	for _, rt := range reg.routes {
 		r.types[rt.req.Type] = struct{}{}
 		if rt.site == "" {
+			r.log.Debugf("Intake routing: not routing the %s endpoint %s, its host is not under an official Datadog domain", rt.req.Type, hostPort(rt.req.Default))
 			rt.decided = true
 			continue
 		}
+		r.log.Debugf("Intake routing: registered the %s endpoint %s (site %s)", rt.req.Type, hostPort(rt.req.Default), rt.site)
 		r.attachLocked(rt, now)
 	}
 	r.checkInitialLocked(reg)
@@ -268,6 +274,7 @@ func (r *router) Register(reqs []intakerouting.Request) intakerouting.Registrati
 
 // stop is the OnStop hook. It aborts in-flight requests and waits for the loop to exit.
 func (r *router) stop(ctx context.Context) error {
+	r.log.Debug("Intake routing: stopping")
 	r.mu.Lock()
 	r.stopped = true
 	started := r.loopStarted
@@ -303,6 +310,14 @@ func (reg *registration) WaitInitial(ctx context.Context) []intakerouting.Endpoi
 		case <-ctx.Done():
 		}
 	}
+	select {
+	case <-reg.initialDone:
+	case <-reg.closedCh:
+	default:
+		if ctx.Err() == nil {
+			reg.router.log.Debugf("Intake routing: the startup grace period (%s) elapsed before every endpoint had its first routing decision, starting on the current endpoints", reg.router.grace)
+		}
+	}
 	return reg.Current()
 }
 
@@ -329,6 +344,7 @@ func (reg *registration) Close() {
 	}
 	reg.closed = true
 	close(reg.closedCh)
+	r.log.Debugf("Intake routing: no longer routing %d endpoint(s), their registration was closed", len(reg.routes))
 	delete(r.regs, reg)
 	for _, rt := range reg.routes {
 		r.detachLocked(rt)
