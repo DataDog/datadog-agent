@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -402,7 +403,7 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 	}, sample.tags)
 }
 
-func TestMetricAlignedXIDTags(t *testing.T) {
+func TestDriverXIDMetricAlignedTags(t *testing.T) {
 	u := func(v uint64) *uint64 { return &v }
 	for _, tc := range []struct {
 		name     string
@@ -453,7 +454,13 @@ func TestMetricAlignedXIDTags(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, metricAlignedXIDTags(tc.xid))
+			var aligned []string
+			for _, tag := range driverXIDTags(tc.xid) {
+				if strings.HasPrefix(tag, "nvlink_port:") || strings.HasPrefix(tag, "recovery_action:") || strings.HasPrefix(tag, "recovery_previous_action:") {
+					aligned = append(aligned, tag)
+				}
+			}
+			assert.ElementsMatch(t, tc.expected, aligned)
 		})
 	}
 }

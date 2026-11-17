@@ -79,16 +79,11 @@ func (x xidEvent) toSample() Sample {
 func driverXIDTags(xid *model.NvidiaXid) []string {
 	var tags []string
 	appendEventTags(reflect.ValueOf(xid), &tags)
-	return append(tags, metricAlignedXIDTags(xid)...)
-}
-
-// metricAlignedXIDTags returns tags derived from the driver details that use the
-// same names and values as the GPU metrics, so events can be joined to metrics.
-func metricAlignedXIDTags(xid *model.NvidiaXid) []string {
 	if xid == nil {
-		return nil
+		return tags
 	}
-	var tags []string
+
+	// Tags that use the same names and values as the GPU metrics, so events can be joined to metrics.
 	if fault := xid.NVLinkFault; fault != nil && fault.LinkID != nil {
 		// The driver's 0-based "Link NN" is assumed to be the NVML link index, and
 		// the metrics' nvlink_port tag is that index plus one (see nvlinkPortTag).
