@@ -10,7 +10,7 @@ package utils
 import (
 	"errors"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,12 +52,6 @@ func registerLib(r *FileRegistry, pathID PathIdentifier, path string, pid uint32
 	r.byPID[pid][pathID] = struct{}{}
 }
 
-func shortenLibrariesTracedTimeout(t *testing.T) {
-	old := librariesTracedTimeout
-	librariesTracedTimeout = 200 * time.Millisecond
-	t.Cleanup(func() { librariesTracedTimeout = old })
-}
-
 func TestMissingTracedLibraries(t *testing.T) {
 	r := newLibsTestRegistry(t)
 	prefixes := []string{"libssl.so", "libcrypto.so"}
@@ -73,36 +67,41 @@ func TestMissingTracedLibraries(t *testing.T) {
 	assert.Empty(t, missingTracedLibraries(testLibsModule, testLibsProgram, int(testLibsPID), prefixes))
 }
 
+// The WaitForLibrariesToBeTraced tests run in a synctest bubble: the registry and attacher are
+// in-memory mocks, so the helper's 5s waits and 50ms polling advance in virtual time.
+
 func TestWaitForLibrariesToBeTracedManualFallback(t *testing.T) {
-	shortenLibrariesTracedTimeout(t)
-	r := newLibsTestRegistry(t)
-	registerLib(r, testLibsSSL, "/usr/lib/libssl.so.3", testLibsPID)
+	synctest.Test(t, func(t *testing.T) {
+		r := newLibsTestRegistry(t)
+		registerLib(r, testLibsSSL, "/usr/lib/libssl.so.3", testLibsPID)
 
-	// The manual attach fills in libcrypto but also reports an error for an unrelated
-	// library. The helper must log that error and pass, since both libraries end up traced.
-	attached := false
-	AddAttacher(testLibsModule, testLibsProgram, &mockAttacher{overrideAttachPID: func(pid uint32) error {
-		attached = true
-		registerLib(r, testLibsCrypto, "/usr/lib/libcrypto.so.3", pid)
-		return errors.New("partially hooked: unrelated library failed")
-	}})
+		// The manual attach fills in libcrypto but also reports an error for an unrelated
+		// library. The helper must log that error and pass, since both libraries end up traced.
+		attached := false
+		AddAttacher(testLibsModule, testLibsProgram, &mockAttacher{overrideAttachPID: func(pid uint32) error {
+			attached = true
+			registerLib(r, testLibsCrypto, "/usr/lib/libcrypto.so.3", pid)
+			return errors.New("partially hooked: unrelated library failed")
+		}})
 
-	WaitForLibrariesToBeTraced(t, testLibsModule, testLibsProgram, int(testLibsPID),
-		[]string{"libssl.so", "libcrypto.so"}, ManualTracingFallbackEnabled)
-	require.True(t, attached, "manual attach was not attempted")
+		WaitForLibrariesToBeTraced(t, testLibsModule, testLibsProgram, int(testLibsPID),
+			[]string{"libssl.so", "libcrypto.so"}, ManualTracingFallbackEnabled)
+		require.True(t, attached, "manual attach was not attempted")
+	})
 }
 
 func TestWaitForLibrariesToBeTracedAlreadyTraced(t *testing.T) {
-	shortenLibrariesTracedTimeout(t)
-	r := newLibsTestRegistry(t)
-	registerLib(r, testLibsSSL, "/usr/lib/libssl.so.3", testLibsPID)
-	registerLib(r, testLibsCrypto, "/usr/lib/libcrypto.so.3", testLibsPID)
+	synctest.Test(t, func(t *testing.T) {
+		r := newLibsTestRegistry(t)
+		registerLib(r, testLibsSSL, "/usr/lib/libssl.so.3", testLibsPID)
+		registerLib(r, testLibsCrypto, "/usr/lib/libcrypto.so.3", testLibsPID)
 
-	AddAttacher(testLibsModule, testLibsProgram, &mockAttacher{overrideAttachPID: func(uint32) error {
-		t.Error("manual attach should not run when all libraries are traced")
-		return nil
-	}})
+		AddAttacher(testLibsModule, testLibsProgram, &mockAttacher{overrideAttachPID: func(uint32) error {
+			t.Error("manual attach should not run when all libraries are traced")
+			return nil
+		}})
 
-	WaitForLibrariesToBeTraced(t, testLibsModule, testLibsProgram, int(testLibsPID),
-		[]string{"libssl.so", "libcrypto.so"}, ManualTracingFallbackEnabled)
+		WaitForLibrariesToBeTraced(t, testLibsModule, testLibsProgram, int(testLibsPID),
+			[]string{"libssl.so", "libcrypto.so"}, ManualTracingFallbackEnabled)
+	})
 }

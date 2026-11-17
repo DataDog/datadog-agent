@@ -102,8 +102,8 @@ func attachManually(t *testing.T, moduleName, programType string, pid int) error
 }
 
 // librariesTracedTimeout is how long WaitForLibrariesToBeTraced waits before, and again after,
-// the manual attach. Unit tests shorten it.
-var librariesTracedTimeout = 5 * time.Second
+// the manual attach.
+const librariesTracedTimeout = 5 * time.Second
 
 // missingTracedLibraries returns the entries of libPrefixes for which pid is not yet traced
 // through a library whose file name starts with that prefix.
