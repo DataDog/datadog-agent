@@ -206,6 +206,10 @@ func (suite *admissionProbeSuite) deployDisruptorPod(ctx context.Context, nodeNa
 					Name:    "disruptor",
 					Image:   agentImage,
 					Command: []string{"sleep", "infinity"},
+					// Prevent jemalloc workers from making nsenter multithreaded.
+					Env: []corev1.EnvVar{
+						{Name: "MALLOC_CONF", Value: "background_thread:false"},
+					},
 					SecurityContext: &corev1.SecurityContext{
 						Privileged: &privileged,
 						Capabilities: &corev1.Capabilities{

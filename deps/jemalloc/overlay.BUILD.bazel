@@ -13,9 +13,8 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# Checked-in jemalloc.h still carries the git-describe version from configure
-# on the tag archive. The release tarball has a VERSION file; this build does not read it.
-VERSION = "5.3.0"
+# Public header and version metadata come from the upstream release tarball.
+VERSION = "5.3.1"
 
 package_metadata(
     name = "package_metadata",
@@ -68,17 +67,19 @@ _C_SRCS = [
     "src/san_bump.c",
     "src/hook.c",
     "src/hpa.c",
+    "src/hpa_central.c",
     "src/hpa_hooks.c",
+    "src/hpa_utils.c",
     "src/hpdata.c",
     "src/inspect.c",
     "src/large.c",
     "src/log.c",
     "src/malloc_io.c",
+    "src/conf.c",
     "src/mutex.c",
     "src/nstime.c",
     "src/pa.c",
     "src/pa_extra.c",
-    "src/pai.c",
     "src/pac.c",
     "src/pages.c",
     "src/peak_event.c",
@@ -86,6 +87,7 @@ _C_SRCS = [
     "src/prof_data.c",
     "src/prof_log.c",
     "src/prof_recent.c",
+    "src/prof_stack_range.c",
     "src/prof_stats.c",
     "src/prof_sys.c",
     "src/psset.c",
@@ -98,8 +100,10 @@ _C_SRCS = [
     "src/tcache.c",
     "src/test_hooks.c",
     "src/thread_event.c",
+    "src/thread_event_registry.c",
     "src/ticker.c",
     "src/tsd.c",
+    "src/util.c",
     "src/witness.c",
 ]
 
@@ -118,7 +122,7 @@ _DEFINES = {
     "JEMALLOC_BACKGROUND_THREAD": "",
     "JEMALLOC_C11_ATOMICS": "",
     "JEMALLOC_CACHE_OBLIVIOUS": "",
-    "JEMALLOC_CONFIG_MALLOC_CONF": "\"\"",
+    "JEMALLOC_CONFIG_MALLOC_CONF": "\"background_thread:true,dirty_decay_ms:5000\"",
     "JEMALLOC_DSS": "",
     "JEMALLOC_GCC_ATOMIC_ATOMICS": "",
     "JEMALLOC_GCC_SYNC_ATOMICS": "",
@@ -188,6 +192,8 @@ _DEFINES_X86_64 = {
 
 _DEFINES_ARM64 = {
     "CPU_SPINWAIT": "__asm__ volatile(\"isb\")",
+    # Support Linux ARM64 kernels with 4 KiB, 16 KiB, or 64 KiB pages.
+    "LG_PAGE": "16",
 }
 
 # Keys end with a newline because some names are prefixes of others

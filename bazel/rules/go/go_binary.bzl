@@ -93,9 +93,8 @@ def dd_agent_go_binary(
     all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
     linux_x_defs = {_DEFAULTPATHS_PKG + ".defaultInstallPath": "$(INSTALL_DIR)"} | all_x_defs
 
-    # cgo must be enabled on Windows to link the .syso resource file produced
-    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
-    # should pass an explicit cgo = select({...}) which replaces this default.
+    # cgo must be enabled on Windows to link the .syso resource file produced by win_resource().
+    # Callers that need additional conditions should pass an explicit cgo = select({...}) which replaces this default.
     if "cgo" not in kwargs:
         kwargs["cgo"] = select({
             "@platforms//os:windows": True,
@@ -117,6 +116,14 @@ def dd_agent_go_binary(
 
     go_binary(
         name = name,
+        gc_linkopts = kwargs.pop("gc_linkopts", []) + select({
+            # Set at link time, unlike the rpaths that packaging rewrites with patchelf: a pure-Go binary, from Go's
+            # internal linker, has no rpath, so adding one grows .dynamic, which patchelf 0.18.0 then moves into the
+            # read-only text segment, making ld.so segfault at startup on writing DT_DEBUG there: NixOS/patchelf#146,
+            # #152, #446 and #674, partly addressed by 0.19.3's #672 and the still unmerged #623.
+            "//packages/agent:linux_fips": ["-r", "$(EMBEDDED_LIB_DIRS)"],  # where msgo dlopens OpenSSL from
+            "//conditions:default": [],
+        }),
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",

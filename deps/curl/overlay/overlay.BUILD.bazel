@@ -110,6 +110,7 @@ cc_binary(
     }),
     copts = [
         "-I.",
+        "-O2",
     ],
     defines = LOCAL_DEFINES,
     dynamic_deps = [

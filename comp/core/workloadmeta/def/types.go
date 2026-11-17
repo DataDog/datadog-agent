@@ -862,7 +862,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
+	Containers                 []OrchestratorContainer // Pod spec order. Containers that have not started have an empty ID and no Container entity.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -2032,7 +2032,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
-	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
+	GenerationMethod   string // method used to generate the SBOM, converted to the `scan_method` tag: tarball or overlayfs for an image, as reported by the collector of its container runtime (docker, containerd or cri-o), and filesystem for a container scanned through procfs.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
@@ -2849,25 +2849,25 @@ type KubeCapabilities struct {
 
 var _ Entity = &KubeCapabilities{}
 
-// GetID returns the CRD entity ID
+// GetID returns the KubeCapabilities entity ID
 func (kc KubeCapabilities) GetID() EntityID {
 	return kc.EntityID
 }
 
-// Merge allows the merge of 2 CRD entities
+// Merge allows the merge of 2 KubeCapabilities entities
 func (kc *KubeCapabilities) Merge(e Entity) error {
-	otherCrd, ok := e.(*KubeCapabilities)
+	otherKc, ok := e.(*KubeCapabilities)
 	if !ok {
-		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+		return fmt.Errorf("cannot merge KubeCapabilities type with other type: %T", e)
 	}
 
-	return merge(kc, otherCrd)
+	return merge(kc, otherKc)
 }
 
-// DeepCopy returns a deep copy of the given CRD entity
+// DeepCopy returns a deep copy of the given KubeCapabilities entity
 func (kc KubeCapabilities) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
-	return copyCrd
+	cp := deepcopy.Copy(kc).(KubeCapabilities)
+	return &cp
 }
 
 func (kc KubeCapabilities) String(verbose bool) string {

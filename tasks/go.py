@@ -244,7 +244,8 @@ def reset(ctx):
 @task
 def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
-    for mod in get_default_modules().values():
+    modules = get_default_modules()
+    for mod in modules.values():
         with ctx.cd(mod.path):
             go_sum = os.path.join(mod.full_path(), "go.sum")
             if not os.path.exists(go_sum):
@@ -253,9 +254,14 @@ def check_go_mod_replaces(ctx, fix=False):
                 for line in f:
                     if "github.com/datadog/datadog-agent" in line.lower():
                         err_mod = line.split()[0]
-                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        err_mod_path = err_mod.removeprefix("github.com/DataDog/datadog-agent/")
+                        if (Path(err_mod_path) / "go.mod").exists():
                             if fix:
-                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                # Point to the directory go.work uses, or `go work sync` reports conflicting replacements
+                                target = (
+                                    modules[err_mod_path].workspace_dir() if err_mod_path in modules else err_mod_path
+                                )
+                                relative_path = os.path.relpath(target, mod.path)
                                 ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
                             else:
                                 errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
@@ -428,6 +434,16 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
+
+
+@task
+def write_tag_manifest(_):
+    """
+    Regenerate bazel/go_tags/closure_tags.bzl: the build tags each go_library's closure reads.
+    """
+    bazel("run", "//tasks:write_go_tag_manifest")
 
 
 @task(autoprint=True)
@@ -438,7 +454,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.10 linux/amd64"
+    # result is like "go version go1.26.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
