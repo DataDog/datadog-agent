@@ -64,6 +64,9 @@ const (
 type Directories struct {
 	StablePath     string
 	ExperimentPath string
+	// StatePath is the root-owned file recording which configuration is deployed, on macOS only.
+	// Empty means the default, in paths.ConfigExperimentStatePath.
+	StatePath string
 }
 
 // State is the state of the directories.
