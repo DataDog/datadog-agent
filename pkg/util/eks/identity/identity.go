@@ -6,7 +6,8 @@
 // Package identity holds the authoritative EKS cluster identity data type and its tag
 // projection. It is deliberately free of the AWS SDK so that the many node-Agent packages that
 // only need the data type (the Cluster Agent client interface, the clusterinfo bridge) do not
-// link the EKS service client. The SDK-dependent resolver lives in the parent pkg/util/eks.
+// link any AWS SDK package. The resolver, which loads the AWS configuration and calls
+// DescribeCluster, lives in the parent pkg/util/eks.
 package identity
 
 import (

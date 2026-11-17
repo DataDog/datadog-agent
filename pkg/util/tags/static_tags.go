@@ -44,8 +44,8 @@ var (
 )
 
 // SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
-// tags. The resolver links the AWS EKS client, so only the Cluster Agent registers it, before it
-// starts; node-side binaries that use this package must not link it.
+// tags. The resolver links the AWS configuration and the DescribeCluster call, so only the Cluster
+// Agent registers it, before it starts; node-side binaries that use this package must not link it.
 func SetClusterAgentEKSIdentityResolver(resolve func(context.Context) []string) {
 	getClusterAgentEKSIdentity = resolve
 }
