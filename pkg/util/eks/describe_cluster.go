@@ -145,7 +145,7 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	reqURL := base.JoinPath("clusters", clusterName).String() // #nosec G125 -- clusterName is validated above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
-	// and one more attempt after a transport error or a 5xx when there is time left. The rest
+	// and one more attempt after a transport error, a 429 or a 5xx when there is time left. The rest
 	// of the policy is the caller's failure cache, which retries transient failures after 30
 	// seconds instead of retrying in a loop while node Agents wait.
 	skewCorrected, retried := false, false
@@ -192,7 +192,7 @@ func isRetryable(err error) bool {
 		return true
 	}
 	var apiErr *apiError
-	return errors.As(err, &apiErr) && apiErr.StatusCode >= http.StatusInternalServerError
+	return errors.As(err, &apiErr) && (apiErr.StatusCode >= http.StatusInternalServerError || apiErr.StatusCode == http.StatusTooManyRequests)
 }
 
 // send signs and sends one DescribeCluster request.

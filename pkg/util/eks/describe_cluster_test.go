@@ -541,6 +541,24 @@ func TestDescribeClusterRetriesOnceOnTransportError(t *testing.T) {
 	assert.Equal(t, 2, flaky.calls)
 }
 
+func TestDescribeClusterRetriesOnceOnThrottling(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("X-Amzn-ErrorType", "TooManyRequestsException")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
 func TestDescribeClusterRetriesOnceOn5xx(t *testing.T) {
 	attempts := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
