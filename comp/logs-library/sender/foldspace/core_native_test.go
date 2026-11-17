@@ -103,10 +103,6 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	require.NotNil(t, durable, "a durable payload should be announced")
 	require.Equal(t, []uint64{42}, durable.MetadataIDs)
 	require.Equal(t, uint64(1), core.SenderStats(0).SentRecords, "the acknowledged record is counted sent")
-
-	// Clock advance is the difference between readings, so it only becomes
-	// non-zero once a second, later timestamp has been offered.
-	require.Zero(t, core.TakeClockAdvance())
 }
 
 // TestNativeCoresShareTokenizer builds cores concurrently from the one
@@ -223,17 +219,18 @@ func nativeTestConfig() Config {
 }
 
 // TestNativeRefusesZeroDurations checks that a config the library refuses
-// surfaces as a construction error rather than a core that never sends.
+// surfaces as a construction error, naming the field it rejected, rather than
+// a core that never sends.
 func TestNativeRefusesZeroDurations(t *testing.T) {
-	for name, zero := range map[string]func(*Config){
-		"drain timeout":   func(c *Config) { c.DrainTimeout = 0 },
-		"stream lifetime": func(c *Config) { c.StreamLifetime = 0 },
+	for want, zero := range map[string]func(*Config){
+		"drain_timeout was zero":   func(c *Config) { c.DrainTimeout = 0 },
+		"stream_lifetime was zero": func(c *Config) { c.StreamLifetime = 0 },
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(want, func(t *testing.T) {
 			cfg := nativeTestConfig()
 			zero(&cfg)
 			_, err := NewNativeCore(cfg)
-			require.ErrorContains(t, err, "was zero")
+			require.ErrorContains(t, err, want)
 		})
 	}
 }

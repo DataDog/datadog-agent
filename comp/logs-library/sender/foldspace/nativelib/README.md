@@ -11,14 +11,14 @@ library's own sources stay in its repository.
 | | |
 |---|---|
 | Source | `DataDog/foldspace`, crate `bindings/go/native` (`foldspace-go-ffi`) |
-| Commit | `a8ff8fd3755ad5e095fbbb9c08097a837ed18746` |
+| Commit | `09b1ef5653f0793607d0f9ec92c18c0afdc671f5` |
 | Rust | 1.94.0, per the library's `rust-toolchain.toml` |
 | ABI | 1, as asserted against `FOLDSPACE_ABI_VERSION` at construction |
 
 | Platform | sha256 |
 |---|---|
-| `linux_amd64/libfoldspace_go.so` | `b5c5c76944a7b5a79074ba9022b3e70b1ee8e783b22aa7da8af354219854797c` |
-| `linux_arm64/libfoldspace_go.so` | `dd78323ad1c0dabfe516cb79197de634e2f88c166796690b92618723e694df0b` |
+| `linux_amd64/libfoldspace_go.so` | `cbb51f341e8650f6939b28a003d5e9118fe02fda5405fac15239cbcb8a988bab` |
+| `linux_arm64/libfoldspace_go.so` | `995862d329807c30fbfc3a485967c7c578224d6a9a481315344d9fa40a6ddf54` |
 
 Platforms without a binary here cannot build the `foldspace` tag from this
 directory. Windows and AIX exclude the tag in `tasks/build_tags.bzl`. Darwin
@@ -44,7 +44,7 @@ because that is the one directory every macOS Docker VM shares by default;
 Colima shares nothing else.
 
 ```bash
-git -C <foldspace> worktree add ~/fs-pin a8ff8fd3755ad5e095fbbb9c08097a837ed18746
+git -C <foldspace> worktree add ~/fs-pin 09b1ef5653f0793607d0f9ec92c18c0afdc671f5
 
 IMAGE="registry.ddbuild.io/ci/datadog-agent-buildimages/linux:$(awk '/^  CI_IMAGE_LINUX:/ {print $2}' .gitlab-ci.yml)"
 docker run --rm --platform linux/arm64 \

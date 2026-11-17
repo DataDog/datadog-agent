@@ -107,9 +107,17 @@ func NewNativeCore(cfg Config) (Core, error) {
 		return nil, err
 	}
 
+	// A rejected configuration reports the field and the rule it broke in
+	// detail, NUL-terminated and truncated to the buffer.
 	var client *C.foldspace_client
-	code := C.foldspace_client_new(&native, tokenizer, &classes[0], C.size_t(len(classes)), &client)
+	var detail [256]C.char
+	code := C.foldspace_client_new(&native, tokenizer, &classes[0], C.size_t(len(classes)), &client, &detail[0], C.size_t(len(detail)))
 	if code != C.FOLDSPACE_OK {
+		if code == C.FOLDSPACE_ERR_CONFIG_INVALID {
+			if text := C.GoString(&detail[0]); text != "" {
+				return nil, fmt.Errorf("foldspace: %s: %s", statusMessage(code), text)
+			}
+		}
 		return nil, fmt.Errorf("foldspace: %s", statusMessage(code))
 	}
 
@@ -263,12 +271,6 @@ func (c *nativeCore) SenderStats(sender SenderID) SenderCounts {
 		DroppedRecords: uint64(out.dropped_records),
 		DroppedBytes:   uint64(out.dropped_bytes),
 	}
-}
-
-func (c *nativeCore) TakeClockAdvance() time.Duration {
-	var out C.uint64_t
-	must(C.foldspace_take_clock_advance_nanos(c.client, &out))
-	return time.Duration(out)
 }
 
 // Close frees the library. Calling it twice is harmless; calling anything else

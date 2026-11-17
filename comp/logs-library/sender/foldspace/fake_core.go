@@ -641,15 +641,6 @@ func (c *FakeCore) PollNotifications() []Notification {
 	return out
 }
 
-// TakeClockAdvance reports how far PushLog timestamps have moved.
-func (c *FakeCore) TakeClockAdvance() time.Duration {
-	c.enterIngest()
-	defer c.leaveIngest()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return 0
-}
-
 // Close destroys the client.
 func (c *FakeCore) Close() {
 	c.enterIngest()

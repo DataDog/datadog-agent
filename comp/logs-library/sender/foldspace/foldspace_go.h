@@ -48,101 +48,15 @@
 #define FOLDSPACE_ERR_INVALID_SENDER 2
 
 /*
- The content-encoding value names no encoding the library has.
- */
-#define FOLDSPACE_ERR_UNKNOWN_ENCODING 3
-
-/*
- A sender-class value names no delivery class the library has.
- */
-#define FOLDSPACE_ERR_UNKNOWN_SENDER_CLASS 4
-
-/*
  The timer-kind value names no timer the library schedules.
  */
 #define FOLDSPACE_ERR_UNKNOWN_TIMER_KIND 5
 
 /*
- A core needs at least one destination sender.
+ `foldspace_client_new` rejected the configuration. Its `detail` buffer
+ names the field and the rule it broke.
  */
-#define FOLDSPACE_ERR_NO_SENDERS 10
-
-/*
- At least one sender must be reliable, or nothing can go durable.
- */
-#define FOLDSPACE_ERR_NO_RELIABLE_SENDERS 11
-
-/*
- `batch_capacity` was zero, so a batch could hold no datum.
- */
-#define FOLDSPACE_ERR_BATCH_CAPACITY_ZERO 12
-
-/*
- `max_inflight_payloads` was zero, so no payload could be retained.
- */
-#define FOLDSPACE_ERR_MAX_INFLIGHT_PAYLOADS_ZERO 13
-
-/*
- `max_payload_bytes` was zero, so a payload could carry no datum.
- */
-#define FOLDSPACE_ERR_MAX_PAYLOAD_BYTES_ZERO 14
-
-/*
- Reconnect backoff needs a non-zero base interval.
- */
-#define FOLDSPACE_ERR_RECONNECT_BACKOFF_BASE_ZERO 15
-
-/*
- Reconnect backoff needs a factor of at least one.
- */
-#define FOLDSPACE_ERR_RECONNECT_BACKOFF_FACTOR_ZERO 16
-
-/*
- Reconnect backoff cap must be at least the base interval.
- */
-#define FOLDSPACE_ERR_RECONNECT_BACKOFF_CAP_BELOW_BASE 17
-
-/*
- More senders than a route mask can name, so some endpoint would be
- unaddressable.
- */
-#define FOLDSPACE_ERR_TOO_MANY_SENDERS 18
-
-/*
- `max_open_buffers` was zero, so no route could accumulate.
- */
-#define FOLDSPACE_ERR_MAX_OPEN_BUFFERS_ZERO 19
-
-/*
- `max_open_bytes` was zero, so no buffer could hold a datum.
- */
-#define FOLDSPACE_ERR_MAX_OPEN_BYTES_ZERO 20
-
-/*
- `max_open_bytes` is below what one buffer at its own ceiling holds.
- */
-#define FOLDSPACE_ERR_MAX_OPEN_BYTES_BELOW_ONE_BUFFER 21
-
-/*
- A config count does not fit this platform's `size_t`.
- */
-#define FOLDSPACE_ERR_CONFIG_VALUE_OUT_OF_RANGE 24
-
-/*
- `stream_lifetime` was zero, so every stream would rotate as it opened.
- */
-#define FOLDSPACE_ERR_STREAM_LIFETIME_ZERO 25
-
-/*
- `drain_timeout` was zero, so a rotating stream could settle nothing.
- */
-#define FOLDSPACE_ERR_DRAIN_TIMEOUT_ZERO 26
-
-/*
- `max_payload_bytes` exceeds the protocol's batch cap, so a full payload
- would be refused on every replay.
- */
-#define FOLDSPACE_ERR_MAX_PAYLOAD_BYTES_ABOVE_PROTOCOL 27
+#define FOLDSPACE_ERR_CONFIG_INVALID 10
 
 /*
  Delivery class of one sender: one member of the reliable set, which the
@@ -361,6 +275,11 @@ typedef struct {
  */
 typedef struct {
   uint64_t max_inflight_payloads;
+  /*
+   Records awaiting an outcome, counted from the oldest one unresolved,
+   past which admission refuses. Zero asks for the library's default.
+   */
+  uint64_t max_unresolved_records;
   uint64_t batch_capacity;
   uint64_t max_payload_bytes;
   /*
@@ -465,7 +384,9 @@ typedef struct {
  `store_entries` times the endpoint count. A `retired_entries` that never
  falls is a reference never given back, and `derive_fallbacks` counts
  widens sent whole because the destination could not resolve the base they
- diff against.
+ diff against. `retractions` counts the deletes sent for rules a
+ destination was told and the store has since dropped, summed across
+ destinations.
 
  The table figures report the pattern table and the dictionary apart.
  `*_entries` and `*_bytes` are the live table, with bytes measured the way
@@ -488,6 +409,7 @@ typedef struct {
   uint64_t retired_entries;
   uint64_t sent_entries;
   uint64_t derive_fallbacks;
+  uint64_t retractions;
   uint64_t pattern_entries;
   uint64_t pattern_bytes;
   uint64_t pattern_candidates;
@@ -639,12 +561,19 @@ void foldspace_tokenizer_free(foldspace_tokenizer *tokenizer);
 
  `tokenizer` is required too. The client takes its own reference, so the
  caller may free the handle once construction returns.
+
+ A rejected configuration returns `FOLDSPACE_ERR_CONFIG_INVALID` and writes
+ the field and the rule it broke into `detail`, truncated to `detail_len`
+ bytes including the terminating NUL. `detail` is written on no other
+ outcome, and a null `detail` takes no message.
  */
 int foldspace_client_new(const foldspace_config *config,
                          const foldspace_tokenizer *tokenizer,
                          const uint8_t *classes,
                          size_t classes_len,
-                         foldspace_client **out);
+                         foldspace_client **out,
+                         char *detail,
+                         size_t detail_len);
 
 /*
  Destroys a client. The caller must have stopped calling in on every region
@@ -824,14 +753,6 @@ int foldspace_poll_notifications(foldspace_client *client, foldspace_notificatio
  metadata ids read from it.
  */
 void foldspace_notifications_free(foldspace_notifications *notifications);
-
-/*
- How far the readings passed to `foldspace_push_log` have advanced since
- this was last asked. Zero across a window in which records were admitted is
- a caller passing one cached timestamp forever, which freezes eviction and
- rotation.
- */
-int foldspace_take_clock_advance_nanos(foldspace_client *client, uint64_t *out);
 
 #ifdef __cplusplus
 }  // extern "C"

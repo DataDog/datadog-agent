@@ -5,8 +5,6 @@
 
 package foldspace
 
-import "time"
-
 // Core is the sans-I/O foldspace client the driver consumes.
 //
 // The contract forbids two callers inside one region at once. The regions are
@@ -34,7 +32,6 @@ type Core interface {
 	// SenderStats may be called from any goroutine: it enters no sender's
 	// region.
 	SenderStats(sender SenderID) SenderCounts
-	TakeClockAdvance() time.Duration
 	Close()
 	SenderCount() int
 	SenderClass(sender SenderID) SenderClass
