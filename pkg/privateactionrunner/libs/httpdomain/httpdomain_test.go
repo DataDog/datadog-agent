@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package resolver
+package httpdomain
 
 import (
 	"net/url"
@@ -35,13 +35,20 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 		{"127.0.0.1", "http://127.0.0.1:8080", true},
 		{"::1", "http://[0:0:0:0:0:0:0:1]:8080", true},
 		{"xn--bcher-kva.example", "https://xn--bcher-kva.example", true},
+		{"xn--bcher-kva.example", "https://B\u00dcCHER.example", true},
+		{"api.example.com", "https://ap\u0130.example.com", false},
+		{"*.github.com", "https://api.g\u0130thub.com", false},
+		{"api.example.com", "https://ap%C4%B0.example.com", false},
+		{"kibana.example.com", "https://\u212Aibana.example.com", true},
+		{"api.example.com", "https://api\uFF0Eexample.com", true},
+		{"*.example.com", "https://a\u00ad\u200d.example.com", false},
 	} {
 		t.Run(test.pattern+"/"+test.target, func(t *testing.T) {
 			domains := []string{test.pattern}
-			require.NoError(t, validateHTTPDomains(domains))
+			require.NoError(t, ValidatePatterns(domains))
 			u, err := url.Parse(test.target)
 			require.NoError(t, err)
-			assert.Equal(t, test.allowed, allowsHTTPURL(domains, u))
+			assert.Equal(t, test.allowed, AllowsURL(domains, u))
 		})
 	}
 }
@@ -49,7 +56,7 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 func TestInvalidHTTPDomainPatterns(t *testing.T) {
 	for _, pattern := range []string{"", "*", "https://example.com", "example.com:443", "example.com/path", "user@example.com", "foo.*.com", "*example.com", "example..com", "example.com..", "-bad.example", "bad-.example", " example.com", "example.com ", "[::1]", "*.127.0.0.1", "fe80::1%eth0", "bücher.example"} {
 		t.Run(pattern, func(t *testing.T) {
-			require.Error(t, validateHTTPDomains([]string{pattern}))
+			require.Error(t, ValidatePatterns([]string{pattern}))
 		})
 	}
 }
