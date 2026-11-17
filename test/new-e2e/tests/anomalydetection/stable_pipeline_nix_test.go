@@ -173,32 +173,33 @@ func stopStablePipelineSender(s observerTestSuite) {
 
 func stablePipelineJournalCursor(s observerTestSuite) string {
 	s.T().Helper()
-	out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent -n 0 --show-cursor --no-pager")
-	if err != nil {
-		s.T().Logf("reading journal cursor: %v", err)
-		return ""
-	}
-	for _, line := range strings.Split(out, "\n") {
-		if cursor, found := strings.CutPrefix(line, "-- cursor: "); found {
-			fields := strings.Fields(cursor)
-			if len(fields) > 0 {
-				return fields[0]
+	var cursor string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent -n 0 --show-cursor --no-pager")
+		require.NoError(c, err, "read journal cursor")
+		for _, line := range strings.Split(out, "\n") {
+			if value, found := strings.CutPrefix(line, "-- cursor: "); found {
+				fields := strings.Fields(value)
+				if len(fields) > 0 {
+					cursor = fields[0]
+					return
+				}
 			}
 		}
-	}
-	return ""
+		require.NotEmpty(c, cursor, "expected a journal cursor for this attempt")
+	}, 30*time.Second, 3*time.Second)
+	return cursor
 }
 
 func stablePipelineJournalAfter(s observerTestSuite, cursor string) string {
 	s.T().Helper()
+	require.NotEmpty(s.T(), cursor, "journal reads must be bounded to this attempt")
 	// Filter on the host: the debug journal is megabytes and only the
 	// reporter's accepted-anomaly lines matter here.
-	command := "sudo journalctl -u datadog-agent --no-pager"
-	if cursor != "" {
-		command += " --after-cursor='" + cursor + "'"
-	}
-	command += " | { grep -F '" + stablePipelineAcceptedMarker + "' || true; }"
-	out, err := s.Env().RemoteHost.Execute(command)
+	command := "sudo journalctl -u datadog-agent --no-pager --after-cursor='" + cursor + "'"
+	// Only grep's no-match status is expected; other failures must propagate.
+	command += " | { grep -F '" + stablePipelineAcceptedMarker + "'; test $? -le 1; }"
+	out, err := s.Env().RemoteHost.Execute("bash -o pipefail -c '" + strings.ReplaceAll(command, "'", "'\"'\"'") + "'")
 	require.NoError(s.T(), err, "read agent journal")
 	return out
 }
