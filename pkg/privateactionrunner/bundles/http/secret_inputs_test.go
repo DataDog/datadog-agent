@@ -107,7 +107,6 @@ func TestRequestRejectsSecretHeadersItCannotUse(t *testing.T) {
 		{name: "unsupported header", secrets: SecretInputs{RequestHeaders: []Header{{Key: "Host", Value: []string{"x"}}}}, want: "unsupported header"},
 		{name: "collision with the request", plain: []Header{{Key: "X-Token", Value: []string{"plain"}}}, secrets: SecretInputs{RequestHeaders: []Header{{Key: "x-token", Value: []string{"secret"}}}}, want: "is also set by the request"},
 		{name: "collision with the runner", secrets: SecretInputs{RequestHeaders: []Header{{Key: "user-agent", Value: []string{"x"}}}}, want: "is also set by the request"},
-		{name: "user OAuth2 without Authorization", secrets: SecretInputs{RequestHeaders: []Header{{Key: "X-Other", Value: []string{"x"}}}}, credential: userTokenConnection(server.URL), want: "secret Authorization header"},
 		{name: "user OAuth2 with plain Authorization", plain: []Header{{Key: "authorization", Value: []string{"Bearer plain"}}}, secrets: bearerSecret("t"), credential: userTokenConnection(server.URL), want: "takes Authorization only from the secret inputs"},
 		{name: "user OAuth2 to another host", secrets: bearerSecret("t"), credential: userTokenConnection("https://mcp.internal"), want: "does not match base URL"},
 	} {
@@ -124,13 +123,38 @@ func TestRequestRejectsSecretHeadersItCannotUse(t *testing.T) {
 	}
 }
 
-func TestRequestUserOAuth2NeedsTheToken(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("no request expected") }))
-	defer server.Close()
-	handler := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second}).WithEncryptionStore(encryptioncontext.NewStore())
+// Without the user's token, a user OAuth2 connection is a no-auth connection:
+// oauth-client sends code exchanges and refreshes through it, to an identity
+// provider that is often on another host than the connection's base URL.
+func TestRequestUserOAuth2WithoutTokenIsNoAuth(t *testing.T) {
+	var called bool
+	var gotAuthorization, gotOther string
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called, gotAuthorization, gotOther = true, r.Header.Get("Authorization"), r.Header.Get("X-Other")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer idp.Close()
+	connection := userTokenConnection("https://mcp.internal")
 
-	_, err := handler.Run(context.Background(), requestTask(map[string]interface{}{"verb": "GET", "url": server.URL}), userTokenConnection(server.URL))
-	require.ErrorContains(t, err, "needs the user's token as a secret input")
+	handler := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second}).WithEncryptionStore(encryptioncontext.NewStore())
+	output, err := handler.Run(context.Background(), requestTask(map[string]interface{}{"verb": "GET", "url": idp.URL}), connection)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, output.(*RequestOutputs).Status)
+	assert.True(t, called)
+	assert.Empty(t, gotAuthorization)
+
+	// Secret headers other than Authorization don't scope the request either.
+	store := encryptioncontext.NewStore()
+	handler = NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second}).WithEncryptionStore(store)
+	inputs := sealedInputs(t, store, map[string]interface{}{"verb": "GET", "url": idp.URL}, SecretInputs{RequestHeaders: []Header{{Key: "X-Other", Value: []string{"secret"}}}})
+	_, err = handler.Run(context.Background(), requestTask(inputs), connection)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", gotOther)
+
+	// The runner allowlist still applies.
+	handler = NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{"mcp.internal"}})
+	_, err = handler.Run(context.Background(), requestTask(map[string]interface{}{"verb": "GET", "url": idp.URL}), connection)
+	require.Error(t, err)
 }
 
 func TestRequestNeedsBothSecretInputs(t *testing.T) {
@@ -163,7 +187,15 @@ func TestRawRequestUserOAuth2StaysOnItsHost(t *testing.T) {
 
 	store = encryptioncontext.NewStore()
 	_, err = runRawRequestWithStore(t, []*httptest.Server{server}, sealedInputs(t, store, map[string]interface{}{"method": "GET", "url": server.URL}, rawSecrets), userTokenConnection("https://mcp.internal"), store)
-	require.ErrorContains(t, err, "only sends requests to its base URL")
+	require.ErrorContains(t, err, "only sends the user's token to its base URL")
+
+	// Without the token, it is a no-auth connection: a token request to an
+	// identity provider on another host goes through.
+	gotAuthorization = "unset"
+	output, err = runRawRequest(t, []*httptest.Server{server}, map[string]interface{}{"method": "POST", "url": server.URL + "/token", "bodyBase64": base64.StdEncoding.EncodeToString([]byte("grant_type=refresh_token"))}, userTokenConnection("https://mcp.internal"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, output.Status)
+	assert.Empty(t, gotAuthorization)
 
 	_, err = runRawRequest(t, []*httptest.Server{server}, map[string]interface{}{"method": "GET", "url": server.URL, "headers": map[string]interface{}{"Authorization": []string{"Bearer plain"}}}, userTokenConnection(server.URL))
 	require.ErrorContains(t, err, "takes Authorization only from the secret inputs")

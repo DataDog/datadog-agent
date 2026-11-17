@@ -147,19 +147,26 @@ func (h *Handler) Run(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "fail to build header")
 	}
 
+	secretAuthorization, err := h.addSecretHeaders(inputs, headers, credential)
+	if err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
+	}
+
 	// Validate inputs
 	baseURL := ""
 	if credential != nil {
 		baseURL = credential.HttpDetails.BaseURL
 	}
+	// A user OAuth2 connection without the user's token is a no-auth connection,
+	// so OAuth calls can reach an identity provider on another host. With the
+	// token, the base URL check below and the redirect policy keep it on the
+	// connection's host.
+	if credential != nil && credential.Type == privateconnection.UserOAuth2TokenAuthType && !secretAuthorization {
+		baseURL = ""
+	}
 	if baseURL != "" && !hasSameDomain(inputs.URL, baseURL) {
 		e := errors.New("specified URL does not match base URL configured in the Connection")
 		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
-	}
-	// The base URL check above, and the redirect policy below, keep secret
-	// headers on the connection's host.
-	if err := h.addSecretHeaders(inputs, headers, credential); err != nil {
-		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
 
 	// BUILD URL
@@ -282,53 +289,47 @@ func (h *Handler) Run(
 // can't replace one set by the request, the connection or the runner.
 //
 // A user OAuth2 connection takes its Authorization only from the secret
-// inputs, so a user's token never sits in the task's plain inputs.
-func (h *Handler) addSecretHeaders(inputs RequestInputs, headers map[string]string, credential *privateconnection.PrivateCredentials) error {
-	userToken := credential != nil && credential.Type == privateconnection.UserOAuth2TokenAuthType
-	if userToken {
+// inputs, so a user's token never sits in the task's plain inputs. It reports
+// whether a secret Authorization header was added.
+func (h *Handler) addSecretHeaders(inputs RequestInputs, headers map[string]string, credential *privateconnection.PrivateCredentials) (bool, error) {
+	if credential != nil && credential.Type == privateconnection.UserOAuth2TokenAuthType {
 		for name := range headers {
 			if strings.EqualFold(name, "Authorization") {
-				return errors.New("a user OAuth2 connection takes Authorization only from the secret inputs")
+				return false, errors.New("a user OAuth2 connection takes Authorization only from the secret inputs")
 			}
 		}
 	}
 	hasContext := inputs.EncryptionContext != (encryptioncontext.EncryptionContext{})
 	if inputs.EncryptedCredentials == "" && !hasContext {
-		if userToken {
-			return errors.New("a user OAuth2 connection needs the user's token as a secret input")
-		}
-		return nil
+		return false, nil
 	}
 	if inputs.EncryptedCredentials == "" || !hasContext {
-		return errors.New("secret inputs need both encryptedCredentials and encryptionContext")
+		return false, errors.New("secret inputs need both encryptedCredentials and encryptionContext")
 	}
 	if h.encryptionStore == nil {
-		return errors.New("secret inputs are not supported by this runner")
+		return false, errors.New("secret inputs are not supported by this runner")
 	}
 	secrets, err := encryptioncontext.DecryptInto[SecretInputs](h.encryptionStore, inputs.EncryptionContext, inputs.EncryptedCredentials)
 	if err != nil {
-		return fmt.Errorf("failed to open secret inputs: %w", err)
+		return false, fmt.Errorf("failed to open secret inputs: %w", err)
 	}
 	if err := validateHeaders(secrets.RequestHeaders); err != nil {
-		return err
+		return false, err
 	}
 	hasAuthorization := false
 	for _, header := range secrets.RequestHeaders {
 		if header.Key == "" || strings.EqualFold(header.Key, HeaderToScrub) {
-			return fmt.Errorf("secret header %q is not allowed", header.Key)
+			return false, fmt.Errorf("secret header %q is not allowed", header.Key)
 		}
 		for existing := range headers {
 			if strings.EqualFold(existing, header.Key) {
-				return fmt.Errorf("secret header %q is also set by the request, the connection or the runner", header.Key)
+				return false, fmt.Errorf("secret header %q is also set by the request, the connection or the runner", header.Key)
 			}
 		}
 		headers[header.Key] = strings.Join(header.Value, ",")
 		hasAuthorization = hasAuthorization || strings.EqualFold(header.Key, "Authorization")
 	}
-	if userToken && !hasAuthorization {
-		return errors.New("a user OAuth2 connection needs the user's token as a secret Authorization header")
-	}
-	return nil
+	return hasAuthorization, nil
 }
 
 // redirectPolicy applies the checks made on the first URL to every redirect hop:

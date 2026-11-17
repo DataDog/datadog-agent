@@ -155,7 +155,13 @@ func (h *Handler) runRaw(
 		e := errors.New("bodyBase64 is not valid base64")
 		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
 	}
-	connectionHeaders, err := connectionHeadersFor(target, credential)
+	// A user OAuth2 connection refuses a plain Authorization above, so any
+	// Authorization left here came from the secret inputs.
+	secretAuthorization := false
+	for name := range inputHeaders {
+		secretAuthorization = secretAuthorization || strings.EqualFold(name, "Authorization")
+	}
+	connectionHeaders, err := connectionHeadersFor(target, credential, secretAuthorization)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
@@ -270,15 +276,17 @@ func parseResponseKey(key ResponseKey) (hpke.PublicKey, error) {
 // other host. A connection that carries headers must name its host.
 //
 // A user OAuth2 connection's token is a secret input of the task, not a
-// connection header, so it may only be used against the connection's host.
-func connectionHeadersFor(target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
+// connection header, so a request carrying it may only go to the connection's
+// host. Without it, the connection is a no-auth connection, so OAuth calls can
+// reach an identity provider on another host.
+func connectionHeadersFor(target *url.URL, credential *privateconnection.PrivateCredentials, secretAuthorization bool) (http.Header, error) {
 	headers := http.Header{}
 	if credential == nil {
 		return headers, nil
 	}
 	details := credential.HttpDetails
-	if credential.Type == privateconnection.UserOAuth2TokenAuthType && (details.BaseURL == "" || !sameOrigin(target, details.BaseURL)) {
-		return nil, errors.New("a user OAuth2 connection only sends requests to its base URL")
+	if credential.Type == privateconnection.UserOAuth2TokenAuthType && secretAuthorization && (details.BaseURL == "" || !sameOrigin(target, details.BaseURL)) {
+		return nil, errors.New("a user OAuth2 connection only sends the user's token to its base URL")
 	}
 	hasHeaders := len(details.Headers) > 0 || credential.Type == privateconnection.BasicAuthType
 	if details.BaseURL == "" {
