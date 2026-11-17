@@ -256,7 +256,7 @@ require (
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
-	github.com/cloudfoundry/go-cfclient/v3 v3.0.0-beta.1
+	github.com/cloudfoundry/go-cfclient/v3 v3.0.0-beta.2
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
 	github.com/containerd/containerd/v2 v2.3.6
@@ -488,7 +488,7 @@ require (
 	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49
 	golang.org/x/mod v0.43.0
 	golang.org/x/net v0.62.0
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.47.0
