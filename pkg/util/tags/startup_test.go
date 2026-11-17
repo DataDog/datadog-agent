@@ -24,24 +24,38 @@ import (
 // budget is shortened: testBudget stands for the 10s StartupRetryBudget. TestStartupProbe measures the same paths with the production budgets.
 const (
 	testBudget = 2 * time.Second
+	// sharedConnBudget stands for the budget when a hung call holds the client's single
+	// connection (MaxConnsPerHost 1): the other call waits for it up to the client's 3s
+	// ResponseHeaderTimeout, so the budget must be above that, as the 10s production one is.
+	sharedConnBudget = 4500 * time.Millisecond
 	// slack covers scheduling and the local TLS handshake.
 	slack = 400 * time.Millisecond
 )
 
 func setupStartupTest(t *testing.T, onEKS bool) {
 	t.Helper()
+	setupStartupTestWithBudget(t, onEKS, testBudget)
+}
+
+func setupStartupTestWithBudget(t *testing.T, onEKS bool, budget time.Duration) {
+	t.Helper()
 	clusteragent.ResetGlobalClusterAgentClientForTest()
 	t.Cleanup(clusteragent.ResetGlobalClusterAgentClientForTest)
 	// The fake Cluster Agent's cluster ID and distribution land in the process-wide cache.
 	cache.Cache.Flush()
 	t.Cleanup(cache.Cache.Flush)
-	clusterinfo.SetupStartupForTest(t, testBudget, onEKS)
+	clusterinfo.SetupStartupForTest(t, budget, onEKS)
 }
 
 func timedStaticTags(t *testing.T, state string, onEKS, fargate bool) (time.Duration, bool) {
 	t.Helper()
+	return timedStaticTagsWithBudget(t, state, onEKS, fargate, testBudget)
+}
+
+func timedStaticTagsWithBudget(t *testing.T, state string, onEKS, fargate bool, budget time.Duration) (time.Duration, bool) {
+	t.Helper()
 	cfg := setupStartupNode(t, fakeClusterAgent(t, state, onEKS), fargate)
-	setupStartupTest(t, onEKS)
+	setupStartupTestWithBudget(t, onEKS, budget)
 	start := time.Now()
 	tags := GetStaticTagsSlice(context.TODO(), cfg)
 	elapsed := time.Since(start)
@@ -95,13 +109,18 @@ func TestStartupEKSNodeLaterCallersDoNotWaitAgain(t *testing.T) {
 }
 
 func TestStartupFargateSidecarWaitsAtMostOneBudget(t *testing.T) {
-	// The cluster ID call and the identity call run at the same time, each bounded to the
-	// startup budget: startup waits once, and a Cluster Agent that hangs on the cluster ID does
-	// not starve the identity call.
+	// The cluster ID call and the identity call run concurrently, each bounded to the startup
+	// budget: startup waits once. They share the client's single connection, so a Cluster Agent
+	// that hangs on the cluster ID delays the identity call by up to the client's 3s response
+	// header timeout, but does not starve it.
 	for _, state := range append(allClusterAgentStates, dcaWedgedClusterID) {
 		t.Run(state, func(t *testing.T) {
-			elapsed, identity := timedStaticTags(t, state, true, true)
-			assert.Less(t, elapsed, testBudget+slack)
+			budget := testBudget
+			if state == dcaWedgedClusterID {
+				budget = sharedConnBudget
+			}
+			elapsed, identity := timedStaticTagsWithBudget(t, state, true, true, budget)
+			assert.Less(t, elapsed, budget+slack)
 			assert.Equal(t, state == dcaUp || state == dcaWedgedClusterID, identity)
 		})
 	}
