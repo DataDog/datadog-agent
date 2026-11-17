@@ -8,6 +8,13 @@
      it, and the PR is merged after the release.
      See the "Releasing Serverless-Init" runbook in Confluence (SLS space). -->
 
+## 1.12.0
+[Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.12.0)
+
+* DogStatsD timing (`ms`) metrics no longer carry the `millisecond` unit by default, the same as the Datadog Agent. Set `DD_DOGSTATSD_SET_TIMING_UNIT=true` to keep the unit. [#59478](https://github.com/DataDog/datadog-agent/pull/59478)
+* fix(serverless-init): load proxy settings before Fx so the metrics forwarder honors `DD_PROXY_*` [#60069](https://github.com/DataDog/datadog-agent/pull/60069)
+* Add metadata collection, disabled by default. The `DD_SERVERLESS_INIT_METADATA_ENABLED` setting controls it. [#59149](https://github.com/DataDog/datadog-agent/pull/59149)
+
 ## 1.11.4
 [Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.11.4)
 
