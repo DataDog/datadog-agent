@@ -352,9 +352,12 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 // remote-service error, so errors.IsRemoteService still matches it.
 type StatusError struct {
 	StatusCode int
-	// RetryLater is set when the Cluster Agent marked the answer as not final.
+	// RetryLater is set by GetEKSClusterIdentity when the Cluster Agent marked the answer as
+	// not final (eksidentity.RetryLaterHeader).
 	RetryLater bool
 	Err        error
+	// header is the answer's headers, for the query method to read what belongs to it.
+	header http.Header
 }
 
 func (e *StatusError) Error() string {
@@ -409,8 +412,8 @@ func (c *DCAClient) doQueryWithStatus(ctx context.Context, path, method string, 
 	if resp.StatusCode != http.StatusOK {
 		return nil, &StatusError{
 			StatusCode: resp.StatusCode,
-			RetryLater: resp.Header.Get(eksidentity.RetryLaterHeader) == "true",
 			Err:        errors.NewRemoteServiceError(url, resp.Status),
+			header:     resp.Header,
 		}
 	}
 	return nil, nil
@@ -589,11 +592,16 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 }
 
 // GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity. When the Cluster
-// Agent answers with a non-200 status, the error is a *StatusError.
+// Agent answers with a non-200 status, the error is a *StatusError, with RetryLater set from
+// eksidentity.RetryLaterHeader.
 func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error) {
 	path := "api/v1/cluster/eks-identity"
 	respBody, err := c.doQueryWithStatus(ctx, path, "GET", nil, true, false)
 	if err != nil {
+		var statusErr *StatusError
+		if nativeerrors.As(err, &statusErr) {
+			statusErr.RetryLater = statusErr.header.Get(eksidentity.RetryLaterHeader) == "true"
+		}
 		return nil, err
 	}
 	identity := &eksidentity.ClusterIdentity{}

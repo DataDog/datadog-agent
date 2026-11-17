@@ -829,6 +829,15 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
 	_, err = client.GetEKSClusterIdentity(suite.T().Context())
 	require.ErrorAs(suite.T(), err, &statusErr)
 	assert.False(suite.T(), statusErr.RetryLater)
+
+	// The mark belongs to the identity endpoint. The shared query does not read it.
+	dca.handlers["/api/v1/other"] = func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(eksidentity.RetryLaterHeader, "true")
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}
+	_, err = client.doQueryWithStatus(suite.T().Context(), "api/v1/other", "GET", nil, true, false)
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.False(suite.T(), statusErr.RetryLater)
 }
 
 func TestClusterAgentSuite(t *testing.T) {
