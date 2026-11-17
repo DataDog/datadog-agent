@@ -79,9 +79,6 @@ func (x xidEvent) toSample() Sample {
 func driverXIDTags(xid *model.NvidiaXid) []string {
 	var tags []string
 	appendEventTags(reflect.ValueOf(xid), &tags)
-	if xid == nil {
-		return tags
-	}
 
 	// Tags that use the same names and values as the GPU metrics, so events can be joined to metrics.
 	if fault := xid.NVLinkFault; fault != nil && fault.LinkID != nil {
