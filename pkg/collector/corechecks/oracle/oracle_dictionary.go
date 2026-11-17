@@ -31,7 +31,7 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 	defer cancel()
 	err := c.db.GetContext(ctx, SQLStatement, query, value)
 	err = operationError(ctx, err)
-	if errors.Is(err, sql.ErrNoRows) && !isConnectionError(err) {
+	if errors.Is(err, sql.ErrNoRows) && !shouldReconnect(err) {
 		log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
 		return nil
 	}

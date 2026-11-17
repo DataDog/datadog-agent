@@ -86,7 +86,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		db.SetMaxOpenConns(1)
 		err := execWithDeadline(c, db, "ALTER SESSION SET tracefile_identifier='DDAGENT'")
 		if err != nil {
-			if isConnectionError(err) {
+			if shouldReconnect(err) {
 				closeDatabase(c, db)
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		log.Tracef("%s trace statement: %s", c.logPrompt, setEventsStatement)
 		err = execWithDeadline(c, db, setEventsStatement)
 		if err != nil {
-			if isConnectionError(err) {
+			if shouldReconnect(err) {
 				closeDatabase(c, db)
 				return nil, err
 			}

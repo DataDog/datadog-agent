@@ -16,7 +16,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/godror/godror"
@@ -66,10 +65,11 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err == nil {
 		return err
 	}
-	if errors.Is(err, sql.ErrNoRows) && !isConnectionError(err) {
-		return nil
-	}
-	if !isConnectionError(err) {
+	needsReconnect := shouldReconnect(err)
+	if !needsReconnect {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		isPrivilegeError, privilegeErr := handlePrivilegeError(c, err)
 		if isPrivilegeError {
 			return privilegeErr
@@ -79,7 +79,9 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err != nil && isConnectionRefused {
 		return err
 	}
-	reconnectOnConnectionError(c, db, err)
+	if needsReconnect {
+		replacePool(c, db)
+	}
 	return err
 }
 
@@ -115,31 +117,30 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 	return isPrivilegeError, fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err)
 }
 
-func isConnectionError(err error) bool {
+func shouldReconnect(err error) bool {
 	if err == nil {
 		return false
+	}
+	// Our deadline decides whether an operation was abandoned, even if the
+	// driver returned a different error after cancellation.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.Is(err, network.ErrConnReset) {
+		return true
 	}
 	// A cleanup failure must still trigger recovery when the query also failed.
 	switch wrapped := err.(type) {
 	case interface{ Unwrap() []error }:
 		for _, cause := range wrapped.Unwrap() {
-			if isConnectionError(cause) {
+			if shouldReconnect(cause) {
 				return true
 			}
 		}
 	case interface{ Unwrap() error }:
-		if isConnectionError(wrapped.Unwrap()) {
+		if shouldReconnect(wrapped.Unwrap()) {
 			return true
 		}
 	}
-	for _, target := range []error{
-		driver.ErrBadConn, context.DeadlineExceeded, context.Canceled,
-		io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, network.ErrConnReset,
-		syscall.ECONNABORTED, syscall.ECONNRESET, syscall.EPIPE,
-	} {
-		if errors.Is(err, target) {
-			return true
-		}
+	if errors.Is(err, driver.ErrBadConn) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, net.ErrClosed) {
+		return true
 	}
 	switch cause := err.(type) {
 	case *net.OpError:
@@ -157,15 +158,18 @@ func isConnectionError(err error) bool {
 
 func shouldResetOracleSession(code int) bool {
 	switch code {
-	// 1000: go-ora/godror cursor exhaustion.
 	// 1013: go-ora/godror operation cancellation.
+	// 3156: godror OCI call timeout, preserved by ODPI-C.
+	// 12161: godror partial data received; ODPI-C can report this after a call timeout.
+	case 1013, 3156, 12161:
+		return true
 	// 3106: go-ora fatal two-task communication protocol error; godror.IsBadConn also covers it.
 	// 3146: go-ora/godror invalid buffer length in a TTC protocol packet.
-	// 3156: godror OCI call timeout, preserved by ODPI-C.
 	// 6413: go-ora/godror connection not open.
-	// 12161: godror partial data received; ODPI-C can report this after a call timeout.
-	// 12514: go-ora/godror listener does not know the requested service.
-	case 1000, 1013, 3106, 3146, 3156, 6413, 12161, 12514:
+	case 3106, 3146, 6413:
+		return true
+	// 1000: go-ora/godror cursor exhaustion; a fresh session restores collection.
+	case 1000:
 		return true
 	default:
 		return false
@@ -192,10 +196,7 @@ curl dbserver:port`,
 	return false, err
 }
 
-func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
-	if !isConnectionError(err) {
-		return
-	}
+func replacePool(c *Check, db **sqlx.DB) {
 	log.Debugf("%s Reconnecting", c.logPrompt)
 	disposePool(c, db)
 	replacement, connectErr := c.Connect()

@@ -118,23 +118,26 @@ func (e codedOracleError) Code() int     { return int(e) }
 func (e codedOracleError) Error() string { return fmt.Sprintf("native Oracle error %d", int(e)) }
 
 func TestRecoveryErrorClassification(t *testing.T) {
-	for _, code := range []int{28, 1012, 3113, 3114, 3135, 1000, 1013, 3106, 3146, 3156, 6413, 12161, 12514, 1033, 1089} {
+	for _, code := range []int{28, 1012, 3113, 3114, 3135, 1000, 1013, 3106, 3146, 3156, 6413, 12161, 1033, 1089} {
 		for _, err := range []error{network.NewOracleError(code), codedOracleError(code)} {
-			require.True(t, isConnectionError(err), "%T code %d", err, code)
-			require.True(t, isConnectionError(fmt.Errorf("query: %w", err)), "%T code %d", err, code)
+			require.True(t, shouldReconnect(err), "%T code %d", err, code)
+			require.True(t, shouldReconnect(fmt.Errorf("query: %w", err)), "%T code %d", err, code)
 		}
 	}
 	for _, err := range []error{
 		driver.ErrBadConn, context.DeadlineExceeded, context.Canceled, io.EOF, io.ErrUnexpectedEOF,
-		net.ErrClosed, network.ErrConnReset, syscall.ECONNABORTED, syscall.ECONNRESET, syscall.EPIPE,
+		net.ErrClosed, network.ErrConnReset,
 		&net.DNSError{IsTimeout: true},
+		&net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNABORTED},
+		&net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET},
+		&net.OpError{Op: "write", Net: "tcp", Err: syscall.EPIPE},
 		&net.OpError{Op: "read", Net: "tcp", Err: syscall.Errno(10053)},
 		&net.OpError{Op: "write", Net: "tcp", Err: errors.New("localized socket failure")},
 		errors.New("TTC error: received code 9 during response reading"),
 		errors.New("sql: database is closed"),
 	} {
-		require.True(t, isConnectionError(err), "%v", err)
-		require.True(t, isConnectionError(fmt.Errorf("query: %w", err)), "%v", err)
+		require.True(t, shouldReconnect(err), "%v", err)
+		require.True(t, shouldReconnect(fmt.Errorf("query: %w", err)), "%v", err)
 	}
 }
 
@@ -147,18 +150,18 @@ func TestOrdinaryErrorTextDoesNotTriggerRecovery(t *testing.T) {
 		errors.New("SQL contains ORA-01000, bad connection, i/o timeout and connection was aborted"),
 		errors.New("query references TTC error: and sql: database is closed"),
 	} {
-		require.False(t, isConnectionError(err), "%v", err)
+		require.False(t, shouldReconnect(err), "%v", err)
 	}
 }
 
 func TestJoinedCleanupErrorsTriggerRecovery(t *testing.T) {
 	for _, ordinary := range []error{network.NewOracleError(942), codedOracleError(942)} {
 		for _, cleanup := range []error{network.NewOracleError(6413), codedOracleError(3113), io.EOF} {
-			require.True(t, isConnectionError(errors.Join(ordinary, fmt.Errorf("close: %w", cleanup))))
-			require.True(t, isConnectionError(errors.Join(cleanup, ordinary)))
+			require.True(t, shouldReconnect(errors.Join(ordinary, fmt.Errorf("close: %w", cleanup))))
+			require.True(t, shouldReconnect(errors.Join(cleanup, ordinary)))
 		}
 	}
-	require.False(t, isConnectionError(errors.Join(codedOracleError(942), network.NewOracleError(904))))
+	require.False(t, shouldReconnect(errors.Join(codedOracleError(942), network.NewOracleError(904))))
 }
 
 func TestRecoveryDoesNotReplayFailedQuery(t *testing.T) {
@@ -216,7 +219,7 @@ func TestOperationDeadlinePreservesDriverError(t *testing.T) {
 
 func TestOrdinaryErrorsPreservePool(t *testing.T) {
 	for _, driverName := range []string{common.GoOra, common.Godror} {
-		for _, queryErr := range []error{sql.ErrNoRows, errors.New("ORA-00904: invalid identifier"), errors.New("ORA-00942: table does not exist")} {
+		for _, queryErr := range []error{sql.ErrNoRows, errors.New("ORA-00904: invalid identifier"), errors.New("ORA-00942: table does not exist"), network.NewOracleError(12514), codedOracleError(12514)} {
 			t.Run(driverName+"/"+queryErr.Error(), func(t *testing.T) {
 				c, _ := operationCheck(t)
 				db := operationPool(t, driverName, operationConn{query: func(context.Context, string) (driver.Rows, error) { return nil, queryErr }})
