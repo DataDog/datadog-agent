@@ -23,11 +23,19 @@ features:
     stale or reused cluster name does not tag data with another cluster's ARN. When the CA
     cannot be read, only the EC2 tag name is used, without that check.
 
+    The EC2 tag and the Region fallback are read through the instance metadata service, which a
+    pod cannot reach on nodes with an IMDS hop limit of 1, such as Amazon Linux 2023 managed
+    node groups by default. There, set ``cluster_name`` to the EKS cluster name, which is then
+    checked against the cluster CA, and rely on ``AWS_REGION``, which EKS Pod Identity and IRSA
+    inject into the pod.
+
     The endpoint answers 404 when the cluster is not EKS or no cluster name can be verified, and
-    503 when the identity cannot be resolved. In the Cluster Agent's first minute, a 503 for an
-    identity that is not determined yet (the API server or AWS did not answer in time) is
-    marked so node Agents retry it during their startup. Other 503s are final for that startup,
-    and node Agents pick the tags up in their host metadata once the identity is resolved.
+    503 when the identity cannot be resolved. Every error answer is marked final or retryable
+    for node Agents. A 503 for an identity that is not determined yet (the API server or AWS
+    did not answer in time), in the Cluster Agent's first minute only, and one for a cached
+    failure that expires within 5 seconds, are marked so node Agents retry them during their
+    startup. Other answers are final for that startup, and node Agents pick the tags up in
+    their host metadata once the identity is resolved.
 
     Grant ``eks:DescribeCluster`` on the cluster to the Cluster Agent's IAM role, with EKS Pod
     Identity or IAM Roles for Service Accounts (IRSA). The node instance role works only when

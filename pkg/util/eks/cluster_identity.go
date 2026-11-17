@@ -73,15 +73,21 @@ type ClusterIdentity = identity.ClusterIdentity
 
 var newDescribeClusterAPI = newSignedDescribeClusterClient
 
+// ec2Region is the IMDS Region lookup. Variable for tests.
+var ec2Region = ec2.GetRegion
+
 var loadAWSConfig = func(ctx context.Context) (aws.Config, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return aws.Config{}, err
 	}
 	if cfg.Region == "" {
-		cfg.Region, err = ec2.GetRegion(ctx)
+		// EKS Pod Identity and IRSA inject AWS_REGION, so this IMDS fallback is only for other
+		// credential setups. From a pod it does not work on nodes whose IMDS hop limit is 1, such
+		// as AL2023 managed node groups by default: IMDS answers 401.
+		cfg.Region, err = ec2Region(ctx)
 		if err != nil {
-			return aws.Config{}, fmt.Errorf("resolve EKS region: %w", err)
+			return aws.Config{}, fmt.Errorf("resolve EKS region (set AWS_REGION on the Cluster Agent; EKS Pod Identity and IRSA inject it): %w", err)
 		}
 	}
 	return cfg, nil

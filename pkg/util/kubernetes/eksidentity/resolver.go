@@ -312,6 +312,9 @@ func discoverClusterName(ctx context.Context) discoveredName {
 
 	// The EC2 tag carries the real EKS cluster name (which may contain upper-case
 	// characters the Datadog cluster name cannot). Only that source is cached permanently.
+	// The lookup goes through IMDS, which from a pod does not work on nodes whose IMDS hop
+	// limit is 1 (AL2023 managed node groups by default answer 401). The name then comes from
+	// cluster_name, which is used only when it verifies against the pod's cluster CA.
 	// ctx is the shared resolve's own context (see Resolve), so a node disconnecting does not
 	// cut the lookup short.
 	lookupTimeout := clusterNameDiscoveryTimeout

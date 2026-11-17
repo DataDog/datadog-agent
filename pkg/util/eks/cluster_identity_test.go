@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -544,4 +546,26 @@ func TestRetryInReportsWhenACachedFailureExpires(t *testing.T) {
 		_, ok = RetryIn(context.Canceled)
 		assert.False(t, ok)
 	})
+}
+
+func TestLoadAWSConfigRegionErrorSaysHowToFixIt(t *testing.T) {
+	// From a pod on nodes whose IMDS hop limit is 1 (AL2023 managed node groups), the IMDS
+	// fallback answers 401. The one Warn the Cluster Agent logs then says how to fix it.
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	empty := filepath.Join(t.TempDir(), "empty")
+	require.NoError(t, os.WriteFile(empty, nil, 0o600))
+	t.Setenv("AWS_CONFIG_FILE", empty)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", empty)
+	t.Setenv("AWS_PROFILE", "")
+	orig := ec2Region
+	t.Cleanup(func() { ec2Region = orig })
+	ec2Region = func(context.Context) (string, error) {
+		return "", errors.New("status code 401 trying to GET http://169.254.169.254/latest/meta-data/placement/region")
+	}
+
+	_, err := loadAWSConfig(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "status code 401")
+	assert.Contains(t, err.Error(), "set AWS_REGION")
 }
