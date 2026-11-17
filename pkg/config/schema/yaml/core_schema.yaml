@@ -5928,10 +5928,10 @@ properties:
                     node_type: setting
                     type: integer
                     default: 60
-                max_run_length:
-                  node_type: setting
-                  type: integer
-                  default: 120
+                  max_run_length:
+                    node_type: setting
+                    type: integer
+                    default: 120
           enabled:
             node_type: setting
             type: boolean
