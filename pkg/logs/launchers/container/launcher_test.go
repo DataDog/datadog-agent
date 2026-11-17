@@ -197,20 +197,20 @@ func TestAddRemoveSourceWithoutWaiting(t *testing.T) {
 	logSources := sources.NewLogSources()
 
 	// stand-in for the file launcher: counts the file sources still added, and
-	// reports that count when the child file source of "last" is added. The
-	// launcher adds and removes child file sources synchronously and in order,
-	// so all the earlier ones were received by then.
+	// reports that count when the child file source of "first" or "last" is
+	// added. The launcher adds and removes child file sources synchronously and
+	// in order, so all the earlier ones were received by then.
 	fileDone := make(chan struct{})
 	fileAdded, fileRemoved := logSources.SubscribeForType(config.FileType, fileDone, fileDone)
-	activeWhenLastAdded := make(chan int, 1)
+	activeWhenAdded := map[string]chan int{"first": make(chan int, 1), "last": make(chan int, 1)}
 	go func() {
 		active := 0
 		for {
 			select {
 			case source := <-fileAdded:
 				active++
-				if source.Config.Identifier == "last" {
-					activeWhenLastAdded <- active
+				if ch, ok := activeWhenAdded[source.Config.Identifier]; ok {
+					ch <- active
 				}
 			case <-fileRemoved:
 				active--
@@ -240,6 +240,24 @@ func TestAddRemoveSourceWithoutWaiting(t *testing.T) {
 	defer l.Stop()
 	defer close(fileDone) // runs before l.Stop
 
+	waitActive := func(id string, expected int, msg string) {
+		t.Helper()
+		select {
+		case active := <-activeWhenAdded[id]:
+			require.Equal(t, expected, active, msg)
+		case <-time.After(10 * time.Second):
+			require.FailNow(t, "timed out: the container launcher is blocked")
+		}
+	}
+
+	// Wait for the launcher to process a first source: sources existing when
+	// the launcher subscribes are replayed asynchronously, so their removal
+	// could otherwise be received before their addition.
+	first := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: "first"})
+	logSources.AddSource(first)
+	waitActive("first", 1, "unexpected file sources")
+	logSources.RemoveSource(first)
+
 	const n = 500
 	for i := range n {
 		parent := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: fmt.Sprintf("c%d", i)})
@@ -249,12 +267,7 @@ func TestAddRemoveSourceWithoutWaiting(t *testing.T) {
 
 	last := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: "last"})
 	logSources.AddSource(last)
-	select {
-	case active := <-activeWhenLastAdded:
-		require.Equal(t, 1, active, "file sources left behind by removed containers")
-	case <-time.After(10 * time.Second):
-		require.FailNow(t, "timed out: the container launcher is blocked")
-	}
+	waitActive("last", 1, "file sources left behind by removed containers")
 	require.Equal(t, []*sources.LogSource{last}, nonFileSources(logSources))
 }
 
