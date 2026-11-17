@@ -29,16 +29,12 @@ func GetClusterName(ctx context.Context) (string, error) {
 }
 
 func extractClusterName(tags []string) (string, error) {
-	// Several kubernetes.io/cluster/<name> tags can be present and their order is not stable,
-	// so pick the smallest name to get the same answer every time.
 	var clusterName string
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "kubernetes.io/cluster/") { // tag key format: kubernetes.io/cluster/clustername"
 			key := strings.Split(tag, ":")[0]
-			name := strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
-			if clusterName == "" || name < clusterName {
-				clusterName = name
-			}
+			clusterName = strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
+			break
 		}
 	}
 

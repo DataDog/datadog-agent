@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -63,7 +64,8 @@ var ErrNotDetermined = errors.New("EKS cluster identity is not determined yet")
 // Injectable for tests; production values are the real detectors.
 var (
 	detectDistribution   = cloudprovider.DCAGetDistribution
-	ec2ClusterName       = ec2tags.GetClusterName
+	ec2ClusterName       = clusterNameFromEC2Tags
+	ec2Tags              = ec2tags.GetTags
 	configuredCluster    = clustername.GetClusterName
 	resolveIdentityByKey = eks.GetClusterIdentity
 	readClusterCA        = func() ([]byte, error) { return os.ReadFile(serviceAccountCAPath) }
@@ -170,6 +172,34 @@ func containsCertificate(bundle []byte) bool {
 			return true
 		}
 	}
+}
+
+// clusterNameFromEC2Tags returns the EKS cluster name from the node's kubernetes.io/cluster/<name>
+// EC2 tags. A node can carry several (a migrated node group, a tag copied from another
+// cluster) and their order is not stable, so the smallest name is picked to get the same answer
+// every time. The shared ec2tags.GetClusterName keeps its first-tag behavior, which other
+// callers (kube_cluster_name) depend on.
+func clusterNameFromEC2Tags(ctx context.Context) (string, error) {
+	tags, err := ec2Tags(ctx)
+	if err != nil {
+		return "", err
+	}
+	const prefix = "kubernetes.io/cluster/"
+	name := ""
+	for _, tag := range tags {
+		key, _, _ := strings.Cut(tag, ":")
+		candidate, ok := strings.CutPrefix(key, prefix)
+		if !ok || candidate == "" {
+			continue
+		}
+		if name == "" || candidate < name {
+			name = candidate
+		}
+	}
+	if name == "" {
+		return "", errors.New("no kubernetes.io/cluster tag in the EC2 tags")
+	}
+	return name, nil
 }
 
 func discoverClusterName(ctx context.Context) discoveredName {

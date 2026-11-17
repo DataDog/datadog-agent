@@ -375,3 +375,21 @@ func TestResolveTreatsCertificateLessCAAsUnreadable(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterNameFromEC2TagsPicksTheSameNameEveryTime(t *testing.T) {
+	orig := ec2Tags
+	t.Cleanup(func() { ec2Tags = orig })
+	for _, tags := range [][]string{
+		{"kubernetes.io/cluster/zeta:shared", "Name:node", "kubernetes.io/cluster/alpha:owned"},
+		{"kubernetes.io/cluster/alpha:owned", "kubernetes.io/cluster/zeta:shared"},
+	} {
+		ec2Tags = func(context.Context) ([]string, error) { return tags, nil }
+		name, err := clusterNameFromEC2Tags(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "alpha", name)
+	}
+
+	ec2Tags = func(context.Context) ([]string, error) { return []string{"Name:node"}, nil }
+	_, err := clusterNameFromEC2Tags(t.Context())
+	assert.Error(t, err)
+}
