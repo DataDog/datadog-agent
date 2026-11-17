@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -86,7 +87,7 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	// still armed on the pids Resume is about to bounce, so it would read their termination as a
 	// crash and revert the experiment under the resume. Stop it first; the experiment daemon
 	// launches a new one once the hand-over below has started it.
-	if err := stopSurvivingWatchers(ctx); err != nil {
+	if err := stopSurvivingHelpers(ctx); err != nil {
 		log.Warnf("resume: could not stop the previous watcher, resuming anyway: %v", err)
 	}
 	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
@@ -198,57 +199,78 @@ func removeInstallerExperimentJob() {
 	}
 }
 
-// watcherStopTimeout bounds how long stopSurvivingWatchers waits for a watcher to exit after
-// SIGTERM before it is killed.
-const watcherStopTimeout = 5 * time.Second
+// helperStopTimeout bounds how long stopHelpers waits for a helper process to exit after SIGTERM
+// before it is killed.
+const helperStopTimeout = 5 * time.Second
 
-// listWatcherPIDs returns the pids of the experiment watcher processes running, other than this
-// one. The watchers are found by listing processes, and only root-owned processes running exactly
-// the watcher command are matched (parseWatcherPIDs).
-func listWatcherPIDs(ctx context.Context) ([]int, error) {
+// experimentHelperCommands are the package commands of every detached process an experiment
+// launches: the watcher, and the processes that hand the installer daemon over and back.
+var experimentHelperCommands = []string{watchConfigExperimentCommand, handOverInstallerCommand, handBackInstallerCommand}
+
+// listHelperPIDs returns the pids of the detached experiment processes running any of commands,
+// other than this one. They are found by listing processes, and only root-owned processes running
+// exactly one of those commands are matched (parseHelperPIDs).
+func listHelperPIDs(ctx context.Context, commands ...string) ([]int, error) {
 	out, err := exec.CommandContext(ctx, "/bin/ps", "-ax", "-o", "pid=,uid=,command=").Output()
 	if err != nil {
 		return nil, fmt.Errorf("could not list processes: %w", err)
 	}
-	return parseWatcherPIDs(string(out), os.Getpid()), nil
+	return parseHelperPIDs(string(out), os.Getpid(), commands...), nil
 }
 
 // watcherRunning reports whether an experiment watcher process is running. A var so tests can stub
 // it.
 var watcherRunning = func(ctx context.Context) (bool, error) {
-	pids, err := listWatcherPIDs(ctx)
+	pids, err := listHelperPIDs(ctx, watchConfigExperimentCommand)
 	return len(pids) > 0, err
 }
 
 // stopSurvivingWatchers terminates the watcher processes a previous run of the daemon left
-// behind, and waits for them to exit. A var so tests can observe when resume calls it.
+// behind, and waits for them to exit. The experiment daemon calls it: the hand-over that started
+// it is still waiting for the watcher it launches, so only watchers are stopped. A var so tests
+// can observe when it is called.
 var stopSurvivingWatchers = func(ctx context.Context) error {
-	pids, err := listWatcherPIDs(ctx)
+	return stopHelpers(ctx, watchConfigExperimentCommand)
+}
+
+// stopSurvivingHelpers terminates every detached experiment process a previous run left behind:
+// the watcher, and any hand-over or hand-back still pending. The stable daemon calls it before it
+// resumes an experiment, and the post-install before it discards one: a surviving hand-over would
+// otherwise race the one about to be launched, and its swap would stop the experiment daemon the
+// new one starts. A var so tests can observe when it is called.
+var stopSurvivingHelpers = func(ctx context.Context) error {
+	return stopHelpers(ctx, experimentHelperCommands...)
+}
+
+// stopHelpers terminates the detached experiment processes running any of commands, and waits for
+// them to exit, killing those that ignore SIGTERM.
+func stopHelpers(ctx context.Context, commands ...string) error {
+	pids, err := listHelperPIDs(ctx, commands...)
 	if err != nil {
 		return err
 	}
 	for _, pid := range pids {
-		log.Infof("resume: stopping the previous experiment watcher (pid %d)", pid)
+		log.Infof("stopping a previous configuration experiment process (pid %d)", pid)
 		_ = syscall.Kill(pid, syscall.SIGTERM)
-		stopped := time.Now().Add(watcherStopTimeout)
+		stopped := time.Now().Add(helperStopTimeout)
 		for time.Now().Before(stopped) && syscall.Kill(pid, 0) == nil {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if syscall.Kill(pid, 0) == nil {
-			log.Warnf("resume: the previous experiment watcher (pid %d) ignored SIGTERM, killing it", pid)
+			log.Warnf("the previous configuration experiment process (pid %d) ignored SIGTERM, killing it", pid)
 			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 	return nil
 }
 
-// parseWatcherPIDs returns the pids of the root-owned experiment watcher processes in the output
-// of `ps -ax -o pid=,uid=,command=`, other than self.
+// parseHelperPIDs returns the pids of the root-owned detached experiment processes running any of
+// commands in the output of `ps -ax -o pid=,uid=,command=`, other than self.
 //
-// The command line must be exactly the installer binary followed by the three arguments
-// launchConfigExperimentWatcher passes it, so another process whose command line merely contains
-// that text -- a shell or pgrep looking for the watcher -- is never matched.
-func parseWatcherPIDs(ps string, self int) []int {
+// The command line must be exactly the installer binary followed by the three arguments the
+// launchers pass it, so another process whose command line merely contains that text -- a shell
+// or pgrep looking for the watcher -- is never matched.
+func parseHelperPIDs(ps string, self int, commands ...string) []int {
 	var pids []int
 	for _, line := range strings.Split(ps, "\n") {
 		fields := strings.Fields(line)
@@ -263,7 +285,7 @@ func parseWatcherPIDs(ps string, self int) []int {
 		if fields[1] != "0" || filepath.Base(fields[2]) != "installer" {
 			continue
 		}
-		if fields[3] != "package-command" || fields[4] != agentPackage || fields[5] != watchConfigExperimentCommand {
+		if fields[3] != "package-command" || fields[4] != agentPackage || !slices.Contains(commands, fields[5]) {
 			continue
 		}
 		pids = append(pids, pid)

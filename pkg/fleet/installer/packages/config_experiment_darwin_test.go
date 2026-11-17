@@ -808,10 +808,10 @@ func TestResumeRevertsAnExperimentDeployedWithNoDeadline(t *testing.T) {
 	}
 }
 
-// TestParseWatcherPIDs pins which processes resume stops as a surviving watcher: only root-owned
+// TestParseHelperPIDs pins which processes resume stops as a surviving watcher: only root-owned
 // processes running exactly the installer's watcher command, and never the caller itself. A shell
 // or pgrep whose command line merely contains the watcher's arguments must not match.
-func TestParseWatcherPIDs(t *testing.T) {
+func TestParseHelperPIDs(t *testing.T) {
 	ps := strings.Join([]string{
 		"    1     0 /sbin/launchd",
 		"  101     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent watchConfigExperiment",
@@ -826,9 +826,18 @@ func TestParseWatcherPIDs(t *testing.T) {
 		"",
 	}, "\n")
 
-	assert.Equal(t, []int{101, 108}, parseWatcherPIDs(ps, 999))
-	assert.Equal(t, []int{101}, parseWatcherPIDs(ps, 108), "the caller must never be matched")
-	assert.Empty(t, parseWatcherPIDs("", 999))
+	assert.Equal(t, []int{101, 108}, parseHelperPIDs(ps, 999, watchConfigExperimentCommand))
+	assert.Equal(t, []int{101}, parseHelperPIDs(ps, 108, watchConfigExperimentCommand), "the caller must never be matched")
+	assert.Empty(t, parseHelperPIDs("", 999, watchConfigExperimentCommand))
+
+	helpers := ps + strings.Join([]string{
+		"  201     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent handOverInstaller",
+		"  202     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent handBackInstaller",
+		"  203   450 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent handOverInstaller",
+		"",
+	}, "\n")
+	assert.Equal(t, []int{101, 108}, parseHelperPIDs(helpers, 999, watchConfigExperimentCommand), "a watcher lookup must not match the hand-over or hand-back")
+	assert.Equal(t, []int{101, 108, 201, 202}, parseHelperPIDs(helpers, 999, experimentHelperCommands...))
 }
 
 // TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs covers a daemon restart in the middle of
@@ -846,13 +855,13 @@ func TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs(t *testing.T) {
 
 	var stopped int
 	launchctlCallsAtStop := -1
-	original := stopSurvivingWatchers
-	stopSurvivingWatchers = func(context.Context) error {
+	original := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error {
 		stopped++
 		launchctlCallsAtStop = len(*calls)
 		return nil
 	}
-	t.Cleanup(func() { stopSurvivingWatchers = original })
+	t.Cleanup(func() { stopSurvivingHelpers = original })
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 	assert.Equal(t, 1, stopped, "the previous watcher should be stopped exactly once")
@@ -874,9 +883,9 @@ func TestResumeStillResumesWhenTheWatcherCannotBeStopped(t *testing.T) {
 	deployExperimentConfig(t, dirs)
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
 
-	original := stopSurvivingWatchers
-	stopSurvivingWatchers = func(context.Context) error { return errors.New("injected failure") }
-	t.Cleanup(func() { stopSurvivingWatchers = original })
+	original := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { return errors.New("injected failure") }
+	t.Cleanup(func() { stopSurvivingHelpers = original })
 
 	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
 	assert.Equal(t, 1, *handOverCalls)
@@ -1841,4 +1850,43 @@ func TestResumeDiscardsTheConfigWhenTheHandOverFailsToLaunch(t *testing.T) {
 
 	require.ErrorContains(t, err, "hand-over failed to launch, experiment reverted")
 	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration should be discarded")
+}
+
+// TestASecondHandBackLeavesTheStableDaemonAlone pins that the hand-back is idempotent: two can run
+// for one experiment (the watcher failing to launch hands back from the hook while the hand-over
+// does too), and the second must not swap again, which would stop the stable daemon the first one
+// started and whatever command it runs.
+func TestASecondHandBackLeavesTheStableDaemonAlone(t *testing.T) {
+	l := stubLiveLaunchd(t, installerJob+"-exp")
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+	shortRestoreBackoff(t)
+	require.NoError(t, handBackInstaller(context.Background()))
+	require.True(t, l.isLoaded(installerJob))
+	l.mu.Lock()
+	first := len(l.calls)
+	l.mu.Unlock()
+
+	require.NoError(t, handBackInstaller(context.Background()))
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, args := range l.calls[first:] {
+		assert.Equal(t, "print", args[0], "the second hand-back touched launchd: %v", args)
+	}
+}
+
+// TestHandBackStartsTheStableDaemonWhenNeitherJobIsLoaded pins that the idempotence check does not
+// mistake a daemon on neither job -- a swap that failed halfway -- for one already handed back.
+func TestHandBackStartsTheStableDaemonWhenNeitherJobIsLoaded(t *testing.T) {
+	l := stubLiveLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentLock(t)
+	shortRestoreBackoff(t)
+
+	require.NoError(t, handBackInstaller(context.Background()))
+
+	assert.True(t, l.isLoaded(installerJob))
 }

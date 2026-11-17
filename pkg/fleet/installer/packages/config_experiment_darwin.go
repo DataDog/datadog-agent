@@ -406,12 +406,35 @@ func handBackInstaller(ctx context.Context) (err error) {
 		return nil
 	}
 	e := configExperiment{jobs: installerJobSet()}
+	if handedBack, err := installerOnStableJob(ctx); err != nil {
+		log.Warnf("hand-back: could not tell which job the installer daemon is on, handing it back: %v", err)
+	} else if handedBack {
+		// Another hand-back got there first. Swapping again would stop the stable daemon it just
+		// started, along with whatever command that daemon is running.
+		log.Infof("hand-back: the installer daemon is already on its stable job")
+		if err := e.jobs.Remove(launchd.Experiment); err != nil {
+			return fmt.Errorf("hand-back: %w", err)
+		}
+		return nil
+	}
 	restoreErr := e.restoreStableJobs(context.WithoutCancel(ctx))
 	removeErr := e.jobs.Remove(launchd.Experiment)
 	if err := errors.Join(restoreErr, removeErr); err != nil {
 		return fmt.Errorf("hand-back: %w", err)
 	}
 	return nil
+}
+
+// installerOnStableJob reports whether the installer daemon is on its stable job only: the stable
+// job loaded and the experiment one not. With neither loaded -- a swap that failed halfway -- the
+// daemon is not on its stable job, and a hand-back still has to start it.
+func installerOnStableJob(ctx context.Context) (bool, error) {
+	client := launchdClient()
+	experiment, err := client.Loaded(ctx, installerJob+string(launchd.Experiment))
+	if err != nil || experiment {
+		return false, err
+	}
+	return client.Loaded(ctx, installerJob)
 }
 
 // errInstallerLock wraps every failure to take the installer's lock other than a timeout.

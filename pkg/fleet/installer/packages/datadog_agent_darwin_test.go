@@ -554,9 +554,9 @@ func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
 	layout := defaultDmgLayout
 	stubDeadlinePath(t)
 	stopped := 0
-	originalStop := stopSurvivingWatchers
-	stopSurvivingWatchers = func(context.Context) error { stopped++; return nil }
-	t.Cleanup(func() { stopSurvivingWatchers = originalStop })
+	originalStop := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { stopped++; return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = originalStop })
 	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
 	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
@@ -568,7 +568,7 @@ func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
 
 	require.NoError(t, postInstallDMG(ctx))
 
-	assert.Equal(t, 1, stopped, "a surviving watcher must be stopped before the jobs it watches go away")
+	assert.Equal(t, 1, stopped, "surviving watchers, hand-overs and hand-backs must be stopped before the jobs they drive go away")
 	token, err := experimentDeadline().Read()
 	require.NoError(t, err)
 	assert.Empty(t, token)
