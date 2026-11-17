@@ -349,9 +349,83 @@ func TestCopyRegularFileRefusesALink(t *testing.T) {
 	require.NoError(t, err)
 	defer target.Close()
 
-	require.Error(t, copyRegularFile(source, target, "datadog.yaml"))
+	_, err = copyRegularFile(source, target, "datadog.yaml")
+	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(targetPath, "datadog.yaml"))
+}
+
+// TestWriteExperimentRefusesAFileWithSeveralLinks covers a file of the stable tree that is also
+// linked from elsewhere: its content and owner belong to that other file, so the copy refuses it
+// and no experiment is published.
+func TestWriteExperimentRefusesAFileWithSeveralLinks(t *testing.T) {
+	dirs := newTestDirectories(t)
+	outside := filepath.Join(t.TempDir(), "elsewhere.yaml")
+	require.NoError(t, os.WriteFile(outside, []byte("token: x\n"), 0600))
+	require.NoError(t, os.Link(outside, filepath.Join(dirs.StablePath, "conf.d", "linked.yaml")))
+
+	err := dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level": "debug"}`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "linked.yaml")
+
+	assertResting(t, dirs)
+	assertNoScratchLeftBehind(t, dirs)
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Empty(t, state.ExperimentDeploymentID)
+}
+
+func TestWriteExperimentRefusesANameWithAControlCharacter(t *testing.T) {
+	for _, name := range []string{"k\n 0: user:nobody allow read", "tab\there.yaml", "del\x7f.yaml"} {
+		t.Run(fmt.Sprintf("%q", name), func(t *testing.T) {
+			dirs := newTestDirectories(t)
+			require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, "conf.d", name), nil, 0640))
+
+			err := dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level": "debug"}`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "control character")
+
+			assertResting(t, dirs)
+			assertNoScratchLeftBehind(t, dirs)
+		})
+	}
+}
+
+// TestCopyKeepsAccessControlListsOnlyForTheTreeOwnersEntries needs root: only root can own a file
+// inside a tree that another account owns.
+func TestCopyKeepsAccessControlListsOnlyForTheTreeOwnersEntries(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root to create entries with another owner")
+	}
+	dirs := newTestDirectories(t)
+	nobody, err := user.Lookup("nobody")
+	require.NoError(t, err)
+	var uid, gid int
+	_, err = fmt.Sscan(nobody.Uid, &uid)
+	require.NoError(t, err)
+	_, err = fmt.Sscan(nobody.Gid, &gid)
+	require.NoError(t, err)
+	require.NoError(t, filepath.Walk(dirs.StablePath, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(path, uid, gid)
+	}))
+	owned := filepath.Join(dirs.StablePath, "conf.d", "owned.yaml")
+	foreign := filepath.Join(dirs.StablePath, "conf.d", "foreign.yaml")
+	for _, path := range []string{owned, foreign} {
+		require.NoError(t, os.WriteFile(path, nil, 0600))
+		setACL(t, path, "group:everyone allow read")
+	}
+	require.NoError(t, os.Chown(owned, uid, gid))
+	require.NoError(t, os.Chown(foreign, 0, 0))
+
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	tree := configTree{sourcePath: dirs.StablePath, targetPath: incoming}
+	require.NoError(t, tree.Copy(context.Background()))
+
+	assert.Equal(t, readACL(t, owned), readACL(t, filepath.Join(incoming, "conf.d", "owned.yaml")))
+	assert.Empty(t, readACL(t, filepath.Join(incoming, "conf.d", "foreign.yaml")))
 }
 
 func TestCopyDoesNotWalkALinkOutOfTheSource(t *testing.T) {
@@ -739,11 +813,6 @@ func TestCopyReproducesAccessControlListsAcrossBatches(t *testing.T) {
 		}
 		paths = append(paths, path)
 	}
-	newline := filepath.Join("conf.d", "two\nlines.yaml")
-	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, newline), nil, 0640))
-	setACL(t, filepath.Join(dirs.StablePath, newline), "group:everyone deny write")
-	paths = append(paths, newline)
-
 	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
 	tree := configTree{sourcePath: dirs.StablePath, targetPath: incoming}
 	require.NoError(t, tree.Copy(context.Background()))

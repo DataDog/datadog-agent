@@ -59,12 +59,34 @@ func (t configTree) Copy(ctx context.Context) error {
 	}
 	defer target.Close()
 
+	// Only entries owned by the tree's own owner, the Agent's account, keep their access control
+	// lists. Those lists are read back by path, from a tree that account can change at any time, so
+	// whatever they say must never land on a file it does not already own.
+	rootInfo, err := source.Lstat(".")
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %w", t.sourcePath, err)
+	}
+	treeOwner, _, ok := ownership(rootInfo)
+	if !ok {
+		return fmt.Errorf("could not read the ownership of %s", t.sourcePath)
+	}
+
 	// Access control lists are copied once every entry exists rather than as each is created, so
 	// that no entry inherits an entry from a directory copied before it.
 	var withACL []string
+	keepACL := func(path string, info fs.FileInfo) {
+		if uid, _, ok := ownership(info); ok && uid == treeOwner {
+			withACL = append(withACL, path)
+			return
+		}
+		log.Warnf("not copying the access control list of %s: it is not owned by the owner of %s", path, t.sourcePath)
+	}
 	err = fs.WalkDir(source.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if hasControlCharacter(path) {
+			return fmt.Errorf("refusing to copy %q: its name holds a control character", path)
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -77,7 +99,7 @@ func (t configTree) Copy(ctx context.Context) error {
 			if err := target.Mkdir(path, 0700); err != nil {
 				return fmt.Errorf("could not create %s: %w", path, err)
 			}
-			withACL = append(withACL, path)
+			keepACL(path, info)
 			return applyDirectoryMetadata(target, path, info)
 		case info.Mode()&os.ModeSymlink != 0:
 			destination, err := source.Readlink(path)
@@ -94,8 +116,12 @@ func (t configTree) Copy(ctx context.Context) error {
 			}
 			return nil
 		case info.Mode().IsRegular():
-			withACL = append(withACL, path)
-			return copyRegularFile(source, target, path)
+			copied, err := copyRegularFile(source, target, path)
+			if err != nil {
+				return err
+			}
+			keepACL(path, copied)
+			return nil
 		default:
 			// Sockets, fifos and device nodes are not configuration. The Agent recreates its own
 			// sockets on start, so leaving them out of the copy is what an experiment wants.
@@ -162,18 +188,9 @@ const aclBatchSize = 256
 // distinct list is written with one chmod over every entry that carries it. A default conf.d holds
 // hundreds of entries, and every one of them is copied at each experiment start.
 //
-// A path holding a newline would break the listing apart, so it goes through copyACL alone.
+// Copy refuses any path holding a control character, so every path here lists on one line.
 func (t configTree) copyACLs(ctx context.Context, paths []string) error {
-	var batched []string
-	for _, path := range paths {
-		if strings.Contains(path, "\n") {
-			if err := t.copyACL(ctx, path); err != nil {
-				return err
-			}
-			continue
-		}
-		batched = append(batched, path)
-	}
+	batched := paths
 
 	targets := map[string][]string{}
 	var lists []string
@@ -285,34 +302,47 @@ func (t configTree) Discard(_ context.Context) error {
 }
 
 // copyRegularFile copies one regular file, taking its mode and ownership from the file it actually
-// opened rather than from the walk, which may have seen a different entry under the same name.
-func copyRegularFile(source, target *os.Root, path string) error {
+// opened rather than from the walk, which may have seen a different entry under the same name, and
+// returns that file's information.
+//
+// A file with more than one link is refused: the tree belongs to the Agent's account, which can
+// hard-link any file on the volume into it, and the copy would carry that file's content and owner
+// into the experiment.
+func copyRegularFile(source, target *os.Root, path string) (fs.FileInfo, error) {
 	// O_NONBLOCK keeps a fifo swapped in under this name from blocking the open; the type check
 	// below then rejects it.
 	in, err := source.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
-		return fmt.Errorf("could not open %s: %w", path, err)
+		return nil, fmt.Errorf("could not open %s: %w", path, err)
 	}
 	defer in.Close()
 	info, err := in.Stat()
 	if err != nil {
-		return fmt.Errorf("could not stat %s: %w", path, err)
+		return nil, fmt.Errorf("could not stat %s: %w", path, err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%s is no longer a regular file", path)
+		return nil, fmt.Errorf("%s is no longer a regular file", path)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Nlink != 1 {
+		return nil, fmt.Errorf("refusing to copy %s: it is not a file of its own", path)
 	}
 	out, err := target.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0600)
 	if err != nil {
-		return fmt.Errorf("could not create %s: %w", path, err)
+		return nil, fmt.Errorf("could not create %s: %w", path, err)
 	}
 	defer out.Close()
 	if _, err := io.Copy(out, in); err != nil {
-		return fmt.Errorf("could not copy %s: %w", path, err)
+		return nil, fmt.Errorf("could not copy %s: %w", path, err)
 	}
 	if err := applyMetadata(out, info); err != nil {
-		return err
+		return nil, err
 	}
-	return out.Close()
+	return info, out.Close()
+}
+
+// hasControlCharacter reports whether path holds an ASCII control character, newlines included.
+func hasControlCharacter(path string) bool {
+	return strings.ContainsFunc(path, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
 // applyDirectoryMetadata carries a source directory's mode and ownership over to the copy, through
