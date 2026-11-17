@@ -118,7 +118,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915 // indirect
 	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
@@ -374,4 +374,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ../../../../../../test/otel
 )
 
-replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915

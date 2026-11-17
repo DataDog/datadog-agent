@@ -352,7 +352,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.164.1
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/remoteconfig v0.0.0-20261117181312-01f7e5ed12d3
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.164.1
@@ -1323,4 +1323,4 @@ replace (
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/remoteconfig => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/remoteconfig v0.0.0-20261117181312-01f7e5ed12d3
 
-replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/di => github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915

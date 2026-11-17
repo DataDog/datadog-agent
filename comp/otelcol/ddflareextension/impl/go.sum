@@ -472,8 +472,8 @@ github.com/linode/linodego v1.69.1 h1:f45N2MHR/oece2/ktTTCYmrlfse4//k3NgwcF5zbGZ
 github.com/linode/linodego v1.69.1/go.mod h1:Fha0NYsQSx5VZK1HQNJY/z/dIxxkFp+vb5veawbmAUw=
 github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 h1:eveIIGn4BGM3qknO74omf6HYr30/exH+eVUTuAgwjZ0=
 github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5/go.mod h1:autxFIvghDt3jPTLoqZ9OZ7s9qTGNAWmYCjVFWPX/zg=
-github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44 h1:pxAdRqzqZ+HrVtOPoE8mi6JK1A4Xl4t5vFL4Xf7deqw=
-github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117181605-96ce8db5cd44/go.mod h1:6xkfkTA6CZ1WoapK1/VIVy07FR7Y7Uv+nA8uchZlt10=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915 h1:SulpfV0mOd2GNgzcvzWtmIy2bFUVD2uBDrXUCaxQPTw=
+github.com/mabdinur/opentelemetry-collector-contrib/pkg/datadog/di v0.0.0-20261117183902-382d31eaa915/go.mod h1:6xkfkTA6CZ1WoapK1/VIVy07FR7Y7Uv+nA8uchZlt10=
 github.com/magefile/mage v1.15.0 h1:BvGheCMAsG3bWUDbZ8AyXXpCNwU9u5CB6sM+HNb9HYg=
 github.com/magefile/mage v1.15.0/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/magiconair/properties v1.8.10 h1:s31yESBquKXCV9a/ScB3ESkOjUYYv+X0rg8SYxI99mE=
