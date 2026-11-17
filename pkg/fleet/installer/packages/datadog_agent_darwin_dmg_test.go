@@ -174,12 +174,13 @@ func TestRemoveOldInstallFiles(t *testing.T) {
 		filepath.Join(layout.packagesRunDir, "installer.sock"),
 		filepath.Join(layout.packagesRunDir, "installer_tasks.db"),
 		filepath.Join(layout.packagesRunDir, "remote-config-installer.db"),
+		filepath.Join(layout.runDir(), "installer.pid"),
 	}
 	kept := []string{
 		filepath.Join(layout.runDir(), "remote-config-installer.db"),
 		filepath.Join(layout.runDir(), "installer.sock"),
 		filepath.Join(layout.runDir(), "installer_tasks.db"),
-		filepath.Join(layout.runDir(), "installer.pid"),
+		filepath.Join(layout.packagesRunDir, "installer.pid"),
 	}
 	for _, path := range append(stale, kept...) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

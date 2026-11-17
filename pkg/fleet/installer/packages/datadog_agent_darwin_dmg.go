@@ -257,6 +257,9 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.packagesRunDir, "installer.sock"),
 		filepath.Join(layout.packagesRunDir, "installer_tasks.db"),
 		filepath.Join(layout.packagesRunDir, "remote-config-installer.db"),
+		// Builds that kept the installer daemon's pidfile in the Agent's run directory. It is kept
+		// in the root-only state directory now.
+		filepath.Join(layout.runDir(), "installer.pid"),
 	}
 	for _, path := range stale {
 		if err := os.RemoveAll(path); err != nil {
