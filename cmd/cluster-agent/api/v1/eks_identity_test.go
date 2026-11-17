@@ -179,7 +179,8 @@ func TestGetEKSClusterIdentityCachedFailureAboutToExpireIsRetryable(t *testing.T
 		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		assert.Equal(t, mark, recorder.Header().Get(identitytypes.RetryLaterHeader), "cached for %s more", left)
 	}
-	assert.Less(t, retryLaterWindow, clusterinfo.StartupRetryBudget)
+	// The node waits at most 10s at startup (clusterinfo.StartupRetryBudget, a node-side package).
+	assert.Less(t, retryLaterWindow, 10*time.Second)
 }
 
 // throttlingError is a throttled DescribeCluster as the AWS retry classifier sees it.
