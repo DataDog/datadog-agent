@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -8,10 +10,21 @@ from tasks.libs.dynamic_test.jev_selection import (
     JevDynTestExecutor,
     generate_job_candidates,
     jev_selection,
+    read_pr_summary,
 )
 
 MODULE = "tasks.libs.dynamic_test.jev_selection"
 SHA = "a" * 40
+
+
+class TestReadPrSummary(unittest.TestCase):
+    def test_missing_or_unset_file_means_the_raw_diff(self):
+        self.assertEqual(read_pr_summary(""), "")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "summary.txt")
+            self.assertEqual(read_pr_summary(str(path)), "")
+            path.write_text("LLM SUMMARY\n")
+            self.assertEqual(read_pr_summary(str(path)), "LLM SUMMARY")
 
 
 class TestJevSelection(unittest.TestCase):

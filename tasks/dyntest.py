@@ -29,6 +29,7 @@ from tasks.libs.dynamic_test.jev_selection import (
     JOB_CANDIDATES_FILE,
     JevDynTestExecutor,
     generate_job_candidates,
+    read_pr_summary,
 )
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
 from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
@@ -148,7 +149,7 @@ def evaluate_index(
                 f"check out that commit (git checkout {pipeline_sha})",
                 code=1,
             )
-        pr_summary = _read_pr_summary(pr_summary_file)
+        pr_summary = read_pr_summary(pr_summary_file)
         extra_tags = [f"jev_llm_summary:{str(bool(pr_summary)).lower()}"]
         executor = JevDynTestExecutor(ctx, pr_summary=pr_summary)
         executors = [executor]
@@ -209,20 +210,6 @@ def evaluate_index(
         raise Exit("Evaluation incomplete; see the errors above", code=1)
 
 
-def _read_pr_summary(path: str) -> str:
-    """The pre-generated LLM PR summary, or "" (raw diff) when none is usable."""
-    if not path:
-        return ""
-    try:
-        with open(path, encoding="utf-8") as f:
-            summary = f.read().strip()
-    except OSError as e:
-        print(color_message(f"No usable LLM PR summary ({e}), passing the raw diff to Jev", Color.ORANGE))
-        return ""
-    print(f"LLM PR summary loaded from {path} ({len(summary)} chars)")
-    return summary
-
-
 @task(
     help={
         "output": "File to write the summary to (consumed by dyntest.evaluate-index --pr-summary-file)",
@@ -234,7 +221,8 @@ def generate_jev_pr_summary(ctx: Context, output: str, base: str = "", model: st
     """Generate the LLM summary of the PR changes for the Jev selection, ONCE.
 
     Runs in its own CI job; the written file is shared as an artifact with
-    the jobs passing it to Jev (dyntest.evaluate-index --pr-summary-file), so
+    the jobs passing it to Jev (dyntest.evaluate-index --pr-summary-file and
+    the E2E jobs through JEV_PR_SUMMARY_FILE), so
     the LLM is called once per pipeline. Gated by the
     'datadog-agent-jev-llm-summary' feature flag: disabled, nothing is
     written and the consumers pass the raw diff.

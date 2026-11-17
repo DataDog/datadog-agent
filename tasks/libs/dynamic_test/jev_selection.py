@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 
 from tasks.libs.ciproviders.gitlab_api import get_pipeline
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import get_ci_test_events
 from tasks.libs.dynamic_test.evaluator import executed_tests_from_events
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -33,6 +34,23 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 # The committed job -> candidate tests map, generated once from CI Visibility
 # (dyntest.generate-jev-job-index / generate_job_candidates below)
 JOB_CANDIDATES_FILE = Path(__file__).resolve().parent / "jev" / "job_test_candidates.json"
+# Where the E2E jobs find the LLM PR summary written by the jev-pr-summary job
+# (dyntest.generate-jev-pr-summary), shared as an artifact
+PR_SUMMARY_FILE_ENV = "JEV_PR_SUMMARY_FILE"
+
+
+def read_pr_summary(path: str) -> str:
+    """The pre-generated LLM PR summary, or "" (raw diff) when none is usable."""
+    if not path:
+        return ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            summary = f.read().strip()
+    except OSError as e:
+        print(color_message(f"No usable LLM PR summary ({e}), passing the raw diff to Jev", Color.ORANGE))
+        return ""
+    print(f"LLM PR summary loaded from {path} ({len(summary)} chars)")
+    return summary
 
 
 def jev_selection(suite: str, pr_summary: str = "", tests: set[str] | None = None) -> dict:

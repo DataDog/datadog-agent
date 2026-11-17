@@ -45,7 +45,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
-from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
+from tasks.libs.dynamic_test.jev_selection import PR_SUMMARY_FILE_ENV, JevDynTestExecutor, read_pr_summary
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
@@ -445,7 +445,10 @@ def run(
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
                 if is_enabled(ctx, "agent-ci-jev-test-impact-analysis"):
-                    executor = JevDynTestExecutor(ctx)
+                    # The LLM PR summary (jev-pr-summary job artifact) replaces the raw diff in the
+                    # Jev calls, a much smaller input; no file: the raw diff
+                    pr_summary = read_pr_summary(os.environ.get(PR_SUMMARY_FILE_ENV, ""))
+                    executor = JevDynTestExecutor(ctx, pr_summary=pr_summary)
                 else:
                     executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
                 changed_files = get_modified_files(ctx)

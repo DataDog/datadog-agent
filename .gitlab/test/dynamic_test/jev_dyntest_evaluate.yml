@@ -34,7 +34,8 @@ jev-dyntest-evaluate:
 
 # The LLM summary of the PR changes, generated ONCE per pipeline (one AI
 # Gateway call) and shared as an artifact with the jobs passing it to Jev
-# instead of the raw diff. Gated by the 'datadog-agent-jev-llm-summary'
+# instead of the raw diff: the evaluation and every E2E job (through
+# .needs_new_e2e_template, read from JEV_PR_SUMMARY_FILE). Gated by the 'datadog-agent-jev-llm-summary'
 # feature flag: disabled (or failed), no file is produced and the consumers
 # pass the raw diff.
 jev-pr-summary:
