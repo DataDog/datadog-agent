@@ -212,6 +212,10 @@ func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 
 	discovered := discoverClusterName(ctx)
 	if discovered.name == "" {
+		if discovered.timedOut {
+			// The EC2 tags may hold the name: not final.
+			return nil, fmt.Errorf("EC2 tag lookup timed out: %w", ErrNotDetermined)
+		}
 		return nil, ErrClusterNameUnavailable
 	}
 	clusterCA, err := readClusterCA()

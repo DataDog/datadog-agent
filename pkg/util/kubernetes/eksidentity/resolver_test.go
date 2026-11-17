@@ -535,3 +535,24 @@ func TestResolveBoundIsHardWhenAStepIgnoresItsContext(t *testing.T) {
 		synctest.Wait()
 	})
 }
+
+func TestResolveTimedOutLookupWithoutAnyNameIsNotDeterminedYet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The EC2 tags may hold the name and no cluster_name is configured: a timed out lookup
+		// is not the final "no cluster name" answer.
+		state := stub(t, "eks", "", nil, "")
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			state.ec2Lookups++
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		_, err := Resolve(t.Context())
+		assert.ErrorIs(t, err, ErrNotDetermined)
+		assert.NotErrorIs(t, err, ErrClusterNameUnavailable)
+
+		// A lookup that answered with no tag is final.
+		stub(t, "eks", "", errors.New("no kubernetes.io/cluster tag"), "")
+		_, err = Resolve(t.Context())
+		assert.ErrorIs(t, err, ErrClusterNameUnavailable)
+	})
+}
