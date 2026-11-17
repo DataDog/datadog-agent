@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -38,6 +39,8 @@ type injectionResolution struct {
 	plan       *injectionPlan
 	isSSI      bool
 	selectedBy injectionSourceName
+	// apmBasic's libraries and tracer configs are added to plan's.
+	apmBasic *injectionPlan
 }
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -48,6 +51,7 @@ type TargetMutator struct {
 	disabledNamespaces            map[string]struct{}
 	sources                       []injectionSourceEntry
 	remoteSource                  *remotePolicySource
+	apmBasicSource                injectionSource
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -120,6 +124,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		disabledNamespaces:            disabledNamespaces,
 		remoteSource:                  remoteSource,
+		apmBasicSource:                apmBasicSource,
 		// This is the single declaration of source precedence. Sources remain
 		// in the list and decide for themselves to pass or inject.
 		sources: []injectionSourceEntry{
@@ -127,7 +132,6 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
-			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
@@ -215,6 +219,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 			extracted = extractedLanguageDetection
 		}
 	}
+	// After language detection, which replaces the library list.
+	if resolved.apmBasic != nil {
+		extracted = extracted.withLibs(withAPMBasicLibraries(extracted.libs, resolved.apmBasic))
+	}
 
 	// Add the configuration for the security client library.
 	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
@@ -230,6 +238,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// in the target.
 	for _, envVar := range injection.tracerEnvVars {
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+	}
+	// After the plan's configs, so the plan wins on a shared name.
+	if resolved.apmBasic != nil {
+		for _, envVar := range resolved.apmBasic.tracerEnvVars {
+			_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+		}
 	}
 
 	// Inject the libraries.
@@ -293,6 +307,7 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	var selected sourceResult
 	var selectedBy injectionSourceName
 	selectionDecided := false
+	ssiDecided := false
 	isSSI := false
 
 	for _, entry := range m.sources {
@@ -316,6 +331,7 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		// first decisive SSI source may supply only the mode.
 		if entry.determinesSSIMode {
 			isSSI = result.action == sourceInject
+			ssiDecided = true
 			break
 		}
 
@@ -325,14 +341,61 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		}
 	}
 
-	if !selectionDecided || selected.plan == nil {
+	apmBasic := m.resolveAPMBasic(pod)
+	if !selectionDecided {
+		if apmBasic == nil {
+			return nil
+		}
+		return &injectionResolution{plan: apmBasic, isSSI: true, selectedBy: injectionSourceAPMBasic}
+	}
+	if selected.plan == nil {
 		return nil
 	}
-	return &injectionResolution{
+
+	resolved := &injectionResolution{
 		plan:       selected.plan,
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
+	if apmBasic == nil || selected.action == sourceDeny || selected.plan.blocked {
+		return resolved
+	}
+	// APM Basic is an SSI opt-in.
+	if !ssiDecided {
+		resolved.isSSI = true
+	}
+	// DD_APM_BASIC_ENABLED would switch a plan's own dd-trace-c (e.g. GPU) to RED metrics only.
+	if !injectsLanguage(selected.plan.libraries, c) {
+		resolved.apmBasic = apmBasic
+	}
+	return resolved
+}
+
+func (m *TargetMutator) resolveAPMBasic(pod *corev1.Pod) *injectionPlan {
+	if m.apmBasicSource == nil {
+		return nil
+	}
+	result := m.apmBasicSource.resolve(pod)
+	if result.action != sourceInject {
+		return nil
+	}
+	return result.plan
+}
+
+func injectsLanguage(libs []libInfo, lang language) bool {
+	return slices.ContainsFunc(libs, func(l libInfo) bool { return l.lang == lang })
+}
+
+// withAPMBasicLibraries copies libs: they may alias a plan shared across pods.
+func withAPMBasicLibraries(libs []libInfo, apmBasic *injectionPlan) []libInfo {
+	merged := make([]libInfo, 0, len(libs)+len(apmBasic.libraries))
+	merged = append(merged, libs...)
+	for _, lib := range apmBasic.libraries {
+		if !injectsLanguage(merged, lib.lang) {
+			merged = append(merged, lib)
+		}
+	}
+	return merged
 }
 
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
