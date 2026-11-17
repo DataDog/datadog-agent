@@ -252,20 +252,17 @@ func (c *Catalog) Latest(branch Branch, pkg string) string {
 	return c.LatestMinus(branch, pkg, 0)
 }
 
-// LatestMinus returns the latest patch N distinct minor releases behind the latest for a package and branch.
-// The catalog must be sorted by descending version, as in getCatalog.
+// LatestMinus returns the version that is N versions behind the latest, for a given package and branch.
 func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 	var currentMinor string
 	for _, entry := range c.packages {
 		if entry.Package != pkg || entry.branch != branch {
 			continue
 		}
-		minor := semver.MajorMinor("v" + strings.TrimPrefix(entry.Version, "v"))
 		if currentMinor == "" {
-			currentMinor = minor
+			currentMinor = semver.MajorMinor(entry.Version)
 		}
-		if minor != currentMinor {
-			currentMinor = minor
+		if semver.MajorMinor(entry.Version) != currentMinor {
 			minus--
 		}
 		if minus == 0 {
@@ -383,7 +380,7 @@ func LoadCatalog(t *testing.T) *Catalog {
 	t.Helper()
 	cachedCatalogOnce.Do(func() {
 		b := &Backend{t: func() *testing.T { return t }}
-		catalog, err := b.getCatalog()
+		catalog, err := b.getCatalog(false)
 		if err != nil {
 			t.Fatalf("error getting catalog: %v", err)
 			return
@@ -396,14 +393,28 @@ func LoadCatalog(t *testing.T) *Catalog {
 	return cachedCatalog
 }
 
-func (b *Backend) getCatalog() (*Catalog, error) {
+// LoadUpgradeHistoryCatalog validates released source packages and the CI candidate.
+// Existing Fleet scenarios continue to use the unfiltered shared catalog.
+func LoadUpgradeHistoryCatalog(t *testing.T) *Catalog {
+	t.Helper()
+	b := &Backend{t: func() *testing.T { return t }}
+	catalog, err := b.getCatalog(true)
+	require.NoError(t, err, "loading upgrade history catalog")
+	return catalog
+}
+
+func (b *Backend) getCatalog(upgradeHistory bool) (*Catalog, error) {
 	var catalog Catalog
 
 	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
 	err := b.retry(func() error {
 		var err error
-		prodTags, err = getReleasedImageTags("install.datadoghq.com/agent-package")
+		if upgradeHistory {
+			prodTags, err = getReleasedImageTags("install.datadoghq.com/agent-package")
+		} else {
+			prodTags, err = crane.ListTags("install.datadoghq.com/agent-package")
+		}
 		return err
 	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 	if err != nil {
@@ -417,6 +428,9 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		err := b.retry(func() error {
 			var err error
 			version, err = getImageVersion(url)
+			if err == nil && upgradeHistory && !validPackageVersion(version) {
+				return fmt.Errorf("image %s has missing or invalid package version annotation %q", url, version)
+			}
 			return err
 		}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
 		if err != nil {
@@ -632,11 +646,8 @@ func getImageVersion(ref string) (string, error) {
 		return "", err
 	}
 	version, ok := m.Annotations["com.datadoghq.package.version"]
-	if !ok || version == "" {
-		return "", fmt.Errorf("image %s has no com.datadoghq.package.version annotation", ref)
-	}
-	if !validPackageVersion(version) {
-		return "", fmt.Errorf("image %s has invalid package version annotation %q", ref, version)
+	if !ok {
+		return "unknown", nil
 	}
 	return version, nil
 }

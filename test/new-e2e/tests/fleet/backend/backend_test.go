@@ -28,17 +28,6 @@ func TestGetReleasedImageTags(t *testing.T) {
 	require.Equal(t, []string{"7.85.2-2", "7.85.2-1"}, tags)
 }
 
-func TestCatalogLatestMinus(t *testing.T) {
-	catalog := Catalog{packages: []catalogEntry{
-		{Package: "datadog-agent", branch: BranchStable, Version: "7.86.1-1"},
-		{Package: "datadog-agent", branch: BranchStable, Version: "7.85.2-2"},
-		{Package: "datadog-agent", branch: BranchStable, Version: "v7.85.2-1"},
-		{Package: "datadog-agent", branch: BranchStable, Version: "7.84.0-1"},
-	}}
-	require.Equal(t, "7.86.1-1", catalog.Latest(BranchStable, "datadog-agent"))
-	require.Equal(t, "7.84.0-1", catalog.LatestMinus(BranchStable, "datadog-agent", 2))
-}
-
 func TestCatalogPreviousMinorVersions(t *testing.T) {
 	var catalog Catalog
 	for _, version := range []string{

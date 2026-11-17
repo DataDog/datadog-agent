@@ -54,7 +54,7 @@ func TestFleetUpgradeHistory(t *testing.T) {
 		first, last = offset, offset
 	}
 
-	catalog := backend.LoadCatalog(t)
+	catalog := backend.LoadUpgradeHistoryCatalog(t)
 	target := catalog.Latest(backend.BranchTesting, "datadog-agent")
 	for offset := first; offset <= last; offset++ {
 		t.Run(fmt.Sprintf("N-%d", offset), func(t *testing.T) {
