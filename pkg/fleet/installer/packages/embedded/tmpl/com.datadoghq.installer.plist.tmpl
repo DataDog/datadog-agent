@@ -29,7 +29,8 @@
             <string>true</string>
 {{- end}}
         </dict>
-{{- /* The pidfile goes in the Agent's run directory, next to the daemon's socket, as on Linux. */}}
+{{- /* The daemon runs as root, so its pidfile goes in the root-only state directory rather than the
+       Agent's run directory, which belongs to the Agent's account. */}}
         <key>ProgramArguments</key>
         <array>
             <string>{{.ProgramDir}}/embedded/bin/installer</string>
@@ -37,7 +38,7 @@
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>-p</string>
-            <string>{{.RunDir}}/installer.pid</string>
+            <string>{{.StateDir}}/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>

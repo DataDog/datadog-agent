@@ -20,7 +20,7 @@
             <string>-c</string>
             <string>/opt/datadog-agent/etc-exp</string>
             <string>-p</string>
-            <string>/opt/datadog-agent/run/installer.pid</string>
+            <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_installer-exp.log</string>
