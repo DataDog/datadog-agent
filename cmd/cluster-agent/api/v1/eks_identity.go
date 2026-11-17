@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	identitytypes "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,23 +42,35 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 
 	identity, err := resolveEKSClusterIdentity(r.Context())
 	if err != nil {
+		// Every answer the Cluster Agent produces carries identitytypes.RetryLaterHeader, true or
+		// false, so a node can tell it from an unmarked 5xx from a proxy or a mesh sidecar,
+		// which it retries.
+		//
 		// Not running on EKS, or no cluster name to look up, is a permanent and expected
 		// outcome on other distributions. Report it as "not found" without marking the
 		// span errored so non-EKS clusters do not emit a steady stream of false errors.
 		if errors.Is(err, eksidentity.ErrNotEKS) || errors.Is(err, eksidentity.ErrClusterNameUnavailable) || errors.Is(err, eksidentity.ErrClusterUnverified) {
+			w.Header().Set(identitytypes.RetryLaterHeader, "false")
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		// Not determined yet (the Cluster Agent is still starting): the node may try again
-		// within its startup budget. Every other failure is final for nodes, including one
-		// that can clear on its own: it is cached on this side for longer than any node's
-		// startup budget, so asking again would only get the same answer.
+		// within its startup budget.
 		if errors.Is(err, eksidentity.ErrNotDetermined) {
 			w.Header().Set(identitytypes.RetryLaterHeader, "true")
 			log.Debugf("EKS cluster identity is not available yet: %v", err)
 			http.Error(w, "EKS cluster identity not available yet", http.StatusServiceUnavailable)
 			return
 		}
+		// A failure the Cluster Agent caches is final for nodes, unless its cache entry expires
+		// within retryLaterWindow: then the next DescribeCluster happens while a starting node
+		// still waits, and the answer can change. A failure cached longer would only send the
+		// node the same answer again for its whole budget.
+		retry := "false"
+		if left, cached := cachedFailureRetryIn(err); cached && left <= retryLaterWindow {
+			retry = "true"
+		}
+		w.Header().Set(identitytypes.RetryLaterHeader, retry)
 		spanErr = err
 		api.SetSpanError(w, err)
 		// The underlying error can be a raw AWS SDK message carrying the Cluster Agent's
@@ -74,6 +88,7 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		spanErr = err
 		api.SetSpanError(w, err)
+		w.Header().Set(identitytypes.RetryLaterHeader, "false")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -82,3 +97,12 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		log.Debugf("Unable to write EKS cluster identity response: %v", err)
 	}
 }
+
+// cachedFailureRetryIn is eks.RetryIn. Variable for tests.
+var cachedFailureRetryIn = eks.RetryIn
+
+// retryLaterWindow is how soon a cached failure must expire for nodes to ask again. A node waits
+// at most 10s at startup and asks once a second, so a failure that the Cluster Agent retries
+// within 5s is retried at least once by a node that started with it, without making nodes ask
+// for most of the 30s a transient failure stays cached.
+const retryLaterWindow = 5 * time.Second

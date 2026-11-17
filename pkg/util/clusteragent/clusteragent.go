@@ -352,8 +352,8 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 // remote-service error, so errors.IsRemoteService still matches it.
 type StatusError struct {
 	StatusCode int
-	// RetryLater is set by GetEKSClusterIdentity when the Cluster Agent marked the answer as
-	// not final (eksidentity.RetryLaterHeader).
+	// RetryLater is set by GetEKSClusterIdentity when the answer can change within a node's
+	// startup budget (see identityAnswerCanChange).
 	RetryLater bool
 	Err        error
 	// header is the answer's headers, for the query method to read what belongs to it.
@@ -591,16 +591,33 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 	return clusterID, nil
 }
 
+// identityAnswerCanChange reports whether an identity answer with this status and
+// eksidentity.RetryLaterHeader value can change within a node's startup budget. The Cluster
+// Agent marks every answer it produces. An unmarked answer comes from something in front of it
+// (a proxy, a mesh sidecar, a crash), and is worth retrying when it is a 408, a 429 or a 5xx.
+// A 404 is final, marked or not: a Cluster Agent without the route answers a plain one. So are
+// 401 and 403, which come from the node's own token.
+func identityAnswerCanChange(status int, mark string) bool {
+	switch {
+	case status == http.StatusNotFound || status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return false
+	case mark != "":
+		return mark == "true"
+	default:
+		return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= http.StatusInternalServerError
+	}
+}
+
 // GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity. When the Cluster
-// Agent answers with a non-200 status, the error is a *StatusError, with RetryLater set from
-// eksidentity.RetryLaterHeader.
+// Agent answers with a non-200 status, the error is a *StatusError, with RetryLater set by
+// identityAnswerCanChange.
 func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error) {
 	path := "api/v1/cluster/eks-identity"
 	respBody, err := c.doQueryWithStatus(ctx, path, "GET", nil, true, false)
 	if err != nil {
 		var statusErr *StatusError
 		if nativeerrors.As(err, &statusErr) {
-			statusErr.RetryLater = statusErr.header.Get(eksidentity.RetryLaterHeader) == "true"
+			statusErr.RetryLater = identityAnswerCanChange(statusErr.StatusCode, statusErr.header.Get(eksidentity.RetryLaterHeader))
 		}
 		return nil, err
 	}

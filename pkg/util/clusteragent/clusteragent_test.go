@@ -797,13 +797,13 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityDistinguishesAnswersFro
 func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
 	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
-	retryLater := true
+	status, mark := http.StatusServiceUnavailable, ""
 	dca.handlers = map[string]http.HandlerFunc{
 		"/api/v1/cluster/eks-identity": func(w http.ResponseWriter, _ *http.Request) {
-			if retryLater {
-				w.Header().Set(eksidentity.RetryLaterHeader, "true")
+			if mark != "" {
+				w.Header().Set(eksidentity.RetryLaterHeader, mark)
 			}
-			http.Error(w, "EKS cluster identity unavailable", http.StatusServiceUnavailable)
+			http.Error(w, "EKS cluster identity unavailable", status)
 		},
 	}
 
@@ -817,19 +817,36 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
 	client, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 
-	// A Cluster Agent that has not determined the identity yet says so.
-	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	for _, tc := range []struct {
+		status     int
+		mark       string
+		retryLater bool
+	}{
+		// The Cluster Agent's own answers say whether they are final.
+		{http.StatusServiceUnavailable, "true", true},
+		{http.StatusServiceUnavailable, "false", false},
+		{http.StatusNotFound, "false", false},
+		// Unmarked answers come from a proxy or a mesh sidecar in front of it.
+		{http.StatusBadGateway, "", true},
+		{http.StatusServiceUnavailable, "", true},
+		{http.StatusGatewayTimeout, "", true},
+		{http.StatusInternalServerError, "", true},
+		{http.StatusTooManyRequests, "", true},
+		{http.StatusRequestTimeout, "", true},
+		// A Cluster Agent without the route, and the node's own token, are final.
+		{http.StatusNotFound, "", false},
+		{http.StatusUnauthorized, "", false},
+		{http.StatusForbidden, "", false},
+		{http.StatusBadRequest, "", false},
+	} {
+		status, mark = tc.status, tc.mark
+		_, err = client.GetEKSClusterIdentity(suite.T().Context())
+		var statusErr *StatusError
+		require.ErrorAs(suite.T(), err, &statusErr)
+		assert.Equal(suite.T(), tc.status, statusErr.StatusCode)
+		assert.Equal(suite.T(), tc.retryLater, statusErr.RetryLater, "status %d, mark %q", tc.status, tc.mark)
+	}
 	var statusErr *StatusError
-	require.ErrorAs(suite.T(), err, &statusErr)
-	assert.Equal(suite.T(), http.StatusServiceUnavailable, statusErr.StatusCode)
-	assert.True(suite.T(), statusErr.RetryLater)
-
-	// A 503 without the marker, from a real failure or an older Cluster Agent, is final.
-	retryLater = false
-	_, err = client.GetEKSClusterIdentity(suite.T().Context())
-	require.ErrorAs(suite.T(), err, &statusErr)
-	assert.False(suite.T(), statusErr.RetryLater)
-
 	// The mark belongs to the identity endpoint. The shared query does not read it.
 	dca.handlers["/api/v1/other"] = func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set(eksidentity.RetryLaterHeader, "true")

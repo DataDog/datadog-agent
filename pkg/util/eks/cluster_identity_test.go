@@ -517,3 +517,31 @@ func TestGetClusterIdentityRemembersItsOwnTimeoutBriefly(t *testing.T) {
 		assert.Less(t, deadlineFailureCacheTTL, transientFailureCacheTTL)
 	})
 }
+
+func TestRetryInReportsWhenACachedFailureExpires(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A throttled DescribeCluster is cached for transientFailureCacheTTL. The Cluster Agent
+		// tells nodes when it will ask EKS again, so they can tell a failure worth waiting for
+		// from one that outlasts their startup budget.
+		client := &mockEKSClient{err: &apiError{StatusCode: 400, Code: "ThrottlingException"}}
+		stubAWS(t, client)
+		_, err := GetClusterIdentity(t.Context(), "orders-retry-in", nil)
+		require.Error(t, err)
+		left, ok := RetryIn(err)
+		require.True(t, ok, "a fresh failure is cached")
+		assert.Equal(t, transientFailureCacheTTL, left)
+
+		time.Sleep(transientFailureCacheTTL - 3*time.Second)
+		_, err = GetClusterIdentity(t.Context(), "orders-retry-in", nil)
+		require.Error(t, err)
+		left, ok = RetryIn(err)
+		require.True(t, ok, "a failure served from the cache")
+		assert.Equal(t, 3*time.Second, left)
+		assert.Equal(t, 1, client.calls)
+		assert.EqualError(t, err, `describe EKS cluster "orders-retry-in": `+client.err.Error(), "the message is unchanged")
+
+		// Errors that are not cached (a cancelled caller) have no expiry.
+		_, ok = RetryIn(context.Canceled)
+		assert.False(t, ok)
+	})
+}

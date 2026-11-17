@@ -135,19 +135,48 @@ func TestGetEKSClusterIdentityNotDeterminedYetIsRetryable(t *testing.T) {
 	assert.Equal(t, "true", recorder.Header().Get(identitytypes.RetryLaterHeader))
 }
 
-func TestGetEKSClusterIdentityCachedFailureIsFinal(t *testing.T) {
-	// A throttled DescribeCluster is cached for 30s, longer than any node's startup budget, so
-	// answering it as retryable would only make nodes ask again for nothing. A missing
-	// permission is final too.
-	for _, err := range []error{
-		fmt.Errorf("describe: %w", throttlingError{}),
-		errors.New("api error AccessDeniedException"),
+func TestGetEKSClusterIdentityMarksEveryAnswer(t *testing.T) {
+	// Every answer the Cluster Agent produces says whether it is final, so a node can tell it
+	// from an unmarked error a proxy or a mesh sidecar returns, which it retries.
+	for name, tc := range map[string]struct {
+		err    error
+		status int
+		mark   string
+	}{
+		"not EKS":        {fmt.Errorf("resolve: %w", eksidentity.ErrNotEKS), http.StatusNotFound, "false"},
+		"no name":        {eksidentity.ErrClusterNameUnavailable, http.StatusNotFound, "false"},
+		"not determined": {fmt.Errorf("check distribution: %w", eksidentity.ErrNotDetermined), http.StatusServiceUnavailable, "true"},
+		// A throttled DescribeCluster is cached for 30s, longer than any node's startup
+		// budget, so asking again would only get the same answer. A missing permission is
+		// final too.
+		"throttled": {fmt.Errorf("describe: %w", throttlingError{}), http.StatusServiceUnavailable, "false"},
+		"denied":    {errors.New("api error AccessDeniedException"), http.StatusServiceUnavailable, "false"},
 	} {
-		stubEKSIdentityResolver(t, nil, err)
+		stubEKSIdentityResolver(t, nil, tc.err)
+		recorder, _ := serveEKSIdentity(t)
+		assert.Equal(t, tc.status, recorder.Code, name)
+		assert.Equal(t, tc.mark, recorder.Header().Get(identitytypes.RetryLaterHeader), name)
+	}
+}
+
+func TestGetEKSClusterIdentityCachedFailureAboutToExpireIsRetryable(t *testing.T) {
+	// A failure the Cluster Agent asks EKS about again soon can clear within a node's
+	// startup budget: mark it retry. One that stays cached longer is final.
+	orig := cachedFailureRetryIn
+	t.Cleanup(func() { cachedFailureRetryIn = orig })
+	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", throttlingError{}))
+	for left, mark := range map[time.Duration]string{
+		0:                              "true",
+		retryLaterWindow:               "true",
+		retryLaterWindow + time.Second: "false",
+		25 * time.Second:               "false",
+	} {
+		cachedFailureRetryIn = func(error) (time.Duration, bool) { return left, true }
 		recorder, _ := serveEKSIdentity(t)
 		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-		assert.Empty(t, recorder.Header().Get(identitytypes.RetryLaterHeader))
+		assert.Equal(t, mark, recorder.Header().Get(identitytypes.RetryLaterHeader), "cached for %s more", left)
 	}
+	assert.Less(t, retryLaterWindow, clusterinfo.StartupRetryBudget)
 }
 
 // throttlingError is a throttled DescribeCluster as the AWS retry classifier sees it.
@@ -157,15 +186,20 @@ func (throttlingError) Error() string       { return "api error ThrottlingExcept
 func (throttlingError) ErrorCode() string   { return "ThrottlingException" }
 func (throttlingError) HTTPStatusCode() int { return http.StatusBadRequest }
 
-func TestGetEKSClusterIdentityNodeStopsOnCachedFailure(t *testing.T) {
-	// The real handler behind a TLS listener, and the real node client and startup retry.
-	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", throttlingError{}))
+// serveRealNode runs the real handler behind a TLS listener, in front of which proxy can answer
+// first, and sets up the real node client and startup fetch against it with a 3s budget. It
+// returns the count of requests that reached the handler.
+func serveRealNode(t *testing.T, proxy func(http.ResponseWriter, *http.Request) bool) *atomic.Int32 {
+	t.Helper()
 	var requests atomic.Int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/version":
 			_, _ = w.Write([]byte(`{"Major":7,"Minor":60,"Patch":0}`))
 		case "/api/v1/cluster/eks-identity":
+			if proxy != nil && proxy(w, r) {
+				return
+			}
 			requests.Add(1)
 			getEKSClusterIdentity(w, r)
 		default:
@@ -181,10 +215,60 @@ func TestGetEKSClusterIdentityNodeStopsOnCachedFailure(t *testing.T) {
 	clusteragent.ResetGlobalClusterAgentClientForTest()
 	t.Cleanup(clusteragent.ResetGlobalClusterAgentClientForTest)
 	clusterinfo.SetupStartupForTest(t, 3*time.Second, true)
+	return &requests
+}
+
+func TestGetEKSClusterIdentityNodeStopsOnCachedFailure(t *testing.T) {
+	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", throttlingError{}))
+	requests := serveRealNode(t, nil)
 
 	start := time.Now()
 	_, err := clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), time.Second, "the node must not spend its budget on a cached answer")
 	assert.Equal(t, int32(1), requests.Load())
+}
+
+func TestGetEKSClusterIdentityNodeRetriesProxyErrors(t *testing.T) {
+	// A mesh sidecar or a proxy in front of the Cluster Agent answers 502, 503 or 504 during a
+	// rollout, without the Cluster Agent's mark. The node retries within its budget and gets
+	// the identity once the Cluster Agent answers.
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusTooManyRequests} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			stubEKSIdentityResolver(t, &eks.ClusterIdentity{ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/orders"}, nil)
+			var proxied atomic.Int32
+			requests := serveRealNode(t, func(w http.ResponseWriter, _ *http.Request) bool {
+				if proxied.Add(1) <= 2 {
+					http.Error(w, "upstream connect error", status)
+					return true
+				}
+				return false
+			})
+
+			tags, err := clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
+			require.NoError(t, err)
+			assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
+			assert.Equal(t, int32(3), proxied.Load())
+			assert.Equal(t, int32(1), requests.Load())
+		})
+	}
+}
+
+func TestGetEKSClusterIdentityNodeStopsOnAuthErrors(t *testing.T) {
+	// 401 and 403 come from the node's own token and do not change within seconds, and a 404 is
+	// what a Cluster Agent without the route answers: all final, unmarked.
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			stubEKSIdentityResolver(t, &eks.ClusterIdentity{ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/orders"}, nil)
+			var proxied atomic.Int32
+			serveRealNode(t, func(w http.ResponseWriter, _ *http.Request) bool {
+				proxied.Add(1)
+				http.Error(w, http.StatusText(status), status)
+				return true
+			})
+			_, err := clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
+			require.Error(t, err)
+			assert.Equal(t, int32(1), proxied.Load())
+		})
+	}
 }

@@ -185,14 +185,12 @@ func lookupCache(cacheKey string) (*ClusterIdentity, bool, error) {
 func resolveAndCache(ctx context.Context, clusterName string, clusterCA []byte, cacheKey string) (*ClusterIdentity, error) {
 	client, region, err := getDescribeClient(ctx)
 	if err != nil {
-		cacheFailure(cacheKey, err)
-		return nil, err
+		return nil, cacheFailure(cacheKey, err)
 	}
 
 	id, err := resolveClusterIdentity(ctx, clusterName, region, clusterCA, client)
 	if err != nil {
-		cacheFailure(cacheKey, err)
-		return nil, err
+		return nil, cacheFailure(cacheKey, err)
 	}
 	cache.Cache.Set(cacheKey, id, cache.NoExpiration)
 	return id, nil
@@ -233,16 +231,39 @@ func getDescribeClient(ctx context.Context) (describeClusterAPI, string, error) 
 // repeatedly at startup, and a missing eks:DescribeCluster permission must not turn into one API
 // call per request. Transient failures use a short TTL so a blip does not strip the tag for 5
 // minutes. A cancellation never comes from the resolve's own budget, so it says nothing about
-// EKS and is not cached.
-func cacheFailure(cacheKey string, err error) {
+// EKS and is not cached. It returns the failure as callers get it, with the time the cache entry
+// expires (see RetryIn).
+func cacheFailure(cacheKey string, err error) error {
 	if errors.Is(err, context.Canceled) {
-		return
+		return err
 	}
 	ttl := failureTTL(err)
 	// Logged here, once per resolution, rather than on every node request served from the
 	// cache. At Warn, since a missing eks:DescribeCluster permission is otherwise invisible.
 	log.Warnf("Unable to resolve the EKS cluster identity, retrying in %s: %v", ttl, err)
-	cache.Cache.Set(cacheKey, err, ttl)
+	cached := &cachedFailure{err: err, expires: time.Now().Add(ttl)}
+	cache.Cache.Set(cacheKey, cached, ttl)
+	return cached
+}
+
+// cachedFailure is a resolution failure as it is cached: the next resolve happens at expires.
+type cachedFailure struct {
+	err     error
+	expires time.Time
+}
+
+func (e *cachedFailure) Error() string { return e.err.Error() }
+func (e *cachedFailure) Unwrap() error { return e.err }
+
+// RetryIn reports how long until the next DescribeCluster for a cached resolution failure, so
+// the Cluster Agent can tell a node whether asking again within its startup budget can get a
+// different answer. ok is false for an error that is not cached.
+func RetryIn(err error) (left time.Duration, ok bool) {
+	var cached *cachedFailure
+	if !errors.As(err, &cached) {
+		return 0, false
+	}
+	return max(time.Until(cached.expires), 0), true
 }
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are
