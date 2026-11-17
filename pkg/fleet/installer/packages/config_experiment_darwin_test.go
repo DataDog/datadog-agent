@@ -1103,15 +1103,24 @@ func TestStopHandsTheInstallerBackEvenWhenTheAgentCannotBeRestored(t *testing.T)
 	assert.Equal(t, 1, *handBacks)
 }
 
-// TestStopReportsAHandBackThatFailsToLaunch pins that the stop is reported failed when the
-// experiment daemon would be left running with nothing to hand it back.
-func TestStopReportsAHandBackThatFailsToLaunch(t *testing.T) {
-	stubLaunchdWithExperimentDaemon(t, "", "")
-	stubJobDir(t)
-	stubDeadlinePath(t)
-	stubInstallerHandBack(t, errors.New("injected failure"))
+// TestStopAndPromoteSucceedWhenTheHandBackFailsToLaunch pins that the installer daemon's hand-back
+// does not decide a stop or a promote: by then the Agent is back on the stable set, and failing the
+// hook would keep the installer from discarding or keeping the configuration directory.
+func TestStopAndPromoteSucceedWhenTheHandBackFailsToLaunch(t *testing.T) {
+	for name, hook := range map[string]func(HookContext) error{
+		"stop":    preStopConfigExperimentDatadogAgent,
+		"promote": postPromoteConfigExperimentDatadogAgent,
+	} {
+		t.Run(name, func(t *testing.T) {
+			stubLaunchdWithExperimentDaemon(t, "", "")
+			stubJobDir(t)
+			stubDeadlinePath(t)
+			handBacks := stubInstallerHandBack(t, errors.New("injected failure"))
 
-	assert.ErrorContains(t, preStopConfigExperimentDatadogAgent(testHookContext(t)), "injected failure")
+			assert.NoError(t, hook(testHookContext(t)))
+			assert.Equal(t, 1, *handBacks, "the hand-back should still have been tried")
+		})
+	}
 }
 
 // TestHandBackWaitsForTheInstallerCommandThenRestoresTheStableDaemon covers the hand-back: it must
