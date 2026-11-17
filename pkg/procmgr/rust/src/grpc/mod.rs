@@ -14,6 +14,7 @@ pub mod proto {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use super::caller_auth::CallerPolicy;
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
@@ -38,11 +39,13 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
-        start_test_server_with_catalog(LoadedCatalog::valid(defs)).await
+        start_test_server_with_catalog(LoadedCatalog::valid(defs), CallerPolicy::from_process())
+            .await
     }
 
     async fn start_test_server_with_catalog(
         catalog: LoadedCatalog,
+        policy: CallerPolicy,
     ) -> (
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
@@ -57,7 +60,7 @@ mod tests {
             Arc::new(StaticConfigLoader::with_catalog(catalog)),
             Arc::new(crate::uuid_gen::V4UuidGenerator),
         );
-        let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
+        let svc = ProcessManagerService::with_caller_policy(mgr.clone(), cmd_tx, policy);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -333,7 +336,8 @@ mod tests {
                 error: "bad yaml".to_string(),
             }],
         };
-        let (mut client, _shutdown) = start_test_server_with_catalog(catalog).await;
+        let (mut client, _shutdown) =
+            start_test_server_with_catalog(catalog, CallerPolicy::from_process()).await;
         let resp = client
             .get_config(proto::GetConfigRequest {})
             .await
@@ -1143,5 +1147,212 @@ mod tests {
             .unwrap()
             .into_inner();
         assert_eq!(resp.detail.unwrap().name, "svc-c");
+    }
+
+    fn assert_requires_root(status: &tonic::Status) {
+        assert_eq!(status.code(), tonic::Code::PermissionDenied);
+        assert_eq!(status.message(), "operation requires root");
+    }
+
+    fn skip_denial_when_root() -> bool {
+        if nix::unistd::Uid::effective().is_root() {
+            eprintln!("skipping: effective uid is 0, which the policy allows");
+            return true;
+        }
+        false
+    }
+
+    #[tokio::test]
+    async fn test_enforced_policy_denies_non_root_mutations() {
+        if skip_denial_when_root() {
+            return;
+        }
+        let (mut client, _shutdown) = start_test_server_with_catalog(
+            LoadedCatalog::valid(vec![sleep_process_def("target")]),
+            CallerPolicy::from_enforce(true),
+        )
+        .await;
+
+        let (cmd, args) = test_helpers::true_cmd();
+        let err = client
+            .create(proto::CreateRequest {
+                name: "injected".to_string(),
+                command: cmd.to_string(),
+                args,
+                auto_start: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        // The guard runs before request validation.
+        let err = client
+            .create(proto::CreateRequest {
+                name: "empty".to_string(),
+                command: String::new(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .start(proto::StartRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let listed = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(listed.processes.len(), 1);
+        assert_eq!(listed.processes[0].name, "target");
+        assert_eq!(
+            listed.processes[0].state,
+            proto::ProcessState::Created as i32
+        );
+        assert_eq!(listed.processes[0].pid, 0);
+
+        let detail = client
+            .describe(proto::DescribeRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .detail
+            .unwrap();
+        assert_eq!(detail.state, proto::ProcessState::Created as i32);
+        assert_eq!(detail.pid, 0);
+
+        let status = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(status.total_processes, 1);
+        assert_eq!(status.created_processes, 1);
+        assert_eq!(status.running_processes, 0);
+
+        let config = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(config.loaded_processes, 1);
+        assert_eq!(config.runtime_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_enforced_policy_denies_unknown_stop() {
+        if skip_denial_when_root() {
+            return;
+        }
+        let (mut client, _shutdown) = start_test_server_with_catalog(
+            LoadedCatalog::valid(vec![]),
+            CallerPolicy::from_enforce(true),
+        )
+        .await;
+
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "missing".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+    }
+
+    #[tokio::test]
+    async fn test_unenforced_policy_keeps_current_behavior() {
+        let (mut client, _shutdown) = start_test_server_with_catalog(
+            LoadedCatalog::valid(vec![sleep_process_def("target")]),
+            CallerPolicy::from_enforce(false),
+        )
+        .await;
+
+        client.list(proto::ListRequest {}).await.unwrap();
+        client
+            .describe(proto::DescribeRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap();
+        client.get_status(proto::GetStatusRequest {}).await.unwrap();
+        client.get_config(proto::GetConfigRequest {}).await.unwrap();
+
+        let (cmd, args) = test_helpers::true_cmd();
+        client
+            .create(proto::CreateRequest {
+                name: "created".to_string(),
+                command: cmd.to_string(),
+                args,
+                auto_start: Some(false),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        let err = client
+            .create(proto::CreateRequest {
+                name: "empty".to_string(),
+                command: String::new(),
+                ..Default::default()
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+
+        client
+            .reload_config(proto::ReloadConfigRequest {})
+            .await
+            .unwrap();
+
+        let started = client
+            .start(proto::StartRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(started.pid > 0);
+
+        let stopped = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "target".to_string(),
+            })
+            .await;
+        test_helpers::cleanup_process(started.pid);
+        assert_eq!(
+            stopped.unwrap().into_inner().state,
+            proto::ProcessState::Stopped as i32
+        );
+
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "missing".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::NotFound);
     }
 }
