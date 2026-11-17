@@ -187,7 +187,7 @@ Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
 JSON eval configs inherit the same replay profile as CLI toggles, including
-BOCPD's 40-point warmup. Only fields explicitly supplied in JSON override that
+BOCPD's 20-point warmup. Only fields explicitly supplied in JSON override that
 profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
