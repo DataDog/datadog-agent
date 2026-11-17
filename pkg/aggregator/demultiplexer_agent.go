@@ -633,7 +633,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher metricname.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
