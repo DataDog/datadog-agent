@@ -16,6 +16,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import AGENT_FORMATS
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
@@ -881,6 +882,68 @@ def check_no_title_on_settings(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 21: 'format' names an Agent format, on a string
+# ---------------------------------------------------------------------------
+
+
+def _iter_value_schemas(node, node_path):
+    """
+    Yield (location, schema) for *node* and every sub-schema of its value
+    (`items`, `properties` of an object value, `anyOf`, ...), never walking the
+    instance data under `default`/`enum`/`examples`.
+    """
+    if isinstance(node, list):
+        for i, item in enumerate(node):
+            yield from _iter_value_schemas(item, f"{node_path}[{i}]")
+        return
+    if not isinstance(node, dict):
+        return
+    yield node_path, node
+    for key, value in node.items():
+        if key in _NULL_CHECK_INSTANCE_KEYS:
+            continue
+        if key in ("properties", "patternProperties", "$defs", "dependentSchemas") and isinstance(value, dict):
+            for name, sub in value.items():
+                yield from _iter_value_schemas(sub, f"{node_path}.{key}.{name}")
+        elif isinstance(value, dict | list):
+            yield from _iter_value_schemas(value, f"{node_path}.{key}")
+
+
+def check_formats(path, schema):
+    """
+    Check that every 'format' is one of the Agent formats (AGENT_FORMATS in
+    produce_byproduct.py), used on a string.
+
+    The published and embedded schemas replace an Agent format with its pattern;
+    any other format would be kept as is, and silently not validated by most
+    JSON Schema tools (a typo like 'format: uri' would disable the validation).
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") == "section":
+            # A section's 'properties' are its child nodes, which walk_nodes yields on their own.
+            node = {k: v for k, v in node.items() if k != "properties"}
+        for location, sub in _iter_value_schemas(node, node_path):
+            if "format" not in sub:
+                continue
+            name = sub["format"]
+            if name not in AGENT_FORMATS:
+                errors.append(
+                    f"{path}: [{location}] Unknown format {name!r}. "
+                    f"Fix: use one of {sorted(AGENT_FORMATS)}, or a 'pattern'; to add a format, "
+                    f"register it in AGENT_FORMATS in tasks/schema/produce_byproduct.py."
+                )
+            elif sub.get("type") != "string":
+                errors.append(
+                    f"{path}: [{location}] 'format: {name}' only applies to strings, but the type is "
+                    f"{sub.get('type')!r}. Fix: set 'type: string' or remove 'format'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -960,6 +1023,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_sensitive(schema_path, schema))
         all_errors.extend(check_no_null_values(schema_path, schema, exc["null_value"]))
         all_errors.extend(check_no_title_on_settings(schema_path, schema))
+        all_errors.extend(check_formats(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

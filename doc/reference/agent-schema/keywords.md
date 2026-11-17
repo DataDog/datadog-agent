@@ -248,7 +248,20 @@ cel_workload_exclude:
 
 ### `format`
 
-Gives a `string` setting a semantic meaning beyond its type. The Agent schema uses one format: `duration`.
+Marks a `string` setting whose values follow an Agent-specific syntax: `format: duration` or `format: url`.
+
+/// warning
+These are **custom Agent formats, not JSON Schema formats**. JSON Schema has no `url` format, and its `duration` means something else (see below). In the generated schemas, each format is **replaced by a regular expression**: the schema embedded in the Agent and the JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) both turn `format: <name>` into `pattern: <regexp>`. The Agent, IDEs and any other validator therefore check these values the same way, with the same regexp.
+///
+
+- **Valid values:** `duration` or `url`, on a `string` setting only. `schema.lint` rejects any other format: it wouldn't be replaced, and most tools would silently not validate it.
+- **Why a format instead of a `pattern`:** the regexp of each format is written once, in `AGENT_FORMATS` (`tasks/schema/produce_byproduct.py`), so settings sharing a format never copy it.
+
+**Adding a format:**
+
+1. Write its regexp in `tasks/schema/produce_byproduct.py` and register it in `AGENT_FORMATS`. Keep it linear-time (no nested repetition): IDEs use backtracking regex engines, and a regexp that backtracks catastrophically freezes them on invalid input. The schema tests check every registered regexp for this.
+2. Use `format: <name>` on string settings.
+3. Document it below.
 
 #### `format: duration`
 
@@ -277,8 +290,23 @@ eval_interval:
 ```
 
 /// note
-JSON Schema also defines `format: duration`, but as an [ISO 8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) (`PT15S`), which isn't what the Agent reads. The source schema keeps `format: duration` since the Agent's own validator treats `format` as an annotation only. The pure JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) replaces it with a `pattern` matching exactly what `time.ParseDuration` accepts. Without that, validators that check formats (IDEs, `ajv-formats`, ...) would reject valid Agent values like `15s`. See `GO_DURATION_PATTERN` in `tasks/schema/produce_byproduct.py`.
+JSON Schema also defines a `format: duration`, but as an [ISO 8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) (`PT15S`), which isn't what the Agent reads: validators checking formats (IDEs, `ajv-formats`, ...) would reject every valid Agent value like `15s`. The generated schemas replace it with a regexp matching exactly what `time.ParseDuration` accepts (`GO_DURATION_PATTERN` in `tasks/schema/produce_byproduct.py`), so the Agent and external tools validate durations the same way.
 ///
+
+#### `format: url`
+
+Marks a `string` setting holding the URL of an endpoint the Agent sends data to (`dd_url`, `logs_config.logs_dd_url`, ...).
+
+- **Valid values:** a host, or an `http://` or `https://` URL, with an optional port and path, e.g. `intake.datadoghq.com`, `https://app.datadoghq.com` or `https://proxy.example.com:443/logs`. An empty string is valid and means "unset": the Agent then builds the endpoint from `site`. Spaces, query strings and other schemes (`ftp://`, ...) are invalid.
+- **Validation:** the generated schemas replace `format: url` with its regexp (`URL_PATTERN` in `tasks/schema/produce_byproduct.py`).
+
+```yaml
+dd_url:
+  node_type: setting
+  type: string
+  default: https://app.datadoghq.com
+  format: url
+```
 
 ---
 

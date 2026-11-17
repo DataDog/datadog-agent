@@ -107,11 +107,25 @@ class TestJsonSchemaDuration(unittest.TestCase):
         for output in (embedded, json_schema):
             self.assertNotIn("banner", output(doc)["properties"]["api_key"], output.__name__)
 
-    def test_embedded_keeps_duration_format(self):
-        from tasks.schema.produce_byproduct import embedded
+    def test_agent_formats_become_patterns_in_every_output(self):
+        """The Agent and external tools validate the same way: every Agent format is a pattern in every output."""
+        from tasks.schema.produce_byproduct import AGENT_FORMATS, embedded, json_schema
 
-        doc = {"type": "string", "default": "15s", "format": "duration"}
-        self.assertEqual(embedded(doc), doc)
+        for name, pattern in AGENT_FORMATS.items():
+            doc = {"type": "object", "properties": {"setting": {"type": "string", "format": name}}}
+            for output in (embedded, json_schema):
+                self.assertEqual(
+                    output(doc)["properties"]["setting"],
+                    {"type": "string", "pattern": pattern},
+                    f"{name} in {output.__name__}",
+                )
+
+    def test_unknown_format_is_kept(self):
+        from tasks.schema.produce_byproduct import embedded, json_schema
+
+        doc = {"type": "string", "format": "hostname"}
+        for output in (embedded, json_schema):
+            self.assertEqual(output(doc), doc, output.__name__)
 
     def test_pattern_matches_go_parse_duration(self):
         """Expected results are what Go's time.ParseDuration returns for each value."""
@@ -223,6 +237,8 @@ class TestSchemaPatterns(unittest.TestCase):
         import subprocess
         import sys
 
+        from tasks.schema.produce_byproduct import AGENT_FORMATS
+
         # Values that almost match common shapes, then fail on the last character.
         inputs = [
             "a" * 40 + "!",
@@ -232,7 +248,8 @@ class TestSchemaPatterns(unittest.TestCase):
             "1h30m" * 40 + "!",
         ]
         matcher = "import re, sys\np = re.compile(sys.argv[1])\nfor value in sys.argv[2:]:\n    p.match(value)\n"
-        patterns = list(_schema_patterns())
+        # every pattern of the schemas, plus every Agent format, used or not yet
+        patterns = list(_schema_patterns()) + [(f"AGENT_FORMATS[{n!r}]", p) for n, p in AGENT_FORMATS.items()]
         self.assertTrue(patterns)
         for setting, pattern in patterns:
             try:

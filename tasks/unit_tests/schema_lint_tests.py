@@ -581,5 +581,28 @@ class TestCheckNoTitleOnSettings(unittest.TestCase):
         )
 
 
+class TestCheckFormats(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_formats, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_invalid_formats_are_errors(self):
+        errors = errors_for(lint.check_formats, "bad_format.yaml")
+        for location, message in (
+            ("[unknown_format]", "Unknown format 'uri'"),
+            ("[format_on_integer]", "only applies to strings"),
+            ("[nested_unknown_format.items]", "Unknown format 'hostname'"),
+        ):
+            self.assertTrue(
+                any(location in e and message in e for e in errors), f"Expected {message!r} for {location}: {errors}"
+            )
+        self.assertEqual(len(errors), 3, errors)
+
+    def test_agent_formats_and_instance_data_pass(self):
+        errors = errors_for(lint.check_formats, "bad_format.yaml")
+        for name in ("valid_url", "valid_duration", "format_in_default"):
+            self.assertFalse(any(f"[{name}]" in e for e in errors), f"Unexpected error for {name}: {errors}")
+
+
 if __name__ == "__main__":
     unittest.main()

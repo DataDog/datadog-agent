@@ -19,9 +19,6 @@ import (
 // TestDefaultConfigMatchesSchema validates the default configuration of the Agent, as built on the current platform,
 // against the schema embedded in the Agent. At runtime the Agent only validates the settings a user sets, so a default
 // breaking the schema would go unnoticed until a tool validating a full configuration (IDE, CI, ...) rejects it.
-//
-// Durations aren't checked here: the embedded schema keeps `format: duration` as an annotation. Duration defaults are
-// checked against the published pattern by tasks/unit_tests/schema_byproduct_tests.py.
 func TestDefaultConfigMatchesSchema(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

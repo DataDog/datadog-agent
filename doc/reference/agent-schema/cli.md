@@ -104,7 +104,7 @@ dda inv schema.produce-jsonschema /tmp/agent-schemas --version 7.85.1
 | `output_dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. |
 | `--version` | no | Stable Agent version the schemas are published for (`7.85.1` or `v7.85.1`). Omit it to build the copy published as the latest version. Pre-releases such as `7.85.0-rc.1` are rejected. |
 
-The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also rewrites [`format: duration`](keywords.md#format-duration) into an equivalent `pattern`.
+The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also replaces the Agent formats ([`format: duration`](keywords.md#format-duration), [`format: url`](keywords.md#format-url)) with the `pattern` they stand for.
 
 Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository, under the same file name, so the output can be copied there as-is:
 
