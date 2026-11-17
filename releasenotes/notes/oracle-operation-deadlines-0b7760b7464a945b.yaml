@@ -1,10 +1,9 @@
 ---
 fixes:
   - |
-    Fix Oracle ``query_timeout`` enforcement through result fetching and cleanup.
-    Each database operation now has its own deadline in seconds (default 20),
-    with a go-ora socket fallback of twice that duration. Improve recovery from
-    timeouts, canceled operations, cursor exhaustion, and protocol errors, and
-    release sockets after failed connection attempts. Report custom-query fetch
-    and cleanup errors without discarding the original failure; later collection
-    steps can continue after recovery.
+    Fix Oracle ``query_timeout`` enforcement. The timeout (default 20 seconds)
+    now applies to each database operation, including result fetching and
+    cleanup. With the default Go driver, the socket timeout fallback is now
+    twice ``query_timeout``, and sockets are released after failed connection
+    attempts. Improve recovery from timeouts, canceled operations, cursor
+    exhaustion, and protocol errors.
