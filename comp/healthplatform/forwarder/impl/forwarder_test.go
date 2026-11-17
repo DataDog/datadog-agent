@@ -10,6 +10,7 @@ package forwarderimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -77,21 +79,26 @@ func TestSend(t *testing.T) {
 }
 
 func TestSendHTTPError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
+	for _, code := range []int{http.StatusBadRequest, http.StatusInternalServerError, http.StatusMultipleChoices} {
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(code)
+			}))
+			defer server.Close()
 
-	cfg := config.NewMock(t)
-	cfg.SetInTest("api_key", "test-api-key")
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			fwd := newTestForwarder(t, cfg)
+			fwd.intakeURL = server.URL
 
-	fwd := newTestForwarder(t, cfg)
-	fwd.intakeURL = server.URL
-
-	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected status code: 500")
-	assert.Zero(t, n)
+			n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+			var status *forwarderdef.StatusCodeError
+			require.ErrorAs(t, err, &status)
+			assert.Equal(t, code, status.Code)
+			assert.EqualError(t, err, fmt.Sprintf("unexpected status code: %d", code))
+			assert.Zero(t, n)
+		})
+	}
 }
 
 func TestSendNoAPIKey(t *testing.T) {
