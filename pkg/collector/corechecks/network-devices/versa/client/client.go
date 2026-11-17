@@ -146,28 +146,58 @@ type Client struct {
 	lookback            string
 	analyticsQueryType  string
 	analyticsGap        string
-	// warned records when a rate limited warning was last logged, by warning key.
-	warned   map[string]time.Time
-	warnedMu sync.Mutex
+	// warnings rate limits the warnings logged for repeating response problems. The
+	// check keeps one for its lifetime and passes it in, since the client is recreated on
+	// every run.
+	warnings *WarnLimiter
 }
 
-// warnRateLimited logs a warning at most once per hour for a key and at debug level
-// otherwise, so a problem that repeats on every run does not flood the log.
-func (client *Client) warnRateLimited(key string, format string, args ...interface{}) {
-	client.warnedMu.Lock()
-	last, seen := client.warned[key]
+// WarnLimiter logs a warning at most once per hour for a key, and at debug level
+// otherwise, so a problem that repeats on every run does not flood the log. It is safe
+// for concurrent use and is meant to outlive a single client.
+type WarnLimiter struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+// NewWarnLimiter returns an empty WarnLimiter.
+func NewWarnLimiter() *WarnLimiter {
+	return &WarnLimiter{last: make(map[string]time.Time)}
+}
+
+// Warnf logs at warning level unless the same key was warned about within the hour.
+func (w *WarnLimiter) Warnf(key string, format string, args ...interface{}) {
+	w.mu.Lock()
+	last, seen := w.last[key]
 	now := timeNow()
-	if !seen || now.Sub(last) >= time.Hour {
-		if client.warned == nil {
-			client.warned = make(map[string]time.Time)
-		}
-		client.warned[key] = now
-		client.warnedMu.Unlock()
+	warn := !seen || now.Sub(last) >= time.Hour
+	if warn {
+		w.last[key] = now
+	}
+	w.mu.Unlock()
+	if warn {
 		log.Warnf(format, args...)
 		return
 	}
-	client.warnedMu.Unlock()
 	log.Debugf(format, args...)
+}
+
+// WithWarnLimiter is a functional option sharing a WarnLimiter across clients, so the
+// rate limit holds across check runs.
+func WithWarnLimiter(w *WarnLimiter) ClientOptions {
+	return func(c *Client) {
+		if w != nil {
+			c.warnings = w
+		}
+	}
+}
+
+// warnRateLimited logs through the client's WarnLimiter.
+func (client *Client) warnRateLimited(key string, format string, args ...interface{}) {
+	if client.warnings == nil {
+		client.warnings = NewWarnLimiter()
+	}
+	client.warnings.Warnf(key, format, args...)
 }
 
 // ClientOptions are the functional options for the Versa client

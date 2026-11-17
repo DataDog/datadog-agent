@@ -8,12 +8,14 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -173,10 +175,13 @@ func TestJoinAttributes(t *testing.T) {
 		{timestamp: 1, row: []interface{}{"site-002,circuit-b", "site-002", "circuit-b", 2.0}},
 	}
 	layout := &timeseriesLayout{drillKeyFields: 2, attributeColumns: 3}
-	joined, missing := joinAttributes(rows, [][]interface{}{
+	joined, missing, conflicting := joinAttributes(rows, [][]interface{}{
 		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 9.0},
+		// An identical duplicate row is not a conflict.
+		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 8.0},
 	}, layout)
 	assert.Equal(t, 1, missing)
+	assert.Zero(t, conflicting)
 	require.Len(t, joined, 1)
 	assert.Equal(t, []interface{}{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 1.0}, joined[0].row)
 }
@@ -208,4 +213,176 @@ func TestLinkStatusTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) 
 	require.Len(t, metrics, 1)
 	assert.Zero(t, metrics[0].Timestamp)
 	assert.Equal(t, 99.5, metrics[0].Availability)
+}
+
+// Two tableData rows for one entity that disagree on an attribute make the entity
+// unusable: its buckets are skipped rather than tagged from whichever row came last.
+func TestJoinAttributesSkipsConflictingEntities(t *testing.T) {
+	rows := []timeseriesRow{
+		{timestamp: 1, row: []interface{}{"site-001,circuit-a", "site-001", "circuit-a", 1.0}},
+		{timestamp: 2, row: []interface{}{"site-001,circuit-a", "site-001", "circuit-a", 2.0}},
+		{timestamp: 1, row: []interface{}{"site-002,circuit-b", "site-002", "circuit-b", 3.0}},
+	}
+	layout := &timeseriesLayout{drillKeyFields: 2, attributeColumns: 3}
+	joined, missing, conflicting := joinAttributes(rows, [][]interface{}{
+		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1", 9.0},
+		{"site-001,circuit-a", "site-001", "circuit-a", "10.0.0.2", 9.0},
+		{"site-002,circuit-b", "site-002", "circuit-b", "10.0.0.3", 9.0},
+	}, layout)
+	assert.Zero(t, missing)
+	assert.Equal(t, 2, conflicting)
+	require.Len(t, joined, 1)
+	assert.Equal(t, "10.0.0.3", joined[0].row[3])
+}
+
+func TestGetLinkUsageMetricsTimeseriesSkipsConflictingAttributes(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkusage(",
+		tableBody(t, [][]any{
+			linkUsageTableRow("site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1"),
+			linkUsageTableRow("site-001,circuit-a", "site-001", "circuit-a", "10.0.0.2"),
+			linkUsageTableRow("site-002,circuit-b", "site-002", "circuit-b", "10.0.0.3"),
+		}),
+		timeseriesBody(t, []string{"site-001,circuit-a", "site-002,circuit-b"}, bandwidthMetricNames, 100), counts)
+
+	metrics, err := client.GetLinkUsageMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+	for _, m := range metrics {
+		assert.Equal(t, "site-002,circuit-b", m.DrillKey)
+		assert.Equal(t, "10.0.0.3", m.IP)
+	}
+}
+
+// One wrong part count among otherwise valid series is enough to use tableData for the
+// whole call.
+func TestBandwidthTimeseriesPartialKeyPartsMismatchFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	body := timeseriesBody(t, []string{"site-001,circuit-a,eth-1", "site-002,circuit-b,eth-2", "site-003,circuit-c"}, interfaceMetricNames, 1)
+	client := bandwidthServer(t, "intfUtil(",
+		tableBody(t, [][]any{{"site-001,circuit-a,eth-1", "site-001", "circuit-a", "eth-1", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}}),
+		body, counts)
+
+	metrics, err := client.GetAnalyticsInterfaces("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Zero(t, metrics[0].Timestamp)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+}
+
+// failingJoinServer serves a valid link usage timeseries response, and a tableData
+// response that fails from the given page on, with page size one. Link status requests
+// are served normally so another query on the same client can be checked.
+func failingJoinServer(t *testing.T, failFromPage int) *Client {
+	mock := SetupMockAPIServer()
+	t.Cleanup(mock.Close)
+	timeseries := timeseriesBody(t, []string{"site-001,circuit-a", "site-002,circuit-b"}, bandwidthMetricNames, 100)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if strings.HasPrefix(q.Get("q"), "linkusage(") {
+			if q.Get("qt") == QueryTypeTimeseries {
+				w.Write([]byte(timeseries))
+				return
+			}
+			page := 1
+			if q.Get("from-count") != "0" {
+				page = 2
+			}
+			if page >= failFromPage {
+				http.Error(w, "unavailable", http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte(tableBody(t, [][]any{linkUsageTableRow("site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1")})))
+			return
+		}
+		if strings.HasPrefix(q.Get("q"), "linkstatus(") && q.Get("qt") == QueryTypeTimeseries {
+			w.Write([]byte(timeseriesBody(t, []string{"site-001,circuit-a"}, []string{"availability"}, 97)))
+			return
+		}
+		mock.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	client, err := testClient(server, WithMaxCount(1), WithMaxAttempts(1))
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+	return client
+}
+
+// A failed tableData join request, on its first or a later page, returns an error for
+// the query instead of tagging buckets from a partial attribute set; other queries on the
+// same client are unaffected.
+func TestLinkUsageTimeseriesJoinRequestFailure(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		failFromPage int
+	}{
+		{"first page", 1},
+		{"later page", 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client := failingJoinServer(t, tt.failFromPage)
+
+			metrics, err := client.GetLinkUsageMetrics("datadog")
+			require.Error(t, err)
+			assert.Nil(t, metrics)
+
+			status, err := client.GetLinkStatusMetrics("datadog")
+			require.NoError(t, err)
+			require.Len(t, status, 2)
+		})
+	}
+}
+
+// The check builds a new client every run and passes the same WarnLimiter to each, so a
+// warning that repeats on every run is logged once.
+func TestWarnLimiterHoldsAcrossClients(t *testing.T) {
+	var logs bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, pkglog.DebugStr)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		logger.Close()
+	})
+
+	limiter := NewWarnLimiter()
+	for run := 0; run < 2; run++ {
+		counts := map[string]int{}
+		mock := SetupMockAPIServer()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Query().Get("q"), "linkstatus(") {
+				counts[r.URL.Query().Get("qt")]++
+				if r.URL.Query().Get("qt") == QueryTypeTimeseries {
+					w.Write([]byte(timeseriesBody(t, []string{"site-001"}, []string{"availability"}, 97)))
+				} else {
+					w.Write([]byte(tableBody(t, [][]any{{"site-001,circuit-a", "site-001", "circuit-a", 99.5}})))
+				}
+				return
+			}
+			mock.Config.Handler.ServeHTTP(w, r)
+		}))
+		client, err := testClient(server, WithWarnLimiter(limiter))
+		require.NoError(t, err)
+		client.directorEndpoint = server.URL
+		WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+		_, err = client.GetLinkStatusMetrics("datadog")
+		require.NoError(t, err)
+		server.Close()
+		mock.Close()
+	}
+	logger.Flush()
+	var warnings, debugs int
+	for _, line := range strings.Split(logs.String(), "\n") {
+		if !strings.Contains(line, "returned an entity key with 1 parts") {
+			continue
+		}
+		if strings.Contains(line, "| WARN |") {
+			warnings++
+		} else if strings.Contains(line, "| DEBUG |") {
+			debugs++
+		}
+	}
+	assert.Equal(t, 1, warnings)
+	assert.Equal(t, 1, debugs)
 }
