@@ -344,18 +344,29 @@ func TestResolveRecoversPanics(t *testing.T) {
 	assert.Contains(t, err.Error(), "boom")
 }
 
-func TestResolveDropsEC2NameAfterClusterMismatch(t *testing.T) {
-	// An EC2 tag name that verifies against another cluster's CA must not stay cached forever.
-	state := stub(t, "eks", "Orders_Old", nil, "orders")
-	resolveIdentityByKey = func(_ context.Context, name string, _ []byte) (*eks.ClusterIdentity, error) {
-		state.requested = name
-		return nil, fmt.Errorf("verify %s: %w", name, eks.ErrClusterMismatch)
-	}
-	_, err := Resolve(t.Context())
-	require.ErrorIs(t, err, eks.ErrClusterMismatch)
-	_, err = Resolve(t.Context())
-	require.ErrorIs(t, err, eks.ErrClusterMismatch)
-	assert.Equal(t, 2, state.ec2Lookups, "the name is looked up again")
+func TestResolveRechecksEC2NameAfterClusterMismatch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// An EC2 tag name that verifies against another cluster's CA must not stay cached
+		// forever, nor be looked up again on every resolve.
+		state := stub(t, "eks", "Orders_Old", nil, "orders")
+		resolveIdentityByKey = func(_ context.Context, name string, _ []byte) (*eks.ClusterIdentity, error) {
+			state.requested = name
+			return nil, fmt.Errorf("verify %s: %w", name, eks.ErrClusterMismatch)
+		}
+		for range 3 {
+			_, err := Resolve(t.Context())
+			require.ErrorIs(t, err, eks.ErrClusterMismatch)
+		}
+		assert.Equal(t, 1, state.ec2Lookups, "the name is kept for a while")
+
+		// Resolves in between do not push the lookup back.
+		time.Sleep(clusterNameRetryTTL / 2)
+		_, _ = Resolve(t.Context())
+		time.Sleep(clusterNameRetryTTL/2 + time.Second)
+		_, err := Resolve(t.Context())
+		require.ErrorIs(t, err, eks.ErrClusterMismatch)
+		assert.Equal(t, 2, state.ec2Lookups, "and looked up again after clusterNameRetryTTL")
+	})
 }
 
 func TestResolveTreatsCertificateLessCAAsUnreadable(t *testing.T) {

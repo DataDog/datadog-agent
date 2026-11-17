@@ -84,6 +84,9 @@ type discoveredName struct {
 	fromEC2 bool
 	// timedOut is set when the EC2 tag lookup ran out of time, so the tags may hold the name.
 	timedOut bool
+	// recheck is set when an EC2 tag name failed the CA check and is only kept until the next
+	// lookup.
+	recheck bool
 }
 
 // Resolve resolves authoritative EKS identity from the Cluster Agent.
@@ -221,10 +224,12 @@ func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		// seconds only, so a node may ask again within its startup budget.
 		return nil, fmt.Errorf("%w: %w", ErrNotDetermined, err)
 	}
-	if errors.Is(err, eks.ErrClusterMismatch) && discovered.fromEC2 {
-		// The EC2 tag name is otherwise cached for good. Look it up again next time, in case
-		// the node's tags change.
-		cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
+	if errors.Is(err, eks.ErrClusterMismatch) && discovered.fromEC2 && !discovered.recheck {
+		// The EC2 tag name is otherwise cached for good. Keep it for clusterNameRetryTTL only,
+		// and look it up again then, in case the node's tags change. Set once, so that the
+		// resolves in between do not push the lookup back.
+		discovered.recheck = true
+		cache.Cache.Set(cache.BuildAgentKey("eks", "cluster-name"), discovered, clusterNameRetryTTL)
 	}
 	return id, err
 }
