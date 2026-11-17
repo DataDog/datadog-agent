@@ -2291,3 +2291,21 @@ func TestSendTunnelMetricsBucketsAndDedupe(t *testing.T) {
 	s.SendTunnelMetrics("tenant-2", tunnels, nil)
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 4)
 }
+
+func TestSendSiteMetricsBucketsAndDedupe(t *testing.T) {
+	TimeNow = mockTimeNow
+	const start = int64(1704067200000)
+	sites := []client.SiteMetrics{
+		{Site: "site-001", Address: "1 Example Street", Availability: 100, Timestamp: start},
+		{Site: "site-001", Address: "1 Example Street", Availability: 90, Timestamp: start + 900000},
+	}
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s := NewSender(mockSender, "default")
+
+	s.SendSiteMetrics("tenant-1", sites, nil)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", versaMetricPrefix+"site.availability", 90.0, "", mock.Anything, float64(start+900000)/1000)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*5)
+	s.SendSiteMetrics("tenant-1", sites, nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*5)
+}

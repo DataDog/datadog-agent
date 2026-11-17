@@ -430,3 +430,47 @@ func TestTunnelTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
 	assert.Zero(t, metrics[0].Timestamp)
 	assert.Equal(t, "10.1.0.1", metrics[0].RemoteIP)
 }
+
+var siteMetricNames = []string{"volume-tx", "volume-rx", "bw-tx", "bw-rx", "availability"}
+
+func siteTableRow(site, address string) []any {
+	return []any{site, address, "40.0", "-70.0", "manual", 9.0, 9.0, 9.0, 9.0, 9.0}
+}
+
+// Site metrics have no drill key column: the joined row starts with the site and its
+// address, coordinates and location source from tableData.
+func TestGetSiteMetricsTimeseriesJoinsAttributes(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkusage(site,site.address",
+		tableBody(t, [][]any{
+			siteTableRow("site-001", "1 Example Street"),
+			siteTableRow("site-002", "2 Example Street"),
+			siteTableRow("site-002", "3 Example Street"),
+		}),
+		// site-002 conflicts and site-003 has no tableData row; both are skipped.
+		timeseriesBody(t, []string{"site-001", "site-002", "site-003"}, siteMetricNames, 10), counts)
+
+	metrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 2)
+	assert.Equal(t, SiteMetrics{
+		Site: "site-001", Address: "1 Example Street", Latitude: "40.0", Longitude: "-70.0", LocationSource: "manual",
+		VolumeTx: 10, VolumeRx: 20, BandwidthTx: 30, BandwidthRx: 40, Availability: 50,
+		Timestamp: bandwidthBuckets[0],
+	}, metrics[0])
+	assert.Equal(t, bandwidthBuckets[1], metrics[1].Timestamp)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+}
+
+func TestSiteTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
+	counts := map[string]int{}
+	client := bandwidthServer(t, "linkusage(site,site.address",
+		tableBody(t, [][]any{siteTableRow("site-001", "1 Example Street")}),
+		timeseriesBody(t, []string{"site-001,1 Example Street"}, siteMetricNames, 10), counts)
+
+	metrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Zero(t, metrics[0].Timestamp)
+	assert.Equal(t, "1 Example Street", metrics[0].Address)
+}

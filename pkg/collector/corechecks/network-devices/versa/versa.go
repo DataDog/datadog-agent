@@ -391,7 +391,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting site metrics from organization %s: %v", org.Name, err)
 			} else {
 				siteMetrics = filterAnalyticsMetricsByDevice(siteMetrics, monitoredDevices, func(m client.SiteMetrics) string { return m.Site })
-				v.metricsSender.SendSiteMetrics(siteMetrics, deviceNameToIDMap)
+				v.metricsSender.SendSiteMetrics(org.Name, siteMetrics, deviceNameToIDMap)
 			}
 		}
 

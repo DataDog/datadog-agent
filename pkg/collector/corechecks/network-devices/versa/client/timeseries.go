@@ -42,6 +42,10 @@ type timeseriesLayout struct {
 	// using the timeseries response, and falls back to tableData for the call when one
 	// does not. It is set for layouts not yet checked against a real timeseries response.
 	strictKeyParts bool
+	// noDrillKeyColumn marks a parser that reads its first attribute from column zero
+	// instead of a drill key column. Its joined rows start with the attribute columns,
+	// whose first value is the entity key.
+	noDrillKeyColumn bool
 }
 
 // Layouts for the endpoints verified against real timeseries responses. Adding one for a
@@ -74,6 +78,11 @@ var (
 	// tableData. Tunnels sharing an appliance and local IP but with different peers have
 	// conflicting attributes and are skipped.
 	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true}
+	// linkusage(site,site.address,site.latitude,site.longitude,site.locationSource) with
+	// jq siteStatus: keyed on site, and parseSiteMetrics has no drill key column, so the
+	// joined row is the site, address, latitude, longitude and location source from
+	// tableData followed by the metric values.
+	siteTimeseriesLayout = &timeseriesLayout{drillKeyFields: 1, attributeColumns: 5, strictKeyParts: true, noDrillKeyColumn: true}
 )
 
 // keyPartsMismatch returns the first series name that does not split into the layout's
@@ -95,6 +104,9 @@ func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (s
 // duplicate rows are fine. The counts of buckets skipped for each reason are returned.
 func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, conflicting int) {
 	prefix := 1 + layout.attributeColumns
+	if layout.noDrillKeyColumn {
+		prefix = layout.attributeColumns
+	}
 	byKey := make(map[string][]interface{}, len(tableRows))
 	conflicts := make(map[string]bool)
 	for _, row := range tableRows {

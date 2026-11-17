@@ -848,7 +848,7 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 			"bw-rx",
 			"availability",
 		},
-		nil,
+		siteTimeseriesLayout,
 		parseSiteMetrics,
 	)
 }
