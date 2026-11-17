@@ -8,10 +8,12 @@
 package vdi
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	yaml "go.yaml.in/yaml/v2"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
+	vdimodel "github.com/DataDog/datadog-agent/pkg/vdi/model"
 )
 
 const (
@@ -40,8 +43,11 @@ type awsWorkSpacesConfig struct {
 }
 
 type instanceConfig struct {
-	Provider      string               `yaml:"provider"`
-	AWSWorkSpaces *awsWorkSpacesConfig `yaml:"aws_workspaces"`
+	Provider           string               `yaml:"provider"`
+	AWSWorkSpaces      *awsWorkSpacesConfig `yaml:"aws_workspaces"`
+	CollectUserTags    *bool                `yaml:"collect_user_tags"`
+	CollectSessionTags *bool                `yaml:"collect_session_tags"`
+	InventoryStaleTTL  *int                 `yaml:"inventory_stale_ttl"`
 }
 
 type registeredCounter struct {
@@ -53,9 +59,13 @@ type registeredCounter struct {
 
 type checkImpl struct {
 	core.CheckBase
-	config   instanceConfig
-	query    *pdhutil.PdhQuery
-	counters []registeredCounter
+	config          instanceConfig
+	query           *pdhutil.PdhQuery
+	counters        []registeredCounter
+	inventoryClient inventoryClient
+	now             func() time.Time
+	startedAt       time.Time
+	lastFreshAt     time.Time
 }
 
 // Factory creates a VDI check on Windows.
@@ -64,7 +74,7 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &checkImpl{CheckBase: core.NewCheckBase(CheckName)}
+	return &checkImpl{CheckBase: core.NewCheckBase(CheckName), now: time.Now}
 }
 
 // Configure initializes the VDI check.
@@ -81,6 +91,14 @@ func (c *checkImpl) Configure(senderManager sender.SenderManager, digest uint64,
 
 	if err := yaml.Unmarshal(rawInstance, &c.config); err != nil {
 		return fmt.Errorf("invalid VDI instance configuration: %w", err)
+	}
+	if c.config.Provider == vdimodel.ProviderAzureVirtualDesktop {
+		if c.config.InventoryStaleTTL != nil && *c.config.InventoryStaleTTL < 0 {
+			return errors.New("inventory_stale_ttl must not be negative")
+		}
+		c.inventoryClient = newSystemProbeInventoryClient()
+		c.startedAt = c.now()
+		return nil
 	}
 	if c.config.Provider != providerAWSWorkSpaces {
 		return fmt.Errorf("unsupported VDI provider %q", c.config.Provider)
@@ -123,13 +141,17 @@ func (c *checkImpl) Configure(senderManager sender.SenderManager, digest uint64,
 	return nil
 }
 
-// Run collects Amazon DCV performance counters.
+// Run collects metrics for the configured VDI provider.
 func (c *checkImpl) Run() error {
 	s, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 	defer s.Commit()
+
+	if c.config.Provider == vdimodel.ProviderAzureVirtualDesktop {
+		return c.runAVD(s)
+	}
 
 	pdhHealthy := true
 	usableSamples := 0
@@ -215,6 +237,9 @@ func (c *checkImpl) tagsForInstance(objectName, instance string) []string {
 }
 
 func (c *checkImpl) baseTags() []string {
+	if c.config.Provider == vdimodel.ProviderAzureVirtualDesktop {
+		return []string{"vdi_provider:" + vdimodel.ProviderAzureVirtualDesktop, "vdi_protocol:" + vdimodel.ProtocolRDP}
+	}
 	tags := []string{"vdi_provider:" + providerAWSWorkSpaces, "vdi_protocol:" + protocolDCV}
 	product := c.config.AWSWorkSpaces.Product
 	if product == "auto" {

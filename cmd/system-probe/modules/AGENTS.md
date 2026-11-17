@@ -44,7 +44,7 @@ Modules must implement the `module.Module` interface:
 type Module interface {
     Register(router *module.Router) error
     GetStats() map[string]interface{}
-    Close() error  // Optional, for cleanup
+    Close()        // Cleanup hook; use an empty method when no cleanup is needed
 }
 ```
 
@@ -80,16 +80,15 @@ func (m *myModule) GetStats() map[string]interface{} {
 
 Use atomic operations for concurrent-safe counters.
 
-### Close() (Optional)
+### Close()
 
 Cleanup resources when module shuts down:
 
 ```go
-func (m *myModule) Close() error {
+func (m *myModule) Close() {
     if m.tracer != nil {
         m.tracer.Close()
     }
-    return nil
 }
 ```
 
@@ -222,9 +221,8 @@ Modules are tested indirectly through their probe tests:
 
 3. **Resource Cleanup**: Implement Close() for proper shutdown
    ```go
-   func (m *myModule) Close() error {
+   func (m *myModule) Close() {
        m.tracer.Close()
-       return nil
    }
    ```
 
@@ -249,7 +247,7 @@ Modules are tested indirectly through their probe tests:
 2. **Startup**: System-probe calls factory `Fn` if module is enabled
 3. **Registration**: Module's `Register()` sets up HTTP routes
 4. **Runtime**: Agent makes HTTP requests to module endpoints
-5. **Shutdown**: Module's `Close()` (if implemented) cleans up resources
+5. **Shutdown**: Module's `Close()` cleans up resources
 
 ## Debugging
 
