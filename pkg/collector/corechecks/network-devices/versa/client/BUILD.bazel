@@ -27,6 +27,7 @@ dd_agent_go_test(
         "client_test.go",
         "parser_test.go",
         "request_test.go",
+        "timeseries_bandwidth_test.go",
         "timeseries_test.go",
         "types_test.go",
     ],

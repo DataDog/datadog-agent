@@ -378,7 +378,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting link usage metrics from organization %s: %v", org.Name, err)
 			} else {
 				linkUsageMetrics = filterAnalyticsMetricsByDevice(linkUsageMetrics, monitoredDevices, func(m client.LinkUsageMetrics) string { return m.Site })
-				v.metricsSender.SendLinkUsageMetrics(linkUsageMetrics, deviceNameToIDMap)
+				v.metricsSender.SendLinkUsageMetrics(org.Name, linkUsageMetrics, deviceNameToIDMap)
 			}
 		}
 
@@ -455,7 +455,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting DIA metrics from organization %s: %v", org.Name, err)
 			} else {
 				diaMetrics = filterAnalyticsMetricsByDevice(diaMetrics, monitoredDevices, func(m client.DIAMetrics) string { return m.Site })
-				v.metricsSender.SendDIAMetrics(diaMetrics, deviceNameToIDMap)
+				v.metricsSender.SendDIAMetrics(org.Name, diaMetrics, deviceNameToIDMap)
 			}
 		}
 
@@ -471,7 +471,7 @@ func (v *VersaCheck) Run() error {
 
 			if len(analyticsInterfaceMetrics) > 0 {
 				// Send metrics
-				v.metricsSender.SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics, deviceNameToIDMap)
+				v.metricsSender.SendAnalyticsInterfaceMetrics(org.Name, analyticsInterfaceMetrics, deviceNameToIDMap)
 
 				// TODO: I'd really like to do something like this for larger customers where the director
 				// call is too large, but we need to find or agree on something to use for interface status

@@ -18,14 +18,15 @@ import (
 )
 
 // TestTimeseriesLayoutsMatchTableData pins the contract that makes the whole flatten
-// approach work: for an endpoint we claim supports timeseries, the drill key must split
-// into exactly drillKeyFields parts, and the parser's expected row width must be the drill
-// key plus those parts plus one column per requested metric.
+// approach work: for an endpoint that supports timeseries, the drill key must split into
+// exactly drillKeyFields parts, and the parser's expected row width must be the drill key
+// plus those parts (or, for a layout that takes attribute columns from tableData, those
+// columns) plus one column per requested metric.
 //
-// This is a regression test. The drill key is not always the group by arguments joined:
-// linkusage and tunnelstats take attribute arguments that key on a subset, and site
-// metrics have no drill key column at all, which is why those endpoints have no layout and
-// stay on tableData.
+// The drill key is not always the group by arguments joined: linkusage and tunnelstats
+// take attribute arguments that key on a subset, and site metrics have no drill key column
+// at all. linkusage and DIA therefore take their attribute columns from tableData, and
+// site metrics and tunnelstats stay on tableData.
 func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -37,6 +38,9 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "sla", fixture: fixtures.GetSLAMetrics, layout: slaTimeseriesLayout, metricCount: 6, parserWidth: 12},
 		{name: "path qos", fixture: fixtures.GetPathQoSMetrics, layout: pathQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
+		{name: "interface", fixture: fixtures.GetAnalyticsInterfaceMetrics, layout: interfaceTimeseriesLayout, metricCount: 8, parserWidth: 12},
+		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
+		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
 
 	for _, tt := range tests {
@@ -50,7 +54,11 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 			assert.Len(t, strings.Split(drillKey, ","), tt.layout.drillKeyFields)
 
 			assert.Equal(t, tt.parserWidth, len(resp.AaData[0]), "tableData row width")
-			assert.Equal(t, tt.parserWidth, 1+tt.layout.drillKeyFields+tt.metricCount,
+			leading := tt.layout.drillKeyFields
+			if tt.layout.attributeColumns > 0 {
+				leading = tt.layout.attributeColumns
+			}
+			assert.Equal(t, tt.parserWidth, 1+leading+tt.metricCount,
 				"flattened row width must match what the parser expects")
 		})
 	}

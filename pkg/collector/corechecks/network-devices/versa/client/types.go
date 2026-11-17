@@ -465,7 +465,12 @@ type LinkUsageMetrics struct {
 	VolumeRx          float64
 	BandwidthTx       float64
 	BandwidthRx       float64
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *LinkUsageMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
 
 // SiteMetrics represents the columns to parse from the Site metrics response
 type SiteMetrics struct {
@@ -599,7 +604,12 @@ type DIAMetrics struct {
 	VolumeRx      float64
 	BandwidthTx   float64
 	BandwidthRx   float64
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *DIAMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
 
 // AnalyticsInterfaceMetrics represents the columns to parse from the Analytics Interface metrics response
 type AnalyticsInterfaceMetrics struct {
@@ -615,4 +625,9 @@ type AnalyticsInterfaceMetrics struct {
 	BandwidthRx float64
 	BandwidthTx float64
 	Bandwidth   float64
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *AnalyticsInterfaceMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
