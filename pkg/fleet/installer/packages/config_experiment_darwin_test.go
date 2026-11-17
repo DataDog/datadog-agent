@@ -1729,3 +1729,63 @@ func TestResolveExperimentPidsFailsOnACleanExitOfAnEssentialJob(t *testing.T) {
 		})
 	}
 }
+
+// TestResumeFinishesAnInterruptedPromoteAsAPromote pins that a promote whose hook never ran is
+// finished as a promote: the process manager has no experiment variant, so it only picks up the
+// promoted configuration when it is restarted.
+func TestResumeFinishesAnInterruptedPromoteAsAPromote(t *testing.T) {
+	l := stubLiveLaunchd(t, procmgrJob)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	stubConfigExperimentDirs(t)
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	assert.Equal(t, [][]string{{"kickstart", "-k", "system/" + procmgrJob}}, l.kickstarts("system/"+procmgrJob))
+}
+
+// TestResumeFinishesAPromoteInterruptedAfterItsSwap covers a daemon that died in the middle of the
+// configuration swap itself, with the previous stable configuration still at the experiment path:
+// the next start must finish the promote, not resume that previous configuration as the experiment.
+func TestResumeFinishesAPromoteInterruptedAfterItsSwap(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	watchers := stubConfigExperimentWatcher(t)
+	handOvers := stubInstallerHandOver(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	// What PromoteExperiment leaves when the daemon dies right after its swap.
+	interruptPromoteAfterSwap(t, dirs)
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+
+	for _, target := range launchctlCalls(*calls, "kickstart") {
+		assert.NotContains(t, target, "-exp", "the previous stable configuration must not be resumed as the experiment")
+	}
+	assert.Zero(t, *handOvers)
+	assert.Zero(t, *watchers)
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, config.State{StableDeploymentID: "experiment-1"}, state)
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+// interruptPromoteAfterSwap lays out what PromoteExperiment leaves when the process dies right after
+// its swap: the marked experiment directory now stable, and the previous stable configuration,
+// with its own deployment ID, still at the experiment path.
+func interruptPromoteAfterSwap(t *testing.T, dirs config.Directories) {
+	t.Helper()
+
+	// The marker config.PromoteExperiment writes before the swap.
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.ExperimentPath, ".promoting"), nil, 0640))
+	previous := dirs.StablePath + ".previous"
+	require.NoError(t, os.Rename(dirs.StablePath, previous))
+	require.NoError(t, os.Rename(dirs.ExperimentPath, dirs.StablePath))
+	require.NoError(t, os.Rename(previous, dirs.ExperimentPath))
+}
