@@ -108,23 +108,12 @@ type configExperiment struct {
 // The deadline is written before anything else is touched: an orphaned deadline with no
 // experiment is harmless, but an experiment with no deadline is unbounded and silent. If the
 // handover fails partway, after some of the stable set has already been stopped, the stable set
-// is put back rather than left down with nothing in its place.
+// is put back rather than left down with nothing in its place. Past the deadline, it is Resume.
 func (e configExperiment) Start(ctx context.Context) error {
-	deadline := experimentDeadline()
-	if err := deadline.Write(configExperimentDeadlineWindow); err != nil {
+	if err := experimentDeadline().Write(configExperimentDeadlineWindow); err != nil {
 		return err
 	}
-	if err := e.jobs.Stop(ctx, launchd.Stable); err != nil {
-		// Some of the stable jobs may already be down.
-		return e.abortStart(ctx, err)
-	}
-	if err := e.jobs.Write(launchd.Experiment); err != nil {
-		return e.abortStart(ctx, err)
-	}
-	if err := e.jobs.Start(ctx, launchd.Experiment); err != nil {
-		return e.abortStart(ctx, err)
-	}
-	return nil
+	return e.Resume(ctx)
 }
 
 // Resume re-establishes the experiment job set after an unsupervised restart (daemon restart,

@@ -396,6 +396,23 @@ func TestStartConfigExperimentRollsBackWhenTheExperimentFailsToBootstrap(t *test
 	assert.NoFileExists(t, deadlinePath, "the deadline survived a start that was fully rolled back")
 }
 
+// TestResumeKeepsTheOriginalDeadline pins that Resume, unlike Start, leaves the deadline alone: it
+// bounds the time since the experiment first started, so a resumed experiment must not outlive it.
+func TestResumeKeepsTheOriginalDeadline(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	require.NoError(t, experimentDeadline().Write(time.Minute))
+	before, err := experimentDeadline().Read()
+	require.NoError(t, err)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Resume(testHookContext(t)))
+
+	after, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+}
+
 // TestRestoreStableRetriesBeforeGivingUp covers the second gap PR #55770's review flagged: a
 // transient failure restoring the stable set must be retried, not surfaced immediately.
 func TestRestoreStableRetriesBeforeGivingUp(t *testing.T) {
