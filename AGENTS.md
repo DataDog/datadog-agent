@@ -122,6 +122,9 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 
+### System-probe and eBPF Tests
+Kernel code needs a Linux kernel to test, and results hold only for the build modes and kernels that ran; see `pkg/ebpf/AGENTS.md` before testing or claiming a system-probe or eBPF change works.
+
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
@@ -302,6 +305,7 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
+├── pkg/ebpf/AGENTS.md             ← testing system-probe and eBPF changes: hosts, build modes, KMT, evidence
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```
