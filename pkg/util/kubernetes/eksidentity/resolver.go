@@ -25,6 +25,10 @@ import (
 // startup cannot pin the wrong name for the lifetime of the Cluster Agent.
 const clusterNameRetryTTL = 5 * time.Minute
 
+// clusterNameDiscoveryTimeout bounds the EC2 tag lookup (IMDS, then the EC2 API). Together with
+// the DescribeCluster budget it keeps a cold resolve close to the node Agent's request timeout.
+const clusterNameDiscoveryTimeout = 1500 * time.Millisecond
+
 // ErrNotEKS indicates the Cluster Agent is not running on an EKS cluster.
 var ErrNotEKS = errors.New("cluster is not EKS")
 
@@ -66,16 +70,27 @@ func discoverClusterName(ctx context.Context) string {
 
 	// The EC2 tag carries the real EKS cluster name (which may contain upper-case
 	// characters the Datadog cluster name cannot). Only that source is cached permanently.
-	clusterName, err := ec2ClusterName(ctx)
+	//
+	// The lookup runs on a context detached from the node request that triggered it, with its
+	// own short budget, so a disconnecting node cannot make it fail.
+	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), clusterNameDiscoveryTimeout)
+	clusterName, err := ec2ClusterName(lookupCtx)
+	timedOut := lookupCtx.Err() != nil
+	cancel()
 	if err == nil && clusterName != "" {
 		cache.Cache.Set(cacheKey, clusterName, cache.NoExpiration)
 		return clusterName
 	}
-	log.Debugf("EKS cluster name is not available from EC2 tags (retry in %s), falling back to the configured cluster name: %v", clusterNameRetryTTL, err)
 
 	// Fallback to the configured Datadog cluster name. It may differ from the real EKS
-	// name, so it is only cached briefly and EC2 tag discovery is retried afterwards.
+	// name, so it is only cached briefly and EC2 tag discovery is retried afterwards. A lookup
+	// that ran out of time says nothing about the EC2 tags, so its fallback is not cached.
 	clusterName = configuredCluster(ctx, "")
+	if timedOut {
+		log.Debugf("EKS cluster name lookup from EC2 tags timed out, using the configured cluster name for this request: %v", err)
+		return clusterName
+	}
+	log.Debugf("EKS cluster name is not available from EC2 tags (retry in %s), falling back to the configured cluster name: %v", clusterNameRetryTTL, err)
 	cache.Cache.Set(cacheKey, clusterName, clusterNameRetryTTL)
 	return clusterName
 }

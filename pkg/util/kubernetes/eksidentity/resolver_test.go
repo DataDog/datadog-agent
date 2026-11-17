@@ -132,3 +132,41 @@ func TestResolveRetriesEC2TagAfterConfiguredFallback(t *testing.T) {
 		assert.Equal(t, 2, state.ec2Lookups)
 	})
 }
+
+func TestResolveDoesNotPinFallbackWhenCallerCancels(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		state := stub(t, "eks", "", nil, "orders-display-name")
+		// The EC2 tag lookup only answers when its ctx is done, like a slow IMDS call.
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			state.ec2Lookups++
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+
+		// The node that triggered discovery disconnects right away.
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, _ = Resolve(ctx)
+
+		// EC2 tags are now reachable. A cancelled or timed out lookup must not have cached the
+		// configured name for clusterNameRetryTTL.
+		ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return "OrdersProd", nil }
+		_, err := Resolve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "OrdersProd", state.requested)
+	})
+}
+
+func TestResolveBoundsEC2TagDiscovery(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		stub(t, "eks", "", nil, "orders")
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		start := time.Now()
+		_, err := Resolve(t.Context())
+		require.NoError(t, err, "the configured name is used for this request")
+		assert.LessOrEqual(t, time.Since(start), clusterNameDiscoveryTimeout, "discovery has its own short budget")
+	})
+}
