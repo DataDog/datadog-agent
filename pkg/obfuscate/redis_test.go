@@ -726,6 +726,18 @@ func TestRedisObfuscator(t *testing.T) {
 			"XADD stream ACKED MINID 0 * field ?",
 		},
 		{
+			"GEOSEARCH key FROMMEMBER alice FROMMEMBER secret BYRADIUS 10 km",
+			"GEOSEARCH key FROMMEMBER ? FROMMEMBER ? BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCHSTORE dest src frommember alice FROMMEMBER secret BYBOX 1 2 km",
+			"GEOSEARCHSTORE dest src frommember ? FROMMEMBER ? BYBOX 1 2 km",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER FROMMEMBER BYRADIUS 10 km",
+			"GEOSEARCH key FROMMEMBER ? BYRADIUS 10 km",
+		},
+		{
 			`
 CONFIG command
 SET k v

@@ -221,7 +221,7 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		obfuscateRedisArgsStep(args, i, 3)
 
 	case "GEOSEARCH", "GEOSEARCHSTORE":
-		// Obfuscate the argument following FROMMEMBER.
+		// Obfuscate the argument following every FROMMEMBER.
 		// • GEOSEARCH key <FROMMEMBER member | FROMLONLAT longitude latitude> <BYRADIUS radius unit | BYBOX width height unit> [ASC|DESC] [COUNT count [ANY]] [WITHCOORD] [WITHDIST] [WITHHASH]
 		// • GEOSEARCHSTORE destination source <FROMMEMBER member | FROMLONLAT longitude latitude> <BYRADIUS radius unit | BYBOX width height unit> [ASC|DESC] [COUNT count [ANY]] [STOREDIST]
 		start := 1 // skip key
@@ -230,8 +230,8 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		}
 		for i := start; i < len(args)-1; i++ {
 			if strings.ToUpper(args[i]) == "FROMMEMBER" {
-				args[i+1] = "?"
-				break
+				i++
+				args[i] = "?"
 			}
 		}
 
