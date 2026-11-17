@@ -94,7 +94,7 @@ type signedDescribeClusterClient struct {
 }
 
 func newSignedDescribeClusterClient(cfg aws.Config) describeClusterAPI {
-	return &signedDescribeClusterClient{cfg: cfg, signer: v4.NewSigner(), now: time.Now}
+	return &signedDescribeClusterClient{cfg: normalizeFIPSRegion(cfg), signer: v4.NewSigner(), now: time.Now}
 }
 
 // DescribeCluster calls GET /clusters/{name} on the EKS endpoint of the configured Region.
@@ -237,6 +237,7 @@ func partitionFor(region string) partitionEndpoint {
 // section), then the global configured endpoint, then the Region and partition endpoint, honoring
 // the FIPS and dual-stack settings.
 func resolveEndpoint(ctx context.Context, cfg aws.Config) (string, error) {
+	cfg = normalizeFIPSRegion(cfg)
 	if endpoint, ok := configuredEndpoint(ctx, cfg); ok {
 		return endpoint, nil
 	}
@@ -263,6 +264,28 @@ func resolveEndpoint(ctx context.Context, cfg aws.Config) (string, error) {
 	default:
 		return "https://eks." + region + "." + p.dnsSuffix, nil
 	}
+}
+
+// normalizeFIPSRegion handles the FIPS pseudo Regions (us-east-1-fips, fips-us-east-1) the way
+// the generated client does: the fips part is stripped, the stripped Region is used for the
+// endpoint host and the signature, and the FIPS endpoint is forced on.
+func normalizeFIPSRegion(cfg aws.Config) aws.Config {
+	const fipsInfix, fipsPrefix, fipsSuffix = "-fips-", "fips-", "-fips"
+	region := cfg.Region
+	if !strings.Contains(region, fipsInfix) && !strings.HasPrefix(region, fipsPrefix) && !strings.HasSuffix(region, fipsSuffix) {
+		return cfg
+	}
+	cfg.Region = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(region, fipsInfix, "-"), fipsPrefix, ""), fipsSuffix, "")
+	cfg.ConfigSources = append([]interface{}{forcedFIPS{}}, cfg.ConfigSources...)
+	return cfg
+}
+
+// forcedFIPS is a configuration source that turns the FIPS endpoint on. It is placed first so it
+// takes precedence over the loaded environment and shared configuration.
+type forcedFIPS struct{}
+
+func (forcedFIPS) GetUseFIPSEndpoint(context.Context) (aws.FIPSEndpointState, bool, error) {
+	return aws.FIPSEndpointStateEnabled, true, nil
 }
 
 // configuredEndpoint mirrors the generated client's base endpoint resolution. The global

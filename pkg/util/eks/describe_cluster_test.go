@@ -305,3 +305,31 @@ func TestResolveEndpointTakesFirstIgnoreConfiguredEndpointsSetting(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, "https://eks.example", got)
 }
+
+func TestFIPSPseudoRegions(t *testing.T) {
+	for _, region := range []string{"us-east-1-fips", "fips-us-east-1"} {
+		t.Run(region, func(t *testing.T) {
+			got, err := resolveEndpoint(t.Context(), aws.Config{Region: region})
+			require.NoError(t, err)
+			assert.Equal(t, "https://fips.eks.us-east-1.amazonaws.com", got)
+
+			// The request is signed for, and the ARN checked against, the real Region.
+			var req *http.Request
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				req = r.Clone(context.Background())
+				_, _ = w.Write([]byte(`{"cluster":{"name":"orders","arn":"arn:aws:eks:us-east-1:123456789012:cluster/orders"}}`))
+			}))
+			defer srv.Close()
+			cfg := testAWSConfig(srv.URL)
+			cfg.Region = region
+			stubAWS(t, nil)
+			loadAWSConfig = func(context.Context) (aws.Config, error) { return cfg, nil }
+			newDescribeClusterAPI = newSignedDescribeClusterClient
+
+			id, err := GetClusterIdentity(t.Context(), "orders")
+			require.NoError(t, err)
+			assert.Equal(t, "us-east-1", id.Region)
+			assert.Contains(t, req.Header.Get("Authorization"), "/us-east-1/eks/aws4_request")
+		})
+	}
+}

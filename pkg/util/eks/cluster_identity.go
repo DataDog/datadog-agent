@@ -151,6 +151,8 @@ func resolveAndCache(ctx context.Context, clusterName, cacheKey string) (*Cluste
 		cacheFailure(cacheKey, err)
 		return nil, err
 	}
+	// A FIPS pseudo Region (us-east-1-fips) names the real Region the ARN must carry.
+	cfg = normalizeFIPSRegion(cfg)
 
 	id, err := resolveClusterIdentity(ctx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
 	if err != nil {
