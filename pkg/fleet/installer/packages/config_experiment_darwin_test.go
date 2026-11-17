@@ -1789,3 +1789,47 @@ func interruptPromoteAfterSwap(t *testing.T, dirs config.Directories) {
 	require.NoError(t, os.Rename(dirs.ExperimentPath, dirs.StablePath))
 	require.NoError(t, os.Rename(previous, dirs.ExperimentPath))
 }
+
+// TestResumeDiscardsTheConfigWhenTheExperimentCannotBeResumed pins that a resume that fails, and
+// whose rollback brought the stable set back, leaves the host as if no experiment had run: left in
+// place, the experiment configuration would be reported as running for the whole life of the daemon.
+func TestResumeDiscardsTheConfigWhenTheExperimentCannotBeResumed(t *testing.T) {
+	stubLaunchdFailing(t, "bootstrap", "-exp")
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	shortRestoreBackoff(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, installerJob+"-exp.plist"), []byte("leftover"), 0644))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+
+	err := resumeConfigExperimentDatadogAgent(testHookContext(t))
+
+	require.ErrorContains(t, err, "experiment reverted")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration should be discarded")
+	assert.NoFileExists(t, filepath.Join(dir, installerJob+"-exp.plist"))
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
+// TestResumeDiscardsTheConfigWhenTheHandOverFailsToLaunch is the resume twin of
+// TestStartConfigExperimentDiscardsTheConfigWhenTheHandOverFailsToLaunch.
+func TestResumeDiscardsTheConfigWhenTheHandOverFailsToLaunch(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	original := launchInstallerHandOver
+	launchInstallerHandOver = func(context.Context) error { return errors.New("injected failure") }
+	t.Cleanup(func() { launchInstallerHandOver = original })
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+
+	err := resumeConfigExperimentDatadogAgent(testHookContext(t))
+
+	require.ErrorContains(t, err, "hand-over failed to launch, experiment reverted")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration should be discarded")
+}
