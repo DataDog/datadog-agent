@@ -8,6 +8,7 @@ package tags
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -97,6 +98,16 @@ func fakeClusterAgent(t *testing.T, state string, onEKS bool) string {
 		})
 		return "https://" + l.Addr().String()
 	case dcaBlackholed:
+		// Where there is no route to the address, the dial fails at once and this state would
+		// degrade to "down". Say so rather than pass a test that checks nothing.
+		c, err := net.DialTimeout("tcp", blackholeAddr, 300*time.Millisecond)
+		if err == nil {
+			c.Close()
+		}
+		var netErr net.Error
+		if err != nil && !(errors.As(err, &netErr) && netErr.Timeout()) {
+			t.Skipf("%s is not a blackhole here, the dial fails at once: %v", blackholeAddr, err)
+		}
 		return "https://" + blackholeAddr
 	}
 	t.Fatalf("unknown Cluster Agent state %q", state)
