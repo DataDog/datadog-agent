@@ -218,15 +218,15 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 		},
 		{
 			name:    "recovery action",
-			message: "NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed from 0x0 (None) to 0x1 (Drain and Reset)",
+			message: "NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed from 0x4 (Drain and Reset) to 0x1 (PF FLR)",
 			expected: model.NvidiaXid{
 				XidCode: 154,
-				Message: "NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed from 0x0 (None) to 0x1 (Drain and Reset)",
+				Message: "NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed from 0x4 (Drain and Reset) to 0x1 (PF FLR)",
 				RecoveryAction: &model.NvidiaXidRecoveryAction{
-					PreviousCode:  uint64Pointer(0),
-					PreviousLabel: "None",
+					PreviousCode:  uint64Pointer(4),
+					PreviousLabel: "Drain and Reset",
 					CurrentCode:   uint64Pointer(1),
-					CurrentLabel:  "Drain and Reset",
+					CurrentLabel:  "PF FLR",
 				},
 			},
 		},

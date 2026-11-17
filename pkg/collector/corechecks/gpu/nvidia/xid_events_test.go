@@ -395,15 +395,27 @@ func TestXIDEventToSampleStructuredTags(t *testing.T) {
 			},
 		},
 		{
-			name:    "XID 154 none to reset",
+			name:    "XID 154 none to reset (real driver: 0x1 is PF FLR)",
 			xidCode: 154,
 			fill: func(xid *model.NvidiaXid) {
-				xid.RecoveryAction = &model.NvidiaXidRecoveryAction{PreviousCode: u(0), PreviousLabel: "None", CurrentCode: u(1), CurrentLabel: "GPU Reset Required"}
+				xid.RecoveryAction = &model.NvidiaXidRecoveryAction{PreviousCode: u(0), PreviousLabel: "None", CurrentCode: u(1), CurrentLabel: "PF FLR"}
 			},
 			expectedTags: []string{
 				"xid_code:154", "origin:" + xidOriginUnknown, "event_source:kmsg",
-				"recovery_previous_code:0", "recovery_previous_label:None", "recovery_current_code:1", "recovery_current_label:GPU Reset Required",
+				"recovery_previous_code:0", "recovery_previous_label:None", "recovery_current_code:1", "recovery_current_label:PF FLR",
 				"recovery_action:reset", "recovery_previous_action:none",
+			},
+		},
+		{
+			name:    "XID 154 real prod line: drain_and_reset to PF FLR",
+			xidCode: 154,
+			fill: func(xid *model.NvidiaXid) {
+				xid.RecoveryAction = &model.NvidiaXidRecoveryAction{PreviousCode: u(4), PreviousLabel: "Drain and Reset", CurrentCode: u(1), CurrentLabel: "PF FLR"}
+			},
+			expectedTags: []string{
+				"xid_code:154", "origin:" + xidOriginUnknown, "event_source:kmsg",
+				"recovery_previous_code:4", "recovery_previous_label:Drain and Reset", "recovery_current_code:1", "recovery_current_label:PF FLR",
+				"recovery_action:reset", "recovery_previous_action:drain_and_reset",
 			},
 		},
 		{
