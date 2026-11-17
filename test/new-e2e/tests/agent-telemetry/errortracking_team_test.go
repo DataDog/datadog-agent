@@ -44,8 +44,8 @@ var teamFaults = []teamFault{
 	{name: "logs", sourceFile: "pkg/logs/launchers/listener/tcp.go", team: "agent-log-pipelines"},
 	// A check that raises makes the collector worker log "Error running check".
 	{name: "collector", sourceFile: "pkg/collector/worker/check_logger.go", team: "agent-runtimes"},
-	// A malformed request to the trace-agent receiver.
-	{name: "trace", sourceFile: "pkg/trace/api/api.go", team: "agent-apm"},
+	// A DogStatsD socket path in a directory that does not exist cannot be bound.
+	{name: "dogstatsd", sourceFile: "comp/dogstatsd/server/impl/server.go", team: "agent-metric-pipelines"},
 }
 
 type errorTrackingTeamSuite struct {
@@ -89,16 +89,11 @@ func (s *errorTrackingTeamSuite) TestTeamTagFollowsOwner() {
 	t := s.T()
 	env := s.Env()
 	require.NoError(t, env.FakeIntake.Client().FlushServerAndResetAggregators())
-	// The logs listener fails once at startup, so restart the agent after the flush above.
+	// The logs and DogStatsD listeners fail once at startup, so restart the agent after the flush above.
 	env.RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
 
 	var byFault map[string][]*aggregator.AgentTelemetryLog
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// The receiver error only fires on demand; the others recur or fired at startup.
-		_, err := env.RemoteHost.Execute(
-			`curl -s -o /dev/null -X POST http://127.0.0.1:8126/v0.4/traces -H "X-Datadog-Trace-Count: notanumber"`)
-		assert.NoError(c, err)
-
 		logs, err := env.FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
 		byFault = map[string][]*aggregator.AgentTelemetryLog{}

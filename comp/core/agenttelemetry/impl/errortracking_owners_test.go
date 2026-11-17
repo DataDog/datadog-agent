@@ -132,3 +132,16 @@ func TestGeneratedTableZeroDirectories(t *testing.T) {
 	assert.Equal(t, "fleet", ownerOfPath(rules, "cmd/installer/x_windows.go"))
 	assert.Equal(t, "fleet", ownerOfPath(rules, "cmd/installer/sub/x_windows.go"))
 }
+
+// TestEndToEndFaultOwners pins the owners the end-to-end team test expects for
+// the files its faults log from.
+func TestEndToEndFaultOwners(t *testing.T) {
+	want := map[string]string{
+		"pkg/logs/launchers/listener/tcp.go":   "agent-log-pipelines",
+		"pkg/collector/worker/check_logger.go": "agent-runtimes",
+		"comp/dogstatsd/server/impl/server.go": "agent-metric-pipelines",
+	}
+	for file, team := range want {
+		assert.Equal(t, team, ownerOfPath(codeOwnersRules(), file), file)
+	}
+}

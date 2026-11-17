@@ -1,5 +1,8 @@
 # Enables the logs agent so the TCP listener below can fail at startup.
 logs_enabled: true
+# The parent directory does not exist, so DogStatsD cannot create this socket
+# and logs an error from comp/dogstatsd.
+dogstatsd_socket: /nonexistent/errortracking-team/dsd.sock
 agent_telemetry:
   enabled: true
   errortracking:
