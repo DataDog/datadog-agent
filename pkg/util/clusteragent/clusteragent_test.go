@@ -33,6 +33,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	eksidentity "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +44,7 @@ type dummyClusterAgent struct {
 	responses       map[string][]string
 	responsesByNode apiv1.MetadataResponse
 	rawResponses    map[string]string
+	handlers        map[string]http.HandlerFunc
 	requests        chan *http.Request
 	sync.RWMutex
 	token       string
@@ -165,7 +167,12 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Handle raw responses if listed
 	d.RLock()
 	response, found := d.rawResponses[r.URL.Path]
+	handler := d.handlers[r.URL.Path]
 	d.RUnlock()
+	if handler != nil {
+		handler(w, r)
+		return
+	}
 	if found {
 		w.Write([]byte(response))
 		return
@@ -785,6 +792,43 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityDistinguishesAnswersFro
 	require.Error(suite.T(), err)
 	assert.NotErrorAs(suite.T(), err, &statusErr)
 	assert.True(suite.T(), errors.IsRemoteService(err))
+}
+
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	retryLater := true
+	dca.handlers = map[string]http.HandlerFunc{
+		"/api/v1/cluster/eks-identity": func(w http.ResponseWriter, _ *http.Request) {
+			if retryLater {
+				w.Header().Set(eksidentity.RetryLaterHeader, "true")
+			}
+			http.Error(w, "EKS cluster identity unavailable", http.StatusServiceUnavailable)
+		},
+	}
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	// A Cluster Agent that has not determined the identity yet says so.
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	var statusErr *StatusError
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.Equal(suite.T(), http.StatusServiceUnavailable, statusErr.StatusCode)
+	assert.True(suite.T(), statusErr.RetryLater)
+
+	// A 503 without the marker, from a real failure or an older Cluster Agent, is final.
+	retryLater = false
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.False(suite.T(), statusErr.RetryLater)
 }
 
 func TestClusterAgentSuite(t *testing.T) {

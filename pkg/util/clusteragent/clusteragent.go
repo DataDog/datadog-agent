@@ -352,6 +352,8 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 // remote-service error, so errors.IsRemoteService still matches it.
 type StatusError struct {
 	StatusCode int
+	// RetryLater is set when the Cluster Agent marked the answer as not final.
+	RetryLater bool
 	Err        error
 }
 
@@ -405,7 +407,11 @@ func (c *DCAClient) doQueryWithStatus(ctx context.Context, path, method string, 
 	// Make sure we read always body, required to re-use HTTP Connections
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, &StatusError{StatusCode: resp.StatusCode, Err: errors.NewRemoteServiceError(url, resp.Status)}
+		return nil, &StatusError{
+			StatusCode: resp.StatusCode,
+			RetryLater: resp.Header.Get(eksidentity.RetryLaterHeader) == "true",
+			Err:        errors.NewRemoteServiceError(url, resp.Status),
+		}
 	}
 	return nil, nil
 }

@@ -18,11 +18,22 @@ go_library(
 
 dd_agent_go_test(
     name = "eksidentity_test",
-    srcs = ["resolver_test.go"],
+    srcs = [
+        "resolver_kubeapiserver_test.go",
+        "resolver_test.go",
+    ],
     embed = [":eksidentity"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
+        "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/eks",
+        "//pkg/util/kubernetes/cloudprovider",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

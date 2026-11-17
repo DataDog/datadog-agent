@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	identitytypes "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -115,4 +116,27 @@ func TestGetEKSClusterIdentityDoesNotWarnPerRequest(t *testing.T) {
 	}
 	log.Flush()
 	assert.NotContains(t, logs.String(), "WARN")
+}
+
+func TestGetEKSClusterIdentityNotDeterminedYetIsRetryable(t *testing.T) {
+	// The Cluster Agent serves its API before it reaches the API server, so the distribution
+	// can be unknown for a while. That is not a final answer, and nodes must try again.
+	stubEKSIdentityResolver(t, nil, fmt.Errorf("check distribution: %w", eksidentity.ErrNotDetermined))
+	recorder, _ := serveEKSIdentity(t)
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	assert.Equal(t, "true", recorder.Header().Get(identitytypes.RetryLaterHeader))
+}
+
+func TestGetEKSClusterIdentityTransientFailureIsRetryable(t *testing.T) {
+	// A throttled or timed out DescribeCluster is cached for 30s and can clear within a node's
+	// startup budget. A missing permission is final.
+	stubEKSIdentityResolver(t, nil, fmt.Errorf("describe: %w", context.DeadlineExceeded))
+	recorder, _ := serveEKSIdentity(t)
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	assert.Equal(t, "true", recorder.Header().Get(identitytypes.RetryLaterHeader))
+
+	stubEKSIdentityResolver(t, nil, errors.New("api error AccessDeniedException"))
+	recorder, _ = serveEKSIdentity(t)
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	assert.Empty(t, recorder.Header().Get(identitytypes.RetryLaterHeader))
 }

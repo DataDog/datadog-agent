@@ -29,6 +29,12 @@ var (
 	regionPattern    = regexp.MustCompile(`^[a-z0-9-]+$`)
 )
 
+// RetryLaterHeader marks a Cluster Agent answer that is not final: the identity is not
+// determined yet (the Cluster Agent is still starting) or the last attempt failed in a way that
+// can clear on its own. A node Agent retries such an answer within its startup budget. Every
+// other non-200 answer is final for that budget.
+const RetryLaterHeader = "X-Datadog-EKS-Identity-Retry"
+
 // ClusterIdentity is the authoritative identity returned by EKS DescribeCluster.
 type ClusterIdentity struct {
 	ClusterName string `json:"cluster_name"`

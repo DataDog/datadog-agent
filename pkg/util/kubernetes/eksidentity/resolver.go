@@ -9,6 +9,7 @@ package eksidentity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -44,9 +45,14 @@ var ErrClusterNameUnavailable = errors.New("EKS cluster name is unavailable")
 // the cluster CA needed to check it against EKS could not be read.
 var ErrClusterUnverified = errors.New("configured EKS cluster name cannot be verified without the cluster CA")
 
+// ErrNotDetermined indicates that the identity is not known yet and a later attempt can find it:
+// the distribution could not be determined (the API server is not reachable yet), or the EC2
+// tag lookup ran out of time. It is not cached.
+var ErrNotDetermined = errors.New("EKS cluster identity is not determined yet")
+
 // Injectable for tests; production values are the real detectors.
 var (
-	detectDistribution   = cloudprovider.DCAGetName
+	detectDistribution   = cloudprovider.DCAGetDistribution
 	ec2ClusterName       = ec2tags.GetClusterName
 	configuredCluster    = clustername.GetClusterName
 	resolveIdentityByKey = eks.GetClusterIdentity
@@ -57,6 +63,8 @@ var (
 type discoveredName struct {
 	name    string
 	fromEC2 bool
+	// timedOut is set when the EC2 tag lookup ran out of time, so the tags may hold the name.
+	timedOut bool
 }
 
 // Resolve resolves authoritative EKS identity from the Cluster Agent.
@@ -71,7 +79,11 @@ type discoveredName struct {
 // check. When the CA cannot be read, only the EC2 tag name, which EKS sets on this cluster's
 // nodes, is used.
 func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
-	if detectDistribution(ctx) != "eks" {
+	distribution, determined := detectDistribution(ctx)
+	if !determined {
+		return nil, fmt.Errorf("kube distribution: %w", ErrNotDetermined)
+	}
+	if distribution != "eks" {
 		return nil, ErrNotEKS
 	}
 
@@ -82,6 +94,9 @@ func Resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 	clusterCA, err := readClusterCA()
 	if err != nil {
 		if !discovered.fromEC2 {
+			if discovered.timedOut {
+				return nil, fmt.Errorf("EC2 tag lookup timed out: %w", ErrNotDetermined)
+			}
 			return nil, ErrClusterUnverified
 		}
 		log.Debugf("Cannot read the cluster CA to verify the EKS cluster, using the EC2 tag cluster name: %v", err)
@@ -119,6 +134,7 @@ func discoverClusterName(ctx context.Context) discoveredName {
 	discovered := discoveredName{name: configuredCluster(ctx, "")}
 	if timedOut {
 		log.Debugf("EKS cluster name lookup from EC2 tags timed out, using the configured cluster name for this request: %v", err)
+		discovered.timedOut = true
 		return discovered
 	}
 	log.Debugf("EKS cluster name is not available from EC2 tags (retry in %s), falling back to the configured cluster name: %v", clusterNameRetryTTL, err)

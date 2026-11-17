@@ -375,3 +375,30 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T
 		assert.Equal(t, laterAttemptTimeout, time.Since(start))
 	})
 }
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesNotDeterminedYet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		calls := 0
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			if calls < 3 {
+				// What the client returns for a 503 carrying identity.RetryLaterHeader
+				// (see clusteragent TestGetEKSClusterIdentityRetryLaterAnswer).
+				return nil, &clusteragent.StatusError{
+					StatusCode: http.StatusServiceUnavailable,
+					RetryLater: true,
+					Err:        pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "503 Service Unavailable"),
+				}
+			}
+			return ordersIdentity, nil
+		}
+
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, 3, calls)
+		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
+	})
+}

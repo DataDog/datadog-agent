@@ -13,6 +13,8 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	identitytypes "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -38,6 +40,15 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		// span errored so non-EKS clusters do not emit a steady stream of false errors.
 		if errors.Is(err, eksidentity.ErrNotEKS) || errors.Is(err, eksidentity.ErrClusterNameUnavailable) || errors.Is(err, eksidentity.ErrClusterUnverified) {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		// Not determined yet (the Cluster Agent is still starting), or a failure that can
+		// clear on its own: the node may try again within its startup budget. Every other
+		// failure, a missing eks:DescribeCluster permission for one, stays final for nodes.
+		if errors.Is(err, eksidentity.ErrNotDetermined) || eks.IsTransient(err) {
+			w.Header().Set(identitytypes.RetryLaterHeader, "true")
+			log.Debugf("EKS cluster identity is not available yet: %v", err)
+			http.Error(w, "EKS cluster identity not available yet", http.StatusServiceUnavailable)
 			return
 		}
 		spanErr = err

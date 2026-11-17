@@ -39,7 +39,7 @@ func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, confi
 	})
 
 	state := &stubState{}
-	detectDistribution = func(context.Context) string { return distribution }
+	detectDistribution = func(context.Context) (string, bool) { return distribution, true }
 	ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return ec2Name, ec2Err }
 	configuredCluster = func(context.Context, string) string { return configured }
 	readClusterCA = func() ([]byte, error) { return testClusterCA, nil }
@@ -217,4 +217,22 @@ func TestResolveUsesEC2NameWithoutClusterCA(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Orders_Prod", state.requested)
 	assert.Nil(t, state.requestedCA)
+}
+
+func TestResolveTimedOutLookupWithoutCAIsNotDeterminedYet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		state := stub(t, "eks", "", nil, "orders")
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			state.ec2Lookups++
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		readClusterCA = func() ([]byte, error) { return nil, os.ErrNotExist }
+
+		// The EC2 tag lookup timing out says nothing about the cluster name, so this is not
+		// the final "cannot verify the configured name" answer.
+		_, err := Resolve(t.Context())
+		assert.ErrorIs(t, err, ErrNotDetermined)
+		assert.NotErrorIs(t, err, ErrClusterUnverified)
+	})
 }

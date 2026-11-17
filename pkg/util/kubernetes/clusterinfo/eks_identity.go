@@ -91,7 +91,9 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 // Cluster Agent answers (404 on non-EKS clusters or an older Cluster Agent, 503 when
 // DescribeCluster fails, or an identity without a valid ARN), the answer will not change within
 // the window, and retrying it would block every caller for the full budget on each startup. The
-// host-metadata provider path, which re-runs on its own refresh interval and is self-healing,
+// one exception is an answer the Cluster Agent marks with identity.RetryLaterHeader: it has not
+// determined the identity yet, or its last attempt failed in a way that can clear on its own.
+// The host-metadata provider path, which re-runs on its own refresh interval and is self-healing,
 // keeps using the non-retrying call above with a single attempt.
 //
 // Several startup components (the tagger, DogStatsD, OTLP) compute static tags, so the retry
@@ -126,7 +128,7 @@ func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, err
 		tags, err = backoff.Retry(ctx, func() ([]string, error) {
 			tags, err := GetClusterAgentEKSIdentityTags(ctx)
 			var statusErr *clusteragent.StatusError
-			if errors.As(err, &statusErr) || errors.Is(err, errIncompleteIdentity) {
+			if (errors.As(err, &statusErr) && !statusErr.RetryLater) || errors.Is(err, errIncompleteIdentity) {
 				return nil, backoff.Permanent(err)
 			}
 			return tags, err

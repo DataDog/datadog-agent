@@ -20,20 +20,28 @@ import (
 
 // DCAGetName returns the name of the kube distribution for the current node.
 func DCAGetName(ctx context.Context) string {
+	name, _ := DCAGetDistribution(ctx)
+	return name
+}
+
+// DCAGetDistribution is DCAGetName, and also reports whether the answer is final. It is not when
+// the API server could not be reached (for example before WaitForAPIClient returns) or ctx was
+// done: nothing is cached then, and a later call can still find the distribution.
+func DCAGetDistribution(ctx context.Context) (string, bool) {
 	cacheKey := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
-		return cloudProvider.(string)
+		return cloudProvider.(string), true
 	}
 
 	nodeName, err := apiserver.HostNodeName(ctx)
 	if err != nil {
 		log.Warnf("Unable to get node name from apiserver: %v", err)
-		return ""
+		return "", false
 	}
 
 	nl, sysInfo := getNodeMeta(ctx, nodeName)
 	if nl == nil && sysInfo == nil {
-		return ""
+		return "", false
 	}
 	kubeletVersion := ""
 	kernelVersion := ""
@@ -46,7 +54,7 @@ func DCAGetName(ctx context.Context) string {
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.
 	cache.Cache.Set(cacheKey, providerName, cache.NoExpiration)
-	return providerName
+	return providerName, true
 }
 
 // getNodeMeta retrieves node labels and system info for provided nodeName in cluster agent.
