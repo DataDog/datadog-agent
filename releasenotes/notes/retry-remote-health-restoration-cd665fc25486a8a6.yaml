@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Retry remote Agent Health issue restoration after transient startup failures
+    on Kubernetes, including when the cluster identity is not yet available.

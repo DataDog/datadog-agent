@@ -25,6 +25,8 @@ type Component interface {
 	// initialIssueIDs pre-populates the per-check lastIssueIDs set; pass the
 	// IDs of any issues that were active in the store before this call so that
 	// they are resolved on the first tick if the check no longer reports them.
-	// Callers should obtain these IDs via store.GetActiveIssueIDsByIssueType.
-	Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string) error
+	// Callers should obtain these IDs via store.GetActiveIssueIDsByIssueName.
+	// issueNames optionally identifies all types checked by fn, allowing successful
+	// ticks to reconcile issues restored after registration as well.
+	Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string, issueNames ...string) error
 }

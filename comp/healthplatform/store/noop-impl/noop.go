@@ -61,6 +61,9 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 func (n *NoopHealthPlatform) ResolveAllIssues() {
 }
 
+// ReconcilePersistedIssues does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) ReconcilePersistedIssues(_ []string) {}
+
 // GetActiveIssueIDsByIssueName returns nil when the health platform is disabled.
 func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueName(_ string) []string {
 	return nil

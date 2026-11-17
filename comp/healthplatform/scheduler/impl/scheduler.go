@@ -28,6 +28,7 @@ type registeredHealthCheck struct {
 	fn           runnerdef.HealthCheckFunc
 	interval     time.Duration
 	lastIssueIDs map[string]struct{}
+	issueNames   []string
 	stopCh       chan struct{}
 }
 
@@ -93,7 +94,7 @@ func (s *scheduler) stop(_ context.Context) error {
 }
 
 // Schedule registers fn to run at the given interval.
-func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string) error {
+func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string, issueNames ...string) error {
 	if source == "" {
 		return errors.New("source cannot be empty")
 	}
@@ -120,6 +121,7 @@ func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interv
 		fn:           fn,
 		interval:     interval,
 		lastIssueIDs: lastIssueIDs,
+		issueNames:   append([]string(nil), issueNames...),
 		stopCh:       make(chan struct{}),
 	}
 	s.checks[source] = check
@@ -184,4 +186,5 @@ func (s *scheduler) tick(check *registeredHealthCheck) {
 	for _, id := range toResolve {
 		s.store.ResolveIssue(id)
 	}
+	s.store.ReconcilePersistedIssues(check.issueNames)
 }

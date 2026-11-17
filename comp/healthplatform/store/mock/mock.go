@@ -181,6 +181,9 @@ func notifyResolved(obs healthplatform.IssuesObserver, issue *healthplatformpayl
 	}
 }
 
+// ReconcilePersistedIssues is a no-op: this mock only holds current reports.
+func (m *Mock) ReconcilePersistedIssues(_ []string) {}
+
 func (m *Mock) GetActiveIssueIDsByIssueName(issueName string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()

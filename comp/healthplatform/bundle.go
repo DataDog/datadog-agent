@@ -124,6 +124,7 @@ func bootstrapBuiltInHealthChecks(
 							}
 						}
 					}
+					store.ReconcilePersistedIssues(once.IssueNames)
 				}()
 			}
 			for _, check := range registry.GetBuiltInPeriodicHealthChecks() {
@@ -131,7 +132,7 @@ func bootstrapBuiltInHealthChecks(
 				for _, t := range check.IssueNames {
 					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueName(t)...)
 				}
-				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval, initialIDs); err != nil {
+				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval, initialIDs, check.IssueNames...); err != nil {
 					logger.Warnf("failed to schedule built-in health check %q: %v", check.Source, err)
 				}
 			}

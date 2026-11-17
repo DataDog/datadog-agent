@@ -46,7 +46,7 @@ func New(t testing.TB, runner runnerdef.Component, store storedef.Component) *Mo
 // immediate first-tick on registration. initialIssueIDs seeds the diff for
 // that first run exactly like the real scheduler: any ID in initialIssueIDs
 // that the run no longer reports is resolved through the store.
-func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, initialIssueIDs []string) error {
+func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Duration, initialIssueIDs []string, issueNames ...string) error {
 	m.t.Helper()
 	if source == "" {
 		return errors.New("source cannot be empty")
@@ -66,7 +66,6 @@ func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Dura
 	if err != nil {
 		return nil
 	}
-
 	newSet := make(map[string]struct{}, len(newIDs))
 	for _, id := range newIDs {
 		newSet[id] = struct{}{}
@@ -76,5 +75,6 @@ func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Dura
 			m.store.ResolveIssue(id)
 		}
 	}
+	m.store.ReconcilePersistedIssues(issueNames)
 	return nil
 }
