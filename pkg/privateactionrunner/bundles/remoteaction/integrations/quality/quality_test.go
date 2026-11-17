@@ -100,7 +100,7 @@ func qualitySetup(t *testing.T) *qualityFixture {
 	f.pages.Store(1)
 	conf := config.NewMock(t)
 	conf.SetInTest("remote_queries.enabled", true)
-	conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.queries.execute"})
+	conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.integrations.runQuery"})
 	checks := make([]check.Check, 50)
 	for i := range checks {
 		checks[i] = &qualityCheck{id: i, pages: &f.pages, started: &f.started, checksum: &f.checksum}
@@ -117,7 +117,7 @@ func qualitySetup(t *testing.T) *qualityFixture {
 	client := ipchttp.NewClient("session-token", server.Client().Transport.(*http.Transport).TLSClientConfig, conf)
 	defaultTimeout := int32(60)
 	f.executor, err = runners.NewWorkflowTaskExecutor(&parconfig.Config{
-		ActionsAllowlist: map[string]sets.Set[string]{"com.datadoghq.remoteaction.queries": sets.New("execute")},
+		ActionsAllowlist: map[string]sets.Set[string]{"com.datadoghq.remoteaction.integrations": sets.New("runQuery")},
 		MetricsClient:    &statsd.NoOpClient{}, TaskTimeoutSeconds: &defaultTimeout,
 	}, conf, qualityRC{}, nil, nil, nil, nil, nil, client, nil, nil, nil)
 	require.NoError(t, err)
@@ -127,8 +127,8 @@ func qualitySetup(t *testing.T) *qualityFixture {
 		"resultDelivery": &remotequeries.Delivery{CrawlID: "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", TaskID: "d25e7f9f-6883-4462-b31e-b449f70c0894", UploadID: "quality", Limits: remotequeries.Limits{MaxFileBytes: "32768", MaxResultBytes: "999999999999", MaxRowBytes: "32768", MaxColumns: "1", MaxSchemaBytes: "1", MaxPages: "100000", TimeoutMs: "60000"}},
 	}}
 	f.task.Data.ID = "quality"
-	f.task.Data.Attributes.BundleID = "com.datadoghq.remoteaction.queries"
-	f.task.Data.Attributes.Name = "execute"
+	f.task.Data.Attributes.BundleID = "com.datadoghq.remoteaction.integrations"
+	f.task.Data.Attributes.Name = "runQuery"
 	return f
 }
 func (f *qualityFixture) run(t *testing.T) {

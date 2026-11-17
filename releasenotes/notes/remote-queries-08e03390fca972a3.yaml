@@ -2,7 +2,7 @@
 features:
   - |
     Add opt-in Remote Queries through the Private Action Runner action
-    ``com.datadoghq.remoteaction.queries.execute``. Supporting integration checks
+    ``com.datadoghq.remoteaction.integrations.runQuery``. Supporting integration checks
     resolve the database target and execute queries using their existing
     credentials, uploading results directly to Datadog. Enable
     ``remote_queries.enabled`` and allow the action in

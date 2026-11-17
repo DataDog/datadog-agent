@@ -27,13 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries"
+	com_datadoghq_remoteaction_integrations "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/integrations"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-const queriesBundle = "com.datadoghq.remoteaction.queries"
+const integrationsBundle = "com.datadoghq.remoteaction.integrations"
 
 type queryIPC struct {
 	ipc.HTTPClient
@@ -62,19 +62,19 @@ func queryExecutor(t *testing.T, client ipc.HTTPClient, defaultTimeout int32) *W
 	t.Cleanup(stopCancel)
 	return &WorkflowTaskExecutor{
 		stopContext: stopContext, stopCancel: stopCancel,
-		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{queriesBundle: queries.New(client)}},
-		config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{queriesBundle: sets.New("execute")}, MetricsClient: &statsd.NoOpClient{}, TaskTimeoutSeconds: &defaultTimeout},
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{integrationsBundle: com_datadoghq_remoteaction_integrations.NewIntegrations(client)}},
+		config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{integrationsBundle: sets.New("runQuery")}, MetricsClient: &statsd.NoOpClient{}, TaskTimeoutSeconds: &defaultTimeout},
 	}
 }
 func queryTask() *types.Task {
-	task := newWorkflowTask("action-task", queriesBundle, "execute", "job-id")
+	task := newWorkflowTask("action-task", integrationsBundle, "runQuery", "job-id")
 	task.Data.Attributes.Inputs = map[string]interface{}{"integration": "postgres", "target": map[string]interface{}{"database_instance": "orders"}, "resolveOnly": false}
 	task.Data.Attributes.TraceId = 1001
 	task.Data.Attributes.SpanId = 2002
 	return task
 }
 
-// RUN-05: the actual queries action controls the shared executor timeout seam.
+// RUN-05: the actual runQuery action controls the shared executor timeout seam.
 func TestRUN05(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -258,7 +258,7 @@ func TestOBS01(t *testing.T) {
 					if span.Name == observability.ActionRunOperation && strconv.FormatUint(span.SpanID, 10) == wire.TraceContext.ParentID {
 						found = true
 						require.EqualValues(t, 1001, span.TraceID)
-						require.Equal(t, queriesBundle+".execute", span.Resource)
+						require.Equal(t, integrationsBundle+".runQuery", span.Resource)
 						require.EqualValues(t, wire.TraceContext.SamplingPriority, span.Metrics["_sampling_priority_v1"])
 					}
 				}
@@ -274,7 +274,7 @@ func TestOBS01(t *testing.T) {
 		return []byte(`{"status":"SUCCEEDED"}`), nil
 	}}
 	coreconfig.NewMock(t)
-	_, err := queries.New(client).GetAction("execute").Run(context.Background(), queryTask(), nil)
+	_, err := com_datadoghq_remoteaction_integrations.NewIntegrations(client).GetAction("runQuery").Run(context.Background(), queryTask(), nil)
 	require.NoError(t, err)
 	require.Nil(t, wire.TraceContext)
 }

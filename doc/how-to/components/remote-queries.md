@@ -1,6 +1,6 @@
 # Remote query upload destination
 
-Remote queries use the `com.datadoghq.remoteaction.queries.execute` action on the
+Remote queries use the `com.datadoghq.remoteaction.integrations.runQuery` action on the
 core Agent. Both `remote_queries.enabled` and the Private Action Runner's action
 allowlist must permit the action.
 

@@ -104,7 +104,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	integration, crawlID, taskID, uploadID = requestIdentity(fields["input"])
 	var validationErr error
 	req, validationErr = Parse(fields["input"])
-	allowed := parconfig.NewActionsAllowlist(s.Config.GetStringSlice("private_action_runner.actions_allowlist")).IsActionAllowed("com.datadoghq.remoteaction.queries", "execute")
+	allowed := parconfig.NewActionsAllowlist(s.Config.GetStringSlice("private_action_runner.actions_allowlist")).IsActionAllowed("com.datadoghq.remoteaction.integrations", "runQuery")
 	if !s.Config.GetBool("remote_queries.enabled") || !allowed {
 		code := "disabled"
 		if req.ResolveOnly {

@@ -1,9 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "queries",
-    srcs = ["queries.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
+    name = "integrations",
+    srcs = ["integrations.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/integrations",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",

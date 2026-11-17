@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package queries implements the outcome-only remote queries action over local IPC.
+// Package com_datadoghq_remoteaction_integrations implements Agent integration actions over local IPC.
 // This bundle targets the core Agent and must not be registered in the Cluster Agent.
-package queries
+package com_datadoghq_remoteaction_integrations
 
 import (
 	"bytes"
@@ -28,31 +28,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// Bundle holds the single queries action.
-type Bundle struct{ execute *Execute }
+// IntegrationsBundle holds the Agent integration actions.
+type IntegrationsBundle struct{ runQuery *RunQuery }
 
-// New creates the local-IPC bundle. Connection credentials are never used.
-func New(client ipc.HTTPClient) types.Bundle { return &Bundle{execute: &Execute{client: client}} }
+// NewIntegrations creates the local-IPC bundle. Connection credentials are never used.
+func NewIntegrations(client ipc.HTTPClient) types.Bundle {
+	return &IntegrationsBundle{runQuery: &RunQuery{client: client}}
+}
 
-// GetAction returns only the documented execute action.
-func (b *Bundle) GetAction(name string) types.Action {
-	if name == "execute" {
-		return b.execute
+// GetAction returns only the documented runQuery action.
+func (b *IntegrationsBundle) GetAction(name string) types.Action {
+	if name == "runQuery" {
+		return b.runQuery
 	}
 	return nil
 }
 
-// Execute resolves or runs a query using the caller's cancellable IPC request.
-type Execute struct{ client ipc.HTTPClient }
+// RunQuery resolves or runs a query using the caller's cancellable IPC request.
+type RunQuery struct{ client ipc.HTTPClient }
 
 // CancelOnRunnerStop ends the IPC call when the runner stops so the core Agent
 // can cancel the integration run, including during graceful runner shutdown.
-func (*Execute) CancelOnRunnerStop() bool { return true }
+func (*RunQuery) CancelOnRunnerStop() bool { return true }
 
 // TaskTimeout reads the action's top-level timeout, in whole seconds. Omission
 // selects the runner's default. Values that cannot be represented by a Go timer
 // fail rather than overflowing into a short or negative deadline.
-func (*Execute) TaskTimeout(task *types.Task) (time.Duration, bool, error) {
+func (*RunQuery) TaskTimeout(task *types.Task) (time.Duration, bool, error) {
 	value, exists := task.Data.Attributes.Inputs["timeout"]
 	if !exists {
 		return 0, false, nil
@@ -69,7 +71,7 @@ func (*Execute) TaskTimeout(task *types.Task) (time.Duration, bool, error) {
 }
 
 // Run sends only action inputs and valid active action-span context to the core Agent.
-func (h *Execute) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
+func (h *RunQuery) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	if h.client == nil {
 		return nil, errors.New("remote queries: IPC client is unavailable")
 	}

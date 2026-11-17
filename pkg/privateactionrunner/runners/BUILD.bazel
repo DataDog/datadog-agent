@@ -63,7 +63,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/bundles",
-        "//pkg/privateactionrunner/bundles/remoteaction/queries",
+        "//pkg/privateactionrunner/bundles/remoteaction/integrations",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",

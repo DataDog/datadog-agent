@@ -107,7 +107,7 @@ func newIPC(t *testing.T, checks ...check.Check) *ipcFixture {
 	t.Helper()
 	conf := config.NewMock(t)
 	conf.SetInTest("remote_queries.enabled", true)
-	conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.queries.execute"})
+	conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.integrations.runQuery"})
 	logs := &recordingLog{}
 	svc := &Service{Config: conf, Checks: func() []check.Check { return checks }, Log: logs}
 	mux := http.NewServeMux()
@@ -153,7 +153,7 @@ func TestENABLE01(t *testing.T) {
 			case "action not allowed":
 				f.conf.SetInTest("private_action_runner.actions_allowlist", []string{})
 			case "allowed wildcard":
-				f.conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.queries.*"})
+				f.conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.integrations.*"})
 			}
 			answer := callIPC(t, f, input)
 			if gate == "allowed wildcard" {

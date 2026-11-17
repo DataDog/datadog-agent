@@ -101,7 +101,7 @@ type collectorIPC struct {
 
 func newCollectorIPC(t *testing.T, c *collectorImpl) *collectorIPC {
 	t.Helper()
-	c.config.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.queries.execute"})
+	c.config.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.integrations.runQuery"})
 	svc := &remotequeries.Service{Config: c.config, Checks: c.GetChecks, Log: c.log}
 	server := httptest.NewTLSServer(ipchttp.NewHTTPMiddleware(func(string, ...interface{}) {}, "session-token")(svc))
 	t.Cleanup(server.Close)
