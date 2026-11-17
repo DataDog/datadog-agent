@@ -132,7 +132,8 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) (tags 
 	// Regular Kubernetes node Agents receive authoritative EKS identity from the Cluster Agent.
 	// Sidecars use getFargateStaticTags above. Only nodes with local EKS evidence (no network
 	// call) ask, so other clusters make no Cluster Agent call here, as before this feature. EKS
-	// nodes without that evidence get the identity from the host tags instead.
+	// nodes without that evidence get the identity in host tags later, once a host-tags refresh
+	// has cached the kube distribution as eks.
 	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") && hasEKSEvidence() {
 		eksIdentityTags, err := getClusterAgentEKSIdentityTags(ctx)
 		if err == nil {

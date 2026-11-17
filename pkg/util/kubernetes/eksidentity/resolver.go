@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -181,7 +182,14 @@ func kubeDistribution(ctx context.Context) (string, error) {
 	}
 	if apierrors.IsForbidden(err) || apierrors.IsNotFound(err) {
 		err = fmt.Errorf("kube distribution: %w", err)
-		log.Warnf("Unable to read the Cluster Agent's own node to check for EKS, retrying in %s: %v", distributionFailureTTL, err)
+		logged := false
+		ownNodeWarned.Do(func() {
+			logged = true
+			log.Warnf("Unable to read the Cluster Agent's own node to check for EKS, retrying every %s: %v", distributionFailureTTL, err)
+		})
+		if !logged {
+			log.Debugf("Unable to read the Cluster Agent's own node to check for EKS, retrying in %s: %v", distributionFailureTTL, err)
+		}
 		cache.Cache.Set(distributionFailureKey, err, distributionFailureTTL)
 		return "", err
 	}
@@ -343,3 +351,6 @@ func Tags(ctx context.Context) []string {
 	}
 	return identity.Tags()
 }
+
+// ownNodeWarned makes the resolver log a self node it may not read at Warn once per process.
+var ownNodeWarned sync.Once

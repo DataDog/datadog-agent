@@ -6,10 +6,12 @@
 package eksidentity
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type stubState struct {
@@ -554,5 +557,29 @@ func TestResolveTimedOutLookupWithoutAnyNameIsNotDeterminedYet(t *testing.T) {
 		stub(t, "eks", "", errors.New("no kubernetes.io/cluster tag"), "")
 		_, err = Resolve(t.Context())
 		assert.ErrorIs(t, err, ErrClusterNameUnavailable)
+	})
+}
+
+func TestResolveWarnsOnceAboutItsOwnNode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Missing RBAC to read its own node is logged at Warn once per process, then at Debug
+		// on each later lookup every distributionFailureTTL.
+		stub(t, "eks", "orders", nil, "orders")
+		ownNodeWarned = sync.Once{}
+		t.Cleanup(func() { ownNodeWarned = sync.Once{} })
+		detectDistribution = func(context.Context) (string, error) {
+			return "", fmt.Errorf("self node: %w", apierrors.NewForbidden(schema.GroupResource{Resource: "nodes"}, "node-1", errors.New("RBAC")))
+		}
+		var buf bytes.Buffer
+		logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buf, log.WarnLvl)
+		require.NoError(t, err)
+		log.SetupLogger(logger, "warn")
+		t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+		for range 3 {
+			_, _ = Resolve(t.Context())
+			time.Sleep(distributionFailureTTL + time.Second)
+		}
+		log.Flush()
+		assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
 	})
 }
