@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"sync"
 	"time"
 
@@ -61,8 +60,6 @@ var (
 	// ErrClusterMismatch indicates that the cluster DescribeCluster answered for is not the
 	// cluster this pod runs in.
 	ErrClusterMismatch = errors.New("EKS cluster does not match the running cluster")
-
-	clusterNamePattern = regexp.MustCompile(`^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$`)
 )
 
 // ClusterIdentity is the authoritative identity returned by EKS DescribeCluster. It is defined in
@@ -89,7 +86,7 @@ var loadAWSConfig = func(ctx context.Context) (aws.Config, error) {
 // Node account metadata is never used as cluster ownership evidence. When clusterCA is set, the
 // cluster DescribeCluster answers for must have that certificate authority (see verifyClusterCA).
 func GetClusterIdentity(ctx context.Context, clusterName string, clusterCA []byte) (*ClusterIdentity, error) {
-	if !clusterNamePattern.MatchString(clusterName) {
+	if !identity.IsValidClusterName(clusterName) {
 		return nil, ErrInvalidClusterName
 	}
 
@@ -225,8 +222,9 @@ func cacheFailure(cacheKey string, err error) {
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
 // The resolve's own deadline, HTTP 429 and the codes in transientErrorCodes are transient, and
 // the AWS SDK's retry classifier decides the rest: it treats throttling codes, 5xx, timeouts,
-// connection resets and DNS/TLS failures as retryable, so those use the short TTL. Everything the retryer considers terminal (AccessDenied, ResourceNotFound, malformed identity,
-// invalid name) uses the long TTL.
+// connection resets and DNS/TLS failures as retryable, so those use the short TTL. Everything
+// the retryer considers terminal (AccessDenied, ResourceNotFound, a malformed identity, an
+// invalid name, a cluster mismatch) uses the long TTL.
 func failureTTL(err error) time.Duration {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return transientFailureCacheTTL

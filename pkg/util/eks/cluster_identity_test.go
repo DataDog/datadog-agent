@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	eksid "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -124,7 +125,7 @@ func TestGetClusterIdentityRejectsInvalidNamesBeforeLoadingAWSConfig(t *testing.
 }
 
 func TestGetClusterIdentityAcceptsNumericPrefix(t *testing.T) {
-	assert.True(t, clusterNamePattern.MatchString("123-orders"))
+	assert.True(t, eksid.IsValidClusterName("123-orders"))
 }
 
 // resetIdentityCache drops every cached resolution, so a test (or a -count>1 rerun) never sees
@@ -222,7 +223,7 @@ func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 }
 
 func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {
-	// clusterNamePattern bounds the name at 100 chars; a 101-char name is rejected before any API call.
+	// IsValidClusterName bounds the name at 100 chars; a 101-char name is rejected before any API call.
 	id, err := GetClusterIdentity(context.Background(), "a"+strings.Repeat("b", 100), nil)
 	assert.Nil(t, id)
 	assert.ErrorIs(t, err, ErrInvalidClusterName)

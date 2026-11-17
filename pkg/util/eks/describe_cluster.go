@@ -335,15 +335,18 @@ var partitions = []partitionEndpoint{
 var hostLabelPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
 
 func partitionFor(region string) partitionEndpoint {
-	// Check the specific partitions before aws: the aws pattern also matches us-gov-west-1.
-	for _, p := range partitions[1:] {
+	// The Region patterns do not overlap, so the order of the table does not matter.
+	for _, p := range partitions {
 		if p.regionPattern.MatchString(region) {
 			return p
 		}
 	}
 	// Like the SDK, an unknown Region falls back to the aws partition.
-	return partitions[0]
+	return awsPartition
 }
+
+// awsPartition is the fallback for Regions no pattern matches.
+var awsPartition = partitions[0]
 
 // resolveEndpoint returns the EKS endpoint for cfg with the same precedence as the generated
 // client: a service-specific endpoint (AWS_ENDPOINT_URL_EKS or the shared config services

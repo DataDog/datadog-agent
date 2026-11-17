@@ -32,6 +32,7 @@ dd_agent_go_test(
     embed = [":eks"],
     deps = [
         "//pkg/util/cache",
+        "//pkg/util/eks/identity",
         "//pkg/util/log",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",

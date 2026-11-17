@@ -61,6 +61,12 @@ func (c *ClusterIdentity) Tags() []string {
 	}
 }
 
+// IsValidClusterName reports whether name can be an EKS cluster name: 1 to 100 characters,
+// letters, digits, hyphens and underscores, starting with a letter or digit.
+func IsValidClusterName(name string) bool {
+	return clusterNamePattern.MatchString(name)
+}
+
 // IsValidClusterARN reports whether clusterARN is a well-formed EKS cluster ARN. It is used on
 // both sides of the Cluster Agent boundary: the resolver validates DescribeCluster output, and
 // the node Agent re-validates the ARN it receives over HTTP before turning it into a tag, so a
