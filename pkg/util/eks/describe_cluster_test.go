@@ -585,3 +585,14 @@ func TestDescribeClusterExactSignature(t *testing.T) {
 		"Signature=eef049706f1272cea1549402abec75276cbb9c109a204f70fa83e0e2501e72a6",
 		capture.req.Header.Get("Authorization"))
 }
+
+func TestDescribeClusterRejectsUnsafeNames(t *testing.T) {
+	capture := &captureHTTPClient{}
+	cfg := testAWSConfig("https://eks.example")
+	cfg.HTTPClient = capture
+	for _, name := range []string{"../admin", "orders/../x", "orders?x=1", ""} {
+		_, err := newSignedDescribeClusterClient(cfg).DescribeCluster(t.Context(), name)
+		assert.ErrorIs(t, err, ErrInvalidClusterName, name)
+	}
+	assert.Nil(t, capture.req, "no request is sent")
+}

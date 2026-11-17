@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
+	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -135,8 +136,11 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		return nil, fmt.Errorf("parse EKS endpoint: %w", err)
 	}
 	// JoinPath keeps any path prefix and query of a configured endpoint, as the SDK does. The
-	// name is already restricted to [A-Za-z0-9_-] by the caller.
-	reqURL := base.JoinPath("clusters", clusterName).String()
+	// name is checked here as well as by the caller, so it can only hold [A-Za-z0-9_-].
+	if !identity.IsValidClusterName(clusterName) {
+		return nil, ErrInvalidClusterName
+	}
+	reqURL := base.JoinPath("clusters", clusterName).String() // #nosec G125 -- clusterName is validated above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
 	// and one more attempt after a transport error or a 5xx when there is time left. The rest
