@@ -3,30 +3,67 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// A later PR removes this allow when something calls `translate`.
+// A later PR removes this allow when spawn reads the translated identity.
 #![cfg_attr(not(test), allow(dead_code))]
 
 use std::collections::BTreeSet;
+use std::fmt;
+
+use serde::Deserialize;
 
 use crate::config_gate::HostOs;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub(crate) enum RunAs {
+    #[default]
     Agent,
     Privileged,
 }
 
 // Declaration order is `BTree` order. `BindPrivilegedPorts` is the earlier grant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub(crate) enum Grant {
     BindPrivilegedPorts,
     RawNetwork,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
+#[serde(try_from = "RawRequestedIdentity")]
 pub(crate) struct RequestedIdentity {
     pub(crate) run_as: RunAs,
     pub(crate) grants: BTreeSet<Grant>,
+}
+
+#[derive(Deserialize)]
+#[serde(
+    deny_unknown_fields,
+    expecting = "a mapping with optional run_as and grants"
+)]
+struct RawRequestedIdentity {
+    #[serde(default)]
+    run_as: RunAs,
+    #[serde(default)]
+    grants: Vec<Grant>,
+}
+
+impl TryFrom<RawRequestedIdentity> for RequestedIdentity {
+    type Error = String;
+
+    fn try_from(raw: RawRequestedIdentity) -> Result<Self, Self::Error> {
+        let mut grants = BTreeSet::new();
+        for grant in raw.grants {
+            if !grants.insert(grant) {
+                let name = grant_name(grant);
+                return Err(format!("identity: duplicate grant {name}"));
+            }
+        }
+        Ok(Self {
+            run_as: raw.run_as,
+            grants,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -72,6 +109,43 @@ pub(crate) enum TranslateError {
     GrantsWithPrivileged,
     GrantUnavailable { grant: Grant, os: HostOs },
     PrivilegedUnsupported,
+}
+
+impl fmt::Display for TranslateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TranslateError::GrantsWithPrivileged => {
+                write!(f, "identity: grants are not allowed with run_as privileged")
+            }
+            TranslateError::GrantUnavailable { grant, os } => write!(
+                f,
+                "identity: grant {} is not available on {}",
+                grant_name(*grant),
+                host_os_name(*os),
+            ),
+            TranslateError::PrivilegedUnsupported => write!(
+                f,
+                "identity: run_as privileged is not available on {}",
+                host_os_name(HostOs::Other),
+            ),
+        }
+    }
+}
+
+fn grant_name(grant: Grant) -> &'static str {
+    match grant {
+        Grant::BindPrivilegedPorts => "bind-privileged-ports",
+        Grant::RawNetwork => "raw-network",
+    }
+}
+
+fn host_os_name(os: HostOs) -> &'static str {
+    match os {
+        HostOs::Linux => "linux",
+        HostOs::MacOs => "macos",
+        HostOs::Windows => "windows",
+        HostOs::Other => "other",
+    }
 }
 
 pub(crate) fn translate(
