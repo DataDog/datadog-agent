@@ -849,7 +849,7 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 
 	container := func(t *testing.T, les []LifecycleEvent, index int) *model.ContainerEvent {
 		t.Helper()
-		require.Len(t, les, index+1)
+		require.Greater(t, len(les), index)
 		require.Equal(t, types.ObjectKindContainer, les[index].ObjectKind)
 		assert.Equal(t, model.Event_Transition, les[index].ProtoEvent.GetEventType())
 		return les[index].ProtoEvent.GetContainer()
@@ -885,7 +885,11 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 		require.NoError(t, err)
 
 		ctr := container(t, les, 0)
-		assert.Equal(t, "docker://ben", ctr.GetContainerID())
+		assert.Equal(t, "ben", ctr.GetContainerID())
+		assert.Equal(t, "app", ctr.GetContainerName())
+		require.NotNil(t, ctr.GetOwner())
+		assert.Equal(t, model.ObjectKind_Pod, ctr.GetOwner().OwnerType)
+		assert.Equal(t, "lem-tweakit", ctr.GetOwner().OwnerUID)
 		transition := ctr.GetTransition()
 		assert.Equal(t, model.ContainerKind_CONTAINER_KIND_REGULAR, transition.GetContainerKind())
 		assert.Nil(t, transition.GetLastObservedState())
@@ -909,6 +913,9 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 
 		ctr := container(t, les, 0)
 		assert.Empty(t, ctr.GetContainerID())
+		assert.Equal(t, "app", ctr.GetContainerName())
+		require.NotNil(t, ctr.GetOwner())
+		assert.Equal(t, "louis-reasoner", ctr.GetOwner().OwnerUID)
 		transition := ctr.GetTransition()
 		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetNewState().GetKind())
 		assert.Equal(t, "ContainerCreating", transition.GetNewState().GetReason())
@@ -925,7 +932,7 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 
 		ctr = container(t, les, 0)
 		transition = ctr.GetTransition()
-		assert.Equal(t, "docker://ben", ctr.GetContainerID())
+		assert.Equal(t, "ben", ctr.GetContainerID())
 		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_WAITING, transition.GetLastObservedState().GetKind())
 		assert.Equal(t, model.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING, transition.GetNewState().GetKind())
 		assert.Equal(t, startedAt.Unix(), transition.GetTransitionTimestamp())
@@ -1024,6 +1031,7 @@ func TestContainerStateHandlerHandle(t *testing.T) {
 			}
 		}))
 		require.NoError(t, err)
+		require.Len(t, les, 2)
 
 		kinds := []model.ContainerKind{
 			container(t, les, 0).GetTransition().GetContainerKind(),

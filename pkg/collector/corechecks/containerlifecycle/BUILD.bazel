@@ -33,6 +33,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/setup",
         "//pkg/containerlifecycle",
+        "//pkg/util/containers",
         "//pkg/util/ecs",
         "//pkg/util/hostname",
         "//pkg/util/kubernetes/clustername",
