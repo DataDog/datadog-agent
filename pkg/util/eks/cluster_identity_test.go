@@ -6,6 +6,7 @@
 package eks
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockEKSClient struct {
@@ -433,4 +435,22 @@ func TestGetClusterIdentityCacheKeyIncludesCA(t *testing.T) {
 	// A mismatch cached for one CA must not answer a lookup with another.
 	_, err = GetClusterIdentity(t.Context(), name, ours)
 	require.NoError(t, err)
+}
+
+func TestGetClusterIdentityWarnsOncePerResolution(t *testing.T) {
+	name := "orders-warn"
+	stubAWS(t, &mockEKSClient{err: &apiError{StatusCode: 403, Code: "AccessDeniedException", Message: "not authorized"}})
+	var buf bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buf, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+
+	for range 3 {
+		_, err := GetClusterIdentity(t.Context(), name, nil)
+		require.Error(t, err)
+	}
+	log.Flush()
+	assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
+	assert.Contains(t, buf.String(), "AccessDeniedException")
 }

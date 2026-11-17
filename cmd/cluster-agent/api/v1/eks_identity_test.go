@@ -8,6 +8,7 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func stubEKSIdentityResolver(t *testing.T, identity *eks.ClusterIdentity, err error) {
@@ -89,4 +91,28 @@ func TestGetEKSClusterIdentityTransientFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 	assert.Equal(t, "AccessDeniedException", span.Tag("error.message"))
+}
+
+func captureWarnings(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buf, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+	return &buf
+}
+
+func TestGetEKSClusterIdentityDoesNotWarnPerRequest(t *testing.T) {
+	// While a failure is cached, every node request is answered from the cache. The failure
+	// is logged once where it is resolved, not once per node request.
+	stubEKSIdentityResolver(t, nil, errors.New("api error AccessDeniedException"))
+	logs := captureWarnings(t)
+
+	for range 3 {
+		recorder, _ := serveEKSIdentity(t)
+		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	}
+	log.Flush()
+	assert.NotContains(t, logs.String(), "WARN")
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -213,7 +214,11 @@ func cacheFailure(cacheKey string, err error) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
-	cache.Cache.Set(cacheKey, err, failureTTL(err))
+	ttl := failureTTL(err)
+	// Logged here, once per resolution, rather than on every node request served from the
+	// cache. At Warn, since a missing eks:DescribeCluster permission is otherwise invisible.
+	log.Warnf("Unable to resolve the EKS cluster identity, retrying in %s: %v", ttl, err)
+	cache.Cache.Set(cacheKey, err, ttl)
 }
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are

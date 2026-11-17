@@ -13,6 +13,7 @@ go_library(
         "//pkg/util/cache",
         "//pkg/util/ec2",
         "//pkg/util/eks/identity",
+        "//pkg/util/log",
         "//pkg/version",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2//aws/retry",
@@ -31,6 +32,7 @@ dd_agent_go_test(
     embed = [":eks"],
     deps = [
         "//pkg/util/cache",
+        "//pkg/util/log",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",

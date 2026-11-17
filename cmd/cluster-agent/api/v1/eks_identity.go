@@ -43,10 +43,10 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		spanErr = err
 		api.SetSpanError(w, err)
 		// The underlying error can be a raw AWS SDK message carrying the Cluster Agent's
-		// assumed-role ARN, account ID, and request ID. Record the detail on the span and in
-		// the logs (at Warn, since a genuine failure such as a missing eks:DescribeCluster
-		// permission is otherwise invisible), but return a generic body to the node Agent.
-		log.Warnf("Unable to resolve EKS cluster identity: %v", err)
+		// assumed-role ARN, account ID, and request ID. Record the detail on the span, but return
+		// a generic body to the node Agent. The failure is logged at Warn once, where it is
+		// resolved and cached (pkg/util/eks), not once per node request.
+		log.Debugf("Unable to resolve EKS cluster identity: %v", err)
 		http.Error(w, "EKS cluster identity unavailable", http.StatusServiceUnavailable)
 		return
 	}
