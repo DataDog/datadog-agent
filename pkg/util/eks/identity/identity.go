@@ -29,11 +29,16 @@ var (
 	regionPattern    = regexp.MustCompile(`^[a-z0-9-]+$`)
 )
 
-// RetryLaterHeader marks a Cluster Agent answer that is not final: the identity is not
-// determined yet (the Cluster Agent is still starting and cannot reach the API server, its EC2
-// tag lookup or DescribeCluster ran out of time). The Cluster Agent sends it only in its first
-// minute. A node Agent retries such an answer within its startup budget. Every other non-200
-// answer is final for that budget.
+// RetryLaterHeader is part of the identity endpoint's contract: the Cluster Agent sets it to
+// "true" or "false" on every non-200 answer it produces, and node Agents rely on it to tell
+// those answers from errors returned by a proxy or mesh sidecar in front of it.
+//   - "true": the answer can change within a node's startup budget, so the node retries it.
+//     The identity is not determined yet (only in the Cluster Agent's first minute), or a cached
+//     DescribeCluster failure expires within 5s.
+//   - "false": the answer is final for the node's startup.
+//
+// Without the header, a 408, 429 or 5xx is retried and any other status is final. A 404, 401
+// or 403 is final with or without it: a Cluster Agent built before the endpoint answers 403.
 const RetryLaterHeader = "X-Datadog-EKS-Identity-Retry"
 
 // ClusterIdentity is the authoritative identity returned by EKS DescribeCluster.
