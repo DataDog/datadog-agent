@@ -126,7 +126,11 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 // the installer daemon report it as the running configuration. It runs before the jobs are loaded,
 // so the daemon never sees the experiment.
 func restExperimentConfig(ctx context.Context, layout dmgLayout) {
-	dirs := config.Directories{StablePath: layout.confDir(), ExperimentPath: layout.expConfDir()}
+	dirs := config.Directories{
+		StablePath:     layout.confDir(),
+		ExperimentPath: layout.expConfDir(),
+		StatePath:      filepath.Join(layout.packagesRunDir, config.StateFileName),
+	}
 	if err := dirs.RemoveExperiment(ctx); err != nil {
 		log.Warnf("could not rest %s on %s: %v", layout.expConfDir(), layout.confDir(), err)
 	}
