@@ -481,47 +481,41 @@ func writeInstallInfo(conf string, env installEnv) error {
 	return os.WriteFile(filepath.Join(conf, "install_info"), []byte(content), 0o660)
 }
 
-// secureConfig gives the configuration to the Agent's account, the admin group able to edit it, and
-// sets ACLs so the Agent keeps access to files an editor replaces: inheritable ones on directories,
-// explicit ones on files, which macOS editors carry over on an atomic save. The AI usage native host
-// runs as the logged-in user, so everyone may traverse the directory and read its one config file.
+// secureConfig gives the configuration to the Agent's account, the admin group able to edit it,
+// and the access control lists that keep that access when an editor replaces a file.
 func secureConfig(ctx context.Context, conf string) error {
-	if err := chownTree(conf, agentUser, agentGroup); err != nil {
+	uid, gid, err := lookupOwner(agentUser, agentGroup)
+	if err != nil {
 		return err
 	}
-	if err := os.Chmod(conf, 0o770); err != nil {
-		return err
-	}
-	var dirs, files []string
-	err := filepath.WalkDir(conf, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	dirs, files, err := secureTree(conf, uid, gid, func(rel string, dir bool) fs.FileMode {
 		switch {
-		case d.Type()&fs.ModeSymlink != 0:
-		case d.IsDir():
-			dirs = append(dirs, path)
+		case rel == ".":
+			return 0o770
+		case dir:
+			return 0
 		default:
-			files = append(files, path)
-			return os.Chmod(path, 0o660)
+			return 0o660
 		}
-		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("could not set the configuration's permissions: %w", err)
 	}
+	// The access control lists are applied by path, so as the Agent's account rather than root:
+	// everything above is that account's now, and a path redirected by a link swapped in meanwhile
+	// can only reach what it could already change itself.
 	for _, batch := range [][]string{append([]string{"+a", confDirACL}, dirs...), append([]string{"+a", confFileACL}, files...)} {
 		if len(batch) == 2 {
 			continue
 		}
-		if _, err := hostCommand(ctx, "chmod", batch...); err != nil {
+		if _, err := agentCommand(ctx, uid, gid, "/bin/chmod", batch...); err != nil {
 			log.Warnf("could not set the configuration's ACLs: %v", err)
 		}
 	}
 	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
 	if _, err := os.Stat(nativeHostYAML); err == nil {
-		_, _ = hostCommand(ctx, "chmod", "+a", "everyone allow search,readattr,readextattr,readsecurity", conf)
-		_, _ = hostCommand(ctx, "chmod", "+a", "everyone allow read,readattr,readextattr,readsecurity", nativeHostYAML)
+		_, _ = agentCommand(ctx, uid, gid, "/bin/chmod", "+a", "everyone allow search,readattr,readextattr,readsecurity", conf)
+		_, _ = agentCommand(ctx, uid, gid, "/bin/chmod", "+a", "everyone allow read,readattr,readextattr,readsecurity", nativeHostYAML)
 	}
 	return nil
 }
@@ -764,18 +758,78 @@ func setOrAppend(content []byte, pattern string, line string) []byte {
 	return append(content, []byte("\n"+line+"\n")...)
 }
 
-// chownTree gives path, and everything under it, to owner and group without following links.
+// chownTree gives root, and everything under it, to owner and group. See secureTree.
 func chownTree(root string, owner string, group string) error {
 	uid, gid, err := lookupOwner(owner, group)
 	if err != nil {
 		return err
 	}
-	return filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+	_, _, err = secureTree(root, uid, gid, nil)
+	return err
+}
+
+// secureTree gives root, and every directory and regular file under it, to uid and gid, and the
+// mode modeFor returns for it, when it returns one. It returns the directories and files it
+// secured, as full paths.
+//
+// The tree may belong to an account that can change it while this runs, so nothing is done by
+// path: the walk goes through an os.Root, so a directory swapped for a link cannot lead it out of
+// the tree, and each entry is opened without following a link and changed through that handle,
+// so the change reaches nothing but what was opened. Links are left as they are. A regular file
+// with more than one link is skipped: the account can hard-link any file on the volume into its
+// tree, and changing that file's owner or mode would hand it the original.
+func secureTree(root string, uid, gid int, modeFor func(rel string, dir bool) fs.FileMode) (dirs, files []string, err error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer r.Close()
+	err = fs.WalkDir(r.FS(), ".", func(rel string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		return os.Lchown(path, uid, gid)
+		if entry.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		f, err := r.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			if errors.Is(err, syscall.ELOOP) || errors.Is(err, fs.ErrNotExist) {
+				// Replaced by a link, or removed, since the walk listed it.
+				return nil
+			}
+			return fmt.Errorf("could not open %s: %w", filepath.Join(root, rel), err)
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		dir := info.IsDir()
+		if !dir && !info.Mode().IsRegular() {
+			return nil
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); !dir && (!ok || st.Nlink != 1) {
+			log.Warnf("not securing %s: it is linked from elsewhere", filepath.Join(root, rel))
+			return nil
+		}
+		if err := f.Chown(uid, gid); err != nil {
+			return err
+		}
+		if modeFor != nil {
+			if mode := modeFor(rel, dir); mode != 0 {
+				if err := f.Chmod(mode); err != nil {
+					return err
+				}
+			}
+		}
+		if dir {
+			dirs = append(dirs, filepath.Join(root, rel))
+		} else {
+			files = append(files, filepath.Join(root, rel))
+		}
+		return nil
 	})
+	return dirs, files, err
 }
 
 // lookupOwner is indirected so the tests can chown to the current user.
