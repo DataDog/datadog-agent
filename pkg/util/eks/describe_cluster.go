@@ -109,10 +109,13 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 			return nil, err
 		}
 	}
-	reqURL, err := url.Parse(strings.TrimRight(endpoint, "/") + "/clusters/" + url.PathEscape(clusterName))
+	base, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("build DescribeCluster URL: %w", err)
+		return nil, fmt.Errorf("parse EKS endpoint: %w", err)
 	}
+	// JoinPath keeps any path prefix and query of a configured endpoint, as the SDK does. The
+	// name is already restricted to [A-Za-z0-9_-] by the caller.
+	reqURL := base.JoinPath("clusters", clusterName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
@@ -154,14 +157,14 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 }
 
 // parseAPIError reads the error code the way the AWS SDK REST-JSON protocol does: from the
-// X-Amzn-ErrorType header first, then from the code or __type body field, keeping only the
-// shape name (dropping any namespace prefix and any ":"-separated suffix).
+// X-Amzn-ErrorType header first, then from the code or __type body field (matched without case,
+// like the SDK's JSON decoder), sanitized by sanitizeErrorCode. Without any code it is
+// UnknownError, the SDK's default.
 func parseAPIError(resp *http.Response, body []byte) error {
 	var payload struct {
-		Code     string `json:"code"`
-		Type     string `json:"__type"`
-		Message  string `json:"message"`
-		MessageU string `json:"Message"`
+		Code    string `json:"code"`
+		Type    string `json:"__type"`
+		Message string `json:"message"`
 	}
 	_ = json.Unmarshal(body, &payload)
 
@@ -172,25 +175,27 @@ func parseAPIError(resp *http.Response, body []byte) error {
 	if code == "" {
 		code = payload.Type
 	}
-	if i := strings.IndexByte(code, ':'); i >= 0 {
-		code = code[:i]
-	}
-	if i := strings.LastIndexByte(code, '#'); i >= 0 {
-		code = code[i+1:]
-	}
+	code = sanitizeErrorCode(code)
 	if code == "" {
-		code = http.StatusText(resp.StatusCode)
-	}
-	message := payload.Message
-	if message == "" {
-		message = payload.MessageU
+		code = "UnknownError"
 	}
 	return &apiError{
 		StatusCode: resp.StatusCode,
 		Code:       code,
-		Message:    message,
+		Message:    payload.Message,
 		RequestID:  resp.Header.Get("X-Amzn-RequestId"),
 	}
+}
+
+// sanitizeErrorCode mirrors restjson.SanitizeErrorCode in aws-sdk-go-v2: keep the text before
+// the first ':' (dropping a URI suffix), then the text after the first '#' (dropping a
+// namespace prefix).
+func sanitizeErrorCode(code string) string {
+	code, _, _ = strings.Cut(code, ":")
+	if _, after, found := strings.Cut(code, "#"); found {
+		code = after
+	}
+	return code
 }
 
 // partitionEndpoint describes the DNS suffixes of an AWS partition. The table mirrors the
@@ -277,12 +282,17 @@ func configuredEndpoint(ctx context.Context, cfg aws.Config) (string, bool) {
 }
 
 func serviceBaseEndpoint(ctx context.Context, sources []interface{}) (string, bool) {
+	// Like the SDK, the first source that sets the ignore flag decides it.
 	for _, src := range sources {
 		if p, ok := src.(interface {
 			GetIgnoreConfiguredEndpoints(context.Context) (bool, bool, error)
 		}); ok {
-			if ignore, found, err := p.GetIgnoreConfiguredEndpoints(ctx); err == nil && found && ignore {
-				return "", false
+			ignore, found, err := p.GetIgnoreConfiguredEndpoints(ctx)
+			if err != nil || found {
+				if err == nil && ignore {
+					return "", false
+				}
+				break
 			}
 		}
 	}

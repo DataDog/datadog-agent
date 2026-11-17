@@ -92,7 +92,7 @@ func TestDescribeClusterParsesAPIErrors(t *testing.T) {
 		},
 		{
 			name: "server error without code", status: 500, body: "oops",
-			wantCode: "Internal Server Error", wantTTL: transientFailureCacheTTL,
+			wantCode: "UnknownError", wantTTL: transientFailureCacheTTL,
 		},
 		{
 			name: "expired credentials", status: 403, header: "ExpiredTokenException",
@@ -249,4 +249,59 @@ func TestResolveEndpointHonorsConfiguredEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "https://eks.us-west-2.amazonaws.com", got)
 	})
+}
+
+func okClusterHandler(name string, record func(*http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if record != nil {
+			record(r.Clone(context.Background()))
+		}
+		_, _ = w.Write([]byte(`{"cluster":{"name":"` + name + `","arn":"arn:aws:eks:us-west-2:123456789012:cluster/` + name + `"}}`))
+	}
+}
+
+func TestDescribeClusterKeepsEndpointPathAndQuery(t *testing.T) {
+	var got *http.Request
+	srv := httptest.NewServer(okClusterHandler("orders", func(r *http.Request) { got = r }))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL+"/prefix/?x=1")).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "/prefix/clusters/orders", got.URL.Path)
+	assert.Equal(t, "x=1", got.URL.RawQuery)
+}
+
+func TestParseAPIErrorMatchesSDKSanitizing(t *testing.T) {
+	resp := func(header string) *http.Response {
+		r := &http.Response{StatusCode: 400, Header: http.Header{}}
+		if header != "" {
+			r.Header.Set("X-Amzn-ErrorType", header)
+		}
+		return r
+	}
+	code := func(err error) string {
+		var apiErr *apiError
+		require.ErrorAs(t, err, &apiErr)
+		return apiErr.ErrorCode()
+	}
+	// The SDK keeps the text before the first ':' and then after the first '#'.
+	assert.Equal(t, "InvalidParameterException", code(parseAPIError(resp("InvalidParameterException:http://x/"), nil)))
+	assert.Equal(t, "Outer#Inner", code(parseAPIError(resp("ns#Outer#Inner"), nil)))
+	assert.Equal(t, "ResourceNotFoundException", code(parseAPIError(resp(""), []byte(`{"code":"com.amazonaws.eks#ResourceNotFoundException"}`))))
+	// No code anywhere.
+	assert.Equal(t, "UnknownError", code(parseAPIError(resp(""), []byte(`not json`))))
+}
+
+func TestResolveEndpointTakesFirstIgnoreConfiguredEndpointsSetting(t *testing.T) {
+	t.Setenv("AWS_ENDPOINT_URL_EKS", "https://eks.example")
+	// The environment explicitly keeps configured endpoints; the shared config would ignore
+	// them. Like the SDK, the first source that sets the flag wins.
+	sources := []interface{}{
+		awsconfig.EnvConfig{IgnoreConfiguredEndpoints: aws.Bool(false)},
+		awsconfig.SharedConfig{IgnoreConfiguredEndpoints: aws.Bool(true)},
+	}
+	got, err := resolveEndpoint(t.Context(), aws.Config{Region: "us-west-2", ConfigSources: sources})
+	require.NoError(t, err)
+	assert.Equal(t, "https://eks.example", got)
 }
