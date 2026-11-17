@@ -674,6 +674,10 @@ func TestRedisObfuscator(t *testing.T) {
 			"BITFIELD key SET i8 0 ? SET u4 4 ?",
 		},
 		{
+			"BITFIELD key SET i8 0 SET i8 0 100",
+			"BITFIELD key SET i8 0 ? i8 0 ?",
+		},
+		{
 			"ZRANGEBYLEX key [aaa (g LIMIT 0 10",
 			"ZRANGEBYLEX key ? ? LIMIT 0 10",
 		},
@@ -732,6 +736,18 @@ func TestRedisObfuscator(t *testing.T) {
 		{
 			"XADD stream ACKED MINID 0 * field value",
 			"XADD stream ACKED MINID 0 * field ?",
+		},
+		{
+			"XADD s IDMP p1 req-1 * f v",
+			"XADD s IDMP p1 req-1 * f ?",
+		},
+		{
+			"xadd s idmpauto p1 maxlen ~ 10 * f1 v1 f2 v2",
+			"xadd s idmpauto p1 maxlen ~ 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD s UNKNOWNOPT * f v",
+			"XADD s ?",
 		},
 		{
 			"GEOSEARCH key FROMMEMBER alice FROMMEMBER secret BYRADIUS 10 km",

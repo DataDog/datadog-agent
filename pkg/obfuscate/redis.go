@@ -243,13 +243,17 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 
 	case "XADD":
 		// Every 2nd argument after the entry ID, skipping potential optional ones.
-		// • XADD key [NOMKSTREAM] [KEEPREF|DELREF|ACKED] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
+		// • XADD key [NOMKSTREAM] [KEEPREF|DELREF|ACKED] [IDMPAUTO producer-id|IDMP producer-id idempotent-id] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
 		i := 1
 	xaddOptions:
 		for i < len(args) {
 			switch strings.ToUpper(args[i]) {
 			case "NOMKSTREAM", "KEEPREF", "DELREF", "ACKED":
 				i++
+			case "IDMPAUTO":
+				i += 2 // producer-id
+			case "IDMP":
+				i += 3 // producer-id idempotent-id
 			case "MAXLEN", "MINID":
 				i++
 				if i < len(args) && (args[i] == "=" || args[i] == "~") {
@@ -263,6 +267,13 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			}
 		}
 		// args[i] is the entry ID
+		if i < len(args) && (len(args)-i-1)%2 != 0 {
+			// Field/value pairs are misaligned, likely due to an unknown option:
+			// fail closed by obfuscating everything after the key.
+			args[1] = "?"
+			args = args[:2]
+			break
+		}
 		obfuscateRedisArgsStep(args, i+1, 2)
 
 	case "HSETEX":
@@ -330,7 +341,8 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			if n > 0 && i-n == 3 {
 				args[i] = "?"
 				n = 0
-				continue
+				// no continue: arg still holds the original token, so a masked
+				// "SET" value is still recognized as the next SET sub-command.
 			}
 			if strings.ToUpper(arg) == "SET" {
 				n = i
