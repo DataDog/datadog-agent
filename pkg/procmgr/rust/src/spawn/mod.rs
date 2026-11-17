@@ -5,6 +5,7 @@
 
 #[cfg(any(test, windows))]
 mod agent_password_logon;
+mod identity;
 mod profile;
 mod request;
 mod stdio;

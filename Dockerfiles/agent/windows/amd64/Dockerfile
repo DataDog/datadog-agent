@@ -25,13 +25,13 @@ SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
 COPY java C:/java
 
-COPY install.ps1 install-utils.ps1 ./
+COPY install.ps1 ./
 RUN . ./install.ps1
 
-COPY bouncycastle-fips /fips-build
+COPY ["bouncycastle-fips", "C:/Program Files/Datadog/BouncyCastle FIPS/"]
 COPY install-fips.ps1 ./
-RUN . ./install-fips.ps1
 ENV JAVA_TOOL_OPTIONS="${WITH_FIPS:+--module-path=\'c:\\program files\\datadog\\bouncycastle fips\' -Djava.security.properties==\'c:\\program files\\datadog\\bouncycastle fips\\java.security\' -Dpolicy.url.2=\'file:c:\\program files\\datadog\\bouncycastle fips\\bc-fips.policy\'}"
+RUN . ./install-fips.ps1
 
 EXPOSE 8125/udp 8126/tcp
 

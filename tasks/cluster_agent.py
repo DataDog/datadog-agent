@@ -52,8 +52,6 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
 
     build_common(
         ctx,

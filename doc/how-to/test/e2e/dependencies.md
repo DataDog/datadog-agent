@@ -63,7 +63,7 @@ When a test targets a pipeline they come from `agent-qa`; otherwise they come fr
 | Cloud | Resolves to | Leaves the account? |
 |---|---|---|
 | AWS | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog/…` | no, it is the pull-through cache |
-| GCP, Azure, local | `gcr.io/datadoghq/…` | yes — no cache exists there |
+| GCP, Azure, local | `registry.datadoghq.com/…` | yes — no cache exists there |
 
 Use that accessor rather than naming a registry, the same way you would use
 `InternalDockerhubMirror()` for a third-party image. Two exceptions are deliberate and

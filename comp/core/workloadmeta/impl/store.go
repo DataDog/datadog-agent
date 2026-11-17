@@ -1095,7 +1095,7 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	case <-time.After(closeEventBundleChTimeout):
 		// Timeout sending to channel - subscriber not reading, events will be lost
 		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
-		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "true")
 		// Close acknowledgment channel to prevent resource leak
 		close(bundle.Ch)
 		return
@@ -1104,10 +1104,10 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	if wait {
 		select {
 		case <-bundle.Ch:
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess, "false")
 		case <-time.After(eventBundleChTimeout):
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+			telemetry.NotificationsSent.Inc(name, telemetry.StatusError, "false")
 		}
 	}
 }
