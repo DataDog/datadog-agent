@@ -112,13 +112,7 @@ build do
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
-  if osx_target?
-    conf_dir = "#{install_dir}/etc"
-  else
-    conf_dir = "#{install_dir}/etc/datadog-agent"
-  end
-
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{install_dir}\"", env: env,
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
@@ -240,7 +234,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{install_dir}\"", env: env
   end
 
   # System-probe eBPF files

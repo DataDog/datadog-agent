@@ -1696,7 +1696,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKAIInfo(pod *workloadmeta.Kube
 
 	if podGroup != nil {
 		tagList.AddOrchestrator(tags.SchedulerWorkload, podGroup.Name)
-		tagList.AddOrchestrator(tags.KAIWorkload, podGroup.Name)
+		tagList.AddOrchestrator(tags.KAIPodGroup, podGroup.Name)
 		groupResource := kubernetes.KAIPodGroupResourceName + "." + kubernetes.KAIGroupName
 		c.addResourceLabelsAndAnnotationsAsTags(groupResource, podGroup.Labels, podGroup.Annotations, tagList)
 		queueName = podGroup.QueueName
