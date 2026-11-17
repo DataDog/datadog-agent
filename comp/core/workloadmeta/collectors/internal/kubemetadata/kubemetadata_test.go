@@ -27,7 +27,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -136,7 +136,7 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	return f.ClusterID, f.ClusterIDErr
 }
 
-func (f *FakeDCAClient) GetEKSClusterIdentity(_ context.Context) (*eks.ClusterIdentity, error) {
+func (f *FakeDCAClient) GetEKSClusterIdentity(_ context.Context) (*identity.ClusterIdentity, error) {
 	panic("implement me")
 }
 
