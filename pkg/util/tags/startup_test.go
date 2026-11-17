@@ -100,12 +100,14 @@ func TestStartupEKSNodeLaterCallersDoNotWaitAgain(t *testing.T) {
 }
 
 func TestStartupFargateSidecarWaitsAtMostOneBudget(t *testing.T) {
-	// The cluster ID call and the identity call share one deadline: startup waits once.
-	for _, state := range allClusterAgentStates {
+	// The cluster ID call and the identity call share one deadline and run at the same time:
+	// startup waits once, and a Cluster Agent that hangs on the cluster ID does not starve the
+	// identity call.
+	for _, state := range append(allClusterAgentStates, dcaWedgedClusterID) {
 		t.Run(state, func(t *testing.T) {
 			elapsed, identity := timedStaticTags(t, state, true, true)
 			assert.Less(t, elapsed, testBudget+slack)
-			assert.Equal(t, state == dcaUp, identity)
+			assert.Equal(t, state == dcaUp || state == dcaWedgedClusterID, identity)
 		})
 	}
 }

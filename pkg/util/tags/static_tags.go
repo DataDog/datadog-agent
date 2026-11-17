@@ -9,6 +9,7 @@ package tags
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -81,24 +82,30 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 		}
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
-			// Both Cluster Agent calls share one startup budget, so an unreachable Cluster
-			// Agent delays sidecar startup once. With DD_ORCHESTRATOR_CLUSTER_ID set the static
-			// tags call does not contact the Cluster Agent, and the identity call gets the whole
-			// budget.
+			// Both Cluster Agent calls share one startup budget and run at the same time, so an
+			// unreachable Cluster Agent delays sidecar startup once, and a Cluster Agent that
+			// hangs on the cluster ID cannot starve the identity call. With
+			// DD_ORCHESTRATOR_CLUSTER_ID set the static tags call does not contact the Cluster
+			// Agent.
 			budgetCtx, cancel := context.WithTimeout(ctx, fargateStartupBudget)
 			defer cancel()
 
-			clusterAgentStaticTags, err := getClusterAgentStaticTags(budgetCtx)
-			if err == nil {
+			var clusterAgentStaticTags, eksIdentityTags []string
+			var staticErr, identityErr error
+			var wg sync.WaitGroup
+			wg.Go(func() { clusterAgentStaticTags, staticErr = getClusterAgentStaticTags(budgetCtx) })
+			wg.Go(func() { eksIdentityTags, identityErr = getClusterAgentEKSIdentityTags(budgetCtx) })
+			wg.Wait()
+
+			if staticErr == nil {
 				tags = append(tags, clusterAgentStaticTags...)
 			} else {
-				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", err)
+				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", staticErr)
 			}
-
-			if eksIdentityTags, err := getClusterAgentEKSIdentityTags(budgetCtx); err == nil {
+			if identityErr == nil {
 				tags = append(tags, eksIdentityTags...)
 			} else {
-				log.Debugf("Could not fetch EKS cluster identity tags from the Cluster Agent: %v", err)
+				log.Debugf("Could not fetch EKS cluster identity tags from the Cluster Agent: %v", identityErr)
 			}
 		}
 
