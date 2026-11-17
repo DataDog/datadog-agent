@@ -1050,9 +1050,9 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 }
 
 func TestGetClusterAgentClientConcurrentFirstUse(t *testing.T) {
-	// The tagger, DogStatsD and OTLP all fetch EKS identity at startup, so the first
-	// GetClusterAgentClient calls can run concurrently. With -race this catches an unlocked
-	// lazy init, and every caller must get the same client.
+	// Startup components (the tagger, DogStatsD, OTLP) can all call GetClusterAgentClient for the
+	// first time at once. With -race this catches an unlocked lazy init, and every caller must
+	// get the same client.
 	configmock.New(t)
 	resetGlobalClusterAgentClient()
 	defer resetGlobalClusterAgentClient()
