@@ -330,8 +330,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		// Event-only collectors return nothing until something happens.
-		if collector.Name() != deviceEvents && collector.Name() != nvlinkState {
+		if collector.Name() != deviceEvents {
 			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
 		}
 		seenCollectors[collector.Name()] = struct{}{}

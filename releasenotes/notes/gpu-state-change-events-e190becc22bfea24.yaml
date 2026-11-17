@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The GPU check now reports the ``gpu.nvlink.active`` metric, 1 or 0 for each
+    NVLink port (``nvlink_port`` tag) of NVIDIA GPUs.
+  - |
+    The GPU check now sends a ``gpu_state_change`` event when an NVLink port
+    goes up or down (``nvlink_state`` and ``previous_nvlink_state`` tags) or
+    when ``gpu.device.unavailable`` changes for a reason (``availability`` and
+    ``previous_availability`` tags, plus the reason tags of the metric). Values
+    seen when the check starts are not reported as changes.

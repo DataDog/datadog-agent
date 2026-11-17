@@ -29,6 +29,7 @@ type SampleEmitter struct {
 	WorkloadTagCache *WorkloadTagCache
 	RateCalculator   *nvidia.RateCalculator
 	StrictIntervals  *nvidia.StrictIntervalProcessor
+	ChangeEvents     *nvidia.ChangeEventProcessor
 	Telemetry        EmitterTelemetry
 }
 
@@ -97,6 +98,9 @@ func (e *SampleEmitter) Emit(snd sender.Sender, collectorResults []CollectorSamp
 		devicePIDs := gpuToProcesses[deviceUUID]
 		tags := deviceTags(deviceUUID)
 
+		if e.ChangeEvents != nil {
+			deduplicatedSamples = e.ChangeEvents.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
+		}
 		deduplicatedSamples = e.StrictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 		deduplicatedSamples = e.RateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 

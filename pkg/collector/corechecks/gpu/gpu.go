@@ -85,6 +85,7 @@ type Check struct {
 	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
+	changeEvents        *nvidia.ChangeEventProcessor     // changeEvents sends events when watched metrics change value
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
@@ -154,6 +155,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		collectorBuilder:    nvidia.NewCollectorBuilder(),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
+		changeEvents:        nvidia.NewChangeEventProcessor(nvidia.DefaultChangeEventRules),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
 		sysprobeData:        newSysprobeDataTracker(),
 	}
@@ -885,6 +887,7 @@ func (c *Check) sampleEmitter() *SampleEmitter {
 		WorkloadTagCache: c.workloadTagCache,
 		RateCalculator:   c.rateCalculator,
 		StrictIntervals:  c.strictIntervals,
+		ChangeEvents:     c.changeEvents,
 		Telemetry: EmitterTelemetry{
 			CollectionRuns:   c.telemetry.collectorTelemetry.CollectionRuns,
 			CollectionErrors: c.telemetry.collectorTelemetry.CollectionErrors,

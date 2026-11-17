@@ -33,6 +33,7 @@ func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
 
 	// Collect NVLink states
 	var multiErr []error
+	var linkSamples []Sample
 	active, inactive := 0, 0
 
 	// Iterate over all existing nvlinks for the device
@@ -48,7 +49,16 @@ func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
 			active++
 		} else if state == nvml.FEATURE_DISABLED {
 			inactive++
+		} else {
+			continue
 		}
+
+		linkSamples = append(linkSamples, &Metric{
+			baseSample: baseSample{tags: []string{nvlinkPortTag(i + 1)}},
+			Name:       "nvlink.active",
+			Value:      boolToFloat(state == nvml.FEATURE_ENABLED),
+			Type:       metrics.GaugeType,
+		})
 	}
 
 	// Return metrics
@@ -70,7 +80,7 @@ func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
 		},
 	}
 
-	return allSamples, 0, errors.Join(multiErr...)
+	return append(allSamples, linkSamples...), 0, errors.Join(multiErr...)
 }
 
 type processMemoryUsageData struct {

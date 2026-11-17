@@ -681,8 +681,12 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
-			require.Len(t, allMetrics, 3)
+			// Verify metrics, as we still expect to have all 3 count metrics even if some errors were
+			// returned, plus one nvlink.active per readable link
+			require.Len(t, allMetrics, 3+tt.expectedActive+tt.expectedInactive)
+			for _, m := range requireMetrics(t, allMetrics[3:]) {
+				require.Equal(t, "nvlink.active", m.Name)
+			}
 			collectedMetrics := requireMetrics(t, allMetrics)
 
 			// Check total links metric
