@@ -1527,9 +1527,10 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 
 	// The byte counters are checked inside the retry loop, not after it. In
 	// eBPFless mode the tracer counts packets asynchronously: they reach
-	// userspace one TPACKET_V3 block at a time (64ms block retire timeout) and a
-	// goroutine processes them, so all four connections can be visible before
-	// the replies have been counted.
+	// userspace one TPACKET_V3 block at a time (the afpacket default block
+	// timeout) and a goroutine processes them, so all four connections can be
+	// visible before the replies have been counted. The 4s window, matching
+	// testUDPReusePort, covers both finding the connections and that counting.
 	//
 	// conns keeps the last-seen copy of each connection across polls, because a
 	// connection that has stopped changing isn't necessarily returned again.
@@ -1583,7 +1584,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 				assert.True(collect, c.IntraHost, "outgoing intrahost")
 			}
 		}
-	}, 3*time.Second, 100*time.Millisecond, "could not find the 4 expected udp connections with the expected byte counts")
+	}, 4*time.Second, 100*time.Millisecond, "could not find the 4 expected udp connections with the expected byte counts")
 }
 
 func (s *TracerSuite) TestUDPReusePort() {
