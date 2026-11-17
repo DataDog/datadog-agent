@@ -29,14 +29,11 @@ import (
 // The static-tags paths are computed once at Agent startup, so they use the retrying fetch:
 // a node Agent routinely starts before the Cluster Agent is reachable, and without a retry a
 // single cold-start miss leaves the EKS identity permanently absent from container tags and
-// APM spans. The retry has its own bounded budget, so the ctx argument (kept for the injectable
-// signature) is intentionally unused here.
+// APM spans. The retry has its own bounded budget and stops early when ctx is done.
 var (
 	getClusterAgentStaticTags      = clusterinfo.GetClusterAgentStaticTagsWithRetry
-	getClusterAgentEKSIdentityTags = func(context.Context) ([]string, error) {
-		return clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry()
-	}
-	getClusterAgentEKSIdentity = func(context.Context) []string { return nil }
+	getClusterAgentEKSIdentityTags = clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry
+	getClusterAgentEKSIdentity     = func(context.Context) []string { return nil }
 	// Reads only local DMI, so it costs no network call. Only a node that DMI identifies as EC2
 	// asks the Cluster Agent, so on-prem, OpenShift, kind and other clouds never wait on it.
 	isAWSHost = clusterinfo.IsAWSHost

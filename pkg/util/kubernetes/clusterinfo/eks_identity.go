@@ -10,25 +10,31 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/cenkalti/backoff/v7"
+	"golang.org/x/sync/semaphore"
 )
 
 var errIncompleteIdentity = errors.New("cluster agent returned incomplete EKS identity")
 
 const startupRetryBudget = 10 * time.Second
 
+// laterAttemptTimeout bounds the single attempt made once the startup budget is spent, so a
+// later caller (another startup component) never waits long on a Cluster Agent that hangs.
+const laterAttemptTimeout = time.Second
+
 // startupIdentity is shared by every GetClusterAgentEKSIdentityTagsWithRetry caller in the process.
-var startupIdentity struct {
-	sync.Mutex
+// lock is a one-slot semaphore rather than a mutex so that a caller waiting for the in-flight
+// lookup can give up when its own ctx is done.
+var startupIdentity = struct {
+	lock        *semaphore.Weighted
 	tags        []string
 	budgetSpent bool
-}
+}{lock: semaphore.NewWeighted(1)}
 
 var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
 	client, err := clusteragent.GetClusterAgentClient()
@@ -92,15 +98,22 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 // budget is spent at most once per process: concurrent callers wait for the in-flight lookup, a
 // success is reused, and once the budget is spent later callers make a single attempt. An
 // unreachable Cluster Agent therefore delays startup by one budget rather than one per caller.
-func GetClusterAgentEKSIdentityTagsWithRetry() ([]string, error) {
-	startupIdentity.Lock()
-	defer startupIdentity.Unlock()
+// Every caller stops early when its own ctx is done.
+func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, error) {
+	if err := startupIdentity.lock.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	defer startupIdentity.lock.Release(1)
 
 	if startupIdentity.tags != nil {
 		return slices.Clone(startupIdentity.tags), nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), startupRetryBudget)
+	budget := startupRetryBudget
+	if startupIdentity.budgetSpent {
+		budget = laterAttemptTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
 	var tags []string

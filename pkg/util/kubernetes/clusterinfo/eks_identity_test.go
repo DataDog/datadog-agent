@@ -25,8 +25,8 @@ import (
 func resetStartupIdentity(t *testing.T) {
 	t.Helper()
 	reset := func() {
-		startupIdentity.Lock()
-		defer startupIdentity.Unlock()
+		_ = startupIdentity.lock.Acquire(context.Background(), 1)
+		defer startupIdentity.lock.Release(1)
 		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
 	}
 	reset()
@@ -108,7 +108,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnClusterAgentAnswer(t *tes
 		}
 
 		start := time.Now()
-		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		assert.Nil(t, tags)
 		assert.ErrorIs(t, err, expected)
 		assert.Equal(t, 1, calls)
@@ -128,7 +128,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnIncompleteIdentity(t *tes
 		}
 
 		start := time.Now()
-		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		assert.Nil(t, tags)
 		assert.ErrorIs(t, err, errIncompleteIdentity)
 		assert.Equal(t, 1, calls)
@@ -161,7 +161,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesTransportFailures(t *test
 				}
 
 				start := time.Now()
-				tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+				tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 				require.NoError(t, err)
 				assert.Equal(t, 2, calls)
 				assert.Equal(t, time.Second, time.Since(start))
@@ -184,7 +184,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		}
 
 		start := time.Now()
-		_, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		assert.ErrorIs(t, err, unreachable)
 		assert.Equal(t, startupRetryBudget, time.Since(start))
 		assert.Greater(t, calls, 1)
@@ -192,7 +192,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		for range 2 {
 			callsBefore := calls
 			start = time.Now()
-			_, err = GetClusterAgentEKSIdentityTagsWithRetry()
+			_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 			assert.ErrorIs(t, err, unreachable)
 			assert.Zero(t, time.Since(start))
 			assert.Equal(t, callsBefore+1, calls)
@@ -215,17 +215,17 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T
 			return ordersIdentity, nil
 		}
 
-		_, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.Error(t, err)
 
 		reachable = true
 		callsBefore := calls
-		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.NoError(t, err)
 		assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
 		assert.Equal(t, callsBefore+1, calls)
 
-		_, err = GetClusterAgentEKSIdentityTagsWithRetry()
+		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, callsBefore+1, calls)
 	})
@@ -247,7 +247,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryReusesSuccess(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range results {
 		wg.Go(func() {
-			tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+			tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 			assert.NoError(t, err)
 			results[i] = tags
 		})
@@ -261,7 +261,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryReusesSuccess(t *testing.T) {
 	}
 
 	results[0][0] = "mutated"
-	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+	tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 	require.NoError(t, err)
 	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 }
@@ -305,5 +305,73 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 		answer(nil, errors.New("connection refused"))
 		_, err := GetClusterAgentEKSIdentityHostTags(t.Context())
 		assert.Error(t, err)
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryHonorsCallerContext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			return nil, errors.New("connection refused")
+		}
+
+		// A caller that stops (Agent shutdown) gets its answer at its own deadline, not
+		// after the full startup budget.
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+		start := time.Now()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(ctx)
+		require.Error(t, err)
+		assert.Equal(t, 2*time.Second, time.Since(start))
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryWaiterHonorsItsContext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			return nil, errors.New("connection refused")
+		}
+
+		// The first caller holds the retry for the whole budget.
+		go func() { _, _ = GetClusterAgentEKSIdentityTagsWithRetry(t.Context()) }()
+		synctest.Wait()
+
+		// A second caller waiting on it stops when its own ctx is done.
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		start := time.Now()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(ctx)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, time.Second, time.Since(start))
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		hang := false
+		getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
+			if hang {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			return nil, errors.New("connection refused")
+		}
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		require.Error(t, err)
+
+		// Once the budget is spent, a later caller makes one attempt with a short timeout.
+		hang = true
+		start := time.Now()
+		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		require.Error(t, err)
+		assert.Equal(t, laterAttemptTimeout, time.Since(start))
 	})
 }
