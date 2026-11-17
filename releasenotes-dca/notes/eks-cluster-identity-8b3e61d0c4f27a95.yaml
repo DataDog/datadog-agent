@@ -1,0 +1,28 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    On Amazon EKS, the Cluster Agent resolves the cluster's ARN, account, and Region with the
+    EKS ``DescribeCluster`` API and serves them to node Agents on the new
+    ``/api/v1/cluster/eks-identity`` endpoint. Node Agents attach them as the
+    ``eks_cluster_arn``, ``eks_cluster_account``, and ``eks_cluster_region`` tags. The
+    Cluster Agent also adds them to its own tags.
+
+    This makes one outbound HTTPS call to the EKS API of the cluster's Region the first time the
+    identity is needed, then caches the result. The call honors the standard AWS settings for
+    credentials, Region, proxies, FIPS, dual-stack, and custom endpoints. The cluster name comes
+    from the ``kubernetes.io/cluster/<name>`` EC2 tag of the node, or from ``cluster_name``
+    when that tag is not available. The answer is used only when its certificate authority is
+    the cluster's own, so a stale or reused cluster name never tags data with another
+    cluster's ARN.
+
+    Grant ``eks:DescribeCluster`` on the cluster to the Cluster Agent's IAM role, with EKS Pod
+    Identity or IAM Roles for Service Accounts (IRSA). The node instance role works only when
+    the Cluster Agent pod can reach the instance metadata service. Without the permission, no
+    identity tag is emitted, and the Cluster Agent logs one warning every 5 minutes.
