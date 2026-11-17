@@ -200,10 +200,6 @@ func defaultCatalog() *componentCatalog {
 				readConfig: func(reader ConfigReader, prefix string) any {
 					cfg := DefaultLogMetricsExtractorConfig()
 					cfg.MinTokenMatchRatio = reader.GetFloat64(prefix + "min_token_match_ratio")
-					cfg.MaxPatterns = reader.GetInt(prefix + "max_patterns")
-					cfg.MaxPatternsPerGroup = reader.GetInt(prefix + "max_patterns_per_group")
-					cfg.MaxTagGroups = reader.GetInt(prefix + "max_tag_groups")
-					cfg.PatternIdleTTLSeconds = int64(reader.GetDuration(prefix + "pattern_idle_ttl").Seconds())
 					return resolveLogMetricsExtractorConfig(cfg)
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {

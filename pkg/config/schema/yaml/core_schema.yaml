@@ -5554,28 +5554,8 @@ properties:
               min_token_match_ratio:
                 node_type: setting
                 type: number
-                default: 0.9
+                default: 0.6
                 description: Fraction of structural tokens that must match an existing log pattern.
-              max_patterns:
-                node_type: setting
-                type: integer
-                default: 3000
-                description: Maximum retained log patterns across all groups. Non-positive values use the default.
-              max_patterns_per_group:
-                node_type: setting
-                type: integer
-                default: 1024
-                description: Maximum retained log patterns for one source, service, environment and host group.
-              max_tag_groups:
-                node_type: setting
-                type: integer
-                default: 256
-                description: Maximum source, service, environment and host groups retained for log matching.
-              pattern_idle_ttl:
-                node_type: setting
-                type: string
-                default: 4h
-                description: Data-time inactivity after which a log pattern expires on the next ingested log. Non-positive values use the default.
           log_pattern_extractor:
             node_type: section
             type: object

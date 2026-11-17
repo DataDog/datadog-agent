@@ -19,13 +19,14 @@ import (
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
 type LogMetricsExtractorConfig struct {
-	// Non-positive bounds use production defaults; live caches are always bounded.
-	MaxEvalBytes          int     `json:"max_eval_bytes,omitempty"`
-	MinTokenMatchRatio    float64 `json:"min_token_match_ratio,omitempty"`
-	MaxPatterns           int     `json:"max_patterns,omitempty"`
-	MaxPatternsPerGroup   int     `json:"max_patterns_per_group,omitempty"`
-	MaxTagGroups          int     `json:"max_tag_groups,omitempty"`
-	PatternIdleTTLSeconds int64   `json:"pattern_idle_ttl_sec,omitempty"`
+	MaxEvalBytes       int     `json:"max_eval_bytes,omitempty"`
+	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
+
+	// Cache bounds are internal; non-positive values use the defaults.
+	maxPatterns           int
+	maxPatternsPerGroup   int
+	maxTagGroups          int
+	patternIdleTTLSeconds int64
 
 	// IncludeFields, if non-empty, restricts JSON numeric extraction to these field names.
 	IncludeFields map[string]struct{} `json:"include_fields,omitempty"`
@@ -37,11 +38,11 @@ type LogMetricsExtractorConfig struct {
 func DefaultLogMetricsExtractorConfig() LogMetricsExtractorConfig {
 	return LogMetricsExtractorConfig{
 		MaxEvalBytes:          4096,
-		MinTokenMatchRatio:    0.9,
-		MaxPatterns:           3000,
-		MaxPatternsPerGroup:   1024,
-		MaxTagGroups:          256,
-		PatternIdleTTLSeconds: 4 * 60 * 60,
+		MinTokenMatchRatio:    0.6,
+		maxPatterns:           3000,
+		maxPatternsPerGroup:   1024,
+		maxTagGroups:          256,
+		patternIdleTTLSeconds: 4 * 60 * 60,
 		ExcludeFields: map[string]struct{}{
 			"timestamp": {}, "ts": {}, "time": {},
 			"pid": {}, "ppid": {}, "uid": {}, "gid": {},
@@ -73,17 +74,17 @@ func resolveLogMetricsExtractorConfig(config LogMetricsExtractorConfig) LogMetri
 	if config.MinTokenMatchRatio <= 0 || config.MinTokenMatchRatio > 1 || math.IsNaN(config.MinTokenMatchRatio) {
 		config.MinTokenMatchRatio = defaults.MinTokenMatchRatio
 	}
-	if config.MaxPatterns <= 0 {
-		config.MaxPatterns = defaults.MaxPatterns
+	if config.maxPatterns <= 0 {
+		config.maxPatterns = defaults.maxPatterns
 	}
-	if config.MaxPatternsPerGroup <= 0 {
-		config.MaxPatternsPerGroup = defaults.MaxPatternsPerGroup
+	if config.maxPatternsPerGroup <= 0 {
+		config.maxPatternsPerGroup = defaults.maxPatternsPerGroup
 	}
-	if config.MaxTagGroups <= 0 {
-		config.MaxTagGroups = defaults.MaxTagGroups
+	if config.maxTagGroups <= 0 {
+		config.maxTagGroups = defaults.maxTagGroups
 	}
-	if config.PatternIdleTTLSeconds <= 0 {
-		config.PatternIdleTTLSeconds = defaults.PatternIdleTTLSeconds
+	if config.patternIdleTTLSeconds <= 0 {
+		config.patternIdleTTLSeconds = defaults.patternIdleTTLSeconds
 	}
 	return config
 }
@@ -93,8 +94,8 @@ func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtract
 	config = resolveLogMetricsExtractorConfig(config)
 	return &LogMetricsExtractor{config: config, patterns: logsignature.NewCache(logsignature.CacheConfig{
 		MaxEvalBytes: config.MaxEvalBytes, MatchThreshold: config.MinTokenMatchRatio,
-		MaxPatterns: config.MaxPatterns, MaxPatternsPerGroup: config.MaxPatternsPerGroup,
-		MaxGroups: config.MaxTagGroups, IdleTTLSeconds: config.PatternIdleTTLSeconds,
+		MaxPatterns: config.maxPatterns, MaxPatternsPerGroup: config.maxPatternsPerGroup,
+		MaxGroups: config.maxTagGroups, IdleTTLSeconds: config.patternIdleTTLSeconds,
 	})}
 }
 

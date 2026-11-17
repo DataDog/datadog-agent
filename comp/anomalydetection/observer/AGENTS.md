@@ -45,7 +45,7 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics: bounded fuzzy pattern counts (`log.pattern.<id>.count`) at 0.9, plus JSON numeric fields |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: bounded fuzzy pattern counts (`log.pattern.<id>.count`) at 0.6, plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
@@ -92,10 +92,10 @@ shared storage series budget remains separate.
 
 `anomaly_detection.detectors.log_metrics_extractor` separately configures the
 shared-tokenizer cache. Structural matching uses `min_token_match_ratio`
-(default 0.9) within each source/service/env/host group. Limits default to 3,000
-patterns globally, 1,024 per group and 256 groups; non-positive values use bounded
-defaults. Patterns expire on the next ingested log after four hours of data-time
-inactivity. Evictions clear the associated storage, detector and bucketizer state.
+(default 0.6) within each source/service/env/host group. Internal limits are 3,000
+patterns globally, 1,024 per group and 256 groups. Patterns expire on the next
+ingested log after four hours of data-time inactivity. Evictions clear the
+associated storage, detector and bucketizer state.
 The log metrics extractor's pattern-count gauge is separate from the log pattern
 extractor's gauge. Both extractors remain enabled by default.
 

@@ -14,7 +14,8 @@ import (
 
 func TestEngine_LogMetricsPatternLRUEvictionFreesStorage(t *testing.T) {
 	cfg := DefaultLogMetricsExtractorConfig()
-	cfg.MaxPatternsPerGroup = 2
+	cfg.MinTokenMatchRatio = 0.9
+	cfg.maxPatternsPerGroup = 2
 	extractor := NewLogMetricsExtractor(cfg)
 
 	storage := newTimeSeriesStorage()
@@ -54,7 +55,8 @@ func TestEngine_LogMetricsPatternLRUEvictionFreesStorage(t *testing.T) {
 // Eviction must release detector state as well as storage series.
 func TestEngine_LogMetricsPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	cfg := DefaultLogMetricsExtractorConfig()
-	cfg.MaxPatternsPerGroup = 2
+	cfg.MinTokenMatchRatio = 0.9
+	cfg.maxPatternsPerGroup = 2
 	extractor := NewLogMetricsExtractor(cfg)
 
 	bocpdConfig := DefaultBOCPDConfig()

@@ -420,15 +420,14 @@ JSON numeric extraction is preserved. Representatives remain fixed until evictio
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `min_token_match_ratio` | 0.9 | Shared tokenizer structural matching threshold |
+| `min_token_match_ratio` | 0.6 | Shared tokenizer structural matching threshold |
 | `max_eval_bytes` | 4096 | Tokenized prefix length; testbench JSON config only |
-| `max_patterns` | 3000 | Global representative cap |
-| `max_patterns_per_group` | 1024 | Representative cap per group |
-| `max_tag_groups` | 256 | Group cap |
-| `pattern_idle_ttl_sec` | 14400 | Expire idle representatives on the next ingested log, using data time; Agent YAML uses `pattern_idle_ttl: 4h` |
 
-Non-positive bounds and invalid thresholds use bounded defaults. Eviction removes
-the associated storage and detector state through the engine cleanup path.
+The cache has internal limits of 3,000 representatives globally, 1,024 per group
+and 256 groups. Idle representatives expire on the next ingested log after four
+hours of data-time inactivity. These bounds are not exposed in Agent YAML or
+testbench JSON. Invalid thresholds use the 0.6 default. Eviction removes the
+associated storage and detector state through the engine cleanup path.
 
 #### `log_pattern_extractor`
 

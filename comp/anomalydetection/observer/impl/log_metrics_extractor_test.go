@@ -161,14 +161,14 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 func TestLogMetricsExtractor_MaxEvalBytesCapsSignature(t *testing.T) {
 	// Logs that differ only after the first MaxEvalBytes bytes share a series.
 	prefix := strings.Repeat("a", 16)
-	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix)})
+	capped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MaxEvalBytes: len(prefix), MinTokenMatchRatio: 1})
 	a := capped.ProcessLog(&mockLogView{content: prefix + " 123"})
 	b := capped.ProcessLog(&mockLogView{content: prefix + " xyz"})
 	require.Len(t, a.Metrics, 1)
 	require.Len(t, b.Metrics, 1)
 	assert.Equal(t, a.Metrics[0].Name, b.Metrics[0].Name)
 
-	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+	uncapped := NewLogMetricsExtractor(LogMetricsExtractorConfig{MinTokenMatchRatio: 1})
 	c := uncapped.ProcessLog(&mockLogView{content: prefix + " 123"})
 	d := uncapped.ProcessLog(&mockLogView{content: prefix + " xyz"})
 	assert.NotEqual(t, c.Metrics[0].Name, d.Metrics[0].Name)

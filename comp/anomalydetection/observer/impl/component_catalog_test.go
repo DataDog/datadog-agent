@@ -413,6 +413,6 @@ func TestDefaultCatalogPreservesBothLogExtractors(t *testing.T) {
 	require.Equal(t, LogMetricsExtractorName, extractors[0].Name())
 	require.Equal(t, LogPatternExtractorName, extractors[1].Name())
 	require.Contains(t, components, LogPatternExtractorName)
-	require.Equal(t, 0.9, extractors[0].(*LogMetricsExtractor).config.MinTokenMatchRatio)
+	require.Equal(t, 0.6, extractors[0].(*LogMetricsExtractor).config.MinTokenMatchRatio)
 	require.Equal(t, DefaultLogPatternExtractorConfig(), extractors[1].(*LogPatternExtractor).config)
 }
