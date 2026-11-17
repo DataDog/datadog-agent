@@ -87,6 +87,12 @@ type baselineSuite struct {
 	attempt int
 }
 
+func (s *baselineSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	// Discard retained payloads before checking fresh flushes from this Agent.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+}
+
 // TestBaseline runs every baselineCases row on its own stack.
 func TestBaseline(t *testing.T) {
 	t.Parallel()

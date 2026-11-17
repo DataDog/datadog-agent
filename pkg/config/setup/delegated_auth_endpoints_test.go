@@ -101,14 +101,15 @@ func TestOnlyDirectivesRegisterInstances(t *testing.T) {
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
 
-func TestAPMAdditionalEndpointsAreOutsideTheInitialScope(t *testing.T) {
+func TestTraceProxyAdditionalEndpointsRemainOutsideScope(t *testing.T) {
+	// apm_config.additional_endpoints is enrolled (trace writers hold pending endpoints);
+	// the proxy settings (profiling, debugger, symdb, evp, ol) are not, until their
+	// senders gain pending handling. Keep a canary so their enrollment is a conscious act.
 	rec := newRecordingComponent()
-	config := confFromYAML(t, `
-apm_config:
-  additional_endpoints:
-    "https://trace.agent.second-org.datadoghq.com":
-      - "DELA[org-uuid-1, aws]"
-`)
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
 
 	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
 	assert.Empty(t, rec.recorded)
@@ -571,4 +572,67 @@ site: datadogh.com
 	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "resolved-api-key"}})
 	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
 	assert.Len(t, rec.recorded, 1, "resolved entry must not re-register")
+}
+
+func TestOrchestratorEndpointsAreWithinScope(t *testing.T) {
+	for _, key := range []string{
+		"orchestrator_explorer.orchestrator_additional_endpoints",
+		"process_config.orchestrator_additional_endpoints",
+	} {
+		rec := newRecordingComponent()
+		config := confFromYAML(t, "site: datadogh.com\n")
+		config.SetInTest(key, map[string][]string{
+			"https://orchestrator.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+		})
+
+		configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+		require.Len(t, rec.recorded, 1, "key %s", key)
+		assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+		assert.Equal(t, key, rec.recorded[0].AdditionalEndpointsConfigKey)
+	}
+}
+
+func TestEventPlatformEndpointsAreWithinScope(t *testing.T) {
+	// The full list is composed from the model's pipeline registry and pinned against
+	// the eventplatform descriptors in that package; one representative key here.
+	rec := newRecordingComponent()
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("container_image.additional_endpoints", []any{
+		map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"},
+	})
+
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "container_image.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
+}
+
+func TestTelemetryAndPcapEndpointsRegisterWithoutLogsHTTP(t *testing.T) {
+	for _, configKey := range []string{"agent_telemetry.additional_endpoints", "network_pcap.forwarder.additional_endpoints"} {
+		t.Run(configKey, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			config.SetInTest(configKey, []map[string]any{
+				{"host": "intake.datadoghq.eu", "api_key": "DELA[org-uuid-1, aws]"},
+			})
+			rec := newRecordingComponent()
+			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+			require.Len(t, rec.recorded, 1)
+			assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+			assert.Equal(t, configKey, rec.recorded[0].AdditionalEndpointsListConfigKey)
+			assert.Equal(t, 0, rec.recorded[0].ListEntryIndex)
+		})
+	}
+}
+
+func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
 }

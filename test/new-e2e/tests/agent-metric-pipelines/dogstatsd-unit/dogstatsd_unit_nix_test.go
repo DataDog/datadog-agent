@@ -32,12 +32,9 @@ const (
 	histogramMaxSuffix = ".max"
 
 	// timingMetric is a DogStatsD timing (|ms|). Processed identically to a histogram
-	// but the Agent attaches unit "millisecond" to every flushed serie.
+	// but carries unit "millisecond" when dogstatsd_set_timing_unit is enabled.
 	timingMetric    = "e2e.metric.unit.timing"
 	timingMaxSuffix = ".max"
-
-	// expectedTimingUnit is the Datadog API unit name for millisecond timing metrics.
-	expectedTimingUnit = "millisecond"
 
 	metricsV2Endpoint = "/api/v2/series"
 	metricsV3Endpoint = "/api/intake/metrics/v3/series"
@@ -46,14 +43,35 @@ const (
 type dogstatsdUnitSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	adpEnabled bool
-	v3Enabled  bool
+	adpEnabled         bool
+	v3Enabled          bool
+	expectedTimingUnit string
 }
 
 func testDogstatsdMetricUnit(t *testing.T, adpEnabled, v3Enabled bool) {
+	t.Helper()
 	t.Parallel()
 
-	agentConfig := `
+	for _, tc := range []struct {
+		name         string
+		config       string
+		expectedUnit string
+	}{
+		{name: "omitted", expectedUnit: ""},
+		{name: "false", config: "dogstatsd_set_timing_unit: false\n", expectedUnit: ""},
+		{name: "true", config: "dogstatsd_set_timing_unit: true\n", expectedUnit: "millisecond"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runDogstatsdMetricUnit(t, adpEnabled, v3Enabled, tc.name, tc.config, tc.expectedUnit)
+		})
+	}
+}
+
+func runDogstatsdMetricUnit(t *testing.T, adpEnabled, v3Enabled bool, configName, timingUnitConfig, expectedTimingUnit string) {
+	t.Helper()
+	t.Parallel()
+
+	agentConfig := timingUnitConfig + `
 histogram_aggregates:
   - max
   - avg
@@ -89,8 +107,9 @@ use_v3_api:
 	if v3Enabled {
 		stackName += "-v3"
 	}
+	stackName += "-" + configName
 
-	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled, v3Enabled: v3Enabled},
+	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled, v3Enabled: v3Enabled, expectedTimingUnit: expectedTimingUnit},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
 				awshost.WithRunOptions(
@@ -125,10 +144,8 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 	s.Env().RemoteHost.MustExecute(cmd)
 }
 
-// TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing metric in
-// parallel and verifies that only the timing metric carries a unit. The test runs for both V2
-// and V3 intake protocols; in both cases it asserts that payloads were routed
-// exclusively to the expected endpoint.
+// TestDogstatsdUnitOnlyOnTimingMetrics verifies that timing metrics carry a unit only
+// when enabled, while counters and histograms remain unitless. It also checks intake routing.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 	if s.adpEnabled {
 		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
@@ -149,8 +166,9 @@ func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 		}()
 		wg.Wait()
 
-		_, err := s.Env().FakeIntake.Client().FilterMetrics(countMetric)
+		countSeries, err := s.Env().FakeIntake.Client().FilterMetrics(countMetric)
 		assert.NoError(c, err)
+		assert.NotEmpty(c, countSeries, "counter serie must reach fakeintake")
 
 		histoSeries, err := s.Env().FakeIntake.Client().FilterMetrics(histogramMetric + histogramMaxSuffix)
 		assert.NoError(c, err)
@@ -183,13 +201,13 @@ func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
 		fmt.Printf("metric %q does not carry a unit\n", m.Metric)
 	}
 
-	// Timing .max: unit must be "millisecond".
+	// Timing .max: unit must match the configured behavior, including the default.
 	timingSeries, err := s.Env().FakeIntake.Client().FilterMetrics(timingMetric + timingMaxSuffix)
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), timingSeries)
 	for _, m := range timingSeries {
-		assert.Equal(s.T(), expectedTimingUnit, m.Unit,
-			"timing metric %q must carry unit %q, got %q", m.Metric, expectedTimingUnit, m.Unit)
+		assert.Equal(s.T(), s.expectedTimingUnit, m.Unit,
+			"timing metric %q must carry unit %q, got %q", m.Metric, s.expectedTimingUnit, m.Unit)
 		fmt.Printf("metric %q carries unit %q\n", m.Metric, m.Unit)
 	}
 

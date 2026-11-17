@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"slices"
 	"testing"
-	"time"
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
@@ -28,11 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/eks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-var (
-	waitFor = 10 * time.Second
-	tick    = 50 * time.Millisecond
 )
 
 var activeContainerWithoutProperties = gardenfakes.FakeContainer{
@@ -272,23 +266,7 @@ func TestPullNoContainers(t *testing.T) {
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	// If pull sets a container in the store, the one here will be added after
-	// it because workloadmeta processes the events in order. Therefore, if we
-	// only see this container and no others when listing, it means Pull()
-	// didn't add anything.
-	workloadmetaStore.Set(
-		&workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "test-container",
-			},
-		},
-	)
-
-	assert.Eventually(t, func() bool {
-		containers := workloadmetaStore.ListContainers()
-		return len(containers) == 1 && containers[0].ID == "test-container"
-	}, waitFor, tick)
+	assert.Empty(t, workloadmetaStore.ListContainers())
 }
 
 func TestPullActiveContainer(t *testing.T) {
@@ -313,11 +291,6 @@ func TestPullActiveContainer(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
-		return err == nil
-	}, waitFor, tick)
 
 	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
 	require.NoError(t, err)
@@ -353,11 +326,6 @@ func TestPullStoppedContainer(t *testing.T) {
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(stoppedContainer.Handle())
-		return err == nil
-	}, waitFor, tick)
-
 	container, err := workloadmetaStore.GetContainer(stoppedContainer.Handle())
 	require.NoError(t, err)
 
@@ -392,10 +360,8 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
-		return err == nil
-	}, waitFor, tick)
+	_, err = workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+	require.NoError(t, err)
 
 	// remove containers
 	fakeGardenUtil.containers = nil
@@ -403,10 +369,8 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	err = c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
-		return err != nil
-	}, waitFor, tick)
+	_, err = workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+	assert.Error(t, err)
 }
 
 func TestPullAppNameWithDCA(t *testing.T) {
@@ -431,11 +395,6 @@ func TestPullAppNameWithDCA(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
-		return err == nil
-	}, waitFor, tick)
 
 	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
 	require.NoError(t, err)
@@ -507,11 +466,6 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
-		return err == nil
-	}, waitFor, tick)
-
 	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
 	require.NoError(t, err)
 
@@ -543,11 +497,6 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		_, err := workloadmetaStore.GetContainer(activeContainerWithProperties.Handle())
-		return err == nil
-	}, waitFor, tick)
 
 	container, err := workloadmetaStore.GetContainer(activeContainerWithProperties.Handle())
 	require.NoError(t, err)

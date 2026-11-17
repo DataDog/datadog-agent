@@ -36,18 +36,28 @@ type ContainerConfigProvider struct {
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
 
-	healthPlatform healthplatformdef.Component
+	healthPlatform       healthplatformdef.Component
+	healthUpdatesMu      sync.Mutex
+	pendingHealthUpdates map[string]containerHealthUpdate // protected by healthUpdatesMu
+	healthUpdatesReady   chan struct{}
+}
+
+type containerHealthUpdate struct {
+	errors types.ErrorMsgSet
+	source types.ErrorSource
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
 func NewContainerConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
-		workloadmetaStore: wmeta,
-		configCache:       make(map[string]map[string]integration.Config),
-		configErrors:      make(map[string]types.ErrorMsgSet),
-		telemetryStore:    telemetryStore,
-		healthPlatform:    hp,
+		workloadmetaStore:    wmeta,
+		configCache:          make(map[string]map[string]integration.Config),
+		configErrors:         make(map[string]types.ErrorMsgSet),
+		telemetryStore:       telemetryStore,
+		healthPlatform:       hp,
+		pendingHealthUpdates: make(map[string]containerHealthUpdate),
+		healthUpdatesReady:   make(chan struct{}, 1),
 	}, nil
 }
 
@@ -60,6 +70,7 @@ func (k *ContainerConfigProvider) String() string {
 // instead of relying on a periodic call to Collect.
 func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	const name = "ad-kubecontainerprovider"
+	ctx, cancel := context.WithCancel(ctx)
 
 	// outCh must be unbuffered. processing of workloadmeta events must not
 	// proceed until the config is processed by autodiscovery, as configs
@@ -71,8 +82,10 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
 	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
+	go k.reportHealthErrors(ctx)
 
 	go func() {
+		defer cancel()
 		for {
 			select {
 			case <-ctx.Done():
@@ -110,11 +123,10 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			if err != nil {
 				k.configErrors[entityName] = err
-				reportConfigurationError(k.healthPlatform, entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
-				clearConfigurationErrors(k.healthPlatform, entityName)
 			}
+			k.updateHealthError(entityName, err, errorSource)
 
 			configCache, ok := k.configCache[entityName]
 			if !ok {
@@ -151,7 +163,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
-			clearConfigurationErrors(k.healthPlatform, entityName)
+			k.updateHealthError(entityName, nil, "")
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -165,6 +177,47 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	}
 
 	return changes
+}
+
+// updateHealthError coalesces pending updates by entity, including resolutions,
+// without waiting for the worker to finish a health-platform call.
+func (k *ContainerConfigProvider) updateHealthError(entityName string, errors types.ErrorMsgSet, source types.ErrorSource) {
+	k.healthUpdatesMu.Lock()
+	k.pendingHealthUpdates[entityName] = containerHealthUpdate{errors: maps.Clone(errors), source: source}
+	k.healthUpdatesMu.Unlock()
+	select {
+	case k.healthUpdatesReady <- struct{}{}:
+	default:
+	}
+}
+
+// reportHealthErrors serializes reports and resolutions outside event processing
+// and mu. Each pass takes ownership of the pending updates, so events can enqueue
+// newer state while reporting is blocked. Using one worker preserves the order
+// of reports and resolutions for each entity.
+func (k *ContainerConfigProvider) reportHealthErrors(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-k.healthUpdatesReady:
+			k.healthUpdatesMu.Lock()
+			updates := k.pendingHealthUpdates
+			k.pendingHealthUpdates = make(map[string]containerHealthUpdate)
+			k.healthUpdatesMu.Unlock()
+
+			for entityName, err := range updates {
+				if ctx.Err() != nil {
+					return
+				}
+				if err.errors == nil {
+					clearConfigurationErrors(k.healthPlatform, entityName)
+				} else {
+					reportConfigurationError(k.healthPlatform, entityName, err.errors, err.source)
+				}
+			}
+		}
+	}
 }
 
 func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet, types.ErrorSource) {

@@ -45,6 +45,10 @@ const maxAcceptedInterval = 14400 // 4h
 
 const providerName = "host"
 
+// intervalJitter is the backoff's randomization factor: each collection interval varies by up to 20%, and
+// nextInterval caps it at the configured interval.
+const intervalJitter = 0.2
+
 type host struct {
 	log          log.Component
 	config       config.Component
@@ -116,10 +120,12 @@ func NewComponent(deps Requires) Provides {
 
 	hname, _ := deps.Hostname.Get(context.Background())
 
-	// exponential backoff for collection intervals which arrives at user's configured interval
+	// exponential backoff for collection intervals which arrives at user's configured interval. The randomization
+	// keeps agents that start together from sending their payloads in lockstep forever; nextInterval caps it at the
+	// configured interval, so it only makes payloads come earlier.
 	bo := &backoff.ExponentialBackOff{
 		InitialInterval:     earlyInterval, // start with the early interval
-		RandomizationFactor: 0,
+		RandomizationFactor: intervalJitter,
 		Multiplier:          3.0,
 		MaxInterval:         collectInterval, // max interval is the user configured interval
 	}
@@ -150,10 +156,7 @@ func NewComponent(deps Requires) Provides {
 func (h *host) collect(ctx context.Context) time.Duration {
 	payload := h.getPayload(ctx)
 
-	nextInterval := h.backoffPolicy.NextBackOff()
-	if nextInterval <= 0 || nextInterval > h.backoffPolicy.MaxInterval {
-		nextInterval = h.backoffPolicy.MaxInterval
-	}
+	nextInterval := h.nextInterval()
 
 	// Debug log to show the actual interval that will be used
 	h.log.Debugf("Next host metadata collection scheduled in %s", nextInterval)
@@ -163,6 +166,16 @@ func (h *host) collect(ctx context.Context) time.Duration {
 	}
 
 	return nextInterval
+}
+
+// nextInterval returns the delay until the next collection: the jittered backoff, never above the configured
+// interval.
+func (h *host) nextInterval() time.Duration {
+	next := h.backoffPolicy.NextBackOff()
+	if next <= 0 || next > h.backoffPolicy.MaxInterval {
+		return h.backoffPolicy.MaxInterval
+	}
+	return next
 }
 
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {

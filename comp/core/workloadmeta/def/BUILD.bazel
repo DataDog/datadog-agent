@@ -36,6 +36,7 @@ go_library(
 dd_agent_go_test(
     name = "def_test",
     srcs = [
+        "deepcopy_test.go",
         "dump_test.go",
         "filter_test.go",
         "json_test.go",
@@ -44,6 +45,7 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":def"],
+    embedsrcs = ["types.go"],
     deps = [
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",

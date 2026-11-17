@@ -186,11 +186,19 @@ func TestRedisObfuscator(t *testing.T) {
 			"LPUSHX key ?",
 		},
 		{
+			"LPUSHX key value1 value2 value3",
+			"LPUSHX key ?",
+		},
+		{
 			"GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]",
 			"GEORADIUSBYMEMBER key ? radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]",
 		},
 		{
 			"RPUSHX key value",
+			"RPUSHX key ?",
+		},
+		{
+			"RPUSHX key value1 value2 value3",
 			"RPUSHX key ?",
 		},
 		{
@@ -236,6 +244,14 @@ func TestRedisObfuscator(t *testing.T) {
 		{
 			"BITFIELD key SET type offset",
 			"BITFIELD key SET type offset",
+		},
+		{
+			"BITFIELD key SET i8 0 100 SET i8 8 200",
+			"BITFIELD key SET i8 0 ? SET i8 8 ?",
+		},
+		{
+			"BITFIELD key set i8 0 100 INCRBY i8 0 5 OVERFLOW SAT SET u4 4 7 GET u4 4",
+			"BITFIELD key set i8 0 ? INCRBY i8 0 5 OVERFLOW SAT SET u4 4 ? GET u4 4",
 		},
 		{
 			"CONFIG SET parameter value",

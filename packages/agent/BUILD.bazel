@@ -8,10 +8,9 @@ package(default_visibility = ["//visibility:public"])
 string_flag(
     name = "flavor",
     build_setting_default = "base",
-    # These values match omnibus.
+    # These values match omnibus, minus fips.
     values = [
         "base",
-        "fips",
         "heroku",
         "iot",
         "recorder",
@@ -25,45 +24,19 @@ alias(
 
 config_setting(
     name = "base_flavor",
-    flag_values = {"@@//packages/agent:flavor": "base"},  # buildifier: disable=canonical-repository
-)
-
-config_setting(
-    name = "fips_flavor",
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
+    flag_values = {"//packages/agent:flavor": "base"},
 )
 
 config_setting(
     name = "iot_flavor",
-    flag_values = {"@@//packages/agent:flavor": "iot"},  # buildifier: disable=canonical-repository
+    flag_values = {"//packages/agent:flavor": "iot"},
 )
 
 config_setting(
-    name = "recorder_flavor",
-    flag_values = {"@@//packages/agent:flavor": "recorder"},  # buildifier: disable=canonical-repository
-)
-
-selects.config_setting_group(
-    name = "base_or_recorder_flavor",
-    match_any = [
-        ":base_flavor",
-        ":recorder_flavor",
-    ],
-)
-
-selects.config_setting_group(
-    name = "linux_default",
-    match_all = [
-        ":base_or_recorder_flavor",
-        "@platforms//os:linux",
-    ],
-)
-
-selects.config_setting_group(
     name = "linux_fips",
-    match_all = [
-        ":fips_flavor",
+    constraint_values = [
         "@platforms//os:linux",
+        "//bazel/platforms:fips",
     ],
 )
 
@@ -88,8 +61,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 config_setting(
@@ -97,8 +70,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:arm64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 config_setting(
@@ -106,8 +79,8 @@ config_setting(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+        "//bazel/platforms:fips",
     ],
-    flag_values = {"@@//packages/agent:flavor": "fips"},  # buildifier: disable=canonical-repository
 )
 
 string_flag(

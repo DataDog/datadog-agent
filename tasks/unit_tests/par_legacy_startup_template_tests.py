@@ -15,11 +15,44 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SHELL = os.environ.get('PROCMGR_TEST_SHELL', '/bin/sh')
 SYSV_TEMPLATE = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.action.in'
 UPSTART_TEMPLATES = (
     REPO_ROOT / 'packages/debian/etc/upstart_debian.action.conf.in',
     REPO_ROOT / 'packages/redhat/etc/upstart_redhat.action.conf.in',
 )
+ADMIN_PROCMGR_DEFAULTS = '/etc/default/datadog-agent-procmgr'
+PAR_DEFINITIONS = (
+    'datadog-agent-par-control.yaml',
+    'datadog-agent-action-executor.yaml',
+)
+INSTALLER_OPT_OUT = 'DATADOG_ENABLED=no\n'
+SOCKET = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
+UNIX_HEADER = 'Num       RefCount Protocol Flags    Type St Inode Path\n'
+LISTENING = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {SOCKET}\n'
+# Same path, but a connected socket: not a listener.
+CONNECTED = f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET}\n'
+# Each case disables procmgr, so without a listening socket the action job forces the monolithic runner.
+# Only the admin opt-out keeps both PAR definitions, so only it lets a listening socket defer to the config.
+PROCMGR_DISABLED = (
+    ('not installed', {'procmgr_installed': False}),
+    ('installer opt-out', {'procmgr_installed': True, 'installer_defaults': INSTALLER_OPT_OUT}),
+    ('admin opt-out', {'procmgr_installed': True, 'admin_defaults': 'DATADOG_ENABLED=no\n'}),
+)
+LISTENING_DEFERS_TO_CONFIG = {'admin opt-out'}
+ADMIN_ENABLE = 'DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n'
+# With the installer opt-out no PAR definition is written, so these files are the whole catalog.
+MISSING_PAR_DEFINITIONS = (
+    ('empty catalog', ()),
+    ('par-control only', ('datadog-agent-par-control.yaml',)),
+    ('action-executor only', ('datadog-agent-action-executor.yaml',)),
+    ('custom definition only', ('custom.yaml',)),
+)
+PAR_DEFINITION_SETS = (
+    ('yaml', PAR_DEFINITIONS),
+    ('yml', ('datadog-agent-par-control.yml', 'datadog-agent-action-executor.yml')),
+)
+SOCKETS = (('absent', None), ('listening', LISTENING))
 
 
 @unittest.skipUnless(os.name == 'posix', 'init template tests require POSIX')
@@ -28,7 +61,38 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
         path.write_text('#!/bin/sh\nset -eu\n' + content)
         path.chmod(0o755)
 
-    def run_sysv(self, action='start', statuses='', running=False, setpriv=True, **env):
+    def write_procmgr_files(self, root, procmgr_installed, installer_defaults, admin_defaults, extra_processes=()):
+        if procmgr_installed:
+            self.executable(root / 'embedded/bin/dd-procmgrd', 'exit 0\n')
+        # installer_defaults opt-out means the installer wrote no Private Action Runner definitions.
+        names = ()
+        if procmgr_installed and installer_defaults != INSTALLER_OPT_OUT:
+            names = PAR_DEFINITIONS
+        names = tuple(names) + tuple(extra_processes)
+        if names:
+            directory = root / 'processes.d'
+            directory.mkdir(exist_ok=True)
+            for name in names:
+                (directory / name).write_text('command: /bin/true\n')
+        admin = root / 'default/datadog-agent-procmgr'
+        if admin_defaults is not None:
+            admin.parent.mkdir(exist_ok=True)
+            admin.write_text(admin_defaults)
+        return admin
+
+    def run_sysv(
+        self,
+        action='start',
+        statuses='',
+        running=False,
+        setpriv=True,
+        unix_row=None,
+        procmgr_installed=False,
+        installer_defaults=None,
+        admin_defaults=None,
+        extra_processes=(),
+        **env,
+    ):
         import fcntl
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -36,12 +100,15 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
             binary = root / 'embedded/bin/privateactionrunner'
             binary.parent.mkdir(parents=True)
             self.executable(binary, 'exit 0\n')
+            self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults, extra_processes)
             (root / 'run').mkdir()
             pidfile = root / 'run/privateactionrunner.pid'
             if running:
                 pidfile.write_text(f'{os.getpid()}\n')
             commands = root / 'commands'
             commands.mkdir()
+            (commands / 'awk').symlink_to(shutil.which('awk'))
+            (commands / 'cat').symlink_to(shutil.which('cat'))
             self.executable(
                 commands / 'rm',
                 f'[ "${{REMOVE_ERROR:-0}}" = 0 ] || exit "$REMOVE_ERROR"\nexec "{shutil.which("rm")}" "$@"\n',
@@ -167,6 +234,9 @@ log_warning_msg() { echo "WARNING: $*"; }
             script = script.replace('. /lib/lsb/init-functions', f'. "{functions}"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
             script = script.replace('/sbin/start-stop-daemon', str(daemon))
+            unix_table = root / 'unix'
+            unix_table.write_text(UNIX_HEADER + (unix_row or ''))
+            script = script.replace('/proc/net/unix', str(unix_table))
             rendered = root / 'init-script'
             rendered.write_text(script)
             calls, sleeps = root / 'calls', root / 'sleeps'
@@ -200,7 +270,7 @@ log_warning_msg() { echo "WARNING: $*"; }
             }
             try:
                 result = subprocess.run(
-                    ['/bin/sh', str(rendered), action],
+                    [SHELL, str(rendered), action],
                     env=environment,
                     pass_fds=(inherited_fd,),
                     text=True,
@@ -227,6 +297,84 @@ log_warning_msg() { echo "WARNING: $*"; }
                 self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertNotIn('WARNING', result.stdout)
+
+    def test_start_defers_split_mode_to_config_when_procmgr_is_enabled(self):
+        result, calls, sleeps, _ = self.run_sysv(procmgr_installed=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+        self.assertNotIn('split=false', calls)
+        self.assertIn('split mode from config', result.stdout)
+        self.assertNotIn('monolithic', result.stdout)
+        self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_unrelated_definition_does_not_select_split_mode(self):
+        result, calls, _, _ = self.run_sysv(
+            procmgr_installed=True, installer_defaults=INSTALLER_OPT_OUT, extra_processes=('custom.yaml',)
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+        self.assertIn('monolithic mode', result.stdout)
+
+    def test_sysv_forces_monolithic_when_procmgr_is_disabled(self):
+        for name, procmgr in PROCMGR_DISABLED:
+            with self.subTest(name):
+                result, calls, sleeps, _ = self.run_sysv(**procmgr)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                self.assertIn('monolithic mode', result.stdout)
+                self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_listening_procmgr_defers_to_config_only_with_par_definitions(self):
+        for name, procmgr in PROCMGR_DISABLED:
+            with self.subTest(name):
+                result, calls, sleeps, _ = self.run_sysv(unix_row=LISTENING, **procmgr)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                if name in LISTENING_DEFERS_TO_CONFIG:
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+                    self.assertNotIn('split=false', calls)
+                    self.assertIn('split mode from config', result.stdout)
+                else:
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                    self.assertIn('monolithic mode', result.stdout)
+                self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_ignores_a_socket_that_is_not_listening(self):
+        result, calls, _, _ = self.run_sysv(unix_row=CONNECTED)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+        self.assertIn('monolithic mode', result.stdout)
+
+    def test_sysv_admin_enable_without_par_definitions_stays_monolithic(self):
+        for catalog, processes in MISSING_PAR_DEFINITIONS:
+            for socket, row in SOCKETS:
+                with self.subTest(catalog=catalog, socket=socket):
+                    result, calls, sleeps, _ = self.run_sysv(
+                        unix_row=row,
+                        procmgr_installed=True,
+                        installer_defaults=INSTALLER_OPT_OUT,
+                        admin_defaults=ADMIN_ENABLE,
+                        extra_processes=processes,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                    self.assertIn('monolithic mode', result.stdout)
+                    self.assertNotIn('leaked', calls)
+                    self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_admin_enable_with_par_definitions_defers_to_config(self):
+        for suffix, processes in PAR_DEFINITION_SETS:
+            with self.subTest(suffix):
+                result, calls, sleeps, _ = self.run_sysv(
+                    procmgr_installed=True,
+                    installer_defaults=INSTALLER_OPT_OUT,
+                    admin_defaults=ADMIN_ENABLE,
+                    extra_processes=processes,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+                self.assertIn('split mode from config', result.stdout)
+                self.assertNotIn('leaked', calls)
+                self.assertEqual(sleeps, ['1', '1'])
 
     def test_start_accepts_clean_exit_and_removes_pidfile(self):
         for setpriv in (True, False):
@@ -346,6 +494,10 @@ sys.exit(int(sys.argv[1]))
             script = SYSV_TEMPLATE.read_text().replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
             script = script.replace('AGENT_USER="dd-agent"', 'AGENT_USER="root"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
+            # Keep a host dd-procmgrd socket from switching this test to split mode.
+            unix_table = root / 'unix'
+            unix_table.write_text(UNIX_HEADER)
+            script = script.replace('/proc/net/unix', str(unix_table))
             script = script.replace(
                 '. /lib/lsb/init-functions',
                 '''init_is_upstart() { return 1; }
@@ -357,7 +509,7 @@ log_failure_msg() { echo "$*"; }''',
             rendered = root / 'init-script'
 
             def service(action):
-                return subprocess.run(['/bin/sh', str(rendered), action], text=True, capture_output=True, timeout=15)
+                return subprocess.run([SHELL, str(rendered), action], text=True, capture_output=True, timeout=30)
 
             for outcome in ('0', '2', 'signal', 'running'):
                 with self.subTest(outcome=outcome):
@@ -380,40 +532,169 @@ log_failure_msg() { echo "$*"; }''',
                     finally:
                         service('stop')
 
-    def test_upstart_script_blocks_force_monolithic_without_warning(self):
-        for template in UPSTART_TEMPLATES:
-            with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp)
-                binary = root / 'embedded/bin/privateactionrunner'
-                binary.parent.mkdir(parents=True)
-                self.executable(binary, 'echo "split=$DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"\n')
-                # Upstart's script/end script delimiters are syntax, not layout comments.
-                blocks = re.findall(r'^script\n(.*?)^end script$', template.read_text(), re.MULTILINE | re.DOTALL)
-                self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
-                script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
-                logfile = root / 'errors.log'
-                script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
-                self.executable(
-                    root / 'su',
-                    '''shell=$2
+    def run_upstart(
+        self,
+        template,
+        unix_row=None,
+        procmgr_installed=True,
+        installer_defaults=None,
+        admin_defaults=None,
+        extra_processes=(),
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            binary = root / 'embedded/bin/privateactionrunner'
+            binary.parent.mkdir(parents=True)
+            self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
+            admin = self.write_procmgr_files(
+                root, procmgr_installed, installer_defaults, admin_defaults, extra_processes
+            )
+            # Upstart's script/end script delimiters are syntax, not layout comments.
+            text = template.read_text()
+            blocks = re.findall(r'^script\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
+            self.assertEqual(len(blocks), 1, f'{template}: expected one main script block')
+            script = blocks[0].replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
+            logfile = root / 'errors.log'
+            unix_table = root / 'unix'
+            unix_table.write_text(UNIX_HEADER + (unix_row or ''))
+            script = script.replace('/proc/net/unix', str(unix_table))
+            script = script.replace(ADMIN_PROCMGR_DEFAULTS, str(admin))
+            script = script.replace('&>>', '>>')
+            script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
+            su_env = root / 'su.env'
+            # Record the environment su receives, then clear it. Real su does not pass it on.
+            self.executable(
+                root / 'su',
+                '''env > "$SU_ENV"
+shell=$2
 command=$4
 shift 6
-exec "$shell" -c "$command" "$@"
+exec env -i PATH="$PATH" "$shell" -c "$command" "$@"
 ''',
-                )
-                result = subprocess.run(
-                    [shutil.which('bash'), '-c', script],
-                    env={
-                        **os.environ,
-                        'PATH': f'{tmp}:/usr/bin:/bin',
-                        'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
-                    },
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
+            )
+            self.executable(
+                root / 'start-stop-daemon',
+                '''case " $* " in *" --background "*) exit 96 ;; esac
+case " $* " in *" --chuid dd-agent "*) ;; *) exit 97 ;; esac
+case " $* " in *" --pidfile /nonexistent "*) ;; *) exit 95 ;; esac
+exec_path=
+while [ $# -gt 0 ]; do
+  if [ "$1" = --exec ]; then
+    exec_path=$2
+    shift 2
+    continue
+  fi
+  if [ "$1" = -- ]; then
+    shift
+    exec "$exec_path" "$@"
+  fi
+  shift
+done
+exit 98
+''',
+            )
+            # Upstart runs script blocks with sh -e. Debian's /bin/sh is dash.
+            result = subprocess.run(
+                [SHELL, '-e', '-c', script],
+                env={
+                    **os.environ,
+                    'PATH': f'{tmp}:/usr/bin:/bin',
+                    'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED': 'true',
+                    'SU_ENV': str(su_env),
+                },
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            output = result.stdout + (logfile.read_text() if logfile.exists() else '')
+            received = su_env.read_text() if su_env.exists() else ''
+            return result, output, received
+
+    def test_upstart_script_forces_monolithic_only_without_procmgr(self):
+        for template in UPSTART_TEMPLATES:
+            text = template.read_text()
+            self.assertIn(SOCKET, text)
+            self.assertNotIn('sleep', text.split('\nscript\n', 1)[1].split('end script', 1)[0])
+            self.assertNotIn('initctl', text)
+            if template.name.startswith('upstart_debian'):
+                self.assertNotIn('\nsetuid ', f'\n{text}')
+                command = text.split('exec start-stop-daemon', 1)[1].split('end script', 1)[0]
+                self.assertIn('--chuid dd-agent', command)
+                self.assertIn('--pidfile /nonexistent', command)
+                self.assertNotIn('--background', command)
+            with self.subTest(template=template.name, procmgr='enabled'):
+                result, output, _ = self.run_upstart(template)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                output = result.stdout + (logfile.read_text() if logfile.exists() else '')
-                self.assertIn('split=false', output)
+                self.assertIn('split mode from config', output)
+                self.assertNotIn('split=false', output)
+                # Red Hat su clears the environment, so an inherited true does not reach the runner.
+                if template.name.startswith('upstart_debian'):
+                    self.assertIn('split=true', output)
+            for name, procmgr in PROCMGR_DISABLED:
+                for socket, row in (('absent', None), ('connected', CONNECTED)):
+                    with self.subTest(template=template.name, procmgr=name, socket=socket):
+                        result, output, _ = self.run_upstart(template, row, **procmgr)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('monolithic mode', output)
+                        self.assertIn('split=false', output)
+                        self.assertNotIn('not supported', output)
+                with self.subTest(template=template.name, procmgr=name, socket='listening'):
+                    result, output, _ = self.run_upstart(template, LISTENING, **procmgr)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    if name in LISTENING_DEFERS_TO_CONFIG:
+                        self.assertIn('split mode from config', output)
+                        self.assertNotIn('split=false', output)
+                    else:
+                        self.assertIn('monolithic mode', output)
+                        self.assertIn('split=false', output)
+
+    def test_upstart_unrelated_definition_does_not_select_split_mode(self):
+        for template in UPSTART_TEMPLATES:
+            with self.subTest(template=template.name):
+                result, output, _ = self.run_upstart(
+                    template,
+                    procmgr_installed=True,
+                    installer_defaults=INSTALLER_OPT_OUT,
+                    extra_processes=('custom.yaml',),
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn('monolithic mode', output)
-                self.assertNotIn('not supported', output)
+                self.assertIn('split=false', output)
+
+    def test_upstart_admin_enable_without_par_definitions_stays_monolithic(self):
+        for template in UPSTART_TEMPLATES:
+            for catalog, processes in MISSING_PAR_DEFINITIONS:
+                for socket, row in SOCKETS:
+                    with self.subTest(template=template.name, catalog=catalog, socket=socket):
+                        result, output, su_env = self.run_upstart(
+                            template,
+                            row,
+                            installer_defaults=INSTALLER_OPT_OUT,
+                            admin_defaults=ADMIN_ENABLE,
+                            extra_processes=processes,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('monolithic mode', output)
+                        # On Red Hat this comes from the runner, so the flag made it through su -c.
+                        self.assertIn('split=false', output)
+                        self.assertNotIn('leaked', output)
+                        self.assertNotIn('leaked', su_env)
+
+    def test_upstart_admin_enable_with_par_definitions_defers_to_config(self):
+        for template in UPSTART_TEMPLATES:
+            for suffix, processes in PAR_DEFINITION_SETS:
+                with self.subTest(template=template.name, definitions=suffix):
+                    result, output, su_env = self.run_upstart(
+                        template,
+                        installer_defaults=INSTALLER_OPT_OUT,
+                        admin_defaults=ADMIN_ENABLE,
+                        extra_processes=processes,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('split mode from config', output)
+                    self.assertNotIn('split=false', output)
+                    self.assertNotIn('leaked', output)
+                    # su clears the environment before the runner, so the runner output cannot show this leak.
+                    if template.name.startswith('upstart_redhat'):
+                        self.assertIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true', su_env)
+                        self.assertNotIn('leaked', su_env)

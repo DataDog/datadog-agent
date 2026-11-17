@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
 

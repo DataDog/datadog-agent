@@ -9,7 +9,7 @@ package io
 import (
 	"regexp"
 
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -33,35 +33,37 @@ func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integ
 		return err
 	}
 
-	conf := make(map[interface{}]interface{})
-
+	conf := ioConfig{}
 	err := yaml.Unmarshal([]byte(initConfig), &conf)
 	if err != nil {
 		return err
 	}
 
-	blacklistRe, ok := conf["device_exclude_re"]
-	if !ok {
-		blacklistRe, ok = conf["device_blacklist_re"]
-		if ok {
-			log.Warn("'device_blacklist_re' has been deprecated, use 'device_exclude_re' instead")
+	regex := ""
+	if conf.DeviceExcludeRe != nil {
+		regex = *conf.DeviceExcludeRe
+	} else if conf.DeviceBlacklistRe != nil {
+		log.Warn("'device_blacklist_re' has been deprecated, use 'device_exclude_re' instead")
+		regex = *conf.DeviceBlacklistRe
+	}
+	if regex != "" {
+		c.blacklist, err = regexp.Compile(regex)
+		if err != nil {
+			return err
 		}
 	}
-	if ok && blacklistRe != "" {
-		if regex, ok := blacklistRe.(string); ok {
-			c.blacklist, err = regexp.Compile(regex)
-		}
-	}
+	c.lowercaseDeviceTag = conf.LowercaseDeviceTag
 
-	if lowercaseDeviceTagOption, ok := conf["lowercase_device_tag"]; ok {
-		if lowercaseDeviceTag, ok := lowercaseDeviceTagOption.(bool); ok {
-			c.lowercaseDeviceTag = lowercaseDeviceTag
-		} else {
-			log.Warn("Can't cast value of 'lowercase_device_tag' option to boolean: ", lowercaseDeviceTagOption)
-		}
-	}
+	return nil
+}
 
-	return err
+// ioConfig holds the init_config options of the io check. The regex options
+// are pointers so that an explicitly empty device_exclude_re does not fall
+// back to the deprecated device_blacklist_re, only an absent one does.
+type ioConfig struct {
+	DeviceExcludeRe    *string `yaml:"device_exclude_re"`
+	DeviceBlacklistRe  *string `yaml:"device_blacklist_re"`
+	LowercaseDeviceTag bool    `yaml:"lowercase_device_tag"`
 }
 
 // Factory creates a new check factory
