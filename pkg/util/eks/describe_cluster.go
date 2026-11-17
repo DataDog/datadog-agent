@@ -139,6 +139,10 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	if err != nil {
 		return nil, fmt.Errorf("parse EKS endpoint: %w", err)
 	}
+	if base.Scheme == "" || base.Host == "" {
+		// A configuration error: not retried as a transport error.
+		return nil, fmt.Errorf("%w: EKS endpoint %q has no scheme or host", errInvalidEndpoint, endpoint)
+	}
 	// JoinPath keeps the path prefix of a configured endpoint. The generated client drops the
 	// query, so this does too. The name is checked here as well as by the caller, so it can only
 	// hold [A-Za-z0-9_-].
@@ -151,9 +155,9 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
 	// and one more attempt after a transport error, a throttle or a 500/502/503/504 when there is
-	// time left. A throttle waits a short jittered delay first. The rest of the policy is the
-	// caller's failure cache, which retries transient failures after 30 seconds instead of
-	// retrying in a loop while node Agents wait.
+	// time left, after a short jittered delay. The rest of the policy is the caller's failure
+	// cache, which retries transient failures after 30 seconds instead of retrying in a loop
+	// while node Agents wait.
 	skewCorrected, retried := false, false
 	for {
 		out, err := c.send(ctx, reqURL)
@@ -168,20 +172,33 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		}
 		if !retried && isRetryable(err) {
 			retried = true
-			if isThrottle(err) && !sleepCtx(ctx, throttleRetryDelay()) {
+			// Every retry waits a short jittered delay, like the SDK's backoff, so the Cluster
+			// Agents of one account do not retry in step. The time left is checked first, so
+			// the client does not sleep for an attempt it cannot make.
+			delay := throttleRetryDelay()
+			if !hasTimeForRetryAfter(ctx, delay) || !sleepCtx(ctx, delay) {
 				return nil, err
 			}
-			// Measured after the wait.
-			if hasTimeForRetry(ctx) {
-				continue
-			}
+			continue
 		}
 		return nil, err
 	}
 }
 
-// throttleRetryDelay is the wait before retrying a throttled request: 100ms to 300ms, jittered
-// so the Cluster Agents of one account do not retry in step. Variable for tests.
+// hasTimeForRetryAfter reports whether an attempt started after delay still has minRetryTime.
+func hasTimeForRetryAfter(ctx context.Context, delay time.Duration) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	deadline, ok := ctx.Deadline()
+	return !ok || time.Until(deadline) > delay+minRetryTime
+}
+
+// errInvalidEndpoint is a configured EKS endpoint the client cannot send a request to.
+var errInvalidEndpoint = errors.New("invalid EKS endpoint")
+
+// throttleRetryDelay is the wait before a retry: 100ms to 300ms, jittered so the Cluster Agents
+// of one account do not retry in step. Variable for tests.
 var throttleRetryDelay = func() time.Duration {
 	// #nosec G404 -- jitter for a retry delay, not a secret
 	return 100*time.Millisecond + rand.N(200*time.Millisecond) //nolint:gosec // G404, see above
@@ -204,14 +221,6 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 
 // minRetryTime is the time an attempt needs to be worth starting.
 const minRetryTime = 500 * time.Millisecond
-
-func hasTimeForRetry(ctx context.Context) bool {
-	if ctx.Err() != nil {
-		return false
-	}
-	deadline, ok := ctx.Deadline()
-	return !ok || time.Until(deadline) > minRetryTime
-}
 
 // transportError is a failure to get an HTTP answer at all (connection refused or reset, DNS,
 // TLS, or a body cut short). It unwraps so the SDK retry classifier still sees the cause.
@@ -259,7 +268,7 @@ func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (
 	req.Header.Set("Accept", "application/json")
 	// Identify the caller in CloudTrail the way the Cluster Agent's Kubernetes client does, plus
 	// the SDK version that signs the request. The SigV4 signer does not sign User-Agent.
-	req.Header.Set("User-Agent", userAgent())
+	req.Header.Set("User-Agent", userAgent(c.cfg.AppID))
 
 	creds, err := c.cfg.Credentials.Retrieve(ctx)
 	if err != nil {
@@ -320,6 +329,11 @@ const skewThreshold = 4 * time.Minute
 // more than skewThreshold away from the observed one: that is both a fresh skew and a stale
 // offset after the local clock was fixed (aws/retry wrapAsClockSkew).
 func (c *signedDescribeClusterClient) observeServerTime(header http.Header) bool {
+	// A response with an Age header may come from a cache: its Date is not the server's clock
+	// now (SDK computeClockSkew).
+	if header.Get("Age") != "" {
+		return false
+	}
 	server := serverTime(header)
 	if server.IsZero() {
 		return false
@@ -331,9 +345,9 @@ func (c *signedDescribeClusterClient) observeServerTime(header http.Header) bool
 }
 
 // parseAPIError reads the error code the way the AWS SDK REST-JSON protocol does: from the
-// X-Amzn-ErrorType header first, then from the code or __type body field (matched without case,
-// like the SDK's JSON decoder), sanitized by sanitizeErrorCode. Without any code it is
-// UnknownError, the SDK's default.
+// X-Amzn-ErrorType header first, then from the __type or code body field, in that order (matched
+// without case, like the SDK's JSON decoder), sanitized by sanitizeErrorCode. Without any code it
+// is UnknownError, the SDK's default.
 func parseAPIError(statusCode int, header http.Header, body []byte) *apiError {
 	var payload struct {
 		Code    string `json:"code"`
@@ -344,10 +358,10 @@ func parseAPIError(statusCode int, header http.Header, body []byte) *apiError {
 
 	code := header.Get("X-Amzn-ErrorType")
 	if code == "" {
-		code = payload.Code
+		code = payload.Type
 	}
 	if code == "" {
-		code = payload.Type
+		code = payload.Code
 	}
 	code = sanitizeErrorCode(code)
 	if code == "" {
@@ -380,8 +394,13 @@ func sanitizeErrorCode(code string) string {
 	return code
 }
 
-func userAgent() string {
-	return "datadog-cluster-agent/" + version.AgentVersion + " aws-sdk-go-v2/" + aws.SDKVersion
+func userAgent(appID string) string {
+	ua := "datadog-cluster-agent/" + version.AgentVersion + " aws-sdk-go-v2/" + aws.SDKVersion
+	if appID != "" {
+		// The SDK's app/<id> component, from AWS_SDK_UA_APP_ID or sdk_ua_app_id.
+		ua += " app/" + appID
+	}
+	return ua
 }
 
 // partitionEndpoint describes the DNS suffixes of an AWS partition. The table mirrors the

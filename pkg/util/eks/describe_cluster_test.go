@@ -818,3 +818,91 @@ func TestFailureTTLSignatureErrorsNeedSkew(t *testing.T) {
 	// A clock error says so whatever the observed skew.
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: "RequestTimeTooSkewed"}))
 }
+
+func TestDescribeClusterIgnoresDateOfACachedAnswer(t *testing.T) {
+	// A response with an Age header may come from a cache, so its Date says nothing about the
+	// server clock (SDK computeClockSkew).
+	clientNow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.Header().Set("Date", clientNow.Add(20*time.Minute).Format(http.TimeFormat))
+		w.Header().Set("Age", "1200")
+		w.Header().Set("X-Amzn-ErrorType", "InvalidSignatureException")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+	client := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).(*signedDescribeClusterClient)
+	client.now = func() time.Time { return clientNow }
+
+	_, err := client.DescribeCluster(t.Context(), "orders")
+	require.Error(t, err)
+	assert.Equal(t, 1, attempts, "no re-signed attempt")
+	assert.Zero(t, client.clockSkew.Load())
+}
+
+func TestDescribeClusterChecksTheTimeLeftBeforeWaiting(t *testing.T) {
+	// 600ms left: a 200ms wait plus the 500ms an attempt needs does not fit, so the client
+	// returns at once instead of sleeping for nothing.
+	stubThrottleDelay(t, 200*time.Millisecond)
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 600*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(ctx, "orders")
+	require.Error(t, err)
+	assert.Equal(t, 1, attempts)
+	assert.Less(t, time.Since(start), 150*time.Millisecond)
+}
+
+func TestDescribeClusterWaitsBefore5xxRetry(t *testing.T) {
+	stubThrottleDelay(t, 200*time.Millisecond)
+	var times []time.Time
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		times = append(times, time.Now())
+		if len(times) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+	defer srv.Close()
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	require.Len(t, times, 2)
+	assert.GreaterOrEqual(t, times[1].Sub(times[0]), 200*time.Millisecond)
+}
+
+func TestParseAPIErrorPrefersTypeOverCode(t *testing.T) {
+	// The SDK reads __type before code when the body has both.
+	apiErr := parseAPIError(http.StatusBadRequest, http.Header{}, []byte(`{"code":"A","__type":"B"}`))
+	assert.Equal(t, "B", apiErr.Code)
+	apiErr = parseAPIError(http.StatusBadRequest, http.Header{}, []byte(`{"code":"A"}`))
+	assert.Equal(t, "A", apiErr.Code)
+}
+
+func TestDescribeClusterRejectsAnEndpointWithoutSchemeOrHost(t *testing.T) {
+	// AWS_ENDPOINT_URL_EKS=svc.example.com is a configuration error. It must not be retried
+	// every 30s as a transport error.
+	for _, endpoint := range []string{"svc.example.com", "https://", "/path/only"} {
+		_, err := newSignedDescribeClusterClient(testAWSConfig(endpoint)).DescribeCluster(t.Context(), "orders")
+		require.Error(t, err, endpoint)
+		assert.Equal(t, failureCacheTTL, failureTTL(err), endpoint)
+	}
+}
+
+func TestDescribeClusterSendsTheAppID(t *testing.T) {
+	var got *http.Request
+	srv := httptest.NewServer(okClusterHandler("orders", func(r *http.Request) { got = r }))
+	defer srv.Close()
+	cfg := testAWSConfig(srv.URL)
+	cfg.AppID = "orders-platform"
+	_, err := newSignedDescribeClusterClient(cfg).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(got.Header.Get("User-Agent"), " app/orders-platform"), got.Header.Get("User-Agent"))
+}
