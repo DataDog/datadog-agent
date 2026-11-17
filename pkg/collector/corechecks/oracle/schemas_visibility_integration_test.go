@@ -146,8 +146,7 @@ WHERE con_id = :1 AND open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricte
 		t.Cleanup(func() { setUsersVisible(t, true) })
 		setUsersVisible(t, false)
 		require.ErrorContains(t, coordinator.complete(), fmt.Sprintf("container %d is no longer available", conID))
-		require.Len(t, events, 1)
-		require.Zero(t, events[0].CollectionPayloadsCount, "loss of visibility must prevent snapshot completion")
+		require.Empty(t, events)
 	})
 	t.Run("visible_again", assertCollected)
 }
