@@ -320,6 +320,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		return settings
 	}
 	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.stable.min_relative_change") {
+		settings.StablePipeline = &StablePipelineConfig{
+			MinRelativeChange: cfg.GetFloat64("anomaly_detection.metric_pipeline.stable.min_relative_change"),
+		}
+	}
 	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
 		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
 		settings.MetricPipelineAnomalyCutoff = &cutoff
@@ -476,8 +481,6 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
-	eng.onProcessingTime = obsTelemetry.recordProcessingTime
-	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -736,6 +739,8 @@ func (o *observerImpl) run() {
 	metricsCh, logsCh := o.metricsCh, o.logsCh
 	ticker := time.NewTicker(filteredMetricPublishInterval)
 	defer ticker.Stop()
+	o.engine.publishMetricKindTelemetry(o.telemetry)
+	defer o.engine.publishMetricKindTelemetry(o.telemetry)
 	for metricsCh != nil || logsCh != nil {
 		var obs observation
 		var ok bool
@@ -753,6 +758,7 @@ func (o *observerImpl) run() {
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
 			o.publishSeriesFreshness()
+			o.engine.publishMetricKindTelemetry(o.telemetry)
 			continue
 		}
 		if obs.flush != nil {
@@ -1165,13 +1171,26 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.
 	if scorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
+		scorerCfg := scorer.config
+		if storageCfg.TrackScorerHistory {
+			scorerCfg.MaxBuckets = math.MaxInt64
+		}
+		scorer = newAnomalyScorerWithTelemetry(scorerCfg, nil, nil)
+		if storageCfg.TrackScorerHistory {
+			scorer.enableHistory()
+		}
 	}
 	o.replayMu.Lock()
 	defer o.replayMu.Unlock()
 	o.metricFilter.muted.Store(nil)
 	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
 		return err
+	}
+	if settings.LogCountBuckets != nil {
+		o.engine.logCounts = nil
+		if settings.LogCountBuckets.Enabled {
+			o.engine.logCounts = newMaterializedLogCountBucketizer(*settings.LogCountBuckets)
+		}
 	}
 	o.publishSeriesCount()
 	return nil

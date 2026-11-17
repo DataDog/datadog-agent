@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -164,16 +165,22 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
+func (d *dockerCmdWrapper) selectImageFromLibrary(t testing.TB, kind string) error {
+	t.Helper()
+
 	var err error
 	var output []byte
 	for _, entry := range dockerImageLibrary[kind] {
+		t.Logf("pulling image %s", entry)
+		start := time.Now()
 		cmd := exec.Command(d.executable, "pull", entry)
 		output, err = cmd.CombinedOutput()
 		if err == nil {
+			t.Logf("pulled image %s in %s", entry, time.Since(start))
 			d.image = entry
 			break
 		}
+		t.Logf("failed to pull image %s after %s: %v, cmd output:\n%s", entry, time.Since(start), err, output)
 	}
 	if err != nil {
 		return fmt.Errorf("%w, cmd output:\n%s", err, string(output))
@@ -181,7 +188,9 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	return nil
 }
 
-func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+func newDockerCmdWrapper(t testing.TB, mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	t.Helper()
+
 	if runtimeCommand == "" {
 		runtimeCommand = "docker"
 	}
@@ -213,7 +222,7 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 		mountDest:  mountDest,
 	}
 
-	if err := wrapper.selectImageFromLibrary(kind); err != nil {
+	if err := wrapper.selectImageFromLibrary(t, kind); err != nil {
 		return nil, err
 	}
 

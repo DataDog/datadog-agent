@@ -8,8 +8,10 @@
 package sysctl
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,6 +112,56 @@ func TestReadSnapshotSystemControl(t *testing.T) {
 		root := t.TempDir()
 		_, err := readSnapshotSystemControl(filepath.Join(root, "sys", "lockdown"), filepath.Join(root, "root", "sys", "lockdown"), nil)
 		assert.ErrorIs(t, err, ErrRequiredSysctlSnapshotFileNotFound)
+	})
+}
+
+func TestSnapshotProcSys(t *testing.T) {
+	t.Run("skips the entries vanishing during the walk", func(t *testing.T) {
+		procRoot := t.TempDir()
+		root := filepath.Join(procRoot, "sys")
+		for _, file := range []string{
+			"kernel/yama/ptrace_scope",
+			"net/ipv4/conf/tun0/forwarding",
+			"net/ipv4/conf/tun1/forwarding",
+		} {
+			file = filepath.Join(root, file)
+			assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0755))
+			assert.NoError(t, os.WriteFile(file, []byte("1\n"), 0644))
+		}
+
+		// remove a directory and a file right before the walk reads them, like a network interface vanishing
+		vanished := []string{
+			filepath.Join(root, "net/ipv4/conf/tun0"),
+			filepath.Join(root, "net/ipv4/conf/tun1/forwarding"),
+		}
+
+		s := NewSnapshot()
+		walk := s.procSysWalkFunc(procRoot, root, nil)
+		err := filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
+			if err == nil && slices.Contains(vanished, file) {
+				assert.NoError(t, os.RemoveAll(file))
+			}
+			return walk(file, d, err)
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]interface{}{
+			"sys": map[string]interface{}{
+				"kernel": map[string]interface{}{
+					"yama": map[string]interface{}{
+						"ptrace_scope": "1",
+					},
+				},
+			},
+		}, s.Proc)
+	})
+
+	t.Run("fails when /proc/sys is missing", func(t *testing.T) {
+		procRoot := t.TempDir()
+		root := filepath.Join(procRoot, "sys")
+
+		s := NewSnapshot()
+		err := filepath.WalkDir(root, s.procSysWalkFunc(procRoot, root, nil))
+		assert.ErrorIs(t, err, fs.ErrNotExist)
 	})
 }
 
