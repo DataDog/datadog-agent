@@ -65,30 +65,82 @@ tools/ci/export-to-public.sh --check --workdir <worktree>
 
 ## 3. Fix what the checks report
 
-The script blocks on:
+The script checks **every exported commit**, not only the final diff: a reference or file
+added by one commit and removed by a later one is gone from the result but would still be
+public in the history. So a fix has to rewrite the commit that introduced the problem, not
+add a new commit on top.
 
 | Finding | What to do |
 |---|---|
 | Internal-only file changed | Usually an internal adaptation leaked: drop that part of the change. If the file must change publicly (e.g. a real CODEOWNERS update), show the diff to the user; only they decide to re-run with `--allow-path '<glob>'`. |
-| Added lines reference internal repos or accounts | Rewrite them with public equivalents, or remove them. Amend the commit that added them. |
-| Commit message or identity references internal repos | Propose a new message to the user. Apply it with `git commit --amend` on the last commit; for an older one, remove the worktree and its `export-to-public/<name>` branch (cleanup command printed by the script), reword on the private branch, and start step 2 again. |
+| Lines added by a commit reference internal repos or accounts | Rewrite them with public equivalents, or remove them, in that commit. For the last commit, edit and `git commit --amend --no-edit`. For an older one, either fix it on the private branch and start step 2 again, or, if the user agrees to lose the commit split, squash the export into one commit: `git reset --soft refs/export-to-public/upstream`, fix, then commit. |
+| Commit message references internal repos | Propose a new message to the user. Apply it with `git commit --amend` on the last commit; for an older one, reword it on the private branch and start step 2 again. |
+| Commit identity uses an internal account | See "Identities" below. |
 | Internal main commit / merge commit | Should not happen with the script; start over from step 2 and report it. |
 
-Then run `--check` again until it prints `Ready to export`.
+To start step 2 again, first run the cleanup command printed by the script (it removes the
+worktree and its `export-to-public/<name>` branch). Then run `--check` until it prints
+`Ready to export`.
 
-Also review by hand what the script can't judge: the diff and messages must not mention the
-vulnerability more than the fix requires, nor link private PRs, Slack threads or documents.
+### Identities
+
+The **committer** is whoever runs the cherry-picks: an internal committer means the clone's
+`user.name` or `user.email` is set to an internal identity. Ask the user to fix it
+(`git config user.name`, `git config user.email`), then re-create the commits so they pick it
+up:
+
+```bash
+git rebase --exec 'git commit --amend --no-edit' refs/export-to-public/upstream
+```
+
+The **author** is kept from the private commits, and `git commit --amend` doesn't change it.
+Fix it only for the user's own commits, with the identity they confirm for public use (by
+default the `user.name` and `user.email` of their public clone):
+
+```bash
+git commit --amend --no-edit --author='Jane Doe <jane.doe@datadoghq.com>'   # last commit
+git rebase --exec "git commit --amend --no-edit --author='Jane Doe <jane.doe@datadoghq.com>'" \
+  refs/export-to-public/upstream                                             # every commit
+```
+
+If some commits are someone else's, don't rewrite them with the user's identity: ask the
+user for that person's public name and email, or leave the commits out.
+
+### Review each commit
+
+Then review what the script can't judge, **commit by commit** (`git log -p
+refs/export-to-public/upstream..HEAD`), not only the final diff: no private PR, Slack thread,
+document or internal-only file in any patch or message, and no more detail about a
+vulnerability than the fix requires.
 
 ## 4. Hand over
 
-Give the user the commands printed by the script (push to the public repo, open a draft
-PR, remove the worktree), plus:
+End with a message in this shape, filled in from the script output and your review:
 
-- A draft public PR description following `.github/PULL_REQUEST_TEMPLATE.md`, with no
-  reference to the private PR. The `/create-pr` skill can produce it once the branch is pushed.
-- A reminder that CI results don't carry over: the public PR runs its own full pipeline and
-  needs reviews from the public CODEOWNERS.
-- For a security fix, the reminder to agree on the timing with `#agent-release-sync`.
+```markdown
+Public branch `<name>` is ready in `<worktree>`, based on public main `<sha>`. Nothing is pushed.
+
+Exported commits (author, subject):
+- `<sha>` <author>: <subject>
+
+Checks: `export-to-public.sh --check` passes. Per-commit review: <done, and what was fixed>.
+Allowed paths: <none, or each `--allow-path` the user approved>.
+Signature: <public key / `ddoghq` key: may show as Unverified>.
+Embargo: <not a security fix / security fix: wait for #agent-release-sync before pushing>.
+
+To publish, from `<worktree>`, with your public gh account:
+    git push https://github.com/DataDog/datadog-agent.git HEAD:refs/heads/<name>
+    gh pr create --repo DataDog/datadog-agent --head <name> --draft
+Then clean up: <cleanup command printed by the script>
+
+Draft PR description:
+<description following .github/PULL_REQUEST_TEMPLATE.md, with no link to the private PR>
+
+The public PR runs its own full CI and needs reviews from the public CODEOWNERS: results from
+the private PR don't carry over.
+```
+
+The `/create-pr` skill can also produce the description once the branch is pushed.
 
 Once the public PR merges, the hourly sync brings it into internal `main`; the private PR
 can then be closed.

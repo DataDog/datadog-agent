@@ -152,6 +152,8 @@ check() {
     fi
   done
 
+  # Check every exported commit, not only the final diff: something added by one commit and
+  # removed by a later one is gone from the result but would still be published in history.
   for pattern in ${ALLOWED[@]+"${ALLOWED[@]}"}; do excludes+=(":(exclude,glob)$pattern"); done
   while IFS= read -r file; do
     for pattern in "${INTERNAL_PATHS[@]}"; do
@@ -160,18 +162,24 @@ check() {
         report "Internal-only file changed: $file (review it, then pass --allow-path '$file' if it must be public)"
       fi
     done
-  done < <(git diff --name-only "$upstream" HEAD -- . ${excludes[@]+"${excludes[@]}"})
+  done < <(git log --no-merges --no-renames --format= --name-only "$upstream..HEAD" -- . ${excludes[@]+"${excludes[@]}"} | sort -u)
 
-  hits=$(git diff -U0 --no-color "$upstream" HEAD -- . ${excludes[@]+"${excludes[@]}"} | awk -v re="$INTERNAL_TEXT" '
-    /^\+\+\+ / { file = substr($0, 7); next }
-    /^\+/ && tolower($0) ~ re { print "  " file ": " substr($0, 2) }')
+  hits=$(git log --no-merges --no-renames -p -U0 --no-color --format='commit %h' "$upstream..HEAD" -- . ${excludes[@]+"${excludes[@]}"} \
+    | awk -v re="$INTERNAL_TEXT" '
+      /^commit / { commit = $2; next }
+      /^\+\+\+ / { file = substr($0, 7); next }
+      /^\+/ && tolower($0) ~ re { print "  " commit " " file ": " substr($0, 2) }')
   if [[ -n "$hits" ]]; then
-    report "Added lines reference internal repositories or accounts:" "$hits"
+    report "Lines added by these commits reference internal repositories or accounts:" "$hits"
   fi
 
-  hits=$(git log --format='%h %an <%ae> %cn <%ce>%n%B' "$upstream..HEAD" | grep -iE "$INTERNAL_TEXT" | sed 's/^/  /' || true)
+  hits=$(git log --format='%h%n%B' "$upstream..HEAD" | grep -iE "$INTERNAL_TEXT" | sed 's/^/  /' || true)
   if [[ -n "$hits" ]]; then
-    report "Commit messages or identities reference internal repositories or accounts (reword them):" "$hits"
+    report "Commit messages reference internal repositories or accounts (reword them):" "$hits"
+  fi
+  hits=$(git log --format='%h author: %an <%ae>, committer: %cn <%ce>' "$upstream..HEAD" | grep -iE "$INTERNAL_TEXT" | sed 's/^/  /' || true)
+  if [[ -n "$hits" ]]; then
+    report "Commit identities use internal accounts (amend the author or committer):" "$hits"
   fi
 
   echo >&2

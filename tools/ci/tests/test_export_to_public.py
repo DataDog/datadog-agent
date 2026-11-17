@@ -114,6 +114,31 @@ class ExportToPublicTests(unittest.TestCase):
         out = self.export("--workdir", str(self.work), "feature", success=False)
         self.assertIn("feature: see ddoghq/datadog-agent#12", out)
 
+    def test_reference_added_then_removed_still_blocks(self):
+        # The final diff is clean, but the first commit would still be published.
+        self.write(self.clone, "feature", "see ddoghq/datadog-agent#12\n")
+        self.commit(self.clone, "Mention the private PR")
+        self.write(self.clone, "feature", "fix\n")
+        self.commit(self.clone, "Drop the mention")
+        out = self.export("--workdir", str(self.work), "feature", success=False)
+        self.assertIn("feature: see ddoghq/datadog-agent#12", out)
+
+    def test_internal_file_added_then_removed_still_blocks(self):
+        self.write(self.clone, ".github/chainguard/policy.sts.yaml", "subject: x\n")
+        self.commit(self.clone, "Add a policy")
+        self.git(self.clone, "rm", "-q", ".github/chainguard/policy.sts.yaml")
+        self.git(self.clone, "commit", "-m", "Remove the policy")
+        out = self.export("--workdir", str(self.work), "feature", success=False)
+        self.assertIn("Internal-only file changed: .github/chainguard/policy.sts.yaml", out)
+
+    def test_internal_author_identity_blocks(self):
+        self.write(self.clone, "other", "y\n")
+        self.git(self.clone, "add", ".")
+        self.git(self.clone, "commit", "-m", "Other fix", "--author", "jane-doe_ddog <jane@example.invalid>")
+        out = self.export("--workdir", str(self.work), "feature", success=False)
+        self.assertIn("Commit identities use internal accounts", out)
+        self.assertNotIn("Commit messages reference", out)
+
     def test_internal_gitlab_project_id_blocks(self):
         self.write(self.clone, "feature", 'project_id: "14012"\n')
         self.commit(self.clone, "Point to the project")
