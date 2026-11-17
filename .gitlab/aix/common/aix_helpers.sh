@@ -87,11 +87,34 @@ $script"
         "echo $encoded | openssl enc -base64 -d -A > '$script_file' && bash '$script_file'; rc=\$?; [ \$rc -eq 0 ] && rm -f '$script_file' || echo \"script kept at $script_file for debugging\"; exit \$rc"
 }
 
+# Copy files to/from the AIX host with rsync, retrying up to 3 times.
+#
+# Transfers occasionally stall on the public-internet path to the AIX cloud
+# LPAR. SSH keepalives keep a stalled connection alive indefinitely, so
+# without an inactivity timeout a hang burns the whole job timeout (see job
+# 2262153856). Retrying a copy is cheap next to re-running the job's
+# ~40-minute build step.
+#
+# -z: the .bff artifact is not compressed (~280MB gzips to ~175MB in transit).
+# --partial-dir=.rsync-partial would let retries resume an interrupted transfer
+# of a large file instead of restarting from scratch; not implemented for now.
+_aix_transfer() {
+    local attempt
+    for attempt in 1 2 3; do
+        rsync -avz --timeout=180 \
+            --rsync-path=/opt/freeware/bin/rsync \
+            -e "ssh $AIX_SSH_COMMON_OPTS" \
+            "$@" \
+        && return 0
+        echo "=== AIX: transfer attempt $attempt/3 failed" >&2
+    done
+    echo "=== AIX: transfer failed after 3 attempts" >&2
+    return 1
+}
+
 copy_file_from_aix() {
-    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple scp options
-    scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2"
+    _aix_transfer "$AIX_SSH_DEST:$1" "$2"
 }
 copy_file_to_aix() {
-    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple scp options
-    scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2"
+    _aix_transfer "$1" "$AIX_SSH_DEST:$2"
 }
