@@ -417,27 +417,6 @@ function App() {
   }, [episodeTimeRange, episodeInfo]);
 
   const activeTimeRange = timeRange ?? scenarioTimeRange;
-  const timePresets = useMemo(() => {
-    const presets: { id: string; label: string; range: TimeRange }[] = [];
-    const recordingRange = episodeTimeRange ?? scenarioTimeRange;
-    if (recordingRange) presets.push({ id: 'recording', label: 'Full recording', range: recordingRange });
-    const phaseKeys = episodeInfo?.mode === 'healthy-control'
-      ? (['warmup', 'evaluation_window'] as const)
-      : (['warmup', 'baseline', 'disruption', 'cooldown'] as const);
-    for (const key of phaseKeys) {
-      const phase = episodeInfo?.[key];
-      if (!phase) continue;
-      const start = Date.parse(phase.start) / 1000;
-      const end = Date.parse(phase.end) / 1000;
-      if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-        presets.push({ id: key, label: PHASE_STYLES[key].label, range: { start, end } });
-      }
-    }
-    return presets;
-  }, [episodeInfo, episodeTimeRange, scenarioTimeRange]);
-  const selectedTimePreset = timePresets.find(preset =>
-    preset.range.start === activeTimeRange?.start && preset.range.end === activeTimeRange?.end
-  )?.id ?? 'custom';
 
   // Sidebar resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -578,25 +557,9 @@ function App() {
             {/* Global time span control (available in all tabs) */}
             {activeTimeRange && (
               <div
-                className="flex flex-wrap items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5"
+                className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5"
                 title="middle-drag or cmd+drag to pan"
               >
-                <label className="flex items-center gap-2 text-xs text-slate-400">
-                  Zoom to
-                  <select
-                    aria-label="Zoom to time window"
-                    title="Choose a phase, drag a chart, or edit the timestamps for a custom range"
-                    value={selectedTimePreset}
-                    onChange={event => {
-                      const preset = timePresets.find(option => option.id === event.target.value);
-                      if (preset) commitTimeRange(preset.range);
-                    }}
-                    className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {timePresets.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
-                    <option value="custom" disabled>Custom range</option>
-                  </select>
-                </label>
                 <span className="text-xs text-slate-400">Time Span:</span>
                 <EditableTimestamp
                   value={activeTimeRange.start}
@@ -607,6 +570,16 @@ function App() {
                   value={activeTimeRange.end}
                   onChange={end => commitTimeRange({ start: activeTimeRange.start, end })}
                 />
+                {/* Two reset buttons: scenario range vs all data */}
+                {episodeTimeRange && (
+                  <button
+                    onClick={() => commitTimeRange(episodeTimeRange)}
+                    className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-purple-700 rounded text-slate-300"
+                    title="Reset to scenario time range (from episode.json)"
+                  >
+                    Scenario
+                  </button>
+                )}
                 <button
                   onClick={() => commitTimeRange(null)}
                   className="ml-1 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"

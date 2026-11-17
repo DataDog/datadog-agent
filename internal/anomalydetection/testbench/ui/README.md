@@ -62,12 +62,6 @@ Open `http://localhost:5173` in your browser.
 
 - The shared **Scenario** dropdown replaces the scenario list in each view. **Reload**
   reruns the selected recording.
-- **Zoom to** selects the full recording or an available phase (Warmup, Baseline,
-  Disruption, Cooldown, or a healthy evaluation window). It changes the shared
-  time range without selecting or reranking metrics. Drag a chart or click the
-  timestamps for a custom range; the dropdown then shows **Custom range**.
-  The history arrows return to earlier time ranges. **All Data** includes data
-  outside the recording's episode boundaries.
 - Scenarios start with no metric groups selected. Select groups from the sidebar
   to load their charts, or click **Show up to 50 most anomalous metrics** to select
   recorded metric groups ranked by detections from enabled detectors. The button

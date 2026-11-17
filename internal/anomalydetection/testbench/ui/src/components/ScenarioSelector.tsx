@@ -23,12 +23,17 @@ export function ScenarioSelector({ scenarios, activeScenario, onLoadScenario, bu
     <div className="p-4 border-b border-slate-700 space-y-2">
       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
         Scenario <span className="font-normal normal-case">· {scenarios.length} recordings</span>
-        <select aria-label="Scenario" value={activeScenario ?? ''} disabled={loading || busy || scenarios.length === 0}
-          onChange={e => void load(e.target.value)}
-          className="mt-2 w-full rounded border border-slate-600 bg-slate-900 p-2 text-sm font-normal normal-case tracking-normal text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
-          <option value="" disabled>Select a recording…</option>
-          {scenarios.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-        </select>
+        <span className="relative mt-2 block">
+          <select aria-label="Scenario" value={activeScenario ?? ''} disabled={loading || busy || scenarios.length === 0}
+            onChange={e => void load(e.target.value)}
+            className="peer w-full appearance-none rounded border border-slate-600 bg-slate-900 py-2 pl-2 pr-8 text-sm font-normal normal-case tracking-normal text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
+            <option value="" disabled>Select a recording…</option>
+            {scenarios.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+          </select>
+          <svg aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 peer-disabled:opacity-50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m4 6 4 4 4-4" />
+          </svg>
+        </span>
       </label>
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span role="status">{loading || busy ? 'Loading recording and running detectors…' : 'Recorded scenario'}</span>
