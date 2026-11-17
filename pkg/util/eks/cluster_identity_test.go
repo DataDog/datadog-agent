@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -454,4 +455,35 @@ func TestGetClusterIdentityWarnsOncePerResolution(t *testing.T) {
 	log.Flush()
 	assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
 	assert.Contains(t, buf.String(), "AccessDeniedException")
+}
+
+func TestGetClusterIdentityKeepsCallerDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The caller's overall budget bounds DescribeCluster, even though the resolve is not
+		// cancelled with the caller.
+		client := &blockingEKSClient{started: make(chan struct{}), release: make(chan struct{})}
+		stubAWS(t, client)
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		_, err := GetClusterIdentity(ctx, "orders-deadline", nil)
+		require.Error(t, err)
+		assert.Equal(t, 500*time.Millisecond, time.Since(start))
+		synctest.Wait()
+	})
+}
+
+type panickingEKSClient struct{}
+
+func (panickingEKSClient) DescribeCluster(context.Context, string) (*describeClusterOutput, error) {
+	panic("boom")
+}
+
+func TestGetClusterIdentityRecoversPanics(t *testing.T) {
+	stubAWS(t, panickingEKSClient{})
+	id, err := GetClusterIdentity(t.Context(), "orders-panic", nil)
+	assert.Nil(t, id)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }

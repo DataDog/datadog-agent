@@ -104,13 +104,20 @@ func GetClusterIdentity(ctx context.Context, clusterName string, clusterCA []byt
 	// The resolve runs on a context detached from the caller that started it: that caller is
 	// one node Agent's HTTP request, and its disconnect (restart, its own response timeout)
 	// must not fail the resolve for every other waiter. Each waiter still honors its own ctx.
-	results := resolveGroup.DoChan(flightKey, func() (interface{}, error) {
+	results := resolveGroup.DoChan(flightKey, func() (v interface{}, err error) {
+		defer func() {
+			// DoChan re-panics in a new goroutine, which would crash the Cluster Agent.
+			if r := recover(); r != nil {
+				log.Errorf("EKS DescribeCluster resolution panicked: %v", r)
+				v, err = nil, fmt.Errorf("EKS DescribeCluster resolution panicked: %v", r)
+			}
+		}()
 		// Re-check the cache inside the flight: the winner of a prior flight may have just
 		// populated it while this goroutine was waiting to enter.
 		if id, ok, err := lookupCache(cacheKey); ok {
 			return id, err
 		}
-		resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), identityTimeout)
+		resolveCtx, cancel := detachedContext(ctx, identityTimeout)
 		defer cancel()
 		return resolveAndCache(resolveCtx, clusterName, clusterCA, cacheKey)
 	})
@@ -128,6 +135,17 @@ func GetClusterIdentity(ctx context.Context, clusterName string, clusterCA []byt
 	// Return a copy so no caller aliases the value shared by the cache and the other waiters.
 	out := *id
 	return &out, nil
+}
+
+// detachedContext returns a context that is not cancelled with ctx, so one caller leaving does
+// not fail the shared resolve, but that keeps ctx's deadline when it is earlier than timeout:
+// a caller with an overall budget (eksidentity.Resolve) bounds the whole resolve.
+func detachedContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	deadline := time.Now().Add(timeout)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	return context.WithDeadline(context.WithoutCancel(ctx), deadline)
 }
 
 // identityKeys returns the singleflight and cache keys for a cluster name and expected CA.
