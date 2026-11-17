@@ -13,7 +13,37 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
+
+// hasCompleteConnectionGroup looks through all received payloads for one check
+// run split into multiple chunks, with every advertised chunk received.
+func hasCompleteConnectionGroup(payloads []*aggregator.Connections) bool {
+	groups := make(map[int32][]*aggregator.Connections)
+	for _, payload := range payloads {
+		groups[payload.GroupId] = append(groups[payload.GroupId], payload)
+	}
+	for _, chunks := range groups {
+		groupSize := chunks[0].GroupSize
+		if groupSize < 2 || len(chunks) != int(groupSize) {
+			continue
+		}
+		totalConnections := 0
+		consistentGroupSize := true
+		for _, chunk := range chunks {
+			if chunk.GroupSize != groupSize {
+				consistentGroupSize = false
+				break
+			}
+			totalConnections += len(chunk.Connections)
+		}
+		if consistentGroupSize && totalConnections >= 600 {
+			return true
+		}
+	}
+	return false
+}
 
 var helperCurrentHostname string
 var helperCurrentConnection *agentmodel.Connection

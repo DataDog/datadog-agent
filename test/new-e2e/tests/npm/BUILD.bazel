@@ -41,6 +41,7 @@ go_library(
     ],
 )
 
+# gazelle:exclude test_helpers_test.go
 dd_agent_go_test(
     name = "npm_test",
     srcs = [
@@ -102,5 +103,19 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+dd_agent_go_test(
+    name = "test_helpers_test",
+    srcs = [
+        "test_helpers.go",
+        "test_helpers_test.go",
+    ],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_kr_pretty//:pretty",
+        "@com_github_stretchr_testify//assert",
     ],
 )
