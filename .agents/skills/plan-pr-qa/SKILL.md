@@ -1,6 +1,6 @@
 ---
 name: plan-pr-qa
-description: Generate independently assignable QA cards from a pull request, grounded in its intended behavior, code changes, and existing validation.
+description: Generate independently assignable QA cards from a pull request. Use for "plan QA for this PR", "generate QA cards", or "create a manual test plan". Plans validation; does not execute QA.
 ---
 
 **Ownership:** maintained by `@DataDog/agent-devx`.
@@ -8,6 +8,18 @@ description: Generate independently assignable QA cards from a pull request, gro
 Create a QA plan that another engineer or agent can execute without the author
 explaining the change. Generate the cards only. Creating tickets, provisioning
 environments, and running QA are separate actions.
+
+## Inputs and access
+
+Accept a PR URL, or a PR number with repository context. Infer the repository
+from the checkout remote only when unambiguous; otherwise ask. Read the PR with
+available GitHub tools or authenticated `gh`. A local checkout is optional;
+build tools, deployment credentials, and a test environment are not required
+to generate a plan.
+
+If the PR or diff cannot be read, report the access problem instead of inventing
+a plan. If supporting source, tests, or discussion are only partly available,
+produce only grounded cards and identify the missing context and its effect.
 
 ## Establish the change
 
@@ -25,7 +37,10 @@ as hypotheses until reconciled with the intended contract and final diff.
 
 Record the PR URL and analyzed head commit. If a release/build is supplied,
 verify that it contains the change and inspect relevant differences. Otherwise,
-target the PR head and leave executable artifact selection explicit.
+plan against the PR head's change and leave artifact selection explicit. A later
+release verified to contain the change can support a behavior check; it does not
+establish that the original PR build passed. Do not make an old runbook's RC or
+build reference mandatory unless that identity matters to the claim.
 
 ## Decide whether QA is worthwhile
 
@@ -78,6 +93,9 @@ unless the scenario depends on it. Name concrete inputs and the means of
 performing each material action; avoid instructions such as "submit a valid
 request" without an identified fixture or interface. When a sender, command,
 or fixture is unavailable, identify exactly what the executor must resolve.
+Check that the chosen executable or flavor exposes the fixture's settings and
+observations. A mocked payload or a related component's API does not establish
+that runtime interface; label any unverified fixture assumption explicitly.
 Where inputs have independent meanings or precedence, vary them separately or
 use distinguishable values so accidental copying cannot pass. Reuse concrete
 versions, inputs, and fixture definitions supplied by the sources rather than
@@ -87,6 +105,8 @@ A compact case table can state inputs and expected observations without repeatin
 Include negative controls, failure conditions, or lifecycle transitions when
 they address the change. For absence assertions, establish that the workload
 ran and the observation path worked.
+When extending an author's reproducer, preserve its bug-triggering conditions;
+put controls that change those conditions in separate checks.
 
 Use documented timing and tolerances where available. Label proposed bounds
 as proposals rather than inventing product guarantees. Assert the contract at
@@ -116,3 +136,25 @@ shared target/source metadata once; avoid repeating uncertainty boilerplate.
 Cards may reference that header, but must not depend on another card being run.
 All cards begin as NOT RUN. Do not imply existing tests were independently
 executed or that the plan has already validated the change.
+
+## Compact example
+
+Hypothetical input: "Plan QA for this PR", whose stated change is that upgrades
+preserve an existing configuration file byte-for-byte. An appropriate card:
+
+- **Title/status:** Existing configuration survives upgrade — NOT RUN.
+- **Source/target:** Supplied PR and analyzed head; resolve the candidate artifact
+  and a supported pre-change upgrade baseline before execution.
+- **Purpose:** Detect an upgrade overwriting customer configuration.
+- **Prerequisites:** Disposable supported host, installation privileges, baseline
+  installation, and valid configuration containing a distinctive harmless tag.
+- **Procedure/result:** Confirm the baseline loads the configuration; retain its
+  hash. Upgrade to the candidate. The file hash must match, and the Agent's
+  effective configuration must retain the tag. A failed upgrade is not a pass.
+- **Evidence:** Artifact versions, before/after hashes, installer log, and effective
+  configuration.
+- **Coverage/unknowns:** Compare with the actual PR's tests; artifact and baseline
+  selection remain unresolved in this illustrative example.
+
+Derive each real plan from its PR; do not impose this example's scenario or
+byte-preservation guarantee on other changes.
