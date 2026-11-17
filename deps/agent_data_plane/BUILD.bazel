@@ -3,7 +3,8 @@
 Replaces omnibus/config/software/datadog-agent-data-plane.rb.
 """
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -26,17 +27,21 @@ alias(
     }),
 )
 
-pkg_files(
-    name = "binary_files",
-    srcs = select({
-        condition: ["@{}//:binary".format(repo)]
+alias(
+    name = "binary",
+    actual = select({
+        condition: "@{}//:binary".format(repo)
         for condition, repo in _ARCHIVE_BY_CONDITION.items()
     }),
-    attributes = pkg_attributes(mode = "0755"),
+)
+
+agent_binary_for_package(
+    name = "agent_data_plane_binary",
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = ":binary",
 )
 
 pkg_files(
@@ -57,7 +62,7 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":binary_files",
+        ":agent_data_plane_binary",
         ":license_files",
     ],
 )

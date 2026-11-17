@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from invoke import MockContext, Result
 
 from tasks import notes
+from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 
 @patch('tasks.notes.create_release_pr')
@@ -59,5 +60,5 @@ class TestUpdateChangelog(unittest.TestCase):
         commands = [c.args[0] for c in ctx.run.call_args_list]
         self.assertIn('git push --set-upstream origin changelog-update-7.86.0', commands)
         github_mock.assert_not_called()
-        # Local runs always target the main repository.
-        self.assertEqual(create_pr_mock.call_args.kwargs['repository'], 'DataDog/datadog-agent')
+        # Outside CI, GITHUB_REPOSITORY is ignored: the PR is opened on GITHUB_REPO_NAME.
+        self.assertEqual(create_pr_mock.call_args.kwargs['repository'], GITHUB_REPO_NAME)

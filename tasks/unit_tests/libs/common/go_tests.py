@@ -31,6 +31,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={},
+            fips_backend=FipsBackend.none,
         )
 
     def test_with_gcflags(self):
@@ -48,6 +49,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={},
+            fips_backend=FipsBackend.none,
         )
 
     def test_boringcrypto(self):
@@ -64,6 +66,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"},
+            fips_backend=FipsBackend.none,
         )
 
     @patch.dict("os.environ", {"GOOS": "linux"})
@@ -72,7 +75,7 @@ class TestGoBuild(unittest.TestCase):
 
         self.bazel_mock.assert_called_once_with(
             "run",
-            "//:msgo",
+            "@rules_go//go",
             "--",
             "-C",
             os.getcwd(),
@@ -81,6 +84,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={"CGO_ENABLED": "0", "GOEXPERIMENT": "ms_nocgo_opensslcrypto"},
+            fips_backend=FipsBackend.msgo,
         )
 
     @patch.dict("os.environ", {"GOOS": "windows"})
@@ -89,7 +93,7 @@ class TestGoBuild(unittest.TestCase):
 
         self.bazel_mock.assert_called_once_with(
             "run",
-            "//:msgo",
+            "@rules_go//go",
             "--",
             "-C",
             os.getcwd(),
@@ -98,6 +102,7 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={"CGO_ENABLED": "1"},
+            fips_backend=FipsBackend.msgo,
         )
 
     def test_without_bazel(self):
