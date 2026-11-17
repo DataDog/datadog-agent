@@ -66,8 +66,6 @@ spec:
 
 The Operator sets `runAsUser`, `runAsGroup`, and `runAsNonRoot` on the host-profiler container and keeps the Linux capabilities the profiler needs.
 
-### Agent IPC Unix socket
-
 > [!WARNING]
 > Enabling the Agent IPC Unix socket (`agent_ipc.use_socket: true`) breaks the non-root Host Profiler on Agents earlier than **7.84.0**: the profiler fails to start with a configuration sync error.
 

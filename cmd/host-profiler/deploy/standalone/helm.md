@@ -85,7 +85,7 @@ After deploying the Host Profiler, profiles appear on the [Datadog Profiler](htt
 
 ## Running as non-root (optional)
 
-By default, the Host Profiler container runs as root. To run it as the `dd-agent` user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
+By default, the Host Profiler container runs as root. To run it as a non-privileged user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`helm/collector-values.yaml`](helm/collector-values.yaml):
 
 ```yaml
 securityContext:
