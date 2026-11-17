@@ -11,6 +11,7 @@ go_library(
         "//comp/core/tagger/tags",
         "//pkg/config/env",
         "//pkg/config/utils",
+        "//pkg/errors",
         "//pkg/util/fargate",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/cloudprovider",
@@ -27,6 +28,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/errors",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/clustername",
         "@com_github_stretchr_testify//assert",

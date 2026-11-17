@@ -8,12 +8,14 @@ package tags
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -244,6 +246,37 @@ func TestStaticTagsSliceEKSIdentityOnFargate(t *testing.T) {
 		for _, tag := range eksIdentityTags {
 			assert.NotContains(t, staticTags, tag)
 		}
+	})
+
+	t.Run("unreachable cluster agent is waited on once", func(t *testing.T) {
+		// The static tags call already spent its 10s budget without reaching the Cluster
+		// Agent, so the identity call would only add another 10s to sidecar startup.
+		getClusterAgentStaticTags = func() ([]string, error) {
+			return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+		}
+		t.Cleanup(func() {
+			getClusterAgentStaticTags = func() ([]string, error) {
+				return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
+			}
+		})
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
+		assert.Contains(t, staticTags, "kube_distribution:eks")
+		assert.Equal(t, 0, *calls)
+	})
+
+	t.Run("cluster agent that answered is still asked for identity", func(t *testing.T) {
+		getClusterAgentStaticTags = func() ([]string, error) {
+			return nil, pkgerrors.NewRemoteServiceError("dca", "500 Internal Server Error")
+		}
+		t.Cleanup(func() {
+			getClusterAgentStaticTags = func() ([]string, error) {
+				return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
+			}
+		})
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		assert.Subset(t, GetStaticTagsSlice(t.Context(), mockConfig), eksIdentityTags)
+		assert.Equal(t, 1, *calls)
 	})
 }
 
