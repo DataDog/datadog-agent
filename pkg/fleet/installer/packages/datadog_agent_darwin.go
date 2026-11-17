@@ -795,10 +795,13 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 //
 // The context is detached from cancellation: the experiment is being torn down, and stopping
 // halfway would leave the host running neither set.
+//
+// Only the Agent's hand-back decides the outcome (see handBackInstallerBestEffort).
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = context.WithoutCancel(ctx.Context)
 	stopErr := configExperiment{jobs: agentJobSet()}.Stop(ctx)
-	return errors.Join(stopErr, handBackInstallerAfterHook(ctx))
+	handBackInstallerBestEffort(ctx)
+	return stopErr
 }
 
 // postPromoteConfigExperimentDatadogAgent hands the Agent back to the stable job set, which now
@@ -806,7 +809,21 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = context.WithoutCancel(ctx.Context)
 	promoteErr := configExperiment{jobs: agentJobSet()}.Promote(ctx)
-	return errors.Join(promoteErr, handBackInstallerAfterHook(ctx))
+	handBackInstallerBestEffort(ctx)
+	return promoteErr
+}
+
+// handBackInstallerBestEffort hands the installer daemon back after a stop or a promote, logging a
+// failure instead of returning it. By then the Agent is back on the stable set and the deadline is
+// cleared: failing the hook would stop the installer from discarding or keeping the configuration
+// directory, so the experiment configuration would stay deployed and reported as running with
+// nothing left to revert it. The experiment daemon, once the installer has rested that directory,
+// reads the stable configuration, and hands itself back the next time it starts
+// (superviseFromExperimentDaemon).
+func handBackInstallerBestEffort(ctx context.Context) {
+	if err := handBackInstallerAfterHook(ctx); err != nil {
+		log.Errorf("the installer daemon stays on its experiment job until it next starts: %v", err)
+	}
 }
 
 // handBackInstallerAfterHook launches the detached hand-back process when the experiment daemon is
