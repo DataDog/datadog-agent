@@ -29,9 +29,9 @@ import (
 // span, sent through the development trace-agent. It is observability only and
 // fails open — any problem yields no mirror and execution is unchanged.
 
-// remoteQueriesFQNPrefix selects the remote-queries actions, the only ones
+// integrationsFQNPrefix selects the Agent Integrations actions, the only ones
 // mirrored.
-const remoteQueriesFQNPrefix = "com.datadoghq.remoteaction.queries."
+const integrationsFQNPrefix = "com.datadoghq.remoteaction.integrations."
 
 const (
 	miniTracerTraceIDEnv          = "DATADOG_TRACE_ID"
@@ -47,12 +47,12 @@ const (
 // action.run span active on ctx (the context returned by
 // telemetry.StartSpanFromUint64IDs) and returns a function finishing it with
 // the action's error. It never changes ctx. It returns a no-op when
-// development tracing is disabled, the action is not a remote-queries action,
+// development tracing is disabled, the action is not an Agent Integrations action,
 // the task carries no trace ID, or the mini-tracer span's identity cannot be
 // read.
 func startDevelopmentActionRunMirror(ctx context.Context, task *types.Task, fqn string) (finish func(err error)) {
 	noop := func(error) {}
-	if !devtracing.Enabled() || !strings.HasPrefix(fqn, remoteQueriesFQNPrefix) {
+	if !devtracing.Enabled() || !strings.HasPrefix(fqn, integrationsFQNPrefix) {
 		return noop
 	}
 	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.TraceId == 0 {

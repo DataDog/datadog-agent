@@ -106,3 +106,13 @@ func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	action := bundle.GetAction("echo")
 	require.NotNil(t, action)
 }
+
+func TestNewRegistryWiresIntegrationsRunQuery(t *testing.T) {
+	registry, err := NewRegistry(&config.Config{AgentHTTPClient: http.DefaultClient}, &testRCClient{}, nil, nil, nil, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+
+	bundle := registry.GetBundle("com.datadoghq.remoteaction.integrations")
+	require.NotNil(t, bundle)
+	require.NotNil(t, bundle.GetAction("runQuery"))
+	assert.Nil(t, bundle.GetAction("execute"))
+}

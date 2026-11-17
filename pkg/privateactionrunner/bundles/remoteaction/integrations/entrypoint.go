@@ -3,39 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_remoteaction_queries
+package com_datadoghq_remoteaction_integrations
 
 import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 
 const (
-	// BundleID is the local-only Remote Queries PAR bundle FQN.
-	BundleID = "com.datadoghq.remoteaction.queries"
+	// BundleID is the Agent Integrations PAR bundle FQN.
+	BundleID = "com.datadoghq.remoteaction.integrations"
 
-	// ExecuteActionName is the action part of com.datadoghq.remoteaction.queries.execute.
-	ExecuteActionName = "execute"
+	// RunQueryActionName is the action part of com.datadoghq.remoteaction.integrations.runQuery.
+	RunQueryActionName = "runQuery"
 )
 
-type RemoteQueriesBundle struct {
+type IntegrationsBundle struct {
 	actions map[string]types.Action
 }
 
 var defaultBridgeClientFactory BridgeClientFactory = NewDefaultBridgeClient
 
-// NewRemoteQueriesBundle registers the single Remote Queries action. Target
-// resolution is not a separate action FQN: it is the execute action's resolveOnly
+// NewIntegrationsBundle registers the runQuery action. Target
+// resolution is not a separate action FQN: it is the runQuery action's resolveOnly
 // mode, so one FQN covers every FQN-scoped authorization surface (AP
 // service-account allowlists, org Execution Policies, and the Agent PAR actions
 // allowlist).
-func NewRemoteQueriesBundle() *RemoteQueriesBundle {
-	return &RemoteQueriesBundle{
+func NewIntegrationsBundle() *IntegrationsBundle {
+	return &IntegrationsBundle{
 		actions: map[string]types.Action{
-			ExecuteActionName: NewExecuteAction(defaultBridgeClientFactory),
+			RunQueryActionName: NewExecuteAction(defaultBridgeClientFactory),
 		},
 	}
 }
 
 // SetBridgeClientFactoryForTest overrides the bridge client factory used by newly-created
-// Remote Queries bundles. It is intended for tests that exercise the registered PAR
+// Agent Integrations bundles. It is intended for tests that exercise the registered PAR
 // registry/runner path without depending on a live Agent IPC server.
 func SetBridgeClientFactoryForTest(factory BridgeClientFactory) func() {
 	previousFactory := defaultBridgeClientFactory
@@ -45,6 +45,6 @@ func SetBridgeClientFactoryForTest(factory BridgeClientFactory) func() {
 	}
 }
 
-func (b *RemoteQueriesBundle) GetAction(actionName string) types.Action {
+func (b *IntegrationsBundle) GetAction(actionName string) types.Action {
 	return b.actions[actionName]
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_remoteaction_queries
+package com_datadoghq_remoteaction_integrations
 
 import (
 	"context"
@@ -499,13 +499,15 @@ func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	assert.NotContains(t, err.Error(), "SELECT secret")
 }
 
-// TestBundleRegistersExecuteActionOnly proves the bundle registers the single
-// execute action: the standalone resolve action is retired and resolution is the
-// execute action's resolveOnly mode.
-func TestBundleRegistersExecuteActionOnly(t *testing.T) {
-	bundle := NewRemoteQueriesBundle()
+// TestBundleRegistersRunQueryActionOnly proves resolution remains a mode of
+// runQuery and the retired action names are not compatibility aliases.
+func TestBundleRegistersRunQueryActionOnly(t *testing.T) {
+	bundle := NewIntegrationsBundle()
 
-	require.NotNil(t, bundle.GetAction(ExecuteActionName))
+	assert.Equal(t, "com.datadoghq.remoteaction.integrations", BundleID)
+	assert.Equal(t, "runQuery", RunQueryActionName)
+	require.NotNil(t, bundle.GetAction("runQuery"))
+	assert.Nil(t, bundle.GetAction("execute"))
 	assert.Nil(t, bundle.GetAction("resolve"))
 }
 
@@ -955,14 +957,14 @@ func taskWithInputs(inputs map[string]interface{}) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		BundleID: BundleID,
-		Name:     ExecuteActionName,
+		Name:     RunQueryActionName,
 		Inputs:   inputs,
 	}
 	return task
 }
 
-// resolveOnlyTaskWithInputs builds an execute task dispatching the resolveOnly mode.
-// The action name stays execute — resolution is a mode of the execute action, not a
+// resolveOnlyTaskWithInputs builds a runQuery task dispatching the resolveOnly mode.
+// The action name stays runQuery — resolution is a mode of the runQuery action, not a
 // separate action.
 func resolveOnlyTaskWithInputs(inputs map[string]interface{}) *types.Task {
 	inputs["resolveOnly"] = true

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_remoteaction_queries
+package com_datadoghq_remoteaction_integrations
 
 import (
 	"bytes"
@@ -167,7 +167,7 @@ func remoteQueryTerminalStatus(output interface{}, err error) string {
 
 // BridgeClient is the narrow AgentSecure gRPC client surface required by this
 // bundle: the streaming execute RPC and the unary side-effect-free resolve RPC that
-// backs the execute action's resolveOnly mode. Bulk result bytes never traverse
+// backs the runQuery action's resolveOnly mode. Bulk result bytes never traverse
 // AgentSecure, so there is no unary inline-result call.
 type BridgeClient interface {
 	RemoteQueryExecuteStream(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error)
@@ -177,7 +177,7 @@ type BridgeClient interface {
 // BridgeClientFactory returns an authenticated AgentSecure client over the local Agent IPC channel.
 type BridgeClientFactory func() (BridgeClient, error)
 
-// ExecuteAction runs the single Remote Queries AP action in one of two modes selected
+// ExecuteAction runs the runQuery AP action in one of two modes selected
 // by the resolveOnly input. The default execute mode dispatches customer SQL through
 // the streaming AgentSecure execute RPC with the backend-injected upload contract.
 // The resolveOnly mode is the side-effect-free target resolution: the Agent re-runs

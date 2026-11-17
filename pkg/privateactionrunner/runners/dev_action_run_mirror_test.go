@@ -53,11 +53,11 @@ func runMirrorTask(t *testing.T, bundleID string, traceID, spanID uint64, action
 	executor := &WorkflowTaskExecutor{
 		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{bundleID: mirrorTestBundle{action}}},
 		config: &config.Config{
-			ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("execute")},
+			ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("runQuery")},
 			MetricsClient:    &statsd.NoOpClient{},
 		},
 	}
-	task := newWorkflowTask("task-1", bundleID, "execute", "job-1")
+	task := newWorkflowTask("task-1", bundleID, "runQuery", "job-1")
 	task.Data.Attributes.TraceId = traceID
 	task.Data.Attributes.SpanId = spanID
 	_, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
@@ -65,12 +65,12 @@ func runMirrorTask(t *testing.T, bundleID string, traceID, spanID uint64, action
 }
 
 const (
-	mirrorBundle  = "com.datadoghq.remoteaction.queries"
+	mirrorBundle  = "com.datadoghq.remoteaction.integrations"
 	mirrorTraceID = uint64(1234567890123456789)
 	mirrorSpanID  = uint64(200)
 )
 
-func TestRunTaskMirrorsActionRunForRemoteQueries(t *testing.T) {
+func TestRunTaskMirrorsActionRunForAgentIntegrations(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
@@ -96,7 +96,7 @@ func TestRunTaskMirrorsActionRunForRemoteQueries(t *testing.T) {
 	assert.Equal(t, miniSpanID, span.SpanID())
 	assert.Equal(t, mirrorSpanID, span.ParentID())
 	assert.Equal(t, mirrorTraceID, span.TraceID())
-	assert.Equal(t, mirrorBundle+".execute", span.Tag("resource.name"))
+	assert.Equal(t, mirrorBundle+".runQuery", span.Tag("resource.name"))
 	assert.Equal(t, "task-1", span.Tag("task_id"))
 	assert.Equal(t, observability.ParService, span.Tag("service.name"))
 	assert.Equal(t, float64(2), span.Tag("_sampling_priority_v1"))

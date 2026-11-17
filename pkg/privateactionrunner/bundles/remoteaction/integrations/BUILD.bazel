@@ -2,13 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "queries",
+    name = "integrations",
     srcs = [
         "entrypoint.go",
         "execute.go",
         "ipc_client.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/integrations",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/api/security/cert",
@@ -27,11 +27,9 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "queries_test",
-    srcs = [
-        "execute_test.go",
-    ],
-    embed = [":queries"],
+    name = "integrations_test",
+    srcs = ["execute_test.go"],
+    embed = [":integrations"],
     deps = [
         "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/devtracing",
