@@ -91,6 +91,8 @@ const (
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
+	// TCPDisconnect traces the tcp_disconnect() kernel function
+	TCPDisconnect ProbeFuncName = "kprobe__tcp_disconnect"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 

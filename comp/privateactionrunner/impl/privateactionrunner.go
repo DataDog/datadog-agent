@@ -156,11 +156,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.DelegatedAuth, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
-	runner.delegatedAuth = reqs.DelegatedAuth
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
@@ -182,11 +181,10 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.DelegatedAuth, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
-	runner.delegatedAuth = reqs.DelegatedAuth
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
@@ -201,6 +199,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 func NewPrivateActionRunner(
 	_ context.Context,
 	coreConfig model.ReaderWriter,
+	delegatedAuth delegatedauth.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
@@ -216,6 +215,7 @@ func NewPrivateActionRunner(
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:      coreConfig,
+		delegatedAuth:   delegatedAuth,
 		hostnameGetter:  hostnameGetter,
 		rcClient:        rcClient,
 		logger:          logger,
@@ -242,10 +242,15 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
+	// Replace a saved runner when its enrollment does not match the configured WIF org/site,
+	// leaving the old identity file untouched until enrollment succeeds.
+	// Shared-Secret Cluster Agents coordinate replacement while loading the identity.
+	if p.wifEnrollmentEnabled() && p.coreConfig.GetBool(par.SelfEnroll) &&
+		(flavor.GetFlavor() != flavor.ClusterAgent || !p.coreConfig.GetBool(par.IdentityUseK8sSecret)) &&
+		persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
+		persistedIdentity = nil
+	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
-		if p.wifEnrollmentEnabled() {
-			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
-		}
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -602,12 +607,10 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled follows primary intake authentication for node runners.
-// WIF configured only for another endpoint does not select PAR enrollment.
+// wifEnrollmentEnabled follows primary intake authentication. WIF configured
+// only for another endpoint (for example logs) does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
-	agentFlavor := flavor.GetFlavor()
-	return (agentFlavor == flavor.DefaultAgent || agentFlavor == flavor.PrivateActionRunner) &&
-		p.coreConfig.GetString("delegated_auth.org_uuid") != ""
+	return enrollment.UsesWIF(p.coreConfig)
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner.

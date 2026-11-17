@@ -27,17 +27,18 @@ const (
 	dddevSite = "datadoghq.com"
 	// benchmarkDashboardID is the dashboard of dddev showing the data of a run of the benchmark.
 	benchmarkDashboardID = "bkx-svx-pjc"
-	// dddevQueryAttempts is the number of attempts of a query failing to reach the API. The
-	// API client already retries the rate-limited (429) and server error (5xx) responses.
-	dddevQueryAttempts = 3
+	// dddevAttempts is the number of attempts of a call failing to reach the API. The API
+	// client already retries the rate-limited (429) and server error (5xx) responses.
+	dddevAttempts = 3
 )
 
 // dddevAppURL is the URL of the Datadog app of dddev.
 var dddevAppURL = url.URL{Scheme: "https", Host: "dddev." + dddevSite}
 
-// dddevClient queries the timeseries of dddev.
+// dddevClient queries the timeseries of dddev, and posts events to it.
 type dddevClient struct {
 	metrics *datadogV1.MetricsApi
+	events  *datadogV1.EventsApi
 	keys    map[string]datadog.APIKey
 }
 
@@ -60,8 +61,10 @@ func newDDDevClient() (*dddevClient, error) {
 	// Room for the 5 retries and their exponential backoff, and for the reset of a rate limit.
 	cfg.RetryConfiguration.HTTPRetryTimeout = 5 * time.Minute
 
+	apiClient := datadog.NewAPIClient(cfg)
 	return &dddevClient{
-		metrics: datadogV1.NewMetricsApi(datadog.NewAPIClient(cfg)),
+		metrics: datadogV1.NewMetricsApi(apiClient),
+		events:  datadogV1.NewEventsApi(apiClient),
 		keys: map[string]datadog.APIKey{
 			"apiKeyAuth": {Key: apiKey},
 			"appKeyAuth": {Key: appKey},
@@ -83,20 +86,9 @@ func (c *dddevClient) query(ctx context.Context, query string, from, to time.Tim
 
 // querySeries returns the points of each of the timeseries query returns over [from, to].
 func (c *dddevClient) querySeries(ctx context.Context, query string, from, to time.Time) ([][]benchmark.Point, error) {
-	ctx = context.WithValue(ctx, datadog.ContextAPIKeys, c.keys)
-	ctx = context.WithValue(ctx, datadog.ContextServerVariables, map[string]string{"site": dddevSite})
-
-	resp, err := backoff.Retry(ctx, func() (datadogV1.MetricsQueryResponse, error) {
-		resp, httpResp, err := c.metrics.QueryMetrics(ctx, from.Unix(), to.Unix(), query)
-		if httpResp != nil {
-			_ = httpResp.Body.Close()
-		}
-		// An HTTP response means the API was reached: retryable statuses were already retried.
-		if err != nil && httpResp != nil {
-			return resp, backoff.Permanent(err)
-		}
-		return resp, err
-	}, backoff.WithMaxTries(dddevQueryAttempts), backoff.WithBackOff(backoff.NewConstantBackOff(10*time.Second)))
+	resp, err := callDDDev(ctx, c, func(ctx context.Context) (datadogV1.MetricsQueryResponse, *http.Response, error) {
+		return c.metrics.QueryMetrics(ctx, from.Unix(), to.Unix(), query)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("query %q failed: %w", query, err)
 	}
@@ -113,4 +105,32 @@ func (c *dddevClient) querySeries(ctx context.Context, query string, from, to ti
 			return benchmark.Point{Timestamp: time.UnixMilli(int64(*point[0])), Value: *point[1]}, true
 		})
 	}), nil
+}
+
+// postEvent posts event. An event retried after a network error may be posted twice.
+func (c *dddevClient) postEvent(ctx context.Context, event datadogV1.EventCreateRequest) error {
+	if _, err := callDDDev(ctx, c, func(ctx context.Context) (datadogV1.EventCreateResponse, *http.Response, error) {
+		return c.events.CreateEvent(ctx, event)
+	}); err != nil {
+		return fmt.Errorf("posting the event %q failed: %w", event.Title, err)
+	}
+	return nil
+}
+
+// callDDDev returns the response of call to the API of dddev, with the keys of c, retried up to
+// dddevAttempts times while it fails to reach the API.
+func callDDDev[T any](ctx context.Context, c *dddevClient, call func(context.Context) (T, *http.Response, error)) (T, error) {
+	ctx = context.WithValue(ctx, datadog.ContextAPIKeys, c.keys)
+	ctx = context.WithValue(ctx, datadog.ContextServerVariables, map[string]string{"site": dddevSite})
+	return backoff.Retry(ctx, func() (T, error) {
+		resp, httpResp, err := call(ctx)
+		if httpResp != nil {
+			_ = httpResp.Body.Close()
+		}
+		// An HTTP response means the API was reached: retryable statuses were already retried.
+		if err != nil && httpResp != nil {
+			return resp, backoff.Permanent(err)
+		}
+		return resp, err
+	}, backoff.WithMaxTries(dddevAttempts), backoff.WithBackOff(backoff.NewConstantBackOff(10*time.Second)))
 }
