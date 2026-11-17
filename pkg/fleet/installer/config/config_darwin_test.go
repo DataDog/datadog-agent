@@ -10,6 +10,7 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/user"
@@ -704,4 +705,51 @@ func TestPromoteClearsTheMarkerWhenTheSwapFails(t *testing.T) {
 	state, err := dirs.GetState()
 	require.NoError(t, err)
 	assert.Equal(t, "experiment-1", state.ExperimentDeploymentID)
+}
+
+func TestSplitListing(t *testing.T) {
+	listing := `drwxrwx---+ 3 _dd-agent  admin  96 Oct  1 12:00 /etc/conf.d
+ 0: user:_dd-agent allow list,add_file,search,file_inherit,directory_inherit
+-rw-rw----  1 _dd-agent  admin  0 Oct  1 12:00 /etc/a file.yaml
+-rw-rw----+ 1 _dd-agent  admin  0 Oct  1 12:00 /etc/datadog.yaml
+ 0: group:everyone allow read
+ 1: user:_dd-agent inherited allow read,write
+`
+	blocks := splitListing([]byte(listing))
+	require.Len(t, blocks, 3)
+	assert.Equal(t, []string{"user:_dd-agent allow list,add_file,search,file_inherit,directory_inherit"}, aclEntries(blocks[0]))
+	assert.Empty(t, aclEntries(blocks[1]))
+	assert.Equal(t, []string{"group:everyone allow read", "user:_dd-agent allow read,write"}, aclEntries(blocks[2]))
+}
+
+// TestCopyReproducesAccessControlListsAcrossBatches pins that batching the access control list
+// copy never hands an entry another entry's list: more entries than one batch holds, two distinct
+// lists, entries with none, and a name ls cannot list on one line.
+func TestCopyReproducesAccessControlListsAcrossBatches(t *testing.T) {
+	dirs := newTestDirectories(t)
+	var paths []string
+	for i := 0; i < aclBatchSize+40; i++ {
+		path := filepath.Join("conf.d", fmt.Sprintf("check-%03d.yaml", i))
+		require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, path), nil, 0640))
+		switch i % 3 {
+		case 0:
+			setACL(t, filepath.Join(dirs.StablePath, path), "group:everyone allow read")
+		case 1:
+			setACL(t, filepath.Join(dirs.StablePath, path), "group:everyone deny write")
+		}
+		paths = append(paths, path)
+	}
+	newline := filepath.Join("conf.d", "two\nlines.yaml")
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, newline), nil, 0640))
+	setACL(t, filepath.Join(dirs.StablePath, newline), "group:everyone deny write")
+	paths = append(paths, newline)
+
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	tree := configTree{sourcePath: dirs.StablePath, targetPath: incoming}
+	require.NoError(t, tree.Copy(context.Background()))
+
+	for _, path := range paths {
+		assert.Equal(t, readACL(t, filepath.Join(dirs.StablePath, path)), readACL(t, filepath.Join(incoming, path)),
+			"access control list of %q", path)
+	}
 }

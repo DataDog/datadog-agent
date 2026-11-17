@@ -106,12 +106,7 @@ func (t configTree) Copy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, path := range withACL {
-		if err := t.copyACL(ctx, path); err != nil {
-			return err
-		}
-	}
-	return nil
+	return t.copyACLs(ctx, withACL)
 }
 
 // Finish gives the target root the source root's mode, ownership and access control list.
@@ -157,6 +152,102 @@ func (t configTree) copyACL(ctx context.Context, path string) error {
 		return fmt.Errorf("could not set the access control list of %s: %w: %s", path, err, output)
 	}
 	return nil
+}
+
+// aclBatchSize bounds how many paths one ls or chmod invocation is given, well under ARG_MAX.
+const aclBatchSize = 256
+
+// copyACLs gives every entry of the copy at paths its source entry's access control list, like
+// copyACL, in a few processes rather than two per entry: the lists are read in batches, and each
+// distinct list is written with one chmod over every entry that carries it. A default conf.d holds
+// hundreds of entries, and every one of them is copied at each experiment start.
+//
+// A path holding a newline would break the listing apart, so it goes through copyACL alone.
+func (t configTree) copyACLs(ctx context.Context, paths []string) error {
+	var batched []string
+	for _, path := range paths {
+		if strings.Contains(path, "\n") {
+			if err := t.copyACL(ctx, path); err != nil {
+				return err
+			}
+			continue
+		}
+		batched = append(batched, path)
+	}
+
+	targets := map[string][]string{}
+	var lists []string
+	for start := 0; start < len(batched); start += aclBatchSize {
+		batch := batched[start:min(start+aclBatchSize, len(batched))]
+		acls, err := t.readACLs(ctx, batch)
+		if err != nil {
+			return err
+		}
+		for i, entries := range acls {
+			if len(entries) == 0 {
+				continue
+			}
+			list := strings.Join(entries, "\n") + "\n"
+			if _, seen := targets[list]; !seen {
+				lists = append(lists, list)
+			}
+			targets[list] = append(targets[list], filepath.Join(t.targetPath, batch[i]))
+		}
+	}
+
+	for _, list := range lists {
+		paths := targets[list]
+		for start := 0; start < len(paths); start += aclBatchSize {
+			chunk := paths[start:min(start+aclBatchSize, len(paths))]
+			cmd := exec.CommandContext(ctx, "/bin/chmod", append([]string{"-E"}, chunk...)...)
+			cmd.Stdin = strings.NewReader(list)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("could not set the access control lists of %d entries: %w: %s", len(chunk), err, output)
+			}
+		}
+	}
+	return nil
+}
+
+// readACLs returns the access control entries of each source entry at paths, in order, read with a
+// single ls. -f keeps ls from sorting its operands, so each entry's listing comes back in the order
+// the paths were given; the count is checked so a listing that does not line up is never applied
+// to the wrong entry.
+func (t configTree) readACLs(ctx context.Context, paths []string) ([][]string, error) {
+	args := []string{"-fled"}
+	for _, path := range paths {
+		args = append(args, filepath.Join(t.sourcePath, path))
+	}
+	listing, err := exec.CommandContext(ctx, "/bin/ls", args...).Output()
+	if err != nil {
+		return nil, fmt.Errorf("could not read the access control lists of %d entries: %w", len(paths), err)
+	}
+	blocks := splitListing(listing)
+	if len(blocks) != len(paths) {
+		return nil, fmt.Errorf("could not read the access control lists: ls listed %d entries for %d paths", len(blocks), len(paths))
+	}
+	acls := make([][]string, len(blocks))
+	for i, block := range blocks {
+		acls[i] = aclEntries(block)
+	}
+	return acls, nil
+}
+
+// splitListing splits `ls -led` output over several entries into one listing per entry: an entry's
+// line, then the indented, numbered access control entries that follow it.
+func splitListing(listing []byte) [][]byte {
+	var blocks [][]byte
+	for _, line := range strings.SplitAfter(string(listing), "\n") {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, " ") && len(blocks) > 0 {
+			blocks[len(blocks)-1] = append(blocks[len(blocks)-1], line...)
+			continue
+		}
+		blocks = append(blocks, []byte(line))
+	}
+	return blocks
 }
 
 // aclEntries extracts the access control entries from `ls -led` output, in the form `chmod -E`
