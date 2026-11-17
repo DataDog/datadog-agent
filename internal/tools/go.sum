@@ -79,6 +79,7 @@ github.com/ashanbrown/makezero/v2 v2.2.1 h1:A7uU8dgB1PA9aelTxHMfHIQ8Qev8AB3JLxJU
 github.com/ashanbrown/makezero/v2 v2.2.1/go.mod h1:aEGT/9q3S8DHeE57C88z2a6xydvgx8J5hgXIGWgo0MY=
 github.com/bazelbuild/bazelisk v1.29.0 h1:BZewovOJIl5bZ7SRILTWllmqbVcfJ6UHDopxh8PSi9k=
 github.com/bazelbuild/bazelisk v1.29.0/go.mod h1:FnIb0hyRVnsVLnnv7uEi6XmQNScp/yxe0fYqNtDn4dE=
+github.com/bazelbuild/bazelisk v1.30.0/go.mod h1:JP1J/jdSV9Uy7YwqQhu7pfvpqIU/dBmihP6C44H/NfM=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d h1:xDfNPAt8lFiC1UJrqV3uuy861HCTo708pDMbjHHdCas=
