@@ -32,7 +32,7 @@ const localVMFakeIntakeContainer = "e2e-fakeintake"
 
 // brewEnv puts Homebrew's tools (docker, colima) on PATH for a non-login ssh command. Homebrew
 // lives in /opt/homebrew on Apple Silicon and /usr/local on Intel.
-const brewEnv = `eval "$( (/opt/homebrew/bin/brew || /usr/local/bin/brew) shellenv 2>/dev/null)"; `
+const brewEnv = `eval "$( (/opt/homebrew/bin/brew shellenv || /usr/local/bin/brew shellenv) 2>/dev/null)"; `
 
 // LocalVMOption configures LocalVMProvisioner.
 type LocalVMOption func(*localVMParams)
