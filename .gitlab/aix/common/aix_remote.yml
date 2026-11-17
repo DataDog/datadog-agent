@@ -32,7 +32,7 @@
   variables:
     # Where the agent source is cloned on the AIX host.
     AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
-    AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
+    AIX_GIT_REMOTE: "https://github.com/${CI_PROJECT_PATH}.git"
     GIT_DEPTH: 1
   before_script:
     - !reference [.setup_github_token_read]

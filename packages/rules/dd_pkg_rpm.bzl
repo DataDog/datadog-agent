@@ -32,6 +32,8 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwar
         }),
         defines = merged_defines,
         description = rpm_description(description),
+        packager = "Datadog, Inc <package@datadoghq.com>",
+        vendor = "Datadog <package@datadoghq.com>",
         visibility = visibility,
         **kwargs
     )
@@ -44,7 +46,9 @@ dd_pkg_rpm = macro(
         "binary_payload_compression": None,
         "defines": attr.string_dict(configurable = False),
         "description": attr.string(configurable = False),
+        "packager": None,
         "private_stamp_detect": None,
         "stamp": None,
+        "vendor": None,
     },
 )

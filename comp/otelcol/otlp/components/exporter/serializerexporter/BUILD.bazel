@@ -157,5 +157,6 @@ dd_agent_go_test(
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxevent",
         "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zaptest/observer",
     ],
 )

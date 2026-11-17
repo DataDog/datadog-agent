@@ -24,6 +24,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -231,6 +232,22 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) (*ExporterConfig
 	return cfg, nil
 }
 
+// warnIgnoredHistogramOptions warns about histogram settings that native OTel histograms do not apply.
+func warnIgnoredHistogramOptions(logger *zap.Logger, cfg datadogconfig.HistogramConfig) {
+	var ignored []string
+	if cfg.Mode == datadogconfig.HistogramModeCounters || cfg.Mode == datadogconfig.HistogramModeNoBuckets {
+		ignored = append(ignored, "metrics::histograms::mode="+string(cfg.Mode))
+	}
+	if cfg.SendAggregations {
+		ignored = append(ignored, "metrics::histograms::send_aggregation_metrics")
+	}
+	if len(ignored) > 0 {
+		logger.Warn(fmt.Sprintf("Ignoring %s: with feature gate %s, OTel histograms are sent as native histograms; "+
+			"query the count, sum, min and max of the histogram metric instead",
+			strings.Join(ignored, ", "), nativeOTelHistogramsGate.ID()))
+	}
+}
+
 // createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
 	cfg, err := checkAndCastConfig(c, params.Logger)
@@ -277,10 +294,12 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		}
 		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
 			return nil, fmt.Errorf("feature gate %s needs the v3 distributions intake for every metrics destination, but these use v2: %s; "+
-				"set them to true in use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
+				"set use_v3_api.distributions.enabled to datadog_only (Datadog URLs) or true (all URLs), or set each of them to true in "+
+				"use_v3_api.distributions.endpoints, and do not use zlib compression or Observability Pipelines Worker for metrics",
 				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
 		}
 		newTranslator = minimalTranslatorFromConfig
+		warnIgnoredHistogramOptions(params.Logger, cfg.Metrics.Metrics.HistConfig)
 	}
 	options := f.options
 	var metadataSubmitter *metadata.Submitter

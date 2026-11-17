@@ -788,6 +788,72 @@ func TestAreTagsComplete(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "container not started yet",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						Name: "pending",
+					},
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  true,
+				},
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "container not started yet and started container incomplete",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						Name: "pending",
+					},
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  true,
+				},
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  false,
+				},
+			},
+			expected: false,
+		},
 	}
 
 	for _, test := range tests {
