@@ -20,6 +20,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// istioChartsRepo is the Istio Helm repository; the former GCP-hosted one is retired.
+const istioChartsRepo = "https://blob.istio.io/istio-release/charts"
+
 type HelmComponent struct {
 	pulumi.ResourceState
 
@@ -50,7 +53,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	values := buildIstioBaseHelmValues()
 
 	istioBase, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "base",
 		InstallName: "istio-base",
 		Namespace:   "istio-system",
@@ -65,7 +68,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	opts = append(opts, utils.PulumiDependsOn(istioBase))
 
 	istiod, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "istiod",
 		InstallName: "istiod",
 		Namespace:   "istio-system",
@@ -85,7 +88,7 @@ func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComp
 	}
 
 	istioIngress, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     "https://istio-release.storage.googleapis.com/charts",
+		RepoURL:     istioChartsRepo,
 		ChartName:   "gateway",
 		InstallName: "istio-ingress",
 		Namespace:   "istio-ingress",

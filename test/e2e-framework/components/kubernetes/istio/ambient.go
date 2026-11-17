@@ -22,7 +22,6 @@ const (
 	// AmbientDefaultVersion is the Istio chart version installed by NewAmbientHelmInstallation
 	AmbientDefaultVersion = "1.30.8"
 	gatewayAPIVersion     = "v1.7.0"
-	istioChartsRepo       = "https://istio-release.storage.googleapis.com/charts"
 )
 
 // AmbientHelmComponent is an Istio ambient mode installation: base, istiod, istio-cni, and ztunnel
