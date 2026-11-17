@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
@@ -172,7 +172,13 @@ func StopServer() {
 // We only want to maintain 1 API and expose an external route to serve the cluster level metadata.
 // As we have 2 different tokens for the validation, we need to validate accordingly.
 func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
-	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
+	return validateTokenFor(ipc, isExternalPath, util.GetDCAAuthToken)
+}
+
+// validateTokenFor is validateToken with the set of external paths and the Cluster Agent token
+// as parameters, so tests can run it as an older Cluster Agent does.
+func validateTokenFor(ipc ipc.Component, isExternalPath func(string) bool, dcaToken func() string) func(http.Handler) http.Handler {
+	dcaTokenValidator := util.TokenValidator(dcaToken)
 	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
 
 	return func(next http.Handler) http.Handler {

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -306,8 +305,9 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 	})
 
 	t.Run("final answers are an empty success", func(t *testing.T) {
-		// 404 (not EKS, an older Cluster Agent) and a final 503 (a missing eks:DescribeCluster
-		// permission, which the Cluster Agent logs itself) must not log on every refresh.
+		// 404 (not EKS), 403 (an older Cluster Agent, whose token middleware rejects the unknown
+		// path) and a final 503 (a missing eks:DescribeCluster permission, which the Cluster Agent
+		// logs itself) must not log on every refresh.
 		stubEvidence(t, true)
 		for _, err := range []error{statusErr(http.StatusNotFound, false), statusErr(http.StatusServiceUnavailable, false)} {
 			answer(nil, err)
@@ -317,12 +317,9 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 		}
 	})
 
-	t.Run("auth failures are logged once at Warn", func(t *testing.T) {
-		// A 401 or 403 means the node's token is wrong. Not an error to retry every refresh,
-		// but not silent either.
+	t.Run("auth failures are an empty success without a Warn", func(t *testing.T) {
+		// An older Cluster Agent answers 403. A bad node token fails earlier, at /version.
 		stubEvidence(t, true)
-		authWarned = sync.Once{}
-		t.Cleanup(func() { authWarned = sync.Once{} })
 		var buf bytes.Buffer
 		logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(&buf, log.WarnLvl)
 		require.NoError(t, err)
@@ -335,8 +332,7 @@ func TestGetClusterAgentEKSIdentityHostTags(t *testing.T) {
 			assert.Empty(t, tags)
 		}
 		log.Flush()
-		assert.Equal(t, 1, strings.Count(buf.String(), "WARN"), buf.String())
-		assert.Contains(t, buf.String(), "Unauthorized")
+		assert.NotContains(t, buf.String(), "WARN")
 	})
 
 	t.Run("answers that can change are errors, retried on the next refresh", func(t *testing.T) {

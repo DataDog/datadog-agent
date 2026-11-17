@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"regexp"
 	"slices"
@@ -145,10 +144,11 @@ func HasEKSEvidence() bool {
 // GetClusterAgentEKSIdentityHostTags is GetClusterAgentEKSIdentityTags for the host-tags
 // provider. It refreshes on its own interval, so answers that will not change are an empty
 // success rather than an error that is logged on every refresh: a node without EKS evidence,
-// and any answer that cannot change soon, a 404 from a Cluster Agent that is not on EKS or too
-// old to serve identity, or a final 503 (for example a missing eks:DescribeCluster permission,
-// which the Cluster Agent logs itself). A 401 or 403 is the node's own token failing: also final,
-// but logged once at Warn so the failure is visible.
+// and any answer that cannot change soon: a 404 from a Cluster Agent that is not on EKS, a 403
+// from a Cluster Agent too old to serve identity (its token middleware rejects the unknown path
+// before routing), or a final 503 (for example a missing eks:DescribeCluster permission, which
+// the Cluster Agent logs itself). A 401 or 403 is logged at Debug only: a bad node token fails
+// earlier, at /version during client initialization, so here it means an older Cluster Agent.
 func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
 	if !hasEKSEvidence() {
 		return nil, nil
@@ -156,18 +156,11 @@ func GetClusterAgentEKSIdentityHostTags(ctx context.Context) ([]string, error) {
 	tags, err := GetClusterAgentEKSIdentityTags(ctx)
 	var statusErr *clusteragent.StatusError
 	if errors.As(err, &statusErr) && !statusErr.RetryLater {
-		if statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden {
-			authWarned.Do(func() {
-				log.Warnf("The Cluster Agent refused the EKS identity request, eks_cluster_arn will be missing from host tags: %v", err)
-			})
-		}
+		log.Debugf("No EKS identity from the Cluster Agent (an older Cluster Agent answers 403): %v", err)
 		return nil, nil
 	}
 	return tags, err
 }
-
-// authWarned makes the host-tags provider log a refused identity request once per process.
-var authWarned sync.Once
 
 // GetClusterAgentEKSIdentityTags returns authoritative EKS identity as low-cardinality tags.
 func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
@@ -189,12 +182,14 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 // Cluster Agent is reachable; without a retry a single cold-start miss would leave
 // eks_cluster_arn absent from container tags and APM spans.
 //
-// The fetch is bounded to StartupRetryBudget and retries with a short constant backoff within
-// it. Only failures to get an answer are retried: once the Cluster Agent answers (404 on non-EKS
-// clusters or an older Cluster Agent, 503 when DescribeCluster fails, or an identity without a
-// valid ARN), the answer will not change within the window, and retrying it would block every
-// caller for the full budget on each startup. The one exception is an answer the Cluster Agent
-// marks with identity.RetryLaterHeader: it has not determined the identity yet. What the fetch
+// The fetch is bounded to StartupRetryBudget and retries about once a second (jittered by 20%)
+// within it. It retries failures to get an answer, and answers that can change soon: an answer
+// the Cluster Agent marks with identity.RetryLaterHeader set to true, and an unmarked 408, 429 or
+// 5xx, which comes from a proxy or mesh sidecar in front of the Cluster Agent. Every other answer
+// is final (404 on non-EKS clusters, 403 from an older Cluster Agent, 401, an answer marked false
+// such as a cached DescribeCluster failure, or an identity without a valid ARN): it will not
+// change within the window, and retrying it would block every caller for the full budget on each
+// startup. What the fetch
 // ends with, tags or error, is final for the process. The host-tags provider re-runs on its own
 // refresh interval and repairs a later miss, with a single attempt per refresh.
 //

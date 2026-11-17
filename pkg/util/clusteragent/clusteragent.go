@@ -595,8 +595,9 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 // eksidentity.RetryLaterHeader value can change within a node's startup budget. The Cluster
 // Agent marks every answer it produces. An unmarked answer comes from something in front of it
 // (a proxy, a mesh sidecar, a crash), and is worth retrying when it is a 408, a 429 or a 5xx.
-// A 404 is final, marked or not: a Cluster Agent without the route answers a plain one. So are
-// 401 and 403, which come from the node's own token.
+// A 404 is final, marked or not, and so are 401 and 403. A Cluster Agent built before the
+// identity endpoint answers 403: its token middleware does not list the path as external and
+// rejects the node's token as an intra-pod token before routing.
 func identityAnswerCanChange(status int, mark string) bool {
 	switch {
 	case status == http.StatusNotFound || status == http.StatusUnauthorized || status == http.StatusForbidden:
