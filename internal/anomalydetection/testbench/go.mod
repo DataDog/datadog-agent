@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.83.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.83.3
 	github.com/DataDog/datadog-agent/internal/anomalydetection/scorer v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261030015547-4fcf7d423463
 	github.com/DataDog/datadog-agent/pkg/metrics v0.83.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.83.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.84.0-devel.0.20261028224924-1c255663adbd
@@ -58,9 +58,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.84.0-devel.0.20261030015547-4fcf7d423463 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/remote v0.84.0-devel.0.20261117175822-3905da59c8c4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.83.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.83.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteflags v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.83.3 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.85.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
