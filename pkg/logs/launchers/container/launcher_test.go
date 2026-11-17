@@ -11,6 +11,7 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -187,4 +188,82 @@ func TestChildFileSourceAddedFromLoop(t *testing.T) {
 	logSources.RemoveSource(parent)
 	require.Same(t, child, receive(fileRemoved))
 	require.Empty(t, logSources.GetSources())
+}
+
+// Removing a source right after adding it, without waiting for the launcher to
+// process the addition, must stop its tailer and remove its child file source.
+func TestAddRemoveSourceWithoutWaiting(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	logSources := sources.NewLogSources()
+
+	// stand-in for the file launcher: counts the file sources still added, and
+	// reports that count when the child file source of "last" is added. The
+	// launcher adds and removes child file sources synchronously and in order,
+	// so all the earlier ones were received by then.
+	fileDone := make(chan struct{})
+	fileAdded, fileRemoved := logSources.SubscribeForType(config.FileType, fileDone, fileDone)
+	activeWhenLastAdded := make(chan int, 1)
+	go func() {
+		active := 0
+		for {
+			select {
+			case source := <-fileAdded:
+				active++
+				if source.Config.Identifier == "last" {
+					activeWhenLastAdded <- active
+				}
+			case <-fileRemoved:
+				active--
+			case <-fileDone:
+				return
+			}
+		}
+	}()
+
+	l := NewLauncher(logSources, option.None[workloadmeta.Component](), fakeTagger)
+	l.tailerFactory = &testFactory{
+		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
+			return &containertailers.WrappedSource{
+				Source: sources.NewLogSource(source.Name, &config.LogsConfig{
+					Type:       config.FileType,
+					Path:       "/var/log/pods/" + source.Config.Identifier + "/0.log",
+					Identifier: source.Config.Identifier,
+				}),
+				Sources: logSources,
+			}, nil
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	l.cancel = cancel
+	l.stopped = make(chan struct{})
+	go l.run(ctx, logSources)
+	defer l.Stop()
+	defer close(fileDone) // runs before l.Stop
+
+	const n = 500
+	for i := range n {
+		parent := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: fmt.Sprintf("c%d", i)})
+		logSources.AddSource(parent)
+		logSources.RemoveSource(parent)
+	}
+
+	last := sources.NewLogSource("container_collect_all", &config.LogsConfig{Type: "docker", Identifier: "last"})
+	logSources.AddSource(last)
+	select {
+	case active := <-activeWhenLastAdded:
+		require.Equal(t, 1, active, "file sources left behind by removed containers")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timed out: the container launcher is blocked")
+	}
+	require.Equal(t, []*sources.LogSource{last}, nonFileSources(logSources))
+}
+
+func nonFileSources(logSources *sources.LogSources) []*sources.LogSource {
+	var res []*sources.LogSource
+	for _, source := range logSources.GetSources() {
+		if source.Config.Type != config.FileType {
+			res = append(res, source)
+		}
+	}
+	return res
 }
