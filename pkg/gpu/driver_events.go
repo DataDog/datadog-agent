@@ -396,8 +396,11 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	if matches := nvidiaRowRemapperSitePattern.FindStringSubmatch(message); matches != nil {
 		details.RowRemapperSite = matches[1]
 	}
-	if (xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode) && nvidiaMemoryLocationPattern.MatchString(message) {
-		details.Location = nvidiaMemoryLocationNames[strings.ToUpper(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])]
+	if xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode {
+		if matches := nvidiaMemoryLocationPattern.FindStringSubmatch(message); matches != nil {
+			// The pattern is case-insensitive, so normalize before the lookup.
+			details.Location = nvidiaMemoryLocationNames[strings.ToUpper(matches[1])]
+		}
 	}
 	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
 		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))
