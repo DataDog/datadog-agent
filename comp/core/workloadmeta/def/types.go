@@ -800,9 +800,11 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
-	if len(c.GPUDeviceIDs) > 0 {
+	if len(c.GPUDeviceIDs) > 0 || len(c.GPUShares) > 0 || len(c.GPUDeviceReplicas) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
-		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUDeviceIDs) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		}
 		if len(c.GPUShares) > 0 {
 			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
 		}
