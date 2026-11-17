@@ -597,7 +597,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.104.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.105.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.105.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.60.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
