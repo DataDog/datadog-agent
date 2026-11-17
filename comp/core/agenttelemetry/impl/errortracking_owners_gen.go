@@ -117,7 +117,6 @@ const ownerRules = `8 /.*
 21 /CHANGELOG-DCA.rst
 7 /CHANGELOG-INSTALLSCRIPT.rst
 8 /*.md
-13 /CHANGELOG-AIX.md
 8 /AGENTS.md
 8 /CLAUDE.md
 7 /NOTICE

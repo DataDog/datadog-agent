@@ -179,7 +179,6 @@
 .vscode	agent-devx
 .x	agent-devx
 AGENTS.md	agent-devx
-CHANGELOG-AIX.md	agent-runtimes
 CHANGELOG-DCA.rst	container-integrations
 CHANGELOG-INSTALLSCRIPT.rst	agent-delivery
 CHANGELOG.rst	agent-delivery
