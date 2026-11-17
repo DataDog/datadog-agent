@@ -14,4 +14,7 @@ features:
     Cluster Agent, so they require the Cluster Agent and its ``eks:DescribeCluster``
     permission. The tags are omitted when the identity is not available. If the Cluster Agent
     is not reachable when a node Agent starts, the node Agent waits for it up to 10 seconds,
-    except on nodes whose DMI rules out EC2.
+    only when local data shows the node is on EKS: an EKS Fargate sidecar, or a pod service
+    account token issued by EKS. Other nodes do not wait. An EKS node without that evidence,
+    for example when the Agent pod does not mount a service account token, gets the tags in
+    its host metadata only.

@@ -24,8 +24,10 @@ features:
     cannot be read, only the EC2 tag name is used, without that check.
 
     The endpoint answers 404 when the cluster is not EKS or no cluster name can be verified, and
-    503 when the identity cannot be resolved. A 503 that can clear on its own, for example while
-    the Cluster Agent is still starting, is marked so node Agents retry it during their startup.
+    503 when the identity cannot be resolved. In the Cluster Agent's first minute, a 503 for an
+    identity that is not determined yet (the API server or AWS did not answer in time) is
+    marked so node Agents retry it during their startup. Other 503s are final for that startup,
+    and node Agents pick the tags up in their host metadata once the identity is resolved.
 
     Grant ``eks:DescribeCluster`` on the cluster to the Cluster Agent's IAM role, with EKS Pod
     Identity or IAM Roles for Service Accounts (IRSA). The node instance role works only when
