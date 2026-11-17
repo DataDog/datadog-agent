@@ -8,6 +8,7 @@ Usage:
 
 import os
 import sys
+
 import packages
 
 # Older Agent versions wrote the integration baseline (.post_python_installed_packages.txt)
@@ -16,6 +17,7 @@ import packages
 # may still be here, so we fall back to it. Linux/OCI only; on other platforms the path does
 # not exist and is skipped.
 LEGACY_OCI_STORAGE_LOCATION = "/opt/datadog-packages/tmp"
+
 
 def find_baseline_file(storage_location, install_directory):
     """
@@ -41,6 +43,7 @@ def find_baseline_file(storage_location, install_directory):
         print(f"Baseline not found at: '{candidate}'")
     return None
 
+
 def pre(install_directory, storage_location):
     print(f"pre: install_directory='{install_directory}', storage_location='{storage_location}'")
     try:
@@ -49,7 +52,9 @@ def pre(install_directory, storage_location):
             if post_python_installed_packages_file:
                 pre_python_installed_packages_file = packages.pre_python_installed_packages_file(storage_location)
                 packages.create_python_installed_packages_file(pre_python_installed_packages_file)
-                packages.create_diff_installed_packages_file(storage_location, post_python_installed_packages_file, pre_python_installed_packages_file)
+                packages.create_diff_installed_packages_file(
+                    storage_location, post_python_installed_packages_file, pre_python_installed_packages_file
+                )
                 packages.cleanup_files(post_python_installed_packages_file, pre_python_installed_packages_file)
             else:
                 # No baseline anywhere. Distinguish a genuine first install from an upgrade
@@ -61,7 +66,9 @@ def pre(install_directory, storage_location):
                 if not os.path.exists(installed_by_pkg_file):
                     # First install: no prior Agent, so no baseline is expected and there is
                     # nothing to diff. Non-fatal no-op.
-                    print(f"No prior installation detected ('{installed_by_pkg_file}' missing); treating as first install. Nothing to diff (non-fatal).")
+                    print(
+                        f"No prior installation detected ('{installed_by_pkg_file}' missing); treating as first install. Nothing to diff (non-fatal)."
+                    )
                     return 0
                 # A prior Agent is installed but its baseline is gone (e.g. reaped from the
                 # legacy tmp dir before it could be migrated to persistent storage). Report a
@@ -78,7 +85,9 @@ def pre(install_directory, storage_location):
     print("pre: completed successfully")
     return 0
 
+
 if os.name == 'nt':
+
     def main():
         if len(sys.argv) != 3:
             print("Usage: pre.py <INSTALL_DIR> <WINDOWS_DATADOG_DATA_DIR>")
@@ -95,6 +104,7 @@ if os.name == 'nt':
             return 1
         return pre(install_directory, data_dog_data_dir)
 else:
+
     def main():
         if len(sys.argv) == 2:
             install_directory = sys.argv[1]
@@ -105,6 +115,7 @@ else:
             return pre(install_directory, storage_location)
         print("Usage: pre.py <INSTALL_DIR> [STORAGE_LOCATION]")
         return 1
+
 
 if __name__ == '__main__':
     sys.exit(main())
