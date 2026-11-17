@@ -13,28 +13,25 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
-	awsekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-	smithy "github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockEKSClient struct {
-	output *awseks.DescribeClusterOutput
+	output *describeClusterOutput
 	err    error
 	name   string
 	calls  int
 }
 
-func (m *mockEKSClient) DescribeCluster(_ context.Context, input *awseks.DescribeClusterInput, _ ...func(*awseks.Options)) (*awseks.DescribeClusterOutput, error) {
+func (m *mockEKSClient) DescribeCluster(_ context.Context, clusterName string) (*describeClusterOutput, error) {
 	m.calls++
-	m.name = aws.ToString(input.Name)
+	m.name = clusterName
 	return m.output, m.err
 }
 
-func clusterOutput(name, clusterARN string) *awseks.DescribeClusterOutput {
-	return &awseks.DescribeClusterOutput{Cluster: &awsekstypes.Cluster{Name: aws.String(name), Arn: aws.String(clusterARN)}}
+func clusterOutput(name, clusterARN string) *describeClusterOutput {
+	return &describeClusterOutput{Cluster: &describedCluster{Name: aws.String(name), Arn: aws.String(clusterARN)}}
 }
 
 func TestResolveClusterIdentity(t *testing.T) {
@@ -73,11 +70,11 @@ func TestResolveClusterIdentityRejectsInvalidResponses(t *testing.T) {
 		name          string
 		requestedName string
 		requestRegion string
-		output        *awseks.DescribeClusterOutput
+		output        *describeClusterOutput
 	}{
 		{name: "nil output", requestedName: "orders", requestRegion: "us-west-2"},
-		{name: "nil cluster", requestedName: "orders", requestRegion: "us-west-2", output: &awseks.DescribeClusterOutput{}},
-		{name: "nil ARN", requestedName: "orders", requestRegion: "us-west-2", output: &awseks.DescribeClusterOutput{Cluster: &awsekstypes.Cluster{Name: aws.String("orders")}}},
+		{name: "nil cluster", requestedName: "orders", requestRegion: "us-west-2", output: &describeClusterOutput{}},
+		{name: "nil ARN", requestedName: "orders", requestRegion: "us-west-2", output: &describeClusterOutput{Cluster: &describedCluster{Name: aws.String("orders")}}},
 		{name: "name mismatch", requestedName: "orders", requestRegion: "us-west-2", output: clusterOutput("payments", "arn:aws:eks:us-west-2:123456789012:cluster/payments")},
 		{name: "malformed ARN", requestedName: "orders", requestRegion: "us-west-2", output: clusterOutput("orders", "not-an-arn")},
 		{name: "wrong service", requestedName: "orders", requestRegion: "us-west-2", output: clusterOutput("orders", "arn:aws:ecs:us-west-2:123456789012:cluster/orders")},
@@ -176,14 +173,18 @@ func TestGetClusterIdentityCachesConfigLoadFailure(t *testing.T) {
 func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 	// Permanent: self-consistency and access failures do not clear on their own.
 	assert.Equal(t, failureCacheTTL, failureTTL(ErrInvalidClusterIdentity))
-	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "AccessDeniedException", Fault: smithy.FaultClient}))
-	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ResourceNotFoundException", Fault: smithy.FaultClient}))
+	assert.Equal(t, failureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: "AccessDeniedException"}))
+	assert.Equal(t, failureCacheTTL, failureTTL(&apiError{StatusCode: 404, Code: "ResourceNotFoundException"}))
 
 	// Transient: context deadline/cancellation and the SDK's retryable error codes.
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(context.DeadlineExceeded))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", context.Canceled)))
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ThrottlingException", Fault: smithy.FaultClient}))
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "RequestLimitExceeded", Fault: smithy.FaultClient}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "ThrottlingException"}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "RequestLimitExceeded"}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 429, Code: "TooManyRequestsException"}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 500, Code: "ServerException"}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 503, Code: "ServiceUnavailableException"}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 403, Code: "ExpiredTokenException"}))
 }
 
 func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {

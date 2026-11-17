@@ -50,3 +50,26 @@ func TestIsValidClusterARN(t *testing.T) {
 	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2,x:123456789012:cluster/orders"))     // comma in region
 	assert.False(t, IsValidClusterARN("arn:AWS:eks:us-west-2:123456789012:cluster/orders"))       // upper-case partition
 }
+
+func TestParseClusterARN(t *testing.T) {
+	id, ok := ParseClusterARN("arn:aws-cn:eks:cn-north-1:123456789012:cluster/Orders_Prod")
+	assert.True(t, ok)
+	assert.Equal(t, ClusterIdentity{
+		ClusterName: "Orders_Prod",
+		ClusterARN:  "arn:aws-cn:eks:cn-north-1:123456789012:cluster/Orders_Prod",
+		AccountID:   "123456789012",
+		Region:      "cn-north-1",
+	}, id)
+
+	for _, bad := range []string{
+		"arn:aws:eks:us-west-2:123456789012",                    // too few sections
+		"urn:aws:eks:us-west-2:123456789012:cluster/orders",     // not an ARN
+		"arn:aws:eks:us-west-2:123456789012:cluster/",           // empty name
+		"arn:aws:eks:us-west-2:123456789012:cluster/orders:x",   // colon in the name
+		"arn:aws:eks:us-west-2:123456789012:cluster/orders/sub", // slash in the name
+		"arn:aws:eks::123456789012:cluster/orders",              // empty Region
+	} {
+		_, ok := ParseClusterARN(bad)
+		assert.False(t, ok, bad)
+	}
+}

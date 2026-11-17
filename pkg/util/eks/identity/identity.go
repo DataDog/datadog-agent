@@ -13,8 +13,6 @@ import (
 	"regexp"
 	"strings"
 
-	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
-
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 )
 
@@ -22,7 +20,7 @@ var (
 	clusterNamePattern = regexp.MustCompile(`^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$`)
 	accountIDPattern   = regexp.MustCompile(`^[0-9]{12}$`)
 	// partitionPattern and regionPattern constrain the ARN fields that become tag values.
-	// awsarn.Parse only splits on colons and does no charset validation, so without these a
+	// Splitting an ARN on colons does no charset validation, so without these a
 	// Region or partition containing a comma or space would be emitted verbatim as a tag value
 	// (and would corrupt consumers that comma-join static tags). They match the e2e contract
 	// ^arn:aws[a-z-]*:eks:[a-z0-9-]+:[0-9]{12}:cluster/...$.
@@ -48,11 +46,11 @@ type ClusterIdentity struct {
 // three, and the ARN is re-validated so a value crossing the Cluster Agent HTTP boundary cannot
 // inject arbitrary tag content.
 func (c *ClusterIdentity) Tags() []string {
-	if c == nil || !IsValidClusterARN(c.ClusterARN) {
+	if c == nil {
 		return nil
 	}
-	parsed, err := awsarn.Parse(c.ClusterARN)
-	if err != nil {
+	parsed, ok := ParseClusterARN(c.ClusterARN)
+	if !ok {
 		return nil
 	}
 	return []string{
@@ -67,18 +65,35 @@ func (c *ClusterIdentity) Tags() []string {
 // the node Agent re-validates the ARN it receives over HTTP before turning it into a tag, so a
 // version-skewed or misbehaving Cluster Agent cannot inject arbitrary tag values.
 func IsValidClusterARN(clusterARN string) bool {
-	if clusterARN == "" {
-		return false
+	_, ok := ParseClusterARN(clusterARN)
+	return ok
+}
+
+// ParseClusterARN validates an EKS cluster ARN of the form
+// arn:<partition>:eks:<region>:<account>:cluster/<name> and returns the identity it encodes.
+// It is a small local parser so that node-side binaries, which only need to validate the ARN
+// received from the Cluster Agent, do not link an AWS SDK package for it.
+func ParseClusterARN(clusterARN string) (ClusterIdentity, bool) {
+	// Same split as the AWS SDK ARN parser: six colon separated sections, the last one being
+	// the resource, which may itself contain colons.
+	sections := strings.SplitN(clusterARN, ":", 6)
+	if len(sections) != 6 || sections[0] != "arn" {
+		return ClusterIdentity{}, false
 	}
-	parsed, err := awsarn.Parse(clusterARN)
-	if err != nil {
-		return false
-	}
-	if parsed.Service != "eks" || !partitionPattern.MatchString(parsed.Partition) ||
-		!regionPattern.MatchString(parsed.Region) || !accountIDPattern.MatchString(parsed.AccountID) {
-		return false
+	partition, service, region, accountID, resource := sections[1], sections[2], sections[3], sections[4], sections[5]
+	if service != "eks" || !partitionPattern.MatchString(partition) ||
+		!regionPattern.MatchString(region) || !accountIDPattern.MatchString(accountID) {
+		return ClusterIdentity{}, false
 	}
 	const clusterPrefix = "cluster/"
-	return strings.HasPrefix(parsed.Resource, clusterPrefix) &&
-		clusterNamePattern.MatchString(strings.TrimPrefix(parsed.Resource, clusterPrefix))
+	name, found := strings.CutPrefix(resource, clusterPrefix)
+	if !found || !clusterNamePattern.MatchString(name) {
+		return ClusterIdentity{}, false
+	}
+	return ClusterIdentity{
+		ClusterName: name,
+		ClusterARN:  clusterARN,
+		AccountID:   accountID,
+		Region:      region,
+	}, true
 }

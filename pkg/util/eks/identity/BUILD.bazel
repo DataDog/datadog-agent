@@ -6,10 +6,7 @@ go_library(
     srcs = ["identity.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/eks/identity",
     visibility = ["//visibility:public"],
-    deps = [
-        "//comp/core/tagger/tags",
-        "@com_github_aws_aws_sdk_go_v2//aws/arn",
-    ],
+    deps = ["//comp/core/tagger/tags"],
 )
 
 dd_agent_go_test(
