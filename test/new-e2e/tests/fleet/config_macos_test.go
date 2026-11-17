@@ -132,9 +132,6 @@ func configMacOSStartLocalFakeIntake(t *testing.T, user, addr string) uint32 {
 }
 
 // TestFleetConfigMacOS runs the macOS Fleet configuration-behavior suite.
-//
-// macOS E2E hosts are dedicated (mac1.metal/mac2.metal) with a 24-hour AWS billing minimum
-// (test/e2e-framework/AGENTS.md), so the CI job for this test must stay manual.
 func TestFleetConfigMacOS(t *testing.T) {
 	// LOCAL_VM targets a pre-existing macOS host (a local machine or another box reachable over
 	// SSH) instead of provisioning a real AWS Dedicated Host. Mirrors
