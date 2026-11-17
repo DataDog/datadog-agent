@@ -1386,6 +1386,12 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
 	cacheEntry := m.getCacheEntryForWorkload(workloadID)
 	if cacheEntry == nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByInode(inode)
+		}
+	}
+
+	if cacheEntry == nil {
 		return nil
 	}
 
