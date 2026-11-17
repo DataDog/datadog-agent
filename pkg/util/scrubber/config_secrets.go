@@ -5,13 +5,7 @@
 
 package scrubber
 
-import (
-	"reflect"
-	"strconv"
-	"strings"
-
-	"go.yaml.in/yaml/v3"
-)
+import "reflect"
 
 const (
 	secretKindRaw = "raw"
@@ -38,40 +32,4 @@ func recordRawSecret(secrets *[]ConfigSecret, path string, before, after any) bo
 	}
 	*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindRaw})
 	return true
-}
-
-// Collect ENC references from validated YAML before replacements can hide them.
-func (c *Scrubber) collectYamlEncSecrets(node *yaml.Node, path string, secrets *[]ConfigSecret) {
-	switch node.Kind {
-	case yaml.DocumentNode:
-		for _, child := range node.Content {
-			c.collectYamlEncSecrets(child, path, secrets)
-		}
-	case yaml.SequenceNode:
-		for i, child := range node.Content {
-			c.collectYamlEncSecrets(child, joinPath(path, strconv.Itoa(i)), secrets)
-		}
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			key := node.Content[i]
-			keyValue := key.Value
-			var decodedKey interface{}
-			if err := key.Decode(&decodedKey); err != nil {
-				continue
-			}
-			if decodedKeyString, ok := decodedKey.(string); ok {
-				keyValue = decodedKeyString
-			}
-			c.collectYamlEncSecrets(node.Content[i+1], joinPath(path, c.scrubYamlText(keyValue)), secrets)
-		}
-	case yaml.ScalarNode:
-		var value interface{}
-		if err := node.Decode(&value); err != nil {
-			return
-		}
-		if value, ok := value.(string); ok && IsEnc(value) {
-			value = strings.TrimSpace(value)
-			*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindEnc, Handle: value[4 : len(value)-1]})
-		}
-	}
 }

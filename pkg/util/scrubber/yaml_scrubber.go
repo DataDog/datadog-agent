@@ -282,9 +282,11 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSec
 	if err := document.Decode(&validation); err != nil {
 		return nil, nil, err
 	}
-	c.collectYamlEncSecrets(&document, "", &secrets)
+	if err := c.scrubYamlNode(&document, "", &secrets, true); err != nil {
+		return nil, nil, err
+	}
 
-	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{}), &secrets); err != nil {
+	if err := c.scrubYamlNode(&document, "", &secrets, false); err != nil {
 		return nil, nil, err
 	}
 
@@ -300,30 +302,30 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSec
 	return buffer.Bytes(), secrets, nil
 }
 
-// scrubYamlNode scrubs node, whose dotted path is path (see scrubCallback)
-func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}, secrets *[]ConfigSecret) error {
+// scrubYamlNode visits an alias-free YAML tree. collectOnly records ENC declarations
+// before the scrubbing pass can replace their containing nodes. Collection skips
+// undecodable nodes, matching the original collector; scrubbing remains strict.
+func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, secrets *[]ConfigSecret, collectOnly bool) error {
 	if node == nil {
 		return nil
 	}
-	if _, found := visited[node]; found {
-		return nil
-	}
-	visited[node] = struct{}{}
 
-	node.HeadComment = ""
-	node.LineComment = ""
-	node.FootComment = ""
+	if !collectOnly {
+		node.HeadComment = ""
+		node.LineComment = ""
+		node.FootComment = ""
+	}
 
 	switch node.Kind {
 	case yaml.DocumentNode:
 		for _, child := range node.Content {
-			if err := c.scrubYamlNode(child, path, visited, secrets); err != nil {
+			if err := c.scrubYamlNode(child, path, secrets, collectOnly); err != nil {
 				return err
 			}
 		}
 	case yaml.SequenceNode:
 		for i, child := range node.Content {
-			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited, secrets); err != nil {
+			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), secrets, collectOnly); err != nil {
 				return err
 			}
 		}
@@ -333,12 +335,22 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 			keyValue := key.Value
 			var decodedKey interface{}
 			if err := key.Decode(&decodedKey); err != nil {
+				if collectOnly {
+					continue
+				}
 				return err
 			}
 			if decodedKeyString, ok := decodedKey.(string); ok {
 				keyValue = decodedKeyString
 			}
-			if err := c.scrubYamlNode(key, path, visited, nil); err != nil {
+			if collectOnly {
+				valuePath := joinPath(path, c.scrubYamlText(keyValue))
+				if err := c.scrubYamlNode(value, valuePath, secrets, true); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := c.scrubYamlNode(key, path, nil, false); err != nil {
 				return err
 			}
 
@@ -358,20 +370,28 @@ func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml
 					}
 				}
 				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, valuePath, visited, childSecrets); err != nil {
+				if err := c.scrubYamlNode(value, valuePath, childSecrets, false); err != nil {
 					return err
 				}
-			} else if err := c.scrubYamlNode(value, valuePath, visited, secrets); err != nil {
+			} else if err := c.scrubYamlNode(value, valuePath, secrets, false); err != nil {
 				return err
 			}
 		}
 	case yaml.ScalarNode:
 		var decoded interface{}
 		if err := node.Decode(&decoded); err != nil {
+			if collectOnly {
+				return nil
+			}
 			return err
 		}
 		if str, ok := decoded.(string); ok {
-			if matched, replacement := c.scrubDataValue("", path, str); matched {
+			if collectOnly {
+				if IsEnc(str) {
+					str = strings.TrimSpace(str)
+					*secrets = append(*secrets, ConfigSecret{Path: path, Kind: secretKindEnc, Handle: str[4 : len(str)-1]})
+				}
+			} else if matched, replacement := c.scrubDataValue("", path, str); matched {
 				recordRawSecret(secrets, path, str, replacement)
 				replaceYamlNode(node, replacement)
 			}

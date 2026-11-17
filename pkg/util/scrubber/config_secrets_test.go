@@ -141,3 +141,58 @@ community_strings: [raw-community, 'ENC[shared]']
 	assert.Equal(t, []ConfigSecret{{Path: "community_strings.1", Kind: "enc", Handle: "shared"}}, secrets)
 	assert.Empty(t, scrubber.GetStrippedKeys())
 }
+
+func TestScrubYamlPreserveStructureShadowedInvalidMergeValues(t *testing.T) {
+	// Decoding the full document skips overridden merge values. Collection must
+	// likewise skip undecodable shadows so the enclosing field can be scrubbed.
+	for _, tc := range []struct {
+		name, input, expected string
+		secrets               []ConfigSecret
+	}{
+		{
+			name:     "invalid integer with later declarations",
+			input:    "token:\n  <<: {foo: !!int nope}\n  foo: ENC[shared]\nlater: ENC[later]\n",
+			expected: "token: '********'\nlater: ENC[later]\n",
+			secrets: []ConfigSecret{
+				{Path: "token.foo", Kind: "enc", Handle: "shared"},
+				{Path: "later", Kind: "enc", Handle: "later"},
+				{Path: "token", Kind: "raw"},
+			},
+		},
+		{
+			name:     "invalid binary with later declarations",
+			input:    "token:\n  <<: {foo: !!binary '!badbase64!'}\n  foo: okay\nlater: ENC[later]\n",
+			expected: "token: '********'\nlater: ENC[later]\n",
+			secrets: []ConfigSecret{
+				{Path: "later", Kind: "enc", Handle: "later"},
+				{Path: "token", Kind: "raw"},
+			},
+		},
+		{
+			name:     "merge sequence",
+			input:    "token:\n  <<: [{foo: okay}, {foo: !!int nope}]\nlater: ENC[later]\n",
+			expected: "token: '********'\nlater: ENC[later]\n",
+			secrets: []ConfigSecret{
+				{Path: "later", Kind: "enc", Handle: "later"},
+				{Path: "token", Kind: "raw"},
+			},
+		},
+		{
+			name:     "additional endpoints",
+			input:    "additional_endpoints:\n  <<: {https://intake.example: !!int nope}\n  https://intake.example: [raw-secret, 'ENC[shared]']\n",
+			expected: "additional_endpoints:\n  https://intake.example:\n    - '********'\n    - ENC[shared]\n",
+			secrets: []ConfigSecret{
+				{Path: "additional_endpoints.https://intake.example.1", Kind: "enc", Handle: "shared"},
+				{Path: "additional_endpoints", Kind: "raw"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			scrubber := NewWithDefaults()
+			cleaned, secrets, err := scrubber.ScrubYamlPreserveStructure([]byte(tc.input))
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, string(cleaned))
+			assert.Equal(t, tc.secrets, secrets)
+		})
+	}
+}
