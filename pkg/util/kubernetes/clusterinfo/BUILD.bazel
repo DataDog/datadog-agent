@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/tags",
+        "//pkg/config/env",
         "//pkg/util/clusteragent",
         "//pkg/util/dmi",
         "//pkg/util/ec2",
@@ -27,11 +28,13 @@ dd_agent_go_test(
     srcs = ["eks_identity_test.go"],
     embed = [":clusterinfo"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/errors",
         "//pkg/util/clusteragent",
         "//pkg/util/dmi",
         "//pkg/util/eks/identity",
+        "//pkg/util/kubernetes/cloudprovider",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

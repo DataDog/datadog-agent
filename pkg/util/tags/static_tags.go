@@ -14,7 +14,6 @@ import (
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -80,19 +79,20 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 		}
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
-			clusterAgentStaticTags, err := getClusterAgentStaticTags()
+			// Both Cluster Agent calls share one startup budget, so an unreachable Cluster
+			// Agent delays sidecar startup once. With DD_CLUSTER_ID set the static tags call
+			// does not contact the Cluster Agent, and the identity call gets the whole budget.
+			budgetCtx, cancel := context.WithTimeout(ctx, clusterinfo.StartupRetryBudget)
+			defer cancel()
+
+			clusterAgentStaticTags, err := getClusterAgentStaticTags(budgetCtx)
 			if err == nil {
 				tags = append(tags, clusterAgentStaticTags...)
 			} else {
 				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", err)
 			}
 
-			// The static tags call above already spent its startup budget. If it never got an
-			// answer, the Cluster Agent is not reachable, and the identity call would only add
-			// a second budget to sidecar startup.
-			if err != nil && !pkgerrors.IsRemoteService(err) {
-				log.Debugf("Cluster Agent is not reachable, EKS cluster identity tags will be missing: %v", err)
-			} else if eksIdentityTags, err := getClusterAgentEKSIdentityTags(ctx); err == nil {
+			if eksIdentityTags, err := getClusterAgentEKSIdentityTags(budgetCtx); err == nil {
 				tags = append(tags, eksIdentityTags...)
 			} else {
 				log.Debugf("Could not fetch EKS cluster identity tags from the Cluster Agent: %v", err)

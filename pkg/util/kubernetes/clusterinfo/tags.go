@@ -31,9 +31,10 @@ func GetClusterAgentStaticTags(context.Context) ([]string, error) {
 	return nil, nil
 }
 
-// GetClusterAgentStaticTagsWithRetry gets the tags from the cluster-agent with a constant backoff policy
-func GetClusterAgentStaticTagsWithRetry() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// GetClusterAgentStaticTagsWithRetry gets the tags from the cluster-agent with a constant backoff
+// policy, for at most StartupRetryBudget and never past ctx's deadline.
+func GetClusterAgentStaticTagsWithRetry(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, StartupRetryBudget)
 	defer cancel()
 
 	backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)

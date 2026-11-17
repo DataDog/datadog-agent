@@ -13,6 +13,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -24,7 +25,8 @@ import (
 
 var errIncompleteIdentity = errors.New("cluster agent returned incomplete EKS identity")
 
-const startupRetryBudget = 10 * time.Second
+// StartupRetryBudget bounds how long startup waits for the Cluster Agent to answer.
+const StartupRetryBudget = 10 * time.Second
 
 // laterAttemptTimeout bounds the single attempt made once the startup budget is spent, so a
 // later caller (another startup component) never waits long on a Cluster Agent that hangs.
@@ -74,6 +76,10 @@ var errNotEKSNode = errors.New("node is not on EKS")
 // startup budget are backoff.Permanent: a known non-EKS distribution, a client configuration
 // error, or a Cluster Agent that cannot be reached from a node DMI places off EC2.
 func checkEKSNode(ctx context.Context) error {
+	// An EKS Fargate sidecar is on EKS by definition. It has no node to ask about.
+	if env.IsFeaturePresent(env.EKSFargate) {
+		return nil
+	}
 	distribution, err := getNodeDistribution(ctx)
 	if err != nil {
 		if clusteragent.IsConfigError(err) {
@@ -151,7 +157,7 @@ func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, err
 		return slices.Clone(startupIdentity.tags), nil
 	}
 
-	budget := startupRetryBudget
+	budget := StartupRetryBudget
 	if startupIdentity.budgetSpent {
 		budget = laterAttemptTimeout
 	}

@@ -8,14 +8,16 @@ package tags
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
@@ -209,7 +211,7 @@ func TestStaticTagsSliceEKSIdentityOnFargate(t *testing.T) {
 
 	originalStatic := getClusterAgentStaticTags
 	t.Cleanup(func() { getClusterAgentStaticTags = originalStatic })
-	getClusterAgentStaticTags = func() ([]string, error) {
+	getClusterAgentStaticTags = func(context.Context) ([]string, error) {
 		return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
 	}
 
@@ -229,37 +231,33 @@ func TestStaticTagsSliceEKSIdentityOnFargate(t *testing.T) {
 			assert.NotContains(t, staticTags, tag)
 		}
 	})
+}
 
-	t.Run("unreachable cluster agent is waited on once", func(t *testing.T) {
-		// The static tags call already spent its 10s budget without reaching the Cluster
-		// Agent, so the identity call would only add another 10s to sidecar startup.
-		getClusterAgentStaticTags = func() ([]string, error) {
-			return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
-		}
-		t.Cleanup(func() {
-			getClusterAgentStaticTags = func() ([]string, error) {
-				return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
-			}
-		})
-		calls := stubEKSIdentity(t, eksIdentityTags, nil)
-		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
-		assert.Contains(t, staticTags, "kube_distribution:eks")
-		assert.Equal(t, 0, *calls)
-	})
+func TestStaticTagsSliceFargateUnreachableClusterAgentSharesOneBudget(t *testing.T) {
+	// The real static tags and identity calls against a Cluster Agent URL nothing listens on,
+	// with a real client. The sidecar's startup waits for one budget, not one per call.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.NoError(t, err)
+	closedPort := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
-	t.Run("cluster agent that answered is still asked for identity", func(t *testing.T) {
-		getClusterAgentStaticTags = func() ([]string, error) {
-			return nil, pkgerrors.NewRemoteServiceError("dca", "500 Internal Server Error")
-		}
-		t.Cleanup(func() {
-			getClusterAgentStaticTags = func() ([]string, error) {
-				return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
-			}
-		})
-		calls := stubEKSIdentity(t, eksIdentityTags, nil)
-		assert.Subset(t, GetStaticTagsSlice(t.Context(), mockConfig), eksIdentityTags)
-		assert.Equal(t, 1, *calls)
-	})
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("kubernetes_kubelet_nodename", "eksnode")
+	mockConfig.SetInTest("cluster_agent.enabled", true)
+	mockConfig.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", closedPort))
+	mockConfig.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
+	ipcmock.New(t)
+	env.SetFeatures(t, env.EKSFargate)
+
+	const budget = 2 * time.Second
+	ctx, cancel := context.WithTimeout(t.Context(), budget)
+	defer cancel()
+	start := time.Now()
+	staticTags := GetStaticTagsSlice(ctx, mockConfig)
+	elapsed := time.Since(start)
+
+	assert.Contains(t, staticTags, "kube_distribution:eks")
+	assert.Less(t, elapsed, budget+time.Second, "the identity call shares the static tags deadline")
 }
 
 func TestClusterAgentGlobalTagsEKSIdentity(t *testing.T) {

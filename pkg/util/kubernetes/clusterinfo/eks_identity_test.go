@@ -17,11 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 )
 
 func resetStartupIdentity(t *testing.T) {
@@ -200,7 +202,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		start := time.Now()
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
 		assert.ErrorIs(t, err, unreachable)
-		assert.Equal(t, startupRetryBudget, time.Since(start))
+		assert.Equal(t, StartupRetryBudget, time.Since(start))
 		assert.Greater(t, calls, 1)
 
 		for range 2 {
@@ -343,7 +345,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryNeedsEKSEvidence(t *testing.T) {
 		{name: "kops or kind on EC2", distribution: "", mayBeAWS: true},
 		{name: "GKE", distribution: "gke", mayBeAWS: false},
 		{name: "Cluster Agent not reachable, on-prem DMI", distributionErr: notReachable, mayBeAWS: false},
-		{name: "Cluster Agent not reachable, maybe EC2", distributionErr: notReachable, mayBeAWS: true, wantElapsed: startupRetryBudget},
+		{name: "Cluster Agent not reachable, maybe EC2", distributionErr: notReachable, mayBeAWS: true, wantElapsed: StartupRetryBudget},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -538,4 +540,19 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesNotDeterminedYet(t *testi
 		assert.Equal(t, 3, calls)
 		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryOnFargate(t *testing.T) {
+	// The real distribution lookup is empty on an EKS Fargate sidecar (there is no Kubernetes
+	// node feature), but Fargate is EKS, so the identity is fetched.
+	env.SetFeatures(t, env.EKSFargate)
+	original := getEKSClusterIdentity
+	t.Cleanup(func() { getEKSClusterIdentity = original })
+	resetStartupIdentity(t)
+	getNodeDistribution = cloudprovider.GetName
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) { return ordersIdentity, nil }
+
+	tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+	require.NoError(t, err)
+	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 }
