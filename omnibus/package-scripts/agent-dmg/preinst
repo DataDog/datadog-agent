@@ -189,11 +189,31 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     mkdir -vp "$SAVED_CONF_DIR/conf.d"
     mkdir -vp "$SAVED_CONF_DIR/checks.d"
     chmod 700 "$INSTALL_STAGING_DIR"
-    cp -vf $CONF_DIR/datadog.yaml "$SAVED_CONF_DIR/"
-    cp -vf $CONF_DIR/system-probe.yaml "$SAVED_CONF_DIR/" 2>/dev/null || true
-    cp -vfR $CONF_DIR/conf.d/* "$SAVED_CONF_DIR/conf.d" 2>/dev/null || true
-    find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
-    cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
+    # The configuration belongs to the account that owns it, the Agent's on current installs, so
+    # each file is read as that account and written as root into the root-only staging directory:
+    # the saved copy holds nothing that account could not read itself. Links are saved as links,
+    # never followed.
+    CONF_OWNER=$(stat -f %Su "$CONF_DIR")
+    (
+        cd "$CONF_DIR" || exit 0
+        find -P datadog.yaml system-probe.yaml conf.d checks.d \
+            '(' -type f -o -type l ')' \
+            ! -name '*.yaml.example' ! -name '*.yaml.default' \
+            -exec sh -c '
+                saved="$1"; owner="$2"; shift 2
+                for rel in "$@"; do
+                    dst="$saved/$rel"
+                    mkdir -p "$(dirname "$dst")" || continue
+                    if [ -L "$rel" ]; then
+                        ln -sf "$(readlink "$rel")" "$dst" && echo "saved $rel"
+                    elif sudo -n -u "$owner" /bin/cat -- "$rel" > "$dst"; then
+                        echo "saved $rel"
+                    else
+                        rm -f "$dst"
+                    fi
+                done
+            ' sh "$SAVED_CONF_DIR" "$CONF_OWNER" {} + 2>/dev/null || true
+    )
 fi
 
 # The account, the log link, the old files and the links are set up by the new version's installer,
