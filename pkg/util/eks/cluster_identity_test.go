@@ -8,6 +8,7 @@ package eks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -265,4 +266,28 @@ func TestFailureTTLDoesNotCacheCancellation(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	_, found := cache.Cache.Get(cache.BuildAgentKey("eks", "cluster-identity", name))
 	assert.False(t, found, "context.Canceled must never be cached")
+}
+
+// codedError and operationError mimic the AWS SDK's smithy.GenericAPIError and
+// smithy.OperationError: an error code reached through an Unwrap chain.
+type codedError struct{ code string }
+
+func (e *codedError) Error() string     { return "api error " + e.code }
+func (e *codedError) ErrorCode() string { return e.code }
+
+type operationError struct{ err error }
+
+func (e *operationError) Error() string { return "operation error STS: " + e.err.Error() }
+func (e *operationError) Unwrap() error { return e.err }
+
+func TestFailureTTLClassifiesCredentialErrorsAsTransient(t *testing.T) {
+	// Credentials.Retrieve returns STS errors as wrapped SDK errors, not as *apiError. These
+	// clear once the projected token is rotated or the identity provider recovers.
+	for _, code := range []string{"ExpiredToken", "ExpiredTokenException", "InvalidIdentityToken", "IDPCommunicationError", "RequestExpired"} {
+		t.Run(code, func(t *testing.T) {
+			err := fmt.Errorf("load AWS configuration: retrieve AWS credentials: %w", &operationError{&codedError{code}})
+			assert.Equal(t, transientFailureCacheTTL, failureTTL(err))
+		})
+	}
+	assert.Equal(t, failureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", &operationError{&codedError{"AccessDenied"}})))
 }

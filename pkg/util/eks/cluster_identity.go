@@ -175,33 +175,40 @@ func cacheFailure(cacheKey string, err error) {
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
-// The resolve's own deadline, HTTP 429 and expired credentials (the common IRSA
-// projected-token staleness) are transient, and the AWS SDK's retry classifier decides the rest:
-// it treats throttling codes, 5xx, timeouts, connection resets and DNS/TLS failures as
-// retryable, so those use the short TTL.
-// Everything the retryer considers terminal (AccessDenied, ResourceNotFound, malformed identity,
+// The resolve's own deadline, HTTP 429 and the codes in transientErrorCodes are transient, and
+// the AWS SDK's retry classifier decides the rest: it treats throttling codes, 5xx, timeouts,
+// connection resets and DNS/TLS failures as retryable, so those use the short TTL. Everything the retryer considers terminal (AccessDenied, ResourceNotFound, malformed identity,
 // invalid name) uses the long TTL.
 func failureTTL(err error) time.Duration {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return transientFailureCacheTTL
 	}
-	var apiErr *apiError
-	if errors.As(err, &apiErr) {
-		// HTTP 429 is throttling whatever error code accompanies it.
-		if apiErr.StatusCode == http.StatusTooManyRequests {
-			return transientFailureCacheTTL
-		}
-		// The SDK retryer does not classify expired credentials as retryable, but they clear
-		// once the credential provider refreshes (for example a rotated IRSA token).
-		switch apiErr.Code {
-		case "ExpiredToken", "ExpiredTokenException", "RequestExpired":
-			return transientFailureCacheTTL
-		}
+	// HTTP 429 is throttling whatever error code accompanies it.
+	var withStatus interface{ HTTPStatusCode() int }
+	if errors.As(err, &withStatus) && withStatus.HTTPStatusCode() == http.StatusTooManyRequests {
+		return transientFailureCacheTTL
+	}
+	// Match the code through the interface rather than *apiError: errors from
+	// Credentials.Retrieve (STS AssumeRoleWithWebIdentity for IRSA) are wrapped SDK errors.
+	var withCode interface{ ErrorCode() string }
+	if errors.As(err, &withCode) && transientErrorCodes[withCode.ErrorCode()] {
+		return transientFailureCacheTTL
 	}
 	if retryableClassifier.IsErrorRetryable(err) == aws.TrueTernary {
 		return transientFailureCacheTTL
 	}
 	return failureCacheTTL
+}
+
+// transientErrorCodes are error codes the SDK retryer does not classify as retryable but that
+// clear on their own: expired or not yet valid credentials (a rotated IRSA token) and a
+// temporarily unreachable OIDC identity provider.
+var transientErrorCodes = map[string]bool{
+	"ExpiredToken":          true,
+	"ExpiredTokenException": true,
+	"RequestExpired":        true,
+	"InvalidIdentityToken":  true,
+	"IDPCommunicationError": true,
 }
 
 // retryableClassifier reuses the AWS SDK's standard retryable-error set so that throttling, 5xx,
