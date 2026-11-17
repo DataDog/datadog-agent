@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,7 +23,10 @@ import (
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const taskLedgerPruneInterval = 10 * time.Minute
+const (
+	taskLedgerPruneInterval = 10 * time.Minute
+	pendingMarkerPrefix     = ".pending-"
+)
 
 var errTaskAlreadyAccepted = errors.New("task was already accepted for execution")
 
@@ -63,7 +67,12 @@ func checkLedgerDir(dir string) error {
 		return err
 	}
 	probe.Close()
-	return os.Remove(probe.Name())
+	defer os.Remove(probe.Name())
+	link := probe.Name() + "-link"
+	if err := os.Link(probe.Name(), link); err != nil {
+		return err
+	}
+	return os.Remove(link)
 }
 
 // accept records taskID until expiresAt. It fails if taskID is already recorded
@@ -100,25 +109,35 @@ func (l *taskLedger) accept(taskID string, expiresAt time.Time) error {
 	return nil
 }
 
-// writeMarker creates the marker exclusively, so concurrent processes sharing
-// dir cannot both accept the same task.
+// writeMarker publishes the marker with a hard link, which fails if it exists, so
+// concurrent processes sharing dir cannot both accept the same task. The marker
+// gets its expiration mtime before it is linked: a marker visible with any other
+// mtime would look expired to another instance's prune and be deleted.
 func (l *taskLedger) writeMarker(taskID string, expiresAt time.Time) error {
 	path := filepath.Join(l.dir, markerName(taskID))
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if _, err := os.Lstat(path); err == nil {
+		return fs.ErrExist
+	}
+	pending, err := os.CreateTemp(l.dir, pendingMarkerPrefix)
 	if err != nil {
 		return err
 	}
-	err = os.Chtimes(path, expiresAt, expiresAt)
+	pendingPath := pending.Name()
+	defer os.Remove(pendingPath)
+	err = os.Chtimes(pendingPath, expiresAt, expiresAt)
 	if err == nil {
-		err = f.Sync()
+		err = pending.Sync()
 	}
-	if closeErr := f.Close(); err == nil {
+	if closeErr := pending.Close(); err == nil {
 		err = closeErr
 	}
-	if err == nil {
-		err = syncDir(l.dir)
-	}
 	if err != nil {
+		return err
+	}
+	if err := os.Link(pendingPath, path); err != nil {
+		return err
+	}
+	if err := syncDir(l.dir); err != nil {
 		os.Remove(path)
 		return err
 	}
@@ -140,14 +159,21 @@ func (l *taskLedger) prune(now time.Time) {
 		return
 	}
 	for _, entry := range dirEntries {
-		if !isMarkerName(entry.Name()) {
+		var grace time.Duration
+		switch {
+		case isMarkerName(entry.Name()):
+		case strings.HasPrefix(entry.Name(), pendingMarkerPrefix):
+			// A pending marker is still being written until its mtime is set;
+			// only remove those left behind by a crash.
+			grace = taskLedgerPruneInterval
+		default:
 			continue
 		}
 		info, err := entry.Info()
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		if !now.Before(info.ModTime()) {
+		if !now.Before(info.ModTime().Add(grace)) {
 			os.Remove(filepath.Join(l.dir, entry.Name()))
 		}
 	}

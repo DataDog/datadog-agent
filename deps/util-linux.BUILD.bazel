@@ -65,6 +65,7 @@ cc_library(
         ":blkid_h",
     ],
     copts = [
+        "-O2",
         "-include generated/config.h",
     ],
     include_prefix = "blkid",
@@ -88,6 +89,7 @@ cc_library(
     ) + ["generated/config.h"],
     hdrs = [":blkid_h"],
     copts = [
+        "-O2",
         "-include generated/config.h",
     ],
     includes = [

@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,14 @@ import (
 )
 
 func TestEnableOTelCollectorConfigInDatadogYAML(t *testing.T) {
+	// linux uses the unix socket, other platforms the TCP listener
+	var expectedAgentIPC []string
+	if runtime.GOOS == "linux" {
+		expectedAgentIPC = []string{"    use_socket: true\n", "    socket_path: /opt/datadog-packages/run/agent_ipc.socket\n"}
+	} else {
+		expectedAgentIPC = []string{"    port: 5009\n"}
+	}
+
 	tests := []struct {
 		name          string
 		datadogYAML   string
@@ -25,7 +34,7 @@ func TestEnableOTelCollectorConfigInDatadogYAML(t *testing.T) {
 		{
 			name:          "adds otelcollector.enabled and agent_ipc defaults when datadog.yaml is present",
 			datadogYAML:   "initial_configuration: present\n",
-			expectContent: []string{"otelcollector:\n    enabled: true", "agent_ipc:\n", "    port: 5009\n", "    config_refresh_interval: 60\n"},
+			expectContent: append([]string{"otelcollector:\n    enabled: true", "agent_ipc:\n", "    config_refresh_interval: 60\n"}, expectedAgentIPC...),
 			isDatadogYAML: true,
 		},
 		{
