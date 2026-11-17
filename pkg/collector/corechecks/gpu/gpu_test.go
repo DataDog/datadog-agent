@@ -1791,7 +1791,7 @@ func TestSharingFractionFollowsSpec(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, config := range gpuspec.KnownGPUConfigs(specs) {
-		if config.DeviceMode == gpuspec.DeviceModeMIG {
+		if config.DeviceMode == gpuspec.DeviceModeMIG || config.DeviceMode == gpuspec.DeviceModeMIGParent {
 			// The MIG mock exposes a different device layout; the share
 			// logic does not depend on the device mode.
 			continue
@@ -2268,6 +2268,10 @@ func TestMetricsFollowSpec(t *testing.T) {
 				ConfigFeatures:  gpuspec.AllConfigFeatures(),
 				WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
 			}
+			if !config.CanRunWorkloads() {
+				validationOptions.WorkloadActive = false
+				validationOptions.WorkloadTagsets = nil
+			}
 			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues, validationOptions)
 		})
 	}
@@ -2282,7 +2286,9 @@ func collectMetricSamples(t *testing.T, config gpuspec.GPUConfig, archSpecs *gpu
 	collectionSetup := setupMockCheckForMetricCollection(t, config, archSpecs, archSpec)
 	collectionSetup.runCollection()
 
-	return GetEmittedGPUMetrics(collectionSetup.mockSender), collectionSetup.knownTagValues
+	emitted := GetEmittedGPUMetrics(collectionSetup.mockSender)
+	require.NotEmpty(t, emitted, "no metrics emitted for device mode %s", config.DeviceMode)
+	return emitted, collectionSetup.knownTagValues
 }
 
 type metricCollectionSetup struct {
@@ -2344,31 +2350,50 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", "15s")
 	})
 
+	// The MIG mock exposes a parent and its child together, but each mode is validated on its own:
+	// exclude the other device so the check only collects the one the mode describes.
+	var excludedUUIDs []string
+	switch config.DeviceMode {
+	case gpuspec.DeviceModeMIG:
+		excludedUUIDs = []string{strings.ToLower(testutil.DefaultGpuUUID)}
+	case gpuspec.DeviceModeMIGParent:
+		excludedUUIDs = []string{strings.ToLower(testutil.MIGUUIDs[0])}
+	}
+	if len(excludedUUIDs) > 0 {
+		pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", excludedUUIDs)
+		t.Cleanup(func() {
+			pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{})
+		})
+	}
+
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, pidToContainerID, nil)
 
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
 	// cache data for every device shape used by the mode.
 	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
-	if config.DeviceMode == gpuspec.DeviceModeMIG {
+	if config.DeviceMode == gpuspec.DeviceModeMIG || config.DeviceMode == gpuspec.DeviceModeMIGParent {
 		cacheDeviceUUIDs = append(cacheDeviceUUIDs, testutil.MIGUUIDs[0])
 	}
 	processMetrics := make([]model.ProcessStatsTuple, 0, len(cacheDeviceUUIDs))
 	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(cacheDeviceUUIDs))
 	for _, uuid := range cacheDeviceUUIDs {
-		processMetrics = append(processMetrics, model.ProcessStatsTuple{
-			Key: model.ProcessStatsKey{
-				PID:        1234,
-				DeviceUUID: uuid,
-			},
-			UtilizationMetrics: model.UtilizationMetrics{
-				UsedCores: 42,
-				Memory: model.MemoryMetrics{
-					CurrentBytes: 100,
-					MaxBytes:     200,
+		// Workloads run on MIG devices, never on their parent: there are no processes on it.
+		if config.CanRunWorkloads() {
+			processMetrics = append(processMetrics, model.ProcessStatsTuple{
+				Key: model.ProcessStatsKey{
+					PID:        1234,
+					DeviceUUID: uuid,
 				},
-				ActiveTimePct: 50,
-			},
-		})
+				UtilizationMetrics: model.UtilizationMetrics{
+					UsedCores: 42,
+					Memory: model.MemoryMetrics{
+						CurrentBytes: 100,
+						MaxBytes:     200,
+					},
+					ActiveTimePct: 50,
+				},
+			})
+		}
 		deviceMetrics = append(deviceMetrics, model.DeviceStatsTuple{
 			DeviceUUID: uuid,
 			Metrics: model.DeviceUtilizationMetrics{

@@ -109,16 +109,11 @@ If your test doesn't opt in, its workload images still leave the VPC through `mi
     type: tip
     open: False
 
-Kubernetes workloads need credentials for the cache, which are not set by default:
+Kubernetes workloads need credentials for the cache. Run locally, `dda inv new-e2e-tests.run` mints them for you from the `sso-agent-qa-agent-dev` profile that `dda inv e2e.setup` writes, and passes them to the cluster as an image pull secret. If it can't, it prints a warning and the pods end in `ImagePullBackOff`.
 
-```bash
-dda inv new-e2e-tests.run --targets ./tests/gpu \
-  -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com \
-  -c ddagent:imagePullUsername=AWS \
-  -c ddagent:imagePullPassword=$(aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password)
-```
+That profile needs the `agent-dev` permission set on the `agent-qa` account. A `403 ForbiddenException: No access` from aws-vault means you don't have it yet; ask #agent-devx-help.
 
-If you see `User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetImage`, you are authenticated against the wrong account — re-run `aws-vault login sso-agent-sandbox-account-admin-8h`. Note that those `ddagent:imagePull*` flags are for the in-cluster Agent; an EC2 host pulls with its own instance profile.
+If you see `User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetImage`, you are authenticated against the wrong account — re-run `aws-vault login sso-agent-sandbox-account-admin-8h`. Note that these credentials are for in-cluster pods; an EC2 host pulls with its own instance profile.
 ///
 
 ## Prebake into the machine image

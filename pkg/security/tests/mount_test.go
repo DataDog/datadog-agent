@@ -713,7 +713,7 @@ func TestMountEvent(t *testing.T) {
 			return kv.IsSuse12Kernel()
 		})
 
-		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
+		wrapperTruePositive, err := newDockerCmdWrapper(t, "/", dockerMountDest, "alpine", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
@@ -756,7 +756,7 @@ func TestMountEvent(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
+		wrapperFalsePositive, err := newDockerCmdWrapper(t, legitimateSourcePath, dockerMountDest, "alpine", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
