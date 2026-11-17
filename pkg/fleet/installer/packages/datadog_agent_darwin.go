@@ -74,9 +74,6 @@ type datadogAgentLaunchdJobs struct {
 	LaunchdMainJobStable string
 	// LaunchdJobsStable are the jobs that run normally, in the order they are loaded.
 	LaunchdJobsStable []string
-	// LaunchdJobsExp are the jobs a configuration experiment swaps for their -exp variant, by
-	// label without the suffix, in the order they are loaded.
-	LaunchdJobsExp []string
 }
 
 // agentJob is the core Agent's launchd job.
@@ -185,21 +182,6 @@ func withoutJob(labels []string, label string) []string {
 var agentLaunchdJobs = datadogAgentLaunchdJobs{
 	LaunchdMainJobStable: agentJob,
 	LaunchdJobsStable:    append(slices.Clone(stableOnlyJobs), configExperimentJobs...),
-	LaunchdJobsExp:       configExperimentJobs,
-}
-
-// stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = agentLaunchdJobs.LaunchdJobsStable
-
-// experimentJobs are the jobs an experiment runs under, by full label.
-var experimentJobs = experimentLabels()
-
-func experimentLabels() []string {
-	labels := make([]string, 0, len(configExperimentJobs))
-	for _, label := range configExperimentJobs {
-		labels = append(labels, label+string(launchd.Experiment))
-	}
-	return labels
 }
 
 // ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the

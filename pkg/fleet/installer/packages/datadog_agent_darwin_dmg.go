@@ -35,8 +35,8 @@ import (
 // configuration -- stays in the preinstall script.
 
 const (
-	agentUser     = "_dd-agent"
-	agentGroup    = "admin"
+	agentUser     = config.AgentUser
+	agentGroup    = config.AgentGroup
 	guiLabel      = "com.datadoghq.gui"
 	monitorLabel  = "com.datadoghq.ai-usage-agent.desktop-monitor"
 	oldMonitor    = "com.datadoghq.ai-prompt-logger.desktop-monitor"
