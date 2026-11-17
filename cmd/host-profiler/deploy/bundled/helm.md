@@ -85,3 +85,73 @@ datadog:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective deployment (optional)
+
+The Agent DaemonSet, including the Host Profiler, runs on every node by default. To run it on selected nodes, set one of the following in `values.yaml`.
+
+`agents.nodeSelector` matches exact label values:
+
+```yaml
+agents:
+  nodeSelector:
+    eks.amazonaws.com/nodegroup: ng1
+```
+
+`agents.affinity.nodeAffinity` supports `In`/`NotIn` matching, multiple conditions, and soft preferences:
+
+```yaml
+agents:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/nodegroup
+                operator: In
+                values: [ng1]
+```
+
+If the target nodes are tainted, also add a matching toleration. Tolerations allow scheduling on tainted nodes but do not restrict it to them:
+
+```yaml
+agents:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: host-profiler
+      effect: NoSchedule
+```
+
+For all fields, see the [Datadog Helm chart values](https://github.com/DataDog/helm-charts/blob/main/charts/datadog/values.yaml) and [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+
+### Second Agent release
+
+To profile selected nodes without changing your existing Agent release, deploy a second release scoped to those nodes, and exclude them from the primary release, for example with `agents.affinity.nodeAffinity`. Two Agent DaemonSets must not run on the same node.
+
+In the second release, disable the Cluster Agent and Datadog Operator, and join the primary release's Cluster Agent:
+
+```yaml
+datadog:
+  operator:
+    enabled: false
+clusterAgent:
+  enabled: false
+existingClusterAgent:
+  join: true
+  serviceName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+  tokenSecretName: "<PRIMARY_RELEASE_NAME>-datadog-cluster-agent"
+```
+
+The primary release already installs the Datadog CRDs, some of them by default. Disable them in the second release, or the install fails with a `meta.helm.sh/release-name` ownership error:
+
+```yaml
+datadog-crds:
+  crds:
+    datadogMetrics: false
+    datadogPodAutoscalers: false
+    datadogPodAutoscalerClusterProfiles: false
+datadog-instrumentation-crd:
+  crds:
+    datadogInstrumentations: false
+```
