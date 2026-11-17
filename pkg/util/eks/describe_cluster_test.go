@@ -498,3 +498,86 @@ eks =
 	require.NoError(t, err)
 	assert.Equal(t, "https://shared-config.example", got)
 }
+
+// TestResolveEndpointGolden pins the endpoint for every partition and FIPS and dual-stack
+// combination. The expected values were produced by the generated client,
+// aws-sdk-go-v2/service/eks v1.105.5, for the same inputs.
+func TestResolveEndpointGolden(t *testing.T) {
+	variants := map[string]awsconfig.EnvConfig{
+		"default":        {},
+		"fips":           {UseFIPSEndpoint: aws.FIPSEndpointStateEnabled},
+		"dualstack":      {UseDualStackEndpoint: aws.DualStackEndpointStateEnabled},
+		"fips+dualstack": {UseFIPSEndpoint: aws.FIPSEndpointStateEnabled, UseDualStackEndpoint: aws.DualStackEndpointStateEnabled},
+	}
+	golden := []struct{ region, variant, want string }{
+		{"us-west-2", "default", "https://eks.us-west-2.amazonaws.com"},
+		{"us-west-2", "fips", "https://fips.eks.us-west-2.amazonaws.com"},
+		{"us-west-2", "dualstack", "https://eks.us-west-2.api.aws"},
+		{"us-west-2", "fips+dualstack", "https://eks-fips.us-west-2.api.aws"},
+		{"cn-north-1", "default", "https://eks.cn-north-1.amazonaws.com.cn"},
+		{"cn-north-1", "fips", "https://eks-fips.cn-north-1.amazonaws.com.cn"},
+		{"cn-north-1", "dualstack", "https://eks.cn-north-1.api.amazonwebservices.com.cn"},
+		{"cn-north-1", "fips+dualstack", "https://eks-fips.cn-north-1.api.amazonwebservices.com.cn"},
+		{"eusc-de-east-1", "default", "https://eks.eusc-de-east-1.amazonaws.eu"},
+		{"eusc-de-east-1", "fips", "https://eks-fips.eusc-de-east-1.amazonaws.eu"},
+		{"eusc-de-east-1", "dualstack", "https://eks.eusc-de-east-1.api.amazonwebservices.eu"},
+		{"eusc-de-east-1", "fips+dualstack", "https://eks-fips.eusc-de-east-1.api.amazonwebservices.eu"},
+		{"us-iso-east-1", "default", "https://eks.us-iso-east-1.c2s.ic.gov"},
+		{"us-iso-east-1", "fips", "https://eks-fips.us-iso-east-1.c2s.ic.gov"},
+		{"us-iso-east-1", "dualstack", "https://eks.us-iso-east-1.api.aws.ic.gov"},
+		{"us-iso-east-1", "fips+dualstack", "https://eks-fips.us-iso-east-1.api.aws.ic.gov"},
+		{"us-isob-east-1", "default", "https://eks.us-isob-east-1.sc2s.sgov.gov"},
+		{"us-isob-east-1", "fips", "https://eks-fips.us-isob-east-1.sc2s.sgov.gov"},
+		{"us-isob-east-1", "dualstack", "https://eks.us-isob-east-1.api.aws.scloud"},
+		{"us-isob-east-1", "fips+dualstack", "https://eks-fips.us-isob-east-1.api.aws.scloud"},
+		{"eu-isoe-west-1", "default", "https://eks.eu-isoe-west-1.cloud.adc-e.uk"},
+		{"eu-isoe-west-1", "fips", "https://eks-fips.eu-isoe-west-1.cloud.adc-e.uk"},
+		{"eu-isoe-west-1", "dualstack", "https://eks.eu-isoe-west-1.api.cloud-aws.adc-e.uk"},
+		{"eu-isoe-west-1", "fips+dualstack", "https://eks-fips.eu-isoe-west-1.api.cloud-aws.adc-e.uk"},
+		{"us-isof-south-1", "default", "https://eks.us-isof-south-1.csp.hci.ic.gov"},
+		{"us-isof-south-1", "fips", "https://eks-fips.us-isof-south-1.csp.hci.ic.gov"},
+		{"us-isof-south-1", "dualstack", "https://eks.us-isof-south-1.api.aws.hci.ic.gov"},
+		{"us-isof-south-1", "fips+dualstack", "https://eks-fips.us-isof-south-1.api.aws.hci.ic.gov"},
+		{"us-gov-west-1", "default", "https://eks.us-gov-west-1.amazonaws.com"},
+		{"us-gov-west-1", "fips", "https://eks.us-gov-west-1.amazonaws.com"},
+		{"us-gov-west-1", "dualstack", "https://eks.us-gov-west-1.api.aws"},
+		{"us-gov-west-1", "fips+dualstack", "https://eks-fips.us-gov-west-1.api.aws"},
+	}
+	for _, g := range golden {
+		t.Run(g.region+"/"+g.variant, func(t *testing.T) {
+			got, err := resolveEndpoint(t.Context(), aws.Config{Region: g.region, ConfigSources: []interface{}{variants[g.variant]}})
+			require.NoError(t, err)
+			assert.Equal(t, g.want, got)
+		})
+	}
+}
+
+// captureHTTPClient records the request and fails it, so a test can inspect a signed request
+// without any server.
+type captureHTTPClient struct{ req *http.Request }
+
+func (c *captureHTTPClient) Do(r *http.Request) (*http.Response, error) {
+	c.req = r
+	return nil, errors.New("captured")
+}
+
+func TestDescribeClusterExactSignature(t *testing.T) {
+	// A fixed clock and fixed credentials give one exact signature, so any change to the
+	// method, path, host, signed headers, Region or signing name shows up here.
+	capture := &captureHTTPClient{}
+	client := newSignedDescribeClusterClient(aws.Config{
+		Region:      "us-west-2",
+		Credentials: credentials.NewStaticCredentialsProvider("AKIDEXAMPLE", "secret", "session-token"),
+		HTTPClient:  capture,
+	}).(*signedDescribeClusterClient)
+	client.now = func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) }
+
+	_, _ = client.DescribeCluster(t.Context(), "orders")
+	require.NotNil(t, capture.req)
+	assert.Equal(t, "https://eks.us-west-2.amazonaws.com/clusters/orders", capture.req.URL.String())
+	assert.Equal(t, "20260102T030405Z", capture.req.Header.Get("X-Amz-Date"))
+	assert.Equal(t, "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20260102/us-west-2/eks/aws4_request, "+
+		"SignedHeaders=accept;host;x-amz-date;x-amz-security-token, "+
+		"Signature=eef049706f1272cea1549402abec75276cbb9c109a204f70fa83e0e2501e72a6",
+		capture.req.Header.Get("Authorization"))
+}

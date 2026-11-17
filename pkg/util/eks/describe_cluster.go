@@ -30,6 +30,13 @@ import (
 // and credentials from the shared AWS configuration, both of which the Cluster Agent already
 // links. It replaces the generated EKS service client, which added about 640 KiB to the
 // Cluster Agent binary for one read-only call.
+//
+// The behavior mirrors aws-sdk-go-v2/service/eks v1.105.5: endpoint resolution (endpoints.go,
+// including FIPS pseudo Regions and configured endpoints), REST-JSON error codes
+// (restjson.SanitizeErrorCode), and the retryer's clock skew correction. TestResolveEndpointGolden
+// pins the endpoints that client produces for every partition. Signing a request with
+// aws/signer/v4 directly follows comp/core/delegatedauth/api/cloudauth/aws, which signs its STS
+// GetCallerIdentity request the same way.
 
 const (
 	// eksSigningName is the SigV4 signing name of the EKS API.
