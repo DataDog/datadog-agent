@@ -286,7 +286,7 @@ func TestLaunchdInstallerJob(t *testing.T) {
 		Args []string `xml:"dict>array>string"`
 	}
 	require.NoError(t, xml.Unmarshal(content, &plist))
-	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc", "-p", "/opt/datadog-agent/run/installer.pid"}, plist.Args)
+	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc", "-p", "/opt/datadog-packages/run/installer.pid"}, plist.Args)
 }
 
 // assertPropertyList checks that content is a well-formed XML property list. The repository has no

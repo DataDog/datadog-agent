@@ -99,8 +99,10 @@ type launchdTemplateData struct {
 	ProgramDir string
 	// EtcDir is the configuration directory the job reads. launchd cannot supply a
 	// configuration path at load time, so the definition names it itself.
-	EtcDir     string
-	RunDir     string
+	EtcDir string
+	RunDir string
+	// StateDir is the directory only root may write to, where root jobs keep their own state.
+	StateDir   string
 	LogDir     string
 	AgentUser  string
 	AgentGroup string
@@ -347,6 +349,7 @@ var (
 		ProgramDir:  "/opt/datadog-agent",
 		EtcDir:      "/opt/datadog-agent/etc",
 		RunDir:      "/opt/datadog-agent/run",
+		StateDir:    "/opt/datadog-packages/run",
 		LogDir:      "/opt/datadog-agent/logs",
 		AgentUser:   "_dd-agent",
 		AgentGroup:  "daemon",
@@ -358,6 +361,7 @@ var (
 		ProgramDir:  "/opt/datadog-agent",
 		EtcDir:      "/opt/datadog-agent/etc-exp",
 		RunDir:      "/opt/datadog-agent/run",
+		StateDir:    "/opt/datadog-packages/run",
 		LogDir:      "/opt/datadog-agent/logs",
 		AgentUser:   "_dd-agent",
 		AgentGroup:  "daemon",
