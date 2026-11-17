@@ -218,6 +218,8 @@ func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, m
 // peer.aws.dynamodb.table peer tag, from the OTel aws.dynamodb.table_names attribute.
 // The attribute is a string array while "tablename" holds one name, so only a call that
 // targets a single table is mapped. A "tablename" attribute set by the producer is kept.
+// This can't be declared as an equivalent in the semantics library, which only maps
+// scalar attributes.
 func setDynamoDBTableName(sattr, rattr pcommon.Map, ddspan *pb.Span) {
 	const tablenameKey = "tablename"
 	if GetOTelAttrFromEitherMap(sattr, rattr, false, tablenameKey) != "" {
