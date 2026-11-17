@@ -35,7 +35,7 @@ replace (
 require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
-	code.cloudfoundry.org/bbs/models v1.26.0
+	code.cloudfoundry.org/bbs/models v1.29.0
 	code.cloudfoundry.org/garden v0.11.0
 	code.cloudfoundry.org/lager/v3 v3.94.0
 	dario.cat/mergo v1.0.2
@@ -486,13 +486,13 @@ require (
 	golang.org/x/arch v0.32.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49
-	golang.org/x/mod v0.42.0
+	golang.org/x/mod v0.43.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sync v0.24.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/sync v0.25.0
+	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.47.0
-	golang.org/x/text v0.43.0
+	golang.org/x/text v0.44.0
 	golang.org/x/time v0.16.0
 	golang.org/x/tools v0.52.0
 	google.golang.org/grpc v1.85.0
@@ -531,8 +531,8 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
 	cloud.google.com/go/compute v1.75.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	code.cloudfoundry.org/bbs/encryption v1.25.0 // indirect
-	code.cloudfoundry.org/bbs/format v1.18.0 // indirect
+	code.cloudfoundry.org/bbs/encryption v1.28.0 // indirect
+	code.cloudfoundry.org/bbs/format v1.20.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.99.0 // indirect
 	code.cloudfoundry.org/tlsconfig v0.69.0 // indirect
 	cyphar.com/go-pathrs v0.2.5 // indirect
@@ -705,7 +705,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de // indirect
-	github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 // indirect
+	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
