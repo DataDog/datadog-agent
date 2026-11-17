@@ -83,15 +83,8 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only the ARN goes on the wire: the node validates it and derives the account and Region
-	// from it (identity.ClusterIdentity.Tags).
-	payload, err := json.Marshal(identityAnswer{ClusterARN: identity.ClusterARN})
-	if err != nil {
-		spanErr = err
-		api.SetSpanError(w, err)
-		w.Header().Set(identitytypes.RetryLaterHeader, "false")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// from it (identity.ClusterIdentity.Tags). A struct with one string field always marshals.
+	payload, _ := json.Marshal(identityAnswer{ClusterARN: identity.ClusterARN})
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(payload); err != nil {
 		log.Debugf("Unable to write EKS cluster identity response: %v", err)

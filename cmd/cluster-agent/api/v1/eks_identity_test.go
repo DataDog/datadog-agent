@@ -272,3 +272,22 @@ func TestGetEKSClusterIdentityNodeStopsOnAuthErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestGetEKSClusterIdentityMarksARealCachedFailureByItsExpiry(t *testing.T) {
+	// The real pkg/util/eks cache and the real eks.RetryIn behind the handler: a failure that
+	// DescribeCluster is asked about again within retryLaterWindow is marked retry, one cached
+	// longer is final.
+	resolveEKSClusterIdentity = func(ctx context.Context) (*eks.ClusterIdentity, error) {
+		return eks.GetClusterIdentity(ctx, "orders-cached", nil)
+	}
+	t.Cleanup(func() { resolveEKSClusterIdentity = eksidentity.Resolve })
+	for ttl, mark := range map[time.Duration]string{
+		2 * time.Second:  "true",
+		25 * time.Second: "false",
+	} {
+		eks.CacheFailureForTest(t, "orders-cached", nil, throttlingError{}, ttl)
+		recorder, _ := serveEKSIdentity(t)
+		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+		assert.Equal(t, mark, recorder.Header().Get(identitytypes.RetryLaterHeader), "cached for %s", ttl)
+	}
+}

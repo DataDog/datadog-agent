@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "cluster_identity.go",
         "describe_cluster.go",
+        "testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/eks",
     visibility = ["//visibility:public"],
