@@ -321,7 +321,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_in_upper_lay
     struct event_mask_filter_t *filter = bpf_map_lookup_elem(&in_upper_layer_approvers, &key);
     if (filter && filter->event_mask & (1 << (event_type - 1)) && (file->flags & UPPER_LAYER) > 0) {
         monitor_event_approved(event_type, IN_UPPER_LAYER_APPROVER_TYPE);
-        return APPROVED;
+        return ACCEPTED;
     }
     return DISCARDED;
 }
@@ -331,6 +331,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) chmod_approvers(struct 
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_CHMOD);
     }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_CHMOD, &syscall->setattr.file);
+    }
 
     return state;
 }
@@ -339,6 +342,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) chown_approvers(struct 
     enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_CHOWN);
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_CHOWN);
+    }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_CHOWN, &syscall->setattr.file);
     }
 
     return state;
@@ -622,6 +628,9 @@ static __always_inline enum SYSCALL_STATE rmdir_approvers(struct syscall_cache_t
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_RMDIR);
     }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_RMDIR, &syscall->rmdir.file);
+    }
     return state;
 }
 
@@ -677,6 +686,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) unlink_approvers(struct
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_UNLINK);
     }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_UNLINK, &syscall->unlink.file);
+    }
     return state;
 }
 
@@ -684,6 +696,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) utime_approvers(struct 
     enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_UTIME);
     if (state == DISCARDED) {
         state = approve_by_auid(syscall, EVENT_UTIME);
+    }
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_UTIME, &syscall->setattr.file);
     }
     return state;
 }

@@ -21,10 +21,17 @@ var openFlagsCapabilities = rules.FieldCapabilities{
 		Field:        "open.flags",
 		TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
 		FilterWeight: 100,
+		FilterWeightFnc: func(value rules.FilterValue) int {
+			if intValue, ok := value.Value.(int); ok && intValue == unix.O_RDONLY && value.Type == eval.ScalarValueType {
+				return 1
+			}
+			return 100
+		},
 	},
 	{
 		Field:        "open.file.in_upper_layer",
 		TypeBitmask:  eval.ScalarValueType,
+		FilterMode:   rules.ApproverOnlyMode,
 		FilterWeight: 50,
 	},
 }

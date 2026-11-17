@@ -42,4 +42,26 @@ int test_flag_approver() {
     return 1;
 }
 
+SEC("test/zero_init_syscall_state_discarders")
+int test_zero_init_syscall_state_discarders() {
+    struct syscall_cache_t syscall = {
+        .type = EVENT_SETXATTR,
+    };
+
+    assert_equals(syscall.state, APPROVED, "zero-initialized syscall state should be APPROVED");
+    assert_equals(get_resolver_flags(&syscall, 1), RESOLVER_FLAG_APPLY_DISCARDERS, "zero-initialized syscall should apply discarders");
+
+    syscall.resolver.ret = DENTRY_DISCARDED;
+    apply_dentry_resolution_outcome(&syscall, EVENT_SETXATTR);
+    assert_equals(syscall.state, DISCARDED, "DENTRY_DISCARDED should discard APPROVED syscall");
+
+    struct syscall_cache_t accepted_syscall = {
+        .type = EVENT_OPEN,
+        .state = ACCEPTED,
+    };
+    assert_equals(get_resolver_flags(&accepted_syscall, 1), 0, "ACCEPTED syscall should not apply discarders");
+
+    return 1;
+}
+
 #endif

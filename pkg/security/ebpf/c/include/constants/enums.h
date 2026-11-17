@@ -29,8 +29,6 @@ enum event_type
     EVENT_PRCTL,
     EVENT_SETSOCKOPT,
 
-    EVENT_LAST_APPROVER = EVENT_SETSOCKOPT,
-
     EVENT_MOUNT,
     EVENT_UMOUNT,
     EVENT_FORK,
@@ -79,6 +77,9 @@ enum event_type
     EVENT_SETSID,
     EVENT_NOP,
     EVENT_SOCKET,
+
+    EVENT_LAST_APPROVER = EVENT_SOCKET,
+
     EVENT_UNSHARE_MNTNS,
     EVENT_OTEL_PROCESS_CTX,
     EVENT_SETNS,
@@ -145,8 +146,8 @@ enum BASENAME_APPROVER_TYPE
 
 enum SYSCALL_STATE
 {
-    ACCEPTED = 0,    // accepted, can't be discarded later
-    APPROVED,        // approved but can be discarded later
+    APPROVED = 0,    // approved but can be discarded later
+    ACCEPTED,        // accepted, can't be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled
     INTERNAL,        // internal event

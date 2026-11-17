@@ -21,3 +21,11 @@ func TestFlagApprover(t *testing.T) {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
+
+func TestZeroInitSyscallStateDiscarders(t *testing.T) {
+	var ctx baloum.StdContext
+	code, err := newVM(t).RunProgram(&ctx, "test/zero_init_syscall_state_discarders")
+	if err != nil || code != 1 {
+		t.Errorf("unexpected error: %v, %d", err, code)
+	}
+}

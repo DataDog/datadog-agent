@@ -62,22 +62,13 @@ int hook_security_inode_setattr(ctx_t *ctx) {
 
     switch (syscall->type) {
     case EVENT_UTIME:
-        if (approve_syscall(syscall, utime_approvers) == DISCARDED) {
-            pop_syscall(EVENT_UTIME);
-            return 0;
-        }
+        approve_syscall(syscall, utime_approvers);
         break;
     case EVENT_CHMOD:
-        if (approve_syscall(syscall, chmod_approvers) == DISCARDED) {
-            pop_syscall(EVENT_CHMOD);
-            return 0;
-        }
+        approve_syscall(syscall, chmod_approvers);
         break;
     case EVENT_CHOWN:
-        if (approve_syscall(syscall, chown_approvers) == DISCARDED) {
-            pop_syscall(EVENT_CHOWN);
-            return 0;
-        }
+        approve_syscall(syscall, chown_approvers);
         break;
     }
 

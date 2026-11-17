@@ -66,11 +66,22 @@ func validateNameFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
-	case eval.PatternValueType:
+	case eval.PatternValueType, eval.GlobValueType:
 		return validateBasenameFilter(path.Base(value.Value.(string)))
 	}
 
 	return false
+}
+
+func buildInUpperLayerCapabilities(event string) rules.FieldCapabilities {
+	return rules.FieldCapabilities{
+		{
+			Field:        event + ".file.in_upper_layer",
+			TypeBitmask:  eval.ScalarValueType,
+			FilterMode:   rules.ApproverOnlyMode,
+			FilterWeight: 50,
+		},
+	}
 }
 
 func buildFileCapabilities(event string, fields ...string) rules.FieldCapabilities {
@@ -105,7 +116,7 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 			},
 			{
 				Field:        event + "." + field + ".name",
-				TypeBitmask:  eval.ScalarValueType,
+				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 				ValidateFnc:  validateNameFilter,
 				FilterWeight: 300,
 			},
@@ -123,15 +134,15 @@ func mergeCapabilities(caps ...rules.FieldCapabilities) rules.FieldCapabilities 
 }
 
 func init() {
-	allCapabilities["chmod"] = mergeCapabilities(buildFileCapabilities("chmod", "file"), processCapabilities)
-	allCapabilities["chown"] = mergeCapabilities(buildFileCapabilities("chown", "file"), processCapabilities)
+	allCapabilities["chmod"] = mergeCapabilities(buildFileCapabilities("chmod", "file"), buildInUpperLayerCapabilities("chmod"), processCapabilities)
+	allCapabilities["chown"] = mergeCapabilities(buildFileCapabilities("chown", "file"), buildInUpperLayerCapabilities("chown"), processCapabilities)
 	allCapabilities["link"] = mergeCapabilities(buildFileCapabilities("link", "file", "file.destination"), processCapabilities)
 	allCapabilities["mkdir"] = mergeCapabilities(buildFileCapabilities("mkdir", "file"), processCapabilities)
 	allCapabilities["open"] = mergeCapabilities(buildFileCapabilities("open", "file"), openFlagsCapabilities, processCapabilities)
 	allCapabilities["rename"] = mergeCapabilities(buildFileCapabilities("rename", "file", "file.destination"), processCapabilities)
-	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), processCapabilities)
-	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), processCapabilities)
-	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), processCapabilities)
+	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), buildInUpperLayerCapabilities("rmdir"), processCapabilities)
+	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), buildInUpperLayerCapabilities("unlink"), processCapabilities)
+	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), buildInUpperLayerCapabilities("utimes"), processCapabilities)
 	allCapabilities["mmap"] = mergeCapabilities(buildFileCapabilities("mmap", "file"), mmapCapabilities, processCapabilities)
 	allCapabilities["mprotect"] = mprotectCapabilities
 	allCapabilities["splice"] = mergeCapabilities(buildFileCapabilities("splice", "file"), spliceCapabilities, processCapabilities)

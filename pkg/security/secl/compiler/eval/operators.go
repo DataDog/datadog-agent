@@ -247,13 +247,13 @@ func IntNot(a *IntEvaluator, _ *State) *IntEvaluator {
 
 // StringEquals evaluates string
 func StringEquals(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
-	if a.Field != "" {
+	if a.Field != "" && b.Field == "" {
 		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: b.ValueType}); err != nil {
 			return nil, err
 		}
 	}
 
-	if b.Field != "" {
+	if b.Field != "" && a.Field == "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: a.ValueType}); err != nil {
 			return nil, err
 		}
@@ -918,13 +918,13 @@ func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*
 
 // CIDREquals evaluates CIDR ranges
 func CIDREquals(a *CIDREvaluator, b *CIDREvaluator, state *State) (*BoolEvaluator, error) {
-	if a.Field != "" {
+	if a.Field != "" && b.Field == "" {
 		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: b.ValueType}); err != nil {
 			return nil, err
 		}
 	}
 
-	if b.Field != "" {
+	if b.Field != "" && a.Field == "" {
 		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: a.ValueType}); err != nil {
 			return nil, err
 		}

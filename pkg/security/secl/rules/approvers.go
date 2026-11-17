@@ -49,7 +49,7 @@ func (s *ApproverStats) Merge(other *ApproverStats) {
 	}
 }
 
-func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Field, value interface{}) (bool, error) {
+func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Field, value interface{}, partialFields ...eval.Field) (bool, error) {
 	var readOnlyError *eval.ErrFieldReadOnly
 	if err := event.SetFieldValue(field, value); err != nil {
 		if errors.As(err, &readOnlyError) {
@@ -57,16 +57,19 @@ func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fie
 		}
 		return false, err
 	}
-	return rule.PartialEval(ctx, field)
+	if len(partialFields) == 0 {
+		return rule.PartialEval(ctx, field)
+	}
+	return rule.PartialEval(ctx, partialFields...)
 }
 
-func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}, partialFields ...eval.Field) (bool, interface{}, error) {
 	min := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
 		min = fieldCap.RangeFilterValue.Min
 	}
 
-	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value)
+	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value, partialFields...)
 	if err != nil {
 		return false, RangeFilterValue{}, err
 	}
@@ -74,17 +77,17 @@ func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *R
 		return false, RangeFilterValue{}, nil
 	}
 
-	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1)
+	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1, partialFields...)
 	return !result, RangeFilterValue{Min: min, Max: value.(int)}, err
 }
 
-func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}, partialFields ...eval.Field) (bool, interface{}, error) {
 	min := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
 		min = fieldCap.RangeFilterValue.Min
 	}
 
-	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1)
+	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1, partialFields...)
 	if err != nil {
 		return false, RangeFilterValue{}, err
 	}
@@ -92,17 +95,17 @@ func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, 
 		return false, RangeFilterValue{}, nil
 	}
 
-	result, err := partialEval(event, ctx, rule, fieldCap.Field, value)
+	result, err := partialEval(event, ctx, rule, fieldCap.Field, value, partialFields...)
 	return !result, RangeFilterValue{Min: min, Max: value.(int) - 1}, err
 }
 
-func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}, partialFields ...eval.Field) (bool, interface{}, error) {
 	max := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
 		max = fieldCap.RangeFilterValue.Max
 	}
 
-	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value)
+	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value, partialFields...)
 	if err != nil {
 		return false, RangeFilterValue{}, err
 	}
@@ -110,17 +113,17 @@ func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *
 		return false, RangeFilterValue{}, nil
 	}
 
-	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1)
+	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1, partialFields...)
 	return !result, RangeFilterValue{Min: value.(int), Max: max}, err
 }
 
-func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
+func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}, partialFields ...eval.Field) (bool, interface{}, error) {
 	max := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
 		max = fieldCap.RangeFilterValue.Max
 	}
 
-	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1)
+	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1, partialFields...)
 	if err != nil {
 		return false, RangeFilterValue{}, err
 	}
@@ -128,33 +131,33 @@ func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule,
 		return false, RangeFilterValue{}, nil
 	}
 
-	result, err := partialEval(event, ctx, rule, fieldCap.Field, value)
+	result, err := partialEval(event, ctx, rule, fieldCap.Field, value, partialFields...)
 	return !result, RangeFilterValue{Min: value.(int) + 1, Max: max}, err
 }
 
 // isAnApprover returns whether the given value is an approver for the given rule
-func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, fieldValueType eval.FieldValueType, value interface{}) (bool, eval.FieldValueType, interface{}, error) {
+func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, fieldValueType eval.FieldValueType, value interface{}, partialFields ...eval.Field) (bool, eval.FieldValueType, interface{}, error) {
 	if fieldValueType == eval.RangeValueType {
-		isAnApprover, approverValue, err := isAnIntLesserEqualThanApprover(event, ctx, rule, fieldCap, value)
+		isAnApprover, approverValue, err := isAnIntLesserEqualThanApprover(event, ctx, rule, fieldCap, value, partialFields...)
 		if isAnApprover || err != nil {
 			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
-		isAnApprover, approverValue, err = isAnIntLesserThanApprover(event, ctx, rule, fieldCap, value)
+		isAnApprover, approverValue, err = isAnIntLesserThanApprover(event, ctx, rule, fieldCap, value, partialFields...)
 		if isAnApprover || err != nil {
 			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
-		isAnApprover, approverValue, err = isAnIntGreaterEqualThanApprover(event, ctx, rule, fieldCap, value)
+		isAnApprover, approverValue, err = isAnIntGreaterEqualThanApprover(event, ctx, rule, fieldCap, value, partialFields...)
 		if isAnApprover || err != nil {
 			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
-		isAnApprover, approverValue, err = isAnIntGreaterThanApprover(event, ctx, rule, fieldCap, value)
+		isAnApprover, approverValue, err = isAnIntGreaterThanApprover(event, ctx, rule, fieldCap, value, partialFields...)
 		if isAnApprover || err != nil {
 			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
 	}
 
 	isaaFnc := func(v1, v2 interface{}) (bool, error) {
-		origResult, err := partialEval(event, ctx, rule, fieldCap.Field, v1)
+		origResult, err := partialEval(event, ctx, rule, fieldCap.Field, v1, partialFields...)
 		if err != nil {
 			return false, err
 		}
@@ -162,7 +165,7 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *Fie
 			return false, nil
 		}
 
-		notResult, err := partialEval(event, ctx, rule, fieldCap.Field, v2)
+		notResult, err := partialEval(event, ctx, rule, fieldCap.Field, v2, partialFields...)
 		if err != nil {
 			return false, err
 		}
@@ -339,10 +342,24 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			}
 		}
 
-		// no filter value for a rule thus no approver for the event type
 		if bestFilterValues == nil {
-			stats.AcceptModeRules[eventType] = rule
-			return nil, stats, nil, nil
+			multiApprovers, multiMode, err := getMultiFieldApprovers(rule, event, ctx, fieldCaps)
+			if err != nil {
+				stats.AcceptModeRules[eventType] = rule
+				return nil, stats, nil, err
+			}
+			if len(multiApprovers) == 0 {
+				stats.AcceptModeRules[eventType] = rule
+				return nil, stats, nil, nil
+			}
+			if multiMode == ApproverOnlyMode {
+				noDiscarderRules = append(noDiscarderRules, rule)
+			}
+			for field, values := range multiApprovers {
+				approvers[field] = approvers[field].Merge(values...)
+				stats.FieldStats[field]++
+			}
+			continue
 		}
 
 		// this rule as an approver in ApproverOnly mode. Report the rule so that it can excluded from being used by the discarder mechanism.
@@ -359,4 +376,128 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 	}
 
 	return approvers, stats, noDiscarderRules, nil
+}
+
+func fieldNeutralNotValue(values []eval.FieldValue) (interface{}, error) {
+	if len(values) == 0 {
+		return nil, errors.New("no field values")
+	}
+	notValue, err := eval.NotOfValue(values[0].Value)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := notValue.(string); ok {
+		for _, v := range values {
+			if str, ok := v.Value.(string); ok && str == notValue {
+				return "<NOT>", nil
+			}
+		}
+	}
+	return notValue, nil
+}
+
+func getMultiFieldApprovers(rule *Rule, event eval.Event, ctx *eval.Context, fieldCaps FieldCapabilities) (Approvers, FilterMode, error) {
+	var candidateCaps FieldCapabilities
+	var candidateFields []eval.Field
+	notValues := make(map[eval.Field]interface{})
+
+	for _, fieldCap := range fieldCaps {
+		values := rule.GetFieldValues(fieldCap.Field)
+		if len(values) == 0 {
+			continue
+		}
+		notVal, err := fieldNeutralNotValue(values)
+		if err != nil {
+			continue
+		}
+		candidateCaps = append(candidateCaps, fieldCap)
+		candidateFields = append(candidateFields, fieldCap.Field)
+		notValues[fieldCap.Field] = notVal
+	}
+
+	if len(candidateCaps) < 2 {
+		return nil, DefaultMode, nil
+	}
+
+	resetCandidateFields := func() {
+		for field, notVal := range notValues {
+			_ = event.SetFieldValue(field, notVal)
+		}
+	}
+	defer resetCandidateFields()
+
+	multiApprovers := make(Approvers)
+	var acceptedFields []eval.Field
+	mode := DefaultMode
+
+CAP_LOOP:
+	for _, fieldCap := range candidateCaps {
+		resetCandidateFields()
+
+		field := fieldCap.Field
+		var filterValues FilterValues
+		var bitmasks []int
+
+		for _, value := range rule.GetFieldValues(field) {
+			if fieldCap.TypeBitmask&eval.BitmaskValueType == eval.BitmaskValueType && value.Type == eval.RangeValueType {
+				continue
+			}
+			if !fieldCap.TypeMatches(value.Type) {
+				continue CAP_LOOP
+			}
+
+			switch value.Type {
+			case eval.ScalarValueType, eval.PatternValueType, eval.GlobValueType, eval.RangeValueType:
+				ok, approverValueType, approverValue, err := isAnApprover(event, ctx, rule, fieldCap, value.Type, value.Value, candidateFields...)
+				if err != nil {
+					return nil, DefaultMode, err
+				}
+				if ok {
+					filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
+					if !fieldCap.Validate(filterValue) {
+						continue CAP_LOOP
+					}
+					filterValues = filterValues.Merge(filterValue)
+				}
+			case eval.BitmaskValueType:
+				bitmasks = append(bitmasks, value.Value.(int))
+			}
+		}
+
+		for _, bitmask := range bitmaskCombinations(bitmasks) {
+			ok, _, _, err := isAnApprover(event, ctx, rule, fieldCap, eval.BitmaskValueType, bitmask, candidateFields...)
+			if err != nil {
+				return nil, DefaultMode, err
+			}
+			if ok {
+				filterValue := FilterValue{Field: field, Value: bitmask, Type: eval.BitmaskValueType, Mode: fieldCap.FilterMode}
+				if !fieldCap.Validate(filterValue) {
+					continue CAP_LOOP
+				}
+				filterValues = filterValues.Merge(filterValue)
+			}
+		}
+
+		if len(filterValues) == 0 {
+			continue
+		}
+
+		multiApprovers[field] = filterValues
+		acceptedFields = append(acceptedFields, field)
+		if fieldCap.FilterMode == ApproverOnlyMode {
+			mode = ApproverOnlyMode
+		}
+	}
+
+	if len(acceptedFields) < 2 {
+		return nil, DefaultMode, nil
+	}
+
+	resetCandidateFields()
+	isTrue, err := rule.PartialEval(ctx, acceptedFields...)
+	if err != nil || isTrue {
+		return nil, DefaultMode, err
+	}
+
+	return multiApprovers, mode, nil
 }

@@ -78,7 +78,7 @@ func TestDiscarderReport(t *testing.T) {
 		// process.auid, an approver only capability
 		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
 		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "group*" && process.auid == 244`)
+		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "*group" && process.auid == 244`)
 
 		report, err := ComputeFilters(cfg, rs)
 		if err != nil {
@@ -123,6 +123,30 @@ func TestDiscarderReport(t *testing.T) {
 
 		if !slices.Equal(report.ApproverReports["open"].ApproversOnly, []eval.Field{"process.auid"}) {
 			t.Errorf("expected process.auid approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
+		}
+	})
+
+	t.Run("no-discarder-chmod-in-upper-layer", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+
+		rules.AddTestRuleExpr(t, rs, `chmod.file.path in ["/etc/shadow", "/etc/gshadow"]`)
+		rules.AddTestRuleExpr(t, rs, `chmod.file.in_upper_layer && chmod.file.destination.mode & S_IXUSR > 0`)
+
+		report, err := ComputeFilters(cfg, rs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !slices.Equal(report.DiscardersReport.Supported, []eval.Field{"chmod.file.path"}) {
+			t.Errorf("expected chmod.file.path supported discarder, got %+v", report.DiscardersReport.Supported)
+		}
+
+		if len(report.DiscardersReport.Invalid) != 0 {
+			t.Errorf("expected 0 invalid discarder, got %+v", report.DiscardersReport.Invalid)
+		}
+
+		if !slices.Equal(report.ApproverReports["chmod"].ApproversOnly, []eval.Field{"chmod.file.in_upper_layer"}) {
+			t.Errorf("expected chmod.file.in_upper_layer approvers only, got %+v", report.ApproverReports["chmod"].ApproversOnly)
 		}
 	})
 
