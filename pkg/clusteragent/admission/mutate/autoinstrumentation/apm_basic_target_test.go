@@ -15,6 +15,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/dd-policy-engine/go/policies"
+
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -248,6 +250,23 @@ gpu:
 			assert.Equal(t, c, resolved.apmBasic.libraries[0].lang)
 		})
 	}
+
+	t.Run("ssi denial keeps the annotation but blocks apm basic", func(t *testing.T) {
+		m := newMatchMutator(t, apmBasicOnly, newMatchTestWmeta(t))
+		require.NoError(t, m.SetRemotePolicies([]policies.Policy{podLabelPolicy("deny", "app", "web", false, nil)}))
+		pod := mutatecommon.FakePodSpec{
+			NS:          "web",
+			Labels:      optedIn(map[string]string{admissioncommon.EnabledLabelKey: "true", "app": "web"}),
+			Annotations: map[string]string{annotation.LibraryVersion.Format("python"): "v4"},
+		}.Create()
+
+		resolved := m.resolveTarget(pod)
+
+		require.NotNil(t, resolved)
+		assert.Equal(t, injectionSourceAnnotation, resolved.selectedBy)
+		assert.False(t, resolved.isSSI)
+		assert.Nil(t, resolved.apmBasic)
+	})
 
 	t.Run("opt-out blocks apm basic", func(t *testing.T) {
 		m := newMatchMutator(t, apmBasicOnly, newMatchTestWmeta(t))

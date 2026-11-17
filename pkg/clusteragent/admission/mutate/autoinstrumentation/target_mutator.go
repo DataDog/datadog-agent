@@ -357,7 +357,11 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
-	if apmBasic == nil || selected.action == sourceDeny || selected.plan.blocked {
+	// An SSI source can deny after an annotation selected the libraries: the
+	// annotation still applies, but APM Basic does not.
+	ssiDenied := ssiDecided && !isSSI
+	denied := selected.action == sourceDeny || selected.plan.blocked || ssiDenied
+	if apmBasic == nil || denied {
 		return resolved
 	}
 	// APM Basic is an SSI opt-in.
