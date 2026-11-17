@@ -10,6 +10,7 @@ package v1
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -68,13 +69,14 @@ func TestGetEKSClusterIdentity(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
-	assert.JSONEq(t, `{
-		"cluster_name":"orders",
-		"cluster_arn":"arn:aws:eks:us-west-2:123456789012:cluster/orders",
-		"aws_account_id":"123456789012",
-		"region":"us-west-2"
-	}`, recorder.Body.String())
+	// Only what the node uses: it derives the account and Region from the ARN.
+	assert.JSONEq(t, `{"cluster_arn":"arn:aws:eks:us-west-2:123456789012:cluster/orders"}`, recorder.Body.String())
 	assert.Nil(t, span.Tag("error.message"))
+
+	// The node's type reads it and emits all three tags.
+	var id identitytypes.ClusterIdentity
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &id))
+	assert.Len(t, id.Tags(), 3)
 }
 
 func TestGetEKSClusterIdentityNotApplicableIsNotAnError(t *testing.T) {

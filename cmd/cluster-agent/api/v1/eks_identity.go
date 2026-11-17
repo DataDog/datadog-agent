@@ -22,6 +22,12 @@ import (
 // resolveEKSClusterIdentity is injectable for tests.
 var resolveEKSClusterIdentity = eksidentity.Resolve
 
+// identityAnswer is the identity endpoint's answer. Its field reads into
+// identity.ClusterIdentity on the node.
+type identityAnswer struct {
+	ClusterARN string `json:"cluster_arn"`
+}
+
 // getEKSClusterIdentity returns the authoritative EKS cluster identity resolved once by the
 // Cluster Agent through eks:DescribeCluster, so node Agents never derive cluster ownership
 // from node-local metadata.
@@ -62,7 +68,9 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload, err := json.Marshal(identity)
+	// Only the ARN goes on the wire: the node validates it and derives the account and Region
+	// from it (identity.ClusterIdentity.Tags).
+	payload, err := json.Marshal(identityAnswer{ClusterARN: identity.ClusterARN})
 	if err != nil {
 		spanErr = err
 		api.SetSpanError(w, err)
