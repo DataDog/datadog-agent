@@ -152,7 +152,17 @@ func macosInstallAgentUnderTest(t *testing.T, host *components.RemoteHost, clien
 		macosInstallLocalDMG(t, host, localDMG)
 		return
 	}
-	install.MacOS(t, client, installparams.WithUsername(host.Username), installparams.WithArch("x64"))
+	install.MacOS(t, client, installparams.WithUsername(host.Username), installparams.WithArch(macosPipelineArch(host)))
+}
+
+// macosPipelineArch is the architecture suffix of the host's pipeline build in the macOS testing
+// bucket: x64 for an Intel host (an AWS mac1.metal), arm64 for Apple Silicon (an AWS mac2.metal,
+// or a LOCAL_VM host, which defaults to arm64).
+func macosPipelineArch(host *components.RemoteHost) string {
+	if host.Architecture == os.AMD64Arch {
+		return "x64"
+	}
+	return string(host.Architecture)
 }
 
 // macosInstallLocalDMG installs localDMG with the repository's install_mac_os.sh, which takes a
