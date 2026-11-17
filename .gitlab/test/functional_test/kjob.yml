@@ -30,8 +30,6 @@ single_machine_performance-kjob:
     HELM_SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
     # Do not log the access key ID of the bot, as in the regression detector.
     RUST_LOG: info,aws_config::profile::credentials=error
-    # Temporary: show the AWS endpoints and the proxy connections of the submit.
-    KJOB_SUBMIT_RUST_LOG: info,aws_config::profile::credentials=error,aws_smithy_runtime=debug,hyper_util=debug
   artifacts:
     expire_in: 1 weeks
     when: always
@@ -58,7 +56,7 @@ single_machine_performance-kjob:
     # A dry run needs no AWS access. The job saves the resolved job input as an
     # artifact. The fixture holds only dummy credentials.
     - ./smp kjob submit "${KJOB_DIRECTORY}" --dry-run "${SMP_KJOB_ARGS[@]}" --output json > outputs/dry-run.json
-    - RUST_LOG="${KJOB_SUBMIT_RUST_LOG}" ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
+    - ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json | tee outputs/submit.json
     - KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json)
     - echo "KJob job ID is ${KJOB_JOB_ID}"
     # `smp kjob result` exits with 0 when the assertions pass, 1 when they
@@ -78,12 +76,72 @@ single_machine_performance-kjob:
         fi
         sleep "${KJOB_RESULT_POLL_SECONDS}"
       done
+      # The PR comment payload reads this file in after_script.
+      echo "${KJOB_RESULT_CODE}" > outputs/result_code
       ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob status "${KJOB_JOB_ID}" --output json > outputs/status.json || echo "WARNING: smp kjob status failed"
-      jq -r '.state' outputs/status.json || true
+      KJOB_STATE=$(jq -r '.state' outputs/status.json || true)
+      echo "KJob job state is ${KJOB_STATE}"
       case "${KJOB_RESULT_CODE}" in
-        0) echo "The KJob assertions passed." ;;
+        # A failed replicate can still give passing checks, so check the job state too.
+        0) if [[ "${KJOB_STATE}" == "failed" ]]; then echo "The KJob assertions passed, but the KJob job failed."; exit 1; fi
+           echo "The KJob assertions passed." ;;
         1) echo "The KJob assertions failed."; jq . outputs/report.v1.json; exit 1 ;;
         3) exit 1 ;;
         *) echo "smp kjob result failed with exit code ${KJOB_RESULT_CODE}."; exit "${KJOB_RESULT_CODE}" ;;
       esac
     - jq . outputs/report.v1.json
+  # The after_script also runs when the script fails, so each run gets a PR comment.
+  after_script:
+    - mkdir -p outputs
+    - |
+      python3 test/regression/kjob/pr_comment.py --outputs outputs --commit "${CI_COMMIT_SHA}" --job-url "${CI_JOB_URL}" --team "${SMP_TEAM_NAME}" --directory "${KJOB_DIRECTORY}" --output outputs/pr_comment.json || echo "WARNING: the KJob PR comment payload could not be written"
+
+# Post the result of the KJob job on the PR, also when the KJob job fails.
+# This follows single-machine-performance-regression_detector-pr-comment in
+# .gitlab/childs/smp-regression-child-pipeline.yml.
+single_machine_performance-kjob-pr-comment:
+  stage: functional_test
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
+    entrypoint: [""] # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: single_machine_performance-kjob
+      artifacts: true
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches]
+    - when: always
+  variables:
+    # Not using the entrypoint script for the pr-commenter image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  allow_failure: true # a comment-service failure must not change the KJob result
+  script:
+    - |
+      if [[ ! -s "outputs/pr_comment.json" ]]
+      then
+          echo "ERROR: KJob PR comment payload not found -- no PR comment posted"
+          exit 1
+      fi
+    # The pr-commenter service updates the comment with the same header, and
+    # ignores a commit that has no PR.
+    - |
+      set +e
+      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
+          -H "$(authanywhere)" \
+          -H "X-DdOrigin: curl" \
+          -X PATCH \
+          --data-binary @outputs/pr_comment.json)
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo "$out"
+        else
+          echo "$out" >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode
