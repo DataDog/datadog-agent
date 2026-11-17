@@ -433,6 +433,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         runtime_user: String::new(),
         config_error: String::new(),
         skip_reasons: proc.skip_reasons().to_vec(),
+        exit_with_supervisor: cfg.exit_with_supervisor,
     }
 }
 
@@ -462,6 +463,7 @@ fn invalid_detail_fields(inv: &InvalidProcess) -> proto::ProcessDetail {
         runtime_user: String::new(),
         config_error: inv.error.clone(),
         skip_reasons: Vec::new(),
+        exit_with_supervisor: false,
     }
 }
 
@@ -651,6 +653,22 @@ mod tests {
             assert_eq!(list.user, proc.user());
             assert_eq!(detail.user, proc.user());
         }
+    }
+
+    #[test]
+    fn test_runtime_profile_for_datadog_agent_process() {
+        let proc = ManagedProcess::new_runtime(
+            "datadog-agent-process".to_string(),
+            test_helpers::test_uuid(),
+            ProcessConfig::default(),
+        );
+        let list = process_to_proto(&proc);
+        let detail = process_detail_fields(&proc);
+
+        assert_eq!(list.profile, "agent");
+        assert_eq!(detail.profile, "agent");
+        assert_eq!(list.user, proc.user());
+        assert_eq!(detail.user, proc.user());
     }
 
     #[tokio::test]

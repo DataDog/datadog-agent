@@ -11,7 +11,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -30,18 +32,6 @@ import (
 const notLoadedOutput = `Bad request.
 Could not find service "com.datadoghq.agent" in domain for system
 `
-
-// testLayout returns a layout rooted in temporary directories.
-func testLayout(t *testing.T) agentLayout {
-	t.Helper()
-
-	root := t.TempDir()
-	return agentLayout{
-		installRoot:  filepath.Join(root, "opt", "datadog-agent"),
-		linkDir:      filepath.Join(root, "usr", "local", "bin"),
-		packagesRoot: filepath.Join(root, "opt", "datadog-packages"),
-	}
-}
 
 // exitError stands in for the *exec.ExitError a failed launchctl run returns: the client reads
 // the status it exited with, not its output.
@@ -72,63 +62,94 @@ func stubLaunchd(t *testing.T) *[][]string {
 		return client
 	}
 	t.Cleanup(func() { launchdClient = original })
+	stubUninstall(t)
 	return &calls
 }
 
-func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
-	originalDir := launchdJobDir
-	launchdJobDir = t.TempDir()
-	t.Cleanup(func() { launchdJobDir = originalDir })
+// stubUninstall points the uninstall at nothing on the host: an empty layout and a command runner
+// that runs nothing. Every pre-remove test goes through stubLaunchd, so none can reach the real
+// install.
+func stubUninstall(t *testing.T) *[][]string {
+	t.Helper()
 
-	client := launchd.NewClient(launchd.System)
-	enabled := false
-	started := false
-	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
-		switch args[0] {
-		case "print":
-			return []byte(notLoadedOutput), exitError(113)
-		case "enable":
-			enabled = true
-		case "bootstrap":
-			if !enabled {
-				return nil, errors.New("service is disabled")
-			}
-		case "kickstart":
-			started = true
-		}
+	var commands [][]string
+	originalLayout, originalCommand := defaultUninstallLayout, hostCommand
+	defaultUninstallLayout = uninstallLayout{}
+	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		commands = append(commands, append([]string{name}, args...))
 		return nil, nil
 	}
-
-	require.NoError(t, loadStableJob(context.Background(), client, "com.datadoghq.agent"))
-	assert.True(t, started)
+	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
+	return &commands
 }
 
-func testHookContext(t *testing.T) HookContext {
+// stubJobDir points the hooks at a temporary directory instead of /Library/LaunchDaemons.
+func stubJobDir(t *testing.T) string {
 	t.Helper()
-	return HookContext{Context: context.Background(), Package: agentPackage, PackageType: PackageTypeOCI}
+
+	dir := t.TempDir()
+	original := launchdJobDir
+	launchdJobDir = dir
+	t.Cleanup(func() { launchdJobDir = original })
+	return dir
 }
 
-// TestRegisterPackageRepositoryLetsAConfigExperimentStart is the reason the hook registers a
-// package at all. InstallConfigExperiment cleans the package repository before it writes the
-// experiment, so on a host without one that read fails with ENOENT and no configuration
-// experiment can start -- which is every macOS host, since the Agent arrives in a .dmg.
-func TestRegisterPackageRepositoryLetsAConfigExperimentStart(t *testing.T) {
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+// stubInstallerState points the post-install at a temporary packages root, skips creating the
+// installer's root-owned directories, which only root can do, and reports the Agent's account as
+// present.
+func stubInstallerState(t *testing.T) string {
+	t.Helper()
 
-	require.Error(t, repositories.Get(agentPackage).DeleteExperiment(ctx),
-		"the repository is meant to be missing before the hook runs")
+	root := filepath.Join(t.TempDir(), "datadog-packages")
+	originalRoot, originalEnsure, originalUserExists := packagesRoot, ensureInstallerDataDir, agentUserExists
+	packagesRoot = root
+	ensureInstallerDataDir = func() error { return nil }
+	agentUserExists = func() bool { return true }
+	t.Cleanup(func() {
+		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
+	})
+	stubDmgLayout(t)
+	return root
+}
 
-	require.NoError(t, registerPackageRepository(ctx, layout))
+// stubDmgLayout points the .dmg install steps at a temporary install, with the example
+// configuration the payload ships, and makes them chown to the current user, run no commands and
+// never sleep.
+func stubDmgLayout(t *testing.T) dmgLayout {
+	t.Helper()
 
-	assert.NoError(t, repositories.Get(agentPackage).DeleteExperiment(ctx))
+	root := t.TempDir()
+	layout := dmgLayout{
+		installDir:      filepath.Join(root, "opt", "datadog-agent"),
+		applicationsDir: filepath.Join(root, "Applications"),
+		logLink:         filepath.Join(root, "var", "log", "datadog"),
+		stagingDir:      filepath.Join(root, "staging"),
+		linkDir:         filepath.Join(root, "usr", "local", "bin"),
+		launchAgentsDir: filepath.Join(root, "LaunchAgents"),
+		usersDir:        filepath.Join(root, "Users"),
+		consoleDevice:   filepath.Join(root, "console"),
+		packagesDir:     filepath.Join(root, "datadog-packages"),
+		packagesRunDir:  filepath.Join(root, "datadog-packages", "run"),
+	}
+	for _, dir := range []string{layout.confDir(), layout.applicationsDir, layout.launchAgentsDir, layout.usersDir} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), "datadog.yaml.example"), []byte("api_key:\n# site: datadoghq.com\n"), 0o644))
+	require.NoError(t, os.WriteFile(layout.consoleDevice, nil, 0o600))
+
+	originalLayout, originalOwner, originalSleep := defaultDmgLayout, lookupOwner, sleep
+	defaultDmgLayout = layout
+	lookupOwner = func(string, string) (int, int, error) { return os.Getuid(), os.Getgid(), nil }
+	sleep = func(time.Duration) {}
+	t.Cleanup(func() { defaultDmgLayout, lookupOwner, sleep = originalLayout, originalOwner, originalSleep })
+	stubUninstall(t)
+	return layout
 }
 
 // withVersions stamps the two version symbols a real build sets through ldflags, so a test can
 // tell them apart: nothing stamps them under `go test`, where AgentPackageVersion is empty and
-// AgentVersion carries pkg/version's "6.0.0" default. Without this, an assertion against either
-// one passes whichever of the two the code under test actually reads.
+// AgentVersion carries pkg/version's default. Without this, an assertion against either one passes
+// whichever of the two the code under test actually reads.
 func withVersions(t *testing.T, packageVersion string, agentVersion string) {
 	t.Helper()
 
@@ -139,198 +160,63 @@ func withVersions(t *testing.T, packageVersion string, agentVersion string) {
 	})
 }
 
-// TestRegisterPackageRepositoryReportsTheInstalledVersion covers what the entry tells the backend:
-// the state the installer reports for the package must name the Agent that is actually installed,
-// under the same version the installer daemon reports as running. Fleet Automation compares the
-// two, so registering the other version symbol fails every deployment to the host -- hence the
-// two forms of the same version here, differing only where AgentVersion uses '+'.
-func TestRegisterPackageRepositoryReportsTheInstalledVersion(t *testing.T) {
-	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
-	layout := testLayout(t)
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
+	stubJobDir(t)
 
-	require.NoError(t, registerPackageRepository(testHookContext(t), layout))
-
-	state, err := repositories.GetState(agentPackage)
-	require.NoError(t, err)
-	assert.Equal(t, version.AgentPackageVersion, state.Stable)
-	assert.NotEqual(t, version.AgentVersion, state.Stable,
-		"the entry must name the version the daemon reports, not the human-facing one")
-	assert.Empty(t, state.Experiment, "a fresh install must not look like it has a version experiment")
-}
-
-// TestRegisterPackageRepositoryFallsBackToAgentVersion covers a build that did not go through
-// omnibus, which is the only thing that stamps AgentPackageVersion: the entry still has to be
-// registered under something, because Repository.Create rejects an empty version outright.
-func TestRegisterPackageRepositoryFallsBackToAgentVersion(t *testing.T) {
-	withVersions(t, "", "7.99.0-devel+git.1.deadbee")
-	layout := testLayout(t)
-
-	require.NoError(t, registerPackageRepository(testHookContext(t), layout))
-
-	state, err := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks).GetState(agentPackage)
-	require.NoError(t, err)
-	assert.Equal(t, version.AgentVersion, state.Stable)
-}
-
-// TestRegisterPackageRepositoryIsIdempotent is the property every hook here needs: the .dmg runs
-// postInstall on a first install, on every upgrade, and again on a host already in this state.
-func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
-	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-
-	require.NoError(t, registerPackageRepository(ctx, layout))
-	require.NoError(t, registerPackageRepository(ctx, layout))
-
-	state, err := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks).GetState(agentPackage)
-	require.NoError(t, err)
-	assert.Equal(t, version.AgentPackageVersion, state.Stable)
-
-	// The placeholder directory Create moves in must not accumulate one temporary directory per
-	// run: the packages root holds the package and nothing else.
-	entries, err := os.ReadDir(layout.packagesRoot)
-	require.NoError(t, err)
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	assert.Equal(t, []string{agentPackage}, names)
-}
-
-// TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone pins the guard that keeps this
-// safe to call from postinst unconditionally. Repository.Create removes whatever it finds before
-// writing, so without the guard a .pkg wrapped in an OCI package -- whose postinstall script is the
-// same one the .dmg runs -- would discard the package doInstall had just registered.
-//
-// The version registered here deliberately differs from the one this build would register, which
-// is the case a version comparison alone would get wrong: what makes an entry replaceable is that
-// it is an empty placeholder, not that its version has fallen behind.
-func TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone(t *testing.T) {
-	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-
-	// Stand in for the package a real OCI install would have registered before this runs.
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
-	require.NoError(t, os.MkdirAll(layout.packagesRoot, 0755))
-	source, err := repositories.MkdirTemp()
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(source, "payload"), []byte("real package"), 0644))
-	require.NoError(t, repositories.Create(ctx, agentPackage, "1.2.3-real", source))
-
-	require.NoError(t, registerPackageRepository(ctx, layout))
-
-	state, err := repositories.GetState(agentPackage)
-	require.NoError(t, err)
-	assert.Equal(t, "1.2.3-real", state.Stable, "an already registered package must not be replaced by the placeholder")
-	payload, err := os.ReadFile(filepath.Join(layout.packagesRoot, agentPackage, "stable", "payload"))
-	require.NoError(t, err, "the registered package's content must survive")
-	assert.Equal(t, "real package", string(payload))
-}
-
-// TestRegisterPackageRepositoryMovesThePlaceholderForwardOnUpgrade covers the .dmg upgrade: the
-// installed Agent is replaced in the install root, but the placeholder entry is not versioned
-// alongside it. Left behind, it keeps naming the version the host was first installed with, and
-// Fleet Automation reads it as the host's stable version and compares it against the newer Agent
-// the daemon reports -- so every deployment to an upgraded host fails until the entry catches up.
-func TestRegisterPackageRepositoryMovesThePlaceholderForwardOnUpgrade(t *testing.T) {
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-
-	withVersions(t, "7.98.0-devel.git.1.0ldc0de", "7.98.0-devel+git.1.0ldc0de")
-	require.NoError(t, registerPackageRepository(ctx, layout))
-
-	// The .dmg that replaces the Agent runs postinst, and so this hook, from the new build.
-	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
-	require.NoError(t, registerPackageRepository(ctx, layout))
-
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
-	state, err := repositories.GetState(agentPackage)
-	require.NoError(t, err)
-	assert.Equal(t, "7.99.0-devel.git.1.deadbee", state.Stable,
-		"the entry must name the Agent the .dmg installed, not the one it replaced")
-
-	// Re-registering must not leave the superseded version directory behind next to the new one.
-	entries, err := os.ReadDir(filepath.Join(layout.packagesRoot, agentPackage))
-	require.NoError(t, err)
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	assert.ElementsMatch(t, []string{"7.99.0-devel.git.1.deadbee", "stable", "experiment"}, names)
-}
-
-// TestInstallWrappedPackageRejectsAnUnusablePayload covers the payload selection installWrappedPackage
-// does before shelling out to installer(8).
-//
-// It is the only automated coverage this function has: macOS is delivered as a .dmg and the product
-// manages configuration rather than Agent versions, so no CI job publishes a macOS OCI artifact and
-// no e2e test installs one. The function is staged for the Fleet-upgrade work, which is when the
-// success path -- running installer(8) against the .pkg, which cannot be faked here -- becomes
-// reachable. Until then the branches worth pinning are the two that must fail loudly rather than
-// silently do nothing, since a no-op would look like a successful install of nothing at all.
-func TestInstallWrappedPackageRejectsAnUnusablePayload(t *testing.T) {
-	t.Run("no .pkg in the package directory", func(t *testing.T) {
-		ctx := testHookContext(t)
-		ctx.PackagePath = t.TempDir()
-
-		err := installWrappedPackage(ctx)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no .pkg found in")
-	})
-
-	t.Run("more than one .pkg in the package directory", func(t *testing.T) {
-		ctx := testHookContext(t)
-		ctx.PackagePath = t.TempDir()
-		for _, name := range []string{"datadog-agent.pkg", "leftover.pkg"} {
-			require.NoError(t, os.WriteFile(filepath.Join(ctx.PackagePath, name), nil, 0644))
+	client := launchd.NewClient(launchd.System)
+	enabled := false
+	loaded := false
+	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		switch args[0] {
+		case "print":
+			return []byte(notLoadedOutput), exitError(113)
+		case "enable":
+			enabled = true
+		case "bootstrap":
+			if !enabled {
+				return nil, errors.New("service is disabled")
+			}
+			loaded = true
+		case "kickstart":
+			return nil, errors.New("kickstart must not be called: bootstrap starts the job")
 		}
-
-		err := installWrappedPackage(ctx)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "multiple .pkg found in")
-	})
-}
-
-// TestVersionExperimentsAreRefused pins that a version experiment fails on macOS instead of being
-// reported as done: the installer runs these hooks before it touches the package repository.
-func TestVersionExperimentsAreRefused(t *testing.T) {
-	for _, name := range []string{"preStartExperiment", "prePromoteExperiment"} {
-		t.Run(name, func(t *testing.T) {
-			hook := getHook(agentPackage, name)
-			require.NotNil(t, hook, "the Agent package must register %s on macOS", name)
-
-			err := hook(testHookContext(t))
-
-			require.ErrorIs(t, err, errVersionExperimentNotSupported)
-		})
+		return nil, nil
 	}
+
+	require.NoError(t, loadStableJob(context.Background(), client, "com.datadoghq.agent"))
+	assert.True(t, loaded)
 }
 
-func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
+func testHookContext(t *testing.T) HookContext {
+	t.Helper()
+	return HookContext{Context: context.Background(), Package: agentPackage, PackageType: PackageTypeOCI}
+}
+
+// TestStableJobsAreTheAgentsOwn pins the job set the install loads: the Agent's own daemons, the
+// process manager first and the installer daemon last, with the core Agent as the main job.
+func TestStableJobsAreTheAgentsOwn(t *testing.T) {
+	assert.Equal(t, []string{
+		"com.datadoghq.procmgr",
+		"com.datadoghq.agent",
+		"com.datadoghq.sysprobe",
+		"com.datadoghq.data-plane",
+		"com.datadoghq.installer",
+	}, agentLaunchdJobs.LaunchdJobsStable)
+	assert.Equal(t, "com.datadoghq.agent", agentLaunchdJobs.LaunchdMainJobStable)
+	assert.Contains(t, agentLaunchdJobs.LaunchdJobsStable, agentLaunchdJobs.LaunchdMainJobStable)
+}
+
+func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
+	dir := stubJobDir(t)
 
 	require.NoError(t, installStableJobs(testHookContext(t)))
 
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
 		content, err := os.ReadFile(path)
 		require.NoError(t, err, "job definition %s was not written", label)
 		assert.Contains(t, string(content), "<string>"+label+"</string>")
-	}
-
-	// The experiment set is not loaded on install: an experiment is started by the backend.
-	for _, args := range *calls {
-		for _, arg := range args {
-			assert.NotContains(t, arg, "-exp", "install loaded an experiment job: %v", args)
-		}
 	}
 
 	// Every job is enabled as well as bootstrapped: a disabled override survives bootout and a
@@ -341,39 +227,26 @@ func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
 			enabled = append(enabled, args[1])
 		}
 	}
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.Contains(t, enabled, "system/"+label)
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")})
 	}
+	// Bootstrapping starts the jobs, which all set RunAtLoad; kickstart could block on one launchd
+	// cannot spawn.
+	for _, args := range *calls {
+		assert.NotEqual(t, "kickstart", args[0], "a job was kickstarted")
+	}
+
+	// Only the stable set is touched.
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, len(agentLaunchdJobs.LaunchdJobsStable))
 }
 
-// stubInstallerBinary points PATH at a fake installer(8) that records its invocation instead of
-// actually running Apple's installer. Returns the path calls are recorded to.
-func stubInstallerBinary(t *testing.T) string {
-	t.Helper()
-
-	bin := t.TempDir()
-	callsFile := filepath.Join(t.TempDir(), "calls")
-	script := "#!/bin/sh\necho \"$@\" >> " + callsFile + "\n"
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "installer"), []byte(script), 0755))
-
-	originalPath := os.Getenv("PATH")
-	require.NoError(t, os.Setenv("PATH", bin+":"+originalPath))
-	t.Cleanup(func() { os.Setenv("PATH", originalPath) })
-
-	return callsFile
-}
-
-// TestInstallWrappedPackageRunsTheSinglePkgPayload is the macOS analogue of
-// msi.WithMsiFromPackagePath: an OCI-delivered package wraps a .pkg rather than raw binaries, and
-// running it is the whole job of the OCI branch -- registerPackageRepository has nothing to do
-// since Create() already registered the version before this hook ran.
 func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	calls := stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-	failing := stableJobs[0]
+	stubJobDir(t)
+	failing := agentLaunchdJobs.LaunchdJobsStable[0]
 	stub := launchdClient
 	launchdClient = func() *launchd.Client {
 		client := stub()
@@ -387,130 +260,91 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 		return client
 	}
 
+	dir := launchdJobDir
 	err := installStableJobs(testHookContext(t))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
-	for _, label := range stableJobs[1:] {
-		assert.Contains(t, *calls, []string{"kickstart", "system/" + label}, "%s was not started", label)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable[1:] {
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
 	}
 }
 
-func TestInstallWrappedPackageRunsTheSinglePkgPayload(t *testing.T) {
-	calls := stubInstallerBinary(t)
-	packagePath := t.TempDir()
-	pkgPath := filepath.Join(packagePath, "datadog-agent-7.99.0.pkg")
-	require.NoError(t, os.WriteFile(pkgPath, []byte("fake pkg"), 0644))
-
-	ctx := testHookContext(t)
-	ctx.PackagePath = packagePath
-
-	require.NoError(t, installWrappedPackage(ctx))
-
-	content, err := os.ReadFile(calls)
-	require.NoError(t, err)
-	assert.Equal(t, "-pkg "+pkgPath+" -target /\n", string(content))
-}
-
-func TestInstallWrappedPackageFailsWithoutAPkg(t *testing.T) {
-	ctx := testHookContext(t)
-	ctx.PackagePath = t.TempDir()
-
-	assert.Error(t, installWrappedPackage(ctx))
-}
-
-func TestInstallWrappedPackageFailsWithMultiplePkgs(t *testing.T) {
-	packagePath := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "a.pkg"), []byte("a"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "b.pkg"), []byte("b"), 0644))
-
-	ctx := testHookContext(t)
-	ctx.PackagePath = packagePath
-
-	assert.Error(t, installWrappedPackage(ctx))
-}
-
-// TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage covers the branch itself: Create()
-// has already registered the version by the time an OCI hook runs, so postInstall must not run the
-// filesystem/registration/launchd steps a real .dmg's postinst performs on its own -- it only runs
-// the wrapped .pkg.
-func TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage(t *testing.T) {
-	stubInstallerBinary(t)
-	packagePath := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "datadog-agent.pkg"), []byte("fake pkg"), 0644))
-
-	ctx := testHookContext(t)
-	ctx.PackagePath = packagePath
-
-	require.NoError(t, postInstallDatadogAgent(ctx))
-}
-
-// TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem covers what
-// `installer postinst datadog-agent dmg` does for the .dmg's postinstall script: it registers the
-// package and loads the stable jobs, but leaves the install root to the script.
-func TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem(t *testing.T) {
+// TestPostInstallDMGLoadsTheStableSet covers what `installer postinst datadog-agent dmg` does for
+// the .dmg's postinstall script: it runs through RunHook, as the command does, and loads the stable
+// jobs.
+func TestPostInstallDMGLoadsTheStableSet(t *testing.T) {
 	stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-	layout := testLayout(t)
+	dir := stubJobDir(t)
+	stubInstallerState(t)
 	ctx := testHookContext(t)
+	ctx.Hook = "postInstall"
 	ctx.PackageType = PackageTypeDMG
 
-	require.NoError(t, postInstallDMG(ctx, layout))
+	require.NoError(t, RunHook(ctx))
 
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
-	state, err := repositories.GetState(agentPackage)
-	require.NoError(t, err)
-	assert.True(t, state.HasStable(), "the package was not registered")
-	for _, label := range stableJobs {
-		assert.FileExists(t, filepath.Join(dir, label+".plist"))
-	}
-	assert.NoDirExists(t, layout.installRoot, "the install root is the .dmg script's to set up")
-}
-
-// TestPostInstallDMGLoadsTheJobsWhenRegistrationFails pins that a failed registration, which only
-// costs configuration experiments, does not also leave the Agent stopped.
-func TestPostInstallDMGLoadsTheJobsWhenRegistrationFails(t *testing.T) {
-	stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-	layout := testLayout(t)
-	// A file where the packages root should be makes the registration fail.
-	require.NoError(t, os.MkdirAll(filepath.Dir(layout.packagesRoot), 0755))
-	require.NoError(t, os.WriteFile(layout.packagesRoot, nil, 0644))
-	ctx := testHookContext(t)
-	ctx.PackageType = PackageTypeDMG
-
-	require.Error(t, postInstallDMG(ctx, layout))
-
-	for _, label := range stableJobs {
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.FileExists(t, filepath.Join(dir, label+".plist"))
 	}
 }
 
 func TestPostInstallDatadogAgentRejectsOtherPackageTypes(t *testing.T) {
-	for _, packageType := range []PackageType{PackageTypeDEB, PackageTypeRPM, PackageTypeMSI} {
+	for _, packageType := range []PackageType{PackageTypeOCI, PackageTypeDEB, PackageTypeRPM, PackageTypeMSI} {
+		calls := stubLaunchd(t)
 		ctx := testHookContext(t)
 		ctx.PackageType = packageType
 
 		assert.Error(t, postInstallDatadogAgent(ctx), "package type %s", packageType)
+		assert.Empty(t, *calls, "package type %s reached launchd", packageType)
 	}
 }
 
-func TestPreRemoveStopsBothJobSets(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-
+// TestPostInstallDMGIsIdempotent pins that the post-install can run twice: the second run leaves
+// the same job definitions.
+func TestPostInstallDMGIsIdempotent(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubInstallerState(t)
 	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx))
+	first := map[string][]byte{}
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		first[label] = content
+	}
+	require.NoError(t, postInstallDMG(ctx))
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		content, err := os.ReadFile(filepath.Join(dir, label+".plist"))
+		require.NoError(t, err)
+		assert.Equal(t, first[label], content)
+	}
+}
+
+// TestDatadogAgentPackageHasPreRemove guards the .dmg preinstall handoff: `is-prerm-supported`
+// answers yes for every installer, and RunHook silently succeeds for a hook the package doesn't
+// define, so a release without this hook would let the next .dmg skip the teardown unnoticed.
+func TestDatadogAgentPackageHasPreRemove(t *testing.T) {
+	assert.NotNil(t, getHook(agentPackage, "preRemove"))
+}
+
+// TestPreRemoveUnloadsTheStableSet covers what `installer prerm --upgrade datadog-agent dmg` does
+// for the .dmg's preinstall script: it runs through RunHook, as the command does, unloads every
+// stable job in the reverse of the order they are loaded in, and removes their definitions.
+func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	ctx := testHookContext(t)
+	ctx.Hook = "preRemove"
+	ctx.PackageType = PackageTypeDMG
 	ctx.Upgrade = true
-	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	require.NoError(t, RunHook(ctx))
 
 	var bootedOut []string
 	for _, args := range *calls {
@@ -518,11 +352,459 @@ func TestPreRemoveStopsBothJobSets(t *testing.T) {
 			bootedOut = append(bootedOut, args[1])
 		}
 	}
-	for _, label := range append(append([]string{}, experimentJobs...), stableJobs...) {
-		assert.Contains(t, bootedOut, "system/"+label)
+	var expected []string
+	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
+		expected = append(expected, "system/"+label)
+	}
+	assert.Equal(t, expected, bootedOut)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+// stubFailingBootout makes the bootout of label fail, with the job still loaded.
+func stubFailingBootout(t *testing.T, label string) {
+	t.Helper()
+
+	stub := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := stub()
+		record := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if len(args) == 2 && args[1] == "system/"+label {
+				switch args[0] {
+				case "bootout":
+					return nil, errors.New("operation now in progress")
+				case "print":
+					return []byte("state = running"), nil
+				}
+			}
+			return record(ctx, name, args...)
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = stub })
+}
+
+// TestPreRemoveKeepsTheDefinitionWhenBootoutFails pins that a job that can't be unloaded keeps its
+// definition, as in loadStableJob, and doesn't stop the rest of the set from being torn down. On an
+// upgrade nothing is reported: the next version's postinstall reloads the jobs.
+func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	failing := agentLaunchdJobs.LaunchdJobsStable[1]
+	stubFailingBootout(t, failing)
+	ctx := testHookContext(t)
+	ctx.Upgrade = true
+
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		path := filepath.Join(dir, label+".plist")
+		if label == failing {
+			assert.FileExists(t, path)
+		} else {
+			assert.NoFileExists(t, path)
+		}
+	}
+}
+
+// TestPreRemoveReportsAFailedBootoutOnUninstall pins that an uninstall still removes the install
+// when a job can't be unloaded, and reports that job, so cmd/agent/macos/uninstall_mac_os.sh runs
+// its own removal for what is left rather than reporting a complete uninstall.
+func TestPreRemoveReportsAFailedBootoutOnUninstall(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	failing := agentLaunchdJobs.LaunchdJobsStable[1]
+	stubFailingBootout(t, failing)
+	installRoot := filepath.Join(t.TempDir(), "datadog-agent")
+	require.NoError(t, os.MkdirAll(installRoot, 0o755))
+	defaultUninstallLayout = uninstallLayout{paths: []string{installRoot}}
+
+	err := preRemoveDatadogAgent(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), failing)
+	assert.NoDirExists(t, installRoot, "the rest of the install must still be removed")
+	assert.FileExists(t, filepath.Join(dir, failing+".plist"), "the job that could not be unloaded keeps its definition")
+}
+
+// TestPreRemoveIsIdempotent pins that the pre-remove succeeds on a host with nothing installed, and
+// behaves the same whatever the package type and whether it is an upgrade.
+func TestPreRemoveIsIdempotent(t *testing.T) {
+	for _, packageType := range []PackageType{PackageTypeDMG, PackageTypeOCI} {
+		for _, upgrade := range []bool{true, false} {
+			calls := stubLaunchd(t)
+			dir := stubJobDir(t)
+			ctx := testHookContext(t)
+			ctx.PackageType = packageType
+			ctx.Upgrade = upgrade
+
+			require.NoError(t, preRemoveDatadogAgent(ctx), "package type %s, upgrade %t", packageType, upgrade)
+
+			for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+				assert.Contains(t, *calls, []string{"bootout", "system/" + label}, "package type %s, upgrade %t", packageType, upgrade)
+			}
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			assert.Empty(t, entries)
+		}
+	}
+}
+
+// TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails pins that when a loaded job can't be
+// unloaded, its file stays as it was and the job fails: launchd still runs it from its old, cached
+// definition, so the file must not claim otherwise, and the install must report the failure.
+func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	label := agentLaunchdJobs.LaunchdJobsStable[0]
+	path := filepath.Join(dir, label+".plist")
+	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
+	stub := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := stub()
+		record := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if args[0] == "bootout" {
+				return nil, errors.New("operation now in progress")
+			}
+			if args[0] == "print" {
+				return []byte("state = running"), nil
+			}
+			return record(ctx, name, args...)
+		}
+		return client
 	}
 
-	// The experiment set goes first: a leftover -exp job would otherwise keep running against a
-	// configuration that is about to be removed.
-	assert.Equal(t, "system/"+experimentJobs[0], bootedOut[0])
+	err := loadStableJob(context.Background(), launchdClient(), label)
+
+	require.Error(t, err)
+	content, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "old definition", string(content))
+	for _, call := range *calls {
+		assert.NotContains(t, []string{"enable", "bootstrap", "kickstart"}, call[0], "%s ran after a failed bootout", call[0])
+	}
+}
+
+// TestPostInstallDMGCreatesTheInstallerStateFirst pins that the installer's root-owned directories
+// are created before any job is loaded, so the installer daemon never starts without them.
+func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubInstallerState(t)
+	var callsWhenEnsured int
+	ensured := false
+	ensureInstallerDataDir = func() error {
+		ensured = true
+		callsWhenEnsured = len(*calls)
+		return nil
+	}
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx))
+
+	assert.True(t, ensured)
+	assert.Zero(t, callsWhenEnsured, "a job was loaded before the installer's directories existed")
+}
+
+// TestPostInstallDMGLoadsTheJobsWhenSetupFails pins that neither the installer's directories nor
+// the package registration can leave the Agent stopped: their failures are reported, and every job
+// is loaded all the same.
+func TestPostInstallDMGLoadsTheJobsWhenSetupFails(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	root := stubInstallerState(t)
+	ensureInstallerDataDir = func() error { return errors.New("refusing to use /opt/datadog-packages/run") }
+	// A file where the packages root should be makes the registration fail.
+	require.NoError(t, os.WriteFile(root, nil, 0o644))
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	err := postInstallDMG(ctx)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to use")
+	assert.Contains(t, err.Error(), "failed to create")
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+	}
+}
+
+// TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount pins that the post-install does not
+// load jobs launchd cannot start: without the Agent's account it reports the failure, which fails
+// the install, and still registers the package.
+func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	root := stubInstallerState(t)
+	agentUserExists = func() bool { return false }
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	err := postInstallDMG(ctx)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "_dd-agent does not exist")
+	assert.Empty(t, *calls, "launchd was called without the Agent's account")
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+	}
+	assert.DirExists(t, root)
+}
+
+// entryNames lists the names in dir, sorted.
+func entryNames(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names
+}
+
+// TestLinkPackageEntryLinksTheInstallRoot pins the layout the deb and rpm packages ship on Linux:
+// a version link to the install root outside the repository, stable to it and experiment to
+// stable. The state the installer reports must name the Agent actually installed, under the
+// version the daemon reports as running: Fleet Automation compares the two, hence the two forms of
+// the same version here, differing only where AgentVersion uses '+'.
+func TestLinkPackageEntryLinksTheInstallRoot(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	root := stubInstallerState(t)
+	installDir := defaultDmgLayout.installDir
+
+	require.NoError(t, linkPackageEntry(testHookContext(t), installDir))
+
+	versionLink := filepath.Join(root, "run", agentPackage, version.AgentPackageVersion)
+	for link, target := range map[string]string{
+		versionLink: installDir,
+		filepath.Join(root, agentPackage, "stable"):     versionLink,
+		filepath.Join(root, agentPackage, "experiment"): filepath.Join(root, agentPackage, "stable"),
+	} {
+		got, err := os.Readlink(link)
+		require.NoError(t, err, link)
+		assert.Equal(t, target, got, link)
+	}
+	assert.DirExists(t, filepath.Join(root, agentPackage, "stable", "etc"), "stable must resolve to the install root")
+
+	state, err := repository.NewRepositories(root, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentPackageVersion, state.Stable)
+	assert.NotEqual(t, version.AgentVersion, state.Stable,
+		"the entry must name the version the daemon reports, not the human-facing one")
+	assert.Empty(t, state.Experiment, "a fresh install must not look like it has a version experiment")
+}
+
+// TestLinkPackageEntryFallsBackToAgentVersion covers a build that did not go through omnibus, which
+// is the only thing that stamps AgentPackageVersion: the entry still needs a version to be named
+// after.
+func TestLinkPackageEntryFallsBackToAgentVersion(t *testing.T) {
+	withVersions(t, "", "7.99.0-devel+git.1.deadbee")
+	root := stubInstallerState(t)
+
+	require.NoError(t, linkPackageEntry(testHookContext(t), defaultDmgLayout.installDir))
+
+	state, err := repository.NewRepositories(root, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentVersion, state.Stable)
+}
+
+// TestLinkPackageEntryIsIdempotent is the property every hook here needs: the .dmg runs postInstall
+// on a first install, on every upgrade, and again on a host already in this state.
+func TestLinkPackageEntryIsIdempotent(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	root := stubInstallerState(t)
+	ctx := testHookContext(t)
+
+	require.NoError(t, linkPackageEntry(ctx, defaultDmgLayout.installDir))
+	require.NoError(t, linkPackageEntry(ctx, defaultDmgLayout.installDir))
+
+	assert.Equal(t, []string{agentPackage, "run"}, entryNames(t, root))
+	assert.Equal(t, []string{"experiment", "stable"}, entryNames(t, filepath.Join(root, agentPackage)))
+	assert.Equal(t, []string{version.AgentPackageVersion}, entryNames(t, filepath.Join(root, "run", agentPackage)))
+}
+
+// TestLinkPackageEntryMovesForwardOnUpgrade covers the .dmg upgrade: the Agent is replaced in the
+// install root, and the entry has to name the new version, without the previous version's link.
+func TestLinkPackageEntryMovesForwardOnUpgrade(t *testing.T) {
+	root := stubInstallerState(t)
+	ctx := testHookContext(t)
+
+	withVersions(t, "7.98.0-devel.git.1.0ldc0de", "7.98.0-devel+git.1.0ldc0de")
+	require.NoError(t, linkPackageEntry(ctx, defaultDmgLayout.installDir))
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	require.NoError(t, linkPackageEntry(ctx, defaultDmgLayout.installDir))
+
+	state, err := repository.NewRepositories(root, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, "7.99.0-devel.git.1.deadbee", state.Stable)
+	assert.Equal(t, []string{"7.99.0-devel.git.1.deadbee"}, entryNames(t, filepath.Join(root, "run", agentPackage)))
+}
+
+// TestLinkPackageEntryReplacesAnEarlierPlaceholder covers an upgrade from a build that registered
+// the Agent as an empty placeholder directory: stable moves to the version link, and the placeholder
+// goes. An unexpected directory with content is left in place.
+func TestLinkPackageEntryReplacesAnEarlierPlaceholder(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	root := stubInstallerState(t)
+	repoDir := filepath.Join(root, agentPackage)
+	placeholder := filepath.Join(repoDir, "7.98.0-devel.git.1.0ldc0de")
+	require.NoError(t, os.MkdirAll(placeholder, 0755))
+	require.NoError(t, os.Symlink(placeholder, filepath.Join(repoDir, "stable")))
+	require.NoError(t, os.Symlink(filepath.Join(repoDir, "stable"), filepath.Join(repoDir, "experiment")))
+	unexpected := filepath.Join(repoDir, "unexpected")
+	require.NoError(t, os.MkdirAll(unexpected, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unexpected, "f"), nil, 0644))
+
+	require.NoError(t, linkPackageEntry(testHookContext(t), defaultDmgLayout.installDir))
+
+	assert.NoDirExists(t, placeholder)
+	assert.DirExists(t, unexpected)
+	state, err := repository.NewRepositories(root, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentPackageVersion, state.Stable)
+}
+
+// TestLinkPackageEntryLeavesARealPackageAlone pins the guard that keeps this safe to call from
+// postinst unconditionally: a real package registered at stable, as an OCI install registers one,
+// is not replaced.
+func TestLinkPackageEntryLeavesARealPackageAlone(t *testing.T) {
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	root := stubInstallerState(t)
+	ctx := testHookContext(t)
+
+	repositories := repository.NewRepositories(root, AsyncPreRemoveHooks)
+	require.NoError(t, os.MkdirAll(root, 0755))
+	source, err := repositories.MkdirTemp()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(source, "payload"), []byte("real package"), 0644))
+	require.NoError(t, repositories.Create(ctx, agentPackage, "1.2.3-real", source))
+
+	require.NoError(t, linkPackageEntry(ctx, defaultDmgLayout.installDir))
+
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3-real", state.Stable, "an already registered package must not be replaced")
+	payload, err := os.ReadFile(filepath.Join(root, agentPackage, "stable", "payload"))
+	require.NoError(t, err)
+	assert.Equal(t, "real package", string(payload))
+}
+
+// TestGarbageCollectionKeepsTheInstallRoot pins that the repository's garbage collection, which the
+// daemon runs on a timer, never reaches the install root through the entry.
+func TestGarbageCollectionKeepsTheInstallRoot(t *testing.T) {
+	root := stubInstallerState(t)
+	ctx := testHookContext(t)
+	installDir := defaultDmgLayout.installDir
+
+	withVersions(t, "7.98.0-devel.git.1.0ldc0de", "7.98.0-devel+git.1.0ldc0de")
+	require.NoError(t, linkPackageEntry(ctx, installDir))
+	withVersions(t, "7.99.0-devel.git.1.deadbee", "7.99.0-devel+git.1.deadbee")
+	require.NoError(t, linkPackageEntry(ctx, installDir))
+
+	require.NoError(t, repository.NewRepositories(root, AsyncPreRemoveHooks).Cleanup(ctx))
+
+	assert.DirExists(t, filepath.Join(installDir, "etc"))
+	state, err := repository.NewRepositories(root, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, "7.99.0-devel.git.1.deadbee", state.Stable)
+}
+
+// TestUninstallRemovesTheInstall pins what a real uninstall removes besides the LaunchDaemons: the
+// GUI for every logged-in user, its processes, and every path in the layout, links included, as
+// cmd/agent/macos/uninstall_mac_os.sh does for versions without the installer.
+func TestUninstallRemovesTheInstall(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	commands := stubUninstall(t)
+	current, err := user.Current()
+	require.NoError(t, err)
+	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		*commands = append(*commands, append([]string{name}, args...))
+		if name == "who" {
+			return []byte(current.Username + " console  Nov  4 09:00\n" + current.Username + " ttys000  Nov  4 09:01\n"), nil
+		}
+		return nil, nil
+	}
+
+	root := t.TempDir()
+	installRoot := filepath.Join(root, "opt", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Join(installRoot, "embedded", "bin"), 0o755))
+	app := filepath.Join(root, "Applications", "Datadog Agent.app")
+	require.NoError(t, os.MkdirAll(app, 0o755))
+	agentPlist := filepath.Join(root, "LaunchAgents", "com.datadoghq.gui.plist")
+	require.NoError(t, os.MkdirAll(filepath.Dir(agentPlist), 0o755))
+	require.NoError(t, os.WriteFile(agentPlist, nil, 0o644))
+	link := filepath.Join(root, "bin", "datadog-agent")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(installRoot, link))
+	outside := filepath.Join(root, "outside")
+	require.NoError(t, os.WriteFile(outside, []byte("kept"), 0o644))
+	defaultUninstallLayout = uninstallLayout{
+		guiLabels:       []string{"com.datadoghq.gui"},
+		processPatterns: []string{"Datadog Agent.app"},
+		paths:           []string{agentPlist, app, link, filepath.Join(root, "missing"), installRoot},
+	}
+
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	for _, path := range []string{agentPlist, app, link, installRoot} {
+		_, err := os.Lstat(path)
+		assert.True(t, os.IsNotExist(err), "%s was not removed", path)
+	}
+	assert.FileExists(t, outside, "a path outside the layout was removed")
+	assert.Contains(t, *commands, []string{"launchctl", "bootout", "gui/" + current.Uid + "/com.datadoghq.gui"})
+	assert.Contains(t, *commands, []string{"pkill", "-f", "Datadog Agent.app"})
+	bootouts := 0
+	for _, command := range *commands {
+		if command[0] == "launchctl" {
+			bootouts++
+		}
+	}
+	assert.Equal(t, 1, bootouts, "a user logged in twice must be handled once")
+}
+
+// TestUpgradeLeavesTheInstall pins that the pre-remove an upgrade runs only takes down the
+// LaunchDaemons: the next version's payload replaces the rest in place.
+func TestUpgradeLeavesTheInstall(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	commands := stubUninstall(t)
+	installRoot := filepath.Join(t.TempDir(), "datadog-agent")
+	require.NoError(t, os.MkdirAll(installRoot, 0o755))
+	defaultUninstallLayout = uninstallLayout{
+		guiLabels:       []string{"com.datadoghq.gui"},
+		processPatterns: []string{"Datadog Agent.app"},
+		paths:           []string{installRoot},
+	}
+
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	ctx.Upgrade = true
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	assert.DirExists(t, installRoot)
+	assert.Empty(t, *commands)
+}
+
+// TestTheUninstallLayoutMatchesTheInstall pins the default layout against the install: the install
+// root goes last, since the installer running the uninstall lives in it.
+func TestTheUninstallLayoutMatchesTheInstall(t *testing.T) {
+	require.NotEmpty(t, defaultUninstallLayout.paths)
+	assert.Equal(t, "/opt/datadog-agent", defaultUninstallLayout.paths[len(defaultUninstallLayout.paths)-1])
+	assert.Contains(t, defaultUninstallLayout.paths, "/opt/datadog-packages")
+	assert.Contains(t, defaultUninstallLayout.paths, "/Applications/Datadog Agent.app")
+	assert.Contains(t, defaultUninstallLayout.paths, "/usr/local/bin/datadog-installer")
 }

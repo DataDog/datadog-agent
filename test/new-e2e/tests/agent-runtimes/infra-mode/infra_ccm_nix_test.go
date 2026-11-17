@@ -69,31 +69,22 @@ func TestCCMModeLinux(t *testing.T) {
 // the agent's host-tags payload when running in cloud_cost_only infrastructure mode.
 func (s *ccmModeLinuxSuite) TestHostTags() {
 	fakeintake := s.Env().FakeIntake.Client()
+	hostname := s.Env().Agent.Client.Hostname()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		hosts, err := fakeintake.GetHosts()
-		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+		payloads, err := fakeintake.GetHostTags(hostname)
+		if !assert.NoError(c, err, "failed to fetch host-tags for %s", hostname) {
 			return
 		}
-		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+		if !assert.NotEmpty(c, payloads, "no host-tags payloads for %s", hostname) {
 			return
 		}
 
-		for _, host := range hosts {
-			payloads, err := fakeintake.GetHostTags(host)
-			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
-				continue
-			}
-			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
-				continue
-			}
+		// Latest payload: host_tags are eventually consistent.
+		tags := payloads[len(payloads)-1].HostTags
 
-			// Latest payload: host_tags are eventually consistent.
-			tags := payloads[len(payloads)-1].HostTags
-
-			assert.Contains(c, tags, infrastructureModeTag,
-				"expected infra_mode marker on host %s; got %v", host, tags)
-		}
+		assert.Contains(c, tags, infrastructureModeTag,
+			"expected infra_mode marker on host %s; got %v", hostname, tags)
 	}, 5*time.Minute, 15*time.Second, "cloud_cost_only host tags did not appear in fakeintake host-tags payload")
 }
 

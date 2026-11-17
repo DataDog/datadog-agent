@@ -1,0 +1,13 @@
+description: jq escapes DEL in JSON while preserving literal raw string output.
+input:
+  script: |+
+    jq -nc '"\u007f"'
+    jq -nrc '{"\u007f":"\u007f"}'
+    jq -nr '"\u007f"' | jq -R 'length'
+expect:
+  stdout: |+
+    "\u007f"
+    {"\u007f":"\u007f"}
+    1
+  stderr: |+
+  exit_code: 0

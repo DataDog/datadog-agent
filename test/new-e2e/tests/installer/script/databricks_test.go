@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	databricksAgentVersion          = "7.84.1-1"
+	databricksAgentVersion          = "7.84.6-1"
 	databricksApmInjectVersion      = "0.71.2"
-	databricksApmLibraryJavaVersion = "1.67.0"
+	databricksApmLibraryJavaVersion = "1.68.1"
 )
 
 type installScriptDatabricksSuite struct {

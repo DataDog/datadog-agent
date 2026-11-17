@@ -59,10 +59,15 @@ type MetricView interface {
 // LogView provides read-only access to a log message.
 //
 // This interface exists to prevent data races. Implementations must not store
-// the LogView itself. Copy any needed values synchronously.
+// the LogView itself. Snapshot needed values synchronously; Tags may be retained.
 type LogView interface {
+	// GetSource returns the original log source (for example "containerd",
+	// "nginx", "kubelet", or "datadog-agent") used by log processing rules.
+	// This is distinct from the observer handle namespace (such as "logs").
+	GetSource() string
 	GetContent() string
 	GetStatus() string
+	// Tags returns tags that remain immutable and valid after ObserveLog returns.
 	Tags() []string
 	GetHostname() string
 	// GetTimestampUnixMilli returns the agent ingestion timestamp in Unix milliseconds.
@@ -253,6 +258,7 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
+	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -267,6 +273,23 @@ type Anomaly struct {
 	SamplingIntervalSec int64
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
+	// LevelChange carries before/after levels of a detected change. Internal
+	// detection evidence, not a reporter payload.
+	LevelChange *LevelChangeEvidence `json:"-"`
+}
+
+func (a Anomaly) DetectorAlgorithm() string {
+	names := strings.Split(a.DetectorName, ":")
+	return names[len(names)-1]
+}
+
+// LevelChangeEvidence holds the two levels of a detected change, in source
+// series units. Scan detectors set both to the medians around their split.
+type LevelChangeEvidence struct {
+	// BeforeMedian is the level of the pre-change segment.
+	BeforeMedian float64
+	// AfterMedian is the level of the post-change segment.
+	AfterMedian float64
 }
 
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
@@ -515,10 +538,12 @@ const AgentNamespace = "agent"
 
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
-	Namespace   string            // exact match (empty = any)
-	Host        string            // exact match (empty = any)
-	NamePattern string            // prefix match (empty = any)
-	TagMatchers map[string]string // required tag key=value pairs
+	MetricType  *metrics.MetricType // nil means any input type
+	MetricKind  *MetricKind         // nil means any inferred kind, including UNSET
+	Namespace   string              // exact match (empty = any)
+	Host        string              // exact match (empty = any)
+	NamePattern string              // prefix match (empty = any)
+	TagMatchers map[string]string   // required tag key=value pairs
 	// ExcludeNamespaces skips series whose namespace is in this list. It is only
 	// applied when Namespace is empty (list-all mode). An explicit Namespace match
 	// ignores ExcludeNamespaces so callers can still list internal series when needed.
@@ -536,11 +561,83 @@ func WorkloadSeriesFilter() SeriesFilter {
 type SeriesMeta struct {
 	// MetricType is the first known input type, shared by all points in the series.
 	MetricType metrics.MetricType
+	MetricKind MetricKind
 	Ref        SeriesRef
 	Namespace  string
 	Name       string
 	Host       string
 	Tags       tagset.CompositeTags
+}
+
+// MetricKind represents the inferred shape of a metric series.
+type MetricKind uint8
+
+const (
+	// UNSET indicates the series has not been classified yet (insufficient history).
+	UNSET MetricKind = iota
+	// UNKNOWN indicates the series has enough history, but no supported shape matches.
+	UNKNOWN
+	// STABLE indicates the series hovers around a constant level.
+	STABLE
+	// LINEAR indicates the series follows a sustained linear trend.
+	LINEAR
+)
+
+// String returns a lowercase label for the metric kind.
+func (k MetricKind) String() string {
+	switch k {
+	case UNSET:
+		return "unset"
+	case UNKNOWN:
+		return "unknown"
+	case STABLE:
+		return "stable"
+	case LINEAR:
+		return "linear"
+	default:
+		return "unknown"
+	}
+}
+
+// KindTransition describes a confirmed metric kind transition for a series.
+type KindTransition struct {
+	Ref  SeriesRef
+	From MetricKind
+	To   MetricKind
+}
+
+// MetricKindMatcherConfig configures the metric kind matcher window and transition confirmation threshold.
+type MetricKindMatcherConfig struct {
+	// MinPoints is the minimum number of visible points before classification runs.
+	MinPoints int
+	// MaxPoints bounds the history window used for classification.
+	MaxPoints int
+	// TransitionConfirmations is the number of consecutive fresh-data-backed
+	// predictions required to replace an already-assigned kind.
+	TransitionConfirmations int
+}
+
+// MetricKindMatcher evaluates series windows and manages transition confirmation state.
+// The caller owns the committed kind and applies returned transitions synchronously.
+// Matcher methods are called by a single owner, not concurrently.
+type MetricKindMatcher interface {
+	// Window returns the bounded history requirement for classification.
+	Window() DetectorPointWindow
+
+	// Classify evaluates the supplied window without updating per-series state.
+	// The caller supplies a complete, chronological, visible window.
+	Classify(points []Point) MetricKind
+
+	// Observe evaluates a chronological window of points up to dataTime against
+	// the series' current committed kind in storage, returning a confirmed transition
+	// when qualified. Points are borrowed and must not be retained by the matcher.
+	Observe(ref SeriesRef, currentKind MetricKind, points []Point, dataTime int64) (KindTransition, bool)
+
+	// RemoveSeries clears matcher state for evicted series.
+	RemoveSeries(refs []SeriesRef)
+
+	// Reset clears all matcher state.
+	Reset()
 }
 
 // Aggregate specifies which statistic to extract from summary stats.
@@ -626,8 +723,9 @@ type StorageReader interface {
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
-	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
-	// Uses binary search for efficiency. Returns 0 if the series is not found.
+	// PointCountUpTo returns the number of retained logical points with timestamp
+	// <= endTime, including completed implicit zero buckets for log counts.
+	// Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
 
 	// SumRange returns the sum of the specified aggregate over all points with
@@ -638,15 +736,23 @@ type StorageReader interface {
 	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
 
 	// WriteGeneration returns a per-series counter that increments on every
-	// write to that series, including same-bucket merges. Use this to detect
+	// write to that series, including same-bucket merges and completion of
+	// implicit zero buckets. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
 	WriteGeneration(handle SeriesRef) int64
 
-	// SeriesGeneration returns a global counter that increments only when the
-	// set of known series changes. Use this to cache ListSeries results and
-	// refresh them only when new series keys appear.
+	// SeriesGeneration changes when series are admitted/removed or filterable
+	// metadata changes (committed kind or unknown-to-known input type).
+	// Use it to cache filtered series lists. Ordinary point writes do not change it.
 	SeriesGeneration() uint64
+}
+
+// DetectionFilter is borrowed: never mutate or retain it; telemetry is excluded.
+type DetectionFilter struct {
+	MetricKind   *MetricKind         // nil: any kind; value/nil fixed across calls and resets
+	MetricType   *metrics.MetricType // nil: any type; value/nil fixed across calls and resets
+	Aggregations []Aggregate         // Valid unique values in order; empty selects Average then Count.
 }
 
 // Detector analyzes stored series for anomalies.
@@ -661,7 +767,8 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs. Each returned
 	// anomaly must identify its source series and aggregate with SourceRef.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
-	Detect(storage StorageReader, dataTime int64) DetectionResult
+	// Excluded state is neither advanced nor removed; empty filters preserve defaults.
+	Detect(storage StorageReader, dataTime int64, filter DetectionFilter) DetectionResult
 }
 
 // DetectorPointWindow bounds a detector's raw-observation history.

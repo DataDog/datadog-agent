@@ -24,10 +24,9 @@ static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
 #endif
 
-static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
-    conn_tuple_t normalized_tup = *tuple;
-    normalize_tuple(&normalized_tup);
-    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+// Like get_tls_enhanced_tags, for a tuple that is already normalized.
+static __always_inline tls_info_t* __get_tls_enhanced_tags(conn_tuple_t* normalized_tup) {
+    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, normalized_tup);
     if (!wrapper) {
         return NULL;
     }
@@ -35,16 +34,23 @@ static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
     return &wrapper->info;
 }
 
-static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
-    tls_info_t *tags = get_tls_enhanced_tags(tuple);
+static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_tls_enhanced_tags(&normalized_tup);
+}
+
+// Returns the TLS tags for an already-normalized tuple, creating an empty entry if there isn't one.
+// There's deliberately no wrapper that normalizes the tuple: it would be unused, which fails runtime compilation
+// against kernel headers whose `inline` doesn't imply __maybe_unused (e.g. CentOS 7's 3.10).
+static __always_inline tls_info_t* __get_or_create_tls_enhanced_tags(conn_tuple_t *normalized_tup) {
+    tls_info_t *tags = __get_tls_enhanced_tags(normalized_tup);
     if (!tags) {
-        conn_tuple_t normalized_tup = *tuple;
-        normalize_tuple(&normalized_tup);
         tls_info_wrapper_t empty_tags_wrapper = {};
         empty_tags_wrapper.updated = bpf_ktime_get_ns();
 
-        bpf_map_update_with_telemetry(tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
-        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        bpf_map_update_with_telemetry(tls_enhanced_tags, normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, normalized_tup);
         if (!wrapper_ptr) {
             return NULL;
         }
@@ -156,13 +162,13 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
     normalize_tuple(&conn_tuple_copy);
 
-    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
-    tls_info_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    tls_info_t *tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -172,13 +178,13 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     normalize_tuple(&conn_tuple_copy);
-    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
-    tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 }
 
@@ -245,19 +251,29 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-// update_tcp_stats update rtt, retransmission and state on of a TCP connection
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // initialize-if-no-exist the connection state, and load it
+// get_or_create_tcp_stats returns the tcp_stats entry for the tuple, inserting a zeroed one if missing.
+// The entry exists on nearly every call, so look it up first: a BPF_NOEXIST update on an existing key
+// takes the bucket lock only to return -EEXIST.
+static __always_inline tcp_stats_t *get_or_create_tcp_stats(conn_tuple_t *t) {
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val) {
+        return val;
+    }
+
     tcp_stats_t empty = {};
     bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+    return bpf_map_lookup_elem(&tcp_stats, t);
+}
 
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+// update_tcp_stats update rtt, retransmission and state on of a TCP connection, returning the entry
+static __always_inline tcp_stats_t *update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
+    tcp_stats_t *val = get_or_create_tcp_stats(t);
     if (val == NULL) {
-        return;
+        return NULL;
     }
 
     if (stats.rtt > 0) {
@@ -274,6 +290,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     if (stats.failure_reason != 0) {
         val->failure_reason = stats.failure_reason;
     }
+    return val;
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
@@ -307,9 +324,8 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 
 // handle_congestion_stats reads TCP congestion fields from tcp_sock into the
 // tcp_stats map.
-static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+static __always_inline void handle_congestion_stats(tcp_stats_t *val, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val == NULL) {
         return;
     }
@@ -447,8 +463,8 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats);
-    handle_congestion_stats(t, sk);
+    tcp_stats_t *val = update_tcp_stats(t, stats);
+    handle_congestion_stats(val, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {

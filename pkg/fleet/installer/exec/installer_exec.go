@@ -61,13 +61,7 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	iCmd := i.setupInstallerCmd(ctx, span, cmd)
-	// setupInstallerCmd's platform hook (newInstallerCmdPlatform) sets Cancel on every cmd to
-	// tie it to ctx, but Go's exec package refuses to start a Cmd with a non-nil Cancel unless
-	// it was built with CommandContext -- and this one is deliberately built with exec.Command
-	// (see above) so it survives ctx being cancelled. Clear it back out here.
-	iCmd.Cmd.Cancel = nil
-	return iCmd
+	return i.setupInstallerCmd(ctx, span, cmd)
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
@@ -191,9 +185,6 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
-	cmdLineArgs := []string{pkg, string(operationsBytes)}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
-
 	if secrets == nil {
 		secrets = make(map[string]string)
 	}
@@ -201,6 +192,11 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
 	}
+
+	// Operations go through stdin rather than the command line, which Windows caps
+	// at 32,767 characters.
+	stdinPayload := append(append(operationsBytes, '\n'), secretsBytes...)
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg)
 
 	// Capture stderr so a failed run surfaces the installer's error (e.g. which
 	// config file failed to parse and why) instead of a bare "exit status N".
@@ -219,11 +215,9 @@ func (i *InstallerExec) InstallConfigExperiment(
 		return fmt.Errorf("error starting command: %w", err)
 	}
 
-	// Write secrets to stdin
-	if _, err = stdinPipe.Write(secretsBytes); err != nil {
-		stdinPipe.Close()
-		return fmt.Errorf("error writing secrets to stdin: %w", err)
-	}
+	// A child that exits before draining stdin makes the write fail; its stderr
+	// is the more useful error, so wait for it before reporting the write error.
+	_, writeErr := stdinPipe.Write(stdinPayload)
 	stdinPipe.Close()
 
 	if err = cmd.Wait(); err != nil {
@@ -232,6 +226,10 @@ func (i *InstallerExec) InstallConfigExperiment(
 		}
 		installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 		return fmt.Errorf("%w \n%s", installerError, err.Error())
+	}
+	if writeErr != nil {
+		err = fmt.Errorf("error writing to stdin: %w", writeErr)
+		return err
 	}
 	return nil
 }
@@ -246,14 +244,6 @@ func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// ResumeConfigExperiments recovers any configuration experiment left running unsupervised by a
-// prior, uncleanly shut down daemon process.
-func (i *InstallerExec) ResumeConfigExperiments(ctx context.Context) (err error) {
-	cmd := i.newInstallerCmd(ctx, "resume-config-experiments")
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

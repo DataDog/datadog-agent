@@ -296,7 +296,10 @@ impl ManagedProcess {
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
-        let profile = SpawnProfile::profile_for(&name);
+        let profile = match origin {
+            ProcessOrigin::Runtime => SpawnProfile::Agent,
+            ProcessOrigin::Config => SpawnProfile::profile_for(&name),
+        };
         #[cfg(windows)]
         let (user, agent_credential) = platform::initial_spawn_identity(&name, profile);
         #[cfg(not(windows))]
@@ -1678,53 +1681,59 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_spawn_does_not_inherit_parent_env() {
-        let _env = test_helpers::EnvGuard::set(&[("PROCMGRD_TEST_SECRET", "leaked")]).await;
+    async fn test_spawn_same_user_inherits_parent_env_except_supervisor_vars() {
+        let _env = test_helpers::EnvGuard::set(&[
+            ("PROCMGRD_TEST_VISIBLE", "yes"),
+            ("DD_PM_TEST_SECRET", "hidden"),
+        ])
+        .await;
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
-        let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
+        let script = "test \"$PROCMGRD_TEST_VISIBLE\" = yes && test -z \"$DD_PM_TEST_SECRET\"";
         #[cfg(windows)]
-        let script = "if defined PROCMGRD_TEST_SECRET (exit 1) else (exit 0)";
+        let script = "if not \"%PROCMGRD_TEST_VISIBLE%\"==\"yes\" exit 1 & if defined DD_PM_TEST_SECRET exit 1 & exit 0";
         let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         let mut proc =
-            ManagedProcess::new_config("clean-env".into(), test_helpers::test_uuid(), cfg);
+            ManagedProcess::new_config("same-user-env".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
         let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
             Some(0),
-            "child should NOT see PROCMGRD_TEST_SECRET"
+            "same-user child should see PROCMGRD_TEST_VISIBLE and not DD_PM_TEST_SECRET"
         );
     }
 
     #[tokio::test]
-    async fn test_spawn_inherits_opted_in_parent_env() {
+    async fn test_spawn_env_file_and_env_override_copied_vars() {
         let _env = test_helpers::EnvGuard::set(&[
-            ("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_"),
-            ("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, "),
-            ("INHERITED_PREFIX_VALUE", "prefix"),
-            ("INHERITED_PREFIX_FILE", "parent"),
-            ("INHERITED_EXACT", "parent"),
-            ("NOT_INHERITED", "secret"),
+            ("COPIED_VAR", "parent"),
+            ("FILE_VAR", "parent"),
+            // A leftover legacy allowlist var set on the supervisor. It must not
+            // leak to the child even though it matches no prefix filter anymore.
+            ("DD_PM_INHERIT_ENV_PREFIXES", "legacy"),
         ])
         .await;
 
         let dir = tempfile::tempdir().unwrap();
         let env_file = dir.path().join("env");
-        std::fs::write(&env_file, "INHERITED_PREFIX_FILE=file\n").unwrap();
+        std::fs::write(&env_file, "FILE_VAR=file\n").unwrap();
 
         let (sh, flag) = test_helpers::shell_cmd();
         #[cfg(unix)]
-        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        let script = "test \"$COPIED_VAR\" = parent && test \"$FILE_VAR\" = file && test \"$ENV_VAR\" = override && test -z \"$DD_PM_INHERIT_ENV_PREFIXES\"";
         #[cfg(windows)]
-        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let script = "if not \"%COPIED_VAR%\"==\"parent\" exit 1 & if not \"%FILE_VAR%\"==\"file\" exit 1 & if not \"%ENV_VAR%\"==\"override\" exit 1 & if defined DD_PM_INHERIT_ENV_PREFIXES exit 1 & exit 0";
         let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
         cfg.env
-            .insert("INHERITED_EXACT".to_string(), "override".to_string());
+            .insert("ENV_VAR".to_string(), "override".to_string());
 
-        let mut proc =
-            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config(
+            "same-user-overrides".into(),
+            test_helpers::test_uuid(),
+            cfg,
+        );
         let mut exit_rx = spawn_ok(&mut proc);
         let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(status.code(), Some(0));
@@ -2304,5 +2313,52 @@ runtime_success_sec: 5
             ProcessState::Failed,
             "without stop_requested, non-zero exit should be Failed"
         );
+    }
+
+    #[test]
+    fn test_runtime_privileged_names_use_agent_profile() {
+        for name in ["datadog-agent-process", "datadog-agent-sysprobe"] {
+            let runtime = ManagedProcess::new_runtime(
+                name.into(),
+                test_helpers::test_uuid(),
+                ProcessConfig::default(),
+            );
+            assert_eq!(runtime.profile(), SpawnProfile::Agent);
+
+            let config = ManagedProcess::new_config(
+                name.into(),
+                test_helpers::test_uuid(),
+                ProcessConfig::default(),
+            );
+            let expected = if cfg!(windows) {
+                SpawnProfile::Privileged
+            } else {
+                SpawnProfile::Agent
+            };
+            assert_eq!(config.profile(), expected);
+
+            #[cfg(windows)]
+            {
+                assert!(runtime.agent_credential().is_some());
+                assert!(config.agent_credential().is_none());
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_runtime_privileged_names_spawn_and_exit() {
+        for name in ["datadog-agent-process", "datadog-agent-sysprobe"] {
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut proc = ManagedProcess::new_runtime(
+                name.into(),
+                test_helpers::test_uuid(),
+                test_helpers::make_config(cmd, args),
+            );
+            let mut exit_rx = spawn_ok(&mut proc);
+            let status = exit_rx.recv().await.expect("exit event").status;
+            assert!(status.success());
+            proc.set_last_status(status);
+        }
     }
 }

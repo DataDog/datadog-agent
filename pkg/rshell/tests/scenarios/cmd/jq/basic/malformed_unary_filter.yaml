@@ -1,0 +1,8 @@
+description: jq compiles malformed unary filters instead of treating them as options.
+input:
+  script: |+
+    jq -n '-.foo('
+expect:
+  stdout: |+
+  stderr_contains: ["compile error"]
+  exit_code: 3

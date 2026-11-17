@@ -39,9 +39,12 @@ var builtInBiflowMappings = map[uint16]config.Mapping{
 	299: {Field: 299, Type: common.Integer, Destination: "datadog.responder_packets", Endian: common.BigEndian},
 }
 
-// Used to map the applicationId of flows through additional fields, resolved at flush time by the dpi cache.
+// Used to map the application of flows through additional fields:
+// the applicationId is resolved at flush time by the dpi cache, while Palo Alto sends the applicationName directly on flows.
 var builtInDPIMappings = map[uint16]config.Mapping{
 	95: {Field: 95, Type: common.Integer, Destination: dpi.ApplicationIDField, Endian: common.BigEndian},
+	// Palo Alto App-ID (NetFlow v9 has no PEN, so we assume this field number is Palo Alto's)
+	56701: {Field: 56701, Type: common.String, Destination: dpi.ApplicationNameField},
 }
 
 // StateNetFlow holds a NetflowV9/IPFIX producer

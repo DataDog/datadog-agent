@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +24,7 @@ func init() { registerModule(EventMonitor) }
 
 // EventMonitor - Event monitor Factory
 var EventMonitor = &module.Factory{
-	Name: config.EventMonitorModule,
+	Name: sysconfigtypes.EventMonitorModule,
 	Fn:   createEventMonitorModule,
 	NeedsEBPF: func() bool {
 		return !secconfig.IsEBPFLessModeEnabled()

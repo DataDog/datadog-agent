@@ -20,12 +20,49 @@ import (
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
+
+// TestCopyOTelAttributeTags checks that NewOTelSpanTagKeys + copyOTelAttributeTags
+// matches a per-key lookup across the span and resource attribute maps.
+func TestCopyOTelAttributeTags(t *testing.T) {
+	sattr := pcommon.NewMap()
+	require.NoError(t, sattr.FromRaw(map[string]any{
+		"both": "span", "span-only": "span", "empty-span": "",
+		"int": int64(13), "bool": true, "unrequested": "span",
+	}))
+	rattr := pcommon.NewMap()
+	require.NoError(t, rattr.FromRaw(map[string]any{
+		"both": "resource", "resource-only": "resource", "empty-span": "resource",
+		"empty-resource": "", "unrequested": "resource",
+	}))
+	keys := []string{"both", "span-only", "resource-only", "empty-span", "empty-resource", "int", "bool", "missing"}
+
+	want := map[string]string{}
+	for _, key := range keys {
+		if val := GetOTelAttrFromEitherMap(sattr, rattr, false, key); val != "" {
+			want[key] = val
+		}
+	}
+	require.Equal(t, map[string]string{
+		"both": "span", "span-only": "span", "resource-only": "resource",
+		"empty-span": "resource", "int": "13", "bool": "true",
+	}, want)
+
+	peer := map[string]string{}
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(keys, nil).peer, peer)
+	assert.Equal(t, want, peer)
+
+	primary := map[string]string{}
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(nil, keys).primary, primary)
+	assert.Equal(t, want, primary)
+}
 
 func TestGetOTelEnv(t *testing.T) {
 	tests := []struct {
@@ -512,7 +549,7 @@ func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
 			}
 
 			// Minimal conversion (APM stats path).
-			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+			minSpan := OtelSpanToDDSpanMinimalWithTagKeys(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 			// Full conversion.
 			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
 
@@ -560,7 +597,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 					return span
 				}
 
-				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+				minSpan := OtelSpanToDDSpanMinimalWithTagKeys(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 				rate, ok := minSpan.Metrics["_sample_rate"]
 				require.True(t, ok, "minimal conversion must set _sample_rate")
 				assert.InDelta(t, tt.wantRate, rate, 1e-9)
@@ -576,7 +613,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
 		span := ptrace.NewSpan()
 		span.SetName("test-span")
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 		_, ok := minSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
 	})
@@ -612,7 +649,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("region", "us-east-1")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team", "region"})
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team", "region"}))
 
 		assert.Equal(t, "checkout", minSpan.Meta["team"])
 		assert.Equal(t, "us-east-1", minSpan.Meta["region"])
@@ -625,7 +662,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("team", "resource-team")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team"}))
 
 		assert.Equal(t, "span-team", minSpan.Meta["team"])
 	})
@@ -637,7 +674,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		span.Attributes().PutStr("not-a-primary-tag", "ignored")
 		span.Attributes().PutStr("empty", "")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, []string{"team", "empty", "missing"})
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, pcommon.NewResource(), lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team", "empty", "missing"}))
 
 		assert.Equal(t, "checkout", minSpan.Meta["team"])
 		assert.NotContains(t, minSpan.Meta, "not-a-primary-tag")
@@ -652,7 +689,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		res := pcommon.NewResource()
 		res.Attributes().PutStr("team", "platform")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys(nil, []string{"team"}))
 
 		// An empty span value is treated as absent, so the resource value is used.
 		assert.Equal(t, "platform", minSpan.Meta["team"])
@@ -663,7 +700,7 @@ func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
 		span.SetName("test-span")
 		span.Attributes().PutStr("team", "checkout")
 
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, pcommon.NewResource(), lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.NotContains(t, minSpan.Meta, "team")
 	})
@@ -687,7 +724,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("operation.name", "invalid-op-name")
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		// Hyphens aren't valid in span names; NormalizeName replaces them with underscores.
 		assert.Equal(t, "invalid_op_name", minSpan.Name)
@@ -699,7 +736,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.SetEndTimestamp(pcommon.Timestamp(int64(span.StartTimestamp()) - 1))
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.EqualValues(t, 0, minSpan.Duration)
 	})
@@ -711,7 +748,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.SetEndTimestamp(pcommon.Timestamp(200000000))
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), OTelSpanTagKeys{})
 
 		assert.GreaterOrEqual(t, minSpan.Start, minStart-200000000)
 		assert.LessOrEqual(t, minSpan.Start, time.Now().UnixNano())
@@ -723,7 +760,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("peer.service", longPeerSvc)
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"peer.service"}, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys([]string{"peer.service"}, nil))
 
 		assert.Len(t, minSpan.Meta["peer.service"], normalizeutil.MaxServiceLen)
 		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["peer.service"])
@@ -735,7 +772,7 @@ func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
 		span.Attributes().PutStr("_dd.base_service", longBaseSvc)
 		res := pcommon.NewResource()
 
-		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"_dd.base_service"}, nil)
+		minSpan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, lib, false, false, newCfg(), NewOTelSpanTagKeys([]string{"_dd.base_service"}, nil))
 
 		assert.Len(t, minSpan.Meta["_dd.base_service"], normalizeutil.MaxServiceLen)
 		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["_dd.base_service"])
@@ -1675,8 +1712,7 @@ func buildReadOnlySafetyCorpus() ptrace.Traces {
 	arr.AppendEmpty().SetStr("one")
 	arr.AppendEmpty().SetInt(2)
 
-	// Non-finite doubles: json.Marshal rejects these, so MarshalEvents must emit
-	// "redacted" for the value rather than dropping the attribute or the event.
+	// Non-finite doubles, which some encodings (JSON) can't represent.
 	nonfinite := span.Events().AppendEmpty()
 	nonfinite.SetName("nonfinite")
 	nfattrs := nonfinite.Attributes()
@@ -1730,7 +1766,7 @@ func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
 	mutable := buildReadOnlySafetyCorpus()
 	mSpan, mRes, mLib := extract(mutable)
 	wantFull := OtelSpanToDDSpan(mSpan, mRes, mLib, cfg)
-	wantMinimal := OtelSpanToDDSpanMinimal(mSpan, mRes, mLib, true, true, cfg, nil, nil)
+	wantMinimal := OtelSpanToDDSpanMinimalWithTagKeys(mSpan, mRes, mLib, true, true, cfg, OTelSpanTagKeys{})
 
 	readOnly := buildReadOnlySafetyCorpus()
 	readOnly.MarkReadOnly()
@@ -1740,11 +1776,18 @@ func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
 	// The exporter path and the connector path. Neither may write to pdata.
 	require.NotPanics(t, func() {
 		got := OtelSpanToDDSpan(roSpan, roRes, roLib, cfg)
-		assert.Equal(t, wantFull, got)
+		// Compared as serialized bytes because the span events hold the corpus's NaN
+		// attributes, which are never reflect.DeepEqual to themselves.
+		deterministic := proto.MarshalOptions{Deterministic: true}
+		wantBytes, err := deterministic.Marshal(wantFull)
+		require.NoError(t, err)
+		gotBytes, err := deterministic.Marshal(got)
+		require.NoError(t, err)
+		assert.Equal(t, wantBytes, gotBytes)
 	}, "OtelSpanToDDSpan must not mutate read-only pdata")
 
 	require.NotPanics(t, func() {
-		got := OtelSpanToDDSpanMinimal(roSpan, roRes, roLib, true, true, cfg, nil, nil)
+		got := OtelSpanToDDSpanMinimalWithTagKeys(roSpan, roRes, roLib, true, true, cfg, OTelSpanTagKeys{})
 		assert.Equal(t, wantMinimal, got)
 	}, "OtelSpanToDDSpanMinimal must not mutate read-only pdata")
 
@@ -1759,52 +1802,343 @@ func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
 	assert.Equal(t, wantBytes, gotBytes, "conversion must not modify input pdata")
 }
 
-// TestMarshalEventsDoesNotMutate: MarshalEvents reports dropped attributes without writing
-// the count back onto the span event.
-func TestMarshalEventsDoesNotMutate(t *testing.T) {
-	events := ptrace.NewSpanEventSlice()
-	e := events.AppendEmpty()
-	e.SetName("boom")
-	e.SetDroppedAttributesCount(3)
-	e.Attributes().PutStr("message", "OOM")
-
-	got := MarshalEvents(events)
-	assert.Equal(t, `[{"name":"boom","attributes":{"message":"OOM"},"dropped_attributes_count":3}]`, got)
-	assert.Equal(t, uint32(3), events.At(0).DroppedAttributesCount(), "MarshalEvents must not mutate the event")
-
-	// Not idempotent if the count were accumulated onto the event.
-	assert.Equal(t, got, MarshalEvents(events))
+func TestOTelSpanEventsToDD(t *testing.T) {
+	str := func(s string) *pb.AttributeAnyValue {
+		return &pb.AttributeAnyValue{Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: s}
+	}
+	for _, tt := range []struct {
+		name string
+		in   func(events ptrace.SpanEventSlice)
+		want []*pb.SpanEvent
+	}{
+		{
+			name: "name and timestamp",
+			in: func(events ptrace.SpanEventSlice) {
+				e := events.AppendEmpty()
+				e.SetName("boom")
+				e.SetTimestamp(123)
+			},
+			want: []*pb.SpanEvent{{TimeUnixNano: 123, Name: "boom"}},
+		},
+		{
+			name: "empty event",
+			in:   func(events ptrace.SpanEventSlice) { events.AppendEmpty() },
+			want: []*pb.SpanEvent{{}},
+		},
+		{
+			name: "dropped attributes count is not reported",
+			in: func(events ptrace.SpanEventSlice) {
+				e := events.AppendEmpty()
+				e.SetName("boom")
+				e.SetDroppedAttributesCount(3)
+			},
+			want: []*pb.SpanEvent{{Name: "boom"}},
+		},
+		{
+			name: "scalar attributes keep their type",
+			in: func(events ptrace.SpanEventSlice) {
+				attrs := events.AppendEmpty().Attributes()
+				attrs.PutStr("str", `a "quoted" \ value`)
+				attrs.PutBool("bool", true)
+				attrs.PutInt("int", -42)
+				attrs.PutDouble("double", 2.5)
+			},
+			want: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{
+				"str":    str(`a "quoted" \ value`),
+				"bool":   {Type: pb.AttributeAnyValue_BOOL_VALUE, BoolValue: true},
+				"int":    {Type: pb.AttributeAnyValue_INT_VALUE, IntValue: -42},
+				"double": {Type: pb.AttributeAnyValue_DOUBLE_VALUE, DoubleValue: 2.5},
+			}}},
+		},
+		{
+			name: "bytes are base64 encoded and empty values dropped",
+			in: func(events ptrace.SpanEventSlice) {
+				attrs := events.AppendEmpty().Attributes()
+				attrs.PutEmptyBytes("bytes").FromRaw([]byte{0xde, 0xad})
+				attrs.PutEmpty("empty")
+			},
+			want: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{"bytes": str("3q0=")}}},
+		},
+		{
+			name: "slices of a single scalar type are kept as arrays",
+			in: func(events ptrace.SpanEventSlice) {
+				attrs := events.AppendEmpty().Attributes()
+				s := attrs.PutEmptySlice("strs")
+				s.AppendEmpty().SetStr("a")
+				s.AppendEmpty().SetStr("b")
+				b := attrs.PutEmptySlice("bools")
+				b.AppendEmpty().SetBool(true)
+				b.AppendEmpty().SetBool(false)
+				i := attrs.PutEmptySlice("ints")
+				i.AppendEmpty().SetInt(1)
+				i.AppendEmpty().SetInt(2)
+				d := attrs.PutEmptySlice("doubles")
+				d.AppendEmpty().SetDouble(1.5)
+				attrs.PutEmptySlice("empty")
+			},
+			want: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{
+				"strs": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+					{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "a"},
+					{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "b"},
+				}}},
+				"bools": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+					{Type: pb.AttributeArrayValue_BOOL_VALUE, BoolValue: true},
+					{Type: pb.AttributeArrayValue_BOOL_VALUE, BoolValue: false},
+				}}},
+				"ints": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+					{Type: pb.AttributeArrayValue_INT_VALUE, IntValue: 1},
+					{Type: pb.AttributeArrayValue_INT_VALUE, IntValue: 2},
+				}}},
+				"doubles": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+					{Type: pb.AttributeArrayValue_DOUBLE_VALUE, DoubleValue: 1.5},
+				}}},
+				"empty": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{}},
+			}}},
+		},
+		{
+			name: "other slices and maps are flattened",
+			in: func(events ptrace.SpanEventSlice) {
+				attrs := events.AppendEmpty().Attributes()
+				mixed := attrs.PutEmptySlice("mixed")
+				mixed.AppendEmpty().SetStr("one")
+				mixed.AppendEmpty().SetInt(2)
+				nested := attrs.PutEmptySlice("nested")
+				inner := nested.AppendEmpty().SetEmptySlice()
+				inner.AppendEmpty().SetStr("x")
+				inner.AppendEmpty().SetStr("y")
+				nested.AppendEmpty().SetEmptyMap().PutBool("flag", true)
+				bytesSlice := attrs.PutEmptySlice("bytes")
+				bytesSlice.AppendEmpty().SetEmptyBytes().FromRaw([]byte{0xde, 0xad})
+				withEmpty := attrs.PutEmptySlice("with.empty")
+				withEmpty.AppendEmpty().SetEmptySlice()
+				withEmpty.AppendEmpty().SetStr("x")
+				attrs.PutEmptyMap("empty.map")
+				m := attrs.PutEmptyMap("map")
+				m.PutStr("inner", "value")
+				m.PutEmptyMap("deeper").PutInt("n", 7)
+			},
+			want: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{
+				"mixed.0": str("one"),
+				"mixed.1": {Type: pb.AttributeAnyValue_INT_VALUE, IntValue: 2},
+				"nested.0": {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{Values: []*pb.AttributeArrayValue{
+					{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "x"},
+					{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: "y"},
+				}}},
+				"nested.1.flag": {Type: pb.AttributeAnyValue_BOOL_VALUE, BoolValue: true},
+				"bytes.0":       str("3q0="),
+				"with.empty.0":  {Type: pb.AttributeAnyValue_ARRAY_VALUE, ArrayValue: &pb.AttributeArray{}},
+				"with.empty.1":  str("x"),
+				"map.inner":     str("value"),
+				"map.deeper.n":  {Type: pb.AttributeAnyValue_INT_VALUE, IntValue: 7},
+			}}},
+		},
+		{
+			name: "multiple events keep their order",
+			in: func(events ptrace.SpanEventSlice) {
+				events.AppendEmpty().SetName("first")
+				events.AppendEmpty().SetName("second")
+			},
+			want: []*pb.SpanEvent{{Name: "first"}, {Name: "second"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			events := ptrace.NewSpanEventSlice()
+			tt.in(events)
+			assert.Equal(t, tt.want, OTelSpanEventsToDD(events))
+		})
+	}
 }
 
-// TestMarshalEventsReadOnly asserts MarshalEvents is safe on read-only pdata and pins its
-// exact output. The golden string makes this a gate rather than a self-comparison: it covers
-// the event shapes that emit dropped_attributes_count differently (attributes plus a count,
-// a count alone, neither) and the one attribute-value marshal failure that is actually
-// reachable: non-finite doubles, emitted as "redacted".
-func TestMarshalEventsReadOnly(t *testing.T) {
-	const want = `[{"time_unix_nano":150,"name":"exception","attributes":{"exception.message":"OOM",` +
-		`"exception.type":"mem","exception.stacktrace":"1/2/3","int.attr":42,"double.attr":2.5,` +
-		`"bool.attr":true,"bytes.attr":"3q0=","empty.attr":null,"map.attr":{"inner":"value"},` +
-		`"slice.attr":["one",2]},"dropped_attributes_count":5},` +
-		`{"name":"nonfinite","attributes":{"nan.attr":"redacted","posinf.attr":"redacted",` +
-		`"neginf.attr":"redacted","finite.attr":"kept","nan.in.slice":"redacted",` +
-		`"nan.in.map":"redacted"}},` +
-		`{"name":"bare","dropped_attributes_count":1},` +
-		`{"name":"empty"}]`
+// TestOTelSpanEventsToDDNonFinite: non-finite doubles, which the former JSON encoding had to
+// redact, are kept as they are.
+func TestOTelSpanEventsToDDNonFinite(t *testing.T) {
+	events := ptrace.NewSpanEventSlice()
+	attrs := events.AppendEmpty().Attributes()
+	attrs.PutDouble("nan", math.NaN())
+	attrs.PutDouble("inf", math.Inf(1))
+	attrs.PutEmptySlice("nan.in.slice").AppendEmpty().SetDouble(math.NaN())
 
+	got := OTelSpanEventsToDD(events)
+	require.Len(t, got, 1)
+	assert.True(t, math.IsNaN(got[0].Attributes["nan"].DoubleValue))
+	assert.True(t, math.IsInf(got[0].Attributes["inf"].DoubleValue, 1))
+	assert.True(t, math.IsNaN(got[0].Attributes["nan.in.slice"].ArrayValue.Values[0].DoubleValue))
+}
+
+// TestOTelSpanEventsToDDReadOnly asserts OTelSpanEventsToDD is safe on read-only pdata and
+// doesn't modify the events.
+func TestOTelSpanEventsToDDReadOnly(t *testing.T) {
 	traces := buildReadOnlySafetyCorpus()
-	assert.Equal(t, want, MarshalEvents(traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events()))
+	want := OTelSpanEventsToDD(traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events())
 
 	readOnly := buildReadOnlySafetyCorpus()
 	readOnly.MarkReadOnly()
 	events := readOnly.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events()
 
-	require.NotPanics(t, func() {
-		assert.Equal(t, want, MarshalEvents(events))
-	})
-
-	// The counts must survive marshalling: they are read, never written back.
+	var got []*pb.SpanEvent
+	require.NotPanics(t, func() { got = OTelSpanEventsToDD(events) })
+	require.Len(t, got, len(want))
+	// The second event holds NaN values, which never compare equal.
+	assert.Equal(t, want[0], got[0])
+	assert.Equal(t, want[2:], got[2:])
 	assert.Equal(t, uint32(5), events.At(0).DroppedAttributesCount())
-	assert.Equal(t, uint32(0), events.At(1).DroppedAttributesCount())
 	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
+}
+
+func TestOTelSpanLinksToDD(t *testing.T) {
+	traceID := pcommon.TraceID([16]byte{0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef})
+	spanID := pcommon.SpanID([8]byte{0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89})
+	newLink := func(links ptrace.SpanLinkSlice) ptrace.SpanLink {
+		l := links.AppendEmpty()
+		l.SetTraceID(traceID)
+		l.SetSpanID(spanID)
+		return l
+	}
+	baseLink := func() *pb.SpanLink {
+		return &pb.SpanLink{TraceID: 0x0123456789abcdef, TraceIDHigh: 0xfedcba9876543210, SpanID: 0xabcdef0123456789}
+	}
+
+	for _, tt := range []struct {
+		name string
+		in   func(links ptrace.SpanLinkSlice)
+		want func() []*pb.SpanLink
+	}{
+		{
+			name: "ids only",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links) },
+			want: func() []*pb.SpanLink { return []*pb.SpanLink{baseLink()} },
+		},
+		{
+			name: "tracestate with special characters",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).TraceState().FromRaw(`dd=s:1;o:"rum",other=a\b`)
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Tracestate = `dd=s:1;o:"rum",other=a\b`
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "sampled flag",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x01) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 0x01 | 1<<31
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			// Bit 8 (has_is_remote) and bit 9 (is_remote) are OTLP-specific and dropped, but they
+			// show the sender set the flags, so a zero trace flags byte means "not sampled".
+			name: "unsampled flag with is_remote bits",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x300) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 1 << 31
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "scalar attributes are stringified",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				m.PutStr("str", `say "hi" \ there`)
+				m.PutInt("int", 42)
+				m.PutDouble("double", 2.5)
+				m.PutDouble("nan", math.NaN())
+				m.PutBool("bool", true)
+				m.PutEmptyBytes("bytes").FromRaw([]byte{0xde, 0xad})
+				m.PutEmpty("empty")
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"str": `say "hi" \ there`, "int": "42", "double": "2.5", "nan": "NaN", "bool": "true", "bytes": "3q0=", "empty": "",
+				}
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "slices and maps are flattened",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				s := m.PutEmptySlice("slice")
+				s.AppendEmpty().SetStr("a")
+				s.AppendEmpty().SetInt(1)
+				s.AppendEmpty().SetEmptySlice().AppendEmpty().SetBool(false)
+				nested := m.PutEmptyMap("map")
+				nested.PutStr("inner", "v")
+				nested.PutEmptySlice("list").AppendEmpty().SetBool(true)
+				m.PutEmptySlice("empty_slice")
+				m.PutEmptyMap("empty_map")
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"slice.0": "a", "slice.1": "1", "slice.2.0": "false", "map.inner": "v", "map.list.0": "true",
+				}
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "multiple links",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).Attributes().PutStr("k1", "v1")
+				l := links.AppendEmpty()
+				l.SetTraceID(pcommon.TraceID([16]byte{15: 1}))
+				l.SetSpanID(pcommon.SpanID([8]byte{7: 2}))
+				l.TraceState().FromRaw("dd=asdf256")
+				l.SetDroppedAttributesCount(3)
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{"k1": "v1"}
+				return []*pb.SpanLink{l, {TraceID: 1, SpanID: 2, Tracestate: "dd=asdf256"}}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			links := ptrace.NewSpanLinkSlice()
+			tt.in(links)
+			assert.Equal(t, tt.want(), OTelSpanLinksToDD(links))
+		})
+	}
+}
+
+// TestOtelSpanToDDSpanSpanAttributePrecedence verifies that a span attribute wins over a resource
+// attribute with the same key, including when the span value is numeric and stored in Metrics.
+func TestOtelSpanToDDSpanSpanAttributePrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		setSpanAttr func(pcommon.Map)
+		wantMeta    string
+		wantMetric  float64
+	}{
+		{name: "string", setSpanAttr: func(m pcommon.Map) { m.PutStr("team", "infra") }, wantMeta: "infra"},
+		{name: "int", setSpanAttr: func(m pcommon.Map) { m.PutInt("team", 7) }, wantMetric: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			tt.setSpanAttr(span.Attributes())
+			res := pcommon.NewResource()
+			res.Attributes().PutStr("team", "core")
+			cfg := &config.AgentConfig{Features: map[string]struct{}{}, OTLPReceiver: &config.OTLP{}}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+			ddspan := OtelSpanToDDSpan(span, res, pcommon.NewInstrumentationScope(), cfg)
+
+			if tt.wantMeta != "" {
+				assert.Equal(t, tt.wantMeta, ddspan.Meta["team"])
+			} else {
+				assert.NotContains(t, ddspan.Meta, "team")
+			}
+			if tt.wantMetric != 0 {
+				assert.Equal(t, tt.wantMetric, ddspan.Metrics["team"])
+			} else {
+				assert.NotContains(t, ddspan.Metrics, "team")
+			}
+		})
+	}
 }

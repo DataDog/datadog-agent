@@ -63,8 +63,9 @@ func TestIsParentDiscarder(t *testing.T) {
 	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
 	rules.AddTestRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.name =~ ".*"`)
 
-	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234", 1); is {
-		t.Error("shouldn't be able to find a parent discarder, due to partial evaluation: true && unlink.file.name =~ '.*'")
+	// the path can't match below the parent, whatever the name of the parent
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234", 1); !is {
+		t.Error("should be a parent discarder")
 	}
 
 	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
@@ -205,7 +206,7 @@ func TestIsParentDiscarder(t *testing.T) {
 		t.Error("shouldn't be a parent discarder")
 	}
 
-	// test basename conflict, a basename based rule matches the parent discarder
+	// the path can't match below the parent, whatever the name of the files below
 	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**" && open.file.name == "token"`)
 
@@ -213,8 +214,38 @@ func TestIsParentDiscarder(t *testing.T) {
 		t.Error("should be a parent discarder")
 	}
 
+	// the name of the parent itself doesn't matter
 	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**" && open.file.name == "test1"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); !is {
+		t.Error("should be a parent discarder")
+	}
+
+	// a rule and-ing the name with a path that can match below the parent
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.name == "test3" && open.file.path != "/etc/passwd"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.name == "test3" && open.file.path != ""`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd" || open.file.name == "test3"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.name == "test3"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
 		t.Error("shouldn't be a parent discarder")
@@ -363,9 +394,9 @@ func TestIsDiscarderOverride(t *testing.T) {
 		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
-	supportedDiscarders := map[eval.Field]bool{
-		eval.Field("process.file.path"): true,
-		eval.Field("unlink.file.path"):  true,
+	supportedDiscarders := map[eval.Field][]eval.Field{
+		"process.file.path": {"process.file.path"},
+		"unlink.file.path":  {"unlink.file.path", "unlink.file.name"},
 	}
 
 	var opts rules.Opts

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
@@ -157,7 +160,8 @@ func TestTruncateLoaderErrors(t *testing.T) {
 	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
 	errs := map[string]string{"python": longMsg, "core": "check not found"}
 
-	got := truncateLoaderErrors(errs, truncateCheckError)
+	truncator := messageTruncator{enabled: true, metrics: newOversizedMetrics(telemetryimpl.NewMock(t))}
+	got := truncator.truncateLoaderErrors(errs, "postgres")
 	assert.Equal(t, "check not found", got["core"])
 	assert.LessOrEqual(t, len(got["python"]), maxCheckErrorLength)
 	assert.Equal(t, longMsg, errs["python"], "input map must not be modified")
@@ -219,6 +223,41 @@ func TestGetPayloadCheckMessageTruncation(t *testing.T) {
 					assert.Equal(t, longMsg, msg)
 				}
 			}
+		})
+	}
+}
+
+func TestOversizedMessageTelemetry(t *testing.T) {
+	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
+
+	for _, enabled := range []bool{true, false} {
+		truncated := strconv.FormatBool(enabled)
+		t.Run("truncation enabled="+truncated, func(t *testing.T) {
+			tel := telemetryimpl.NewMock(t)
+			metrics := newOversizedMetrics(tel)
+			truncator := messageTruncator{enabled: enabled, metrics: metrics}
+
+			assert.Equal(t, "short", truncator.maybeTruncate("short", "postgres", kindError))
+			assert.Equal(t, strings.Repeat("a", maxCheckErrorLength), truncator.maybeTruncate(strings.Repeat("a", maxCheckErrorLength), "postgres", kindError))
+			assert.Zero(t, metrics.messages.WithValues("postgres", kindError, truncated).Get(), "short messages are not counted")
+
+			got := truncator.maybeTruncate(longMsg, "postgres", kindError)
+			truncator.maybeTruncate(longMsg, "postgres", kindError)
+			truncator.maybeTruncate(longMsg, "postgres", kindWarning)
+			if enabled {
+				assert.LessOrEqual(t, len(got), maxCheckErrorLength)
+			} else {
+				assert.Equal(t, longMsg, got)
+			}
+
+			assert.Equal(t, float64(2), metrics.messages.WithValues("postgres", kindError, truncated).Get())
+			assert.Equal(t, float64(1), metrics.messages.WithValues("postgres", kindWarning, truncated).Get())
+			assert.Zero(t, metrics.messages.WithValues("postgres", kindError, strconv.FormatBool(!enabled)).Get())
+
+			text, err := tel.GatherText(func(*telemetry.MetricFamily) bool { return true })
+			require.NoError(t, err)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{check_name="postgres",kind="error"} 2`)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{check_name="postgres",kind="warning"} 1`)
 		})
 	}
 }

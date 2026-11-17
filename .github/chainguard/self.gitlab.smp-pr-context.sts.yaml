@@ -1,0 +1,16 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
+
+claim_pattern:
+  project_path: "DataDog/datadog-agent"
+  project_id: "4670"
+  ref_type: "branch"
+  ref: ".+"
+  ref_path: "refs/heads/.+"
+
+# SMP jobs use this token to find the pull request for a branch and read its
+# labels and changed files. The policy covers protected and unprotected branches
+# because Agent pull requests run from both.
+permissions:
+  pull_requests: read

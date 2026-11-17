@@ -6,10 +6,12 @@
 package nodetreemodel
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -23,11 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
 func TestLeafNodeCanHaveComplexMapValue(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	cfg.BuildSchema()
 	// Ensure the config is node based
@@ -50,7 +54,8 @@ secret_backend_command: ./my_secret_fetcher.sh
 	t.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -118,7 +123,8 @@ secret_backend_command: ./my_secret_fetcher.sh
 }
 
 func TestNewConfig(t *testing.T) {
-	cfg := NewNodeTreeConfig("config_name", "PREFIX", nil)
+	cfg := NewNodeTreeConfig("config_name", model.CoreSchema)
+	cfg.SetEnvPrefix("PREFIX")
 
 	c := cfg.(*ntmConfig)
 
@@ -141,7 +147,8 @@ func TestNewConfig(t *testing.T) {
 
 // TODO: expand testing coverage once we have environment and Set() implemented
 func TestBasicUsage(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
@@ -152,7 +159,8 @@ func TestBasicUsage(t *testing.T) {
 
 func TestSet(t *testing.T) {
 	t.Setenv("TEST_ENV", "3")
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 
 	cfg.SetDefault("default", 0)
 	cfg.SetDefault("unknown", 0)
@@ -215,7 +223,8 @@ file: 2
 }
 
 func TestGetSource(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.BuildSchema()
 
@@ -225,7 +234,8 @@ func TestGetSource(t *testing.T) {
 }
 
 func TestSetLowerSource(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 
 	cfg.SetDefault("setting", 0)
 	cfg.BuildSchema()
@@ -262,7 +272,8 @@ tree(#ptr<000006>) source=agent-runtime
 }
 
 func TestSetUnkownKey(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BuildSchema()
 
 	cfg.Set("unknown_key", 21, model.SourceAgentRuntime)
@@ -272,7 +283,8 @@ func TestSetUnkownKey(t *testing.T) {
 }
 
 func TestAllSettings(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)                         // "a"   @ file
 	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
@@ -302,7 +314,8 @@ func TestAllSettings(t *testing.T) {
 }
 
 func TestAllSettingsWithoutDefault(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)             // "a"   @ file
 	cfg.SetDefault("b.c", 0)           // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)           // "b.d" @ default
@@ -322,7 +335,8 @@ func TestAllSettingsWithoutDefault(t *testing.T) {
 }
 
 func TestAllSettingsBySource(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", 0)
 	cfg.SetDefault("b.d", 0)
@@ -368,7 +382,8 @@ func TestAllSettingsBySource(t *testing.T) {
 }
 
 func TestAllSettingsWithoutSecrets(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.BuildSchema()
@@ -389,7 +404,8 @@ func TestAllSettingsWithoutSecrets(t *testing.T) {
 }
 
 func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.SetDefault("c", 0)
@@ -409,7 +425,8 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 }
 
 func TestIsConfigured(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b", 0)
 	cfg.BindEnvAndSetDefault("c", 0)
@@ -430,7 +447,8 @@ func TestIsConfigured(t *testing.T) {
 }
 
 func TestEnvVarMultipleSettings(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("c", 0)
 	cfg.BindEnvAndSetDefault("a", 0, "TEST_MY_ENVVAR")
 	cfg.BindEnvAndSetDefault("b", 0, "TEST_MY_ENVVAR")
@@ -445,7 +463,8 @@ func TestEnvVarMultipleSettings(t *testing.T) {
 }
 
 func TestEmptyEnvVarSettings(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("a", -1)
 
 	// This empty string is ignored, so the default value of -1 will be returned by GetInt
@@ -459,7 +478,8 @@ func TestEmptyEnvVarSettings(t *testing.T) {
 }
 
 func TestAllKeysLowercased(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)                         // "a"   @ file
 	cfg.SetDefault("b.c", 0)                       // "b.c" @ agent-runtime
 	cfg.SetDefault("b.d", 0)                       // "b.d" @ default
@@ -488,7 +508,8 @@ logs_config:
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 	t.Setenv("TEST_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "http://example.com")
 
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
@@ -556,7 +577,8 @@ secret_backend_command: ./my_secret_fetcher.sh
 	t.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -644,7 +666,8 @@ func TestStringifyAll(t *testing.T) {
 `
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -700,7 +723,8 @@ process_config:
   process_discovery:
     interval: 4
 `
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	cfg.BindEnvAndSetDefault("process_config.cmd_port", 6162)
 	cfg.BindEnvAndSetDefault("process_config.process_collection.enabled", true)
@@ -768,7 +792,8 @@ process_config:
 }
 
 func TestMergeReusesNodes(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("a.apple.one", 1)
 	cfg.BindEnvAndSetDefault("a.apple.two", 2)
 	cfg.BindEnvAndSetDefault("b.banana.color", "yellow")
@@ -924,7 +949,8 @@ tree(#ptr<000028>) source=agent-runtime
 }
 
 func TestSetWhenMerged(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("a.apple.one", 1)
 	cfg.BindEnvAndSetDefault("a.apple.two", 2)
 	cfg.BindEnvAndSetDefault("b.banana.color", "yellow")
@@ -1080,7 +1106,8 @@ func TestUnsetForSource(t *testing.T) {
     pathtest_contexts_limit: 43210
     processing_chan_size: 45678`
 	// default source, lowest priority
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
@@ -1242,7 +1269,8 @@ func TestUnsetForSourceAllLayers(t *testing.T) {
   collector:
     processing_chan_size: 45678`
 	// default source, lowest priority
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
@@ -1346,7 +1374,8 @@ user:
   - plumber
   - teacher
 `
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BuildSchema()
 	err := cfg.ReadConfig(strings.NewReader(configData))
@@ -1370,7 +1399,8 @@ user:
 }
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	// Enable the dynamic schema so api_key can be Set even though it has no default value,
 	// which is required to exercise the "unset with no previous value" behavior below.
 	cfg.SetTestOnlyDynamicSchema(true)
@@ -1411,7 +1441,8 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 }
 
 func TestMergeFleetPolicy(t *testing.T) {
-	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
+	config.SetEnvPrefix("TEST")
 	config.SetConfigType("yaml")
 	config.SetDefault("foo", "")
 	config.BuildSchema()
@@ -1428,7 +1459,8 @@ func TestMergeFleetPolicy(t *testing.T) {
 }
 
 func TestMergeConfig(t *testing.T) {
-	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
+	config.SetEnvPrefix("TEST")
 	config.SetConfigType("yaml")
 	config.SetDefault("foo", "")
 	config.BuildSchema()
@@ -1445,7 +1477,8 @@ func TestMergeConfig(t *testing.T) {
 }
 
 func TestOnUpdate(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -1480,7 +1513,8 @@ func TestOnUpdate(t *testing.T) {
 // write lock. Any subscriber that read the config (via the read side of
 // the RWMutex) would block against the held write lock forever.
 func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("log_level", "info")
 	cfg.BuildSchema()
 
@@ -1510,7 +1544,8 @@ func TestUnsetForSourceListenerCanReadConfig(t *testing.T) {
 }
 
 func TestSetInvalidSource(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -1521,7 +1556,8 @@ func TestSetInvalidSource(t *testing.T) {
 }
 
 func TestSetInTest(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -1541,7 +1577,8 @@ func TestSetInTest(t *testing.T) {
 }
 
 func TestPanicAfterBuildSchema(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
@@ -1554,7 +1591,8 @@ func TestPanicAfterBuildSchema(t *testing.T) {
 }
 
 func TestEnvVarTransformers(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
 	cfg.BindEnvAndSetDefault("list_of_fruit", []string{}, "TEST_LIST_OF_FRUIT")
 	cfg.BindEnvAndSetDefault("tag_set", []map[string]string{}, "TEST_TAG_SET")
@@ -1599,7 +1637,8 @@ func TestEnvVarTransformers(t *testing.T) {
 }
 
 func TestSetConfigFile(t *testing.T) {
-	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
+	config.SetEnvPrefix("TEST")
 	config.SetConfigType("yaml")
 	config.SetConfigFile("datadog.yaml")
 	config.SetDefault("foo", "")
@@ -1611,7 +1650,8 @@ func TestSetConfigFile(t *testing.T) {
 func TestEnvVarOrdering(t *testing.T) {
 	// Test scenario 1: DD_DD_URL set before DD_URL
 	t.Run("DD_DD_URL set first", func(t *testing.T) {
-		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", model.CoreSchema)
+		config.SetEnvPrefix("TEST")
 		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
 		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
@@ -1624,7 +1664,8 @@ func TestEnvVarOrdering(t *testing.T) {
 
 	// Test scenario 2: DD_URL set before DD_DD_URL
 	t.Run("DD_URL set first", func(t *testing.T) {
-		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", model.CoreSchema)
+		config.SetEnvPrefix("TEST")
 		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
 		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
@@ -1637,7 +1678,8 @@ func TestEnvVarOrdering(t *testing.T) {
 
 	// Test scenario 3: Only DD_URL is set (DD_DD_URL is missing)
 	t.Run("Only DD_URL is set", func(t *testing.T) {
-		config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+		config := NewNodeTreeConfig("test", model.CoreSchema)
+		config.SetEnvPrefix("TEST")
 		config.BindEnvAndSetDefault("fakeapikey", "", "DD_API_KEY")
 		config.BindEnvAndSetDefault("dd_url", "", "DD_DD_URL", "DD_URL")
 		t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
@@ -1649,7 +1691,8 @@ func TestEnvVarOrdering(t *testing.T) {
 }
 
 func TestWarningLogged(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("bad_key", "", "DD_BAD_KEY")
 	t.Setenv("DD_BAD_KEY", "value")
 	original := splitKeyFunc
@@ -1663,7 +1706,7 @@ func TestWarningLogged(t *testing.T) {
 }
 
 func TestSequenceID(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1688,7 +1731,7 @@ func TestSequenceID(t *testing.T) {
 }
 
 func TestSetWithLock(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.SetDefault("nullable", nil)
 	config.BuildSchema()
@@ -1725,7 +1768,7 @@ func TestSetWithLock(t *testing.T) {
 }
 
 func TestSetWithLockShadowedByHigherSource(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1746,7 +1789,7 @@ func TestSetWithLockShadowedByHigherSource(t *testing.T) {
 }
 
 func TestSetWithLockReadsUpToSource(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1777,7 +1820,7 @@ func TestSetWithLockReadsUpToSource(t *testing.T) {
 }
 
 func TestSetWithLockUnknownKeySkipsCallback(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1790,7 +1833,7 @@ func TestSetWithLockUnknownKeySkipsCallback(t *testing.T) {
 }
 
 func TestSetWithLockNotifiesAfterUnlock(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1818,7 +1861,7 @@ func TestSetWithLockNotifiesAfterUnlock(t *testing.T) {
 }
 
 func TestSetWithLockRejectsNilCallback(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1829,7 +1872,7 @@ func TestSetWithLockRejectsNilCallback(t *testing.T) {
 }
 
 func TestSetWithLockUnlocksAfterCallbackPanic(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1843,7 +1886,7 @@ func TestSetWithLockUnlocksAfterCallbackPanic(t *testing.T) {
 }
 
 func TestSetWithLockSerializesConcurrentWriters(t *testing.T) {
-	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
@@ -1867,7 +1910,8 @@ func TestParseEnvSplitComma(t *testing.T) {
 	t.Setenv("TEST_MY_LIST", "a,b,c")
 	t.Setenv("TEST_MY_LIST_2", "")
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
 	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
 	cfg.ParseEnvSplitComma("my_list")
@@ -1880,7 +1924,8 @@ func TestParseEnvSplitComma(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
 
 	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
-		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2 := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg2.SetEnvPrefix("TEST")
 		cfg2.BindEnvAndSetDefault("my_list", []string{})
 		cfg2.ParseEnvSplitComma("my_list")
 		cfg2.ParseEnvSplitComma("my_list")
@@ -1891,7 +1936,8 @@ func TestParseEnvSplitSpace(t *testing.T) {
 	t.Setenv("TEST_MY_LIST", "a b c")
 	t.Setenv("TEST_MY_LIST_2", "")
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("my_list", []string{"a"}, "TEST_MY_LIST")
 	cfg.BindEnvAndSetDefault("my_list_2", []string{"a"}, "TEST_MY_LIST_2")
 	cfg.ParseEnvSplitSpace("my_list")
@@ -1904,7 +1950,8 @@ func TestParseEnvSplitSpace(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("my_list_2"))
 
 	assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
-		cfg2 := NewNodeTreeConfig("test", "TEST", nil)
+		cfg2 := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg2.SetEnvPrefix("TEST")
 		cfg2.BindEnvAndSetDefault("my_list", []string{})
 		cfg2.ParseEnvSplitSpace("my_list")
 		cfg2.ParseEnvSplitSpace("my_list")
@@ -1915,7 +1962,8 @@ func TestParseEnvJSON(t *testing.T) {
 	t.Run("parses string slice", func(t *testing.T) {
 		t.Setenv("TEST_MY_LIST", `["a","b","c"]`)
 
-		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
 		cfg.BindEnvAndSetDefault("my_list", []string{}, "TEST_MY_LIST")
 		cfg.ParseEnvJSON("my_list", []string{})
 		cfg.BuildSchema()
@@ -1927,7 +1975,8 @@ func TestParseEnvJSON(t *testing.T) {
 	t.Run("parses slice of map[string]string", func(t *testing.T) {
 		t.Setenv("TEST_MY_TAGS", `[{"key":"val"},{"foo":"bar"}]`)
 
-		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
 		cfg.BindEnvAndSetDefault("my_tags", []map[string]string{}, "TEST_MY_TAGS")
 		cfg.ParseEnvJSON("my_tags", []map[string]string{})
 		cfg.BuildSchema()
@@ -1940,7 +1989,8 @@ func TestParseEnvJSON(t *testing.T) {
 
 	t.Run("panics on duplicate registration", func(t *testing.T) {
 		assert.PanicsWithValue(t, "env transform for my_list already exists", func() {
-			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg := NewNodeTreeConfig("test", model.CoreSchema)
+			cfg.SetEnvPrefix("TEST")
 			cfg.BindEnvAndSetDefault("my_list", []string{})
 			cfg.ParseEnvJSON("my_list", []string{})
 			cfg.ParseEnvJSON("my_list", []string{})
@@ -1949,7 +1999,8 @@ func TestParseEnvJSON(t *testing.T) {
 }
 
 func TestMultipleTransformersRaisesError(t *testing.T) {
-	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config := NewNodeTreeConfig("test", model.CoreSchema) // nolint: forbidigo
+	config.SetEnvPrefix("TEST")
 	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
 
 	assert.NotPanics(t, func() {
@@ -1979,7 +2030,8 @@ fruit:
   egg:
     - foo: bar
 `
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	// default wins over invalid file
 	cfg.BindEnvAndSetDefault("fruit.apple.core.seeds", 2)
 	//// env wins over file
@@ -2073,7 +2125,8 @@ tree(#ptr<000022>) source=environment-variable
 }
 
 func TestComplexMapValueStringify(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
 	cfg.BuildSchema()
@@ -2103,7 +2156,8 @@ func TestFileLayerConvertsToDefaultType(t *testing.T) {
 	configData := `my_int_setting: "345"
 my_bool_setting: "true"
 `
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("my_int_setting", 0)
 	cfg.BindEnvAndSetDefault("my_bool_setting", false)
 	cfg.BuildSchema()
@@ -2125,7 +2179,8 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 	t.Setenv("TEST_MY_INT_SETTING", "789")
 	t.Setenv("TEST_MY_BOOL_SETTING", "true")
 
-	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("my_int_setting", 0)
 	cfg.BindEnvAndSetDefault("my_bool_setting", false)
 	cfg.BuildSchema()
@@ -2148,7 +2203,8 @@ func TestEnvVarLayerDecodesJSONForMapDefaults(t *testing.T) {
 	t.Setenv("TEST_NOT_JSON", `app:kube_app`)
 	t.Setenv("TEST_WRONG_SHAPE", `["a"]`)
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("endpoints", map[string][]string{}, "TEST_ENDPOINTS")
 	cfg.BindEnvAndSetDefault("labels", map[string]string{}, "TEST_LABELS")
 	cfg.BindEnvAndSetDefault("generic_map", map[string]interface{}{}, "TEST_GENERIC_MAP")
@@ -2176,7 +2232,8 @@ func TestEnvVarLayerDecodesJSONForMapDefaults(t *testing.T) {
 // This reproduces the race condition where multiple goroutines call GetBool (or other
 // getters) simultaneously, each writing to the unknownKeys map under only an RLock.
 func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("known_key", true)
 	cfg.BuildSchema()
 
@@ -2216,7 +2273,8 @@ func TestClearEnvVars(t *testing.T) {
 	t.Setenv("TEST_A", "from-env")
 	t.Setenv("TEST_B", "from-env")
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", "default-a")
 	cfg.SetDefault("b", "default-b")
 	cfg.(*ntmConfig).bindEnv("a", []string{"TEST_A"}) //nolint:forbidigo // testing behavior
@@ -2245,7 +2303,8 @@ func TestClearEnvVars(t *testing.T) {
 // TestSetDefaultAfterRevertToBuilder follows the sequence cmd/otel-agent runs: revert a built
 // config back to a builder, register more defaults, then build it again.
 func TestSetDefaultAfterRevertToBuilder(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("ns.existing", "v1")
 	cfg.BuildSchema()
 
@@ -2258,7 +2317,8 @@ func TestSetDefaultAfterRevertToBuilder(t *testing.T) {
 }
 
 func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.SetDefault("key", "value")
 	cfg.BuildSchema()
@@ -2270,7 +2330,8 @@ func BenchmarkMaybeRebuildUnchangedEnv(b *testing.B) {
 }
 
 func TestDirectBulkSet(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("from_env", 0)
 	cfg.SetDefault("from_file", 0)
 	cfg.SetDefault("coerced", "")
@@ -2431,7 +2492,8 @@ d:
 				t.Setenv(name, val)
 			}
 
-			cfg := NewNodeTreeConfig("test", "TEST", nil)
+			cfg := NewNodeTreeConfig("test", model.CoreSchema)
+			cfg.SetEnvPrefix("TEST")
 			cfg.BindEnvAndSetDefaultWithDeprecation("a", 1, []string{"b", "d.e.f"})
 			cfg.BuildSchema()
 
@@ -2475,7 +2537,8 @@ d:
 }
 
 func TestDeprecationNestedMap(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefaultWithDeprecation("section.obj", map[string]string{}, []string{"old_obj"})
 	cfg.BuildSchema()
 
@@ -2528,7 +2591,8 @@ old_obj:
 func TestDeprecationWithEnvVar(t *testing.T) {
 	t.Setenv("A", "a b c")
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefaultWithDeprecation("section.obj", []string{}, []string{"old_obj"}, "A", "B")
 	cfg.BuildSchema()
 
@@ -2581,7 +2645,8 @@ b:
   c:
     d: "test"
 `
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BuildSchema()
 	require.NoError(t, cfg.ReadConfig(strings.NewReader(yaml)))
 
@@ -2595,7 +2660,8 @@ b:
 		},
 		res)
 
-	cfg = NewNodeTreeConfig("test", "TEST", nil)
+	cfg = NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.BuildSchema()
 	require.NoError(t, cfg.ReadConfig(strings.NewReader(yaml)))
@@ -2610,7 +2676,8 @@ b:
 		res)
 
 	// testing that nested value are correctly detected
-	cfg = NewNodeTreeConfig("test", "TEST", nil)
+	cfg = NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("a", 0)
 	cfg.SetDefault("b.c", map[string]string{})
 	cfg.BuildSchema()
@@ -2626,7 +2693,8 @@ b:
 }
 
 func TestDirectBulkSetNotifying(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("changed", 0)
 	cfg.SetDefault("unchanged", 0)
 	cfg.SetDefault("outranked", 0)
@@ -2675,7 +2743,8 @@ func TestUnsetNotifiesEveryLayerRemoval(t *testing.T) {
 	}
 
 	newCfg := func() model.Config {
-		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
 		cfg.SetDefault("shadowed", "default")
 		cfg.BuildSchema()
 		return cfg
@@ -2735,7 +2804,8 @@ func TestUnsetNotifiesEveryLayerRemoval(t *testing.T) {
 	})
 
 	t.Run("nothing left to fall back to", func(t *testing.T) {
-		cfg := NewNodeTreeConfig("test", "TEST", nil)
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
 		cfg.BuildSchema()
 		cfg.SetTestOnlyDynamicSchema(true)
 		cfg.Set("undeclared", "from_cli", model.SourceCLI)
@@ -2776,7 +2846,8 @@ func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
 		value  any
 	}
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("shadowed", "default")
 	cfg.BuildSchema()
 	cfg.Set("shadowed", "from_cli", model.SourceCLI)
@@ -2796,4 +2867,159 @@ func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, model.SourceFile, got[0].source)
 	assert.Equal(t, "from_file", got[0].value)
+}
+
+// Values written to the infra-mode layer must survive every operation that rebuilds the
+// merged tree from the layers. Otherwise infrastructure_mode overrides are lost, e.g. in
+// system-probe after it clears its env layer and applies the config stream snapshot.
+func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
+	newCfg := func(t *testing.T) *ntmConfig {
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
+		cfg.SetDefault("feature.enabled", false)
+		cfg.SetDefault("other", 0)
+		cfg.BuildSchema()
+		cfg.Set("feature.enabled", true, model.SourceInfraMode)
+		require.True(t, cfg.GetBool("feature.enabled"))
+		return cfg.(*ntmConfig)
+	}
+
+	assertInfraMode := func(t *testing.T, cfg *ntmConfig) {
+		t.Helper()
+		assert.True(t, cfg.GetBool("feature.enabled"))
+		assert.Equal(t, model.SourceInfraMode, cfg.GetSource("feature.enabled"))
+	}
+
+	t.Run("DirectBulkSet", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.DirectBulkSet([]model.DirectSetting{{Key: "other", Value: 1, Source: model.SourceFile}}, false)
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("DirectBulkSet with infra-mode source", func(t *testing.T) {
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetDefault("feature.enabled", false)
+		cfg.BuildSchema()
+		ntm := cfg.(*ntmConfig)
+		// This is how a config stream consumer receives a value the sender resolved from infra mode.
+		ntm.DirectBulkSet([]model.DirectSetting{{Key: "feature.enabled", Value: true, Source: model.SourceInfraMode}}, false)
+		assertInfraMode(t, ntm)
+	})
+
+	t.Run("ClearEnvVars", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.ClearEnvVars()
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("BuildSchema", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.BuildSchema()
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("higher priority layers still win", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.Set("feature.enabled", false, model.SourceFile)
+		cfg.ClearEnvVars()
+		assert.False(t, cfg.GetBool("feature.enabled"))
+		assert.Equal(t, model.SourceFile, cfg.GetSource("feature.enabled"))
+	})
+
+	t.Run("AllSettingsWithoutSecrets", func(t *testing.T) {
+		cfg := newCfg(t)
+		settings := cfg.AllSettingsWithoutSecrets()
+		feature, ok := settings["feature"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, true, feature["enabled"])
+	})
+
+	t.Run("AllSettingsBySource provided", func(t *testing.T) {
+		cfg := newCfg(t)
+		provided := cfg.AllSettingsBySource()[model.SourceProvided].(map[string]interface{})
+		feature, ok := provided["feature"].(map[string]interface{})
+		require.True(t, ok, "infra-mode settings must be part of the provided settings")
+		assert.Equal(t, true, feature["enabled"])
+	})
+}
+
+// TestSetLogsCallerPosition checks that the logs emitted while setting a value point at the caller of Set or
+// SetWithLock, and not at the config implementation, so that the code passing a wrongly typed value can be found.
+func TestSetLogsCallerPosition(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := log.LoggerFromWriterWithMinLevelAndDateFuncLineMsgFormat(w, log.TraceLvl)
+	require.NoError(t, err)
+	log.SetupLogger(l, "trace")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetDefault("float", 1.0)
+	cfg.SetDefault("float_with_lock", 1.0)
+	cfg.SetDefault("int64", int64(1))
+	cfg.SetDefault("int64_again", int64(1))
+	cfg.BuildSchema()
+
+	// each test case emits a log line and returns the function and line of its call site
+	tests := []struct {
+		name      string
+		wantLevel string
+		emit      func() (string, int)
+	}{
+		{
+			name:      "conversion warning from Set",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("float", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "conversion warning from SetWithLock",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.SetWithLock("float_with_lock", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) { return 2, true })
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "first int width conversion warning",
+			wantLevel: "[WARN] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("int64", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "repeated int width conversion debug",
+			wantLevel: "[DEBUG] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("int64_again", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+		{
+			name:      "unknown key error",
+			wantLevel: "[ERROR] ",
+			emit: func() (string, int) {
+				pc, _, line, _ := runtime.Caller(0)
+				cfg.Set("unknown_key", 2, model.SourceAgentRuntime)
+				return runtime.FuncForPC(pc).Name(), line + 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b.Reset()
+			function, line := tt.emit()
+			require.NoError(t, w.Flush())
+
+			assert.Contains(t, b.String(), fmt.Sprintf("%s%s:%d ", tt.wantLevel, function, line))
+		})
+	}
 }

@@ -147,13 +147,6 @@ func (f *domainForwarder) addToTransactionRetryQueue(t transaction.Transaction) 
 	if err != nil {
 		f.log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
-
-	if dropCount > 0 {
-		transactionEndpointName := t.GetEndpointName()
-		transaction.TransactionsDroppedByEndpoint.Add(transactionEndpointName, int64(dropCount))
-		transaction.TransactionsDropped.Add(int64(dropCount))
-		transaction.TlmTxDropped.Inc(f.domain, transactionEndpointName)
-	}
 	return dropCount
 }
 

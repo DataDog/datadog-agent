@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTel Agent: the ``infraattributes`` processor now queries the tagger once per distinct
+    entity per batch instead of once per entity per resource, and once for the global tags
+    instead of once per resource. Since the resources of a batch overwhelmingly refer to the
+    same entities, this removes most of the tagger lookups and the allocations they entail.
+    The attributes the processor adds are unchanged. One behavior detail worth noting: all
+    resources in a batch now observe the same tagger snapshot, whereas previously a tagger
+    update landing part-way through a batch could be picked up by the resources processed
+    after it. The delay this introduces is bounded by a single batch.

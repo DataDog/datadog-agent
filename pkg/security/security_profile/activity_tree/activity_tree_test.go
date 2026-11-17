@@ -74,6 +74,49 @@ func TestInsertFileEvent(t *testing.T) {
 	assert.Equal(t, expectedDebugOuput, debugOutput)
 }
 
+func TestFileNodeEvictImageTag(t *testing.T) {
+	newNode := func(ids ...uint64) *FileNode {
+		node := &FileNode{NodeBase: NewNodeBase()}
+		for _, id := range ids {
+			node.AppendImageTagID(id, time.Now())
+		}
+		return node
+	}
+
+	for _, tc := range []struct {
+		name      string
+		parentIDs []uint64
+	}{
+		{name: "untagged directory placeholder"},
+		{name: "parent only seen by the evicted version", parentIDs: []uint64{2}},
+		{name: "shared parent", parentIDs: []uint64{1, 2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := newNode(tc.parentIDs...)
+			parent.Children = map[string]*FileNode{
+				"retained": newNode(1),
+				"evicted":  newNode(2),
+				"shared":   newNode(1, 2),
+			}
+
+			removed, freed := parent.evictImageTag(2)
+			require.False(t, removed, "a parent must be retained while it has children from another version")
+			assert.Positive(t, freed)
+			assert.NotContains(t, parent.Children, "evicted")
+			for _, name := range []string{"retained", "shared"} {
+				child := parent.Children[name]
+				require.NotNil(t, child)
+				assert.True(t, child.HasImageTag(1))
+				assert.False(t, child.HasImageTag(2))
+			}
+
+			removed, freed = parent.evictImageTag(1)
+			assert.True(t, removed, "an empty directory placeholder must be pruned too")
+			assert.Positive(t, freed)
+		})
+	}
+}
+
 func setParentRelationship(parent ProcessNodeParent, node *ProcessNode) {
 	node.Parent = parent
 	for _, child := range node.Children {

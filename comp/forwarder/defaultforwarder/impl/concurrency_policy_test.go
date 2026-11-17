@@ -51,6 +51,46 @@ func TestConcurrencyPolicyFromConfigInvalidRequests(t *testing.T) {
 	assert.Equal(t, int64(1), p.(staticConcurrencyPolicy).requests)
 }
 
+func TestConcurrencyPolicyFromConfigDynamic(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_concurrency_policy", "dynamic")
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.num_workers", 3)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.max_concurrent_requests", 5)
+	// The static settings must not affect the dynamic policy.
+	mockConfig.SetInTest("forwarder_num_workers", 7)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", 9)
+
+	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	require.IsType(t, dynamicConcurrencyPolicy{}, p)
+
+	remote := p.newDomain("remote").(*dynamicConcurrencyDomain)
+	assert.Equal(t, "remote", remote.domain)
+	assert.Equal(t, 3, remote.numWorkers())
+	assert.Equal(t, 0, remote.maxConns())
+	assert.Equal(t, int64(5), remote.settings.maxLimit)
+	assert.Same(t, remote.newRequestSemaphore(), remote.newRequestSemaphore())
+
+	other := p.newDomain("other").(*dynamicConcurrencyDomain)
+	assert.NotSame(t, remote.sem, other.sem)
+}
+
+func TestConcurrencyPolicyFromConfigDynamicInvalidRequests(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_concurrency_policy", "dynamic")
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.max_concurrent_requests", 0)
+
+	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	assert.Equal(t, int64(1), p.(dynamicConcurrencyPolicy).settings.maxLimit)
+}
+
+func TestConcurrencyPolicyFromConfigInvalidPolicy(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_concurrency_policy", "bogus")
+
+	p := concurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	assert.IsType(t, staticConcurrencyPolicy{}, p)
+}
+
 func newTestConcurrencyDomain(workers int, requests int64) concurrencyDomain {
 	return staticConcurrencyPolicy{
 		workers:     workers,

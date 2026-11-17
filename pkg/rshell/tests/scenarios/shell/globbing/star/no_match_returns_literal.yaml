@@ -1,0 +1,10 @@
+description: Star glob with no match returns the literal pattern string.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.nonexistent
+expect:
+  stdout: |+
+    *.nonexistent
+  stderr: ""
+  exit_code: 0

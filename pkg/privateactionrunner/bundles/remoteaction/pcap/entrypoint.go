@@ -1,0 +1,32 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package com_datadoghq_remoteaction_pcap
+
+import (
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
+
+// PcapBundle implements types.Bundle for com.datadoghq.remoteaction.pcap.
+type PcapBundle struct {
+	actions map[string]types.Action
+}
+
+// NewPcap constructs a PcapBundle and registers the runCapture action.
+// Captures are uploaded with uploader and tagged with the host name from hostname.
+func NewPcap(uploader pcapuploader.Component, hostname hostnameinterface.Component) types.Bundle {
+	return &PcapBundle{
+		actions: map[string]types.Action{
+			"runCapture": NewRunCaptureHandler(uploader, hostname),
+		},
+	}
+}
+
+// GetAction returns the Action registered under actionName, or nil if not found.
+func (b *PcapBundle) GetAction(actionName string) types.Action {
+	return b.actions[actionName]
+}

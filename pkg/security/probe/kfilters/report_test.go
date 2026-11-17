@@ -9,6 +9,7 @@
 package kfilters
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -21,8 +22,9 @@ func TestDiscarderReport(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
-	ruleOpts.WithSupportedDiscarders(map[eval.Field]bool{
-		"open.file.path": true,
+	ruleOpts.WithSupportedDiscarders(map[eval.Field][]eval.Field{
+		"open.file.path":  {"open.file.path", "open.file.name"},
+		"chmod.file.path": {"chmod.file.path", "chmod.file.name"},
 	})
 
 	cfg := &config.Config{
@@ -47,11 +49,36 @@ func TestDiscarderReport(t *testing.T) {
 	t.Run("no-discarder-ok-1", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 
-		// The first rule can generate a discarder, the second one can't
-		// As the second can be in approver only, we can generate discarders for the first one
-		// if we convert the second one to approver only
+		// Both rules can generate a discarder, the name being known with the path
 		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
 		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
+
+		report, err := ComputeFilters(cfg, rs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(report.DiscardersReport.Supported) != 1 {
+			t.Errorf("expected 1 supported discarder, got %d", len(report.DiscardersReport.Supported))
+		}
+
+		if len(report.DiscardersReport.Invalid) != 0 {
+			t.Errorf("expected 0 invalid discarder, got %d", len(report.DiscardersReport.Invalid))
+		}
+
+		if len(report.ApproverReports["open"].ApproversOnly) != 0 {
+			t.Errorf("expected 0 approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
+		}
+	})
+
+	t.Run("no-discarder-ok-2", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+
+		// The three rules can generate a discarder. The third one is approved by
+		// process.auid, an approver only capability
+		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
+		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
+		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "group*" && process.auid == 244`)
 
 		report, err := ComputeFilters(cfg, rs)
 		if err != nil {
@@ -71,31 +98,31 @@ func TestDiscarderReport(t *testing.T) {
 		}
 	})
 
-	t.Run("no-discarder-ok-2", func(t *testing.T) {
+	t.Run("no-discarder-auid", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 
-		// The first rule can generate a discarder, the second one can't
-		// As the second can be in approver only, we can generate discarders for the first one
-		// if we convert the second one to approver only
-		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "group*" && process.auid == 244`)
+		// The second rule can't generate a discarder, but its auid approver
+		// bypasses the discarders. The chmod rule has no approver, its
+		// discarder is invalid
+		rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd"`)
+		rules.AddTestRuleExpr(t, rs, `open.retval == EACCES && process.auid >= 1000`)
+		rules.AddTestRuleExpr(t, rs, `chmod.file.destination.mode & S_IXUSR > 0`)
 
 		report, err := ComputeFilters(cfg, rs)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if len(report.DiscardersReport.Supported) != 1 {
-			t.Errorf("expected 1 supported discarder, got %d", len(report.DiscardersReport.Supported))
+		if !slices.Equal(report.DiscardersReport.Supported, []eval.Field{"open.file.path"}) {
+			t.Errorf("expected open.file.path supported discarder, got %+v", report.DiscardersReport.Supported)
 		}
 
-		if len(report.DiscardersReport.Invalid) != 0 {
-			t.Errorf("expected 0 invalid discarder, got %d", len(report.DiscardersReport.Invalid))
+		if len(report.DiscardersReport.Invalid) != 1 {
+			t.Errorf("expected 1 invalid discarder, got %d", len(report.DiscardersReport.Invalid))
 		}
 
-		if len(report.ApproverReports["open"].ApproversOnly) != 2 {
-			t.Errorf("expected 2 approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
+		if !slices.Equal(report.ApproverReports["open"].ApproversOnly, []eval.Field{"process.auid"}) {
+			t.Errorf("expected process.auid approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
 		}
 	})
 

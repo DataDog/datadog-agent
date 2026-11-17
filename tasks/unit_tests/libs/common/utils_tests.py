@@ -182,10 +182,8 @@ class TestGetRtloaderPaths(unittest.TestCase):
 @mock.patch("tasks.libs.common.utils.get_commit_sha", return_value="6ad5ce4")
 @mock.patch("tasks.libs.common.utils.get_version", return_value="7.85.0-devel+git.127.6ad5ce4")
 class TestGetVersionLdflags(unittest.TestCase):
-    """AgentPackageVersion is what Fleet Automation health-checks a host against, so a wrong
-    value makes every config deployment to that host fail before any config is pushed. Only the
-    OCI/fleet-managed layout carries the version in the install path; nothing else may be read
-    out of one."""
+    """AgentPackageVersion is what Fleet Automation health-checks a host against. Only the OCI
+    layout carries the version in the install path; nothing else may be read out of one."""
 
     PACKAGE_VERSION = "7.85.0-devel.git.127.6ad5ce4-1"
     OCI_VERSION = "7.86.0-devel.git.1.abcdef0-1"
@@ -198,10 +196,25 @@ class TestGetVersionLdflags(unittest.TestCase):
         return stamped[0]
 
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
+    def test_keeps_package_version_for_build_staging_paths(self, *_):
+        # The macOS .dmg is built into a scratch directory ending in /bin.
+        stamped = self.package_version("/var/folders/ab/T/datadog-agent-build/bin")
+
+        self.assertEqual(stamped, self.PACKAGE_VERSION)
+        self.assertNotEqual(stamped, "bin")
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
+    def test_darwin_reads_version_from_oci_install_path(self, *_):
+        self.assertEqual(
+            self.package_version(f"/opt/datadog-packages/datadog-agent/{self.OCI_VERSION}"), self.OCI_VERSION
+        )
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
     def test_reads_version_from_oci_install_path(self, *_):
-        # /<root>/datadog-packages/<product>/<version> is the one layout whose last component
-        # is the package version, and Linux upgrade detection depends on it being read.
+        # /<root>/datadog-packages/<product>/<version>: Linux upgrade detection reads it.
         self.assertEqual(
             self.package_version(f"/opt/datadog-packages/datadog-agent/{self.OCI_VERSION}"), self.OCI_VERSION
         )
@@ -212,32 +225,17 @@ class TestGetVersionLdflags(unittest.TestCase):
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
     def test_keeps_package_version_for_agent_install_path(self, *_):
-        # deb/rpm agent install into /opt/datadog-agent: the last component equals the
-        # "datadog-agent" sentinel, so the non-darwin fallback below leaves it untouched.
+        # deb/rpm Agent install into /opt/datadog-agent, the "datadog-agent" sentinel.
         self.assertEqual(self.package_version("/opt/datadog-agent"), self.PACKAGE_VERSION)
 
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
-    def test_non_darwin_traditional_install_paths_mis_stamp_the_product_name(self, *_):
-        # Known pre-existing bug, intentionally left alone here: deb/rpm installs into
-        # /opt/<product> for anything other than the agent stamp the product directory name
-        # (not the "datadog-agent" sentinel, so the fallback below doesn't skip it) as if it
-        # were a version. Fixing it is out of scope for a macOS-only change; see the non-darwin
-        # branch of get_version_ldflags in tasks/libs/common/utils.py.
+    def test_linux_stamps_other_install_directory_names(self, *_):
+        # Pins the Linux behavior as it is: an install directory other than the sentinel is
+        # stamped as the version.
         for install_path in ("/opt/datadog-installer", "/opt/datadog-dogstatsd"):
             with self.subTest(install_path=install_path):
                 self.assertEqual(self.package_version(install_path), os.path.basename(install_path))
-
-    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
-    @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
-    def test_keeps_package_version_for_build_staging_paths(self, *_):
-        # The macOS DMG build hands omnibus a scratch directory ending in /bin
-        # (.gitlab/build/package_build/build_agent_dmg.sh). Stamping "bin" here is what broke
-        # Fleet config deployments to macOS hosts.
-        stamped = self.package_version("/var/folders/ab/T/datadog-agent-build/bin")
-
-        self.assertEqual(stamped, self.PACKAGE_VERSION)
-        self.assertNotEqual(stamped, "bin")
 
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
@@ -247,8 +245,7 @@ class TestGetVersionLdflags(unittest.TestCase):
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "win32")
     def test_windows_derives_version_independently_of_install_path(self, *_):
-        # Windows has no version in the install path and sets the tag explicitly instead; the
-        # install-path handling must not reach it.
+        # Windows has no version in the install path and sets the tag explicitly instead.
         self.assertEqual(self.package_version("C:/opt/datadog-agent"), "7.85.0-devel+git.127.6ad5ce4-1")
 
 
@@ -302,3 +299,11 @@ class TestGetBuildFlags(unittest.TestCase):
 
         self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
         self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.platform.machine", return_value="aarch64")
+    @mock.patch("tasks.libs.common.utils.platform.architecture", return_value=("32bit", "ELF"))
+    def test_pins_go_env_for_32_bit_arm_userland_on_64_bit_kernel(self, _architecture, _machine, _get_version_ldflags):
+        _, _, env = get_build_flags(mock.Mock())
+
+        self.assertEqual({k: env.get(k) for k in ("CGO_ENABLED", "GOARCH")}, {"CGO_ENABLED": "1", "GOARCH": "arm"})

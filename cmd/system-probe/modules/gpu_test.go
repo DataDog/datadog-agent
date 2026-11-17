@@ -44,7 +44,18 @@ func TestGPUModuleRegistersPRMEndpointWhenEnabled(t *testing.T) {
 	req := httptest.NewRequest("POST", "/gpu/prm-metrics", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
+	assert.NotContains(t, []int{http.StatusNotFound, http.StatusNotImplemented}, w.Code)
+}
+
+func TestGPUModulePRMEndpointDisabledReturnsNotImplemented(t *testing.T) {
+	router := http.NewServeMux()
+	moduleRouter := module.NewRouter("gpu", router)
+	gpuModule := &GPUMonitoringModule{cfg: &gpuconfig.Config{PRMEndpointEnabled: false}}
+	require.NoError(t, gpuModule.Register(moduleRouter))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/gpu/prm-metrics", nil))
+	assert.Equal(t, http.StatusNotImplemented, w.Code)
 }
 
 func TestGPUModuleDriverEventsDisabledDoesNotPanic(t *testing.T) {
@@ -61,7 +72,11 @@ func TestGPUModuleDriverEventsDisabledDoesNotPanic(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gpu/driver-events", nil))
-	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.Equal(t, http.StatusNotImplemented, w.Code)
+
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gpu/check", nil))
+	require.Equal(t, http.StatusNotImplemented, w.Code)
 }
 
 func TestGPUModuleSurvivesDriverEventStartupError(t *testing.T) {

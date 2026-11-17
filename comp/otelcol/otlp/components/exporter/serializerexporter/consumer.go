@@ -197,8 +197,14 @@ func checkSinglePointIndex(i int) {
 	}
 }
 
+// maxBucketCount is the per-bucket limit of the OTLP metrics intake (ddoghq/dd-source#3197).
+// The v3 intake accepts larger counts; the limit is kept to match the OTLP intake.
+const maxBucketCount = math.MaxInt32
+
+const bucketCountTooHigh = "bucket counts must not exceed 2147483647"
+
 // invalidExplicitHistogram returns why the point breaks the OtelExplicitHistogramPoints
-// contract, or "" if it doesn't.
+// contract or maxBucketCount, or "" if it doesn't.
 func invalidExplicitHistogram(bounds []float64, counts []uint64) string {
 	if len(bounds) == 0 && len(counts) == 0 {
 		return ""
@@ -214,18 +220,31 @@ func invalidExplicitHistogram(bounds []float64, counts []uint64) string {
 			return "explicit bounds must be strictly increasing"
 		}
 	}
+	for _, c := range counts {
+		if c > maxBucketCount {
+			return bucketCountTooHigh
+		}
+	}
 	return ""
 }
 
 // invalidExponentialHistogram returns why the point breaks the OtelExponentialHistogramPoints
-// contract, or "" if it doesn't.
+// contract or maxBucketCount, zero bucket included, or "" if it doesn't.
 func invalidExponentialHistogram(p pmetric.ExponentialHistogramDataPoint) string {
 	if zt := p.ZeroThreshold(); math.IsInf(zt, 0) || !(zt >= 0) {
 		return "zero threshold must be finite and non-negative"
 	}
+	if p.ZeroCount() > maxBucketCount {
+		return bucketCountTooHigh
+	}
 	for _, b := range [2]pmetric.ExponentialHistogramDataPointBuckets{p.Positive(), p.Negative()} {
 		if n := b.BucketCounts().Len(); n > 0 && int64(b.Offset())+int64(n)-1 > math.MaxInt32 {
 			return "bucket index overflows int32"
+		}
+		for _, c := range b.BucketCounts().All() {
+			if c > maxBucketCount {
+				return bucketCountTooHigh
+			}
 		}
 	}
 	return ""
@@ -313,11 +332,12 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
-	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
-	enrichedTags = append(enrichedTags, extraTags...)
-	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-	return enrichedTags
+// seriesTags pairs the exporter's extra tags with the translator's per-point tags without
+// copying either: tagset.CompositeTags holds both by reference and every marshaller walks
+// them in order (extraTags first), so the emitted tags match a concatenation. Both slices
+// are read-only from here on, and nothing retains them past serializer.Send.
+func seriesTags(extraTags []string, dimensions *otlpmetrics.Dimensions) tagset.CompositeTags {
+	return tagset.NewCompositeTags(extraTags, dimensions.Tags())
 }
 
 func (c *serializerConsumer) distributionMetadata(dimensions *otlpmetrics.Dimensions, interval int64) metrics.DistributionMetadata {
@@ -327,7 +347,7 @@ func (c *serializerConsumer) distributionMetadata(dimensions *otlpmetrics.Dimens
 	}
 	return metrics.DistributionMetadata{
 		Name:     dimensions.Name(),
-		Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+		Tags:     seriesTags(c.extraTags, dimensions),
 		Host:     dimensions.Host(),
 		Interval: interval,
 		Source:   msrc,
@@ -367,7 +387,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 		&metrics.Serie{
 			Name:     dimensions.Name(),
 			Points:   []metrics.Point{{Ts: float64(ts / 1e9), Value: value}},
-			Tags:     tagset.CompositeTagsFromSlice(enrichTags(c.extraTags, dimensions)),
+			Tags:     seriesTags(c.extraTags, dimensions),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: interval,

@@ -93,6 +93,16 @@ func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error
 	return args.Error(0)
 }
 
+func (m *mockCoreAgentUptane) EmbeddedRootVersions() (uptane.TUFVersions, error) {
+	args := m.Called()
+	return args.Get(0).(uptane.TUFVersions), args.Error(1)
+}
+
+func (m *mockCoreAgentUptane) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error {
+	args := m.Called(response)
+	return args.Error(0)
+}
+
 func (m *mockUptane) State() (uptane.State, error) {
 	args := m.Called()
 	return args.Get(0).(uptane.State), args.Error(1)
@@ -588,6 +598,54 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+}
+
+func TestValidateRequestClientTypes(t *testing.T) {
+	tcs := []struct {
+		name      string
+		isTracer  bool
+		isAgent   bool
+		isUpdater bool
+		wantError string
+	}{
+		{name: "tracer", isTracer: true},
+		{name: "agent", isAgent: true},
+		{name: "updater", isUpdater: true},
+		{name: "no client type", wantError: "agents only support remote config updates from tracer or agent or updater at this time"},
+		{name: "tracer and agent", isTracer: true, isAgent: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "tracer and updater", isTracer: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "agent and updater", isAgent: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+		{name: "all client types", isTracer: true, isAgent: true, isUpdater: true, wantError: "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive"},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &pbgo.Client{
+				Id:        "test_client",
+				State:     &pbgo.ClientState{RootVersion: 1},
+				IsTracer:  tc.isTracer,
+				IsAgent:   tc.isAgent,
+				IsUpdater: tc.isUpdater,
+			}
+			if tc.isTracer {
+				client.ClientTracer = &pbgo.ClientTracer{RuntimeId: "test_runtime", Language: "go"}
+			}
+			if tc.isAgent {
+				client.ClientAgent = &pbgo.ClientAgent{}
+			}
+			if tc.isUpdater {
+				client.ClientUpdater = &pbgo.ClientUpdater{}
+			}
+
+			err := validateRequest(&pbgo.ClientGetConfigsRequest{Client: client})
+			if tc.wantError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Equal(t, tc.wantError, status.Convert(err).Message())
+		})
+	}
 }
 
 func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) {
@@ -1322,37 +1380,45 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.AssertExpectations(t)
 }
 
-func TestOrgStatus(t *testing.T) {
+func TestGetOrgStatus(t *testing.T) {
 	api := &mockAPI{}
 	clock := clock.NewMock()
-	uptaneClient := &mockCoreAgentUptane{}
-	service := newTestService(t, api, uptaneClient, clock)
+	service := newTestService(t, api, &mockCoreAgentUptane{}, clock)
 
-	response := &pbgo.OrgStatusResponse{
-		Enabled:    true,
-		Authorized: true,
+	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
+	api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), errors.New("fetch failed")).Once()
+	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
+	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
+
+	for _, expected := range []*pbgo.OrgStatusResponse{
+		{Enabled: true, Authorized: true},
+		{Enabled: true, Authorized: false},
+		{Enabled: false, Authorized: false},
+		{Enabled: false, Authorized: true},
+		{Enabled: true, Authorized: true},
+	} {
+		api.On("FetchOrgStatus", mock.Anything).Return(expected, nil).Once()
+		service.orgStatusPoller.poll(service.api, service.rcType, service.status)
+		snapshot := service.GetOrgStatus()
+		require.Equal(t, expected, snapshot)
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus())
+
+		snapshot.Enabled = !snapshot.Enabled
+		snapshot.Authorized = !snapshot.Authorized
+		require.Equal(t, expected, service.GetOrgStatus(), "callers cannot modify the stored status")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "callers cannot modify the internal cache")
+
+		for range 6 {
+			api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), httpapi.ErrServiceUnavailable).Once()
+			service.orgStatusPoller.poll(service.api, service.rcType, service.status)
+		}
+		clock.Add(time.Hour)
+		require.Equal(t, expected, service.GetOrgStatus(), "failed polls and elapsed time retain the last success")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "failed polls retain the internal cache")
 	}
-
-	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
-	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-
-	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
-	prev := service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.True(t, prev.Authorized)
-
-	api.On("FetchOrgStatus", mock.Anything).Return(nil, errors.New("Error"))
-	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
-	prev = service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.True(t, prev.Authorized)
-
-	response.Authorized = false
-	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-	service.orgStatusPoller.poll(service.api, service.rcType, service.status)
-	prev = service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.False(t, prev.Authorized)
+	api.AssertExpectations(t)
 }
 
 func TestWithTraceAgentEnv(t *testing.T) {

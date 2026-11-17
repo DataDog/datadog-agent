@@ -13,8 +13,21 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
+
+// newHTTPClientProvider enforces only domain_allowlist: when it is unset Jenkins
+// actions reach any domain, rather than falling back to http_allowlist's deny-all default.
+func newHTTPClientProvider(runnerConfig *config.Config) httpclient.Provider {
+	return httpclient.NewDefaultProvider(
+		runnerConfig,
+		httpclient.WithURLAllowlistDisabled(),
+		httpclient.WithDomainAllowlist(),
+		httpclient.WithSameOriginRedirectsOnly(),
+	)
+}
 
 type DomainAndHeaders struct {
 	Domain  string
@@ -50,6 +63,17 @@ func createHeaders(userName, apiToken string) http.Header {
 	return headers
 }
 
-func encodeJobNameForUrl(jobName string) string {
-	return strings.ReplaceAll(url.PathEscape(jobName), "%2F", "/")
+// Dot segments are rejected because url.PathEscape leaves "." unescaped, so "../" could escape /job/.
+func encodeJobNameForUrl(jobName string) (string, error) {
+	if jobName == "" {
+		return "", errors.New("job name must not be empty")
+	}
+	segments := strings.Split(jobName, "/")
+	for i, segment := range segments {
+		if segment == "." || segment == ".." {
+			return "", fmt.Errorf("job name %q must not contain %q path segments", jobName, segment)
+		}
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/"), nil
 }

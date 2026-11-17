@@ -16,7 +16,7 @@ go_library(
         "//pkg/languagedetection/languagemodels",
         "//pkg/proto/pbgo/languagedetection",
         "//pkg/system-probe/api/client",
-        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/util/log",
         "@org_golang_google_protobuf//proto",
     ],

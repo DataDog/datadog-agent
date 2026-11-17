@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a regression in serverless-init 1.10.0 where metrics (including runtime
+    metrics sent by tracers) and sketches ignored ``DD_PROXY_HTTP`` and
+    ``DD_PROXY_HTTPS`` and were sent directly to Datadog. In environments where
+    the only egress path is a proxy, these metrics were dropped.

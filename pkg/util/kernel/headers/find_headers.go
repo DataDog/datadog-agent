@@ -25,7 +25,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -96,6 +96,10 @@ type headerProvider struct {
 	headerDirs        []string
 	headerDownloadDir string
 
+	// secureDownloadDir validates headerDownloadDir before it is used. See
+	// GetKernelHeaders. A nil value disables the downloaded-header path.
+	secureDownloadDir func(dir string) error
+
 	downloader headerDownloader
 
 	result        headerFetchResult
@@ -113,11 +117,12 @@ type HeaderOptions struct {
 	ZypperReposDir string
 }
 
-func initProvider(opts HeaderOptions) {
+func initProvider(opts HeaderOptions, secureDownloadDir func(dir string) error) {
 	HeaderProvider = &headerProvider{
 		downloadEnabled:   opts.DownloadEnabled,
 		headerDirs:        opts.Dirs,
 		headerDownloadDir: opts.DownloadDir,
+		secureDownloadDir: secureDownloadDir,
 
 		downloader: headerDownloader{
 			aptConfigDir:   opts.AptConfigDir,
@@ -138,12 +143,25 @@ func initProvider(opts HeaderOptions) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(opts HeaderOptions) []string {
+//
+// secureDownloadDir prepares opts.DownloadDir for use: it must ensure that directory and
+// every ancestor is a real, root-owned directory that no other user can write to, creating
+// it if necessary. It is called only if the search reaches the downloaded-header path, and
+// before that directory is read from, deleted in, or written to. Headers supplied through
+// opts.Dirs, found in the default /lib/modules locations, or extracted from
+// /sys/kernel/kheaders.tar.xz are returned without ever calling it, so those sources do not
+// depend on the download directory being usable.
+//
+// A nil secureDownloadDir disables the downloaded-header path entirely. system-probe runs as
+// root and both reuses and recursively deletes the contents of that directory, so it must
+// never be touched unvalidated; failing closed keeps a caller that forgets to pass a
+// validator from silently reintroducing that exposure.
+func GetKernelHeaders(opts HeaderOptions, secureDownloadDir func(dir string) error) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
 	if HeaderProvider == nil {
-		initProvider(opts)
+		initProvider(opts, secureDownloadDir)
 	}
 
 	if HeaderProvider.result != notAttempted {
@@ -205,6 +223,15 @@ func (h *headerProvider) getKernelHeaders(hv kernel.Version) ([]string, headerFe
 			return dirs, sysfsHeadersFound, nil
 		}
 		log.Debugf("unable to find system kernel headers: %v", err)
+	}
+
+	// Past this point every operation reads, deletes in, or writes to the download
+	// directory, so it has to be known to be under root's exclusive control first.
+	if h.secureDownloadDir == nil {
+		return nil, validationFailure, errors.New("refusing to use downloaded kernel headers: no download directory validator was provided")
+	}
+	if err := h.secureDownloadDir(h.headerDownloadDir); err != nil {
+		return nil, validationFailure, fmt.Errorf("unable to use kernel header download directory: %w", err)
 	}
 
 	downloadedDirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(h.headerDownloadDir), false)

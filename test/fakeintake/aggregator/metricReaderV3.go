@@ -31,7 +31,14 @@ type metricReaderV3 struct {
 	valsFloat32Idx   int
 	valsFloat64Idx   int
 	sketchNumBinsIdx int
-	sketchBinsIdx    int
+	sketchBinKeysIdx int // DDSketch only
+	sketchBinCntsIdx int // DDSketch and histograms
+	pointFlagsIdx    int
+	valsUint64Idx    int
+
+	// Current histogram point, decoded by NextPoint.
+	explicitPoint    ExplicitHistogramPoint
+	exponentialPoint ExponentialHistogramPoint
 
 	pointsRemaining int
 
@@ -479,12 +486,21 @@ func (r *metricReaderV3) NextPoint() error {
 	}
 
 	switch r.Type() {
-	case intake_v3.MetricType_Sketch:
+	case intake_v3.MetricType_ExplicitHistogram:
+		if err := r.readExplicitHistogramPoint(); err != nil {
+			return err
+		}
+	case intake_v3.MetricType_ExponentialHistogram:
+		if err := r.readExponentialHistogramPoint(); err != nil {
+			return err
+		}
+	case intake_v3.MetricType_DDSketch:
 		r.sketchNumBinsIdx++
-		if r.sketchNumBinsIdx > len(r.payload.MetricData.SketchNumBins) {
+		if r.sketchNumBinsIdx > len(r.payload.MetricData.NumBins) {
 			return errV3UnexpectedEOF
 		}
-		r.sketchBinsIdx += r.SketchNumBins()
+		r.sketchBinKeysIdx += r.SketchNumBins()
+		r.sketchBinCntsIdx += r.SketchNumBins()
 		switch r.ValueType() {
 		case intake_v3.ValueType_Float64:
 			r.valsFloat64Idx += 3
@@ -517,10 +533,10 @@ func (r *metricReaderV3) NextPoint() error {
 	if r.valsSint64Idx > len(r.payload.MetricData.ValsSint64) {
 		return errV3UnexpectedEOF
 	}
-	if r.sketchBinsIdx > len(r.payload.MetricData.SketchBinKeys) {
+	if r.sketchBinKeysIdx > len(r.payload.MetricData.BinKeys) {
 		return errV3UnexpectedEOF
 	}
-	if r.sketchBinsIdx > len(r.payload.MetricData.SketchBinCnts) {
+	if r.sketchBinCntsIdx > len(r.payload.MetricData.BinCnts) {
 		return errV3UnexpectedEOF
 	}
 
@@ -536,9 +552,9 @@ func (r *metricReaderV3) Timestamp() int64 {
 
 // Value returns metric value for current metric data point.
 //
-// Only valid to call if r.Type() != MetricType_Sketch, panics otherwise.
+// Only valid to call for count, rate and gauge metrics, panics otherwise.
 func (r *metricReaderV3) Value() float64 {
-	if r.Type() == intake_v3.MetricType_Sketch {
+	if r.Type() == intake_v3.MetricType_DDSketch || r.isHistogram() {
 		panic("invalid type")
 	}
 	switch r.ValueType() {
@@ -555,9 +571,9 @@ func (r *metricReaderV3) Value() float64 {
 
 // SketchSummary returns sketch summary for current metric data point.
 //
-// Only valid if r.Type() == MetricType_Sketch, panics otherwise.
+// Only valid if r.Type() == MetricType_DDSketch, panics otherwise.
 func (r *metricReaderV3) SketchSummary() (sum, min, max float64, cnt uint64) {
-	if r.Type() != intake_v3.MetricType_Sketch {
+	if r.Type() != intake_v3.MetricType_DDSketch {
 		panic("invalid type")
 	}
 
@@ -585,26 +601,25 @@ func (r *metricReaderV3) SketchSummary() (sum, min, max float64, cnt uint64) {
 
 // SketchNumBins returns number of sketch bins for the current metric data point.
 //
-// Only valid if r.Type() == MetricType_Sketch, panics otherwise.
+// Only valid if r.Type() == MetricType_DDSketch, panics otherwise.
 func (r *metricReaderV3) SketchNumBins() int {
-	if r.Type() != intake_v3.MetricType_Sketch {
+	if r.Type() != intake_v3.MetricType_DDSketch {
 		panic("invalid type")
 	}
-	return int(r.payload.MetricData.SketchNumBins[r.sketchNumBinsIdx-1])
+	return int(r.payload.MetricData.NumBins[r.sketchNumBinsIdx-1])
 }
 
 // SketchCols returns sketch data columns for the current metric data
 // point.
 //
-// Only valid if r.Type() == MetricType_Sketch, panics otherwise.
-func (r *metricReaderV3) SketchCols() (k []int32, n []uint32) {
-	if r.Type() != intake_v3.MetricType_Sketch {
+// Only valid if r.Type() == MetricType_DDSketch, panics otherwise.
+func (r *metricReaderV3) SketchCols() (k []int32, n []uint64) {
+	if r.Type() != intake_v3.MetricType_DDSketch {
 		panic("invalid type")
 	}
 	size := r.SketchNumBins()
-	start := r.sketchBinsIdx - size
-	k = slices.Clone(r.payload.MetricData.SketchBinKeys[start:][:size])
-	n = slices.Clone(r.payload.MetricData.SketchBinCnts[start:][:size])
+	k = slices.Clone(r.payload.MetricData.BinKeys[r.sketchBinKeysIdx-size:][:size])
+	n = slices.Clone(r.payload.MetricData.BinCnts[r.sketchBinCntsIdx-size:][:size])
 	deltaDecodeV3(k)
 	return
 }
@@ -624,7 +639,10 @@ func (r *metricReaderV3) Debug() {
 	valsFloat64Idx %d
 
 	sketchNumBinsIdx %d
-	sketchBinsIdx    %d
+	sketchBinKeysIdx %d
+	sketchBinCntsIdx %d
+	pointFlagsIdx    %d
+	valsUint64Idx    %d
 
 	pointsRemaining %d
 
@@ -641,7 +659,10 @@ func (r *metricReaderV3) Debug() {
 		r.valsFloat32Idx,
 		r.valsFloat64Idx,
 		r.sketchNumBinsIdx,
-		r.sketchBinsIdx,
+		r.sketchBinKeysIdx,
+		r.sketchBinCntsIdx,
+		r.pointFlagsIdx,
+		r.valsUint64Idx,
 
 		r.pointsRemaining,
 

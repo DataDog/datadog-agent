@@ -1,0 +1,13 @@
+description: Multiple -e flags apply expressions in order.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -e 's/hello/goodbye/' -e 's/world/earth/' input.txt
+expect:
+  stdout: "goodbye earth\n"
+  stderr: ""
+  exit_code: 0

@@ -15,7 +15,7 @@ import (
 	libebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -90,6 +90,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 
 		enableProbe(enabled, probes.TCPConnect)
 		enableProbe(enabled, probes.TCPDone)
+		enableProbe(enabled, probes.TCPDisconnect)
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
@@ -221,7 +222,7 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 }
 
 func enableAdvancedUDP(enabled map[manager.ProbeIdentificationPair]struct{}) error {
-	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+	missing, err := ksyms.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}

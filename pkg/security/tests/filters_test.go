@@ -377,8 +377,12 @@ func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
 		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
 	}
 
+	// in accept mode, every open of the host goes through the sampler: the opens of the container runtime could
+	// exhaust the global open sampling rate before cat opens the discarded file.
 	tagger := NewFakeManualTagger()
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,8 +534,12 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 		Expression: `open.file.path == "/tmp/test/test-approved"`,
 	}
 
+	// in deny mode, every rejected open of the host goes through the sampler: the opens of the container runtime
+	// could exhaust the global open sampling rate before touch and cat open the file.
 	tagger := NewFakeManualTagger()
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(workloadProfileTestOpts(t.TempDir(), tagger)))
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,7 +658,8 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
 		var count atomic.Int32
 		runUntilSentinel(t, test, dockerInstance, func() error {
-			if out, err := dockerInstance.Command(syscallTester, args, []string{}).CombinedOutput(); err != nil {
+			cmd := dockerInstance.Command("sh", append([]string{"-c", `"$@" && true`, "--", syscallTester}, args...), []string{})
+			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", string(out), err)
 			}
 			return nil
@@ -745,8 +754,8 @@ func TestFilterOpenSampleRefreshWorkloadProfile(t *testing.T) {
 
 	// node eviction is disabled so the sample never goes stale: only the refresh of the second open can update the profile
 	testFile := "/tmp/wp-open-refresh"
-	args := []string{"open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
-	if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+	args := []string{"-c", `"$@" && true`, "--", workloadProfileSyscallTester, "open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
+	if out, err := dockerInstance.Command("sh", args, []string{}).CombinedOutput(); err != nil {
 		t.Fatalf("%s: %v", string(out), err)
 	}
 
@@ -1522,7 +1531,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	wrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "busybox", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}

@@ -1,0 +1,11 @@
+# skip: special variable is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: The $SRANDOM variable has no special meaning and expands to empty.
+input:
+  script: |+
+    echo "[$SRANDOM]"
+expect:
+  stdout: |+
+    []
+  stderr: ""
+  exit_code: 0

@@ -6,17 +6,20 @@
 package containers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
@@ -32,8 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -48,6 +54,8 @@ const (
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
+
+var datadogMetricGVR = datadoghq.GroupVersion.WithResource("datadogmetrics")
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
@@ -527,10 +535,10 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "--verbose"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
-		suite.Contains(stdout, "agents reporting ===")
+		suite.Contains(stdout, "agent(s) reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
@@ -1130,56 +1138,71 @@ func (suite *k8sSuite) TestKSM() {
 	// (this healthy nginx endpoint should include address_not_ready=0).
 	suite.testKSMEndpointAddressZeros("workload-nginx", "nginx")
 
-	// Test VPA metrics for nginx
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "kubernetes_state.vpa.count",
-			Tags: []string{
-				"^kube_namespace:workload-nginx$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^orch_cluster_id:`,
-				`^kube_namespace:workload-nginx$`,
+	// Test VPA, HPA and PDB metrics for nginx and redis.
+	// On Kubernetes < 1.23 (HPA, autoscaling/v2beta2) and < 1.21 (PDB, policy/v1beta1),
+	// HPA and PDB metrics are produced by the agent's replacement stores instead of
+	// the KSM built-in ones: both must yield the same metrics and tags. The kind 1.19
+	// and 1.22 CI jobs are what exercise those replacement stores.
+	for _, app := range []struct {
+		name          string
+		namespaceTags []string // Tags derived from the namespace labels and annotations
+	}{
+		{
+			name: "nginx",
+			namespaceTags: []string{
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
-				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			}),
-			Value: &testMetricExpectValueArgs{
-				Max: 1,
-				Min: 1,
 			},
 		},
-	})
+		{
+			name: "redis",
+		},
+	} {
+		nsTag := `^kube_namespace:workload-` + app.name + `$`
+		commonTags := append([]string{
+			`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^orch_cluster_id:`,
+			nsTag,
+			`^kube_instance_tag:static$`, // This is applied via KSM core check instance config
+			`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+		}, app.namespaceTags...)
 
-	// Test VPA metrics for redis
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "kubernetes_state.vpa.count",
-			Tags: []string{
-				"^kube_namespace:workload-redis$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^orch_cluster_id:`,
-				`^kube_namespace:workload-redis$`,
-				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
-			}),
-			Value: &testMetricExpectValueArgs{
-				Max: 1,
-				Min: 1,
-			},
-		},
-	})
+		for _, m := range []struct {
+			name      string
+			objTagKey string // Tag holding the object name, if any
+			min, max  float64
+		}{
+			{name: "kubernetes_state.vpa.count", min: 1, max: 1},
+			// The HPA is created with MinReplicas: 1 and MaxReplicas: 5
+			{name: "kubernetes_state.hpa.max_replicas", objTagKey: "horizontalpodautoscaler", min: 5, max: 5},
+			// The PDB selects the deployment pods, whose replica count is driven by the HPA
+			{name: "kubernetes_state.pdb.pods_total", objTagKey: "poddisruptionbudget", min: 1, max: 5},
+		} {
+			filterTags := []string{nsTag}
+			expectedTags := commonTags
+			if m.objTagKey != "" {
+				objTag := `^` + m.objTagKey + `:` + app.name + `$`
+				filterTags = append(filterTags, objTag)
+				expectedTags = append([]string{objTag}, commonTags...)
+			}
+
+			suite.testMetric(&testMetricArgs{
+				Filter: testMetricFilterArgs{
+					Name: m.name,
+					Tags: filterTags,
+				},
+				Expect: testMetricExpectArgs{
+					Tags: suite.testClusterTags(expectedTags),
+					Value: &testMetricExpectValueArgs{
+						Max: m.max,
+						Min: m.min,
+					},
+				},
+			})
+		}
+	}
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -1787,7 +1810,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile("^image_name:.*/apps-nginx-server$"),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
-				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
+				regexp.MustCompile(`^scan_method:(tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
@@ -1855,7 +1878,20 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
-	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(suite.T().Context(), nginxPod.Name, metav1.DeleteOptions{})
+	k8sVersion, err := suite.Env().KubernetesCluster.ServerVersion()
+	suite.Require().NoError(err)
+
+	// Before Kubernetes 1.22, once the containers of a deleted pod have been removed, the kubelet
+	// reports them as waiting again and the pod phase goes back to Pending. The tagger keeps the
+	// last phase seen by the agent, so the Delete event can carry pod_phase:pending.
+	// Kubernetes 1.22 fixed this by reporting such containers as terminated (ContainerStatusUnknown).
+	expectedPodPhases := "running|succeeded|failed"
+	if !k8sVersion.AtLeast(utilversion.MajorMinor(1, 22)) {
+		expectedPodPhases += "|pending"
+	}
+	expectedPodPhaseTag := regexp.MustCompile(`^pod_phase:(` + expectedPodPhases + `)$`)
+
+	err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(suite.T().Context(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
 
 	suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -1891,7 +1927,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^org:agent-org$`),
 			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			expectedPodPhaseTag,
 			regexp.MustCompile(`^service:nginx-from-annotation$`),
 			regexp.MustCompile(`^team:contp$`),
 		}
@@ -1953,7 +1989,30 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 		}()
 
+		dynamicClient, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+		suite.Require().NoError(err)
+		datadogMetrics := dynamicClient.Resource(datadogMetricGVR).Namespace(namespace)
+
+		// An authentication error doesn't recover during the test, so stop waiting when there is one.
+		var authError string
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			// Checked on every poll, not once before because the Cluster Agent only reports the error after its first
+			// query of the DatadogMetric, which can come after this subtest starts.
+			ddmError, err := datadogMetricError(suite.T().Context(), datadogMetrics, deployment)
+			if err != nil {
+				ddmError = fmt.Sprintf("failed to get the DatadogMetric: %v", err)
+			}
+			if isDatadogAPIAuthError(ddmError) {
+				authError = ddmError
+				return
+			}
+			// Explain a failed poll with the error of the DatadogMetric, if any.
+			reportDatadogMetricError := func() {
+				if ddmError != "" {
+					c.Errorf("Error of DatadogMetric %s/%s: %s", namespace, deployment, ddmError)
+				}
+			}
+
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
@@ -1963,6 +2022,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			)
 			require.NoErrorf(c, err, "Failed to query fake intake")
 			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
+				reportDatadogMetricError()
 				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
 				return
 			}
@@ -1991,8 +2051,11 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					prevValue = point.Value
 				}
 			}
-			assert.Truef(c, scaled, "No scale up or scale down detected")
+			if !assert.Truef(c, scaled, "No scale up or scale down detected") {
+				reportDatadogMetricError()
+			}
 		}, 7*time.Minute, 10*time.Second, "Failed to witness scale up or scale down of %s.%s", namespace, deployment)
+		suite.Require().Emptyf(authError, "The Cluster Agent can't query the metric of DatadogMetric %s/%s, check the Datadog API and app keys (E2E_API_KEY/E2E_APP_KEY)", namespace, deployment)
 	})
 }
 
@@ -2046,10 +2109,37 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 }
 
 func (suite *k8sSuite) combineTags(tags []string, sourceCodeIntegrationTags []string) *[]string {
-	combined := append(tags, sourceCodeIntegrationTags...)
+	// slices.Concat never writes into the spare capacity of tags, which callers may reuse.
+	combined := slices.Concat(tags, sourceCodeIntegrationTags)
 	return &combined
 }
 
 func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
 	return suite.combineTags(tags, suite.envSpecificClusterTags)
+}
+
+// datadogMetricError returns the error that the Cluster Agent reported in the status of a
+// DatadogMetric, or "" if there is none.
+func datadogMetricError(ctx context.Context, datadogMetrics dynamic.ResourceInterface, name string) (string, error) {
+	ddm, err := datadogMetrics.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	conditions, _, err := unstructured.NestedSlice(ddm.Object, "status", "conditions")
+	if err != nil {
+		return "", err
+	}
+	for _, c := range conditions {
+		condition, ok := c.(map[string]any)
+		if ok && condition["type"] == string(datadoghq.DatadogMetricConditionTypeError) && condition["status"] == "True" {
+			message, _ := condition["message"].(string)
+			return message, nil
+		}
+	}
+	return "", nil
+}
+
+// isDatadogAPIAuthError reports whether a DatadogMetric error comes from the Datadog API rejecting the keys
+func isDatadogAPIAuthError(ddmError string) bool {
+	return strings.Contains(ddmError, "403 Forbidden")
 }

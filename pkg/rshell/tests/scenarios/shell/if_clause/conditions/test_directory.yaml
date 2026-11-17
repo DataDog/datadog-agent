@@ -1,0 +1,16 @@
+description: If with test builtin checking directory existence.
+setup:
+  files:
+    - path: subdir/file.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    if [ -d subdir ]; then echo isdir; else echo notdir; fi
+    if [ -d subdir/file.txt ]; then echo isdir; else echo notdir; fi
+expect:
+  stdout: |+
+    isdir
+    notdir
+  stderr: ""
+  exit_code: 0

@@ -23,6 +23,8 @@
 #include "protocols/classification/protocol-classification.h"
 #include "protocols/tls/tls-certs.h"
 
+#define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
@@ -185,6 +187,19 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
+// The addr_len argument was removed upstream after 7.0 and backported to some
+// 7.0 distro kernels (e.g. Ubuntu 7.0.0-38), so this variant is selected by the
+// BTF parameter count rather than the kernel version.
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, size_t len, int flags, int copied) {
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
@@ -226,6 +241,30 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
+// tcp_disconnect zeroes the destination port and source address, so tcp_close
+// can no longer read the tuple. Flush the connection here instead. When called
+// from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+// A still-present tcp_ongoing_connect_pid entry means tcp_close hasn't reported
+// a failure yet, e.g. shutdown() cancelling a SYN_SENT connect.
+SEC("fentry/tcp_disconnect")
+int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
+        handle_tcp_failure(sk, &t);
+    }
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
+    return 0;
+}
+
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     if (!is_protocol_classification_supported()) {
@@ -255,12 +294,15 @@ int BPF_PROG(tcp_done, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // resets can also have kernel pids as they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the peer
+    // get the pid from tcp_ongoing_connect_pid instead, which tcp_connect (client side) or
+    // inet_csk_accept (server side) set. else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // read the pid before deleting: preallocated elements are reused without an RCU grace
+        // period, so this narrows (but doesn't close) the race with a concurrent delete
         t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
@@ -429,42 +471,15 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
     return handle_skb_consume_udp(sk, skb, len);
 }
 
-SEC("fentry/tcp_retransmit_skb")
-int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    log_debug("fexntry/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {};
-    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    if (args.retrans_out_pre < 0) {
-        return 0;
-    }
-
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
-
-    return 0;
-}
-
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     log_debug("fexit/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (err < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-        return 0;
-    }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-    if (args == NULL) {
-        return 0;
-    }
-    u32 retrans_out_pre = args->retrans_out_pre;
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-
-    if (retrans_out < 0) {
+    if (err != 0) {
         return 0;
     }
 
-    return handle_retransmit(sk, retrans_out-retrans_out_pre);
+    u16 skb_pcount = TCP_SKB_CB(skb)->tcp_gso_segs;
+    return handle_retransmit(sk, skb_pcount);
 }
 
 SEC("fentry/tcp_connect")
@@ -529,7 +544,10 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
 
+    // tcp_close and tcp_done look this entry up with a zero pid, as in the kprobe
+    // tracer (tcp_done can run without process context), so key it with one too
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -688,7 +706,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -697,12 +715,10 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     }
 
     conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    // netns and pid stay zero: the map is keyed without them.
+    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
-    sock_tup.netns = 0;
-    sock_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);

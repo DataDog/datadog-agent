@@ -1,0 +1,8 @@
+description: uname rejects extra positional operands
+input:
+  script: |+
+    uname foo
+expect:
+  stdout: ""
+  stderr: "uname: extra operand 'foo'\nTry 'uname --help' for more information.\n"
+  exit_code: 1

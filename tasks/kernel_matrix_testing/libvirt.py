@@ -4,7 +4,7 @@ import sys
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from tasks.kernel_matrix_testing.tool import info
+from tasks.kernel_matrix_testing.tool import info, warn
 
 if TYPE_CHECKING:
     import libvirt
@@ -75,7 +75,7 @@ def delete_volumes(conn: libvirt.virConnect, stack: str):
         info(f"[+] Storage volume {name} deleted")
 
 
-def delete_pools(conn: libvirt.virConnect, stack: str):
+def delete_pools(conn: libvirt.virConnect, stack: str, delete_storage: bool = False):
     pools = get_resources_in_stack(stack, conn.listAllStoragePools)
     info(f"[*] {len(pools)} storage pools running in stack {stack}")
 
@@ -83,6 +83,12 @@ def delete_pools(conn: libvirt.virConnect, stack: str):
         name = pool.name()
         if pool.isActive():
             pool.destroy()
+        if delete_storage:
+            # Let libvirtd (running as root) remove the pool directory, so we don't need sudo
+            try:
+                pool.delete(0)
+            except libvirt.libvirtError as e:
+                warn(f"[-] Failed to delete storage of pool {name}: {e}")
         pool.undefine()
         info(f"[+] Storage pool {name} deleted")
 

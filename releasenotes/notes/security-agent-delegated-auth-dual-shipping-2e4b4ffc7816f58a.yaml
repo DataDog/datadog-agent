@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    Add delegated authentication (Workload Identity Federation) support for security-agent
+    dual shipping. A ``DELA[...]`` directive can now be used in place of a static API key in
+    ``runtime_security_config.endpoints.additional_endpoints`` (CWS events),
+    ``compliance_config.endpoints.additional_endpoints`` (compliance events), and
+    ``runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints``
+    (activity-dump remote storage); the security-agent resolves it to an auto-refreshed intake
+    key and dual-ships those payloads to the second destination once the credential is
+    available. Directives placed in ``security-agent.yaml`` or delivered through fleet
+    policies are now picked up as well. When ``runtime_security_config.direct_send_from_system_probe``
+    or ``compliance_config.run_in_system_probe`` moves shipping into the system-probe process,
+    the agent warns at startup that delegated-auth directives in the affected settings cannot
+    be resolved by that process, and activity dumps skip a destination still waiting for its
+    key instead of sending it with an empty one.

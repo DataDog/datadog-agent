@@ -1,0 +1,8 @@
+description: Echo -e with \e (escape character) escape sequence.
+input:
+  script: |+
+    echo -e '\e'
+expect:
+  stdout: "\x1b\n"
+  stderr: ""
+  exit_code: 0

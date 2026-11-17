@@ -25,7 +25,9 @@ import (
 	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -131,8 +133,8 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 			f.Filesystem = model.TmpFS
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
-			if err != nil {
-				ev.SetPathResolutionError(f, err)
+			if err != nil && f.PathResolutionError == nil {
+				ev.SetPathResolutionError(f, fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", f.FileFields.MountID, ev.PIDContext.Pid, err))
 			}
 			f.Filesystem = fs
 		}
@@ -198,11 +200,17 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		bindSourceMountRoot, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.BindSrcMountID, ev.PIDContext.Pid)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
 		rootStr, err := fh.resolvers.PathResolver.ResolveMountRoot(ev, &e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
+		rootStr = mount.TrimMountRoot(rootStr, bindSourceMountRoot)
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
 	}
 	return e.MountSourcePath
@@ -758,13 +766,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
 	fh.resolveGoLabelsSpanContext(ev)
 	fh.resolveOTelSpanAttrs(ev)
-
-	// fork and exec carry the span context over to the process they create.
-	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
-		if ev.ProcessCacheEntry != nil {
-			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
-		}
-	}
+	propagateSpanContext(ev)
 
 	return &ev.SpanContext
 }
@@ -773,7 +775,7 @@ func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanCont
 func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	// nothing to do once the lookup ran, when the kernel already filled the ids
 	// in, or when it captured no labels snapshot for this event
-	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 || fh.resolvers.GoLabelsCtxResolver == nil {
 		return
 	}
 	ev.GoLabels.Resolved = true
@@ -810,13 +812,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 
-	keyNames := fh.otelAttributeKeyNames(ev)
-
-	attrs := make(map[string]string, len(rawAttrs))
-	for _, attr := range rawAttrs {
-		attrs[otelAttributeName(keyNames, attr.KeyIndex)] = attr.Value
-	}
-	ev.SpanContext.Attributes = attrs
+	ev.SpanContext.Attributes = otelthreadctx.NamedAttributes(fh.otelAttributeKeyNames(ev), rawAttrs)
 }
 
 // otelAttributeKeyNames returns the ordered key names the process published, which
@@ -842,13 +838,6 @@ func (fh *EBPFFieldHandlers) otelAttributeKeyNames(ev *model.Event) []string {
 	}
 
 	return nil
-}
-
-func otelAttributeName(keyNames []string, keyIndex uint8) string {
-	if int(keyIndex) < len(keyNames) {
-		return keyNames[keyIndex]
-	}
-	return strconv.Itoa(int(keyIndex))
 }
 
 // ResolveOnDemandName resolves the on-demand event name

@@ -1,0 +1,17 @@
+# skip: command-allowlist is an rshell-specific feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt E3 (2026-05-18-initial-audit): when the command name following an
+  inline assignment is not on the allowed-commands list, the inline variable
+  must NOT persist in the parent shell.
+input:
+  allowed_commands: ["rshell:echo"]
+  script: |+
+    A=orig
+    A=leaked notallowed
+    echo "after=[$A]"
+expect:
+  stdout: |+
+    after=[orig]
+  stderr_contains: ["command not allowed"]
+  exit_code: 0

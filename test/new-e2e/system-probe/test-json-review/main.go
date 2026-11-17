@@ -159,17 +159,27 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 		if ev.Action == "output" && flake.HasFlakyTestMarker(ev.Output) {
 			kf.Add(ev.Package, ev.Test)
 		}
-		if ev.Action != "pass" && ev.Action != "fail" {
+		if ev.Action != "pass" && ev.Action != "fail" && ev.Action != "skip" {
 			continue
 		}
 
+		// A skip only counts as a retry of a failure. A skip on the first run
+		// is not a result, and a skip does not replace a pass.
+		if ev.Action == "skip" {
+			res, ok := testResults[testKey(ev)]
+			if !ok || res.Action != "fail" {
+				continue
+			}
+		}
+
 		// Keep track of the number of tests per package, so that we know if a package failed without any tests
-		testsPerPackage[ev.Package]++
+		if ev.Action != "skip" {
+			testsPerPackage[ev.Package]++
+		}
 
 		if res, ok := testResults[testKey(ev)]; ok {
-			// If the test is already recorded as passed, it means the test
-			// eventually succeeded.
-			if res.Action == "pass" {
+			// pass or skip means a retry already cleared the failure.
+			if res.Action == "pass" || res.Action == "skip" {
 				continue
 			}
 			if res.Action == "fail" {
@@ -180,8 +190,8 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 
 				rerunTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action), owner))
 			}
-			// overwrite previously failed result
-			if res.Action == "fail" && ev.Action == "pass" {
+			// A retry that passes or skips overwrites the earlier failure.
+			if res.Action == "fail" && (ev.Action == "pass" || ev.Action == "skip") {
 				testResults[testKey(ev)] = ev
 			}
 		} else {

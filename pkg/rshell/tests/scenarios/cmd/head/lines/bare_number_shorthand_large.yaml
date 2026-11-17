@@ -1,0 +1,8 @@
+description: head -42 works with larger bare numeric shorthand.
+input:
+  script: |+
+    printf "1\n2\n3\n" | head -42
+expect:
+  stdout: "1\n2\n3\n"
+  stderr: ""
+  exit_code: 0

@@ -28,7 +28,6 @@ go_library(
         "trace_pipe.go",
         "workload_profile_common.go",
     ],
-    # keep
     embedsrcs = select({
         "@rules_go//go/platform:android": [
             "syscall_tester/bin/.gitkeep",
@@ -42,6 +41,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/mock",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
@@ -173,6 +173,7 @@ dd_agent_go_test(
         "eventmonitor_test.go",
         "failed_dns_test.go",
         "fields_test.go",
+        "file_capabilities_test.go",
         "file_metadata_test.go",
         "file_windows_test.go",
         "filters_test.go",
@@ -217,12 +218,14 @@ dd_agent_go_test(
         "selftests_test.go",
         "selinux_test.go",
         "serializers_test.go",
+        "setns_test.go",
         "setrlimit_test.go",
         "setsockopt_test.go",
         "signal_test.go",
         "simple_test.go",
         "sk_lookup_pid_test.go",
         "socket_test.go",
+        "span_ebpfless_test.go",
         "span_test.go",
         "splice_test.go",
         "ssh_user_session_test.go",

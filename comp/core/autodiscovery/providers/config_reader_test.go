@@ -184,6 +184,65 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, config.LogsConfig)
 }
 
+// Integration configs have always been parsed as YAML 1.1 by yaml v2. Later yaml
+// major versions reject or reinterpret these inputs, so any parser or scrubber
+// change on this path must keep loading them the same way.
+func TestGetIntegrationConfigYamlV2Compatibility(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      string
+		wantInstance []string
+	}{
+		{
+			name: "duplicate keys keep the last value",
+			content: `
+instances:
+  - host: first
+    host: last
+    password: hunter2`,
+			wantInstance: []string{"host: last"},
+		},
+		{
+			name: "integer and string keys with the same text",
+			content: `
+instances:
+  - 1: integer
+    "1": string
+    password: hunter2`,
+			wantInstance: []string{"1: integer", `"1": string`},
+		},
+		{
+			name: "YAML 1.1 booleans",
+			content: `
+instances:
+  - tls_verify: yes
+    tls_ignore_warning: off
+    password: hunter2`,
+			wantInstance: []string{"tls_verify: true", "tls_ignore_warning: false"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.New(t)
+			fpath := filepath.Join(t.TempDir(), "foo.yaml")
+			require.NoError(t, os.WriteFile(fpath, []byte(tt.content), 0o660))
+
+			config, format, err := GetIntegrationConfigFromFile("foo", fpath)
+			require.NoError(t, err)
+			require.Len(t, config.Instances, 1)
+			for _, want := range tt.wantInstance {
+				assert.Contains(t, string(config.Instances[0]), want)
+			}
+
+			assert.Equal(t, fpath, format.Filename)
+			assert.NotEmpty(t, format.Hash)
+			assert.Contains(t, format.ConfigFormat, "password:")
+			assert.NotContains(t, format.ConfigFormat, "hunter2")
+		})
+	}
+}
+
 func TestReadConfigFiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 

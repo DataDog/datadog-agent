@@ -1,0 +1,16 @@
+description: strings --bytes and --output-separator long-form flags work correctly.
+setup:
+  files:
+    - path: data.bin
+      content: |+
+        hello
+        world
+        foobar
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings --bytes=6 --output-separator='|' data.bin
+expect:
+  stdout: "foobar|"
+  stderr: ""
+  exit_code: 0

@@ -9,7 +9,9 @@ package clusterchecks
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -29,6 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// clusterAgentOnlyChecks monitor their own process, so they are never dispatched.
+var clusterAgentOnlyChecks = map[string]struct{}{
+	"agentprofiling": {},
+}
 
 // toSet builds a lookup set from a config-provided string slice, returning
 // nil for an empty slice instead of allocating an empty map.
@@ -51,11 +60,65 @@ type dispatcher struct {
 	extraTags                        []string
 	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
 	advancedDispatching              atomic.Bool
+	advancedDispatchingOffReason     atomic.Pointer[string]
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	rebalanceMu                      sync.Mutex // the ticker and the rebalance API can run concurrently
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
+	// checkGroup maps each check claimed by a runner group to
+	// that group; runnerGroups is the set of declared groups.
+	checkGroup   map[string]string
+	runnerGroups map[string]struct{}
+}
+
+// runnerGroup is an entry of cluster_checks.runner_groups.
+type runnerGroup struct {
+	Name   string   `mapstructure:"name"`
+	Checks []string `mapstructure:"checks"`
+}
+
+// loadRunnerGroups reads cluster_checks.runner_groups. An invalid setting
+// disables runner groups.
+func loadRunnerGroups(cfg model.Reader) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	var groups []runnerGroup
+	if err := structure.UnmarshalKey(cfg, "cluster_checks.runner_groups", &groups, structure.ErrorUnused); err != nil {
+		log.Errorf("Ignoring invalid cluster_checks.runner_groups: %v", err)
+		return nil, nil
+	}
+	return parseRunnerGroups(groups)
+}
+
+// parseRunnerGroups maps each claimed check to its runner group. A check
+// claimed by several groups stays with the first one listed.
+func parseRunnerGroups(groups []runnerGroup) (checkGroup map[string]string, runnerGroups map[string]struct{}) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+
+	checkGroup = make(map[string]string)
+	runnerGroups = make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if group.Name == "" {
+			log.Errorf("Ignoring cluster_checks.runner_groups entry without a name")
+			continue
+		}
+		if _, dup := runnerGroups[group.Name]; dup {
+			log.Errorf("Ignoring duplicate cluster_checks.runner_groups entry %q", group.Name)
+			continue
+		}
+		runnerGroups[group.Name] = struct{}{}
+		for _, check := range group.Checks {
+			if owner, claimed := checkGroup[check]; claimed {
+				log.Errorf("Check %q is claimed by cluster checks runner groups %q and %q: keeping %q", check, owner, group.Name, owner)
+				continue
+			}
+			checkGroup[check] = group.Name
+		}
+	}
+	log.Infof("Cluster checks runner groups: %+v", groups)
+	return checkGroup, runnerGroups
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -100,6 +163,8 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
 
+	d.checkGroup, d.runnerGroups = loadRunnerGroups(pkgconfigsetup.Datadog())
+
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))
 	d.excludedChecksFromDispatching = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching"))
@@ -123,12 +188,14 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
+		d.setAdvancedDispatchingOffReason("disabled by cluster_checks.advanced_dispatching_enabled")
 		return d
 	}
 
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
+		d.setAdvancedDispatchingOffReason(fmt.Sprintf("the cluster check runners client is unavailable: %v", err))
 	} else {
 		d.advancedDispatching.Store(true)
 	}
@@ -171,6 +238,12 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
+		}
+
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			log.Warnf("Not dispatching %s: it can only run on the Cluster Agent, remove cluster_check: true from its configuration", c.Name)
+			excludedConfigs++
+			continue
 		}
 
 		if c.HasFilter(workloadfilter.MetricsFilter) || c.HasFilter(workloadfilter.GlobalFilter) {
@@ -227,6 +300,10 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
+		if _, found := clusterAgentOnlyChecks[c.Name]; found {
+			continue
+		}
+
 		if c.NodeName != "" {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
@@ -255,29 +332,46 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	}
 }
 
-// reschdule sends configurations to dispatching without checking or patching them as Schedule does.
-func (d *dispatcher) reschedule(configs []integration.Config) []string {
-	addedConfigIDs := make([]string, 0, len(configs))
-	for _, c := range configs {
-		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
-		if d.add(c) {
-			addedConfigIDs = append(addedConfigIDs, c.Digest())
+// dispatchDangling places dangling configs on eligible nodes. The store stays
+// locked throughout so that a concurrent Unschedule can't be undone.
+func (d *dispatcher) dispatchDangling() {
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for digest, c := range d.store.danglingConfigs {
+		target, anyNode := d.getNodeToScheduleCheck(c.config.Name)
+		if target == "" {
+			log.Warnf("No eligible node to dispatch %s:%s on, will retry later", c.config.Name, digest)
+			if anyNode {
+				configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+			}
+			continue
 		}
+		log.Infof("Dispatching dangling configuration %s:%s to node %s", c.config.Name, digest, target)
+		d.addConfigLocked(c.config, target)
+		d.deleteDangling([]string{digest})
 	}
-	return addedConfigIDs
 }
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target := d.getNodeToScheduleCheck()
+	// Pick and place under one lock: a node expired in between would
+	// otherwise be recreated by addConfig, without IP or heartbeat.
+	d.store.Lock()
+	target, anyNode := d.getNodeToScheduleCheck(config.Name)
+	added := d.addConfigLocked(config, target)
+	d.store.Unlock()
+
 	if target == "" {
-		// If no node is found, store it in the danglingConfigs map for retrying later.
-		log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		if anyNode {
+			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+		}
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
 
-	return d.addConfig(config, target)
+	return added
 }
 
 // reset empties the store and resets all states
@@ -358,7 +452,12 @@ func (d *dispatcher) UpdateAdvancedDispatchingMode() {
 func (d *dispatcher) disableAdvancedDispatching() {
 	if d.advancedDispatching.CompareAndSwap(true, false) {
 		log.Info("Node agents detected in cluster check pool, disabling advanced dispatching")
+		d.setAdvancedDispatchingOffReason("node agents joined the cluster checks pool")
 	}
+}
+
+func (d *dispatcher) setAdvancedDispatchingOffReason(reason string) {
+	d.advancedDispatchingOffReason.Store(&reason)
 }
 
 // run is the main management goroutine for the dispatcher
@@ -391,18 +490,16 @@ func (d *dispatcher) run(ctx context.Context) {
 
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
-				danglingConfigs := d.retrieveDangling()
-				scheduledConfigIDs := d.reschedule(danglingConfigs)
-				d.store.Lock()
-				d.deleteDangling(scheduledConfigIDs)
-				d.store.Unlock()
+				d.dispatchDangling()
 			}
 		case <-unscheduledCheckTicker.C:
 			// Check for configs that have been dangling longer than expected
 			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching.Load() {
-				d.rebalance(false)
+				if _, err := d.rebalance(false); err != nil {
+					log.Infof("Skipping periodic rebalance: %v", err)
+				}
 			}
 		}
 	}

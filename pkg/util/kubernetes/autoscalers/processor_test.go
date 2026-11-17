@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -69,6 +69,61 @@ func TestParallelLimit(t *testing.T) {
 	cfg.Set("external_metrics_provider.max_parallel_queries", 20, pkgconfigmodel.SourceLocalConfigProcess)
 	p = NewProcessor(nil)
 	assert.Equal(t, 20, p.parallelQueries)
+}
+
+func TestMetricRequestsInflight(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.max_parallel_queries", 2, pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceLocalConfigProcess)
+
+	queries := []string{"avg:first{*}", "avg:second{*}", "avg:third{*}"}
+	entered := make(chan string, len(queries))
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	client := datadogclientmock.New(t).Comp
+	client.SetQueryMetricsFunc(func(_, _ int64, query string) ([]datadog.Series, error) {
+		entered <- query
+		<-release
+		if query == queries[0] {
+			return nil, errors.New("request failed")
+		}
+		return nil, nil
+	})
+	p := NewProcessor(client)
+	assert.Equal(t, float64(2), ddRequestsParallelLimit.WithValues(le.JoinLeaderValue).Get())
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+
+	resultsCh := make(chan map[string]Point, 1)
+	go func() { resultsCh <- p.QueryExternalMetric(queries, time.Minute) }()
+	for range 2 {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for parallel requests")
+		}
+	}
+	assert.Equal(t, float64(2), ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+	select {
+	case <-entered:
+		t.Fatal("request started beyond the configured parallel limit")
+	default:
+	}
+
+	close(release)
+	select {
+	case results := <-resultsCh:
+		assert.Error(t, results[queries[0]].Error)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for requests to finish")
+	}
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
 }
 
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
@@ -408,10 +463,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -440,10 +497,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "m1",
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "1.9.4",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "m1",
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "1.9.4",
+										},
 									},
 								},
 							},
@@ -451,10 +510,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "m2",
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "2.1.9",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "m2",
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "2.1.9",
+										},
 									},
 								},
 							},
@@ -462,10 +523,12 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: metricName,
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"dcos_version": "4.1.1",
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: metricName,
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{
+											"dcos_version": "4.1.1",
+										},
 									},
 								},
 							},

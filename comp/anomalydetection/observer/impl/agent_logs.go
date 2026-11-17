@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,17 +35,12 @@ type queuedAgentLog struct {
 
 // agentLogTap keeps all non-trivial observer work out of pkg/util/log's global
 // logger lock. The logger callback only applies cheap safety gates and attempts
-// a non-blocking enqueue; this worker owns filtering, rate limiting, allocation,
-// and forwarding into the observer.
+// a non-blocking enqueue; this worker constructs tags and JSON and forwards the
+// log into the observer, which owns processing rules and rate limiting.
 type agentLogTap struct {
-	handle             observerdef.Handle
-	minBucket          logsfilter.PriorityBucket
-	maxRateHigh        float64
-	maxRateMedium      float64
-	maxRateLow         float64
-	onRateLimitDropped func(priority string)
-	onQueueDropped     func(count uint64)
-	rules              *logsfilter.Rules
+	handle         observerdef.Handle
+	minBucket      logsfilter.PriorityBucket
+	onQueueDropped func(count uint64)
 
 	queue chan queuedAgentLog
 
@@ -56,9 +50,6 @@ type agentLogTap struct {
 	worker   sync.WaitGroup
 
 	queuedDrops atomic.Uint64
-	highW       logsfilter.RateWindow
-	mediumW     logsfilter.RateWindow
-	lowW        logsfilter.RateWindow
 }
 
 // installAgentLogTap registers a pkg/util/log observer that forwards
@@ -66,34 +57,17 @@ type agentLogTap struct {
 // stopped during component shutdown.
 //
 // Logs below minSeverity are dropped in the logger callback before enqueueing.
-// The three max rates are in logs/second over a 10-second window:
-// maxRateHigh (warn/error/critical), maxRateMedium (info), maxRateLow
-// (trace/debug). -1 means unlimited; 0 drops all.
-//
-// onRateLimitDropped is called from the worker with the priority bucket name
-// ("high", "medium", "low") when a log is dropped by the rate limiter.
 // onQueueDropped is called from the worker with the number of logs dropped when
-// the tap queue was full. Either callback may be nil.
-//
-// rules are applied by the worker before the rate gate, so excluded messages do
-// not consume rate budget. Nil rules allow all logs.
+// the tap queue was full and may be nil.
 func installAgentLogTap(
 	handle observerdef.Handle,
 	minSeverity string,
-	maxRateHigh, maxRateMedium, maxRateLow float64,
-	onRateLimitDropped func(priority string),
 	onQueueDropped func(count uint64),
-	rules *logsfilter.Rules,
 ) *agentLogTap {
 	return installAgentLogTapWithQueueSize(
 		handle,
 		minSeverity,
-		maxRateHigh,
-		maxRateMedium,
-		maxRateLow,
-		onRateLimitDropped,
 		onQueueDropped,
-		rules,
 		agentLogTapQueueSize,
 	)
 }
@@ -101,22 +75,14 @@ func installAgentLogTap(
 func installAgentLogTapWithQueueSize(
 	handle observerdef.Handle,
 	minSeverity string,
-	maxRateHigh, maxRateMedium, maxRateLow float64,
-	onRateLimitDropped func(priority string),
 	onQueueDropped func(count uint64),
-	rules *logsfilter.Rules,
 	queueSize int,
 ) *agentLogTap {
 	tap := &agentLogTap{
-		handle:             handle,
-		minBucket:          logsfilter.MinBucketForSeverity(minSeverity),
-		maxRateHigh:        maxRateHigh,
-		maxRateMedium:      maxRateMedium,
-		maxRateLow:         maxRateLow,
-		onRateLimitDropped: onRateLimitDropped,
-		onQueueDropped:     onQueueDropped,
-		rules:              rules,
-		queue:              make(chan queuedAgentLog, queueSize),
+		handle:         handle,
+		minBucket:      logsfilter.MinBucketForSeverity(minSeverity),
+		onQueueDropped: onQueueDropped,
+		queue:          make(chan queuedAgentLog, queueSize),
 	}
 
 	tap.worker.Add(1)
@@ -179,19 +145,6 @@ func (t *agentLogTap) process(entry queuedAgentLog) {
 		tags = append(tags, "component:"+entry.component)
 	}
 	tags = append(tags, "level:"+status)
-	if t.rules.NeedsSortedTags() {
-		slices.Sort(tags)
-	}
-	if !t.rules.IsAllowed(agentLogSource, tags) {
-		return
-	}
-
-	if forward, droppedPriority := t.chargeRate(entry.level); !forward {
-		if droppedPriority != "" && t.onRateLimitDropped != nil {
-			t.onRateLimitDropped(droppedPriority)
-		}
-		return
-	}
 
 	payload, _ := json.Marshal(map[string]any{
 		"msg": entry.message,
@@ -203,23 +156,6 @@ func (t *agentLogTap) process(entry queuedAgentLog) {
 		hostname:    "",
 		timestampMs: entry.timestampMs,
 	})
-}
-
-func (t *agentLogTap) chargeRate(level pkglog.LogLevel) (bool, string) {
-	tier := logsfilter.RateTierForBucket(logsfilter.PriorityBucket(level))
-	var allowed bool
-	switch tier {
-	case "high":
-		allowed = t.highW.Allow(t.maxRateHigh)
-	case "medium":
-		allowed = t.mediumW.Allow(t.maxRateMedium)
-	default:
-		allowed = t.lowW.Allow(t.maxRateLow)
-	}
-	if allowed {
-		return true, ""
-	}
-	return false, tier
 }
 
 func (t *agentLogTap) reportQueueDrops() {
@@ -252,6 +188,7 @@ type agentLogView struct {
 	timestampMs int64
 }
 
+func (v *agentLogView) GetSource() string            { return agentLogSource }
 func (v *agentLogView) GetContent() string           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) Tags() []string               { return v.tags }

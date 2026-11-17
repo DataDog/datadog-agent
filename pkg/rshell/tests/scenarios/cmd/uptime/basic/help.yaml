@@ -1,0 +1,9 @@
+description: uptime --help prints usage to stdout
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime --help
+expect:
+  stdout_contains: ["uptime", "pretty", "since"]
+  stderr: ""
+  exit_code: 0

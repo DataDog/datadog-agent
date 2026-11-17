@@ -17,6 +17,7 @@ import (
 	"go/parser"
 	"go/token"
 	"log"
+	"maps"
 	"os"
 	"path"
 	"regexp"
@@ -596,7 +597,7 @@ func processRegularField(field *ast.Field, module *common.Module, astFiles *AstF
 	fieldBasename := field.Names[0].Name
 
 	// Skip non-exported fields
-	if !unicode.IsUpper(rune(fieldBasename[0])) || visited[fieldBasename] {
+	if !unicode.IsUpper(rune(fieldBasename[0])) {
 		return
 	}
 
@@ -606,7 +607,9 @@ func processRegularField(field *ast.Field, module *common.Module, astFiles *AstF
 
 	fullName := buildFullFieldName(fieldBasename, prefix)
 	fieldInfo, _, unqualifiedType := prepareFieldInfo(field, fieldBasename, prefix, module, astFiles)
-	if fieldInfo == nil {
+	// A field with the same name and type as one of its parents is a recursive type, such as Ancestor.
+	visitedKey := fieldBasename + " " + unqualifiedType
+	if fieldInfo == nil || visited[visitedKey] {
 		return
 	}
 
@@ -615,7 +618,7 @@ func processRegularField(field *ast.Field, module *common.Module, astFiles *AstF
 	allStructFields[fullName] = fieldInfo
 
 	// Recurse into complex types
-	recurseIntoType(unqualifiedType, fullName, fieldBasename, module, astFiles, visited)
+	recurseIntoType(unqualifiedType, fullName, visitedKey, module, astFiles, visited)
 }
 
 // extractEmbeddedIdent extracts the identifier from an embedded field type
@@ -910,6 +913,57 @@ func printFieldTreeDebug(node *FieldNode, prefix string, isLast bool) {
 // Template Helper Functions
 // ============================================================================
 
+// collectPointerTypes returns the types that some field of the tree points to.
+func collectPointerTypes(node *FieldNode, types map[string]bool, visited map[*FieldNode]bool) {
+	if visited[node] {
+		return
+	}
+	visited[node] = true
+
+	if node.Field != nil && node.Field.IsOrigTypePtr {
+		types[node.Field.OrigType] = true
+	}
+	if node.ElementOfArrayField != nil {
+		collectPointerTypes(node.ElementOfArrayField, types, visited)
+	}
+	if node.ElementOfMapField != nil {
+		collectPointerTypes(node.ElementOfMapField, types, visited)
+	}
+	for _, child := range node.Children {
+		collectPointerTypes(child, types, visited)
+	}
+}
+
+// pointedValue is a struct value whose type some field points to.
+type pointedValue struct {
+	Path string
+	// PtrKey is the key of the deep copy function of a pointer to the value.
+	PtrKey string
+}
+
+// pointedValues returns the struct values nested in node, without going through pointers, whose type some
+// field points to. A pointer to one of them must be copied as a pointer to the matching value of the copy.
+func pointedValues(pointerTypes map[string]bool) func(*FieldNode) []pointedValue {
+	var collect func(node *FieldNode, prefix string, values []pointedValue) []pointedValue
+	collect = func(node *FieldNode, prefix string, values []pointedValue) []pointedValue {
+		for _, name := range slices.Sorted(maps.Keys(node.Children)) {
+			child := node.Children[name]
+			if child.Field == nil || getFieldCopyStrategy(child.Field) != "struct" {
+				continue
+			}
+			path := prefix + name
+			if pointerTypes[child.Field.OrigType] {
+				values = append(values, pointedValue{path, extractBaseName(child.Field.OrigType) + "Ptr"})
+			}
+			values = collect(child, path+".", values)
+		}
+		return values
+	}
+	return func(node *FieldNode) []pointedValue {
+		return collect(node, "", nil)
+	}
+}
+
 // getFieldCopyStrategy determines the copy approach based on field type.
 // Returns a strategy name used by the template to select the appropriate copy logic.
 func getFieldCopyStrategy(field *StructField) string {
@@ -1086,16 +1140,20 @@ func generateCode(module *common.Module, fieldTree *FieldNode) {
 		FieldTree: fieldTree,
 	}
 
-	tmpl := createTemplate()
+	pointerTypes := make(map[string]bool)
+	collectPointerTypes(fieldTree, pointerTypes, make(map[*FieldNode]bool))
+
+	tmpl := createTemplate(pointerTypes)
 	generatedCode := executeTemplate(tmpl, templateData)
 	writeFormattedOutput(generatedCode)
 }
 
 // createTemplate initializes the code generation template with custom functions
-func createTemplate() *template.Template {
+func createTemplate(pointerTypes map[string]bool) *template.Template {
 	funcMap := template.FuncMap{
 		"GetFieldCopyStrategy": getFieldCopyStrategy,
 		"BaseName":             extractBaseName,
+		"PointedValues":        pointedValues(pointerTypes),
 	}
 	return template.Must(template.New("deep_copy").
 		Funcs(funcMap).

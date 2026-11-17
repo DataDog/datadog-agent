@@ -9,13 +9,13 @@ import (
 )
 
 func TestCgoAlignment_EbpfEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfEvent](t)
+	ebpftest.AssertCgoAlignment[EbpfEvent](t)
 }
 
 func TestCgoAlignment_EbpfTx(t *testing.T) {
-	ebpftest.TestCgoAlignment[EbpfTx](t)
+	ebpftest.AssertCgoAlignment[EbpfTx](t)
 }
 
 func TestCgoAlignment_PostgresKernelMsgCount(t *testing.T) {
-	ebpftest.TestCgoAlignment[PostgresKernelMsgCount](t)
+	ebpftest.AssertCgoAlignment[PostgresKernelMsgCount](t)
 }
