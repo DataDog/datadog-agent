@@ -22,6 +22,12 @@ import (
 
 const (
 	deploymentIDFile = ".deployment-id"
+	// promotingFile marks a configuration directory being promoted. PromoteExperiment writes it in
+	// the experiment directory before the swap, so the swap moves it into the stable path in the
+	// same rename that promotes the configuration. Found there, it means the promote got past the
+	// swap: what is left at the experiment path is the previous stable configuration on its way
+	// out, not an experiment.
+	promotingFile = ".promoting"
 	// incomingPrefix names the scratch directory an experiment is built in. It is created beside
 	// the stable directory rather than under it, so publishing it is a rename within one parent
 	// and never a copy across filesystems, and so the Agent never reads a half-built tree.
@@ -49,6 +55,15 @@ func (d *Directories) GetState() (State, error) {
 		return State{}, err
 	}
 	if resting {
+		return State{StableDeploymentID: stableDeploymentID}, nil
+	}
+	promoted, err := hasPromotingMarker(d.StablePath)
+	if err != nil {
+		return State{}, err
+	}
+	if promoted {
+		// A promote interrupted between the swap and resting the link again: the experiment
+		// path holds the previous stable configuration, which must not be read as an experiment.
 		return State{StableDeploymentID: stableDeploymentID}, nil
 	}
 	experimentDeploymentID, err := readDeploymentID(d.ExperimentPath)
@@ -98,6 +113,11 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err = tree.Copy(ctx); err != nil {
 		return err
 	}
+	// The stable directory still carries the marker if a promote was interrupted before clearing
+	// it; the copy must not, or the experiment would read as promoted once it is.
+	if err = removePromotingMarker(incoming); err != nil {
+		return fmt.Errorf("could not clear the promote marker: %w", err)
+	}
 
 	// Unlike Linux and Windows, no legacy managed/ layout is migrated here: macOS never had one, and
 	// that migration walks and reads the stable tree, which belongs to the Agent's account, as
@@ -146,17 +166,86 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	if resting {
 		return fmt.Errorf("no configuration experiment is deployed at %s", d.ExperimentPath)
 	}
+	// The swap leaves the previous stable configuration at the experiment path until it is
+	// removed. The marker travels with the promoted directory, so a crash in that window is read
+	// back as a finished promote rather than as that previous configuration being an experiment.
+	if err := writePromotingMarker(d.ExperimentPath); err != nil {
+		return fmt.Errorf("could not mark the configuration experiment as promoting: %w", err)
+	}
 	if err := (dirSwap{live: d.StablePath, incoming: d.ExperimentPath}).Commit(ctx); err != nil {
+		if clearErr := removePromotingMarker(d.ExperimentPath); clearErr != nil {
+			log.Warnf("could not clear the promote marker after a failed swap: %v", clearErr)
+		}
 		return err
 	}
 	// The swap consumed the experiment path: it is now the stable directory. Put the link back,
 	// so the host rests in the same shape it would have if no experiment had ever run.
-	return link.Rest()
+	if err := link.Rest(); err != nil {
+		return err
+	}
+	return removePromotingMarker(d.StablePath)
 }
 
-// RemoveExperiment discards the deployed experiment, if any.
+// RemoveExperiment discards the deployed experiment, if any. It also finishes a promote
+// interrupted after its swap, which GetState reports as no experiment deployed.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
-	return d.experimentLink().Rest()
+	if err := d.experimentLink().Rest(); err != nil {
+		return err
+	}
+	return removePromotingMarker(d.StablePath)
+}
+
+// writePromotingMarker creates the promote marker in dir without following a link supplied by the
+// configuration tree, the same way writeDeploymentID does.
+func writePromotingMarker(dir string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(promotingFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	file, err := root.OpenFile(promotingFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	if err != nil {
+		return err
+	}
+	return file.Close()
+}
+
+// removePromotingMarker removes the promote marker from dir, if it is there.
+func removePromotingMarker(dir string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(promotingFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// hasPromotingMarker reports whether dir carries the promote marker, without following a link.
+func hasPromotingMarker(dir string) (bool, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer root.Close()
+	if _, err := root.Lstat(promotingFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // discardStaleScratch removes any leftover scratch directories from a WriteExperiment that
