@@ -231,7 +231,7 @@ func startIdentityFetch() *identityFetch {
 					return nil, backoff.Permanent(err)
 				}
 				return tags, err
-			}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
+			}, backoff.WithBackOff(newStartupBackOff()))
 			close(f.done)
 		}()
 	}
@@ -300,4 +300,19 @@ func (s *sharedCall[T]) reset() {
 	s.mu.Lock()
 	s.call = nil
 	s.mu.Unlock()
+}
+
+// retryJitter spreads the startup retry interval around 1s. Variable so that tests that assert
+// exact virtual times can set it to 0.
+var retryJitter = 0.2
+
+// newStartupBackOff is the startup retry interval: 1s, jittered by retryJitter, so that the nodes
+// of a cluster that start their fetch together do not retry in step.
+func newStartupBackOff() backoff.BackOff {
+	return &backoff.ExponentialBackOff{
+		InitialInterval:     time.Second,
+		RandomizationFactor: retryJitter,
+		Multiplier:          1,
+		MaxInterval:         time.Second,
+	}
 }

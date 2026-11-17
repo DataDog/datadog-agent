@@ -40,6 +40,10 @@ func resetStartupIdentity(t *testing.T) {
 	}
 	reset()
 	t.Cleanup(reset)
+	// These tests assert exact virtual times.
+	origJitter := retryJitter
+	retryJitter = 0
+	t.Cleanup(func() { retryJitter = origJitter })
 }
 
 func stubEvidence(t *testing.T, onEKS bool) {
@@ -559,4 +563,21 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryResultIsFinalForTheProcess(t *te
 func drainFetch() {
 	time.Sleep(startupRetryBudget + time.Second)
 	synctest.Wait()
+}
+
+func TestStartupRetryIntervalIsJittered(t *testing.T) {
+	// Every node of a cluster starts its fetch when the Cluster Agent comes back, so the retries
+	// are spread by 20% around 1s rather than in step.
+	orig := retryJitter
+	t.Cleanup(func() { retryJitter = orig })
+	retryJitter = 0.2
+	b := newStartupBackOff()
+	seen := map[time.Duration]bool{}
+	for range 50 {
+		d := b.NextBackOff()
+		assert.GreaterOrEqual(t, d, 800*time.Millisecond)
+		assert.LessOrEqual(t, d, 1200*time.Millisecond)
+		seen[d] = true
+	}
+	assert.Greater(t, len(seen), 10)
 }
