@@ -387,6 +387,7 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[progr
 		ps, err := k.readSingleProgram(progid)
 		if err != nil {
 			log.Debug(err)
+			k.programs.keep(progid)
 			continue
 		}
 		k.programs.add(stats, uniquePrograms, ps)

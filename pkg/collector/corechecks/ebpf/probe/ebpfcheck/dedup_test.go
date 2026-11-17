@@ -61,3 +61,31 @@ func TestProgramAggregator(t *testing.T) {
 	stats, _ = collect(classifier(10, 0, 0, 0), classifier(14, 2, 1, 0), kprobe(21, 3, 1))
 	assert.Equal(t, []model.EBPFProgramStats{classifier(10, 7, 2, 0), kprobe(21, 12, 3)}, stats.Programs)
 }
+
+func TestProgramAggregatorUnreadableProgram(t *testing.T) {
+	classifier := func(id uint32, runtime time.Duration, runCount uint64) model.EBPFProgramStats {
+		return model.EBPFProgramStats{ID: id, Name: "classifier_egress", Type: "SchedCLS", Module: "cws", XlatedProgLen: id, Runtime: runtime, RunCount: runCount}
+	}
+
+	agg := newProgramAggregator()
+	collect := func(unreadable []ebpf.ProgramID, programs ...model.EBPFProgramStats) []model.EBPFProgramStats {
+		var stats model.EBPFStats
+		uniquePrograms := make(map[programKey]ebpf.ProgramID)
+		for _, id := range unreadable {
+			agg.keep(id)
+		}
+		for i := range programs {
+			agg.add(&stats, uniquePrograms, &programs[i])
+		}
+		agg.flush(&stats, uniquePrograms)
+		return stats.Programs
+	}
+
+	assert.Equal(t, []model.EBPFProgramStats{classifier(10, 150, 15)}, collect(nil, classifier(10, 100, 10), classifier(11, 50, 5)))
+
+	// clone 11 can't be read once, while clone 10 keeps the entry alive
+	assert.Equal(t, []model.EBPFProgramStats{classifier(10, 160, 16)}, collect([]ebpf.ProgramID{11}, classifier(10, 110, 11)))
+
+	// once readable again, clone 11 only adds what it ran since it was last read
+	assert.Equal(t, []model.EBPFProgramStats{classifier(10, 190, 19)}, collect(nil, classifier(10, 120, 12), classifier(11, 70, 7)))
+}

@@ -106,6 +106,13 @@ func (a *programAggregator) add(stats *model.EBPFStats, uniquePrograms map[progr
 	stats.Programs = append(stats.Programs, *ps)
 }
 
+// keep carries over the counters of a program that couldn't be read, so they aren't counted again once it can be
+func (a *programAggregator) keep(id ebpf.ProgramID) {
+	if counters, ok := a.last[id]; ok {
+		a.next[id] = counters
+	}
+}
+
 func (a *programAggregator) flush(stats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) {
 	for key := range a.totals {
 		if _, ok := uniquePrograms[key]; !ok {
