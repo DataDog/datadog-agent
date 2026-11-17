@@ -16,54 +16,80 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-// ChangeEventState names one value of a watched metric, and the alert type of the event
-// sent when the metric changes to it.
+// ChangeEventState names one value of a watched metric, with the title and alert type of
+// the event sent when the metric changes to it.
 type ChangeEventState struct {
 	Name      string
+	Title     string
 	AlertType event.AlertType
 }
 
-// ChangeEventRule turns changes of a metric value into events. The event carries the
-// series tags plus <StateTag>:<new state> and previous_<StateTag>:<old state>.
+// ChangeEventRule turns changes of a metric value into events of EventType, which carry
+// the series tags.
 type ChangeEventRule struct {
-	StateTag string
-	States   map[float64]ChangeEventState
+	EventType string
+	States    map[float64]ChangeEventState
+	// PreviousTags are series tags reported with their previous value: they are left out of
+	// the series identity, a change of their value is a change of the series, and the event
+	// also carries previous_<tag>:<old value>.
+	PreviousTags []string
+	// NotEmittedValue, when set, is the value of a series that hasn't been emitted yet, so
+	// that its first value is a change from it. When nil, the first value is only recorded.
+	NotEmittedValue *float64
 }
 
 // DefaultChangeEventRules are the metrics whose changes are sent as events, by metric name.
 var DefaultChangeEventRules = map[string]ChangeEventRule{
 	"nvlink.active": {
-		StateTag: "nvlink_state",
+		EventType: "gpu_nvlink_state_change",
 		States: map[float64]ChangeEventState{
-			1: {Name: "active", AlertType: event.AlertTypeSuccess},
-			0: {Name: "inactive", AlertType: event.AlertTypeError},
+			1: {Name: "active", Title: "GPU NVLink port up", AlertType: event.AlertTypeSuccess},
+			0: {Name: "inactive", Title: "GPU NVLink port down", AlertType: event.AlertTypeError},
 		},
 	},
 	"device.unavailable": {
-		StateTag: "availability",
+		EventType:    "gpu_availability_change",
+		PreviousTags: []string{"unschedulable_reason"},
+		// The unschedulable series is only emitted while the node is unschedulable.
+		NotEmittedValue: new(0.0),
 		States: map[float64]ChangeEventState{
-			0: {Name: "available", AlertType: event.AlertTypeSuccess},
-			1: {Name: "unavailable", AlertType: event.AlertTypeError},
+			0: {Name: "available", Title: "GPU device available", AlertType: event.AlertTypeSuccess},
+			1: {Name: "unavailable", Title: "GPU device unavailable", AlertType: event.AlertTypeError},
 		},
 	},
 }
 
+// changeEventSeries is the last value of a watched series and of its PreviousTags.
+type changeEventSeries struct {
+	value        float64
+	previousTags []string
+}
+
 // ChangeEventProcessor sends an event when the value of a watched metric series changes.
-// Series are identified by GPU UUID, metric name and tags. The first value of a series is
-// only recorded.
+// Series are identified by GPU UUID, metric name and tags other than the rule's
+// PreviousTags; if a run has several samples of a series, the highest value is used. The
+// first value of a series is only recorded, unless its rule sets NotEmittedValue.
 type ChangeEventProcessor struct {
 	rules map[string]ChangeEventRule
-	last  map[string]float64
+	last  map[string]changeEventSeries
 }
 
 // NewChangeEventProcessor creates a processor for the given rules.
 func NewChangeEventProcessor(rules map[string]ChangeEventRule) *ChangeEventProcessor {
-	return &ChangeEventProcessor{rules: rules, last: make(map[string]float64)}
+	return &ChangeEventProcessor{rules: rules, last: make(map[string]changeEventSeries)}
 }
 
 // ProcessSamples returns the samples of a device, plus an event for each watched series
-// whose value changed since the previous run.
+// whose value or PreviousTags changed since the previous run.
 func (p *ChangeEventProcessor) ProcessSamples(samples []Sample, timestamp time.Time, gpuUUID string) []Sample {
+	type observation struct {
+		metric       *Metric
+		rule         ChangeEventRule
+		tags         []string
+		previousTags []string
+	}
+	var keys []string
+	current := make(map[string]observation)
 	for _, sample := range samples {
 		metric, ok := sample.(*Metric)
 		if !ok {
@@ -75,36 +101,65 @@ func (p *ChangeEventProcessor) ProcessSamples(samples []Sample, timestamp time.T
 		}
 
 		tags := slices.Sorted(slices.Values(metric.Tags()))
-		key := gpuUUID + "|" + metric.Name + "|" + strings.Join(tags, ",")
+		var identity, previousTags []string
+		for _, tag := range tags {
+			name, _, _ := strings.Cut(tag, ":")
+			if slices.Contains(rule.PreviousTags, name) {
+				previousTags = append(previousTags, tag)
+			} else {
+				identity = append(identity, tag)
+			}
+		}
+		key := gpuUUID + "|" + metric.Name + "|" + strings.Join(identity, ",")
+		if existing, ok := current[key]; ok {
+			if existing.metric.Value >= metric.Value {
+				continue
+			}
+		} else {
+			keys = append(keys, key)
+		}
+		current[key] = observation{metric: metric, rule: rule, tags: tags, previousTags: previousTags}
+	}
+
+	for _, key := range keys {
+		obs := current[key]
 		previous, seen := p.last[key]
-		p.last[key] = metric.Value
-		if !seen || previous == metric.Value {
+		p.last[key] = changeEventSeries{value: obs.metric.Value, previousTags: obs.previousTags}
+		switch {
+		case seen:
+			if previous.value == obs.metric.Value && slices.Equal(previous.previousTags, obs.previousTags) {
+				continue
+			}
+		case obs.rule.NotEmittedValue != nil:
+			// Only the value can change from a series that wasn't emitted.
+			if *obs.rule.NotEmittedValue == obs.metric.Value {
+				continue
+			}
+			previous = changeEventSeries{value: *obs.rule.NotEmittedValue}
+		default:
 			continue
 		}
 
-		previousState, okPrevious := rule.States[previous]
-		currentState, okCurrent := rule.States[metric.Value]
+		previousState, okPrevious := obs.rule.States[previous.value]
+		currentState, okCurrent := obs.rule.States[obs.metric.Value]
 		if !okPrevious || !okCurrent {
 			continue
 		}
 
-		title := fmt.Sprintf("GPU %s: %s changed from %s to %s", gpuUUID, metric.Name, previousState.Name, currentState.Name)
-		if len(tags) > 0 {
-			title += " (" + strings.Join(tags, ", ") + ")"
+		tags := slices.Clone(obs.tags)
+		for _, tag := range previous.previousTags {
+			tags = append(tags, "previous_"+tag)
 		}
 		evt := NewEvent(event.Event{
-			Title:          title,
-			Text:           title + ".",
+			Title:          currentState.Title,
+			Text:           fmt.Sprintf("%s on GPU %s changed from %s to %s.", obs.metric.Name, gpuUUID, previousState.Name, currentState.Name),
 			Priority:       event.PriorityNormal,
 			AlertType:      currentState.AlertType,
 			SourceTypeName: "gpu",
-			EventType:      "gpu_state_change",
+			EventType:      obs.rule.EventType,
 			AggregationKey: gpuUUID,
-		}, timestamp, metric.Priority(), append(tags,
-			rule.StateTag+":"+currentState.Name,
-			"previous_"+rule.StateTag+":"+previousState.Name,
-		), metric.AssociatedWorkloads())
-		evt.noWorkloadTags = metric.NoWorkloadTags()
+		}, timestamp, obs.metric.Priority(), tags, obs.metric.AssociatedWorkloads())
+		evt.noWorkloadTags = obs.metric.NoWorkloadTags()
 		samples = append(samples, evt)
 	}
 	return samples

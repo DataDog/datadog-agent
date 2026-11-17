@@ -8,11 +8,6 @@
 ---
 enhancements:
   - |
-    The GPU check now reports the ``gpu.nvlink.active`` metric, 1 or 0 for each
-    NVLink port (``nvlink_port`` tag) of NVIDIA GPUs.
+    gpu: Add the ``gpu.nvlink.active`` metric, which reports whether each NVLink port is active.
   - |
-    The GPU check now sends a ``gpu_state_change`` event when an NVLink port
-    goes up or down (``nvlink_state`` and ``previous_nvlink_state`` tags) or
-    when ``gpu.device.unavailable`` changes for a reason (``availability`` and
-    ``previous_availability`` tags, plus the reason tags of the metric). Values
-    seen when the check starts are not reported as changes.
+    gpu: Send events when an NVLink port goes up or down, and when a GPU becomes available or unavailable.

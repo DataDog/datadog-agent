@@ -1151,8 +1151,7 @@ metrics:
       metric_type: gauge
       description: >-
         Whether the NVLink port is active (1) or inactive (0). A change of value
-        is also sent as a gpu_state_change event with the nvlink_state and
-        previous_nvlink_state tags.
+        is also sent as a gpu_nvlink_state_change event.
       aggregation: absolute_usage
     tagsets:
       - device
