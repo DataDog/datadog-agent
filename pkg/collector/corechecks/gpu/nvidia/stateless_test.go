@@ -361,6 +361,43 @@ func TestCollectProcessMemory(t *testing.T) {
 	}
 }
 
+// TestProcessMemoryDoesNotAttributeProcessesToMIGParent checks that the processes NVML lists on a MIG parent,
+// which are the ones running on its MIG devices, are not attributed to the parent.
+func TestProcessMemoryDoesNotAttributeProcessesToMIGParent(t *testing.T) {
+	processes := []testutil.MockProcessData{{Pid: 1234, UsedGpuMemory: 1 << 30}}
+
+	t.Run("MIG parent", func(t *testing.T) {
+		device := setupMockDevice(t,
+			testutil.WithDeviceFeatureMode(testutil.DeviceFeatureMIG),
+			testutil.WithDeviceOptions(0, testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]})),
+			testutil.WithProcessData(processes, nvml.SUCCESS),
+		)
+		require.True(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		metrics := requireMetrics(t, samples)
+		require.Len(t, metrics, 1)
+		require.Equal(t, "memory.limit", metrics[0].Name)
+		require.Empty(t, metrics[0].associatedWorkloads, "memory.limit of a MIG parent should not carry process tags")
+	})
+
+	t.Run("physical device", func(t *testing.T) {
+		device := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
+		require.False(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(samples))
+		for _, metric := range requireMetrics(t, samples) {
+			names = append(names, metric.Name)
+		}
+		require.ElementsMatch(t, []string{"process.memory.usage", "memory.limit"}, names)
+	})
+}
+
 // TestCollectProcessMemory_Error tests error handling with API failures
 func TestCollectProcessMemory_Error(t *testing.T) {
 	// Override API factory to only include process memory

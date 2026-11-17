@@ -33,6 +33,14 @@ pkg_filegroup(
 )
 
 pkg_files(
+    name = "dd_agent_stub",
+    srcs = ["dd-agent"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "/usr/bin",
+    visibility = ["//packages/agent:__subpackages__"],
+)
+
+pkg_files(
     name = "python_files",
     srcs = [
         "config.py",

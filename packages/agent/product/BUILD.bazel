@@ -45,24 +45,31 @@ pkg_filegroup(
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
-        # TODO: system-probe
-        # TODO: system-probe - eBPF
-
         # TODO: //pkg/discovery/module/rust
         # TODO: cacerts
-        # TODO: dependency 'datadog-agent-integrations-py3'
+        # TODO: integrations on macOS, Windows and Linux FIPS (cryptography and psycopg need the FIPS OpenSSL)
     ] + select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
+            ":conf_dir_files",
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_files",
+            ":system_probe_install_dir_files",
+            "//deps/agent_integrations:integration_configuration_files",
+            "//deps/agent_integrations:integrations_bin_files",
+            "//deps/agent_integrations:integrations_runtime_files",
+            "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":conf_dir_files",
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_files",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -144,9 +151,7 @@ pkg_files(
     prefix = etc_dir(),
 )
 
-# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
-# which stages relative to install_dir). Add more conf_dir-relative files here as they
-# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+# Files installed under the config root (etc_dir).
 pkg_filegroup(
     name = "conf_dir_files",
     srcs = select({
@@ -155,6 +160,7 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }),
+    prefix = etc_dir(),
 )
 
 # Temporary during migration. Only called from omnibus scripts.
@@ -196,6 +202,10 @@ agent_binary_for_package(
 
 agent_binary_for_package(
     name = "secret_generic_connector_binary",
+    attributes = select({
+        "@platforms//os:linux": pkg_attributes(mode = "0500"),
+        "//conditions:default": pkg_attributes(mode = "0755"),
+    }),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
@@ -254,9 +264,7 @@ pkg_files(
     },
 )
 
-# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
-# which stages relative to install_dir). Add more conf_dir-relative files here as they
-# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+# Files installed under the config root (etc_dir).
 pkg_filegroup(
     name = "system_probe_files",
     srcs = [
@@ -267,6 +275,7 @@ pkg_filegroup(
             ":system_probe_selinux_policy_files",
         ],
     }),
+    prefix = etc_dir(),
 )
 
 # Temporary during omnibus migration.
@@ -274,4 +283,67 @@ pkg_install(
     name = "install_system_probe",
     srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "system_probe_ebpf_objects",
+    srcs = [
+        "//pkg/ebpf:prebuilt_objects",
+        "//pkg/ebpf/c:COPYING",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf",
+)
+
+pkg_files(
+    name = "system_probe_co_re_objects",
+    srcs = ["//pkg/ebpf:co_re_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/co-re",
+)
+
+pkg_files(
+    name = "system_probe_runtime_sources",
+    srcs = ["//pkg/ebpf:runtime_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/runtime",
+)
+
+# clang-bpf only. llc-bpf stays a toolchain file.
+pkg_files(
+    name = "system_probe_llvm_bpf",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "744"),
+    prefix = "embedded/bin",
+)
+
+# Not wired into Omnibus. FIPS omits the binary.
+pkg_filegroup(
+    name = "system_probe_install_dir_files",
+    srcs = [
+        ":system_probe_co_re_objects",
+        ":system_probe_ebpf_objects",
+        ":system_probe_llvm_bpf",
+        ":system_probe_runtime_sources",
+    ] + select({
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":system_probe_binary"],
+    }),
+)
+
+pkg_install(
+    name = "install_system_probe_install_dir",
+    srcs = [":system_probe_install_dir_files"],
+    destdir_flag = "//:install_dir",
+    target_compatible_with = ["@platforms//os:linux"],
 )
