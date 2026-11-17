@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -214,7 +215,7 @@ func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 	assert.Equal(t, failureCacheTTL, failureTTL(&apiError{StatusCode: 404, Code: "ResourceNotFoundException"}))
 
 	// Transient: context deadline/cancellation and the SDK's retryable error codes.
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(context.DeadlineExceeded))
+	assert.Equal(t, deadlineFailureCacheTTL, failureTTL(context.DeadlineExceeded))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "ThrottlingException"}))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 400, Code: "RequestLimitExceeded"}))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(&apiError{StatusCode: 429, Code: "TooManyRequestsException"}))
@@ -486,4 +487,33 @@ func TestGetClusterIdentityRecoversPanics(t *testing.T) {
 	assert.Nil(t, id)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
+}
+
+// hangingEKSClient answers only when its ctx is done, like an endpoint that never answers.
+type hangingEKSClient struct{ calls atomic.Int32 }
+
+func (h *hangingEKSClient) DescribeCluster(ctx context.Context, _ string) (*describeClusterOutput, error) {
+	h.calls.Add(1)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestGetClusterIdentityRemembersItsOwnTimeoutBriefly(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A cold Cluster Agent can run out of its own resolve budget. That says little about
+		// EKS, so it is remembered for a couple of seconds only: long enough to absorb a burst
+		// of node requests, short enough for a node to see the next resolve within its budget.
+		client := &hangingEKSClient{}
+		stubAWS(t, client)
+		_, err := GetClusterIdentity(t.Context(), "orders-own-timeout", nil)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		_, err = GetClusterIdentity(t.Context(), "orders-own-timeout", nil)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, int32(1), client.calls.Load())
+
+		time.Sleep(deadlineFailureCacheTTL + time.Millisecond)
+		_, _ = GetClusterIdentity(t.Context(), "orders-own-timeout", nil)
+		assert.Equal(t, int32(2), client.calls.Load())
+		assert.Less(t, deadlineFailureCacheTTL, transientFailureCacheTTL)
+	})
 }

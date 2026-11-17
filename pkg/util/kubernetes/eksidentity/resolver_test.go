@@ -393,3 +393,35 @@ func TestClusterNameFromEC2TagsPicksTheSameNameEveryTime(t *testing.T) {
 	_, err := clusterNameFromEC2Tags(t.Context())
 	assert.Error(t, err)
 }
+
+func TestResolveLeavesDescribeClusterItsShare(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A slow IMDS must not starve DescribeCluster of the resolve budget.
+		stub(t, "eks", "", nil, "orders")
+		ec2ClusterName = func(ctx context.Context) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		var left time.Duration
+		resolveIdentityByKey = func(ctx context.Context, name string, _ []byte) (*eks.ClusterIdentity, error) {
+			deadline, _ := ctx.Deadline()
+			left = time.Until(deadline)
+			return &eks.ClusterIdentity{ClusterName: name, ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/" + name}, nil
+		}
+		_, err := Resolve(t.Context())
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, left, describeClusterReserve)
+	})
+}
+
+func TestResolveOwnTimeoutIsNotDeterminedYet(t *testing.T) {
+	// A DescribeCluster that ran out of the resolve budget can succeed on the next resolve,
+	// which pkg/util/eks allows a couple of seconds later, so nodes may ask again.
+	stub(t, "eks", "orders", nil, "orders")
+	resolveIdentityByKey = func(context.Context, string, []byte) (*eks.ClusterIdentity, error) {
+		return nil, fmt.Errorf("describe EKS cluster %q: %w", "orders", context.DeadlineExceeded)
+	}
+	_, err := Resolve(t.Context())
+	assert.ErrorIs(t, err, ErrNotDetermined)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}

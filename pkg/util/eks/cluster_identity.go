@@ -50,6 +50,11 @@ const (
 	// would strip the identity tag from the whole fleet for the full failureCacheTTL after a
 	// single blip, so they are retried much sooner.
 	transientFailureCacheTTL = 30 * time.Second
+	// deadlineFailureCacheTTL is how long a resolve that ran out of its own budget is
+	// remembered. On a cold Cluster Agent that is the most likely failure, and it says little
+	// about EKS: it absorbs a burst of node requests and lets a node see the next resolve
+	// within its startup budget.
+	deadlineFailureCacheTTL = 2 * time.Second
 )
 
 var (
@@ -242,14 +247,15 @@ func cacheFailure(cacheKey string, err error) {
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
-// The resolve's own deadline, HTTP 429 and the codes in transientErrorCodes are transient, and
+// The resolve's own deadline is remembered briefly (deadlineFailureCacheTTL). HTTP 429 and the
+// codes in transientErrorCodes are transient, and
 // the AWS SDK's retry classifier decides the rest: it treats throttling codes, 5xx, timeouts,
 // connection resets and DNS/TLS failures as retryable, so those use the short TTL. Everything
 // the retryer considers terminal (AccessDenied, ResourceNotFound, a malformed identity, an
 // invalid name, a cluster mismatch) uses the long TTL.
 func failureTTL(err error) time.Duration {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return transientFailureCacheTTL
+		return deadlineFailureCacheTTL
 	}
 	// HTTP 429 is throttling whatever error code accompanies it.
 	var withStatus interface{ HTTPStatusCode() int }

@@ -31,8 +31,13 @@ import (
 const clusterNameRetryTTL = 5 * time.Minute
 
 // clusterNameDiscoveryTimeout bounds the EC2 tag lookup (IMDS, then the EC2 API) inside the
-// resolve budget, leaving DescribeCluster the rest.
-const clusterNameDiscoveryTimeout = 1500 * time.Millisecond
+// resolve budget. The lookup also ends early enough to leave DescribeCluster at least
+// describeClusterReserve of the budget.
+const clusterNameDiscoveryTimeout = 1 * time.Second
+
+// describeClusterReserve is the part of the resolve budget the EC2 tag lookup leaves to
+// DescribeCluster.
+const describeClusterReserve = 1500 * time.Millisecond
 
 // clusterNameTimeoutTTL is how long a timed out EC2 tag lookup is remembered.
 const clusterNameTimeoutTTL = 5 * time.Second
@@ -57,8 +62,9 @@ var ErrClusterNameUnavailable = errors.New("EKS cluster name is unavailable")
 var ErrClusterUnverified = errors.New("configured EKS cluster name cannot be verified without the cluster CA")
 
 // ErrNotDetermined indicates that the identity is not known yet and a later attempt can find it:
-// the distribution could not be determined (the API server is not reachable yet), or the EC2
-// tag lookup ran out of time. It is not cached.
+// the distribution could not be determined (the API server is not reachable yet), the EC2 tag
+// lookup ran out of time, or the resolve ran out of its budget. Each is remembered for a few
+// seconds at most.
 var ErrNotDetermined = errors.New("EKS cluster identity is not determined yet")
 
 // Injectable for tests; production values are the real detectors.
@@ -152,6 +158,11 @@ func resolve(ctx context.Context) (*eks.ClusterIdentity, error) {
 		clusterCA = nil
 	}
 	id, err := resolveIdentityByKey(ctx, discovered.name, clusterCA)
+	if errors.Is(err, context.DeadlineExceeded) {
+		// The resolve ran out of its own budget. pkg/util/eks remembers that for a couple of
+		// seconds only, so a node may ask again within its startup budget.
+		return nil, fmt.Errorf("%w: %w", ErrNotDetermined, err)
+	}
 	if errors.Is(err, eks.ErrClusterMismatch) && discovered.fromEC2 {
 		// The EC2 tag name is otherwise cached for good. Look it up again next time, in case
 		// the node's tags change.
@@ -214,7 +225,11 @@ func discoverClusterName(ctx context.Context) discoveredName {
 	// characters the Datadog cluster name cannot). Only that source is cached permanently.
 	// ctx is the shared resolve's own context (see Resolve), so a node disconnecting does not
 	// cut the lookup short.
-	lookupCtx, cancel := context.WithTimeout(ctx, clusterNameDiscoveryTimeout)
+	lookupTimeout := clusterNameDiscoveryTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		lookupTimeout = min(lookupTimeout, time.Until(deadline)-describeClusterReserve)
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, lookupTimeout)
 	clusterName, err := ec2ClusterName(lookupCtx)
 	timedOut := lookupCtx.Err() != nil
 	cancel()
