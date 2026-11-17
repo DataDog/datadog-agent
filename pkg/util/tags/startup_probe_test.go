@@ -140,9 +140,12 @@ func setupStartupNode(t *testing.T, url string, fargate bool) model.BuildableCon
 	} else {
 		env.SetFeatures(t, env.Kubernetes)
 	}
-	recordFlavor := flavor.GetFlavor()
-	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
-	flavor.SetFlavor(flavor.DefaultAgent)
+	// The flavor is a plain variable that background Cluster Agent calls of a previous test can
+	// still read, so only write it when it has to change.
+	if recordFlavor := flavor.GetFlavor(); recordFlavor != flavor.DefaultAgent {
+		t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+		flavor.SetFlavor(flavor.DefaultAgent)
+	}
 	return cfg
 }
 

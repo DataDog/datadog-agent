@@ -861,6 +861,32 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
 	assert.False(suite.T(), statusErr.RetryLater)
 }
 
+func (suite *clusterAgentSuite) TestGetClusterAgentClientConcurrentInit() {
+	// The cluster ID call and the identity fetch of a Fargate sidecar run concurrently, so two
+	// goroutines can trigger the client's initialization at the same moment. It must run once,
+	// and with -race the initialization of one must not overlap the other's.
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	const callers = 8
+	clients := make([]*DCAClient, callers)
+	errs := make([]error, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() { clients[i], errs[i] = GetClusterAgentClient() })
+	}
+	wg.Wait()
+	for i := range callers {
+		require.NoError(suite.T(), errs[i])
+		assert.Same(suite.T(), clients[0], clients[i])
+	}
+}
+
 func TestClusterAgentSuite(t *testing.T) {
 	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 

@@ -120,9 +120,11 @@ type DCAClient struct {
 	clusterAgentAPIRequestHeaders http.Header
 
 	clusterAgentClientLock sync.RWMutex
-	clusterAgentVersion    version.Version // Version of the cluster-agent we're connected to
-	clusterAgentAPIClient  *http.Client
-	leaderClient           *leaderClient
+	// initMu serializes GetClusterAgentClient's calls to the init retrier.
+	initMu                sync.Mutex
+	clusterAgentVersion   version.Version // Version of the cluster-agent we're connected to
+	clusterAgentAPIClient *http.Client
+	leaderClient          *leaderClient
 
 	// reconnectHandlerOnce ensures startReconnectHandler is only ever started once for
 	// this DCAClient, even if init() runs concurrently (e.g. via overlapping retries).
@@ -160,7 +162,13 @@ func getGlobalClusterAgentClient() *DCAClient {
 // GetClusterAgentClient returns or init the DCAClient
 func GetClusterAgentClient() (*DCAClient, error) {
 	client := getGlobalClusterAgentClient()
-	if err := client.initRetry.TriggerRetry(); err != nil {
+	// Concurrent first callers (the cluster ID call and the identity fetch of a Fargate sidecar,
+	// the tagger, DogStatsD) would each run init(), which writes the client's fields. One runs it
+	// and the others wait for its result.
+	client.initMu.Lock()
+	err := client.initRetry.TriggerRetry()
+	client.initMu.Unlock()
+	if err != nil {
 		log.Debugf("Cluster Agent init error: %v", err)
 		return nil, err
 	}
