@@ -354,14 +354,15 @@ func TestDescribeClusterSendsUserAgent(t *testing.T) {
 	assert.Contains(t, ua, " aws-sdk-go-v2/"+aws.SDKVersion)
 }
 
-func skewedServer(t *testing.T, serverNow time.Time, code string, attempts *int) *httptest.Server {
+// Every answer carries the server clock in its Date header, like AWS responses do.
+func skewedServer(t *testing.T, serverNow *time.Time, code string, attempts *int) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*attempts++
+		w.Header().Set("Date", serverNow.Format(http.TimeFormat))
 		signed, err := time.Parse("20060102T150405Z", r.Header.Get("X-Amz-Date"))
 		require.NoError(t, err)
-		if d := signed.Sub(serverNow); d > 5*time.Minute || d < -5*time.Minute {
-			w.Header().Set("Date", serverNow.Format(http.TimeFormat))
+		if d := signed.Sub(*serverNow); d > 5*time.Minute || d < -5*time.Minute {
 			w.Header().Set("X-Amzn-ErrorType", code)
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"Signature expired"}`))
@@ -373,10 +374,12 @@ func skewedServer(t *testing.T, serverNow time.Time, code string, attempts *int)
 
 func TestDescribeClusterCorrectsClockSkew(t *testing.T) {
 	clientNow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	for _, code := range []string{"InvalidSignatureException", "SignatureDoesNotMatch", "RequestTimeTooSkewed", "RequestExpired", "RequestInTheFuture"} {
+	// The codes the SDK's clock skew correction reacts to (aws/retry clockSkewCodes).
+	for _, code := range []string{"InvalidSignatureException", "SignatureDoesNotMatch", "AuthFailure", "RequestTimeTooSkewed", "AccessDeniedException"} {
 		t.Run(code, func(t *testing.T) {
 			attempts := 0
-			srv := skewedServer(t, clientNow.Add(20*time.Minute), code, &attempts)
+			serverNow := clientNow.Add(20 * time.Minute)
+			srv := skewedServer(t, &serverNow, code, &attempts)
 			defer srv.Close()
 
 			client := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).(*signedDescribeClusterClient)
@@ -393,6 +396,48 @@ func TestDescribeClusterCorrectsClockSkew(t *testing.T) {
 			assert.Equal(t, 3, attempts)
 		})
 	}
+}
+
+func TestDescribeClusterHealsClockSkew(t *testing.T) {
+	// The node clock was 20 minutes behind and the offset was learned. Then NTP fixes the
+	// clock, so the stored offset is now 20 minutes wrong and must heal, as in the SDK.
+	clientNow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	serverNow := clientNow.Add(20 * time.Minute)
+	attempts := 0
+	srv := skewedServer(t, &serverNow, "InvalidSignatureException", &attempts)
+	defer srv.Close()
+	client := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).(*signedDescribeClusterClient)
+	client.now = func() time.Time { return clientNow }
+
+	_, err := client.DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+
+	clientNow = serverNow
+	attempts = 0
+	_, err = client.DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err, "the stale offset heals")
+	assert.Equal(t, 2, attempts)
+
+	attempts = 0
+	_, err = client.DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.Equal(t, 1, attempts, "and stays healed")
+}
+
+func TestDescribeClusterAccessDeniedWithoutSkewIsNotRetried(t *testing.T) {
+	// AccessDeniedException counts as clock skew only when the clocks really differ.
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.Header().Set("X-Amzn-ErrorType", "AccessDeniedException")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.Error(t, err)
+	assert.Equal(t, 1, attempts)
+	assert.Equal(t, failureCacheTTL, failureTTL(err))
 }
 
 func TestDescribeClusterDoesNotCorrectSmallSkew(t *testing.T) {

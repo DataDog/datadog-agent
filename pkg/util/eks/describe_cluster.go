@@ -81,8 +81,8 @@ type apiError struct {
 	Code       string
 	Message    string
 	RequestID  string
-	// serverTime is the response Date header, used to correct clock skew.
-	serverTime time.Time
+	// skewChanged reports that the answer showed the request was signed with a wrong clock offset.
+	skewChanged bool
 }
 
 func (e *apiError) Error() string {
@@ -110,8 +110,8 @@ type signedDescribeClusterClient struct {
 	endpoint string
 	signer   *v4.Signer
 	now      func() time.Time
-	// clockSkew is the server clock minus the local clock, in nanoseconds, learned from a
-	// rejected signature. It is added to the signing time of every later request.
+	// clockSkew is the server clock minus the local clock, in nanoseconds, from the Date header
+	// of the last answer. It is added to the signing time of every later request.
 	clockSkew atomic.Int64
 }
 
@@ -153,7 +153,7 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 			return out, nil
 		}
 		var apiErr *apiError
-		if !skewCorrected && errors.As(err, &apiErr) && c.correctClockSkew(apiErr) {
+		if !skewCorrected && errors.As(err, &apiErr) && apiErr.skewChanged && clockSkewCodes[apiErr.Code] {
 			// Re-sign once with the corrected time, as the SDK's retryer does.
 			skewCorrected = true
 			continue
@@ -227,8 +227,11 @@ func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (
 	if err != nil {
 		return nil, &transportError{fmt.Errorf("read DescribeCluster response: %w", err)}
 	}
+	skewChanged := c.observeServerTime(resp.Header)
 	if resp.StatusCode != http.StatusOK {
-		return nil, parseAPIError(resp.StatusCode, resp.Header, body)
+		apiErr := parseAPIError(resp.StatusCode, resp.Header, body)
+		apiErr.skewChanged = skewChanged
+		return nil, apiErr
 	}
 
 	out := &describeClusterOutput{}
@@ -238,40 +241,43 @@ func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (
 	return out, nil
 }
 
-// clockSkewCodes are the error codes AWS returns when a signature is rejected because of the
-// signing time. They are the codes the SDK's clock skew correction reacts to.
+// clockSkewCodes are the error codes the SDK's clock skew correction reacts to
+// (aws-sdk-go-v2 aws/retry clockSkewCodes). Like the SDK, every code, AccessDeniedException
+// included, triggers a re-signed attempt only when the response's Date header shows the
+// request was signed with an offset more than skewThreshold off.
 var clockSkewCodes = map[string]bool{
 	"InvalidSignatureException": true,
 	"SignatureDoesNotMatch":     true,
+	"AuthFailure":               true,
 	"RequestTimeTooSkewed":      true,
-	"RequestExpired":            true,
-	"RequestInTheFuture":        true,
+	"AccessDeniedException":     true,
 }
 
 // skewThreshold is the clock difference above which the signing time is corrected. It is the
 // SDK's value (aws/retry skewThreshold); AWS rejects signatures more than 5 minutes off.
 const skewThreshold = 4 * time.Minute
 
-// correctClockSkew records the offset between the local clock and the server's Date header when
-// a signature was rejected for its time and the clocks differ by more than skewThreshold. It
-// reports whether the request should be re-signed.
-func (c *signedDescribeClusterClient) correctClockSkew(apiErr *apiError) bool {
-	if !clockSkewCodes[apiErr.Code] || apiErr.serverTime.IsZero() {
+// observeServerTime records the offset between the server's Date header and the local clock
+// after every answer, success or not, as the SDK does (aws/retry middleware.go, ClientSkew is
+// stored from every response). It reports whether the offset the request was signed with was
+// more than skewThreshold away from the observed one: that is both a fresh skew and a stale
+// offset after the local clock was fixed (aws/retry wrapAsClockSkew).
+func (c *signedDescribeClusterClient) observeServerTime(header http.Header) bool {
+	server := serverTime(header)
+	if server.IsZero() {
 		return false
 	}
-	skew := apiErr.serverTime.Sub(c.now())
-	if skew > -skewThreshold && skew < skewThreshold {
-		return false
-	}
-	c.clockSkew.Store(int64(skew))
-	return true
+	observed := server.Sub(c.now())
+	signedWith := time.Duration(c.clockSkew.Swap(int64(observed)))
+	diff := signedWith - observed
+	return diff > skewThreshold || diff < -skewThreshold
 }
 
 // parseAPIError reads the error code the way the AWS SDK REST-JSON protocol does: from the
 // X-Amzn-ErrorType header first, then from the code or __type body field (matched without case,
 // like the SDK's JSON decoder), sanitized by sanitizeErrorCode. Without any code it is
 // UnknownError, the SDK's default.
-func parseAPIError(statusCode int, header http.Header, body []byte) error {
+func parseAPIError(statusCode int, header http.Header, body []byte) *apiError {
 	var payload struct {
 		Code    string `json:"code"`
 		Type    string `json:"__type"`
@@ -295,7 +301,6 @@ func parseAPIError(statusCode int, header http.Header, body []byte) error {
 		Code:       code,
 		Message:    payload.Message,
 		RequestID:  header.Get("X-Amzn-RequestId"),
-		serverTime: serverTime(header),
 	}
 }
 
