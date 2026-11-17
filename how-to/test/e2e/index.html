@@ -4298,6 +4298,7 @@
 </details>
 <h3 id="cloud-provider-access">Cloud Provider Access<a class="headerlink" href="#cloud-provider-access" title="Permanent link">&para;</a></h3>
 <p>You need access to the <code>account-admin-8h</code> role on the <code>agent-sandbox</code> AWS account. If <code>dda inv e2e.setup</code> (below) reports it can't reach that account, you don't have access yet — ask #agent-devx-help for it; the request process is documented internally on Confluence.</p>
+<p>Kubernetes tests also need the <code>agent-dev</code> role on the <code>agent-qa</code> AWS account, to pull images from the ECR pull-through cache (see <a href="dependencies/">Dependencies</a>).</p>
 <p>For Azure / GCP tests, pass <code>--with-azure</code> / <code>--with-gcp</code> when running the setup task (see below).</p>
 <h3 id="one-time-setup">One-time setup<a class="headerlink" href="#one-time-setup" title="Permanent link">&para;</a></h3>
 <p>Run the setup task once on a fresh machine:</p>
