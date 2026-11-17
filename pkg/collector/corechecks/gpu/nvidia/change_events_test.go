@@ -78,44 +78,75 @@ func TestChangeEventProcessorKeepsNoWorkloadTags(t *testing.T) {
 	require.Equal(t, []string{"unavailable_reason:unhealthy"}, evt.Tags())
 }
 
-func TestChangeEventProcessorUnschedulable(t *testing.T) {
-	p := NewChangeEventProcessor(DefaultChangeEventRules)
-	unschedulable := func(value float64, reason string) Sample {
-		return &Metric{
-			baseSample: baseSample{tags: []string{"unavailable_reason:unschedulable", "unschedulable_reason:" + reason}, noWorkloadTags: true},
-			Name:       "device.unavailable",
-			Value:      value,
-			Type:       metrics.GaugeType,
-		}
+// unavailablePoint is one device.unavailable series, shaped as the stateless collector
+// emits them: lost, unhealthy, then the unschedulable points.
+func unavailablePoint(value float64, tags ...string) Sample {
+	return &Metric{
+		baseSample: baseSample{tags: tags, noWorkloadTags: true},
+		Name:       "device.unavailable",
+		Value:      value,
+		Type:       metrics.GaugeType,
 	}
-	run := func(samples ...Sample) []*Event {
+}
+
+func TestChangeEventProcessorAvailability(t *testing.T) {
+	p := NewChangeEventProcessor(DefaultChangeEventRules)
+	run := func(lost, unhealthy float64, unschedulable ...Sample) []*Event {
+		samples := append([]Sample{
+			unavailablePoint(lost, "unavailable_reason:lost"),
+			unavailablePoint(unhealthy, "unavailable_reason:unhealthy"),
+		}, unschedulable...)
 		var events []*Event
 		for _, s := range p.ProcessSamples(samples, time.Unix(100, 0), "GPU-1")[len(samples):] {
 			events = append(events, s.(*Event))
 		}
 		return events
 	}
+	unschedulable := func(value float64, reason string) Sample {
+		return unavailablePoint(value, "unavailable_reason:unschedulable", "unschedulable_reason:"+reason)
+	}
 
-	// Cordon: the series appears with 1, a change from the not emitted value.
-	events := run(unschedulable(1, "cordoned"))
+	// The first check is only a baseline, even on a cordoned node.
+	require.Empty(t, run(0, 0, unschedulable(1, "cordoned")))
+	require.Empty(t, run(0, 0, unschedulable(1, "cordoned")))
+
+	// The GPU becomes unhealthy on the cordoned node: the unschedulable series drops to 0,
+	// but the GPU is still unavailable, so the only event is the new reason.
+	events := run(0, 1, unschedulable(0, "cordoned"))
 	require.Len(t, events, 1)
 	require.Equal(t, "GPU device unavailable", events[0].event.Title)
-	require.Equal(t, []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned"}, events[0].Tags())
+	require.ElementsMatch(t, []string{
+		"unavailable_reason:unhealthy",
+		"previous_unavailable_reason:unschedulable", "previous_unschedulable_reason:cordoned",
+	}, events[0].Tags())
+
+	// Healthy again while still cordoned.
+	events = run(0, 0, unschedulable(1, "cordoned"))
+	require.Len(t, events, 1)
+	require.Equal(t, "GPU device unavailable", events[0].event.Title)
+	require.ElementsMatch(t, []string{
+		"unavailable_reason:unschedulable", "unschedulable_reason:cordoned",
+		"previous_unavailable_reason:unhealthy",
+	}, events[0].Tags())
 
 	// The cause changes: the old cause reports 0 alongside the new one at 1.
-	events = run(unschedulable(1, "not_ready"), unschedulable(0, "cordoned"))
+	events = run(0, 0, unschedulable(1, "not_ready"), unschedulable(0, "cordoned"))
 	require.Len(t, events, 1)
-	require.Equal(t, "GPU device unavailable", events[0].event.Title)
-	require.Equal(t, []string{"unavailable_reason:unschedulable", "unschedulable_reason:not_ready", "previous_unschedulable_reason:cordoned"}, events[0].Tags())
+	require.ElementsMatch(t, []string{
+		"unavailable_reason:unschedulable", "unschedulable_reason:not_ready",
+		"previous_unavailable_reason:unschedulable", "previous_unschedulable_reason:cordoned",
+	}, events[0].Tags())
 
-	require.Empty(t, run(unschedulable(1, "not_ready"), unschedulable(0, "cordoned")))
-
-	// Schedulable again.
-	events = run(unschedulable(0, "not_ready"), unschedulable(0, "cordoned"))
+	// Schedulable again: available, with only the previous reason.
+	events = run(0, 0, unschedulable(0, "not_ready"), unschedulable(0, "cordoned"))
 	require.Len(t, events, 1)
 	require.Equal(t, "GPU device available", events[0].event.Title)
-	require.Contains(t, events[0].Tags(), "previous_unschedulable_reason:not_ready")
+	require.Equal(t, event.AlertTypeSuccess, events[0].event.AlertType)
+	require.ElementsMatch(t, []string{
+		"previous_unavailable_reason:unschedulable", "previous_unschedulable_reason:not_ready",
+	}, events[0].Tags())
 
-	// A series that appears with the not emitted value sends nothing.
-	require.Empty(t, p.ProcessSamples([]Sample{unschedulable(0, "cordoned")}, time.Unix(100, 0), "GPU-2")[1:])
+	// The 0 points of the old causes expire one by one: nothing changes.
+	require.Empty(t, run(0, 0, unschedulable(0, "not_ready")))
+	require.Empty(t, run(0, 0))
 }

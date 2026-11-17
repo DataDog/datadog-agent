@@ -1109,7 +1109,8 @@ metrics:
         action), unschedulable (the node is cordoned, not Ready or matches a rule).
         Series carry device tags but no workload tags. Only unschedulable series
         carry unschedulable_reason tags, one per cause, and report 0 for 10 minutes
-        after the cause clears.
+        after the cause clears. A change of the GPU availability is also sent as a
+        gpu_availability_change event.
       aggregation: absolute_usage
     tagsets:
       - device
