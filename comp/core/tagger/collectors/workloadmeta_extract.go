@@ -145,8 +145,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
 
 	for _, ev := range evBundle.Events {
-		entity := ev.Entity
-		entityID := entity.GetID()
+		entityID := ev.Entity.GetID()
 
 		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
 			entityID.Kind == workloadmeta.KindKubelet {
@@ -175,7 +174,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// are added to the pods of the workloads they target and to the
 			// autoscaled workload entities used by KSM, so the pods and
 			// entities of the previous and the new target need to be updated.
-			autoscaler := entity.(*workloadmeta.KubernetesAutoscaler)
+			autoscaler := ev.Entity.(*workloadmeta.KubernetesAutoscaler)
 			// Set events don't carry the previous target, so it comes from
 			// the index
 			if previous, found := c.autoscalers[entityID.ID]; found {
@@ -190,66 +189,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			taggerEntityID := common.BuildTaggerEntityID(entityID)
-
-			// keep track of children of this entity from previous
-			// iterations ...
-			unseen := make(map[types.EntityID]struct{})
-			for childTaggerID := range c.children[taggerEntityID] {
-				unseen[childTaggerID] = struct{}{}
-			}
-
-			// ... and create a new empty map to store the children
-			// seen in this iteration.
-			c.children[taggerEntityID] = make(map[types.EntityID]struct{})
-
-			switch entityID.Kind {
-			case workloadmeta.KindContainer:
-				tagInfos = append(tagInfos, c.handleContainer(ev)...)
-			case workloadmeta.KindKubernetesPod:
-				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
-			case workloadmeta.KindECSTask:
-				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
-			case workloadmeta.KindContainerImageMetadata:
-				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindKubernetesMetadata:
-				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
-			case workloadmeta.KindKubernetesNode:
-				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
-			case workloadmeta.KindProcess:
-				tagInfos = append(tagInfos, c.handleProcess(ev)...)
-				tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
-			case workloadmeta.KindKubernetesDeployment:
-				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
-			case workloadmeta.KindKubernetesKueueQueue:
-				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
-			case workloadmeta.KindKubernetesKueueResourceFlavor:
-				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
-			case workloadmeta.KindKubernetesKueueWorkload:
-				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
-				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
-			case workloadmeta.KindGPU:
-				tagInfos = append(tagInfos, c.handleGPU(ev)...)
-			case workloadmeta.KindCRD:
-				tagInfos = append(tagInfos, c.handleCRD(ev)...)
-			case workloadmeta.KindKubeCapabilities:
-				tagInfos = append(tagInfos, c.handleKubeCapabilities(ev)...)
-			default:
-				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
-			}
-
-			// remove the children seen in this iteration from the
-			// unseen list ...
-			for childTaggerID := range c.children[taggerEntityID] {
-				delete(unseen, childTaggerID)
-			}
-
-			// ... and remove entities for everything that has been
-			// left
-			source := buildTaggerSource(entityID)
-			tagInfos = append(tagInfos, c.handleDeleteChildren(source, unseen)...)
+			tagInfos = append(tagInfos, c.handleSet(ev)...)
+			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
@@ -261,7 +203,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
 		}
-
 	}
 
 	tagInfos = append(tagInfos, c.retagKAIDependentPods(kaiPodGroupIDs)...)
@@ -275,6 +216,78 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	}
 
 	evBundle.Acknowledge()
+}
+
+func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInfo {
+	var tagInfos []*types.TagInfo
+
+	entityID := ev.Entity.GetID()
+	taggerEntityID := common.BuildTaggerEntityID(entityID)
+
+	// keep track of children of this entity from previous
+	// iterations ...
+	unseen := make(map[types.EntityID]struct{})
+	for childTaggerID := range c.children[taggerEntityID] {
+		unseen[childTaggerID] = struct{}{}
+	}
+
+	// ... and create a new empty map to store the children
+	// seen in this iteration.
+	c.children[taggerEntityID] = make(map[types.EntityID]struct{})
+
+	tagInfos = append(tagInfos, c.handleKind(ev)...)
+
+	// remove the children seen in this iteration from the
+	// unseen list ...
+	for childTaggerID := range c.children[taggerEntityID] {
+		delete(unseen, childTaggerID)
+	}
+
+	// ... and remove entities for everything that has been
+	// left
+	source := buildTaggerSource(entityID)
+	tagInfos = append(tagInfos, c.handleDeleteChildren(source, unseen)...)
+
+	return tagInfos
+}
+
+// handleKind tags the entity of a set event with the handler of its kind.
+func (c *WorkloadMetaCollector) handleKind(ev workloadmeta.Event) []*types.TagInfo {
+	entityID := ev.Entity.GetID()
+
+	switch entityID.Kind {
+	case workloadmeta.KindContainer:
+		return c.handleContainer(ev)
+	case workloadmeta.KindKubernetesPod:
+		return c.handleKubePod(ev)
+	case workloadmeta.KindECSTask:
+		return c.handleECSTask(ev)
+	case workloadmeta.KindContainerImageMetadata:
+		return c.handleContainerImage(ev)
+	case workloadmeta.KindKubernetesMetadata:
+		return c.handleKubeMetadata(ev)
+	case workloadmeta.KindKubernetesNode:
+		return c.handleKubeNode(ev)
+	case workloadmeta.KindProcess:
+		return c.handleProcess(ev)
+	case workloadmeta.KindKubernetesDeployment:
+		return c.handleKubeDeployment(ev)
+	case workloadmeta.KindKubernetesKueueQueue:
+		return c.handleKubeKueueQueue(ev)
+	case workloadmeta.KindKubernetesKueueResourceFlavor:
+		return c.handleKubeKueueResourceFlavor(ev)
+	case workloadmeta.KindKubernetesKueueWorkload:
+		return c.handleKubeKueueWorkload(ev)
+	case workloadmeta.KindGPU:
+		return c.handleGPU(ev)
+	case workloadmeta.KindCRD:
+		return c.handleCRD(ev)
+	case workloadmeta.KindKubeCapabilities:
+		return c.handleKubeCapabilities(ev)
+	default:
+		log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
+		return nil
+	}
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
