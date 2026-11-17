@@ -397,7 +397,7 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 		details.RowRemapperSite = matches[1]
 	}
 	if (xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode) && nvidiaMemoryLocationPattern.MatchString(message) {
-		details.Location = strings.ToUpper(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])
+		details.Location = nvidiaMemoryLocationName(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])
 	}
 	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
 		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))
@@ -414,6 +414,18 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 		return true
 	}
 	return false
+}
+
+// nvidiaMemoryLocationName maps the location printed by the driver to the
+// memory_location vocabulary used by the GPU metrics (lowercase NVML names).
+func nvidiaMemoryLocationName(location string) string {
+	switch strings.ToUpper(location) {
+	case "DRAM":
+		return "device_memory"
+	case "SRAM":
+		return "sram"
+	}
+	return strings.ToLower(location)
 }
 
 func parseNvidiaRecoveryXid(message string, xid *model.NvidiaXid) bool {

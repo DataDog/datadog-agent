@@ -385,6 +385,7 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		"nvlink_cross_containment:contained",
 		"nvlink_instance:GPU0",
 		"nvlink_link_id:4",
+		"nvlink_port:5",
 		"memory_partition:2",
 		"memory_location:HBM",
 		"row_remapper_site:site-a",
@@ -396,7 +397,65 @@ func TestXIDEventToSampleIncludesStructuredTags(t *testing.T) {
 		"recovery_previous_label:none",
 		"recovery_current_code:2",
 		"recovery_current_label:reset",
+		"recovery_action:reboot",
+		"recovery_previous_action:none",
 	}, sample.tags)
+}
+
+func TestMetricAlignedXIDTags(t *testing.T) {
+	u := func(v uint64) *uint64 { return &v }
+	for _, tc := range []struct {
+		name     string
+		xid      *model.NvidiaXid
+		expected []string
+	}{
+		{name: "nil xid", xid: nil, expected: nil},
+		{name: "no details", xid: &model.NvidiaXid{XidCode: 31}, expected: nil},
+		{
+			name:     "nvlink link 0 is port 1",
+			xid:      &model.NvidiaXid{NVLinkFault: &model.NvidiaXidNVLinkFault{LinkID: u(0)}},
+			expected: []string{"nvlink_port:1"},
+		},
+		{
+			name:     "nvlink link 17 is port 18",
+			xid:      &model.NvidiaXid{NVLinkFault: &model.NvidiaXidNVLinkFault{LinkID: u(17)}},
+			expected: []string{"nvlink_port:18"},
+		},
+		{
+			name:     "nvlink without link id",
+			xid:      &model.NvidiaXid{NVLinkFault: &model.NvidiaXidNVLinkFault{Subcode: "0x1"}},
+			expected: nil,
+		},
+		{
+			name:     "recovery none to reset",
+			xid:      &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: u(0), CurrentCode: u(1)}},
+			expected: []string{"recovery_action:reset", "recovery_previous_action:none"},
+		},
+		{
+			name:     "recovery reset to reboot",
+			xid:      &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: u(1), CurrentCode: u(2)}},
+			expected: []string{"recovery_action:reboot", "recovery_previous_action:reset"},
+		},
+		{
+			name:     "recovery drain to drain_and_reset",
+			xid:      &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: u(3), CurrentCode: u(4)}},
+			expected: []string{"recovery_action:drain_and_reset", "recovery_previous_action:drain"},
+		},
+		{
+			name:     "recovery unknown code",
+			xid:      &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: u(0), CurrentCode: u(99)}},
+			expected: []string{"recovery_action:unknown_99", "recovery_previous_action:none"},
+		},
+		{
+			name:     "recovery only current known",
+			xid:      &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{CurrentCode: u(2)}},
+			expected: []string{"recovery_action:reboot"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, metricAlignedXIDTags(tc.xid))
+		})
+	}
 }
 
 func TestXIDEventToSampleUsesNVMLFallbackText(t *testing.T) {

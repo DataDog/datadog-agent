@@ -189,7 +189,7 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				XidCode: 94,
 				Message: "NVRM: Xid (PCI:0000:00:1e): 94, Contained SRAM ECC error",
 				MemoryFault: &model.NvidiaXidMemoryFault{
-					Location: "SRAM",
+					Location: "sram",
 				},
 			},
 		},
@@ -200,7 +200,7 @@ func TestParseNvidiaXidDetails(t *testing.T) {
 				XidCode: 95,
 				Message: "NVRM: Xid (PCI:0000:00:1e): 95, Uncontained DRAM ECC error",
 				MemoryFault: &model.NvidiaXidMemoryFault{
-					Location: "DRAM",
+					Location: "device_memory",
 				},
 			},
 		},
@@ -411,4 +411,18 @@ func (r *fakeDriverEventReader) Stop() {
 		close(r.errors)
 		close(r.records)
 	})
+}
+
+func TestNvidiaMemoryLocationName(t *testing.T) {
+	for _, tc := range []struct{ in, expected string }{
+		{"DRAM", "device_memory"},
+		{"dram", "device_memory"},
+		{"SRAM", "sram"},
+		{"sram", "sram"},
+		{"HBM", "hbm"},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			require.Equal(t, tc.expected, nvidiaMemoryLocationName(tc.in))
+		})
+	}
 }
