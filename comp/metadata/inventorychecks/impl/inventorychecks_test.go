@@ -336,11 +336,11 @@ func TestGetPayloadCapsLogsMetadata(t *testing.T) {
 		option.None[collector.Component](),
 		option.None[logagent.Component](),
 		map[string]any{
-			"inventories_configuration_enabled":        true,
-			"inventories_checks_configuration_enabled": true,
+			"inventories_configuration_enabled":            true,
+			"inventories_checks_configuration_enabled":     true,
+			"inventories_checks_max_logs_metadata_entries": 3,
 		},
 	)
-	ic.maxLogsMetadataEntries = 3
 
 	logSources := sources.NewLogSources()
 	newSource := func(name string, i int, inError bool) {
@@ -386,4 +386,10 @@ func TestGetPayloadCapsLogsMetadata(t *testing.T) {
 	b, err := p.MarshalJSON()
 	require.NoError(t, err)
 	assert.NotContains(t, string(b), "logs_metadata_truncated")
+
+	// a non-positive value disables the cap
+	ic.maxLogsMetadataEntries = 0
+	p = ic.getPayloadWithConfigs().(*Payload)
+	assert.Len(t, p.LogsMetadata["container_collect_all"], 4)
+	assert.Nil(t, p.LogsMetadataTruncated)
 }

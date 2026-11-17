@@ -41,13 +41,6 @@ import (
 type metadata map[string]interface{}
 type checksMetadata map[string][]metadata
 
-// maxLogsMetadataEntriesPerSource bounds the number of logs_metadata entries
-// sent for a single logs source name. Some source names, such as
-// container_collect_all, get one entry per container, so a leak of logs
-// sources (or a host running a very large number of containers) can otherwise
-// grow the payload past the intake limit.
-const maxLogsMetadataEntriesPerSource = 1000
-
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Hostname      string                `json:"hostname"`
@@ -91,7 +84,12 @@ type inventorychecksImpl struct {
 	sources  option.Option[*sources.LogSources]
 	hostname string
 
-	// maxLogsMetadataEntries is maxLogsMetadataEntriesPerSource, overridable in tests.
+	// maxLogsMetadataEntries bounds the number of logs_metadata entries sent for
+	// a single logs source name (inventories_checks_max_logs_metadata_entries).
+	// Some source names, such as container_collect_all, get one entry per
+	// container, so a leak of logs sources (or a host running a very large number
+	// of containers) can otherwise grow the payload past the intake limit.
+	// A value <= 0 disables the cap.
 	maxLogsMetadataEntries int
 }
 
@@ -124,7 +122,7 @@ func NewComponent(deps Requires) Provides {
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 
-		maxLogsMetadataEntries: maxLogsMetadataEntriesPerSource,
+		maxLogsMetadataEntries: deps.Config.GetInt("inventories_checks_max_logs_metadata_entries"),
 	}
 	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
@@ -302,6 +300,9 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 // source name, preferring the entries whose source is not in error, and
 // returns the number of dropped entries per source name (nil if none).
 func (ic *inventorychecksImpl) capLogsMetadata(logsMetadata map[string][]metadata) map[string]int {
+	if ic.maxLogsMetadataEntries <= 0 {
+		return nil
+	}
 	var truncated map[string]int
 	for name, entries := range logsMetadata {
 		if len(entries) <= ic.maxLogsMetadataEntries {

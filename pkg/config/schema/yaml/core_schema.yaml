@@ -8744,6 +8744,16 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  inventories_checks_max_logs_metadata_entries:
+    node_type: setting
+    type: integer
+    default: 1000
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Maximum number of logs_metadata entries reported per logs source name in the
+      inventory checks payload; extra entries are dropped (sources in error first) and
+      counted in logs_metadata_truncated. 0 or a negative value disables the cap.
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
