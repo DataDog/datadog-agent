@@ -31,7 +31,6 @@ type Handler struct {
 	httpClientProvider httpclient.Provider
 	isURLAllowed       func(string) bool
 	encryptionStore    *encryptioncontext.Store
-	oauth2             *oauth2Tokens
 }
 
 func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *Handler {
@@ -39,7 +38,8 @@ func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider)
 	return h
 }
 
-// WithEncryptionStore enables secret inputs (encryptedCredentials) in raw mode.
+// WithEncryptionStore enables secret inputs (encryptedCredentials). Without a
+// store, they are rejected.
 func (h *Handler) WithEncryptionStore(encryptionStore *encryptioncontext.Store) *Handler {
 	h.encryptionStore = encryptionStore
 	return h
@@ -51,7 +51,6 @@ func NewHttpRequestAction(cfg *config.Config) *Handler {
 		httpTimeout:        cfg.HTTPTimeout,
 		httpClientProvider: httpclient.NewDefaultProvider(cfg),
 		isURLAllowed:       cfg.IsURLInAllowlist,
-		oauth2:             newOAuth2Tokens(),
 	}
 }
 
@@ -92,11 +91,20 @@ type RequestInputs struct {
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
 
 	// Raw mode only; see ResponseModeRaw. Unset keeps the default behavior.
-	ResponseMode         *string                             `json:"responseMode,omitempty"`
-	BodyBase64           string                              `json:"bodyBase64,omitempty"`
-	EncryptResponseTo    *ResponseKey                        `json:"encryptResponseTo,omitempty"`
+	ResponseMode      *string      `json:"responseMode,omitempty"`
+	BodyBase64        string       `json:"bodyBase64,omitempty"`
+	EncryptResponseTo *ResponseKey `json:"encryptResponseTo,omitempty"`
+
+	// Added by wf-actions-server for ExecuteOboWithSecretInputs, in either mode.
+	// The sealed payload is SecretInputs, or RawSecretInputs in raw mode.
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext,omitempty"`
 	EncryptedCredentials string                              `json:"encryptedCredentials,omitempty"`
+}
+
+// SecretInputs are the inputs a caller sends sealed, so they never appear in
+// the task's plain inputs.
+type SecretInputs struct {
+	RequestHeaders []Header `json:"requestHeaders,omitempty"`
 }
 
 type RequestOutputs struct {
@@ -148,23 +156,10 @@ func (h *Handler) Run(
 		e := errors.New("specified URL does not match base URL configured in the Connection")
 		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
 	}
-	if credential != nil && credential.HttpDetails.OAuth2 != nil {
-		// The base URL check above keeps the token on the connection's host.
-		if baseURL == "" {
-			e := errors.New("an OAuth2 connection requires a base URL")
-			return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
-		}
-		for name := range headers {
-			if strings.EqualFold(name, "Authorization") {
-				e := errors.New("both the request and the OAuth2 connection set Authorization")
-				return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
-			}
-		}
-		authorization, err := h.oauth2Authorization(ctx, credential.HttpDetails.OAuth2)
-		if err != nil {
-			return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
-		}
-		headers["Authorization"] = authorization
+	// The base URL check above, and the redirect policy below, keep secret
+	// headers on the connection's host.
+	if err := h.addSecretHeaders(inputs, headers, credential); err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
 
 	// BUILD URL
@@ -234,9 +229,6 @@ func (h *Handler) Run(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "failed to make request")
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusUnauthorized && credential != nil {
-		h.oauth2.invalidate(credential.HttpDetails.OAuth2)
-	}
 
 	// CHECK FOR ERROR
 	if len(inputs.ErrorOnStatus) > 0 {
@@ -283,6 +275,60 @@ func (h *Handler) Run(
 		Headers: resp.Header,
 	}
 	return output, nil
+}
+
+// addSecretHeaders opens the task's secret inputs, if any, and adds their
+// headers. Secret values are not evaluated as templates, and a secret header
+// can't replace one set by the request, the connection or the runner.
+//
+// A user OAuth2 connection takes its Authorization only from the secret
+// inputs, so a user's token never sits in the task's plain inputs.
+func (h *Handler) addSecretHeaders(inputs RequestInputs, headers map[string]string, credential *privateconnection.PrivateCredentials) error {
+	userToken := credential != nil && credential.Type == privateconnection.UserOAuth2TokenAuthType
+	if userToken {
+		for name := range headers {
+			if strings.EqualFold(name, "Authorization") {
+				return errors.New("a user OAuth2 connection takes Authorization only from the secret inputs")
+			}
+		}
+	}
+	hasContext := inputs.EncryptionContext != (encryptioncontext.EncryptionContext{})
+	if inputs.EncryptedCredentials == "" && !hasContext {
+		if userToken {
+			return errors.New("a user OAuth2 connection needs the user's token as a secret input")
+		}
+		return nil
+	}
+	if inputs.EncryptedCredentials == "" || !hasContext {
+		return errors.New("secret inputs need both encryptedCredentials and encryptionContext")
+	}
+	if h.encryptionStore == nil {
+		return errors.New("secret inputs are not supported by this runner")
+	}
+	secrets, err := encryptioncontext.DecryptInto[SecretInputs](h.encryptionStore, inputs.EncryptionContext, inputs.EncryptedCredentials)
+	if err != nil {
+		return fmt.Errorf("failed to open secret inputs: %w", err)
+	}
+	if err := validateHeaders(secrets.RequestHeaders); err != nil {
+		return err
+	}
+	hasAuthorization := false
+	for _, header := range secrets.RequestHeaders {
+		if header.Key == "" || strings.EqualFold(header.Key, HeaderToScrub) {
+			return fmt.Errorf("secret header %q is not allowed", header.Key)
+		}
+		for existing := range headers {
+			if strings.EqualFold(existing, header.Key) {
+				return fmt.Errorf("secret header %q is also set by the request, the connection or the runner", header.Key)
+			}
+		}
+		headers[header.Key] = strings.Join(header.Value, ",")
+		hasAuthorization = hasAuthorization || strings.EqualFold(header.Key, "Authorization")
+	}
+	if userToken && !hasAuthorization {
+		return errors.New("a user OAuth2 connection needs the user's token as a secret Authorization header")
+	}
+	return nil
 }
 
 // redirectPolicy applies the checks made on the first URL to every redirect hop:

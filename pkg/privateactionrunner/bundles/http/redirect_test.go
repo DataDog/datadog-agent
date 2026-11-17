@@ -87,9 +87,8 @@ func TestRequestRejectsRawInputsInDefaultMode(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("no request expected") }))
 	defer server.Close()
 	for name, inputs := range map[string]map[string]interface{}{
-		"bodyBase64":           {"verb": "POST", "url": server.URL, "bodyBase64": "YQ=="},
-		"encryptResponseTo":    {"verb": "GET", "url": server.URL, "encryptResponseTo": map[string]interface{}{"keyType": RawResponseKeyType, "publicKey": "AA=="}},
-		"encryptedCredentials": {"verb": "GET", "url": server.URL, "encryptedCredentials": "AA=="},
+		"bodyBase64":        {"verb": "POST", "url": server.URL, "bodyBase64": "YQ=="},
+		"encryptResponseTo": {"verb": "GET", "url": server.URL, "encryptResponseTo": map[string]interface{}{"keyType": RawResponseKeyType, "publicKey": "AA=="}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second}).Run(context.Background(), requestTask(inputs), nil)

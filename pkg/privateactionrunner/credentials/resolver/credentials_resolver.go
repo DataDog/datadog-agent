@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	httpconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -174,6 +173,13 @@ func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task
 			return nil, err
 		}
 		return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.TokenAuthType, HttpDetails: details}, nil
+	case privateactionspb.CredentialsType_OAUTH2_USER_TOKEN:
+		// Nothing to resolve: the token is a secret input of the task. The
+		// connection's base URL still scopes where that token may go.
+		if details.BaseURL == "" {
+			return nil, errors.New("a user OAuth2 connection requires a base URL")
+		}
+		return &privateconnection.PrivateCredentials{Type: privateconnection.UserOAuth2TokenAuthType, HttpDetails: details}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
@@ -181,8 +187,6 @@ func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task
 func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, task *types.Task) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
 	var domainRestrictions [][]string
-	// An OAuth2 client secret is sent to the token URL, not to the request URL.
-	var tokenURLRestrictions [][]string
 	var credentialValues map[string]par.CredentialConfig
 	for _, token := range tokens {
 		if token == nil || len(token.GetNameSegments()) == 0 {
@@ -216,11 +220,7 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 				return nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, task.GetFQN())
 			}
 			if credential.AllowedHTTPDomains != nil {
-				if isOAuth2ClientSecret(token.GetNameSegments()) {
-					tokenURLRestrictions = append(tokenURLRestrictions, credential.AllowedHTTPDomains)
-				} else {
-					domainRestrictions = append(domainRestrictions, credential.AllowedHTTPDomains)
-				}
+				domainRestrictions = append(domainRestrictions, credential.AllowedHTTPDomains)
 			}
 			value = credential.Value
 		default:
@@ -240,23 +240,7 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			}
 		}
 	}
-	if len(tokenURLRestrictions) > 0 {
-		_, details := privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolved})
-		tokenURL, err := url.Parse(details.OAuth2.TokenURL)
-		if err != nil || tokenURL.Host == "" {
-			return nil, errors.New("cannot authorize runner credential: invalid OAuth2 token URL")
-		}
-		for _, domains := range tokenURLRestrictions {
-			if !allowsHTTPURL(domains, tokenURL) {
-				return nil, errors.New("OAuth2 token URL is not allowed by runner credential policy")
-			}
-		}
-	}
 	return resolved, nil
-}
-
-func isOAuth2ClientSecret(segments []string) bool {
-	return len(segments) == 2 && segments[0] == httpconstants.OAuth2GroupName && segments[1] == httpconstants.OAuth2ClientSecretTokenName
 }
 
 // httpDestination reads only the verified payload. It does not constrain

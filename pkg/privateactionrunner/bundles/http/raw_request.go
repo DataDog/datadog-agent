@@ -101,8 +101,8 @@ func validateResponseMode(inputs RequestInputs) error {
 		return fmt.Errorf("unsupported responseMode %q", *inputs.ResponseMode)
 	}
 	if !isRawMode(inputs) {
-		if inputs.BodyBase64 != "" || inputs.EncryptResponseTo != nil || inputs.EncryptedCredentials != "" {
-			return errors.New("bodyBase64, encryptResponseTo and encryptedCredentials require responseMode raw")
+		if inputs.BodyBase64 != "" || inputs.EncryptResponseTo != nil {
+			return errors.New("bodyBase64 and encryptResponseTo require responseMode raw")
 		}
 		return nil
 	}
@@ -133,6 +133,10 @@ func (h *Handler) runRaw(
 	}
 	inputHeaders := map[string][]string{}
 	for _, header := range inputs.RequestHeaders {
+		if credential != nil && credential.Type == privateconnection.UserOAuth2TokenAuthType && strings.EqualFold(header.Key, "Authorization") {
+			e := errors.New("a user OAuth2 connection takes Authorization only from the secret inputs")
+			return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
+		}
 		inputHeaders[header.Key] = append(inputHeaders[header.Key], header.Value...)
 	}
 	if inputs.EncryptedCredentials != "" {
@@ -151,7 +155,7 @@ func (h *Handler) runRaw(
 		e := errors.New("bodyBase64 is not valid base64")
 		return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
 	}
-	connectionHeaders, err := h.connectionHeadersFor(ctx, target, credential)
+	connectionHeaders, err := connectionHeadersFor(target, credential)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
@@ -183,9 +187,6 @@ func (h *Handler) runRaw(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "failed to make request")
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusUnauthorized && credential != nil {
-		h.oauth2.invalidate(credential.HttpDetails.OAuth2)
-	}
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxRawResponseBodyBytes+1))
 	if err != nil {
@@ -265,16 +266,21 @@ func parseResponseKey(key ResponseKey) (hpke.PublicKey, error) {
 }
 
 // connectionHeadersFor returns the connection's rendered headers, including its
-// credential or OAuth2 bearer token, when the target is the connection's base URL
-// host, and none for any other host. A connection that carries headers must name
-// its host.
-func (h *Handler) connectionHeadersFor(ctx context.Context, target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
+// credential, when the target is the connection's base URL host, and none for any
+// other host. A connection that carries headers must name its host.
+//
+// A user OAuth2 connection's token is a secret input of the task, not a
+// connection header, so it may only be used against the connection's host.
+func connectionHeadersFor(target *url.URL, credential *privateconnection.PrivateCredentials) (http.Header, error) {
 	headers := http.Header{}
 	if credential == nil {
 		return headers, nil
 	}
 	details := credential.HttpDetails
-	hasHeaders := len(details.Headers) > 0 || credential.Type == privateconnection.BasicAuthType || details.OAuth2 != nil
+	if credential.Type == privateconnection.UserOAuth2TokenAuthType && (details.BaseURL == "" || !sameOrigin(target, details.BaseURL)) {
+		return nil, errors.New("a user OAuth2 connection only sends requests to its base URL")
+	}
+	hasHeaders := len(details.Headers) > 0 || credential.Type == privateconnection.BasicAuthType
 	if details.BaseURL == "" {
 		if hasHeaders {
 			return nil, errors.New("connection headers require a base URL to scope them to a host")
@@ -302,16 +308,6 @@ func (h *Handler) connectionHeadersFor(ctx context.Context, target *url.URL, cre
 			return nil, err
 		}
 		headers.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
-	}
-	if details.OAuth2 != nil {
-		if headers.Get("Authorization") != "" {
-			return nil, errors.New("an OAuth2 connection must not also set Authorization")
-		}
-		authorization, err := h.oauth2Authorization(ctx, details.OAuth2)
-		if err != nil {
-			return nil, err
-		}
-		headers.Set("Authorization", authorization)
 	}
 	return headers, nil
 }
