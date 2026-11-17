@@ -8,6 +8,7 @@ package eks
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -405,4 +406,67 @@ func TestDescribeClusterDoesNotCorrectSmallSkew(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 1, attempts)
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(err), "signature and clock errors use the short TTL")
+}
+
+type flakyHTTPClient struct {
+	failures int
+	calls    int
+}
+
+func TestDescribeClusterRetriesOnceOnTransportError(t *testing.T) {
+	srv := httptest.NewServer(okClusterHandler("orders", nil))
+	defer srv.Close()
+
+	flaky := &flakyHTTPClient{failures: 1}
+	cfg := testAWSConfig(srv.URL)
+	cfg.HTTPClient = flaky
+	_, err := newSignedDescribeClusterClient(cfg).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.Equal(t, 2, flaky.calls)
+
+	// Only one retry.
+	flaky = &flakyHTTPClient{failures: 2}
+	cfg.HTTPClient = flaky
+	_, err = newSignedDescribeClusterClient(cfg).DescribeCluster(t.Context(), "orders")
+	require.Error(t, err)
+	assert.Equal(t, 2, flaky.calls)
+}
+
+func TestDescribeClusterRetriesOnceOn5xx(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		okClusterHandler("orders", nil)(w, r)
+	}))
+	defer srv.Close()
+
+	_, err := newSignedDescribeClusterClient(testAWSConfig(srv.URL)).DescribeCluster(t.Context(), "orders")
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
+func TestDescribeClusterDoesNotRetryWithoutTimeLeft(t *testing.T) {
+	srv := httptest.NewServer(okClusterHandler("orders", nil))
+	defer srv.Close()
+
+	flaky := &flakyHTTPClient{failures: 1}
+	cfg := testAWSConfig(srv.URL)
+	cfg.HTTPClient = flaky
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	_, err := newSignedDescribeClusterClient(cfg).DescribeCluster(ctx, "orders")
+	require.Error(t, err)
+	assert.Equal(t, 1, flaky.calls, "a retry is only worth it with more than 500ms left")
+}
+
+func (f *flakyHTTPClient) Do(r *http.Request) (*http.Response, error) {
+	f.calls++
+	if f.calls <= f.failures {
+		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+	}
+	return http.DefaultClient.Do(r)
 }

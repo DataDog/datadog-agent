@@ -125,17 +125,55 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 	// name is already restricted to [A-Za-z0-9_-] by the caller.
 	reqURL := base.JoinPath("clusters", clusterName).String()
 
-	skewCorrected := false
+	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
+	// and one more attempt after a transport error or a 5xx when there is time left. The rest
+	// of the policy is the caller's failure cache, which retries transient failures after 30
+	// seconds instead of retrying in a loop while node Agents wait.
+	skewCorrected, retried := false, false
 	for {
 		out, err := c.send(ctx, reqURL)
+		if err == nil {
+			return out, nil
+		}
 		var apiErr *apiError
 		if !skewCorrected && errors.As(err, &apiErr) && c.correctClockSkew(apiErr) {
 			// Re-sign once with the corrected time, as the SDK's retryer does.
 			skewCorrected = true
 			continue
 		}
-		return out, err
+		if !retried && isRetryable(err) && hasTimeForRetry(ctx) {
+			retried = true
+			continue
+		}
+		return nil, err
 	}
+}
+
+// minRetryTime is the time an attempt needs to be worth starting.
+const minRetryTime = 500 * time.Millisecond
+
+func hasTimeForRetry(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	deadline, ok := ctx.Deadline()
+	return !ok || time.Until(deadline) > minRetryTime
+}
+
+// transportError is a failure to get an HTTP answer at all (connection refused or reset, DNS,
+// TLS, or a body cut short). It unwraps so the SDK retry classifier still sees the cause.
+type transportError struct{ err error }
+
+func (e *transportError) Error() string { return e.err.Error() }
+func (e *transportError) Unwrap() error { return e.err }
+
+func isRetryable(err error) bool {
+	var tErr *transportError
+	if errors.As(err, &tErr) {
+		return true
+	}
+	var apiErr *apiError
+	return errors.As(err, &apiErr) && apiErr.StatusCode >= http.StatusInternalServerError
 }
 
 // send signs and sends one DescribeCluster request.
@@ -164,13 +202,13 @@ func (c *signedDescribeClusterClient) send(ctx context.Context, reqURL string) (
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &transportError{err}
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDescribeClusterResponseBytes))
 	if err != nil {
-		return nil, fmt.Errorf("read DescribeCluster response: %w", err)
+		return nil, &transportError{fmt.Errorf("read DescribeCluster response: %w", err)}
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseAPIError(resp, body)
