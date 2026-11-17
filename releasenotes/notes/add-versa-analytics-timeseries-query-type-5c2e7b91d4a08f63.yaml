@@ -18,19 +18,20 @@ features:
 
     SLA, path QoS and circuit QoS metrics collected this way are submitted with the
     timestamp of their own bucket and deduplicated per tenant and entity, so a lookback
-    window longer than the check interval does not double report. Other endpoints continue
-    to use ``tableData`` whatever this option is set to. The newest bucket of each entity
+    window longer than the check interval does not double report. The endpoints below are
+    collected the same way. The newest bucket of each entity
     is held back for one collection, because Versa's buckets are wall-clock aligned and
     the current one is still accumulating.
 
     Interface utilization (``collect_interface_metrics``), SDWAN link status and usage
-    (``collect_link_metrics``), tunnel (``collect_tunnel_metrics``) and DIA
-    (``collect_dia_metrics``) metrics are
-    also collected per bucket when ``timeseries`` is set, with the same timestamps,
-    hold-back and per tenant deduplication. Link usage, tunnel and DIA take their attribute
-    tags (such as type, media, IP, ISP, peer IP and VPN profile) from the same query run as ``tableData``, paging up
-    to ``max_pages``, joined on the entity key, and skip any entity with no matching row
-    or with rows that disagree on those tags. Each of these
-    falls back to ``tableData`` for a collection when a response does not match the
-    expected layout, logging a warning. These are validated with synthetic Versa
-    responses; validation against customer provided responses is pending.
+    (``collect_link_metrics``), site (``collect_site_metrics``), tunnel
+    (``collect_tunnel_metrics``) and DIA (``collect_dia_metrics``) metrics are also
+    collected per bucket when ``timeseries`` is set, with the same timestamps, hold-back
+    and per tenant deduplication. Link usage, site, tunnel and DIA take their attribute
+    tags (such as type, media, IP, ISP, address, coordinates, peer IP and VPN profile)
+    from the same query run as ``tableData``, paging up to ``max_pages``, joined on the
+    entity key, and skip any entity with no matching row or with rows that disagree on
+    those tags. Each of these falls back to ``tableData`` for a collection when a
+    response does not match the expected layout, logging a warning. They are validated
+    with synthetic Versa responses; validation against customer provided responses is
+    pending. Applications by appliance and top users stay on ``tableData``.

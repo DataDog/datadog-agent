@@ -42,6 +42,7 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "link status", fixture: fixtures.GetLinkStatusMetrics, layout: linkStatusTimeseriesLayout, metricCount: 1, parserWidth: 4},
 		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
 		{name: "tunnel", fixture: fixtures.GetTunnelMetrics, layout: tunnelTimeseriesLayout, metricCount: 2, parserWidth: 7},
+		{name: "site", fixture: fixtures.GetSiteMetrics, layout: siteTimeseriesLayout, metricCount: 5, parserWidth: 10},
 		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
 
@@ -60,7 +61,11 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 			if tt.layout.attributeColumns > 0 {
 				leading = tt.layout.attributeColumns
 			}
-			assert.Equal(t, tt.parserWidth, 1+leading+tt.metricCount,
+			drillKeyColumn := 1
+			if tt.layout.noDrillKeyColumn {
+				drillKeyColumn = 0
+			}
+			assert.Equal(t, tt.parserWidth, drillKeyColumn+leading+tt.metricCount,
 				"flattened row width must match what the parser expects")
 		})
 	}
