@@ -342,7 +342,7 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
 	}
 	// A configuration experiment's jobs, left by an experiment running when the install started.
-	for _, label := range agentLaunchdJobs.LaunchdJobsExp {
+	for _, label := range configExperimentJobs {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+"-exp.plist"), []byte(label), 0o644))
 	}
 	ctx := testHookContext(t)
@@ -360,7 +360,7 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 	}
 	// The experiment set goes first, so no -exp job outlives the configuration it reads.
 	var expected []string
-	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsExp) {
+	for _, label := range slices.Backward(configExperimentJobs) {
 		expected = append(expected, "system/"+label+"-exp")
 	}
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
@@ -503,6 +503,18 @@ func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 		assert.NotContains(t, []string{"enable", "bootstrap", "kickstart"}, call[0], "%s ran after a failed bootout", call[0])
 	}
 }
+
+// stableJobs are the launchd jobs that run normally, in the order they are loaded.
+var stableJobs = agentLaunchdJobs.LaunchdJobsStable
+
+// experimentJobs are the jobs an experiment runs under, by full label.
+var experimentJobs = func() []string {
+	labels := make([]string, 0, len(configExperimentJobs))
+	for _, label := range configExperimentJobs {
+		labels = append(labels, label+string(launchd.Experiment))
+	}
+	return labels
+}()
 
 // TestPostInstallDMGCollapsesALeftoverExperiment pins that an install never leaves both job sets
 // behind: whatever is left of a configuration experiment -- its watcher, its deadline, its jobs,
