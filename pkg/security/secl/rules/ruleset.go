@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,27 +21,46 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
-var (
-	arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
-)
+// setField is the field a set action reads its value from: a field,
+// `open.file.path`, or an index in an array field, `process.argv[0]`.
+type setField struct {
+	// name is the name of the field, without its index
+	name string
+	// indexed is whether the value is an index in the field
+	indexed bool
+}
 
-// parseArrayFieldAccess parses a field like "open.file.hashes[0]" and returns the base field and index
-func parseArrayFieldAccess(field string) (baseField string, index int, isArray bool) {
-	matches := arrayIndexRE.FindStringSubmatch(field)
-	if len(matches) == 3 {
-		baseField = matches[1]
-		index, _ = strconv.Atoi(matches[2])
-		return baseField, index, true
+// parseSetField parses the field of a set action.
+func (rs *RuleSet) parseSetField(field string) (*setField, error) {
+	node, err := rs.parsingContext.BuildExpression(field)
+	if err == nil {
+		node, err = pass.Run(node, pass.ResolveFields(rs.evalOpts.LegacyFields))
 	}
-	return field, 0, false
+	if err != nil {
+		return nil, fmt.Errorf("invalid field '%s': %w", field, err)
+	}
+
+	switch n := node.(type) {
+	case *ast.FieldRef:
+		if n.Iter == nil {
+			return &setField{name: n.Name}, nil
+		}
+	case *ast.Index:
+		if ref, ok := n.Base.(*ast.FieldRef); ok && ref.Iter == nil {
+			return &setField{name: ref.Name, indexed: true}, nil
+		}
+	}
+	return nil, fmt.Errorf("invalid field '%s': not a field or an index in an array field", field)
 }
 
 // Rule presents a rule in a ruleset
@@ -447,27 +465,35 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				// 'capture' extracts a substring out of the field value, so it is only
-				// supported on fields holding a single string
-				if actionDef.Set.Capture != "" {
-					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
-					fieldToValidate := actionDef.Set.Field
-					if isArrayAccess {
-						fieldToValidate = baseField
-					}
-
-					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
-					if err != nil {
-						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
+				// the field the value is read from, its type and whether it is an array
+				var (
+					field   *setField
+					kind    reflect.Kind
+					goType  string
+					isArray bool
+				)
+				if actionDef.Set.Field != "" {
+					var err error
+					if field, err = rs.parseSetField(actionDef.Set.Field); err != nil {
+						errs = appendActionLoadError(errs, rule, actionDef, err)
 						continue
 					}
 
+					if _, kind, goType, isArray, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
+						continue
+					}
+				}
+
+				// 'capture' extracts a substring out of the field value, so it is only
+				// supported on fields holding a single string
+				if actionDef.Set.Capture != "" {
 					if kind != reflect.String {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("'capture' is only supported on string fields, but field '%s' of variable '%s' is of type '%s (%s)'", actionDef.Set.Field, actionDef.Set.Name, kind, goType))
 						continue
 					}
 
-					if isArray && !isArrayAccess {
+					if isArray && !field.indexed {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("'capture' is not supported on array field '%s' for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -506,69 +532,11 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 						actionDef.Set.Value = variableValue
 					}
-
-					if actionDef.Set.Field != "" {
-						// Check if this is an array access like "field[index]"
-						baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
-						fieldToValidate := actionDef.Set.Field
-						if isArrayAccess {
-							fieldToValidate = baseField
-						}
-
-						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
-						if err != nil {
-							errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
-							continue
-						}
-
-						// If accessing array by index, the field is not an array from the variable's perspective
-						if isArrayAccess {
-							fieldIsArray = false
-						}
-
-						var valueIsArray bool
-						variableValueKind := reflect.TypeOf(variableValue).Kind()
-						if variableValueKind == reflect.Slice {
-							variableValueKind = reflect.TypeOf(variableValue).Elem().Kind()
-							valueIsArray = true
-						}
-						if variableValueKind != kind {
-							errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("value and field have different types for variable '%s' (%s != %s)", actionDef.Set.Name, variableValueKind.String(), kind.String()))
-							continue
-						}
-
-						if fieldIsArray != valueIsArray && !actionDef.Set.Append {
-							errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("value and field cardinality mismatch for variable '%s': field '%s' is an array, but append is not set for variable '%s' with value '%v'", actionDef.Set.Name, actionDef.Set.Field, actionDef.Set.Name, variableValue))
-							continue
-						}
-					}
-				} else if actionDef.Set.Field != "" {
-					// Check if this is an array access like "field[index]"
-					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
-					fieldToValidate := actionDef.Set.Field
-					if isArrayAccess {
-						fieldToValidate = baseField
-					}
-
-					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
-					if err != nil {
-						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
+				} else if field != nil {
+					// an index in an array is a single value
+					if isArray && !field.indexed && !actionDef.Set.Append {
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
-					}
-
-					// If accessing array by index, validate that the base field is actually an array
-					if isArrayAccess {
-						if !isArray {
-							errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
-							continue
-						}
-						// When accessing by index, we treat it as a scalar value (no further validation needed)
-					} else {
-						// Check if the field is an array and append is not set
-						if isArray && !actionDef.Set.Append {
-							errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
-							continue
-						}
 					}
 
 					switch kind {
@@ -594,11 +562,6 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						fallthrough
 					default:
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("unsupported field type '%s (%s)' for variable '%s'", kind, goType, actionDef.Set.Name))
-						continue
-					}
-
-					if defaultValueKind := reflect.TypeOf(actionDef.Set.DefaultValue); actionDef.Set.DefaultValue != nil && defaultValueKind != nil && defaultValueKind.Kind() != kind {
-						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("value and default_value have different types for variable '%s' (%s != %s)", kind, defaultValueKind, actionDef.Set.Name))
 						continue
 					}
 				}
@@ -775,11 +738,12 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 		switch {
 
 		case action.Def.Set != nil:
-			// compile scope field
-			if len(action.Def.Set.ScopeField) > 0 {
-				if err := action.CompileScopeField(rs.model); err != nil {
-					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
+			if scopeField := action.Def.Set.ScopeField; scopeField != "" {
+				evaluator, _, err := rs.compileActionValue(scopeField)
+				if err != nil {
+					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrScopeField{Expression: scopeField, Err: err}}
 				}
+				action.ScopeFieldEvaluator = evaluator
 			}
 
 			// compile the capture pattern once, per action: two rules can capture
@@ -788,79 +752,32 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 
-			if field := action.Def.Set.Field; field != "" {
-				ev := model.NewFakeEvent()
-				ruleEventType, err := rule.GetEventType()
-				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
-				}
-
-				// Check if this is an array access like "field[index]"
-				baseField, _, isArrayAccess := parseArrayFieldAccess(field)
-
-				// Validate using the base field if this is an array access
-				fieldToValidate := field
-				if isArrayAccess {
-					fieldToValidate = baseField
-				}
-
-				fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldToValidate)
-				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", fieldToValidate, err)
-				}
-				if fieldEventType != "" && fieldEventType != ruleEventType {
-					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
-				}
-
-				// Map legacy field before calling GetEvaluator
-				mappedField := field
-				if rs.evalOpts.LegacyFields != nil {
-					if newField, found := rs.evalOpts.LegacyFields[field]; found {
-						mappedField = newField
-					}
-				}
-
-				if _, found := rs.fieldEvaluators[field]; !found {
-					// GetEvaluator now handles array index access automatically
-					evaluator, err := rs.model.GetEvaluator(mappedField, "", 0)
-					if err != nil {
-						return model.UnknownCategory, err
-					}
-					rs.fieldEvaluators[field] = evaluator
-				}
-			} else if expression := action.Def.Set.Expression; expression != "" {
-				astExpr, err := rs.parsingContext.BuildExpression(expression)
-				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
+			if source := action.Def.Set.source(); source != "" {
+				// an error of the action is reported with the action
+				actionErr := func(err error) error {
+					return &ErrRuleLoad{Rule: pRule, Err: &ErrActionLoad{Action: action.Def, Err: err}}
 				}
 
 				ruleEventType, err := rule.GetEventType()
 				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
-				state := eval.NewState(rs.model)
-
-				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
+				evaluator, exprEventType, err := rs.compileActionValue(source)
 				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
-				}
-
-				exprEventType, err := eval.EventTypeFromState(rs.model, state)
-				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
 				if exprEventType != "" && exprEventType != ruleEventType {
-					return model.UnknownCategory, fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", expression, exprEventType, ruleEventType)
+					return model.UnknownCategory, actionErr(fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", source, exprEventType, ruleEventType))
 				}
 
 				// validate that the expression type matches the default_value type
 				if err := checkTypeCompatibility(action.Def.Set.DefaultValue, evaluator, action.Def.Set.Append); err != nil {
-					return model.UnknownCategory, fmt.Errorf("expression '%s' for variable '%s': %w", expression, action.Def.Set.Name, err)
+					return model.UnknownCategory, actionErr(fmt.Errorf("expression '%s' for variable '%s': %w", source, action.Def.Set.Name, err))
 				}
 
-				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
+				rs.fieldEvaluators[source] = evaluator
 			}
 
 		case action.Def.Hash != nil:
@@ -886,6 +803,22 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 	return model.GetEventTypeCategory(eventType), nil
 }
 
+// compileActionValue compiles the field or the expression an action reads a
+// value from, and returns the event type of its fields.
+func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventType, error) {
+	node, err := rs.parsingContext.BuildExpression(expr)
+	if err != nil {
+		return nil, "", err
+	}
+	state := eval.NewState(rs.model)
+	evaluator, _, err := eval.Compile(node, rs.evalOpts, state)
+	if err != nil {
+		return nil, "", err
+	}
+	eventType, err := eval.EventTypeFromState(rs.model, state)
+	return evaluator.(eval.Evaluator), eventType, err
+}
+
 // checkTypeCompatibility validates that the evaluator's return type is compatible with the default value type.
 func checkTypeCompatibility(defaultValue interface{}, evaluator interface{}, isAppend bool) error {
 	if defaultValue == nil {
@@ -905,6 +838,12 @@ func checkTypeCompatibility(defaultValue interface{}, evaluator interface{}, isA
 
 	defaultType := reflect.TypeOf(defaultValue)
 	exprKind, defaultKind := exprType.Kind(), defaultType.Kind()
+
+	if isAppend && defaultKind != reflect.Slice && exprKind == reflect.Slice {
+		// appending an array to a variable whose default_value is one of its elements
+		exprType = exprType.Elem()
+		exprKind = exprType.Kind()
+	}
 
 	// Helper to get the actual element kind from a slice, inferring from values if element type is interface{}
 	getSliceElemKind := func(defaultVal interface{}, defaultTyp reflect.Type) reflect.Kind {
@@ -1085,14 +1024,8 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 
 			if mutable, ok := variable.(eval.MutableVariable); ok {
 				value := action.Def.Set.Value
-				if field := action.Def.Set.Field; field != "" {
-					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
-				} else if expression := action.Def.Set.Expression; expression != "" {
-					if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
+				if evaluator := rs.fieldEvaluators[action.Def.Set.source()]; evaluator != nil {
+					value = evaluator.Eval(ctx)
 				}
 
 				// extract the correlation artifact out of the field value. A value that
