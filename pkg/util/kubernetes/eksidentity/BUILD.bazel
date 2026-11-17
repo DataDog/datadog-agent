@@ -36,6 +36,7 @@ dd_agent_go_test(
         "//pkg/util/cache",
         "//pkg/util/eks",
         "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/api/errors",

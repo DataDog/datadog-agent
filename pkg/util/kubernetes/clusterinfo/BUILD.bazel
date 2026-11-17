@@ -18,6 +18,7 @@ go_library(
         "//pkg/util/clusteragent",
         "//pkg/util/eks/identity",
         "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
         "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
@@ -33,6 +34,7 @@ dd_agent_go_test(
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
         "//pkg/util/eks/identity",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
