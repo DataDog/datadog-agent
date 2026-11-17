@@ -1291,8 +1291,8 @@ func (s *TracerSuite) TestSelfConnect() {
 	// for the child across fetches, keyed by PID only: other tuple fields such as Direction can differ
 	// between fetches, and keying on them would let one side show up twice.
 	seen := make(map[uint32]network.ConnectionStats)
-	// SK reports a single connection carrying both sides' bytes; keep the latest non-empty fetch, so a
-	// fetch that reports it under an unexpected PID can be corrected by a later one.
+	// SK reports a single connection carrying both sides' bytes; keep the latest non-empty fetch, since
+	// an idle connection is reported in only one fetch.
 	var skLatest []network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		allConnections, cleanup := getConnections(collect, tr)
@@ -1317,12 +1317,14 @@ func (s *TracerSuite) TestSelfConnect() {
 				seen[c.Pid] = c
 			}
 		}
-		// The parent received the 3 bytes and the child sent them.
+		// The parent received the 3 bytes and sent none; the child sent them and received none.
 		if parent, ok := seen[parentPID]; assert.True(collect, ok, "no connection for the parent (PID %d); seen: %v", parentPID, seen) {
 			assert.Equal(collect, 3, int(parent.Monotonic.RecvBytes), "parent recv bytes")
+			assert.Equal(collect, 0, int(parent.Monotonic.SentBytes), "parent sent bytes")
 		}
 		if child, ok := seen[childPID]; assert.True(collect, ok, "no connection for the child (PID %d); seen: %v", childPID, seen) {
 			assert.Equal(collect, 3, int(child.Monotonic.SentBytes), "child sent bytes")
+			assert.Equal(collect, 0, int(child.Monotonic.RecvBytes), "child recv bytes")
 		}
 	}, 5*time.Second, 100*time.Millisecond, "could not find connection(s)")
 }
