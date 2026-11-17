@@ -152,10 +152,11 @@ contract Tokenization {
         -- keeping digit-for-digit substitution structure-preserving.
 
     @invariant InputTruncation
-        -- Only the first max_bytes of the input are tokenized.
-        -- Bytes beyond this offset are ignored. Two messages that
-        -- differ only after max_bytes produce identical token
-        -- sequences.
+        -- When max_bytes > 0, only the first max_bytes of the input
+        -- are tokenized. Bytes beyond this offset are ignored, so two
+        -- messages that differ only after max_bytes produce identical
+        -- token sequences. When max_bytes <= 0 there is no limit and
+        -- the whole input is tokenized.
 
     @invariant EmptyInput
         -- An empty input produces an empty token sequence (length 0).

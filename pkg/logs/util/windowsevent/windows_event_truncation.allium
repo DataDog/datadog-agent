@@ -21,8 +21,13 @@
 --     Datadog-added "message" field. Other fields may exceed
 --     it and are not capped here (best-effort; the intake side
 --     drops records that exceed its own limit).
---   - The literal byte value of the truncation marker. Owned
---     by the agent's message package and shared with Truncatable.
+--   - The literal byte value of the truncation marker. This
+--     pathway uses a package-local constant (truncatedFlag in
+--     transform.go) for both the write-side append and the
+--     read-side scan. Its value currently equals
+--     message.TruncatedFlag (used by Truncatable), but it is a
+--     separate copy, not shared by reference. See open question
+--     SharedTruncationMarker.
 
 ------------------------------------------------------------
 -- Entities
@@ -119,11 +124,25 @@ surface WindowsEventTruncation {
         -- per-instance parameter.
         --
         -- Windows event messages are constructed via
-        -- MapToMessage and bypass the decoder pipeline (no
-        -- framer, line_parser, legacy handlers, or preprocessor
-        -- aggregators). The IsTruncated flag set here is the
+        -- MapToMessage. The windowseventlog check submits them
+        -- directly to the pipeline. The windowsevent tailer
+        -- passes them through a NoopDecoder (NoFraming framer,
+        -- single-line noop parser, NoopLineHandler), which
+        -- performs no truncation and preserves IsTruncated: an
+        -- unstructured message (process_raw_message=true, the
+        -- default) is re-emitted as one frame carrying the
+        -- input's IsTruncated, and a structured message passes
+        -- the framer unchanged. Neither path runs multiline
+        -- aggregation, truncating line handlers, or preprocessor
+        -- aggregators. The IsTruncated flag set here is the
         -- message's only truncation signal downstream.
         --
         -- This is the only truncation site in the agent that
         -- detects via marker scan rather than flag propagation.
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "SharedTruncationMarker: windowsevent uses a package-local copy of the ...TRUNCATED... marker rather than message.TruncatedFlag. Should it reference the shared constant so the retroactive marker scan cannot drift from the marker other pipeline stages write?"

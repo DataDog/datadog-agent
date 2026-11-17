@@ -126,6 +126,26 @@ func TestRegexAggregator_TokensFromAggregateLeader(t *testing.T) {
 		"emitted tokens must be the aggregate leader's tokens, not the continuation's or the trigger's")
 }
 
+// TestRegexAggregator_TokensFromNonMatchingLeaderAfterFlush covers an
+// aggregate opened by a non-matching line after a flush: that line is the
+// aggregate's first line, so its tokens lead the emission.
+func TestRegexAggregator_TokensFromNonMatchingLeaderAfterFlush(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
+
+	leaderTokens := []Token{C5, Space, D1}
+
+	require.Empty(t, ag.Process(newMessage("START group"), aggregate, newBorrowedTokens([]Token{D4}, nil)))
+	require.Len(t, ag.Flush(), 1)
+
+	require.Empty(t, ag.Process(newMessage("continuation"), aggregate, newBorrowedTokens(leaderTokens, nil)))
+	require.Empty(t, ag.Process(newMessage("more"), aggregate, newBorrowedTokens([]Token{D2}, nil)))
+
+	emitted := ag.Flush()
+	require.Len(t, emitted, 1)
+	assert.Equal(t, leaderTokens, emitted[0].Tokens.Borrow())
+}
+
 // TestRegexAggregator_FlushDrainsBuffer anchors:
 //
 //	surface RegexAggregation (regex_aggregator.allium)

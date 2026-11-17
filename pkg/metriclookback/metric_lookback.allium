@@ -156,9 +156,14 @@ external entity DogStatsDObservation {
     source: dogstatsd_bucketed | dogstatsd_no_aggregation
 
     -- A no-aggregation series is retention-ready when it reaches lookback.
-    -- A normal bucketed DogStatsD sample becomes retention-ready only after its
-    -- short-resolution bucket is sealed. The bucket sealing mechanics are owned
-    -- by the DogStatsD materialization path and are outside this spec.
+    -- For dogstatsd_bucketed, an observation is one sealed short-resolution
+    -- bucket of one series context, not a raw sample: its value is the bucket
+    -- aggregate and its timestamp is the bucket start. Sealing also emits
+    -- zero-valued buckets for recently active counters. Only gauge, counter and
+    -- distribution samples are bucketed; other metric types and samples that
+    -- arrive after their bucket is sealed never become retention-ready. The
+    -- bucket sealing mechanics are owned by the DogStatsD materialization path
+    -- and are outside this spec.
     retention_ready: Boolean
 }
 
@@ -279,8 +284,10 @@ rule GlobalDisablePreventsLookbackEffects {
     ensures: not exists DogStatsDAdmission
     @guidance
         -- Producers outside this spec may still emit metrics through their
-        -- normal paths. The guarantee here is only that metric lookback does not
-        -- retain, monitor, or egress them.
+        -- normal paths. Metric lookback does not monitor or egress them. Check
+        -- instances that opt in individually (instance-level
+        -- metric_lookback.enabled) still write shadow points into retention;
+        -- see CheckShadowObservationIsRetained.
 }
 
 rule DisabledMonitorModeDisablesMonitorBehaviour {
@@ -297,7 +304,18 @@ rule MonitorModeRequiresMetricName {
     requires: configuration.enabled = true
     requires: configuration.monitor_mode in {dry_run, enabled}
     requires: configuration.monitor_metric_name = nil
-    ensures: ConfigurationRejected(reason: "metric_lookback.monitor.metric_name is required when monitor.mode is dry_run or enabled")
+    ensures: ConfigurationRejected(reason: "metric_lookback.monitor.metric_name is required when metric_lookback.monitor.mode is dry_run or enabled")
+}
+
+rule MonitorModeRejectsNegativeSettings {
+    when: RuntimeConfigured(configuration)
+    requires: configuration.enabled = true
+    requires: configuration.monitor_mode in {dry_run, enabled}
+    requires: configuration.monitor_range_epsilon < 0
+        or configuration.monitor_evaluation_interval < 0.seconds
+        or configuration.egress_pre_trigger_window < 0.seconds
+        or configuration.egress_post_recovery_window < 0.seconds
+    ensures: ConfigurationRejected(reason: "metric_lookback monitor range_epsilon and window durations must be non-negative")
 }
 
 rule MonitorCreatesSharedRetentionReader {
@@ -363,7 +381,7 @@ rule AdmittedDogStatsDObservationIsRetainedWhenReady {
         source: observation.source,
         timestamp: observation.timestamp,
         value: observation.value,
-        valid_number: true,
+        valid_number: is_finite(observation.value),
         tags: observation.tags
     }]
 }
@@ -379,18 +397,19 @@ rule UnadmittedDogStatsDObservationIsIgnoredByLookback {
 
 rule CheckShadowObservationIsRetained {
     when: observation: CheckShadowObservation.created
-    requires: configuration.enabled = true
     ensures: retention.points = retention.points + [MetricPoint{
         name: observation.name,
         source: check_shadow,
         timestamp: observation.timestamp,
         value: observation.value,
-        valid_number: true,
+        valid_number: is_finite(observation.value),
         tags: observation.tags
     }]
     @guidance
         -- Check/shadow retention also depends on scheduler/sender wiring outside
-        -- this spec. Once a check writes through the lookback sender, the monitor
+        -- this spec. It is not gated on configuration.enabled: an instance-level
+        -- metric_lookback.enabled opt-in selects a shadow check even when the
+        -- global flag is off. Once a check writes through the lookback sender, the monitor
         -- treats its points the same as DogStatsD points with the same name.
 }
 
@@ -499,9 +518,10 @@ rule MonitorStateTransitionIsAlwaysLogged {
     when: decision: MonitorDecision.created
     requires: Monitor.state != nil
     requires: Monitor.state != decision.state
+    let previous_state = Monitor.state
     ensures: MonitorStateTransitionLog.created(
         metric_name: decision.metric_name,
-        from: Monitor.state,
+        from: previous_state,
         to: decision.state,
         initial: false,
         dry_run: EgressPolicy.dry_run,
@@ -617,15 +637,27 @@ rule ForwardingRangesAreClippedBySendDelay {
 rule ForwardingSeriesRangeCannotBeForwardedTwice {
     when: ForwardRangePlanned(range)
     requires: range.is_forwardable
-    requires: not overlaps(range, EgressPolicy.forwarded_series_ranges)
-    ensures: ForwardAttempt.created(range: range, payload: series, state: planned, payload_count: 0)
+    ensures:
+        for piece in subtract_ranges(range, EgressPolicy.forwarded_series_ranges):
+            let sendable = intersect_range(piece, retained_span(retention, series))
+            if sendable.is_forwardable:
+                ForwardAttempt.created(range: sendable, payload: series, state: planned, payload_count: 0)
+    @guidance
+        -- Only the not-yet-forwarded remainder of a planned range is attempted,
+        -- clipped to the span between the oldest and newest retained point of
+        -- that payload. Planned ranges keep their original start, so a range
+        -- that partially overlaps already-forwarded data still forwards its new
+        -- remainder; only that clipped span is later marked forwarded.
 }
 
 rule ForwardingSketchRangeCannotBeForwardedTwice {
     when: ForwardRangePlanned(range)
     requires: range.is_forwardable
-    requires: not overlaps(range, EgressPolicy.forwarded_sketch_ranges)
-    ensures: ForwardAttempt.created(range: range, payload: sketch, state: planned, payload_count: 0)
+    ensures:
+        for piece in subtract_ranges(range, EgressPolicy.forwarded_sketch_ranges):
+            let sendable = intersect_range(piece, retained_span(retention, sketch))
+            if sendable.is_forwardable:
+                ForwardAttempt.created(range: sendable, payload: sketch, state: planned, payload_count: 0)
 }
 
 rule SuccessfulSeriesForwardMarksSeriesRangeForwarded {
@@ -689,3 +721,11 @@ invariant DryRunChangesOnlyEgressControlNotMonitorObservation {
     -- difference is that monitor decisions do not suppress or reopen egress;
     -- egress starts and remains forwarding.
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "DistributionSketchMonitorInput: retained distribution sketches for the monitor metric currently feed MonitorWindow evaluation through PlaceholderAverageSketchProjection (each sketch is projected to its average). The code labels this a placeholder until a sketch-aware monitor design is chosen. Should sketches drive monitor decisions at all, and if so, by which scalar projection? Until resolved, MonitorWindowUsesAllRetainedSourcesForMetricName does not mention sketch points."
+
+open question "ShadowRetentionWithoutGlobalEnable: an instance-level metric_lookback.enabled opt-in selects a shadow check and retains its points even when the global metric_lookback.enabled is false, but with the global flag off no Monitor or EgressPolicy exists, so those points occupy retention and are never monitored or forwarded. Is per-instance opt-in meant to work without the global flag (and if so, what consumes the points), or should shadow selection require the global flag?"

@@ -60,9 +60,11 @@ value Message {
     -- attached by upstream stages, and a flag indicating whether
     -- upstream framing already truncated the content. Aggregators
     -- may mutate content (replacing it with the aggregated
-    -- result), tags (appending truncation-reason tags) and the
-    -- is_truncated flag (setting it when emitted content was
-    -- itself truncated).
+    -- result), tags (appending truncation-reason or multi-line
+    -- source tags), the is_truncated flag (setting it when
+    -- emitted content was itself truncated) and — when combining
+    -- lines — the is_multi_line flag, the timestamp, and the raw
+    -- and checkpoint byte lengths.
     --
     -- content:       the line bytes, as labelled by the upstream
     --                Labeler stage.
@@ -131,8 +133,11 @@ contract Aggregator {
         -- state, equal (msg, label, tokens) inputs to process
         -- produce equal output sequences, and equivalently for
         -- flush. Aggregators may not branch on randomness or
-        -- external state. This is the stateful analogue of the
-        -- Labeler contract's Determinism: pure given state.
+        -- clocks. Reading agent-wide configuration at call time
+        -- is permitted, so equality holds while that
+        -- configuration is unchanged (see each fulfiller's
+        -- Determinism guarantee). This is the stateful analogue
+        -- of the Labeler contract's Determinism: pure given state.
 
     @invariant ByteConservation
         -- The bytes of every emitted message's content derive
@@ -171,6 +176,18 @@ contract Aggregator {
         -- caller obligation, not a property the aggregator
         -- verifies.
 
+    @invariant TokenRetention
+        -- The tokens argument to process is a borrowed view,
+        -- valid only for the process call that receives it: the
+        -- upstream tokenizer reuses its backing storage for the
+        -- next line. An aggregator that holds a line across calls
+        -- must keep its own copy of that line's tokens, taken
+        -- during the receiving call (tokens.Retained()), and emit
+        -- the copy when the line is later emitted. Tokens of a
+        -- line emitted within the same call that received it may
+        -- be forwarded as received. Unlike ResultLifetime, this
+        -- is an obligation on the aggregator, not on its caller.
+
     @guidance
         -- The label argument is the result of the upstream
         -- Labeler stage. Aggregators may consume it to make
@@ -182,13 +199,15 @@ contract Aggregator {
         --
         -- The tokens argument is the tokenised first line, as
         -- produced by the upstream Tokenization stage. The
-        -- aggregator forwards these tokens unchanged into
-        -- AggregatedMessageWithTokens.tokens on whichever emitted
-        -- message ends up representing this line — typically the
-        -- message that has this line as its first (leader) line.
-        -- For a single-line emission, the tokens describe that
-        -- one line; for a multi-line aggregate, the tokens
-        -- describe only the leader. The aggregator does not
+        -- aggregator forwards these tokens, unchanged in content,
+        -- into AggregatedMessageWithTokens.tokens on whichever
+        -- emitted message ends up representing this line —
+        -- typically the message that has this line as its first
+        -- (leader) line. A line held across calls is emitted with
+        -- the aggregator's own copy of its tokens (see
+        -- TokenRetention). For a single-line emission, the tokens
+        -- describe that one line; for a multi-line aggregate, the
+        -- tokens describe only the leader. The aggregator does not
         -- recompute tokens when combining lines.
         --
         -- Aggregator instances are not safe for concurrent use.

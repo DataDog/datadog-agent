@@ -23,9 +23,9 @@
 --   calls, upstream-truncation-flag propagation, tag-on-truncation
 --   timing.
 -- Excludes:
---   - The literal byte value of the truncation marker, which is owned
---     by the agent's message package and is treated here as an opaque
---     constant.
+--   - Ownership of the truncation marker constant, which is defined
+--     by the agent's message package. Its literal byte value is
+--     pinned by the MarkerLiteral invariant below.
 --   - The size threshold value, which is per-instance configuration
 --     supplied by the caller rather than part of the contract.
 --   - The tag VALUE applied on truncation (e.g. "single_line",
@@ -42,7 +42,8 @@
 --     (pkg/logs/internal/decoder/line_parser.go) signal detected
 --     overflow via this flag, which Truncatable consumes through
 --     the upstream_truncated input. Detection has its own contract
---     at truncation_detector.allium (fulfilled by framer);
+--     at truncation_detector.allium, which no whole module fulfils
+--     (the framer declines it; see framer.allium);
 --     MultiLineParser is a stateful accumulator with its own
 --     surface spec. Both sites have separate surface specs and
 --     property test coverage.
@@ -169,8 +170,11 @@ contract Truncatable {
         -- is fully described by the (input, prior_carryover) pair.
         --
         -- Whitespace trimming is observable in current preprocessor
-        -- implementations (each aggregator calls `bytes.TrimSpace`
-        -- on the content before marker application). This is not
+        -- implementations. PassThroughAggregator and
+        -- CombiningAggregator call `bytes.TrimSpace` on the content
+        -- before marker application; RegexAggregator (like
+        -- MultiLineHandler) writes markers into its buffer and
+        -- trims the assembled buffer afterwards. This is not
         -- part of the contract: a fulfiller that does not trim still
         -- satisfies Truncatable. Consumers that depend on trimming
         -- should not rely on this contract for it.

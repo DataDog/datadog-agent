@@ -31,14 +31,16 @@ use "./labeler.allium" as labeler
 ------------------------------------------------------------
 
 entity TimestampDetector {
-    -- A configured instance of the timestamp-shape heuristic. Two
-    -- fields distinguish one TimestampDetector from another:
+    -- A configured instance of the timestamp-shape heuristic.
+    -- match_threshold is the only per-instance configuration;
+    -- assigner_id is the same for every instance.
     --
-    -- assigner_id:     the identifier the detector writes into
-    --                  context.label_assigned_by when it claims the
-    --                  label — observable downstream as the
-    --                  "this label was set by the timestamp
-    --                  detector" provenance signal.
+    -- assigner_id:     the fixed string "timestamp_detector",
+    --                  written into context.label_assigned_by when
+    --                  the detector claims the label — observable
+    --                  downstream as the "this label was set by the
+    --                  timestamp detector" provenance signal. It is
+    --                  not configurable per instance.
     -- match_threshold: the probability cutoff above which the
     --                  detector claims the label. A line's token
     --                  sequence whose match probability exceeds
@@ -114,10 +116,14 @@ surface TimestampDetection {
         -- Conditional behaviour when process_and_continue is
         -- invoked:
         --
-        -- 1. If context.tokens is empty, TimestampDetector takes
-        --    no action: it returns true without inspecting or
-        --    modifying context. The detector cannot evaluate a
-        --    timestamp shape without tokens to inspect.
+        -- 1. If context.tokens is empty, TimestampDetector logs
+        --    an error ("Tokens are required to detect
+        --    timestamps") and returns true without modifying
+        --    context. The detector cannot evaluate a timestamp
+        --    shape without tokens to inspect. In the
+        --    Preprocessor this path is not reached for empty
+        --    content, because the Preprocessor skips the
+        --    Labeler for empty content.
         --
         -- 2. Otherwise, if the match probability of context.tokens
         --    against the timestamp model is strictly greater than

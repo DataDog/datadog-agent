@@ -98,6 +98,10 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens Borrowed
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
 		a.firstLineTokens = tokens.Retained()
+	} else if a.linesCombined == 0 {
+		// A non-matching line opens a fresh aggregate after a flush or overflow;
+		// it is the aggregate's first line, so its tokens lead the emission.
+		a.firstLineTokens = tokens.Retained()
 	}
 
 	isTruncated := a.shouldTruncate

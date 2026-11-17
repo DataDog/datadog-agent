@@ -53,7 +53,10 @@ value Message {
     -- The aggregator observes only the byte content, the raw byte
     -- size of the original framing (which can differ from
     -- length(content) when framing characters were stripped
-    -- upstream) and the set of tags attached by the pipeline.
+    -- upstream), the checkpoint byte size (the source bytes a
+    -- file tailer may safely advance its checkpoint by; summed
+    -- alongside the raw size when messages are combined) and
+    -- the set of tags attached by the pipeline.
     -- No tokens, no label, no truncation flag — those are
     -- introduced by stages further downstream.
     content: String
@@ -143,7 +146,8 @@ contract JSONAggregator {
         -- The JSONAggregator sits BEFORE tokenization in the
         -- pipeline. Its input is raw byte content as framed by
         -- the decoder; its output is the same shape, fed to the
-        -- tokenizer next. The contract does not constrain how
+        -- stack-trace aggregator stage and then the tokenizer.
+        -- The contract does not constrain how
         -- the JSONAggregator decides what constitutes "JSON
         -- combinable" content — pass-through implementations
         -- never combine, regex-style implementations could

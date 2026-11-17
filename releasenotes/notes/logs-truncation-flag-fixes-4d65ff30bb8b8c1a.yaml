@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Logs: Kubernetes (CRI) container logs cut by the framer at ``logs_config.max_message_size_bytes``
+    are now marked as truncated, so they get the ``...TRUNCATED...`` marker and the
+    ``exclude_truncated`` processing rule applies to them.
+  - |
+    Logs: Windows Event Log messages truncated by the ``windows_event`` tailer in raw mode
+    (the default) are now marked as truncated, so the ``exclude_truncated`` processing rule
+    and truncation telemetry apply to them again.
+  - |
+    Logs: A user ``multi_line`` rule no longer emits empty tokens to adaptive sampling for
+    a group that starts with a non-matching line after a flush, and adaptive sampling
+    ``burst_size`` values below 1 are now raised to 1.
+  - |
+    Logs: Auto multi-line JSON aggregation now rejects a partial top-level JSON array
+    immediately instead of holding it until the next line or the flush timeout.

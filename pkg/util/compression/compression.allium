@@ -83,11 +83,17 @@ contract Compression {
     @invariant RoundtripIdentity
         -- For all inputs including empty:
         -- decompress(compress(input)) = input
+        -- Exception: gzip decompress rejects output larger than
+        -- 64 MiB with ErrDecompressedSizeExceeded (decompression-bomb
+        -- protection), so for gzip the identity holds only for
+        -- inputs of at most 64 MiB.
 
     @invariant ValidFrame
-        -- compress(empty) produces a valid compressed frame,
-        -- not empty output. This is a consequence of RoundtripIdentity
-        -- holding for empty input.
+        -- For zlib, gzip and zstd, compress(empty) produces a valid,
+        -- non-empty compressed frame. This is a consequence of
+        -- RoundtripIdentity holding for empty input. For none
+        -- (identity), compress(empty) returns empty output, which is
+        -- the valid identity form.
 
     @invariant CompressBoundCorrectness
         -- For all inputs:
@@ -118,7 +124,9 @@ contract Streaming {
     @invariant EmptyStreamProducesValidFrame
         -- Close without any preceding Write produces a valid
         -- compressed frame, consistent with the ValidFrame
-        -- invariant on one-shot compression.
+        -- invariant on one-shot compression: non-empty for zlib,
+        -- gzip and zstd; empty for none (the noop stream writes
+        -- nothing).
 
     @guidance
         -- A StreamCompressor instance is NOT safe for concurrent use.
@@ -138,8 +146,10 @@ contract Streaming {
 --
 -- Build tags determine which kinds are available. Two configurations
 -- exist, selectable via --build-exclude on the invoke build command:
---   zlib  — all four kinds (default for all agent builds; zstd ships with zlib)
---   !zlib — gzip, none only
+--   zlib  — all four kinds (most agent binaries; zstd ships with zlib)
+--   !zlib — gzip, none only (e.g. cluster-agent-cloudfoundry, whose
+--           default serializer_compressor_kind=zstd falls back to
+--           noop; see open question on noop fallback)
 
 rule SelectCompressor {
     when: SelectCompressor(config, manifest)
@@ -186,6 +196,10 @@ rule StreamWrite {
     @guidance
         -- Compressed bytes may or may not appear in the output
         -- buffer after a write. Use Flush to ensure they do.
+        --
+        -- The requires guard is a caller obligation; implementations
+        -- do not enforce it uniformly. The noop stream accepts writes
+        -- after Close; gzip and zlib return an error.
 }
 
 rule StreamFlush {
@@ -195,6 +209,10 @@ rule StreamFlush {
     @guidance
         -- All compressed bytes produced so far are pushed to the
         -- output buffer. The frame is not finalized.
+        --
+        -- The requires guard is a caller obligation, not enforced:
+        -- after Close, noop and gzip Flush return no error (zlib
+        -- returns an error).
 }
 
 rule StreamClose {
@@ -205,6 +223,11 @@ rule StreamClose {
         -- Implicitly flushes, then finalizes the compressed frame.
         -- The output buffer now contains a complete frame that
         -- is decompressible via the parent Compressor's decompress.
+        --
+        -- The requires guard is a caller obligation, not enforced:
+        -- a repeated Close returns no error for noop, gzip and zlib,
+        -- and zlib appends its checksum trailer again, leaving
+        -- trailing bytes after the finalized frame.
 }
 
 ------------------------------------------------------------

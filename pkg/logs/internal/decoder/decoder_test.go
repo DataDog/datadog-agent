@@ -889,6 +889,15 @@ func TestAdaptiveSamplingSourceDetails(t *testing.T) {
 	)
 }
 
+func TestClampBurstSizeFloorsAtOne(t *testing.T) {
+	// A burst below 1 would give a new pattern negative starting credits.
+	assert.Equal(t, 1.0, clampBurstSize(-2))
+	assert.Equal(t, 1.0, clampBurstSize(0))
+	assert.Equal(t, 1.0, clampBurstSize(0.5))
+	assert.Equal(t, 1.0, clampBurstSize(1))
+	assert.Equal(t, 50.0, clampBurstSize(50))
+}
+
 func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.max_patterns", 100, pkgconfigmodel.SourceAgentRuntime)

@@ -64,8 +64,8 @@ entity RegexAggregator {
     --                       this pattern flush any in-progress
     --                       aggregate and become the leader of
     --                       the next.
-    -- line_limit:           the byte threshold above which the
-    --                       buffered aggregate is flushed
+    -- line_limit:           the byte threshold at or above which
+    --                       the buffered aggregate is flushed
     --                       mid-stream with truncation markers.
     -- multi_line_tag_value: the value the aggregator emits in
     --                       the multi-line source tag when tagging
@@ -140,20 +140,23 @@ surface RegexAggregation {
     @guarantee Determinism
         -- The Aggregator contract's Determinism invariant holds:
         -- process, flush and is_empty are pure functions of the
-        -- aggregator's current state plus their inputs. The
+        -- aggregator's current state plus their inputs, plus the
+        -- logs_config.tag_truncated_logs / tag_multi_line_logs
+        -- settings, read from agent config at each emission. The
         -- regex_matches predicate is itself pure; the aggregator
-        -- branches only on its inputs, on internal state, and on
-        -- the predicate's verdict.
+        -- branches only on its inputs, on internal state, on the
+        -- predicate's verdict and on those two settings.
 
     @guarantee ByteConservation
         -- The Aggregator contract's ByteConservation invariant
         -- holds and is refined here: each emitted message's
         -- content is the trim-spaced concatenation of the bytes
         -- of input messages that contributed to that aggregate,
-        -- joined by a fixed escaped-line-feed separator between
-        -- adjacent lines, with optional truncation markers
-        -- prepended and / or appended. The aggregator introduces
-        -- no other bytes. The separator and the truncation marker
+        -- with a fixed escaped-line-feed separator written before
+        -- an appended line only where the buffer was already
+        -- non-empty when that line was appended, and with
+        -- optional truncation markers prepended and / or
+        -- appended. The aggregator introduces no other bytes. The separator and the truncation marker
         -- are the only well-known marker byte sequences the
         -- aggregator may add.
 
@@ -194,8 +197,11 @@ surface RegexAggregation {
         -- AggregatedMessageWithTokens are the tokens that were
         -- passed to process alongside the FIRST line of that
         -- aggregate — the line that matched the pattern (after
-        -- the first match) or the standalone single-line emission
-        -- (during pre-match single-pass). The aggregator does not
+        -- the first match), the standalone single-line emission
+        -- (during pre-match single-pass), or a non-matching line
+        -- that arrives after the first match while lines_combined
+        -- is 0 (it opens a fresh aggregate after a flush or
+        -- line_limit overflow). The aggregator does not
         -- recompute tokens for combined lines and does not
         -- forward the LAST line's tokens.
 
@@ -270,14 +276,15 @@ surface RegexAggregation {
         -- (lines_combined > 1 at emission time), the emitted
         -- message receives the multi-line source tag with value
         -- multi_line_tag_value — but only when the runtime's
-        -- tag-multi-line-logs configuration is enabled. The
-        -- emission's is_multi_line flag is set independently and
-        -- is not config-gated.
+        -- tag-multi-line-logs configuration is enabled.
+        -- RegexAggregator does not set is_multi_line; a combined
+        -- emission is observable only through the optional
+        -- multi-line tag.
 
     @guarantee TruncationTagging
         -- When an emission's is_buffer_truncated is true, the
         -- emitted message receives a truncation-reason tag
-        -- identifying multiline-regex as the source — but only
+        -- identifying multiline_regex as the source — but only
         -- when the runtime's tag-truncated-logs configuration
         -- is enabled.
 
@@ -326,6 +333,9 @@ surface RegexAggregation {
         --    does not match):
         --    a. The line will be appended to the current buffer.
         --       No flush at this step.
+        --    b. If lines_combined is 0, set first_line_tokens to
+        --       the supplied tokens (this line opens a fresh
+        --       aggregate after a flush or overflow).
         --
         -- 2. Capture the current should_truncate as the
         --    continuation-marker prepend flag for this line, then
@@ -339,7 +349,9 @@ surface RegexAggregation {
         --    write the truncation marker into the buffer and set
         --    is_buffer_truncated to true.
         --
-        -- 5. Write msg.content into the buffer. Increment
+        -- 5. Write msg.content into the buffer. Add
+        --    msg.raw_data_len to lines_len, record msg as the
+        --    last contributing input, and increment
         --    lines_combined.
         --
         -- 6. If the buffer length reaches or exceeds line_limit:
@@ -353,18 +365,23 @@ surface RegexAggregation {
         --
         -- 7. send_buffer procedure: emit one
         --    AggregatedMessageWithTokens iff the trim-spaced
-        --    buffer is non-empty OR lines_combined > 0. The
-        --    emitted message has:
-        --      - content: the trim-spaced buffer bytes
-        --      - raw_data_len: the sum of the contributing
-        --        input messages' raw_data_len values
-        --      - is_truncated: is_buffer_truncated
-        --      - tokens: first_line_tokens
-        --      - tags: input msg tags plus, conditionally, the
+        --    buffer is non-empty OR lines_len > 0 (the summed
+        --    raw_data_len of the contributing inputs). The
+        --    emitted message is the LAST contributing input
+        --    message, keeping its metadata and its own tags (tags
+        --    of earlier contributing lines are not merged), with:
+        --      - content overwritten: the trim-spaced buffer bytes
+        --      - raw_data_len overwritten: lines_len; the
+        --        checkpoint length is likewise overwritten with
+        --        the contributing inputs' summed checkpoint
+        --        lengths
+        --      - is_truncated overwritten: is_buffer_truncated
+        --      - tags appended conditionally: the
         --        truncation-reason tag (if is_buffer_truncated
         --        and tag-truncated-logs config is enabled) and
         --        the multi-line source tag (if lines_combined
         --        > 1 and tag-multi-line-logs config is enabled)
+        --    and is paired with first_line_tokens as its tokens.
         --    After emitting (or skipping emission), reset:
         --    buffer to empty, lines_len to 0, lines_combined to
         --    0, should_truncate to false, is_buffer_truncated to
@@ -383,3 +400,9 @@ surface RegexAggregation {
         -- matching line participates in its OWN aggregate's
         -- size accounting, not the prior one's.
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "IsEmptyWithBlankLine: RegexAggregator reports is_empty while a buffered empty-content input (raw_data_len > 0) is pending, although flush would emit it, so the Preprocessor never starts its flush timer for that line. Is this deviation from IsEmptyConsistency accepted for parity with MultiLineHandler, or should is_empty also consider lines_len?"

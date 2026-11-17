@@ -53,9 +53,10 @@ use "./preprocessor/truncation.allium" as truncation
 ------------------------------------------------------------
 
 entity SingleLineHandler {
-    -- A configured SingleLineHandler instance. One per
-    -- legacy decoder pipeline (per log source using single-line
-    -- legacy handling).
+    -- A configured SingleLineHandler instance. Built only by
+    -- LegacyAutoMultilineHandler (legacy auto-multiline), which
+    -- delegates to it while detecting a pattern and keeps it
+    -- if none is detected.
     --
     -- line_limit:       the byte threshold above which the
     --                   handler appends the tail truncation
