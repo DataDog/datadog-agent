@@ -1,0 +1,10 @@
+description: Middle command failure does not affect other commands or final exit code.
+input:
+  script: |+
+    echo first; false; echo third
+expect:
+  stdout: |+
+    first
+    third
+  stderr: ""
+  exit_code: 0

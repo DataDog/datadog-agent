@@ -90,10 +90,10 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 			},
 		},
 		{
-			name: "returns empty for similar looking bundle	",
+			name: "returns empty for similar looking integrations",
 			actionsAllowlist: map[string]sets.Set[string]{
-				"com.datadoghq.dd":           sets.New[string]("action1"),
-				"com.datadoghq.dd.subbundle": sets.New[string]("action2"),
+				"com.datadoghq.mongodbother":       sets.New[string]("find"),
+				"com.datadoghq.gitlabother.issues": sets.New[string]("getIssue"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
@@ -146,104 +146,42 @@ func TestIsActionAllowed(t *testing.T) {
 	}
 }
 
-func TestGetDatadogHost(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		expected string
-	}{
-		{
-			name:     "removes https prefix and trailing dot",
-			endpoint: "https://api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes https prefix only",
-			endpoint: "https://api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes trailing dot only",
-			endpoint: "api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles clean URL without modifications",
-			endpoint: "api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles empty string",
-			endpoint: "",
-			expected: "",
-		},
-		{
-			name:     "handles EU site with https and trailing dot",
-			endpoint: "https://api.datadoghq.eu.",
-			expected: "api.datadoghq.eu",
-		},
-		{
-			name:     "handles gov site",
-			endpoint: "https://api.ddog-gov.com.",
-			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles custom domain",
-			endpoint: "https://custom.endpoint.example.com.",
-			expected: "custom.endpoint.example.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getDatadogHost(tt.endpoint)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestFromDDConfig(t *testing.T) {
 	tests := []struct {
 		name           string
 		site           string
 		ddURL          string
-		expectedDDHost string
 		expectedDDSite string
 	}{
 		{
 			name:           "US site (datadoghq.com)",
 			site:           "datadoghq.com",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.com",
 			expectedDDSite: "datadoghq.com",
 		},
 		{
 			name:           "EU site (datadoghq.eu)",
 			site:           "datadoghq.eu",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.eu",
 			expectedDDSite: "datadoghq.eu",
 		},
 		{
 			name:           "Gov site (ddog-gov.com)",
 			site:           "ddog-gov.com",
 			ddURL:          "",
-			expectedDDHost: "api.ddog-gov.com",
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
-			expectedDDHost: "api.datadoghq.eu",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
-			name:           "custom domain via dd_url",
+			name:           "metrics proxy does not override default site",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
-			expectedDDHost: "custom.endpoint.example.com",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
@@ -267,14 +205,37 @@ func TestFromDDConfig(t *testing.T) {
 			cfg, err := FromDDConfig(mockConfig, nil)
 			require.NoError(t, err)
 
-			// Verify both DDHost and DatadogSite are set correctly
-			assert.Equal(t, tt.expectedDDHost, cfg.DDHost, "DDHost mismatch")
-			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite, "DatadogSite mismatch")
-
-			// Verify DDApiHost is derived from site, not from dd_url
-			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
+			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite)
+			assert.Equal(t, "https://api."+tt.expectedDDSite, cfg.APIBaseURL)
 		})
 	}
+}
+
+func TestFromDDConfigWarnsForRCWithoutPARURL(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest("site", "datad0g.com")
+	for _, rcURL := range []string{"https://config.datad0g.com.", "https://config.datadoghq.com."} {
+		cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
+		warnings := captureTransformWarnings(t, func() {
+			runner, err := FromDDConfig(cfg, nil)
+			require.NoError(t, err)
+			require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
+		})
+		require.Contains(t, warnings, "[WARN]")
+		require.Contains(t, warnings, "the RC override does not change PAR routing")
+		require.Contains(t, warnings, "Set private_action_runner.par_dd_url explicitly")
+		require.NotContains(t, warnings, "nonstandard")
+	}
+
+	cfg.SetInTest(par.RunnerURL, "https://par-proxy.example.com/prefix")
+	warnings := captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://par-proxy.example.com/prefix", runner.APIBaseURL)
+	})
+	require.NotContains(t, warnings, "remote_configuration.rc_dd_url")
 }
 
 func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
@@ -629,6 +590,176 @@ func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnam
 	assert.Contains(t, logs, `"rshell:"`)
 	assert.Contains(t, logs, `"rshell:truncate"`)
 	assert.NotContains(t, logs, `"rshell:journalctl"`)
+}
+
+func TestFromDDConfigDomainAllowlist(t *testing.T) {
+	t.Run("unset allows every domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("api.example.com"))
+	})
+
+	t.Run("configured list allows only matching domains", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"api.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"api.example.com"}, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("api.example.com"))
+		assert.False(t, cfg.IsDomainAllowed("127.0.0.1"))
+	})
+
+	t.Run("configured empty list allows no domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed("api.example.com"))
+	})
+
+	t.Run("entries are trimmed", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"api.example.com", " ci.example.com ", " "})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"api.example.com", "ci.example.com"}, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("ci.example.com"))
+	})
+
+	t.Run("blank entries only allow no domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{" "})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed(""))
+	})
+
+	t.Run("invalid entries are ignored", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"api.example.com", "*example.com", "api.example.com:8080", "https://ci.example.com", "b\u00fccher.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"api.example.com"}, cfg.DomainAllowlist)
+	})
+
+	t.Run("only invalid entries allow no domain", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"https://api.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed("api.example.com"))
+	})
+
+	t.Run("read from datadog.yaml", func(t *testing.T) {
+		mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  domain_allowlist:
+    - api.example.com
+    - "*.ci.example.com"
+`)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"api.example.com", "*.ci.example.com"}, cfg.DomainAllowlist)
+		assert.True(t, cfg.IsDomainAllowed("build.ci.example.com"))
+		assert.False(t, cfg.IsDomainAllowed("127.0.0.1"))
+	})
+
+	t.Run("empty list in datadog.yaml allows no domain", func(t *testing.T) {
+		mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  domain_allowlist: []
+`)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.DomainAllowlist)
+		assert.False(t, cfg.IsDomainAllowed("api.example.com"))
+	})
+
+	t.Run("read from comma-separated env var", func(t *testing.T) {
+		t.Setenv("DD_PRIVATE_ACTION_RUNNER_DOMAIN_ALLOWLIST", "api.example.com, ci.example.com")
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"api.example.com", "ci.example.com"}, cfg.DomainAllowlist)
+	})
+
+	t.Run("http_allowlist alone is reported deprecated", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.HTTPAllowlist, []string{"api.example.com"})
+		logs := captureTransformWarnings(t, func() {
+			_, err := FromDDConfig(mockConfig, nil)
+			require.NoError(t, err)
+		})
+		assert.Contains(t, logs, par.HTTPAllowlist+" is deprecated")
+	})
+
+	t.Run("http_allowlist is reported ignored when domain_allowlist is set", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.HTTPAllowlist, []string{"api.example.com"})
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"api.example.com"})
+		logs := captureTransformWarnings(t, func() {
+			_, err := FromDDConfig(mockConfig, nil)
+			require.NoError(t, err)
+		})
+		assert.Contains(t, logs, par.HTTPAllowlist+" is ignored")
+	})
+
+	t.Run("domain_allowlist alone is not reported", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.DomainAllowlist, []string{"api.example.com"})
+		logs := captureTransformWarnings(t, func() {
+			_, err := FromDDConfig(mockConfig, nil)
+			require.NoError(t, err)
+		})
+		assert.NotContains(t, logs, par.HTTPAllowlist)
+	})
+
+	t.Run("http_allowlist does not set it", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.HTTPAllowlist, []string{"api.example.com"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.DomainAllowlist)
+	})
+}
+
+func TestIsDomainAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		allowlist []string
+		hostname  string
+		expected  bool
+	}{
+		{name: "nil allows any", allowlist: nil, hostname: "127.0.0.1", expected: true},
+		{name: "empty allows none", allowlist: []string{}, hostname: "api.example.com", expected: false},
+		{name: "exact", allowlist: []string{"api.example.com"}, hostname: "api.example.com", expected: true},
+		{name: "case-insensitive", allowlist: []string{"Api.Example.com"}, hostname: "API.example.COM", expected: true},
+		{name: "wildcard subdomain", allowlist: []string{"*.example.com"}, hostname: "ci.api.example.com", expected: true},
+		{name: "wildcard excludes parent", allowlist: []string{"*.example.com"}, hostname: "example.com", expected: false},
+		{name: "wildcard needs a label boundary", allowlist: []string{"*.example.com"}, hostname: "notexample.com", expected: false},
+		{name: "suffix is not a match", allowlist: []string{"example.com"}, hostname: "api.example.com.other.net", expected: false},
+		{name: "other host", allowlist: []string{"api.example.com"}, hostname: "localhost", expected: false},
+		{name: "trailing dot", allowlist: []string{"api.example.com"}, hostname: "api.example.com.", expected: true},
+		{name: "ip literal", allowlist: []string{"10.0.0.5"}, hostname: "10.0.0.5", expected: true},
+		{name: "ipv6 canonical form", allowlist: []string{"::1"}, hostname: "0:0:0:0:0:0:0:1", expected: true},
+		{name: "glob characters are literal", allowlist: []string{"*example.com", "api*"}, hostname: "api.otherexample.com", expected: false},
+		{name: "unicode hostname is matched in the form net/http dials", allowlist: []string{"kibana.example.com"}, hostname: "\u212Aibana.example.com", expected: true},
+		{name: "unicode hostname that lowercases to a listed one but dials another", allowlist: []string{"api.example.com"}, hostname: "ap\u0130.example.com", expected: false},
+		{name: "fullwidth dot maps to a listed hostname", allowlist: []string{"api.example.com"}, hostname: "api\uFF0Eexample.com", expected: true},
+		{name: "punycode entry matches its unicode hostname", allowlist: []string{"xn--bcher-kva.example.com"}, hostname: "B\u00dcCHER.example.com", expected: true},
+		{name: "unmappable unicode hostname", allowlist: []string{"*.example.com"}, hostname: "a\u00ad\u200d.example.com", expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{DomainAllowlist: tt.allowlist}
+			assert.Equal(t, tt.expected, cfg.IsDomainAllowed(tt.hostname))
+		})
+	}
 }
 
 func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {

@@ -56,6 +56,12 @@ func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 				log.Debugf("skipping %s due to permission error", fullPath)
 				return filepath.SkipDir
 			}
+			// if the cgroup disappeared while walking (e.g. a transient systemd scope), skip it.
+			// A missing cgroup root is still reported as an error.
+			if errors.Is(err, fs.ErrNotExist) && fullPath != r.cgroupRoot {
+				log.Debugf("skipping %s as it no longer exists", fullPath)
+				return filepath.SkipDir
+			}
 			return err
 		}
 		if !de.IsDir() {

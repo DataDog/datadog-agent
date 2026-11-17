@@ -201,6 +201,9 @@ const (
 	// TerminatedPodName is the resource name for Kubernetes Pods that have been terminated
 	TerminatedPodName = "terminated-pods"
 
+	// HelmReleaseConfigMapName is the collector name for Helm releases stored in Kubernetes ConfigMaps
+	HelmReleaseConfigMapName = "helm-releases-configmaps"
+
 	// VpaName is the resource name for Kubernetes VerticalPodAutoscalers
 	VpaName = "verticalpodautoscalers"
 	// VpaGroup is the API group for VerticalPodAutoscaler resources

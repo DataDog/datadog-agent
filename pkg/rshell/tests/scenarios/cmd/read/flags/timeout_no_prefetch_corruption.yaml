@@ -1,0 +1,17 @@
+description: |+
+  Back-to-back `read -t` invocations on a shared stdin must each see
+  exactly the next record. A naive goroutine-based reader that
+  prefetches bytes ahead of the consumer would consume `b` (and even
+  the trailing `\n`) during the first read and lose it for the second
+  read iteration, leaving the second read empty or at EOF. This
+  scenario pins the behaviour: with three lines and three timed
+  reads, every variable must be assigned its corresponding line in
+  order.
+input:
+  script: |+
+    printf 'alpha\nbeta\ngamma\n' | { read -t 5 x; read -t 5 y; read -t 5 z; echo "x=[$x] y=[$y] z=[$z]"; }
+expect:
+  stdout: |+
+    x=[alpha] y=[beta] z=[gamma]
+  stderr: ""
+  exit_code: 0

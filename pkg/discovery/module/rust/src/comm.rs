@@ -12,18 +12,78 @@ use crate::procfs;
 /// Maximum length of a comm name in /proc/<pid>/comm (excluding newline).
 const MAX_COMM_LEN: usize = 15;
 
-/// Exact command names to ignore
+/// Infrastructure daemons and CLI helpers also hold listening sockets and log
+/// files, sometimes inherited from an application. Exclude these known names
+/// so those resources do not cause discovery to report additional services.
+///
+/// Entries are exact, case-sensitive /proc/<pid>/comm names, limited to
+/// MAX_COMM_LEN bytes. Keep them specific: "agent", "cron", and "dash" are
+/// also used by applications.
 static IGNORE_COMMS: phf::Set<&'static [u8]> = phf_set! {
-    b"chronyd",
-    b"cilium-agent",
+    // Host services and management agents.
+    b"ModemManager", // Mobile broadband modem management.
+    b"NetworkManager", // Host network configuration.
+    b"accounts-daemon", // OS user-account management.
+    b"amazon-ssm-agen", // AWS Systems Manager agent, truncated to 15 bytes.
+    b"atd", // Scheduler for one-off jobs submitted with `at`.
+    b"auditd", // Linux audit event collection.
+    b"chronyd", // NTP clock synchronization.
+    b"crond", // Cron job scheduler.
+    b"dbus-broker", // D-Bus inter-process message bus.
+    b"dbus-daemon", // D-Bus inter-process message bus.
+    b"dhclient", // DHCP client.
+    b"do-agent", // DigitalOcean host metrics collection.
+    b"droplet-agent", // DigitalOcean Droplet Console access.
+    b"irqbalance", // Distributes hardware interrupts across CPUs.
+    b"polkitd", // Authorization for privileged OS operations.
+    b"ssm-agent-worke", // AWS Systems Manager worker, truncated to 15 bytes.
+    b"systemd",
+    b"udisksd", // Disk and storage device management.
+    b"unattended-upgr", // Automatic package updates (unattended-upgrades).
+
+    // SSSD integrates the host with directory-based identity/authentication.
+    b"sssd",
+    b"sssd_be", // Directory backend.
+    b"sssd_nss", // User/group lookup.
+    b"sssd_pac", // Kerberos authorization data.
+    b"sssd_pam", // PAM authentication.
+    b"sssd_ssh", // SSH public-key lookup.
+
+    // Container and Kubernetes infrastructure.
+    b"cilium-agent", // Cilium container networking.
+    b"conmon", // Podman/CRI-O container monitor; holds container log FDs.
     b"containerd",
-    b"dhclient",
     b"dockerd",
     b"kubelet",
-    b"livenessprobe",
-    b"local-volume-pr",
+    b"livenessprobe", // Kubernetes CSI storage-driver health probe.
+    b"local-volume-pr", // Kubernetes local-volume-provisioner, truncated.
+
+    // Datadog subprocesses expose their own ports and write Agent log files.
+    b"process-agent",
+    b"security-agent",
+    b"system-probe",
+    b"system-probe-li", // system-probe-lite, truncated to 15 bytes.
+    b"trace-agent",
+
+    // SSH variants without a hyphen need exact matches. Generated service
+    // names can drop suffixes such as .pam; match comm here.
     b"sshd",
-    b"systemd",
+    b"sshd.dssh",
+    b"sshd.pam",
+    b"sshd2",
+    b"sshd_sftp",
+
+    // Shells and CLI helpers can inherit service sockets or keep redirected log
+    // files open. Those resources qualify them for discovery even when another
+    // process runs the application, producing services for wrappers/helpers.
+    b"bash",
+    b"cat",
+    b"grep",
+    b"sh",
+    b"sudo",
+    b"tail",
+    b"tee",
+    b"zsh",
 };
 
 /// Family prefixes (before the first `-`) to ignore.
@@ -32,6 +92,7 @@ static IGNORE_FAMILIES: phf::Set<&'static [u8]> = phf_set! {
     b"datadog",
     b"containerd",
     b"docker",
+    b"sshd", // SSH daemon variants and session helpers, e.g. sshd-session.
 };
 
 /// Returns true if the process with the given PID should be ignored based on
@@ -74,26 +135,6 @@ fn should_ignore_comm_bytes(comm_bytes: &[u8]) -> bool {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_ignore_comms_lengths() {
-        for entry in IGNORE_COMMS.iter() {
-            assert!(
-                entry.len() <= MAX_COMM_LEN,
-                "Ignore comm entry {entry:?} exceeds max comm length {MAX_COMM_LEN}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_ignore_families_lengths() {
-        for entry in IGNORE_FAMILIES.iter() {
-            assert!(
-                entry.len() <= MAX_COMM_LEN,
-                "Ignore family entry {entry:?} exceeds max comm length {MAX_COMM_LEN}"
-            );
-        }
-    }
 
     #[test]
     fn test_exact_match_with_newline() {

@@ -1,0 +1,22 @@
+description: "find -name with [^!...] negated character class treats ! as literal after ^"
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/!.txt
+      content: "bang"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -name '[^!]*'
+expect:
+  stdout_unordered: |+
+    dir/a.txt
+    dir/b.txt
+  stderr: ""
+  exit_code: 0

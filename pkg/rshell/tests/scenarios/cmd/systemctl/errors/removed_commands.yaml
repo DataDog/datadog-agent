@@ -1,0 +1,34 @@
+# Removed compatibility and predicate verbs must not reach systemd capabilities.
+skip_assert_against_bash: true
+description: systemctl rejects commands outside its eight-command surface
+input:
+  mode: remediation
+  script: |+
+    systemctl show api.service
+    systemctl is-active api.service
+    systemctl is-failed api.service
+    systemctl is-enabled api.service
+    systemctl try-restart api.service
+    systemctl reload-or-restart api.service
+    systemctl try-reload-or-restart api.service
+    systemctl reset-failed api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: unsupported command "show"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "is-active"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "is-failed"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "is-enabled"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "try-restart"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "reload-or-restart"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "try-reload-or-restart"
+    Try 'systemctl --help' for more information.
+    systemctl: unsupported command "reset-failed"
+    Try 'systemctl --help' for more information.
+  exit_code: 1

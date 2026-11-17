@@ -1,0 +1,11 @@
+description: stat -f cannot inspect a filesystem through a path outside AllowedPaths.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f /etc
+expect:
+  stdout: |+
+  stderr_contains:
+    - "permission denied"
+  exit_code: 1

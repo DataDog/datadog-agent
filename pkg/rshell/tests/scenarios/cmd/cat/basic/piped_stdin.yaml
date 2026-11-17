@@ -1,0 +1,9 @@
+description: Cat with piped input from echo reads from stdin.
+input:
+  script: |+
+    echo "piped input" | cat
+expect:
+  stdout: |+
+    piped input
+  stderr: ""
+  exit_code: 0

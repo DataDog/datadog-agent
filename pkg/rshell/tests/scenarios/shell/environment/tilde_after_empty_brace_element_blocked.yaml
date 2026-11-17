@@ -1,0 +1,11 @@
+# skip: tilde expansion is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: A tilde after a brace expansion with an empty element is blocked, even as a command name.
+input:
+  script: |+
+    {,}~root
+expect:
+  stdout: ""
+  stderr: |+
+    tilde expansion is not supported
+  exit_code: 2

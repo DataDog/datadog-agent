@@ -193,3 +193,10 @@ repos:
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true
+    - id: releasenote-reused-uids
+      name: releasenote-reused-uids
+      description: Check that added release notes don't reuse a deleted note's UID (e.g. re-landed reverts)
+      entry: bash -c 'dda inv linter.releasenote-reused-uids --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true

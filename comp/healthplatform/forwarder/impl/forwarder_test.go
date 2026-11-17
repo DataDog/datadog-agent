@@ -21,17 +21,63 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	utiltelemetry "github.com/DataDog/datadog-agent/pkg/util/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
 	t.Helper()
+	return newTestForwarderWithTelemetry(t, cfg, telemetrymock.New(t))
+}
+
+func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telemetry.Component) *forwarder {
+	t.Helper()
+	domain := buildIntakeDomain(cfg)
 	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
-		httpClient: buildHTTPClient(cfg),
-		log:        logmock.New(t),
+		cfg:          cfg,
+		intakeDomain: domain,
+		intakeURL:    domain + intakeEndpointPath,
+		httpClient:   buildHTTPClient(cfg),
+		log:          logmock.New(t),
+		httpErrors:   utiltelemetry.NewForwarderHTTPErrors(tel),
 	}
+}
+
+func TestSendCountsHTTPErrors(t *testing.T) {
+	statuses := []int{http.StatusNotFound, http.StatusNotFound, http.StatusForbidden, http.StatusServiceUnavailable, http.StatusMovedPermanently}
+	next := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(statuses[next])
+		next++
+	}))
+	defer server.Close()
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "test-api-key")
+	cfg.SetInTest("health_platform.forwarder.dd_url", server.URL)
+	tel := telemetrymock.New(t)
+	fwd := newTestForwarderWithTelemetry(t, cfg, tel)
+	// Don't follow the 301, so the forwarder sees it as a non-2xx response.
+	fwd.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	for range statuses {
+		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		require.Error(t, err)
+	}
+
+	metrics, err := tel.GetCountMetric("forwarder", "http_errors")
+	require.NoError(t, err)
+	got := map[string]float64{}
+	for _, m := range metrics {
+		assert.Equal(t, server.URL, m.Tags()["domain"])
+		assert.Equal(t, "agenthealth", m.Tags()["endpoint"])
+		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
+		got[m.Tags()["code"]] = m.Value()
+	}
+	// Exact status codes, like transactions.http_errors; 3xx is not an HTTP error and is not counted.
+	assert.Equal(t, map[string]float64{"404": 2, "403": 1, "503": 1}, got)
 }
 
 func TestSend(t *testing.T) {
@@ -106,10 +152,11 @@ func TestSendNoAPIKey(t *testing.T) {
 
 func TestBuildIntakeURL(t *testing.T) {
 	tests := []struct {
-		name     string
-		site     string
-		ddURL    string
-		expected string
+		name      string
+		site      string
+		ddURL     string
+		healthURL string
+		expected  string
 	}{
 		{
 			name:     "default site",
@@ -121,10 +168,22 @@ func TestBuildIntakeURL(t *testing.T) {
 			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth",
 		},
 		{
-			name:     "custom dd_url overrides",
-			site:     "datadoghq.eu",
-			ddURL:    "https://custom.example.com",
-			expected: "https://custom.example.com/api/v2/agenthealth",
+			name:     "main dd_url is ignored",
+			site:     "datad0g.com",
+			ddURL:    "https://agent.datad0g.com",
+			expected: "https://agenthealth-intake.datad0g.com./api/v2/agenthealth",
+		},
+		{
+			name:      "health_platform.forwarder.dd_url overrides site",
+			site:      "datadoghq.eu",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
+		},
+		{
+			name:      "health_platform.forwarder.dd_url wins over main dd_url",
+			ddURL:     "https://agent.datad0g.com",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
 		},
 	}
 
@@ -136,6 +195,9 @@ func TestBuildIntakeURL(t *testing.T) {
 			}
 			if tt.ddURL != "" {
 				cfg.SetInTest("dd_url", tt.ddURL)
+			}
+			if tt.healthURL != "" {
+				cfg.SetInTest("health_platform.forwarder.dd_url", tt.healthURL)
 			}
 			assert.Equal(t, tt.expected, buildIntakeURL(cfg))
 		})

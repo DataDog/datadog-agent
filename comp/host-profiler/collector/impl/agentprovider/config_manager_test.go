@@ -255,6 +255,41 @@ site: datadoghq.com
 	assert.Equal(t, 7778, mgr.hostProfilerConfig.HPFlare.Port)
 }
 
+func TestNewConfigManagerHealthMetricsDisabledByDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.False(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
+func TestNewConfigManagerHealthMetricsEnabledFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  health_metrics:
+    enabled: true
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
+func TestNewConfigManagerHealthMetricsEnabledFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_HEALTH_METRICS_ENABLED", "true")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
 func TestNewConfigManagerSymbolUploaderReportIntervalFromYAML(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key

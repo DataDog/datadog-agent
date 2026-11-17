@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
@@ -25,11 +26,13 @@ import (
 )
 
 type ConnectivityCheckRequest struct {
+	TimeoutSeconds       int32                               `json:"timeout,omitempty"`
 	TargetIPs            []string                            `json:"targetIPs"`
 	Checks               []string                            `json:"checks"`
 	PingOptions          *connectivity.PingOptions           `json:"pingOptions,omitempty"`
 	SNMPOptions          *connectivity.SNMPOptions           `json:"snmpOptions,omitempty"`
 	Workers              int                                 `json:"workers,omitempty"`
+	TargetGroups         []connectivity.TargetGroup          `json:"targetGroups,omitempty"`
 	EncryptedCredentials string                              `json:"encryptedCredentials"`
 	EncryptionContext    encryptioncontext.EncryptionContext `json:"encryptionContext"`
 }
@@ -56,6 +59,11 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connectivityCheck inputs: %w", err)
 	}
+	if req.TimeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.TimeoutSeconds)*time.Second)
+		defer cancel()
+	}
 
 	var secrets secretInputs
 	if req.EncryptedCredentials != "" {
@@ -75,12 +83,13 @@ func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ 
 
 func (h *ConnectivityCheckHandler) runChecks(ctx context.Context, req ConnectivityCheckRequest, secrets secretInputs) (*connectivity.Result, error) {
 	body, err := json.Marshal(connectivity.Request{
-		Targets:     req.TargetIPs,
-		Checks:      req.Checks,
-		PingOptions: req.PingOptions,
-		SNMPOptions: req.SNMPOptions,
-		Workers:     req.Workers,
-		Credentials: secrets.SNMP,
+		Targets:      req.TargetIPs,
+		Checks:       req.Checks,
+		PingOptions:  req.PingOptions,
+		SNMPOptions:  req.SNMPOptions,
+		Workers:      req.Workers,
+		Credentials:  secrets.SNMP,
+		TargetGroups: req.TargetGroups,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)

@@ -28,30 +28,36 @@ const (
 	remoteExpvarCacheTTL = time.Second
 	// Retire origin-labeled series after this long without appearing in a successful telemetry scrape.
 	remoteExpvarOriginIdleTTL = 10 * time.Minute
+	// Keep an absent process's baseline briefly when a different process of the
+	// same name is also registered; the old process may still re-register.
+	remoteExpvarReplacedIdleTTL = 10 * time.Minute
 )
 
 // expvarMapping describes one compatibility mapping from a RAR Prometheus metric family to a legacy expvar path.
 // The metric names are the names emitted by ADP's RAR remapping, not the names from ADP's direct /compat/metrics
 // endpoint.
 type expvarMapping struct {
-	id         string
-	metricName string
-	expvarPath []string
-	selectors  []labelSelector
-	metricType dto.MetricType
+	id                string
+	metricName        string
+	expvarPath        []string
+	selectors         []labelSelector
+	matchAllLabelSets bool
+	metricType        dto.MetricType
 }
 
 type labelSelector struct {
-	name   string
-	values map[string]struct{}
+	name           string
+	values         map[string]struct{}
+	excludedValues map[string]struct{}
 }
 
 var expvarMappings = []expvarMapping{
 	{
-		id:         "dogstatsd_udp_packets",
-		metricName: "dogstatsd__udp_packets",
-		expvarPath: []string{"dogstatsd-udp", "Packets"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_udp_packets",
+		metricName:        "dogstatsd__udp_packets",
+		expvarPath:        []string{"dogstatsd-udp", "Packets"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_udp_packet_reading_errors",
@@ -78,10 +84,11 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "dogstatsd_uds_origin_detection_error",
-		metricName: "dogstatsd__uds_origin_detection_error",
-		expvarPath: []string{"dogstatsd-uds", "OriginDetectionErrors"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "dogstatsd_uds_origin_detection_error",
+		metricName:        "dogstatsd__uds_origin_detection_error",
+		expvarPath:        []string{"dogstatsd-uds", "OriginDetectionErrors"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "dogstatsd_metric_packets",
@@ -144,15 +151,19 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "forwarder_retry_queue_size",
-		metricName: "transactions__retry_queue_size",
-		expvarPath: []string{"forwarder", "Transactions", "RetryQueueSize"},
-		metricType: dto.MetricType_GAUGE,
+		id:                "forwarder_retry_queue_size",
+		metricName:        "transactions__retry_queue_size",
+		expvarPath:        []string{"forwarder", "Transactions", "RetryQueueSize"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_GAUGE,
 	},
+	// Exclude API-key validation requests: ADP counts them as transactions, while the Core Agent's
+	// legacy Forwarder expvars do not.
 	{
 		id:         "forwarder_success",
 		metricName: "transactions__success",
 		expvarPath: []string{"forwarder", "Transactions", "Success"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
@@ -162,55 +173,75 @@ var expvarMappings = []expvarMapping{
 		id:         "forwarder_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "Errors"},
-		selectors:  selectors(labelSelectorValues("error_type", "cant_send", "gt_400", "sent_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "cant_send", "gt_400", "sent_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_dns_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "DNSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "dns_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "dns_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_tls_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "TLSErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "tls_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "tls_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_connection_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "ConnectionErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "connection_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "connection_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_wrote_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "WroteRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "wrote_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "wrote_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_sent_request_errors",
 		metricName: "transactions__errors",
 		expvarPath: []string{"forwarder", "Transactions", "ErrorsByType", "SentRequestErrors"},
-		selectors:  selectors(labelSelectorValues("error_type", "sent_request_error")),
+		selectors: selectors(
+			labelSelectorValues("error_type", "sent_request_error"),
+			labelSelectorExcludingValues("endpoint", "/api/v1/validate"),
+		),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
 		id:         "forwarder_http_errors",
 		metricName: "transactions__http_errors",
 		expvarPath: []string{"forwarder", "Transactions", "HTTPErrors"},
+		selectors:  selectors(labelSelectorExcludingValues("endpoint", "/api/v1/validate")),
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "aggregator_dogstatsd_contexts",
-		metricName: "aggregator__dogstatsd_contexts",
-		expvarPath: []string{"aggregator", "DogstatsdContexts"},
-		metricType: dto.MetricType_GAUGE,
+		id:                "aggregator_dogstatsd_contexts",
+		metricName:        "aggregator__dogstatsd_contexts",
+		expvarPath:        []string{"aggregator", "DogstatsdContexts"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_GAUGE,
 	},
 	{
 		id:         "aggregator_dogstatsd_metric_sample",
@@ -255,10 +286,11 @@ var expvarMappings = []expvarMapping{
 		metricType: dto.MetricType_COUNTER,
 	},
 	{
-		id:         "aggregator_number_of_flush",
-		metricName: "aggregator__number_of_flush",
-		expvarPath: []string{"aggregator", "NumberOfFlush"},
-		metricType: dto.MetricType_COUNTER,
+		id:                "aggregator_number_of_flush",
+		metricName:        "aggregator__number_of_flush",
+		expvarPath:        []string{"aggregator", "NumberOfFlush"},
+		matchAllLabelSets: true,
+		metricType:        dto.MetricType_COUNTER,
 	},
 	{
 		id:         "aggregator_flush_count_series",
@@ -319,6 +351,14 @@ func labelSelectorValues(name string, values ...string) labelSelector {
 	return labelSelector{name: name, values: allowed}
 }
 
+func labelSelectorExcludingValues(name string, values ...string) labelSelector {
+	excluded := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		excluded[value] = struct{}{}
+	}
+	return labelSelector{name: name, excludedValues: excluded}
+}
+
 func selectors(values ...labelSelector) []labelSelector {
 	return values
 }
@@ -342,11 +382,12 @@ type remoteSeriesKey struct {
 }
 
 type remoteCounterState struct {
-	initialized bool
-	lastRaw     int64
-	total       int64
-	lastSeen    time.Time
-	hasOrigin   bool
+	initialized       bool
+	lastRaw           int64
+	total             int64
+	lastSeen          time.Time
+	hasOrigin         bool
+	processIdentified bool
 }
 
 // getRemoteAgentExpvars builds a fresh snapshot of mapped ADP values grouped by agent.
@@ -439,12 +480,34 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 		}
 	}
 
-	responses := callAgentsForServiceFiltered(ctx, ra, TelemetryServiceName, isADPAgent, client, processor)
+	// A process can briefly have two RAR sessions after re-registration. Both
+	// sessions query the same counters, and their responses can arrive out of order.
+	// Read only the most recently registered session for each process identity.
+	preferredSessions := make(map[string]string)
+	preferredOrders := make(map[string]uint64)
+	ra.agentMapMu.Lock()
+	for _, agent := range ra.agentMap {
+		if !isADPAgent(agent.RegisteredAgent) {
+			continue
+		}
+		identity := remoteAgentIdentity(agent.RegisteredAgent)
+		if agent.registrationOrder >= preferredOrders[identity] {
+			preferredSessions[identity] = agent.SessionID
+			preferredOrders[identity] = agent.registrationOrder
+		}
+	}
+	ra.agentMapMu.Unlock()
+	filter := func(agent remoteagentregistry.RegisteredAgent) bool {
+		return isADPAgent(agent) && preferredSessions[remoteAgentIdentity(agent)] == agent.SessionID
+	}
+	responses := callAgentsForServiceFiltered(ctx, ra, TelemetryServiceName, filter, client, processor)
 	successfulAgents := make(map[string]struct{})
 	activeAgents := make(map[string]struct{})
+	activeByName := make(map[string]bool)
 	for _, agent := range ra.GetRegisteredAgents() {
 		if isADPAgent(agent) {
 			activeAgents[remoteAgentIdentity(agent)] = struct{}{}
+			activeByName[agent.SanitizedDisplayName] = true
 		}
 	}
 	for _, response := range responses {
@@ -473,14 +536,14 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 			}
 			state := cache.counters[key]
 			if state == nil {
-				state = &remoteCounterState{}
+				state = &remoteCounterState{processIdentified: response.agent.ProcessInstanceID != ""}
 				cache.counters[key] = state
 			}
 			state.observe(series.value)
 			state.lastSeen = now
 			// The origin label is optional and is emitted when dogstatsd_origin is enabled.
-			// Only origin-labeled series use absence-based expiry; otherwise PID unregistration
-			// is the lifecycle signal for retiring per-series state.
+			// Only origin-labeled series use time-based expiry; other series are
+			// retired when their identified process is replaced or a legacy agent deregisters.
 			state.hasOrigin = series.hasOrigin
 		}
 	}
@@ -500,8 +563,15 @@ func collectRemoteExpvarValuesAt(ctx context.Context, ra *remoteAgentRegistry, c
 	for key, state := range cache.counters {
 		_, registered := activeAgents[key.agentIdentity]
 		_, scrapeSucceeded := successfulAgents[key.agentIdentity]
-		originSeriesExpired := state.hasOrigin && scrapeSucceeded && now.Sub(state.lastSeen) >= remoteExpvarOriginIdleTTL
-		if !registered || originSeriesExpired {
+		// An absent origin can expire after a successful scrape omits it, or after
+		// the agent itself has been absent long enough. Failed scrapes of an active
+		// agent must not expire otherwise healthy series.
+		originSeriesExpired := state.hasOrigin && (scrapeSucceeded || !registered) && now.Sub(state.lastSeen) >= remoteExpvarOriginIdleTTL
+		// Keep an absent process's last baseline across re-registration. After a
+		// replacement registers, give the old process a grace period to return;
+		// otherwise retire its state into the cumulative total.
+		replacementExpired := activeByName[key.agentName] && now.Sub(state.lastSeen) >= remoteExpvarReplacedIdleTTL
+		if originSeriesExpired || (!registered && (!state.processIdentified || replacementExpired)) {
 			addRetiredExpvarTotal(cache.retiredTotals, key.agentName, key.mappingID, state.total)
 			addValue(key.agentName, key.mappingID, state.total)
 			delete(cache.counters, key)
@@ -537,12 +607,14 @@ func isADPAgent(agent remoteagentregistry.RegisteredAgent) bool {
 	return agent.Flavor == adpAgentFlavor
 }
 
+// The process ID remains stable across RAR sessions and changes on an ADP restart,
+// even when the OS reuses the PID. Older remote agents fall back to PID identity.
 func remoteAgentIdentity(agent remoteagentregistry.RegisteredAgent) string {
 	identity := agent.Flavor + "\x00" + agent.SanitizedDisplayName
-	if agent.PID != "" {
-		identity += "\x00" + agent.PID
+	if agent.ProcessInstanceID != "" {
+		return identity + "\x00id:" + agent.ProcessInstanceID
 	}
-	return identity
+	return identity + "\x00pid:" + agent.PID
 }
 
 func (s *remoteCounterState) observe(raw int64) {
@@ -586,7 +658,7 @@ func expvarSeriesFromPromText(promText string) ([]remoteExpvarSeries, bool) {
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			if metric == nil || !matchesSelectors(metric.GetLabel(), mapping.selectors) {
+			if metric == nil || !matchesMappingLabels(metric.GetLabel(), mapping) {
 				continue
 			}
 			value, ok := metricValue(metric, mapping.metricType)
@@ -638,6 +710,16 @@ func gaugeValue(metric *dto.Metric) (int64, bool) {
 	return int64(value), true
 }
 
+func matchesMappingLabels(labels []*dto.LabelPair, mapping expvarMapping) bool {
+	if len(mapping.selectors) == 0 {
+		return mapping.matchAllLabelSets
+	}
+	if mapping.matchAllLabelSets {
+		return false
+	}
+	return matchesSelectors(labels, mapping.selectors)
+}
+
 func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 	values := make(map[string]string, len(labels))
 	for _, label := range labels {
@@ -648,9 +730,19 @@ func matchesSelectors(labels []*dto.LabelPair, selectors []labelSelector) bool {
 	for _, selector := range selectors {
 		value, ok := values[selector.name]
 		if !ok {
+			// A selector that only excludes values doesn't require the label: ADP's forwarder error series, for
+			// example, have no endpoint label at all, and must still match an endpoint exclusion.
+			if len(selector.values) == 0 {
+				continue
+			}
 			return false
 		}
-		if _, ok := selector.values[value]; !ok {
+		if len(selector.values) > 0 {
+			if _, ok := selector.values[value]; !ok {
+				return false
+			}
+		}
+		if _, excluded := selector.excludedValues[value]; excluded {
 			return false
 		}
 	}

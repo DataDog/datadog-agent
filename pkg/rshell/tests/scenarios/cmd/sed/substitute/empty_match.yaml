@@ -1,0 +1,13 @@
+description: Substitution matching beginning of line inserts a prefix.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/^/>> /' input.txt
+expect:
+  stdout: ">> line1\n>> line2\n"
+  stderr: ""
+  exit_code: 0

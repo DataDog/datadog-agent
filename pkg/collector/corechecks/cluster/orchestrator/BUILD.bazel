@@ -122,6 +122,7 @@ dd_agent_go_test(
         "@io_k8s_client_go//dynamic/fake",
         "@io_k8s_client_go//kubernetes/fake",
         "@io_k8s_client_go//kubernetes/scheme",
+        "@io_k8s_client_go//metadata/fake",
         "@io_k8s_client_go//tools/cache",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",

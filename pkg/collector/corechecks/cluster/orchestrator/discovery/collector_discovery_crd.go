@@ -180,6 +180,9 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 	if resource == utilTypes.TerminatedPodName {
 		return d.isSupportTerminatedPodCollector(collector, collectorInventory)
 	}
+	if resource == utilTypes.HelmReleaseConfigMapName {
+		return d.isSupportUnderlyingCollector(collector, collectorInventory, utilTypes.ConfigMapName)
+	}
 
 	return d.isSupportCollector(collector)
 }
@@ -218,6 +221,18 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 	}
 	return collector, nil
 
+}
+
+// isSupportUnderlyingCollector reports whether the resource that a derived collector reads from is discovered.
+func (d *DiscoveryCollector) isSupportUnderlyingCollector(collector collectors.K8sCollector, collectorInventory *inventory.CollectorInventory, underlyingName string) (collectors.K8sCollector, error) {
+	underlyingCollector, err := collectorInventory.CollectorForDefaultVersion(underlyingName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover %s resource %w", underlyingName, err)
+	}
+	if _, err := d.isSupportCollector(underlyingCollector); err != nil {
+		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
+	}
+	return collector, nil
 }
 
 // List returns a list of CollectorVersion for the given group, version, and kind.

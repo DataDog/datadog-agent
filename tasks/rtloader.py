@@ -10,6 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.utils import gitlab_section
 
@@ -96,7 +97,7 @@ def install(ctx):
 
 
 @task
-def install_with_bazel(ctx):
+def install_with_bazel(ctx, fips_backend=FipsBackend.none):
     """
     Install rtloader, Python, and Python's shared-library dependencies using Bazel.
 
@@ -117,18 +118,19 @@ def install_with_bazel(ctx):
             "//rtloader:install_static",
             "--",
             f"--destdir={os.path.join(get_rtloader_build_path(), 'rtloader')}",
+            fips_backend=fips_backend,
         )
 
         # Install rtloader and cpython where the Agent expects them at runtime
-        bazel("run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}")
-        bazel("run", "@cpython//:install", "--", f"--destdir={bin_dir}")
+        bazel("run", "//rtloader:install", "--", f"--destdir={os.path.dirname(bin_dir)}", fips_backend=fips_backend)
+        bazel("run", "@cpython//:install", "--", f"--destdir={bin_dir}", fips_backend=fips_backend)
 
         return os.path.join(bin_dir, "embedded3")
 
     embedded = os.path.join(dev_path, "embedded")
 
     # Install rtloader + CPython + all Python deps
-    bazel("run", "//rtloader:install_python_env", "--", f"--destdir={dev_path}")
+    bazel("run", "//rtloader:install_python_env", "--", f"--destdir={dev_path}", fips_backend=fips_backend)
 
     # Patch RPATH in all installed binaries/libraries so they find their
     # dependencies under <embedded>/lib at runtime.
@@ -144,7 +146,15 @@ def install_with_bazel(ctx):
         if f
     ]
     if files_to_patch:
-        bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded, *files_to_patch)
+        bazel(
+            "run",
+            "//bazel/rules:replace_prefix",
+            "--",
+            "--prefix",
+            embedded,
+            *files_to_patch,
+            fips_backend=fips_backend,
+        )
 
     return embedded
 
@@ -152,11 +162,14 @@ def install_with_bazel(ctx):
 @task
 def test(ctx):
     with gitlab_section("Run rtloader tests", collapsed=True):
-        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
+        bazel("test", "//rtloader/...")
 
 
 @task
 def format(ctx, raise_if_changed=False):
+    print("`dda inv rtloader.format` is deprecated.")
+    print("Use `bazel test //rtloader:clang_format_test` to see formatting issues.")
+
     with gitlab_section("Run clang-format on rtloader", collapsed=True):
         run_make_command(ctx, "clang-format")
 

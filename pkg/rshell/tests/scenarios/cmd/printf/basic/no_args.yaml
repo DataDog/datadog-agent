@@ -1,0 +1,8 @@
+description: Printf with no arguments produces an error.
+input:
+  script: |+
+    printf
+expect:
+  stdout: ""
+  stderr_contains: ["printf: usage: printf"]
+  exit_code: 2

@@ -1,0 +1,16 @@
+description: "< file is permitted when cat is in allowed_commands, since the redirect is then no more than an implicit cat."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: data.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands: ["rshell:tr", "rshell:cat"]
+  script: |+
+    tr a-z A-Z < data.txt
+expect:
+  stdout: |+
+    HELLO
+  stderr: |+
+  exit_code: 0

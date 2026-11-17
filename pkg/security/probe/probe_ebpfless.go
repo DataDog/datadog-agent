@@ -209,6 +209,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			if syscallMsg.CGroupID != "" {
 				entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 			}
+			p.Resolvers.ProcessResolver.ResolveECSTaskID(entry)
 		}
 
 	case ebpfless.SyscallTypeOpen:
@@ -421,9 +422,10 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// copy span context if any
-	if syscallMsg.SpanContext != nil {
+	if syscallMsg.SpanContext != nil && p.config.Probe.SpanTrackingEnabled {
 		event.SpanContext.SpanID = syscallMsg.SpanContext.SpanID
 		event.SpanContext.TraceID = syscallMsg.SpanContext.TraceID
+		event.SpanContext.Attributes = syscallMsg.SpanContext.Attributes
 	}
 
 	// use ProcessCacheEntry process context as process context
@@ -433,8 +435,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
 		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		p.Resolvers.ProcessResolver.ResolveECSTaskID(event.ProcessCacheEntry)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	p.fieldHandlers.ResolveSpanContext(event)
 
 	if syscallMsg.Type == ebpfless.SyscallTypeExit {
 		event.Type = uint32(model.ExitEventType)

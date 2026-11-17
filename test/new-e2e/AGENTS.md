@@ -24,7 +24,7 @@ So `infra_basic_nix_test.go` declares `basicLinuxSuite` and `infra_basic_win_tes
 
 Ordinary e2e tests carry none. The `_nix`/`_win` filename suffix is a convention teams adopted for readability: it affects neither compilation nor which tests run. CI selects on the *test function* name, passing `--run` and `--skip` regexes through `EXTRA_PARAMS`, so name a Windows entry point such that a Linux job's `--skip "Windows"` excludes it — renaming the file would do nothing.
 
-The exception is `e2eunit`. A package holding plain unit tests alongside e2e tests marks its e2e files `//go:build !e2eunit`, and the unit-test job in `.gitlab/build/source_test/linux.yml` runs with `--tags e2eunit`. Only `tests/installer/windows/` does this today; do not add the tag to a test with no unit-test sibling, and drop it once a package's `go_test` target is itself bazelified, since running the same unit test through both the Bazel default matrix and this separate job is redundant.
+Plain unit tests sharing a package with e2e suites carry none either. The package's `go_test` is `manual`, as for any e2e package, so they get a `dd_agent_go_test` of their own, listing only their files, which `# gazelle:exclude` keeps out of the `manual` target, and which the Bazel test jobs run. `tests/installer/windows/` is the example: `installer_test` next to `windows_test`.
 
 ## One fakeintake per suite
 

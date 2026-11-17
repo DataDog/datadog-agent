@@ -144,57 +144,62 @@ func (v *ssiSuite) TestInjectionMode() {
 			kubernetesagentparams.WithHelmValues(injectionModeHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			apps := []singlestep.App{
+				{
+					Name:                     "injection-mode-app-csi",
+					Image:                    "registry.datadoghq.com/injector-dev/python",
+					Version:                  "16ad9d4b",
+					Port:                     8080,
+					PodSecurityContext:       csiPodSecurityContext,
+					ContainerSecurityContext: csiContainerSecurityContext,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "csi",
+					},
+				},
+				{
+					Name:    "injection-mode-app-init-container",
+					Image:   "registry.datadoghq.com/injector-dev/python",
+					Version: "16ad9d4b",
+					Port:    8080,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "init_container",
+					},
+				},
+			}
+			// Deploying the image_volume app where image volumes are unsupported leaves a
+			// Deployment that never becomes Ready, and Pulumi waits on it until the job times out.
+			if supportsImageVolume() {
+				apps = append(apps, singlestep.App{
+					Name:    "injection-mode-app-image-volume",
+					Image:   "registry.datadoghq.com/injector-dev/python",
+					Version: "16ad9d4b",
+					Port:    8080,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
+					},
+				})
+			}
+			apps = append(apps, singlestep.App{
+				// The Datadog CSI driver is installed in this suite
+				// (see injection_mode.yaml). The AutoProvider must therefore
+				// pick the CSI provider for this "auto" pod. The pod
+				// security context mirrors the csi pod since the resulting
+				// volume is a CSI volume.
+				Name:                     "injection-mode-app-auto",
+				Image:                    "registry.datadoghq.com/injector-dev/python",
+				Version:                  "16ad9d4b",
+				Port:                     8080,
+				PodSecurityContext:       csiPodSecurityContext,
+				ContainerSecurityContext: csiContainerSecurityContext,
+				PodAnnotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.injection-mode": "auto",
+				},
+			})
 			return singlestep.Scenario(e, kubeProvider, "injection-mode", []singlestep.Namespace{
 				{
 					Name:   "injection-mode",
 					Labels: namespaceLabels,
-					Apps: []singlestep.App{
-						{
-							Name:                     "injection-mode-app-csi",
-							Image:                    "registry.datadoghq.com/injector-dev/python",
-							Version:                  "16ad9d4b",
-							Port:                     8080,
-							PodSecurityContext:       csiPodSecurityContext,
-							ContainerSecurityContext: csiContainerSecurityContext,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "csi",
-							},
-						},
-						{
-							Name:    "injection-mode-app-init-container",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "init_container",
-							},
-						},
-						{
-							Name:    "injection-mode-app-image-volume",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
-							},
-						},
-						{
-							// The Datadog CSI driver is installed in this suite
-							// (see injection_mode.yaml). The AutoProvider must therefore
-							// pick the CSI provider for this "auto" pod. The pod
-							// security context mirrors the csi pod since the resulting
-							// volume is a CSI volume.
-							Name:                     "injection-mode-app-auto",
-							Image:                    "registry.datadoghq.com/injector-dev/python",
-							Version:                  "16ad9d4b",
-							Port:                     8080,
-							PodSecurityContext:       csiPodSecurityContext,
-							ContainerSecurityContext: csiContainerSecurityContext,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "auto",
-							},
-						},
-					},
+					Apps:   apps,
 				},
 			}, dependsOnAgent)
 		},
@@ -214,7 +219,7 @@ func (v *ssiSuite) TestInjectionMode() {
 		autoMode = testutils.InjectionModeInitContainer
 	}
 
-	testCases := []struct {
+	type testCase struct {
 		name string
 		mode testutils.InjectionMode
 		// effectiveMode is the value the webhook records in the
@@ -222,12 +227,15 @@ func (v *ssiSuite) TestInjectionMode() {
 		// explicit modes it is the bare mode; for "auto" it is the resolved
 		// mode suffixed with " (auto)".
 		effectiveMode string
-	}{
+	}
+	testCases := []testCase{
 		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
-		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
-		{"injection-mode-app-auto", autoMode, testutils.EffectiveAutoMode(autoMode)},
 	}
+	if supportsImageVolume() {
+		testCases = append(testCases, testCase{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)})
+	}
+	testCases = append(testCases, testCase{"injection-mode-app-auto", autoMode, testutils.EffectiveAutoMode(autoMode)})
 
 	k8s := v.Env().KubernetesCluster.Client()
 	intake := v.Env().FakeIntake.Client()
@@ -286,7 +294,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "local-sdk-injection-app",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -299,7 +307,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 						},
 						{
 							Name:    "local-sdk-expect-no-injection",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -310,7 +318,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 					Apps: []singlestep.App{
 						{
 							Name:    ddiApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -369,7 +377,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -380,7 +388,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "namespace-selection-no-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -441,7 +449,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 					Apps: []singlestep.App{
 						{
 							Name:    "workload-selection-inject",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -450,7 +458,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 						},
 						{
 							Name:    "workload-selection-expect-no-injection",
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -716,7 +724,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 					Apps: []singlestep.App{
 						{
 							Name:    rcHelmTargetApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -730,7 +738,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 					Apps: []singlestep.App{
 						{
 							Name:    rcAnnotatedPodApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 							PodLabels: map[string]string{
@@ -742,7 +750,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 						},
 						{
 							Name:    rcUnannotatedPodApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
 						},
@@ -917,6 +925,17 @@ func isOpenShift() bool {
 
 func isGKEAutopilot() bool {
 	return getProvisionerType() == ProvisionerGKEAutopilot
+}
+
+// supportsImageVolume reports whether the provisioned cluster can run pods using the
+// image_volume injection mode, which needs image volume SubPath support.
+func supportsImageVolume() bool {
+	switch getProvisionerType() {
+	case ProvisionerEKS, ProvisionerAKS, ProvisionerGKE, ProvisionerGKEAutopilot:
+		return false
+	default:
+		return true
+	}
 }
 
 func openShiftInjectionModeNamespaceLabels() map[string]string {

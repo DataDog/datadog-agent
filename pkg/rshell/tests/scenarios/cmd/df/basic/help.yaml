@@ -1,0 +1,8 @@
+description: df --help prints usage to stdout. Uses stdout_contains so it matches both rshell's minimal help and GNU's longer help (which includes additional flags we don't implement). All listed substrings appear in both.
+input:
+  script: |+
+    df --help
+expect:
+  stdout_contains: ["Usage: df", "human-readable", "portability", "inodes", "exclude-type", "print-type"]
+  stderr: ""
+  exit_code: 0

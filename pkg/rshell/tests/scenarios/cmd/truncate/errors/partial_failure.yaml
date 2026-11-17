@@ -1,0 +1,16 @@
+# Derived from uutils test_truncate.rs::test_truncate_partial_failure.
+description: truncate processes all operands and returns exit 1 if any fail.
+setup:
+  files:
+    - path: good.txt
+      content: "hello world"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 5 good.txt /etc/hosts
+expect:
+  stdout: |+
+  stderr_contains: ["/etc/hosts"]
+  exit_code: 1
+skip_assert_against_bash: true

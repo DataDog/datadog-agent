@@ -8,8 +8,10 @@
 package privateactionrunner
 
 const (
-	Enabled = "private_action_runner.enabled"
-	LogFile = "private_action_runner.log_file"
+	Enabled         = "private_action_runner.enabled"
+	LogFile         = "private_action_runner.log_file"
+	RunnerURL       = "private_action_runner.par_dd_url"
+	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"
@@ -35,6 +37,9 @@ const (
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	HTTPAllowlist         = "private_action_runner.http_allowlist"
 	HTTPAllowIMDSEndpoint = "private_action_runner.http_allow_imds_endpoint"
+
+	// Domains actions may reach; replaces HTTPAllowlist when set
+	DomainAllowlist = "private_action_runner.domain_allowlist"
 
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"

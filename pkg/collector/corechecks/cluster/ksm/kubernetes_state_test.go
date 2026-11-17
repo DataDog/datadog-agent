@@ -9,12 +9,14 @@ package ksm
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,7 +29,13 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
 
+	compcore "github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -35,6 +43,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -1379,7 +1388,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				labelJoiner.insertFamily(metricFam)
 			}
 
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner, tt.args.lMapperOverride)
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags("", tt.args.labels, labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
 		})
@@ -1465,7 +1474,7 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 				}}},
 			})
 
-			_, actualTags := check.hostnameAndTags(map[string]string{
+			_, actualTags := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
 				namespaceKey: namespace,
 				"pod":        podName,
 			}, labelJoiner, nil)
@@ -1772,6 +1781,15 @@ func TestKSMCheck_ensureArgoRolloutLabelJoin(t *testing.T) {
 			assert.Equal(t, tt.expected, podLabelJoin.LabelsToGet)
 		})
 	}
+}
+
+func TestKSMCheck_ensureArgoRolloutLabelJoinReplicaSets(t *testing.T) {
+	k := &KSMCheck{instance: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+		"kube_replicaset_labels": {LabelsToGet: []string{"label_team"}},
+	}}}
+	k.ensureArgoRolloutLabelJoin()
+
+	assert.Equal(t, []string{"label_team", argoRolloutLabelName}, k.instance.LabelJoins["kube_replicaset_labels"].LabelsToGet)
 }
 
 func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
@@ -2847,4 +2865,436 @@ func TestGetCustomResourceClientsAndCollectors_UsesInformerClient(t *testing.T) 
 
 	assert.Equal(t, []string{"example.com/v1, Resource=widgets"}, collectors)
 	assert.NotNil(t, clients["example.com/v1, Resource=widgets"])
+}
+
+func TestKSMCheck_hostnameAndTagsAutoscalers(t *testing.T) {
+	const podName = "my-pod"
+
+	tests := []struct {
+		name                string
+		autoscaledWorkloads map[types.EntityID][]string
+		metricName          string
+		labels              map[string]string
+		podOwnerKind        string
+		podOwnerName        string
+		argoRolloutLabel    string
+		expectedTags        []string
+	}{
+		// kube_pod_* series with a ReplicaSet owner
+		{
+			name: "pod of an Argo Rollout with the Argo Rollout label",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:       "kube_pod_status_ready",
+			labels:           map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind:     kubernetes.ReplicaSetKind,
+			podOwnerName:     "web-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags:     []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.ReplicaSetKind,
+			podOwnerName: "web-7f59c78c9b",
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod of a Deployment with an autoscaled Argo Rollout of the same name",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.ReplicaSetKind,
+			podOwnerName: "web-7f59c78c9b",
+			expectedTags: []string{},
+		},
+		{
+			name: "aggregated pod series: no pod label, so the Deployment and the Argo Rollout are looked up",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_info",
+			labels:       map[string]string{"namespace": "default", "created_by_kind": "ReplicaSet", "created_by_name": "web-7f59c78c9b"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// kube_pod_* series with a Deployment owner (with_owner_tag metrics)
+		{
+			name: "container of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_container_resource_with_owner_tag_requests",
+			labels:       map[string]string{"namespace": "default", "container": "app", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "container of an Argo Rollout, with a Deployment owner",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_container_resource_with_owner_tag_requests",
+			labels:       map[string]string{"namespace": "default", "container": "app", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// kube_pod_* series with other owners
+		{
+			name: "pod of a StatefulSet",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("statefulset", "default", "my-sts"): {"kube_autoscaler_kind:verticalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.StatefulSetKind,
+			podOwnerName: "my-sts",
+			expectedTags: []string{"kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+		{
+			name: "pod of a DaemonSet: unsupported, nothing is looked up",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.DaemonSetKind,
+			podOwnerName: "my-app",
+			expectedTags: []string{},
+		},
+		// kube_replicaset_owner
+		{
+			name: "ReplicaSet owner of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_owner",
+			labels:       map[string]string{"namespace": "default", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet owner of an Argo Rollout",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_owner",
+			labels:       map[string]string{"namespace": "default", "owner_kind": "Rollout", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// Other kube_replicaset_* series, from the replicaset label
+		{
+			name: "ReplicaSet of an Argo Rollout",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:       "kube_replicaset_status_ready_replicas",
+			labels:           map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags:     []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_status_ready_replicas",
+			labels:       map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet of a Deployment with an autoscaled Argo Rollout of the same name",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_status_ready_replicas",
+			labels:       map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			expectedTags: []string{},
+		},
+		// kube_deployment_* series
+		{
+			name: "Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "default", "deployment": "my-app"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "Deployment in another namespace with its own autoscaler",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"):  {"kube_autoscaler_kind:horizontalpodautoscaler"},
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "other-ns", "my-app"): {"kube_autoscaler_kind:datadogpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "other-ns", "deployment": "my-app"},
+			expectedTags: []string{"kube_autoscaler_kind:datadogpodautoscaler"},
+		},
+		{
+			name: "Deployment without autoscaler: no entity, no tags",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "default", "deployment": "other-app"},
+			expectedTags: []string{},
+		},
+		// kube_statefulset_* series
+		{
+			name: "StatefulSet",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("statefulset", "default", "my-sts"): {"kube_autoscaler_kind:verticalpodautoscaler"},
+			},
+			metricName:   "kube_statefulset_replicas",
+			labels:       map[string]string{"namespace": "default", "statefulset": "my-sts"},
+			expectedTags: []string{"kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+			}
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, newAutoscalerTagger(t, tt.autoscaledWorkloads), nil)
+			check.processLabelJoins()
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         "default",
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     "default",
+					"pod":            podName,
+					createdByKindKey: tt.podOwnerKind,
+					createdByNameKey: tt.podOwnerName,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_replicaset_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         "default",
+					replicaSetKey:        "web-7f59c78c9b",
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+
+			_, tagList := check.hostnameAndTags(tt.metricName, tt.labels, labelJoiner, labelsMapperOverride(tt.metricName))
+			assert.ElementsMatch(t, tt.expectedTags, filterAutoscalerTags(tagList))
+		})
+	}
+}
+
+// In node_kubelet mode on a node agent, the tags come from the autoscaler kinds
+// of the pod in workloadmeta
+func TestKSMCheck_hostnameAndTagsNodeKubeletAutoscalers(t *testing.T) {
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		compcore.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	for _, pod := range testNodeKubeletPods() {
+		wmeta.Set(pod)
+	}
+
+	config := &KSMConfig{
+		LabelsMapper:      defaultLabelsMapper(),
+		LabelJoins:        defaultLabelJoins(),
+		PodCollectionMode: nodeKubeletPodCollection,
+	}
+	check := newKSMCheck(core.NewCheckBase(CheckName), config, taggerfxmock.SetupFakeTagger(t), wmeta)
+	check.isRunningOnNodeAgent = true
+	check.podAutoscalerTags, check.podOwnerAutoscalerTags = autoscalerTagsFromPods(wmeta.ListKubernetesPods())
+	check.processLabelJoins()
+	labelJoiner := newLabelJoiner(config.labelJoins)
+
+	tests := []struct {
+		name         string
+		pod          string
+		uid          string
+		expectedTags []string
+	}{
+		{
+			name:         "pod with an autoscaler",
+			pod:          "web-7f59c78c9b-abcde",
+			uid:          "web-uid",
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name:         "pod without autoscalers",
+			pod:          "plain-5c8d7b9f4-fghij",
+			uid:          "plain-uid",
+			expectedTags: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, tagList := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
+				namespaceKey: "default",
+				podKey:       test.pod,
+				uidKey:       test.uid,
+			}, labelJoiner, labelsMapperOverride("kube_pod_status_ready"))
+
+			assert.ElementsMatch(t, test.expectedTags, filterAutoscalerTags(tagList))
+		})
+	}
+}
+
+// In node_kubelet mode on a node agent, aggregated series have no uid. They get
+// the tags of their owner, from the autoscaler kinds of the pods in workloadmeta.
+func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		compcore.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	for _, pod := range testNodeKubeletPods() {
+		wmeta.Set(pod)
+	}
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_info": {
+			{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{
+					{
+						Labels: map[string]string{
+							"namespace":       "default",
+							"pod":             "web-7f59c78c9b-abcde",
+							"uid":             "web-uid",
+							"node":            "node-a",
+							"created_by_kind": "ReplicaSet",
+							"created_by_name": "web-7f59c78c9b",
+						},
+						Val: 1,
+					},
+					{
+						Labels: map[string]string{
+							"namespace":       "default",
+							"pod":             "plain-5c8d7b9f4-fghij",
+							"uid":             "plain-uid",
+							"node":            "node-a",
+							"created_by_kind": "ReplicaSet",
+							"created_by_name": "plain-5c8d7b9f4",
+						},
+						Val: 1,
+					},
+				},
+			},
+		},
+		"kube_pod_container_resource_with_owner_tag_requests": {
+			{
+				Name: "kube_pod_container_resource_with_owner_tag_requests",
+				ListMetrics: []ksmstore.DDMetric{
+					{
+						Labels: map[string]string{
+							"namespace":  "default",
+							"pod":        "web-7f59c78c9b-abcde",
+							"uid":        "web-uid",
+							"container":  "app",
+							"owner_kind": "Deployment",
+							"owner_name": "web",
+							"resource":   "cpu",
+						},
+						Val: 0.1,
+					},
+					{
+						Labels: map[string]string{
+							"namespace":  "default",
+							"pod":        "plain-5c8d7b9f4-fghij",
+							"uid":        "plain-uid",
+							"container":  "app",
+							"owner_kind": "Deployment",
+							"owner_name": "plain",
+							"resource":   "cpu",
+						},
+						Val: 0.1,
+					},
+				},
+			},
+		},
+	}
+
+	check := newKSMCheck(
+		core.NewCheckBase(CheckName),
+		&KSMConfig{PodCollectionMode: nodeKubeletPodCollection},
+		taggerfxmock.SetupFakeTagger(t),
+		wmeta,
+	)
+	check.isRunningOnNodeAgent = true
+
+	s := mocksender.NewMockSender(t, check.ID())
+	s.SetupAcceptAll()
+	check.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+
+	// Autoscaler tags of each emitted series, by metric name and Deployment
+	autoscalerTags := map[string][]string{}
+	for _, call := range s.Mock.Calls {
+		if call.Method != "Gauge" {
+			continue
+		}
+		name := call.Arguments.Get(0).(string)
+		tagList := call.Arguments.Get(3).([]string)
+		for _, deployment := range []string{"web", "plain"} {
+			if slices.Contains(tagList, "kube_deployment:"+deployment) {
+				autoscalerTags[name+" "+deployment] = filterAutoscalerTags(tagList)
+			}
+		}
+	}
+
+	assert.Equal(t, map[string][]string{
+		"kubernetes_state.pod.count web":                       {"kube_autoscaler_kind:horizontalpodautoscaler"},
+		"kubernetes_state.pod.count plain":                     {},
+		"kubernetes_state.container.cpu_requested.total web":   {"kube_autoscaler_kind:horizontalpodautoscaler"},
+		"kubernetes_state.container.cpu_requested.total plain": {},
+	}, autoscalerTags)
+}
+
+// newAutoscalerTagger returns a fake tagger with the given autoscaled
+// workload entities and their tags.
+func newAutoscalerTagger(t *testing.T, autoscaledWorkloads map[types.EntityID][]string) taggermock.Mock {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	for id, autoscalerTags := range autoscaledWorkloads {
+		fakeTagger.SetTags(id, "workloadmeta-kubernetes_autoscaler", autoscalerTags, nil, nil, nil)
+	}
+	return fakeTagger
+}
+
+func filterAutoscalerTags(tagList []string) []string {
+	res := []string{}
+	for _, tag := range tagList {
+		if strings.HasPrefix(tag, "kube_autoscaler_kind:") {
+			res = append(res, tag)
+		}
+	}
+	return res
+}
+
+// testNodeKubeletPods returns a pod of a Deployment with an HPA, and a pod of a
+// Deployment without autoscalers
+func testNodeKubeletPods() []*workloadmeta.KubernetesPod {
+	return []*workloadmeta.KubernetesPod{
+		{
+			EntityID:        workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "web-uid"},
+			EntityMeta:      workloadmeta.EntityMeta{Name: "web-7f59c78c9b-abcde", Namespace: "default"},
+			Owners:          []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "web-7f59c78c9b"}},
+			AutoscalerKinds: []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA},
+		},
+		{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "plain-uid"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "plain-5c8d7b9f4-fghij", Namespace: "default"},
+			Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "plain-5c8d7b9f4"}},
+		},
+	}
 }

@@ -364,6 +364,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithProxyUser("puser"),
 		windowsAgent.WithProxyPassword("ppass"),
 		windowsAgent.WithSite("eu"),
+		windowsAgent.WithEnvironment("staging"),
 		windowsAgent.WithDdURL("https://someurl.datadoghq.com"),
 		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
 		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
@@ -389,6 +390,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	assert.Equal(s.T(), cmdPort, confYaml["cmd_port"], "cmd_port should match")
 	assert.Contains(s.T(), confYaml, "site")
 	assert.Equal(s.T(), "eu", confYaml["site"], "site should match")
+	assert.Equal(s.T(), "staging", confYaml["env"], "env should match")
 	assert.Contains(s.T(), confYaml, "dd_url")
 	assert.Equal(s.T(), "https://someurl.datadoghq.com", confYaml["dd_url"], "dd_url should match")
 

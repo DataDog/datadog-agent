@@ -745,22 +745,109 @@ func (x *KAIPodGroup) GetType() KubeMetadataEventType {
 	return KubeMetadataEventType_SET
 }
 
+// KubernetesAutoscaler is an autoscaler (HPA, VPA, WPA, DPA, or an HPA managed
+// by KEDA) and the workload it targets, in the autoscaler namespace.
+type KubernetesAutoscaler struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Namespace      string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	AutoscalerKind string                 `protobuf:"bytes,3,opt,name=autoscaler_kind,json=autoscalerKind,proto3" json:"autoscaler_kind,omitempty"` // horizontalpodautoscaler, verticalpodautoscaler, watermarkpodautoscaler, datadogpodautoscaler or keda
+	TargetKind     string                 `protobuf:"bytes,4,opt,name=target_kind,json=targetKind,proto3" json:"target_kind,omitempty"`             // deployment, statefulset or argo_rollout
+	TargetName     string                 `protobuf:"bytes,5,opt,name=target_name,json=targetName,proto3" json:"target_name,omitempty"`
+	Type           KubeMetadataEventType  `protobuf:"varint,6,opt,name=type,proto3,enum=datadog.kubemetadata.KubeMetadataEventType" json:"type,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *KubernetesAutoscaler) Reset() {
+	*x = KubernetesAutoscaler{}
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubernetesAutoscaler) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubernetesAutoscaler) ProtoMessage() {}
+
+func (x *KubernetesAutoscaler) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KubernetesAutoscaler.ProtoReflect.Descriptor instead.
+func (*KubernetesAutoscaler) Descriptor() ([]byte, []int) {
+	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *KubernetesAutoscaler) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *KubernetesAutoscaler) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *KubernetesAutoscaler) GetAutoscalerKind() string {
+	if x != nil {
+		return x.AutoscalerKind
+	}
+	return ""
+}
+
+func (x *KubernetesAutoscaler) GetTargetKind() string {
+	if x != nil {
+		return x.TargetKind
+	}
+	return ""
+}
+
+func (x *KubernetesAutoscaler) GetTargetName() string {
+	if x != nil {
+		return x.TargetName
+	}
+	return ""
+}
+
+func (x *KubernetesAutoscaler) GetType() KubeMetadataEventType {
+	if x != nil {
+		return x.Type
+	}
+	return KubeMetadataEventType_SET
+}
+
 type KubeMetadataStreamResponse struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	IsFullState          bool                   `protobuf:"varint,1,opt,name=is_full_state,json=isFullState,proto3" json:"is_full_state,omitempty"`
-	Mappings             []*PodServiceMapping   `protobuf:"bytes,2,rep,name=mappings,proto3" json:"mappings,omitempty"`
-	NamespaceMetadata    []*NamespaceMetadata   `protobuf:"bytes,3,rep,name=namespace_metadata,json=namespaceMetadata,proto3" json:"namespace_metadata,omitempty"`
-	KueueQueues          []*KueueQueue          `protobuf:"bytes,4,rep,name=kueue_queues,json=kueueQueues,proto3" json:"kueue_queues,omitempty"`
-	KueueResourceFlavors []*KueueResourceFlavor `protobuf:"bytes,5,rep,name=kueue_resource_flavors,json=kueueResourceFlavors,proto3" json:"kueue_resource_flavors,omitempty"`
-	KueueWorkloads       []*KueueWorkload       `protobuf:"bytes,6,rep,name=kueue_workloads,json=kueueWorkloads,proto3" json:"kueue_workloads,omitempty"`
-	KaiPodGroups         []*KAIPodGroup         `protobuf:"bytes,7,rep,name=kai_pod_groups,json=kaiPodGroups,proto3" json:"kai_pod_groups,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                 protoimpl.MessageState  `protogen:"open.v1"`
+	IsFullState           bool                    `protobuf:"varint,1,opt,name=is_full_state,json=isFullState,proto3" json:"is_full_state,omitempty"`
+	Mappings              []*PodServiceMapping    `protobuf:"bytes,2,rep,name=mappings,proto3" json:"mappings,omitempty"`
+	NamespaceMetadata     []*NamespaceMetadata    `protobuf:"bytes,3,rep,name=namespace_metadata,json=namespaceMetadata,proto3" json:"namespace_metadata,omitempty"`
+	KueueQueues           []*KueueQueue           `protobuf:"bytes,4,rep,name=kueue_queues,json=kueueQueues,proto3" json:"kueue_queues,omitempty"`
+	KueueResourceFlavors  []*KueueResourceFlavor  `protobuf:"bytes,5,rep,name=kueue_resource_flavors,json=kueueResourceFlavors,proto3" json:"kueue_resource_flavors,omitempty"`
+	KueueWorkloads        []*KueueWorkload        `protobuf:"bytes,6,rep,name=kueue_workloads,json=kueueWorkloads,proto3" json:"kueue_workloads,omitempty"`
+	KaiPodGroups          []*KAIPodGroup          `protobuf:"bytes,7,rep,name=kai_pod_groups,json=kaiPodGroups,proto3" json:"kai_pod_groups,omitempty"`
+	KubernetesAutoscalers []*KubernetesAutoscaler `protobuf:"bytes,8,rep,name=kubernetes_autoscalers,json=kubernetesAutoscalers,proto3" json:"kubernetes_autoscalers,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *KubeMetadataStreamResponse) Reset() {
 	*x = KubeMetadataStreamResponse{}
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -772,7 +859,7 @@ func (x *KubeMetadataStreamResponse) String() string {
 func (*KubeMetadataStreamResponse) ProtoMessage() {}
 
 func (x *KubeMetadataStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[8]
+	mi := &file_datadog_kubemetadata_kubemetadata_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -785,7 +872,7 @@ func (x *KubeMetadataStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubeMetadataStreamResponse.ProtoReflect.Descriptor instead.
 func (*KubeMetadataStreamResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{8}
+	return file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *KubeMetadataStreamResponse) GetIsFullState() bool {
@@ -833,6 +920,13 @@ func (x *KubeMetadataStreamResponse) GetKueueWorkloads() []*KueueWorkload {
 func (x *KubeMetadataStreamResponse) GetKaiPodGroups() []*KAIPodGroup {
 	if x != nil {
 		return x.KaiPodGroups
+	}
+	return nil
+}
+
+func (x *KubeMetadataStreamResponse) GetKubernetesAutoscalers() []*KubernetesAutoscaler {
+	if x != nil {
+		return x.KubernetesAutoscalers
 	}
 	return nil
 }
@@ -937,7 +1031,16 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9a\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf4\x01\n" +
+	"\x14KubernetesAutoscaler\x12\x1c\n" +
+	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +
+	"\x0fautoscaler_kind\x18\x03 \x01(\tR\x0eautoscalerKind\x12\x1f\n" +
+	"\vtarget_kind\x18\x04 \x01(\tR\n" +
+	"targetKind\x12\x1f\n" +
+	"\vtarget_name\x18\x05 \x01(\tR\n" +
+	"targetName\x12?\n" +
+	"\x04type\x18\x06 \x01(\x0e2+.datadog.kubemetadata.KubeMetadataEventTypeR\x04type\"\xfd\x04\n" +
 	"\x1aKubeMetadataStreamResponse\x12\"\n" +
 	"\ris_full_state\x18\x01 \x01(\bR\visFullState\x12C\n" +
 	"\bmappings\x18\x02 \x03(\v2'.datadog.kubemetadata.PodServiceMappingR\bmappings\x12V\n" +
@@ -945,7 +1048,8 @@ const file_datadog_kubemetadata_kubemetadata_proto_rawDesc = "" +
 	"\fkueue_queues\x18\x04 \x03(\v2 .datadog.kubemetadata.KueueQueueR\vkueueQueues\x12_\n" +
 	"\x16kueue_resource_flavors\x18\x05 \x03(\v2).datadog.kubemetadata.KueueResourceFlavorR\x14kueueResourceFlavors\x12L\n" +
 	"\x0fkueue_workloads\x18\x06 \x03(\v2#.datadog.kubemetadata.KueueWorkloadR\x0ekueueWorkloads\x12G\n" +
-	"\x0ekai_pod_groups\x18\a \x03(\v2!.datadog.kubemetadata.KAIPodGroupR\fkaiPodGroups*+\n" +
+	"\x0ekai_pod_groups\x18\a \x03(\v2!.datadog.kubemetadata.KAIPodGroupR\fkaiPodGroups\x12a\n" +
+	"\x16kubernetes_autoscalers\x18\b \x03(\v2*.datadog.kubemetadata.KubernetesAutoscalerR\x15kubernetesAutoscalers*+\n" +
 	"\x15KubeMetadataEventType\x12\a\n" +
 	"\x03SET\x10\x00\x12\t\n" +
 	"\x05UNSET\x10\x01*4\n" +
@@ -966,7 +1070,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_kubemetadata_kubemetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_datadog_kubemetadata_kubemetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(KubeMetadataEventType)(0),         // 0: datadog.kubemetadata.KubeMetadataEventType
 	(KueueQueueType)(0),                // 1: datadog.kubemetadata.KueueQueueType
@@ -978,56 +1082,59 @@ var file_datadog_kubemetadata_kubemetadata_proto_goTypes = []any{
 	(*KueuePodSetAssignment)(nil),      // 7: datadog.kubemetadata.KueuePodSetAssignment
 	(*KueueWorkload)(nil),              // 8: datadog.kubemetadata.KueueWorkload
 	(*KAIPodGroup)(nil),                // 9: datadog.kubemetadata.KAIPodGroup
-	(*KubeMetadataStreamResponse)(nil), // 10: datadog.kubemetadata.KubeMetadataStreamResponse
-	nil,                                // 11: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
-	nil,                                // 12: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
-	nil,                                // 13: datadog.kubemetadata.KueueQueue.LabelsEntry
-	nil,                                // 14: datadog.kubemetadata.KueueQueue.AnnotationsEntry
-	nil,                                // 15: datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
-	nil,                                // 16: datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
-	nil,                                // 17: datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
-	nil,                                // 18: datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
-	nil,                                // 19: datadog.kubemetadata.KueueWorkload.LabelsEntry
-	nil,                                // 20: datadog.kubemetadata.KueueWorkload.AnnotationsEntry
-	nil,                                // 21: datadog.kubemetadata.KueueWorkload.PodTemplateLabelsEntry
-	nil,                                // 22: datadog.kubemetadata.KueueWorkload.PodTemplateAnnotationsEntry
-	nil,                                // 23: datadog.kubemetadata.KAIPodGroup.LabelsEntry
-	nil,                                // 24: datadog.kubemetadata.KAIPodGroup.AnnotationsEntry
+	(*KubernetesAutoscaler)(nil),       // 10: datadog.kubemetadata.KubernetesAutoscaler
+	(*KubeMetadataStreamResponse)(nil), // 11: datadog.kubemetadata.KubeMetadataStreamResponse
+	nil,                                // 12: datadog.kubemetadata.NamespaceMetadata.LabelsEntry
+	nil,                                // 13: datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
+	nil,                                // 14: datadog.kubemetadata.KueueQueue.LabelsEntry
+	nil,                                // 15: datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	nil,                                // 16: datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	nil,                                // 17: datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	nil,                                // 18: datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
+	nil,                                // 19: datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
+	nil,                                // 20: datadog.kubemetadata.KueueWorkload.LabelsEntry
+	nil,                                // 21: datadog.kubemetadata.KueueWorkload.AnnotationsEntry
+	nil,                                // 22: datadog.kubemetadata.KueueWorkload.PodTemplateLabelsEntry
+	nil,                                // 23: datadog.kubemetadata.KueueWorkload.PodTemplateAnnotationsEntry
+	nil,                                // 24: datadog.kubemetadata.KAIPodGroup.LabelsEntry
+	nil,                                // 25: datadog.kubemetadata.KAIPodGroup.AnnotationsEntry
 }
 var file_datadog_kubemetadata_kubemetadata_proto_depIdxs = []int32{
 	0,  // 0: datadog.kubemetadata.PodServiceMapping.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	11, // 1: datadog.kubemetadata.NamespaceMetadata.labels:type_name -> datadog.kubemetadata.NamespaceMetadata.LabelsEntry
-	12, // 2: datadog.kubemetadata.NamespaceMetadata.annotations:type_name -> datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
+	12, // 1: datadog.kubemetadata.NamespaceMetadata.labels:type_name -> datadog.kubemetadata.NamespaceMetadata.LabelsEntry
+	13, // 2: datadog.kubemetadata.NamespaceMetadata.annotations:type_name -> datadog.kubemetadata.NamespaceMetadata.AnnotationsEntry
 	0,  // 3: datadog.kubemetadata.NamespaceMetadata.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
 	1,  // 4: datadog.kubemetadata.KueueQueue.queue_type:type_name -> datadog.kubemetadata.KueueQueueType
-	13, // 5: datadog.kubemetadata.KueueQueue.labels:type_name -> datadog.kubemetadata.KueueQueue.LabelsEntry
-	14, // 6: datadog.kubemetadata.KueueQueue.annotations:type_name -> datadog.kubemetadata.KueueQueue.AnnotationsEntry
+	14, // 5: datadog.kubemetadata.KueueQueue.labels:type_name -> datadog.kubemetadata.KueueQueue.LabelsEntry
+	15, // 6: datadog.kubemetadata.KueueQueue.annotations:type_name -> datadog.kubemetadata.KueueQueue.AnnotationsEntry
 	0,  // 7: datadog.kubemetadata.KueueQueue.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	15, // 8: datadog.kubemetadata.KueueResourceFlavor.labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
-	16, // 9: datadog.kubemetadata.KueueResourceFlavor.annotations:type_name -> datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
-	17, // 10: datadog.kubemetadata.KueueResourceFlavor.node_affinity_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
+	16, // 8: datadog.kubemetadata.KueueResourceFlavor.labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.LabelsEntry
+	17, // 9: datadog.kubemetadata.KueueResourceFlavor.annotations:type_name -> datadog.kubemetadata.KueueResourceFlavor.AnnotationsEntry
+	18, // 10: datadog.kubemetadata.KueueResourceFlavor.node_affinity_labels:type_name -> datadog.kubemetadata.KueueResourceFlavor.NodeAffinityLabelsEntry
 	0,  // 11: datadog.kubemetadata.KueueResourceFlavor.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	18, // 12: datadog.kubemetadata.KueuePodSetAssignment.flavors:type_name -> datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
-	19, // 13: datadog.kubemetadata.KueueWorkload.labels:type_name -> datadog.kubemetadata.KueueWorkload.LabelsEntry
-	20, // 14: datadog.kubemetadata.KueueWorkload.annotations:type_name -> datadog.kubemetadata.KueueWorkload.AnnotationsEntry
+	19, // 12: datadog.kubemetadata.KueuePodSetAssignment.flavors:type_name -> datadog.kubemetadata.KueuePodSetAssignment.FlavorsEntry
+	20, // 13: datadog.kubemetadata.KueueWorkload.labels:type_name -> datadog.kubemetadata.KueueWorkload.LabelsEntry
+	21, // 14: datadog.kubemetadata.KueueWorkload.annotations:type_name -> datadog.kubemetadata.KueueWorkload.AnnotationsEntry
 	7,  // 15: datadog.kubemetadata.KueueWorkload.pod_set_assignments:type_name -> datadog.kubemetadata.KueuePodSetAssignment
 	0,  // 16: datadog.kubemetadata.KueueWorkload.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	21, // 17: datadog.kubemetadata.KueueWorkload.pod_template_labels:type_name -> datadog.kubemetadata.KueueWorkload.PodTemplateLabelsEntry
-	22, // 18: datadog.kubemetadata.KueueWorkload.pod_template_annotations:type_name -> datadog.kubemetadata.KueueWorkload.PodTemplateAnnotationsEntry
-	23, // 19: datadog.kubemetadata.KAIPodGroup.labels:type_name -> datadog.kubemetadata.KAIPodGroup.LabelsEntry
-	24, // 20: datadog.kubemetadata.KAIPodGroup.annotations:type_name -> datadog.kubemetadata.KAIPodGroup.AnnotationsEntry
+	22, // 17: datadog.kubemetadata.KueueWorkload.pod_template_labels:type_name -> datadog.kubemetadata.KueueWorkload.PodTemplateLabelsEntry
+	23, // 18: datadog.kubemetadata.KueueWorkload.pod_template_annotations:type_name -> datadog.kubemetadata.KueueWorkload.PodTemplateAnnotationsEntry
+	24, // 19: datadog.kubemetadata.KAIPodGroup.labels:type_name -> datadog.kubemetadata.KAIPodGroup.LabelsEntry
+	25, // 20: datadog.kubemetadata.KAIPodGroup.annotations:type_name -> datadog.kubemetadata.KAIPodGroup.AnnotationsEntry
 	0,  // 21: datadog.kubemetadata.KAIPodGroup.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
-	3,  // 22: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
-	4,  // 23: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
-	5,  // 24: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
-	6,  // 25: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
-	8,  // 26: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_workloads:type_name -> datadog.kubemetadata.KueueWorkload
-	9,  // 27: datadog.kubemetadata.KubeMetadataStreamResponse.kai_pod_groups:type_name -> datadog.kubemetadata.KAIPodGroup
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	0,  // 22: datadog.kubemetadata.KubernetesAutoscaler.type:type_name -> datadog.kubemetadata.KubeMetadataEventType
+	3,  // 23: datadog.kubemetadata.KubeMetadataStreamResponse.mappings:type_name -> datadog.kubemetadata.PodServiceMapping
+	4,  // 24: datadog.kubemetadata.KubeMetadataStreamResponse.namespace_metadata:type_name -> datadog.kubemetadata.NamespaceMetadata
+	5,  // 25: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_queues:type_name -> datadog.kubemetadata.KueueQueue
+	6,  // 26: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_resource_flavors:type_name -> datadog.kubemetadata.KueueResourceFlavor
+	8,  // 27: datadog.kubemetadata.KubeMetadataStreamResponse.kueue_workloads:type_name -> datadog.kubemetadata.KueueWorkload
+	9,  // 28: datadog.kubemetadata.KubeMetadataStreamResponse.kai_pod_groups:type_name -> datadog.kubemetadata.KAIPodGroup
+	10, // 29: datadog.kubemetadata.KubeMetadataStreamResponse.kubernetes_autoscalers:type_name -> datadog.kubemetadata.KubernetesAutoscaler
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_datadog_kubemetadata_kubemetadata_proto_init() }
@@ -1041,7 +1148,7 @@ func file_datadog_kubemetadata_kubemetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_kubemetadata_kubemetadata_proto_rawDesc), len(file_datadog_kubemetadata_kubemetadata_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   23,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

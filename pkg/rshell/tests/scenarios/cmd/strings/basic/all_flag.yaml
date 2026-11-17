@@ -1,0 +1,17 @@
+description: strings -a is accepted for POSIX compatibility and behaves identically to default.
+setup:
+  files:
+    - path: data.bin
+      content: |+
+        hello
+        world
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -a data.bin
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

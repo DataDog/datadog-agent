@@ -1,0 +1,10 @@
+description: In a 3-stage pipeline where all commands fail, the last command's exit code is used.
+input:
+  script: |+
+    exit 5 | exit 6 | exit 7
+    echo $?
+expect:
+  stdout: |+
+    7
+  stderr: ""
+  exit_code: 0

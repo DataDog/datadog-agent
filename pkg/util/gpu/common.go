@@ -18,10 +18,17 @@ type ResourceGPU string
 const (
 	// GpuNvidiaGeneric is the resource name for a generic NVIDIA GPU
 	GpuNvidiaGeneric ResourceGPU = "nvidia.com/gpu"
+	// GpuNvidiaGenericShared is the resource name a shared NVIDIA GPU is
+	// advertised under when renameByDefault is set: "<resource>.shared".
+	// The plugin rejects any other rename, so this is the only other name
+	// a shared GPU is exposed under.
+	GpuNvidiaGenericShared ResourceGPU = "nvidia.com/gpu.shared"
 	// GpuNvidiaDRA is the driver name for NVIDIA GPUs allocated through Kubernetes Dynamic Resource Allocation
 	GpuNvidiaDRA ResourceGPU = "gpu.nvidia.com"
 	// GpuAMD is the resource name for an AMD GPU
 	GpuAMD ResourceGPU = "amd.com/gpu"
+	// GpuAMDDRA is the driver name for AMD GPUs allocated through Kubernetes Dynamic Resource Allocation
+	GpuAMDDRA ResourceGPU = "gpu.amd.com"
 	// GpuIntelXe is the resource name for an Intel Xe GPU
 	GpuIntelXe ResourceGPU = "gpu.intel.com/xe"
 	// GpuInteli915 is the resource name for an Intel i915 GPU
@@ -35,6 +42,7 @@ var longToShortGPUName = map[ResourceGPU]string{
 	GpuNvidiaGeneric: "nvidia",
 	GpuNvidiaDRA:     "nvidia",
 	GpuAMD:           "amd",
+	GpuAMDDRA:        "amd",
 	GpuIntelXe:       "intel",
 	GpuInteli915:     "intel",
 }
@@ -76,10 +84,13 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 }
 
 // IsNvidiaKubernetesResource returns true if the resource name is a Kubernetes resource
-// for an NVIDIA GPU, either a generic GPU or a MIG GPU.
+// for an NVIDIA GPU: a generic GPU, a shared GPU as the device plugin renames
+// it by default, a MIG GPU, or the DRA driver. The MIG prefix also covers the
+// ".shared" rename of a time-sliced MIG resource.
 func IsNvidiaKubernetesResource(resourceName string) bool {
 	return strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
 		resourceName == string(GpuNvidiaGeneric) ||
+		resourceName == string(GpuNvidiaGenericShared) ||
 		resourceName == string(GpuNvidiaDRA)
 }
 

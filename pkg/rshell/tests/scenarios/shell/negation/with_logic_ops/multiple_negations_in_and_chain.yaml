@@ -1,0 +1,9 @@
+description: Multiple negated pipelines chained with && all succeed when negation inverts failure to success.
+input:
+  script: |+
+    ! false && ! false && echo "all ok"
+expect:
+  stdout: |+
+    all ok
+  stderr: ""
+  exit_code: 0

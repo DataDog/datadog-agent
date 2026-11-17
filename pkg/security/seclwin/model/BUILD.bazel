@@ -58,6 +58,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/discovery/tracermetadata/model",
+        "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/containerutils",
         "//pkg/security/secl/model/sharedconsts",

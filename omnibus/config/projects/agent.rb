@@ -122,10 +122,10 @@ build_iteration 1
 description 'Datadog Monitoring Agent
  The Datadog Monitoring Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
- .
+
  This package installs and runs the advanced Agent daemon, which queues and
  forwards metrics from your applications as well as system services.
- .
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -343,6 +343,11 @@ if windows_target?
     # TODO(ACTP-XXX): PAR is not enabled in Gov yet
     windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   end
+
+  # Strip openssl binaries
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libcrypto-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libssl-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\bin\\openssl.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.

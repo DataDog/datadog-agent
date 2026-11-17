@@ -8,13 +8,18 @@
 package trivy
 
 import (
+	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	dimage "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -98,4 +103,35 @@ func TestInspectConfigFile(t *testing.T) {
 	_, err = img.ConfigFile()
 	assert.Error(t, err)
 	assert.Equal(t, 1, exports)
+}
+
+// TestCheckExportSpace checks that an export needs 20% more than the image
+// size.
+func TestCheckExportSpace(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, checkExportSpace(dir, 1))
+	assert.ErrorContains(t, checkExportSpace(dir, 1<<60), "not enough disk space")
+}
+
+// TestImageOpenerChecksSpace checks that the export of an image too large for
+// the disk fails before it saves the image, when the disk usage is checked.
+func TestImageOpenerChecksSpace(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "export")
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	errSave := errors.New("image save")
+	saves := 0
+	save := func(context.Context, []string, ...client.ImageSaveOption) (client.ImageSaveResult, error) {
+		saves++
+		return nil, errSave
+	}
+	huge := &workloadmeta.ContainerImageMetadata{SizeBytes: 1 << 60}
+
+	_, err = imageOpener(t.Context(), "docker", "alpine:3.20", f, save, huge, sbom.ScanOptions{CheckDiskUsage: true})()
+	assert.ErrorContains(t, err, "not enough disk space")
+	assert.Equal(t, 0, saves)
+
+	_, err = imageOpener(t.Context(), "docker", "alpine:3.20", f, save, huge, sbom.ScanOptions{})()
+	assert.ErrorIs(t, err, errSave)
+	assert.Equal(t, 1, saves)
 }

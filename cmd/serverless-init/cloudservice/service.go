@@ -12,6 +12,7 @@ import (
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -98,6 +99,8 @@ type CloudService interface {
 	// RunSidecar; in init-container mode it spawns the user app via RunInit.
 	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
+
+	serverlessdef.CloudServiceMetadataProvider
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -211,10 +214,7 @@ func GetCloudServiceType() CloudService {
 	}
 
 	if isCloudRunService() {
-		if isCloudRunFunction() {
-			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
-		}
-		return &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+		return &CloudRun{isFunction: isCloudRunFunction()}
 	}
 
 	if isCloudRunJob() {

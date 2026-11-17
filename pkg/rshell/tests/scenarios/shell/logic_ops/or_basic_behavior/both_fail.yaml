@@ -1,0 +1,8 @@
+description: When both sides of || fail, exit code is from right side.
+input:
+  script: |+
+    false || false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

@@ -15,9 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/handler"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const twoCredentialsYAML = `
@@ -38,9 +40,23 @@ credentials:
     community_string: public
 `
 
-func newTestHandler(t *testing.T, credentials string) *Handler {
+// newTestConfig returns a configuration whose confd_path holds the given files
+// under snmp.d/credentials, keyed by their name.
+func newTestConfig(t *testing.T, files map[string]string) model.BuildableConfig {
 	t.Helper()
-	return NewHandler(newTestConfig(t, map[string]string{credentialsFilename: credentials}), logmock.New(t))
+	cfg := configmock.New(t)
+	confd := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(confd, credentials.Dir), 0o755))
+	for name, body := range files {
+		require.NoError(t, os.WriteFile(filepath.Join(confd, credentials.Dir, name), []byte(body), 0o600))
+	}
+	cfg.SetInTest("confd_path", confd)
+	return cfg
+}
+
+func newTestHandler(t *testing.T, credsYAML string) *Handler {
+	t.Helper()
+	return NewHandler(newTestConfig(t, map[string]string{credentials.Filename: credsYAML}), logmock.New(t))
 }
 
 const twoInstanceDocument = `{
@@ -83,6 +99,7 @@ func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
 		"init_config": {"oid_batch_size": 20, "collect_topology": false},
 		"instances": [{
 			"ip_address": "10.0.0.1",
+			"inventory_id": "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60",
 			"cred_id": "id-abc",
 			"port": 1161,
 			"timeout_sec": 5,
@@ -96,6 +113,7 @@ func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
 	require.Len(t, configs, 1)
 	assert.YAMLEq(t, "oid_batch_size: 20\ncollect_topology: false\n", string(configs[0].InitConfig))
 	instance := string(configs[0].Instances[0])
+	assert.Contains(t, instance, "inventory_id: 3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60")
 	assert.Contains(t, instance, "port: 1161")
 	assert.Contains(t, instance, "timeout: 5")
 	assert.Contains(t, instance, "profile: cisco-nexus")
@@ -209,7 +227,7 @@ func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 }
 
 func TestRenderPicksUpACredentialValueThatChangedInPlace(t *testing.T) {
-	cfg := newTestConfig(t, map[string]string{credentialsFilename: `
+	cfg := newTestConfig(t, map[string]string{credentials.Filename: `
 credentials:
   - id: id-abc
     name: cred-abc
@@ -223,7 +241,7 @@ credentials:
 	require.NoError(t, err)
 	assert.Contains(t, string(first[0].Instances[0]), "community_string: public")
 
-	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
+	path := filepath.Join(cfg.GetString("confd_path"), credentials.Dir, credentials.Filename)
 	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
 	second, err := h.Render("path-a", doc, nil)
@@ -233,8 +251,8 @@ credentials:
 
 func TestRenderIgnoresACredentialFileTheCustomerDroppedInTheDirectory(t *testing.T) {
 	h := NewHandler(newTestConfig(t, map[string]string{
-		credentialsFilename: "credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
-		"customer.yaml":     "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
+		credentials.Filename: "credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.yaml":      "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
 	}), logmock.New(t))
 	doc := `{"instances":[{"ip_address":"10.0.0.1","cred_id": "%s"}]}`
 

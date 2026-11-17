@@ -4,6 +4,7 @@ import sys
 from invoke import task
 from invoke.context import Context
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.releasing.version import get_version_numeric_only
 
@@ -13,7 +14,7 @@ WINDMC_TARGET = "@winlibs_mingw64//:windmc"
 _mingw_bin_dir = None
 
 
-def mingw_bin_dir(ctx: Context) -> str:
+def mingw_bin_dir(ctx: Context, fips_backend: FipsBackend) -> str:
     """Absolute path of the bin/ directory of the Bazel-managed MinGW toolchain.
 
     cquery both fetches @winlibs_mingw64 and resolves the tool path, so nothing
@@ -21,13 +22,15 @@ def mingw_bin_dir(ctx: Context) -> str:
     """
     global _mingw_bin_dir
     if _mingw_bin_dir is None:
-        windmc = bazel("cquery", "--output=files", WINDMC_TARGET, capture_output=True).strip()
-        execroot = bazel("info", "execution_root", capture_output=True).strip()
+        windmc = bazel(
+            "cquery", "--output=files", WINDMC_TARGET, capture_output=True, fips_backend=fips_backend
+        ).strip()
+        execroot = bazel("info", "execution_root", capture_output=True, fips_backend=fips_backend).strip()
         _mingw_bin_dir = os.path.dirname(os.path.join(execroot, windmc))
     return _mingw_bin_dir
 
 
-def _toolchain_env(ctx: Context, host_target: str) -> dict[str, str]:
+def _toolchain_env(ctx: Context, host_target: str, fips_backend: FipsBackend) -> dict[str, str]:
     """PATH override making the Bazel-managed windmc/windres reachable.
 
     Only on a Windows host: the WinLibs distribution is Windows-only, so a Linux
@@ -36,7 +39,7 @@ def _toolchain_env(ctx: Context, host_target: str) -> dict[str, str]:
     """
     if host_target or sys.platform != 'win32':
         return {}
-    return {"PATH": mingw_bin_dir(ctx) + os.pathsep + os.environ["PATH"]}
+    return {"PATH": mingw_bin_dir(ctx, fips_backend) + os.pathsep + os.environ["PATH"]}
 
 
 @task
@@ -44,6 +47,7 @@ def build_messagetable(
     ctx,
     target='pe-x86-64',
     host_target='',  # prefix of the toolchain used to cross-compile, for instance x86_64-w64-mingw32
+    fips_backend=FipsBackend.none,
 ):
     """
     Build the header and resource for the MESSAGETABLE shared between agent binaries.
@@ -61,12 +65,12 @@ def build_messagetable(
         windmc = host_target + "-" + windmc
 
     command = f"{windmc} --target {target} -r {root} -h {root} {messagefile}"
-    ctx.run(command, env=_toolchain_env(ctx, host_target))
+    ctx.run(command, env=_toolchain_env(ctx, host_target, fips_backend))
 
-    build_rc(ctx, f'{root}/messagestrings.rc', target=target, host_target=host_target)
+    build_rc(ctx, f'{root}/messagestrings.rc', target=target, host_target=host_target, fips_backend=fips_backend)
 
 
-def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target=''):
+def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target='', *, fips_backend: FipsBackend):
     if vars is None:
         vars = {}
 
@@ -87,7 +91,7 @@ def build_rc(ctx, rc_file, vars=None, out=None, target='pe-x86-64', host_target=
     for key, value in vars.items():
         command += f" --define {key}={value}"
 
-    ctx.run(command, env=_toolchain_env(ctx, host_target))
+    ctx.run(command, env=_toolchain_env(ctx, host_target, fips_backend))
 
 
 def versioninfo_vars(ctx):

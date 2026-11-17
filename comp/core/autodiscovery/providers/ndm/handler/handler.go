@@ -14,11 +14,29 @@ import (
 )
 
 // Handler owns one top-level key of the NDM Remote Configuration document.
+// Implementations must also implement Renderer or Snapshotter.
 type Handler interface {
 	// Key is the document key this handler owns, for example "snmp".
 	Key() string
+}
+
+// Renderer turns a document key into check configs for autodiscovery.
+type Renderer interface {
+	Handler
 
 	// Render turns the key's value into the configs to schedule for path. It
 	// must not block: the component holds its state lock.
 	Render(path string, raw json.RawMessage, siblings map[string]json.RawMessage) ([]integration.Config, error)
+}
+
+// Snapshotter applies a document key to a component that owns its own
+// scheduling, such as discovery.
+type Snapshotter interface {
+	Handler
+
+	// Snapshot receives, once per update, the value of Key() in every
+	// document that carries it, indexed by config path. A path absent from
+	// docs no longer carries the key and whatever it asked for is stopped. It
+	// returns the paths it could not apply, one error each.
+	Snapshot(docs map[string]json.RawMessage) map[string]error
 }

@@ -105,7 +105,7 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Context, request.Object, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
 	}
 }
 

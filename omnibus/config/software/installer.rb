@@ -40,10 +40,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  fips_args = fips_mode? ? "--fips-mode" : ""
-  if fips_mode?
-    add_msgo_to_env(env)
-  end
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
 
   if linux_target?
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
@@ -55,26 +52,6 @@ build do
       block do
         fips_check_binary_for_expected_symbol(File.join(install_dir, "bin", "installer", "installer"))
       end
-    end
-
-    # Build both packages and dump them where gitlab will upload them.
-    command "bazel build #{omnibazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
-    command "bazel cquery #{omnibazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
-    command "tar tvf $(bazel info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
-
-    # Copy both the .deb and .rpm out to artifact outputs
-    # In the package job, we'll compare these to the omnibus built packages and report the diffs
-    # When the diffs go away, we delete the package job and just use this one.
-    if ENV["OMNIBUS_PACKAGE_DIR"]
-      omnibus_package_dir = ENV["OMNIBUS_PACKAGE_DIR"]
-    elsif ENV["CI_PROJECT_DIR"]
-      ci_project_dir = ENV["CI_PROJECT_DIR"]
-      omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
-    end
-    if omnibus_package_dir
-      command "bazel run #{omnibazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
-        :live_stream => Omnibus.logger.live_stream(:info)
     end
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)

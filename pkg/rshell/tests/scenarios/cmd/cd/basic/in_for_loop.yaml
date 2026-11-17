@@ -1,0 +1,16 @@
+description: cd inside a for loop's body persists across iterations within the loop.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for d in a b; do cd $d; pwd; cd ..; done
+expect:
+  stdout_contains: ["/a", "/b"]
+  stdout_contains_windows: ["\\a", "\\b"]
+  stderr: ""
+  exit_code: 0

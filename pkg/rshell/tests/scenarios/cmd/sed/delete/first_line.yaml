@@ -1,0 +1,13 @@
+description: The D command deletes up to the first newline and restarts the cycle.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'N; P; D' input.txt
+expect:
+  stdout: "line1\nline2\nline3\n"
+  stderr: ""
+  exit_code: 0
