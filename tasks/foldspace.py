@@ -10,10 +10,10 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# DataDog/foldspace ryan.hall/churn-admission, the top of stack #126.
+# DataDog/foldspace ryan.hall/config-invalid, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "a8ff8fd3755ad5e095fbbb9c08097a837ed18746"
+FOLDSPACE_GIT_COMMIT = "09b1ef5653f0793607d0f9ec92c18c0afdc671f5"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
