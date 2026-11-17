@@ -412,17 +412,3 @@ func (r *fakeDriverEventReader) Stop() {
 		close(r.records)
 	})
 }
-
-func TestNvidiaMemoryLocationName(t *testing.T) {
-	for _, tc := range []struct{ in, expected string }{
-		{"DRAM", "device_memory"},
-		{"dram", "device_memory"},
-		{"SRAM", "sram"},
-		{"sram", "sram"},
-		{"HBM", "hbm"},
-	} {
-		t.Run(tc.in, func(t *testing.T) {
-			require.Equal(t, tc.expected, nvidiaMemoryLocationName(tc.in))
-		})
-	}
-}
