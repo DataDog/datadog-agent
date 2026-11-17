@@ -21,11 +21,9 @@ import (
 // These tests drive GetStaticTagsSlice, as Agent startup does, with the real Cluster Agent
 // client against a Cluster Agent that is up, down, wedged (accepts and never answers) or
 // blackholed (connections never complete), and assert the wall-clock time startup waits. The
-// budgets are shortened: testBudget stands for the 10s StartupRetryBudget and testLater for the
-// 1s later attempt. TestStartupProbe measures the same paths with the production budgets.
+// budget is shortened: testBudget stands for the 10s StartupRetryBudget. TestStartupProbe measures the same paths with the production budgets.
 const (
 	testBudget = 2 * time.Second
-	testLater  = 500 * time.Millisecond
 	// slack covers scheduling and the local TLS handshake.
 	slack = 400 * time.Millisecond
 )
@@ -37,10 +35,7 @@ func setupStartupTest(t *testing.T, onEKS bool) {
 	// The fake Cluster Agent's cluster ID and distribution land in the process-wide cache.
 	cache.Cache.Flush()
 	t.Cleanup(cache.Cache.Flush)
-	clusterinfo.SetupStartupForTest(t, testBudget, testLater, onEKS)
-	origBudget := fargateStartupBudget
-	t.Cleanup(func() { fargateStartupBudget = origBudget })
-	fargateStartupBudget = testBudget
+	clusterinfo.SetupStartupForTest(t, testBudget, onEKS)
 }
 
 func timedStaticTags(t *testing.T, state string, onEKS, fargate bool) (time.Duration, bool) {
@@ -100,9 +95,9 @@ func TestStartupEKSNodeLaterCallersDoNotWaitAgain(t *testing.T) {
 }
 
 func TestStartupFargateSidecarWaitsAtMostOneBudget(t *testing.T) {
-	// The cluster ID call and the identity call share one deadline and run at the same time:
-	// startup waits once, and a Cluster Agent that hangs on the cluster ID does not starve the
-	// identity call.
+	// The cluster ID call and the identity call run at the same time, each bounded to the
+	// startup budget: startup waits once, and a Cluster Agent that hangs on the cluster ID does
+	// not starve the identity call.
 	for _, state := range append(allClusterAgentStates, dcaWedgedClusterID) {
 		t.Run(state, func(t *testing.T) {
 			elapsed, identity := timedStaticTags(t, state, true, true)
@@ -113,8 +108,8 @@ func TestStartupFargateSidecarWaitsAtMostOneBudget(t *testing.T) {
 }
 
 func TestStartupFargateSidecarBudgetWithoutCallerDeadline(t *testing.T) {
-	// The caller passes a ctx without a deadline, as DogStatsD does. The shared deadline alone
-	// must bound both calls, so giving either one its own budget fails this test.
+	// The caller passes a ctx without a deadline, as DogStatsD does. Each call must bound itself
+	// to the startup budget: a call that waited on the caller's ctx would never return.
 	cfg := setupStartupNode(t, fakeClusterAgent(t, dcaWedged, true), true)
 	setupStartupTest(t, true)
 	start := time.Now()

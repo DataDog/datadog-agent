@@ -7,7 +7,6 @@ package tags
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
@@ -18,5 +17,5 @@ import (
 func setStartupEKSEvidence(t *testing.T, onEKS bool) {
 	t.Helper()
 	clusteragent.ResetGlobalClusterAgentClientForTest()
-	clusterinfo.SetupStartupForTest(t, clusterinfo.StartupRetryBudget, time.Second, onEKS)
+	clusterinfo.SetupStartupForTest(t, clusterinfo.StartupRetryBudget, onEKS)
 }

@@ -180,7 +180,7 @@ func TestGetEKSClusterIdentityNodeStopsOnCachedFailure(t *testing.T) {
 	ipcmock.New(t)
 	clusteragent.ResetGlobalClusterAgentClientForTest()
 	t.Cleanup(clusteragent.ResetGlobalClusterAgentClientForTest)
-	clusterinfo.SetupStartupForTest(t, 3*time.Second, 500*time.Millisecond, true)
+	clusterinfo.SetupStartupForTest(t, 3*time.Second, true)
 
 	start := time.Now()
 	_, err := clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry(context.Background())

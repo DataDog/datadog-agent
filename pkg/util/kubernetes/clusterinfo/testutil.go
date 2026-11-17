@@ -8,30 +8,27 @@
 package clusterinfo
 
 import (
-	"context"
 	"testing"
 	"time"
 )
 
-// SetupStartupForTest resets the process-wide startup lookup and shortens its budgets for the
-// duration of the test, so tests in other packages can drive the real startup path with a real
-// Cluster Agent client. onEKS sets the local EKS evidence.
-func SetupStartupForTest(t testing.TB, budget, later time.Duration, onEKS bool) {
+// SetupStartupForTest resets the process-wide startup fetches and shortens the startup budget for
+// the duration of the test, so tests in other packages can drive the real startup path with a
+// real Cluster Agent client. onEKS sets the local EKS evidence.
+func SetupStartupForTest(t testing.TB, budget time.Duration, onEKS bool) {
 	t.Helper()
-	origBudget, origLater, origEvidence := startupRetryBudget, laterAttemptTimeout, hasEKSEvidence
+	origBudget, origEvidence := startupRetryBudget, hasEKSEvidence
 	reset := func() {
-		_ = startupIdentity.lock.Acquire(context.Background(), 1)
-		defer startupIdentity.lock.Release(1)
-		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
-		startupIdentity.lastErr, startupIdentity.lastErrAt = nil, time.Time{}
-		identityCall.reset()
+		startupFetch.mu.Lock()
+		startupFetch.f = nil
+		startupFetch.mu.Unlock()
 		clusterIDCall.reset()
 	}
 	reset()
-	startupRetryBudget, laterAttemptTimeout = budget, later
+	startupRetryBudget = budget
 	hasEKSEvidence = func() bool { return onEKS }
 	t.Cleanup(func() {
 		reset()
-		startupRetryBudget, laterAttemptTimeout, hasEKSEvidence = origBudget, origLater, origEvidence
+		startupRetryBudget, hasEKSEvidence = origBudget, origEvidence
 	})
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/cenkalti/backoff/v7"
-	"golang.org/x/sync/semaphore"
 )
 
 var errIncompleteIdentity = errors.New("cluster agent returned incomplete EKS identity")
@@ -34,27 +33,26 @@ const StartupRetryBudget = 10 * time.Second
 // Startup budgets. Variables only so that tests can shorten them.
 var (
 	startupRetryBudget = StartupRetryBudget
-	// laterAttemptTimeout bounds the single attempt made once the startup budget is spent, so a
-	// later caller (another startup component) never waits long on a Cluster Agent that hangs.
-	laterAttemptTimeout = time.Second
-	// startupFailureTTL is how long a failed startup lookup is reused. The tagger, DogStatsD and
-	// OTLP compute their static tags within seconds of each other, so once the budget is spent
-	// the callers right after it return the same failure at once.
-	startupFailureTTL = 5 * time.Second
 	// attemptTimeout bounds one Cluster Agent call that callers share (see sharedCall).
 	attemptTimeout = 10 * time.Second
 )
 
-// startupIdentity is shared by every GetClusterAgentEKSIdentityTagsWithRetry caller in the process.
-// lock is a one-slot semaphore rather than a mutex so that a caller waiting for the in-flight
-// lookup can give up when its own ctx is done.
-var startupIdentity = struct {
-	lock        *semaphore.Weighted
-	tags        []string
-	budgetSpent bool
-	lastErr     error
-	lastErrAt   time.Time
-}{lock: semaphore.NewWeighted(1)}
+// startupFetch is the one background fetch of the identity in this process, started by the first
+// GetClusterAgentEKSIdentityTagsWithRetry call.
+var startupFetch struct {
+	mu sync.Mutex
+	f  *identityFetch
+}
+
+// identityFetch is one fetch of the identity, bounded to startupRetryBudget and retried within
+// it. It does not belong to the caller that started it: it runs on its own context, so a caller
+// that leaves early neither fails nor shortens it. Its result is final for the process.
+type identityFetch struct {
+	ctx  context.Context // ends when the budget is spent or the fetch is over
+	done chan struct{}   // closed once tags and err are set
+	tags []string
+	err  error
+}
 
 var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
 	client, err := clusteragent.GetClusterAgentClient()
@@ -159,85 +157,65 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-// identityCall is the one Cluster Agent identity call in flight for the process.
-var identityCall sharedCall[[]string]
-
-// GetClusterAgentEKSIdentityTagsWithRetry fetches the EKS identity tags with a short constant
-// backoff. Callers check HasEKSEvidence first. The static-tags paths compute tags exactly once at
-// Agent startup, where the node Agent routinely becomes ready before the Cluster Agent is
-// reachable; without a retry a single cold-start miss would leave eks_cluster_arn permanently
-// absent from container tags and APM spans for the life of the process. Only failures to get an
-// answer are retried: once the Cluster Agent answers (404 on non-EKS clusters or an older
-// Cluster Agent, 503 when DescribeCluster fails, or an identity without a valid ARN), the
-// answer will not change within the window, and retrying it would block every caller for the
-// full budget on each startup. The one exception is an answer the Cluster Agent marks with
-// identity.RetryLaterHeader: it has not determined the identity yet. The host-metadata provider
-// path, which re-runs on its own refresh interval and is self-healing, keeps using the
-// non-retrying call above with a single attempt.
+// GetClusterAgentEKSIdentityTagsWithRetry returns the EKS identity tags from a single background
+// fetch per process. Callers check HasEKSEvidence first. The first call starts the fetch and
+// every call, concurrent or later, waits for it on its own ctx. The static-tags paths compute
+// tags exactly once at Agent startup, where the node Agent routinely becomes ready before the
+// Cluster Agent is reachable; without a retry a single cold-start miss would leave
+// eks_cluster_arn absent from container tags and APM spans.
 //
-// Several startup components (the tagger, DogStatsD, OTLP) compute static tags, so the retry
-// budget is spent at most once per process: concurrent callers wait for the in-flight lookup, a
-// success is reused, a failure is reused for startupFailureTTL, and once the budget is spent
-// later callers make a single attempt of at most laterAttemptTimeout. Each Cluster Agent call
-// runs in its own goroutine and callers select on their ctx, so these bounds hold even though
-// the Cluster Agent client's initialization does not take a ctx.
+// The fetch is bounded to StartupRetryBudget and retries with a short constant backoff within
+// it. Only failures to get an answer are retried: once the Cluster Agent answers (404 on non-EKS
+// clusters or an older Cluster Agent, 503 when DescribeCluster fails, or an identity without a
+// valid ARN), the answer will not change within the window, and retrying it would block every
+// caller for the full budget on each startup. The one exception is an answer the Cluster Agent
+// marks with identity.RetryLaterHeader: it has not determined the identity yet. What the fetch
+// ends with, tags or error, is final for the process. The host-tags provider re-runs on its own
+// refresh interval and repairs a later miss, with a single attempt per refresh.
+//
+// The fetch uses no caller's ctx, so a caller that leaves early neither fails nor shortens it,
+// and the budget is spent once however many startup components (the tagger, DogStatsD, OTLP)
+// ask. A caller whose ctx ends first gets ctx.Err(). Callers also stop waiting when the budget
+// is spent, so the bound holds even though the Cluster Agent client's initialization takes no
+// ctx.
 func GetClusterAgentEKSIdentityTagsWithRetry(ctx context.Context) ([]string, error) {
-	if err := startupIdentity.lock.Acquire(ctx, 1); err != nil {
-		return nil, err
+	f := startIdentityFetch()
+	select {
+	case <-f.done:
+	case <-f.ctx.Done(): // the budget is spent, though an attempt may still hang in the client
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	defer startupIdentity.lock.Release(1)
+	select {
+	case <-f.done:
+		return slices.Clone(f.tags), f.err
+	default:
+		return nil, f.ctx.Err()
+	}
+}
 
-	if startupIdentity.tags != nil {
-		return slices.Clone(startupIdentity.tags), nil
+// startIdentityFetch starts the process's fetch on the first call and returns it.
+func startIdentityFetch() *identityFetch {
+	startupFetch.mu.Lock()
+	defer startupFetch.mu.Unlock()
+	if startupFetch.f == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), startupRetryBudget)
+		f := &identityFetch{ctx: ctx, done: make(chan struct{})}
+		startupFetch.f = f
+		go func() {
+			defer cancel()
+			f.tags, f.err = backoff.Retry(ctx, func() ([]string, error) {
+				tags, err := GetClusterAgentEKSIdentityTags(ctx)
+				var statusErr *clusteragent.StatusError
+				if (errors.As(err, &statusErr) && !statusErr.RetryLater) || errors.Is(err, errIncompleteIdentity) {
+					return nil, backoff.Permanent(err)
+				}
+				return tags, err
+			}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
+			close(f.done)
+		}()
 	}
-	if startupIdentity.lastErr != nil && time.Since(startupIdentity.lastErrAt) < startupFailureTTL {
-		return nil, startupIdentity.lastErr
-	}
-
-	callerCtx := ctx
-	budget := startupRetryBudget
-	if startupIdentity.budgetSpent {
-		budget = laterAttemptTimeout
-	}
-	ctx, cancel := context.WithTimeout(ctx, budget)
-	defer cancel()
-
-	attempt := func() ([]string, error) {
-		return identityCall.Do(ctx, func(callCtx context.Context) ([]string, error) {
-			return GetClusterAgentEKSIdentityTags(callCtx)
-		})
-	}
-	var tags []string
-	var err error
-	if startupIdentity.budgetSpent {
-		tags, err = attempt()
-	} else {
-		startupIdentity.budgetSpent = true
-		backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
-		var lastAnswer error
-		tags, err = backoff.Retry(ctx, func() ([]string, error) {
-			tags, err := attempt()
-			if err != nil && ctx.Err() != nil && lastAnswer != nil {
-				// The budget ran out during this attempt: report why the earlier ones failed.
-				return nil, backoff.Permanent(lastAnswer)
-			}
-			lastAnswer = err
-			var statusErr *clusteragent.StatusError
-			if (errors.As(err, &statusErr) && !statusErr.RetryLater) || errors.Is(err, errIncompleteIdentity) {
-				return nil, backoff.Permanent(err)
-			}
-			return tags, err
-		}, backoff.WithBackOff(backoffPolicy))
-	}
-	if err != nil {
-		// A caller that stopped early (its own ctx) says nothing about the Cluster Agent.
-		if callerCtx.Err() == nil {
-			startupIdentity.lastErr, startupIdentity.lastErrAt = err, time.Now()
-		}
-		return nil, err
-	}
-	startupIdentity.tags = tags
-	return slices.Clone(tags), nil
+	return startupFetch.f
 }
 
 // sharedCall runs one call at a time in its own goroutine and lets every caller wait for it on

@@ -35,7 +35,6 @@ var (
 	getClusterAgentEKSIdentityTags = clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry
 	getClusterAgentEKSIdentity     = func(context.Context) []string { return nil }
 	hasEKSEvidence                 = clusterinfo.HasEKSEvidence
-	fargateStartupBudget           = clusterinfo.StartupRetryBudget
 )
 
 // SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
@@ -82,19 +81,16 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 		}
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
-			// Both Cluster Agent calls share one startup budget and run at the same time, so an
-			// unreachable Cluster Agent delays sidecar startup once, and a Cluster Agent that
-			// hangs on the cluster ID cannot starve the identity call. With
-			// DD_ORCHESTRATOR_CLUSTER_ID set the static tags call does not contact the Cluster
-			// Agent.
-			budgetCtx, cancel := context.WithTimeout(ctx, fargateStartupBudget)
-			defer cancel()
-
+			// The cluster ID call and the identity call run at the same time and each is bounded
+			// to the startup budget, so an unreachable Cluster Agent delays sidecar startup
+			// once, and a Cluster Agent that hangs on the cluster ID cannot starve the identity
+			// call. With DD_ORCHESTRATOR_CLUSTER_ID set the static tags call does not contact
+			// the Cluster Agent.
 			var clusterAgentStaticTags, eksIdentityTags []string
 			var staticErr, identityErr error
 			var wg sync.WaitGroup
-			wg.Go(func() { clusterAgentStaticTags, staticErr = getClusterAgentStaticTags(budgetCtx) })
-			wg.Go(func() { eksIdentityTags, identityErr = getClusterAgentEKSIdentityTags(budgetCtx) })
+			wg.Go(func() { clusterAgentStaticTags, staticErr = getClusterAgentStaticTags(ctx) })
+			wg.Go(func() { eksIdentityTags, identityErr = getClusterAgentEKSIdentityTags(ctx) })
 			wg.Wait()
 
 			if staticErr == nil {

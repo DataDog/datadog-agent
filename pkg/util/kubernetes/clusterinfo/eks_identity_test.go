@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -31,11 +32,9 @@ import (
 func resetStartupIdentity(t *testing.T) {
 	t.Helper()
 	reset := func() {
-		_ = startupIdentity.lock.Acquire(context.Background(), 1)
-		defer startupIdentity.lock.Release(1)
-		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
-		startupIdentity.lastErr, startupIdentity.lastErrAt = nil, time.Time{}
-		identityCall.reset()
+		startupFetch.mu.Lock()
+		startupFetch.f = nil
+		startupFetch.mu.Unlock()
 	}
 	reset()
 	t.Cleanup(reset)
@@ -192,71 +191,49 @@ func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
 		t.Cleanup(func() { getEKSClusterIdentity = original })
 		resetStartupIdentity(t)
 		unreachable := pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "dial tcp 10.0.0.1:5005: connect: connection refused")
-		calls := 0
+		var calls atomic.Int32
 		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-			calls++
+			calls.Add(1)
 			return nil, unreachable
 		}
 
 		start := time.Now()
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		assert.ErrorIs(t, err, unreachable)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
 		assert.Equal(t, StartupRetryBudget, time.Since(start))
-		// Let an attempt started at the deadline end in the background.
 		synctest.Wait()
-		assert.Greater(t, calls, 1)
+		assert.Greater(t, calls.Load(), int32(1))
 
-		// Later startup callers (DogStatsD, OTLP) right after get the same answer at once,
-		// without asking the unreachable Cluster Agent again.
+		// Later startup callers (DogStatsD, OTLP) get the same answer at once, without asking
+		// the unreachable Cluster Agent again.
 		for range 2 {
-			callsBefore := calls
+			before := calls.Load()
 			start = time.Now()
 			_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-			assert.ErrorIs(t, err, unreachable)
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
 			assert.Zero(t, time.Since(start))
-			assert.Equal(t, callsBefore, calls)
+			assert.Equal(t, before, calls.Load())
 		}
-
-		// After a short while, a later caller makes one attempt again.
-		time.Sleep(startupFailureTTL)
-		callsBefore := calls
-		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		assert.ErrorIs(t, err, unreachable)
-		assert.Equal(t, callsBefore+1, calls)
 	})
 }
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T) {
+func TestGetClusterAgentEKSIdentityTagsWithRetryStopsWaitingWhenTheBudgetIsSpent(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		original := getEKSClusterIdentity
 		t.Cleanup(func() { getEKSClusterIdentity = original })
 		resetStartupIdentity(t)
-		reachable := false
-		calls := 0
+		// An attempt that outlives the budget, as the Cluster Agent client's initialization
+		// can: it takes no ctx. Callers still stop waiting at the budget.
 		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-			calls++
-			if !reachable {
-				return nil, errors.New("temporary failure in clusterAgentClient")
-			}
+			time.Sleep(3 * StartupRetryBudget)
 			return ordersIdentity, nil
 		}
-
-		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.Error(t, err)
-		// Let an attempt started at the deadline end in the background.
+		start := time.Now()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, StartupRetryBudget, time.Since(start))
+		time.Sleep(3 * StartupRetryBudget)
 		synctest.Wait()
-
-		time.Sleep(startupFailureTTL)
-		reachable = true
-		callsBefore := calls
-		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.NoError(t, err)
-		assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
-		assert.Equal(t, callsBefore+1, calls)
-
-		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.NoError(t, err)
-		assert.Equal(t, callsBefore+1, calls)
 	})
 }
 
@@ -421,7 +398,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryHonorsCallerContext(t *testing.T
 		_, err := GetClusterAgentEKSIdentityTagsWithRetry(ctx)
 		require.Error(t, err)
 		assert.Equal(t, 2*time.Second, time.Since(start))
-		synctest.Wait()
+		drainFetch()
 	})
 }
 
@@ -454,35 +431,6 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryWaiterHonorsItsContext(t *testin
 	})
 }
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryBoundsLaterAttempts(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		original := getEKSClusterIdentity
-		t.Cleanup(func() { getEKSClusterIdentity = original })
-		resetStartupIdentity(t)
-		hang := false
-		getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
-			if hang {
-				<-ctx.Done()
-				return nil, ctx.Err()
-			}
-			return nil, errors.New("connection refused")
-		}
-		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.Error(t, err)
-		synctest.Wait()
-
-		// Once the budget is spent, a later caller makes one attempt with a short timeout.
-		time.Sleep(startupFailureTTL)
-		hang = true
-		start := time.Now()
-		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
-		require.Error(t, err)
-		assert.Equal(t, laterAttemptTimeout, time.Since(start))
-		// Let the hanging shared call end before the bubble does.
-		time.Sleep(attemptTimeout)
-	})
-}
-
 func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesNotDeterminedYet(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		original := getEKSClusterIdentity
@@ -508,4 +456,69 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesNotDeterminedYet(t *testi
 		assert.Equal(t, 3, calls)
 		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryCallerLeavingEarlyDoesNotSpendTheBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		// The Cluster Agent answers only after 3s of refusing connections.
+		start := time.Now()
+		var calls atomic.Int32
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls.Add(1)
+			if time.Since(start) < 3*time.Second {
+				return nil, errors.New("connection refused")
+			}
+			return ordersIdentity, nil
+		}
+
+		// Caller A has a 50ms ctx and leaves. The fetch is not A's: it goes on.
+		ctxA, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(ctxA)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		// Caller B has no deadline and gets the identity: A's departure neither failed nor
+		// shortened the fetch, and B did not start a second one.
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry(context.Background())
+		require.NoError(t, err)
+		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
+		assert.Equal(t, 3*time.Second, time.Since(start))
+		synctest.Wait()
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryResultIsFinalForTheProcess(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		var calls atomic.Int32
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls.Add(1)
+			return nil, errors.New("connection refused")
+		}
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		require.Error(t, err)
+		synctest.Wait()
+		before := calls.Load()
+
+		// Whatever the fetch ended with is what later callers get, with no new call: host
+		// metadata repairs a later miss.
+		time.Sleep(time.Minute)
+		start := time.Now()
+		_, err = GetClusterAgentEKSIdentityTagsWithRetry(t.Context())
+		require.Error(t, err)
+		assert.Zero(t, time.Since(start))
+		assert.Equal(t, before, calls.Load())
+	})
+}
+
+// drainFetch lets the background fetch of a synctest bubble run out its budget, which a bubble
+// needs before it can end.
+func drainFetch() {
+	time.Sleep(startupRetryBudget + time.Second)
+	synctest.Wait()
 }
