@@ -5,9 +5,10 @@
 
 //go:build linux
 
-package portlist
+package sockdiag
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -22,14 +23,14 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
-)
 
-var errForcedSockDiag = errors.New("forced sock_diag failure")
+	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
+)
 
 // testSock is a raw TCP socket opened by a test.
 type testSock struct {
 	fd    int
-	inode string // "socket:[N]", the key used by linuxImpl.known
+	inode string // "socket:[N]", as in /proc/<pid>/fd
 	port  uint16
 }
 
@@ -195,64 +196,90 @@ func requireRoot(tb testing.TB) {
 	}
 }
 
-// pollKnown runs one AppendListeningPorts in TCPOnly mode with sock_diag
-// either required or forced to fail, and returns the per-inode entries and
-// the final list.
-func pollKnown(t *testing.T, includeLocalhost, useSockDiag bool) (map[string]string, []string) {
+// procNetListenInodes returns the "socket:[N]" keys of every LISTEN row in
+// /proc/net/tcp and /proc/net/tcp6.
+func procNetListenInodes(t *testing.T) map[string]bool {
 	t.Helper()
-	setTCPDiagPresent(t, true)
-	orig := dumpTCPListeners
-	defer func() { dumpTCPListeners = orig }()
-	var dumpErr error
-	dumped := false
-	if useSockDiag {
-		dumpTCPListeners = func() ([]sockDiagListener, error) {
-			ls, err := orig()
-			dumped, dumpErr = true, err
-			return ls, err
+	out := map[string]bool{}
+	for _, name := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		f, err := os.Open(name)
+		if os.IsNotExist(err) {
+			continue
 		}
-	} else {
-		dumpTCPListeners = func() ([]sockDiagListener, error) { return nil, errForcedSockDiag }
+		if err != nil {
+			t.Fatal(err)
+		}
+		sc := bufio.NewScanner(f)
+		sc.Scan() // header
+		for sc.Scan() {
+			fields := strings.Fields(sc.Text())
+			if len(fields) > 9 && fields[3] == "0A" {
+				out["socket:["+fields[9]+"]"] = true
+			}
+		}
+		f.Close()
+		if err := sc.Err(); err != nil {
+			t.Fatal(err)
+		}
 	}
+	return out
+}
 
-	li := newLinuxImpl(includeLocalhost, true)
-	ports, err := li.AppendListeningPorts(nil)
+// dumpByInode runs one real sock_diag dump through TCPListeners, keyed like
+// procNetListenInodes.
+func dumpByInode(t *testing.T) map[string]portlist.TCPListener {
+	t.Helper()
+	resetSockDiagLatch(t)
+	ls, err := TCPListeners()
 	if err != nil {
-		t.Fatalf("AppendListeningPorts: %v", err)
+		t.Fatalf("sock_diag dump failed: %v", err)
 	}
-	if dumpErr != nil {
-		t.Fatalf("sock_diag dump failed: %v", dumpErr)
+	out := make(map[string]portlist.TCPListener, len(ls))
+	for _, l := range ls {
+		out["socket:["+strconv.FormatUint(uint64(l.Inode), 10)+"]"] = l
 	}
-	if useSockDiag && !dumped {
-		t.Fatal("sock_diag was not attempted (latched off?)")
+	return out
+}
+
+// pollList runs one TCPOnly poll, via sock_diag or /proc/net only.
+func pollList(t *testing.T, includeLocalhost, useSockDiag bool) []string {
+	t.Helper()
+	p := &portlist.Poller{IncludeLocalhost: includeLocalhost, TCPOnly: true}
+	if useSockDiag {
+		resetSockDiagLatch(t)
+		p.TCPListeners = func() ([]portlist.TCPListener, error) {
+			ls, err := TCPListeners()
+			if err != nil {
+				t.Fatalf("sock_diag dump failed: %v", err)
+			}
+			return ls, nil
+		}
 	}
-	known := make(map[string]string, len(li.known))
-	for ino, pm := range li.known {
-		known[ino] = fmtPort(pm.port)
+	ports, _, err := p.Poll()
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
 	}
 	list := make([]string, len(ports))
 	for i, p := range ports {
 		list[i] = fmtPort(p)
 	}
-	return known, list
+	return list
 }
 
-func fmtPort(p Port) string {
+func fmtPort(p portlist.Port) string {
 	return fmt.Sprintf("%s %s %d pid=%d %s", p.Proto, p.IP, p.Port, p.Pid, p.Process)
 }
 
-func mapDiff(want, got map[string]string) string {
+func setDiff(procfs map[string]bool, sd map[string]portlist.TCPListener) string {
 	var b strings.Builder
-	for k, v := range want {
-		if g, ok := got[k]; !ok {
-			fmt.Fprintf(&b, "  only procfs: %s %s\n", k, v)
-		} else if g != v {
-			fmt.Fprintf(&b, "  differs: %s procfs=%q sock_diag=%q\n", k, v, g)
+	for k := range procfs {
+		if _, ok := sd[k]; !ok {
+			fmt.Fprintf(&b, "  only procfs: %s\n", k)
 		}
 	}
-	for k, v := range got {
-		if _, ok := want[k]; !ok {
-			fmt.Fprintf(&b, "  only sock_diag: %s %s\n", k, v)
+	for k, l := range sd {
+		if !procfs[k] {
+			fmt.Fprintf(&b, "  only sock_diag: %s %s:%d\n", k, l.IP, l.Port)
 		}
 	}
 	return b.String()
@@ -395,112 +422,62 @@ func TestSockDiagMatchesProcNet(t *testing.T) {
 		t.Log("not root: skipping the other-namespace listeners")
 	}
 
-	for _, includeLocalhost := range []bool{true, false} {
-		t.Run(fmt.Sprintf("includeLocalhost=%v", includeLocalhost), func(t *testing.T) {
-			// Other processes on the host may change listeners between the
-			// two reads, so allow a few attempts to get a consistent pair.
-			var sdKnown map[string]string
-			var diff string
-			for attempt := 0; attempt < 5; attempt++ {
-				pfKnown, pfList := pollKnown(t, includeLocalhost, false)
-				var sdList []string
-				sdKnown, sdList = pollKnown(t, includeLocalhost, true)
-				diff = mapDiff(pfKnown, sdKnown)
-				if !slices.Equal(pfList, sdList) {
-					diff += fmt.Sprintf("  lists differ:\n    procfs:    %q\n    sock_diag: %q\n", pfList, sdList)
-				}
-				if diff == "" {
-					break
-				}
-			}
-			if diff != "" {
-				t.Fatalf("sock_diag and /proc/net disagree:\n%s", diff)
-			}
-
-			pid := os.Getpid()
-			for _, w := range want {
-				got, ok := sdKnown[w.s.inode]
-				if !includeLocalhost && w.localhost {
-					if ok {
-						t.Errorf("%s (%s:%d) should be filtered as localhost, got %s", w.s.inode, w.ip, w.s.port, got)
-					}
-					continue
-				}
-				if !ok {
-					t.Errorf("missing listener %s %s:%d", w.s.inode, w.ip, w.s.port)
-					continue
-				}
-				if prefix := fmt.Sprintf("tcp %s %d pid=%d ", w.ip, w.s.port, pid); len(got) < len(prefix) || got[:len(prefix)] != prefix {
-					t.Errorf("listener %s: got %q, want prefix %q", w.s.inode, got, prefix)
-				}
-			}
-			for _, s := range excluded {
-				if got, ok := sdKnown[s.inode]; ok {
-					t.Errorf("non-listening or other-namespace socket %s reported: %s", s.inode, got)
-				}
-			}
-			for k, v := range sdKnown {
-				if v[:4] != "tcp " {
-					t.Errorf("non-TCP entry %s: %s", k, v)
-				}
-			}
-		})
-	}
-}
-
-func TestTCPOnlyFallsBackToProcNet(t *testing.T) {
-	l, err := openTCP(netip.MustParseAddr("127.0.0.1"), 0, sockOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer closeNoTimeWait(l.fd)
-	u, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer u.Close()
-
-	setTCPDiagPresent(t, true)
-	orig := dumpTCPListeners
-	defer func() { dumpTCPListeners = orig }()
-	calls := 0
-	dumpTCPListeners = func() ([]sockDiagListener, error) {
-		calls++
-		return nil, errForcedSockDiag
-	}
-
+	// Other processes on the host may change listeners between two reads, so
+	// allow a few attempts to get a consistent pair.
+	var sd map[string]portlist.TCPListener
 	var diff string
 	for attempt := 0; attempt < 5; attempt++ {
-		got, _, err := (&Poller{IncludeLocalhost: true, TCPOnly: true}).Poll()
-		if err != nil {
-			t.Fatal(err)
-		}
-		all, _, err := (&Poller{IncludeLocalhost: true}).Poll()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var want []Port
-		for _, p := range all {
-			if p.Proto == "tcp" {
-				want = append(want, p)
-			}
-		}
-		diff = ""
-		if !slices.EqualFunc(want, got, func(a, b Port) bool { return a == b }) {
-			diff = fmt.Sprintf("want %v\ngot  %v", want, got)
-		}
-		if diff == "" {
-			if !slices.ContainsFunc(got, func(p Port) bool { return p.Port == l.port && p.Pid == os.Getpid() }) {
-				t.Fatalf("fallback result is missing our listener on port %d: %v", l.port, got)
-			}
+		pf := procNetListenInodes(t)
+		sd = dumpByInode(t)
+		if diff = setDiff(pf, sd); diff == "" {
 			break
 		}
 	}
 	if diff != "" {
-		t.Fatalf("fallback differs from /proc/net TCP entries:\n%s", diff)
+		t.Fatalf("sock_diag and /proc/net disagree:\n%s", diff)
 	}
-	if calls == 0 {
-		t.Fatal("sock_diag path was never attempted")
+	for _, w := range want {
+		l, ok := sd[w.s.inode]
+		if !ok {
+			t.Errorf("missing listener %s %s:%d", w.s.inode, w.ip, w.s.port)
+			continue
+		}
+		if l.IP != w.ip || l.Port != w.s.port || l.Loopback != w.localhost {
+			t.Errorf("listener %s: got %s:%d loopback=%v, want %s:%d loopback=%v", w.s.inode, l.IP, l.Port, l.Loopback, w.ip, w.s.port, w.localhost)
+		}
+	}
+	for _, s := range excluded {
+		if l, ok := sd[s.inode]; ok {
+			t.Errorf("non-listening or other-namespace socket %s reported: %s:%d", s.inode, l.IP, l.Port)
+		}
+	}
+
+	pid := os.Getpid()
+	for _, includeLocalhost := range []bool{true, false} {
+		t.Run(fmt.Sprintf("includeLocalhost=%v", includeLocalhost), func(t *testing.T) {
+			var pfList, sdList []string
+			for attempt := 0; attempt < 5; attempt++ {
+				pfList = pollList(t, includeLocalhost, false)
+				sdList = pollList(t, includeLocalhost, true)
+				if slices.Equal(pfList, sdList) {
+					break
+				}
+			}
+			if !slices.Equal(pfList, sdList) {
+				t.Fatalf("poll results differ:\n  procfs:    %q\n  sock_diag: %q", pfList, sdList)
+			}
+			for _, w := range want {
+				prefix := fmt.Sprintf("tcp %s %d pid=%d ", w.ip, w.s.port, pid)
+				found := slices.ContainsFunc(sdList, func(e string) bool { return strings.HasPrefix(e, prefix) })
+				if !includeLocalhost && w.localhost {
+					if found {
+						t.Errorf("%s (%s:%d) should be filtered as localhost", w.s.inode, w.ip, w.s.port)
+					}
+				} else if !found {
+					t.Errorf("poll is missing %s, want prefix %q in %q", w.s.inode, prefix, sdList)
+				}
+			}
+		})
 	}
 }
 
@@ -574,9 +551,9 @@ func TestRecvInetDiag(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []sockDiagListener{
-			{ip: lo4, port: 80, inode: 1},
-			{ip: netip.IPv6Loopback(), port: 82, inode: 3, loopback: true},
+		want := []portlist.TCPListener{
+			{IP: lo4, Port: 80, Inode: 1},
+			{IP: netip.IPv6Loopback(), Port: 82, Inode: 3, Loopback: true},
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("got %+v, want %+v", got, want)
@@ -664,15 +641,14 @@ func TestSockDiagLatch(t *testing.T) {
 			orig := dumpTCPListeners
 			defer func() { dumpTCPListeners = orig }()
 			calls := 0
-			dumpTCPListeners = func() ([]sockDiagListener, error) {
+			dumpTCPListeners = func() ([]portlist.TCPListener, error) {
 				calls++
 				return nil, tc.err
 			}
-			li := newLinuxImpl(true, true)
 			const polls = 3
 			for i := 0; i < polls; i++ {
-				if _, err := li.AppendListeningPorts(nil); err != nil {
-					t.Fatal(err)
+				if _, err := TCPListeners(); err == nil {
+					t.Fatal("expected an error")
 				}
 			}
 			want := polls
@@ -696,16 +672,12 @@ func TestSockDiagRequiresTCPDiag(t *testing.T) {
 	orig := dumpTCPListeners
 	defer func() { dumpTCPListeners = orig }()
 	calls := 0
-	dumpTCPListeners = func() ([]sockDiagListener, error) {
+	dumpTCPListeners = func() ([]portlist.TCPListener, error) {
 		calls++
 		return nil, nil
 	}
-	li := newLinuxImpl(true, true)
 	for i := 0; i < 3; i++ {
-		if _, err := li.AppendListeningPorts(nil); err != nil {
-			t.Fatal(err)
-		}
-		if err := li.appendSockDiagListeners(); err != errNoTCPDiag {
+		if _, err := TCPListeners(); err != errNoTCPDiag {
 			t.Fatalf("err = %v, want errNoTCPDiag", err)
 		}
 	}
@@ -717,7 +689,7 @@ func TestSockDiagRequiresTCPDiag(t *testing.T) {
 	}
 
 	present = true
-	if err := li.appendSockDiagListeners(); err != nil {
+	if _, err := TCPListeners(); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 1 {
@@ -729,7 +701,7 @@ func TestSockDiagLatchConcurrent(t *testing.T) {
 	resetSockDiagLatch(t)
 	orig := dumpTCPListeners
 	defer func() { dumpTCPListeners = orig }()
-	dumpTCPListeners = func() ([]sockDiagListener, error) {
+	dumpTCPListeners = func() ([]portlist.TCPListener, error) {
 		return nil, fmt.Errorf("sock_diag request: %w", unix.ENOENT)
 	}
 	var wg sync.WaitGroup
@@ -737,9 +709,8 @@ func TestSockDiagLatchConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			li := newLinuxImpl(true, true)
 			for j := 0; j < 5; j++ {
-				if err := li.appendSockDiagListeners(); err == nil {
+				if _, err := TCPListeners(); err == nil {
 					t.Error("expected an error")
 				}
 			}
@@ -751,7 +722,7 @@ func TestSockDiagLatchConcurrent(t *testing.T) {
 	}
 }
 
-// BenchmarkTCPListeners compares one TCPOnly poll via /proc/net and via
+// BenchmarkTCPListeners compares one poll via /proc/net and via
 // sock_diag while many established TCP sockets exist in another network
 // namespace or in this one. Set PORTLIST_BENCH_CONNS to change the number of
 // connections (each is two sockets).
@@ -790,21 +761,18 @@ func BenchmarkTCPListeners(b *testing.B) {
 			for _, mode := range []string{"procfs-all", "procfs-tcp", "sockdiag"} {
 				b.Run("mode="+mode, func(b *testing.B) {
 					setTCPDiagPresent(b, true)
-					orig := dumpTCPListeners
-					defer func() { dumpTCPListeners = orig }()
-					if mode == "procfs-tcp" {
-						dumpTCPListeners = func() ([]sockDiagListener, error) { return nil, errForcedSockDiag }
+					p := &portlist.Poller{IncludeLocalhost: true, TCPOnly: mode != "procfs-all"}
+					if mode == "sockdiag" {
+						p.TCPListeners = TCPListeners
 					}
-					li := newLinuxImpl(true, mode != "procfs-all")
 					// Warm the inode cache so the loop measures enumeration only.
-					buf, err := li.AppendListeningPorts(nil)
-					if err != nil {
+					if _, _, err := p.Poll(); err != nil {
 						b.Fatal(err)
 					}
 					b.ReportAllocs()
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
-						if buf, err = li.AppendListeningPorts(buf[:0]); err != nil {
+						if _, _, err := p.Poll(); err != nil {
 							b.Fatal(err)
 						}
 					}

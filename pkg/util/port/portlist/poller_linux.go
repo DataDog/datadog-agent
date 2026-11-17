@@ -28,7 +28,9 @@ import (
 )
 
 func (p *Poller) init() {
-	p.os = newLinuxImpl(p.IncludeLocalhost, p.TCPOnly)
+	li := newLinuxImpl(p.IncludeLocalhost, p.TCPOnly)
+	li.tcpListeners = p.TCPListeners
+	p.os = li
 }
 
 type linuxImpl struct {
@@ -37,9 +39,10 @@ type linuxImpl struct {
 	known            map[string]*portMeta // inode string => metadata
 	br               *bufio.Reader
 	includeLocalhost bool
-	// tcpOnly skips UDP and lists TCP listeners via sock_diag, with /proc/net
-	// as the fallback.
-	tcpOnly bool
+	// tcpOnly skips UDP. tcpListeners, if set, replaces /proc/net/tcp* unless
+	// it fails.
+	tcpOnly      bool
+	tcpListeners func() ([]TCPListener, error)
 	// inoBuf is scratch space for building "socket:[inode]" keys.
 	inoBuf []byte
 }
@@ -88,10 +91,11 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	procFiles := procNetFiles
 	if li.tcpOnly {
 		procFiles = procNetTCPFiles
-		if err := li.appendSockDiagListeners(); err == nil {
-			procFiles = nil
-		} else if err != errSockDiagOff && err != errNoTCPDiag {
-			log.Debugf("sock_diag listener dump failed, falling back to /proc/net: %v", err)
+		if li.tcpListeners != nil {
+			if ls, err := li.tcpListeners(); err == nil {
+				li.addTCPListeners(ls)
+				procFiles = nil
+			}
 		}
 	}
 
@@ -295,6 +299,25 @@ func (li *linuxImpl) addKnown(key, proto string, ip netip.Addr, port uint16) {
 			Port:  port,
 			IP:    ip,
 		},
+	}
+}
+
+// addTCPListeners marks or adds each listener in li.known, applying the same
+// localhost filter as the /proc/net parser.
+func (li *linuxImpl) addTCPListeners(ls []TCPListener) {
+	for _, l := range ls {
+		if !li.includeLocalhost && l.Loopback {
+			continue
+		}
+		key := append(li.inoBuf[:0], "socket:["...)
+		key = strconv.AppendUint(key, uint64(l.Inode), 10)
+		key = append(key, ']')
+		li.inoBuf = key
+		if pm, ok := li.known[string(key)]; ok {
+			pm.keep = true
+			continue
+		}
+		li.addKnown(string(key), "tcp", l.IP, l.Port)
 	}
 }
 

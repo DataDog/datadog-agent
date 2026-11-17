@@ -10,6 +10,7 @@ package portlist
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
 	"sort"
 	"sync"
@@ -23,12 +24,16 @@ type Poller struct {
 	// This field should only be changed before calling Run.
 	IncludeLocalhost bool
 
-	// TCPOnly restricts results to TCP listeners. On Linux it also enumerates
-	// them with a netlink sock_diag LISTEN dump instead of /proc/net, falling
-	// back to /proc/net if the dump fails. Other platforms ignore it.
+	// TCPOnly restricts results to TCP listeners. Only Linux honors it.
 	//
 	// This field should only be changed before calling Run.
 	TCPOnly bool
+
+	// TCPListeners, if set along with TCPOnly, lists TCP listeners in place of
+	// /proc/net/tcp*. On error the poller reads /proc/net instead.
+	//
+	// This field should only be changed before calling Run.
+	TCPListeners func() ([]TCPListener, error)
 
 	// os, if non-nil, is an OS-specific implementation of the portlist getting
 	// code. When non-nil, it's responsible for getting the complete list of
@@ -44,6 +49,16 @@ type Poller struct {
 	scratch []Port
 
 	prev List // most recent data, not aliasing scratch
+}
+
+// TCPListener is one TCP listening socket reported by Poller.TCPListeners.
+type TCPListener struct {
+	IP    netip.Addr // v4-mapped IPv6 addresses are unmapped
+	Port  uint16
+	Inode uint32
+	// Loopback is true for 127.0.0.1 from IPv4 or ::1 from IPv6, matching
+	// the /proc/net localhost filter.
+	Loopback bool
 }
 
 // osImpl is the OS-specific implementation of getting the open listening ports.

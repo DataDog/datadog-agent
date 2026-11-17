@@ -5,7 +5,9 @@
 
 //go:build linux
 
-package portlist
+// Package sockdiag lists TCP listening sockets with a netlink sock_diag dump,
+// for use as portlist.Poller.TCPListeners.
+package sockdiag
 
 import (
 	"encoding/binary"
@@ -13,7 +15,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"strconv"
 	"sync/atomic"
 
 	vnetns "github.com/vishvananda/netns"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
 )
 
 const (
@@ -39,17 +41,7 @@ var (
 	v6Loopback = netip.IPv6Loopback()
 )
 
-// sockDiagListener is one TCP listening socket from a sock_diag dump.
-type sockDiagListener struct {
-	ip    netip.Addr // v4-mapped IPv6 addresses are unmapped, as in parseHexIPv6
-	port  uint16
-	inode uint32
-	// loopback matches the /proc/net localhost filter: 127.0.0.1 from the
-	// IPv4 dump or ::1 from the IPv6 dump.
-	loopback bool
-}
-
-// dumpTCPListeners is a variable so tests can force the /proc/net fallback.
+// dumpTCPListeners is a variable so tests can stub the dump.
 var dumpTCPListeners = sockDiagTCPListeners
 
 // sockDiagOff latches once sock_diag proves unavailable, so later polls skip
@@ -108,41 +100,27 @@ func sockDiagUnavailable(err error) bool {
 	return false
 }
 
-// appendSockDiagListeners marks or adds every TCP listener from a sock_diag
-// dump in li.known. On error li.known is left untouched so the caller can
-// fall back to /proc/net.
-func (li *linuxImpl) appendSockDiagListeners() error {
+// TCPListeners returns the TCP listeners in the process's network namespace.
+// An error means the caller should fall back to /proc/net.
+func TCPListeners() ([]portlist.TCPListener, error) {
 	if sockDiagOff.Load() {
-		return errSockDiagOff
+		return nil, errSockDiagOff
 	}
 	if !tcpDiagPresent() {
 		if noTCPDiagLogged.CompareAndSwap(false, true) {
 			log.Debug("tcp_diag module not loaded, listing TCP listeners from /proc/net until it is")
 		}
-		return errNoTCPDiag
+		return nil, errNoTCPDiag
 	}
 	ls, err := dumpTCPListeners()
 	if err != nil {
 		if sockDiagUnavailable(err) && sockDiagOff.CompareAndSwap(false, true) {
 			log.Infof("sock_diag unavailable, listing TCP listeners from /proc/net from now on: %v", err)
 		}
-		return err
+		log.Debugf("sock_diag listener dump failed, falling back to /proc/net: %v", err)
+		return nil, err
 	}
-	for _, l := range ls {
-		if !li.includeLocalhost && l.loopback {
-			continue
-		}
-		key := append(li.inoBuf[:0], "socket:["...)
-		key = strconv.AppendUint(key, uint64(l.inode), 10)
-		key = append(key, ']')
-		li.inoBuf = key
-		if pm, ok := li.known[string(key)]; ok {
-			pm.keep = true
-			continue
-		}
-		li.addKnown(string(key), "tcp", l.ip, l.port)
-	}
-	return nil
+	return ls, nil
 }
 
 // sockDiagTCPListeners returns the TCP listeners in the process's network
@@ -150,7 +128,7 @@ func (li *linuxImpl) appendSockDiagListeners() error {
 // idiag_states = TCPF_LISTEN, which walks only the listening hash rather than
 // every established socket. It opens and closes its own socket, so it is safe
 // to call concurrently.
-func sockDiagTCPListeners() ([]sockDiagListener, error) {
+func sockDiagTCPListeners() ([]portlist.TCPListener, error) {
 	fd, err := procNetlinkSocket()
 	if err != nil {
 		return nil, err
@@ -167,7 +145,7 @@ func sockDiagTCPListeners() ([]sockDiagListener, error) {
 		n, _, flags, from, err := unix.Recvmsg(fd, p, nil, 0)
 		return n, flags, from, err
 	}
-	var out []sockDiagListener
+	var out []portlist.TCPListener
 	rbuf := make([]byte, sockDiagRecvBuf)
 	for i, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		seq := uint32(i + 1)
@@ -232,7 +210,7 @@ var (
 type recvFunc func(p []byte) (n, flags int, from unix.Sockaddr, err error)
 
 // recvInetDiag reads one multipart dump reply until NLMSG_DONE.
-func recvInetDiag(recv recvFunc, rbuf []byte, family uint8, seq uint32, out []sockDiagListener) ([]sockDiagListener, error) {
+func recvInetDiag(recv recvFunc, rbuf []byte, family uint8, seq uint32, out []portlist.TCPListener) ([]portlist.TCPListener, error) {
 	ne := binary.NativeEndian
 	count := 0
 	for {
@@ -306,7 +284,7 @@ func recvInetDiag(recv recvFunc, rbuf []byte, family uint8, seq uint32, out []so
 
 // parseInetDiagMsg decodes a struct inet_diag_msg. ok is false for entries
 // that aren't TCP listeners of the requested family.
-func parseInetDiagMsg(m []byte, family uint8) (l sockDiagListener, ok bool, err error) {
+func parseInetDiagMsg(m []byte, family uint8) (l portlist.TCPListener, ok bool, err error) {
 	if len(m) < inetDiagMsgLen {
 		return l, false, fmt.Errorf("short inet_diag_msg (%d bytes)", len(m))
 	}
@@ -314,15 +292,15 @@ func parseInetDiagMsg(m []byte, family uint8) (l sockDiagListener, ok bool, err 
 		return l, false, nil
 	}
 	// inet_diag_sockid: sport and dport are big-endian, src at offset 8.
-	l.port = binary.BigEndian.Uint16(m[4:6])
-	l.inode = binary.NativeEndian.Uint32(m[68:72])
+	l.Port = binary.BigEndian.Uint16(m[4:6])
+	l.Inode = binary.NativeEndian.Uint32(m[68:72])
 	if family == unix.AF_INET {
-		l.ip = netip.AddrFrom4([4]byte(m[8:12]))
-		l.loopback = l.ip == v4Loopback
+		l.IP = netip.AddrFrom4([4]byte(m[8:12]))
+		l.Loopback = l.IP == v4Loopback
 	} else {
 		ip := netip.AddrFrom16([16]byte(m[8:24]))
-		l.loopback = ip == v6Loopback
-		l.ip = ip.Unmap()
+		l.Loopback = ip == v6Loopback
+		l.IP = ip.Unmap()
 	}
 	return l, true, nil
 }
