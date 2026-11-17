@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a leak where, with ``logs_config.container_collect_all`` enabled, removing a
+    Kubernetes pod that defines logs configuration through annotations could leave a
+    ``container_collect_all`` logs source behind for its containers. On nodes with a
+    high pod churn, these sources accumulated in error state until the Agent
+    restarted, and inflated the inventory checks metadata payload.

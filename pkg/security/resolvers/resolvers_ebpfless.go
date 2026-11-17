@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
@@ -40,6 +41,10 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 	tagsResolver := tags.NewResolver(config.RuntimeSecurity.TagsResolverQueueSize, opts.Tagger, cgroupsResolver, nil)
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+	// EKS Fargate cgroups also start with /ecs/<id>/, but that ID isn't an ECS task
+	if env.IsECSFargate() {
+		processOpts.WithECSTaskIDResolutionEnabled()
+	}
 
 	processResolver, err := process.NewEBPFLessResolver(config.Probe, statsdClient, scrubber, processOpts)
 	if err != nil {
