@@ -138,7 +138,6 @@ var (
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
 	var tagInfos []*types.TagInfo
-	var kaiPodGroupIDs map[string]struct{}
 
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
@@ -154,13 +153,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 
 		if entityID.Kind == workloadmeta.KindKubernetesKAIPodGroup {
-			// PodGroups have no tags, but the tags of their pods depend on
-			// them. A bundle can hold one PodGroup per pod, so pods are
-			// retagged once per bundle rather than once per PodGroup.
-			if kaiPodGroupIDs == nil {
-				kaiPodGroupIDs = make(map[string]struct{})
-			}
-			kaiPodGroupIDs[entityID.ID] = struct{}{}
+			// PodGroups have no tags of their own
 			continue
 		}
 
@@ -226,7 +219,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		}
 	}
 
-	tagInfos = append(tagInfos, c.retagKAIDependentPods(kaiPodGroupIDs)...)
 	if len(autoscalerTargets) > 0 {
 		tagInfos = append(tagInfos, c.retagAutoscalerDependentPods(autoscalerTargets)...)
 		tagInfos = append(tagInfos, c.handleAutoscaledWorkloads(autoscalerTargets)...)
@@ -1643,23 +1635,6 @@ func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
 		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
 	}
 	return workloadName
-}
-
-// retagKAIDependentPods recomputes the tags of the pods that reference one of
-// the given KAI PodGroups.
-func (c *WorkloadMetaCollector) retagKAIDependentPods(podGroupIDs map[string]struct{}) []*types.TagInfo {
-	if len(podGroupIDs) == 0 {
-		return nil
-	}
-
-	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
-		podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]
-		if podGroupName == "" {
-			return false
-		}
-		_, ok := podGroupIDs[workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)]
-		return ok
-	})
 }
 
 // retagPods recomputes the tags of the pods for which affected returns true.
