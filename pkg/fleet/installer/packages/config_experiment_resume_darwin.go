@@ -91,17 +91,10 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
 		log.Errorf("resume: could not resume the configuration experiment job set, reverting: %v", err)
-		if _, revertErr := revertFromResume(ctx, deadline, token, "experiment could not be resumed"); revertErr != nil {
-			return fmt.Errorf("resume failed (%w) and the experiment could not be reverted: %w", err, revertErr)
-		}
-		return fmt.Errorf("resume failed, experiment reverted: %w", err)
+		return finishFailedResume(ctx, deadline, err)
 	}
 	if err := launchInstallerHandOver(ctx); err != nil {
-		log.Errorf("resume: could not relaunch the installer daemon hand-over, reverting: %v", err)
-		if revertErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); revertErr != nil {
-			return fmt.Errorf("hand-over failed to relaunch (%w) and the experiment could not be reverted: %w", err, revertErr)
-		}
-		return fmt.Errorf("hand-over failed to relaunch, experiment reverted: %w", err)
+		return revertFailedHandOver(ctx, err)
 	}
 	return nil
 }
@@ -173,6 +166,26 @@ func revertFromResume(ctx context.Context, deadline launchd.Deadline, token stri
 		removeInstallerExperimentJob()
 	}
 	return reverted, err
+}
+
+// finishFailedResume completes the revert of an experiment Resume could not bring back. Resume has
+// already put the agent jobs back on the stable set (abortStart), which clears the deadline; that
+// leaves the experiment configuration, which would otherwise be reported as running for the whole
+// life of this daemon, and the experiment daemon's job definition. A restore that did not finish
+// leaves the reverting marker instead, and the next daemon start reverts again.
+func finishFailedResume(ctx context.Context, deadline launchd.Deadline, resumeErr error) error {
+	current, err := deadline.Read()
+	if err != nil {
+		return fmt.Errorf("resume failed (%w), and the experiment deadline could not be read: %w", resumeErr, err)
+	}
+	if current != "" {
+		return fmt.Errorf("resume failed and the experiment could not be reverted, the next daemon start retries: %w", resumeErr)
+	}
+	if err := discardExperimentConfig(ctx); err != nil {
+		return fmt.Errorf("resume failed (%w), and %w", resumeErr, err)
+	}
+	removeInstallerExperimentJob()
+	return fmt.Errorf("resume failed, experiment reverted: %w", resumeErr)
 }
 
 // removeInstallerExperimentJob removes the experiment daemon's job definition, left on disk when

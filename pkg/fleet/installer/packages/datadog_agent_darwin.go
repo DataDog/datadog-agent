@@ -715,13 +715,22 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
 		return err
 	}
 	if handOverErr := launchInstallerHandOver(ctx); handOverErr != nil {
-		log.Errorf("could not launch the installer daemon hand-over, reverting: %v", handOverErr)
-		if revertErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); revertErr != nil {
-			return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", handOverErr, revertErr)
-		}
-		return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", handOverErr)
+		return revertFailedHandOver(ctx, handOverErr)
 	}
 	return nil
+}
+
+// revertFailedHandOver reverts an experiment whose installer hand-over could not be launched: the
+// agent jobs go back to the stable set and the experiment configuration is discarded, as for any
+// other failed start. Both the post-start and the resume hooks launch the hand-over, and both end
+// here when it fails.
+func revertFailedHandOver(ctx context.Context, handOverErr error) error {
+	log.Errorf("could not launch the installer daemon hand-over, reverting: %v", handOverErr)
+	if err := revertExperiment(ctx, agentJobSet()); err != nil {
+		return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", handOverErr, err)
+	}
+	removeInstallerExperimentJob()
+	return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", handOverErr)
 }
 
 // launchConfigExperimentWatcher starts the detached watcher process. Only the experiment daemon
