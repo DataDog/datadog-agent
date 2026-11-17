@@ -265,7 +265,15 @@ class TestSchemaPatterns(unittest.TestCase):
         # LogsConfigKeys.logsDDURL in comp/logs/agent/config/config_keys.go for logs_dd_url). It is
         # also the default of logs_dd_url and apm_dd_url.
         valid.append("")
-        invalid = ["ftp://x.com", "https://x.com/?q=1", "https://user@x.com", "https://"]
+        invalid = [
+            "ftp://x.com",
+            "https://x.com/?q=1",
+            "https://user@x.com",
+            "https://",
+            # URLs can't contain spaces
+            "goog- le.com",
+            "https://x.com/a b",
+        ]
         for setting, pattern in patterns.items():
             for value in valid:
                 self.assertRegex(value, re.compile(pattern), setting)
