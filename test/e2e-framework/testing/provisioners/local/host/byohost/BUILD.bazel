@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "byohost",
-    srcs = ["descriptor.go"],
+    srcs = [
+        "descriptor.go",
+        "localvm.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost",
     visibility = ["//visibility:public"],
     deps = [
@@ -10,5 +13,11 @@ go_library(
         "//test/e2e-framework/components/datadog/fakeintake",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/components/remote",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/fakeintake/version",
+        "@com_github_stretchr_testify//require",
     ],
 )
