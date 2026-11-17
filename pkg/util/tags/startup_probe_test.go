@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,13 +36,14 @@ const (
 	dcaBlackholed = "blackholed" // a non-routable address, connections never complete
 	// dcaWedgedClusterID answers every request except the cluster ID, which it never answers.
 	dcaWedgedClusterID = "wedgedClusterID"
-	// dcaProxy502 sits behind a proxy that answers the identity request with a plain 502 for
-	// proxyRecovery after it starts, as during a Cluster Agent rollout, then passes it on.
+	// dcaProxy502 sits behind a proxy that answers the first proxyFailures identity requests
+	// with a plain 502, as during a Cluster Agent rollout, then passes them on.
 	dcaProxy502 = "proxy502"
 )
 
-// proxyRecovery is how long the dcaProxy502 proxy fails. Variable for the shortened tests.
-var proxyRecovery = 3 * time.Second
+// proxyFailures is how many identity requests the dcaProxy502 proxy fails. Counting requests
+// rather than time keeps the shortened tests deterministic. Variable for those tests.
+var proxyFailures int32 = 3
 
 // blackholeAddr is a TEST-NET-1 address (RFC 5737): nothing answers there, so a connection
 // attempt waits for the dial timeout.
@@ -57,7 +59,7 @@ func fakeClusterAgent(t *testing.T, state string, onEKS bool) string {
 		if onEKS {
 			kubelet = "v1.31.0-eks-a1b2c3d"
 		}
-		started := time.Now()
+		var proxied atomic.Int32
 		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case r.URL.Path == "/version":
@@ -66,7 +68,7 @@ func fakeClusterAgent(t *testing.T, state string, onEKS bool) string {
 				<-r.Context().Done()
 			case r.URL.Path == "/api/v1/cluster/id":
 				_, _ = w.Write([]byte(`"94e43011-177b-11ea-a4fe-42010a8401d2"`))
-			case r.URL.Path == "/api/v1/cluster/eks-identity" && state == dcaProxy502 && time.Since(started) < proxyRecovery:
+			case r.URL.Path == "/api/v1/cluster/eks-identity" && state == dcaProxy502 && proxied.Add(1) <= proxyFailures:
 				http.Error(w, "upstream connect error", http.StatusBadGateway)
 			case r.URL.Path == "/api/v1/cluster/eks-identity" && onEKS:
 				_, _ = w.Write([]byte(`{"cluster_arn":"arn:aws:eks:us-west-2:123456789012:cluster/orders"}`))

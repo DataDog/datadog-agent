@@ -144,14 +144,16 @@ func TestStartupFargateSidecarBudgetWithoutCallerDeadline(t *testing.T) {
 func TestStartupRecoversFromProxyErrors(t *testing.T) {
 	// A proxy in front of the Cluster Agent answers 502 for a while during a rollout. The node
 	// and the sidecar retry within the budget and get the identity once it passes requests on.
-	orig := proxyRecovery
-	t.Cleanup(func() { proxyRecovery = orig })
-	proxyRecovery = testBudget / 2
+	// One failed request: the retry about a second later (jittered by 20%) gets the identity
+	// within the 2s test budget.
+	orig := proxyFailures
+	t.Cleanup(func() { proxyFailures = orig })
+	proxyFailures = 1
 	for name, fargate := range map[string]bool{"node": false, "fargate": true} {
 		t.Run(name, func(t *testing.T) {
 			elapsed, identity := timedStaticTags(t, dcaProxy502, true, fargate)
 			assert.True(t, identity)
-			assert.GreaterOrEqual(t, elapsed, proxyRecovery)
+			assert.GreaterOrEqual(t, elapsed, 800*time.Millisecond, "the identity came from the retry")
 			assert.Less(t, elapsed, testBudget+slack)
 		})
 	}
