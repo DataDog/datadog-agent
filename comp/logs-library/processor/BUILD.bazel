@@ -7,6 +7,8 @@ go_library(
         "encoder.go",
         "json.go",
         "json_serverless_init.go",
+        "ottl_disabled.go",
+        "ottl_enabled.go",
         "passthrough.go",
         "processor.go",
         "proto.go",

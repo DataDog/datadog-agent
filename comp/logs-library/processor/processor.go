@@ -7,6 +7,7 @@ package processor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -322,6 +323,10 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 	}
 }
 
+// errOTTLUnavailable is returned if an OTTL rule reaches a build without the
+// OTTL runtime. Validation rejects such rules first, so this is a safeguard.
+var errOTTLUnavailable = errors.New("OTTL processing rules are not supported by this Agent build")
+
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
@@ -345,7 +350,7 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 	// Keep cleanup outside the rule loop so the compiler can keep the defer
 	// on the stack instead of allocating one deferred call for every message.
 	defer func() {
-		if ottlContext != nil {
+		if ottlEnabled && ottlContext != nil {
 			ottlContext.Release()
 		}
 	}()
@@ -353,7 +358,7 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 		for _, rule := range rules {
 			switch rule.Type {
 			case config.ExcludeAtMatch:
-				if ottlContext != nil {
+				if ottlEnabled && ottlContext != nil {
 					content = ottlContext.Content()
 				}
 				// if this message matches, we ignore it
@@ -362,7 +367,7 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 					return false, nil
 				}
 			case config.IncludeAtMatch:
-				if ottlContext != nil {
+				if ottlEnabled && ottlContext != nil {
 					content = ottlContext.Content()
 				}
 				// if this message doesn't match, we ignore it
@@ -371,6 +376,9 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 				}
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 			case config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL:
+				if !ottlEnabled {
+					return false, errOTTLUnavailable
+				}
 				if rule.OTTL == nil {
 					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
 					if msg.Origin != nil && msg.Origin.LogSource != nil {
@@ -398,6 +406,9 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
 			case config.MaskOTTLTransform:
+				if !ottlEnabled {
+					return false, errOTTLUnavailable
+				}
 				if rule.OTTL == nil {
 					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
 					if msg.Origin != nil && msg.Origin.LogSource != nil {
@@ -418,13 +429,13 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
 			case config.MaskSequences:
-				if ottlContext != nil {
+				if ottlEnabled && ottlContext != nil {
 					content = ottlContext.Content()
 				}
 				var matched bool
 				content, matched = config.ApplyMaskSequence(content, rule)
 				if matched {
-					if ottlContext != nil {
+					if ottlEnabled && ottlContext != nil {
 						ottlContext.Reset(content)
 					}
 					msg.RecordProcessingRule(rule.Type, rule.Name)
@@ -447,7 +458,7 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 			}
 		}
 	}
-	if ottlContext != nil {
+	if ottlEnabled && ottlContext != nil {
 		content = ottlContext.Content()
 	}
 	msg.SetContent(content)
