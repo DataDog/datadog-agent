@@ -1,5 +1,7 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tasks import go
@@ -52,3 +54,28 @@ class TestUserCacheDir(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "XDG_CACHE_HOME"} | {"HOME": "/home/me"}
         with patch.object(go.sys, "platform", "linux"), patch.dict(os.environ, env, clear=True):
             self.assertEqual(go._user_cache_dir(), "/home/me/.cache")
+
+
+class TestDiscardLinkobjGoflags(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.linkobj = os.path.join(self._tmp.name, "cache", "golangci-lint-linkobj.o")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_keeps_the_existing_goflags(self):
+        with patch.dict(os.environ, {"GOFLAGS": "-buildvcs=false"}):
+            goflags = go._discard_linkobj_goflags(self.linkobj)
+        self.assertEqual(goflags, f"-buildvcs=false -gcflags=all=-linkobj={self.linkobj}")
+        self.assertTrue(os.path.isdir(os.path.dirname(self.linkobj)))
+
+    def test_skipped_when_goflags_already_sets_gcflags(self):
+        for goflags in ("-gcflags=all=-N", "-mod=mod '-gcflags=all=-N -l'", "--gcflags=-m"):
+            with self.subTest(goflags=goflags), patch.dict(os.environ, {"GOFLAGS": goflags}):
+                self.assertIsNone(go._discard_linkobj_goflags(self.linkobj))
+
+    def test_skipped_when_the_cache_dir_cannot_be_created(self):
+        Path(self._tmp.name, "cache").touch()  # a file where the directory should be
+        with patch.dict(os.environ, {"GOFLAGS": ""}):
+            self.assertIsNone(go._discard_linkobj_goflags(self.linkobj))

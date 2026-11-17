@@ -68,6 +68,27 @@ def _gcflags_goflag(flag: str) -> str | None:
     return f"\"-gcflags=all='{flag}'\""
 
 
+def _discard_linkobj_goflags(linkobj: str) -> str | None:
+    """Returns GOFLAGS making the compiler write its linker object to `linkobj`, or None, with a warning, if it can't."""
+    goflags = os.environ.get("GOFLAGS", "")
+    # For each package, cmd/go only keeps the last -gcflags that matches it, which would silently drop the user's own.
+    if re.search(r"(?:^|\s)[\"']?--?gcflags=", goflags):
+        reason = "GOFLAGS already sets -gcflags"
+    elif not (goflag := _gcflags_goflag(f"-linkobj={linkobj}")):
+        reason = f"{linkobj!r} can't be passed in GOFLAGS"
+    else:
+        try:
+            os.makedirs(os.path.dirname(linkobj), exist_ok=True)
+            return f"{goflags} {goflag}".lstrip()
+        except OSError as e:
+            reason = str(e)
+    print(
+        color_message(f"Warning: not discarding linker objects ({reason}), linting will need more disk", Color.ORANGE),
+        file=sys.stderr,
+    )
+    return None
+
+
 def run_golangci_lint(
     ctx,
     base_path,
@@ -124,16 +145,8 @@ def run_golangci_lint(
     # cache key, and must not be writable by other users. It can't be os.devnull: the compiler seeks back in it to write
     # the archive headers, which fails in NUL on Windows.
     linkobj = os.path.join(_user_cache_dir(), "golangci-lint-linkobj.o")
-    if linkobj_goflag := _gcflags_goflag(f"-linkobj={linkobj}"):
-        os.makedirs(os.path.dirname(linkobj), exist_ok=True)
-        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} {linkobj_goflag}".lstrip()
-    else:
-        print(
-            color_message(
-                f"Warning: can't pass {linkobj!r} to the compiler, linting will need more disk", Color.ORANGE
-            ),
-            file=sys.stderr,
-        )
+    if goflags := _discard_linkobj_goflags(linkobj):
+        env["GOFLAGS"] = goflags
     try:
         result, time_result = TimedOperationResult.run(
             lambda: bazel(
