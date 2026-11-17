@@ -492,7 +492,12 @@ type LinkStatusMetrics struct {
 	Site          string
 	AccessCircuit string
 	Availability  float64
+	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
+	// for a tableData query, which aggregates the whole lookback window into one row.
+	Timestamp int64
 }
+
+func (m *LinkStatusMetrics) setTimestamp(ts int64) { m.Timestamp = ts }
 
 // ApplicationsByApplianceMetrics represents the columns to parse from the ApplicationsByApplianceMetricsResponse
 type ApplicationsByApplianceMetrics struct {

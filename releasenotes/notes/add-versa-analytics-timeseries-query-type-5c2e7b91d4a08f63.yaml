@@ -23,12 +23,12 @@ features:
     is held back for one collection, because Versa's buckets are wall-clock aligned and
     the current one is still accumulating.
 
-    Interface utilization (``collect_interface_metrics``), SDWAN link usage
-    (``collect_link_metrics``) and DIA (``collect_dia_metrics``) bandwidth metrics are
+    Interface utilization (``collect_interface_metrics``), SDWAN link status and usage
+    (``collect_link_metrics``) and DIA (``collect_dia_metrics``) metrics are
     also collected per bucket when ``timeseries`` is set, with the same timestamps,
     hold-back and per tenant deduplication. Link usage and DIA take their attribute tags
     (such as type, media, IP and ISP) from a ``tableData`` request for the same query,
-    joined on the entity key, and skip any entity with no matching row. Each of the three
+    joined on the entity key, and skip any entity with no matching row. Each of these
     falls back to ``tableData`` for a collection when a response does not match the
-    expected layout, logging a warning. These three are validated with synthetic Versa
+    expected layout, logging a warning. These are validated with synthetic Versa
     responses; validation against customer provided responses is pending.

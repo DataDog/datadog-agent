@@ -773,7 +773,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		[]string{
 			"availability",
 		},
-		nil,
+		linkStatusTimeseriesLayout,
 		parseLinkStatusMetrics,
 	)
 }

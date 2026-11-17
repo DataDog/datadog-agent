@@ -39,6 +39,7 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "path qos", fixture: fixtures.GetPathQoSMetrics, layout: pathQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "interface", fixture: fixtures.GetAnalyticsInterfaceMetrics, layout: interfaceTimeseriesLayout, metricCount: 8, parserWidth: 12},
+		{name: "link status", fixture: fixtures.GetLinkStatusMetrics, layout: linkStatusTimeseriesLayout, metricCount: 1, parserWidth: 4},
 		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
 		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
