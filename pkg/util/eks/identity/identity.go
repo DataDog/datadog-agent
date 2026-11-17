@@ -73,19 +73,12 @@ func IsValidClusterName(name string) bool {
 	return clusterNamePattern.MatchString(name)
 }
 
-// IsValidClusterARN reports whether clusterARN is a well-formed EKS cluster ARN. It is used on
-// both sides of the Cluster Agent boundary: the resolver validates DescribeCluster output, and
-// the node Agent re-validates the ARN it receives over HTTP before turning it into a tag, so a
-// version-skewed or misbehaving Cluster Agent cannot inject arbitrary tag values.
-func IsValidClusterARN(clusterARN string) bool {
-	_, ok := ParseClusterARN(clusterARN)
-	return ok
-}
-
 // ParseClusterARN validates an EKS cluster ARN of the form
 // arn:<partition>:eks:<region>:<account>:cluster/<name> and returns the identity it encodes.
 // It is a small local parser so that node-side binaries, which only need to validate the ARN
-// received from the Cluster Agent, do not link an AWS SDK package for it.
+// received from the Cluster Agent, do not link an AWS SDK package for it. It runs on both sides
+// of the Cluster Agent boundary: on DescribeCluster output, and again on the node before the ARN
+// becomes a tag, so a version-skewed or misbehaving Cluster Agent cannot inject tag values.
 func ParseClusterARN(clusterARN string) (ClusterIdentity, bool) {
 	// Same split as the AWS SDK ARN parser: six colon separated sections, the last one being
 	// the resource, which may itself contain colons.

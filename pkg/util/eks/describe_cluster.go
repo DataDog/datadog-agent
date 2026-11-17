@@ -34,10 +34,12 @@ import (
 //
 // The behavior mirrors aws-sdk-go-v2/service/eks v1.105.5: endpoint resolution (endpoints.go,
 // including FIPS pseudo Regions and configured endpoints), REST-JSON error codes
-// (restjson.SanitizeErrorCode), and the retryer's clock skew correction. TestResolveEndpointGolden
-// pins the endpoints that client produces for every partition. Signing a request with
-// aws/signer/v4 directly follows comp/core/delegatedauth/api/cloudauth/aws, which signs its STS
-// GetCallerIdentity request the same way.
+// (restjson.SanitizeErrorCode), and the retryer's clock skew correction (aws/retry). Known
+// differences: a FIPS pseudo Region is signed with the stripped Region, retries are one attempt
+// instead of the SDK's three, and the response is reduced to the fields the resolver uses.
+// TestResolveEndpointGolden pins the endpoints that client produces for every partition. Signing
+// a request with aws/signer/v4 directly follows comp/core/delegatedauth/api/cloudauth/aws, which
+// signs its STS GetCallerIdentity request the same way.
 
 const (
 	// eksSigningName is the SigV4 signing name of the EKS API.
@@ -142,7 +144,7 @@ func (c *signedDescribeClusterClient) DescribeCluster(ctx context.Context, clust
 		return nil, ErrInvalidClusterName
 	}
 	base.RawQuery, base.ForceQuery = "", false
-	reqURL := base.JoinPath("clusters", clusterName).String() // #nosec G125 -- clusterName is validated above
+	reqURL := base.JoinPath("clusters", clusterName).String() //nolint:gosec // G125: clusterName is validated above
 
 	// The retry policy is deliberately small: one re-signed attempt after a clock skew error,
 	// and one more attempt after a transport error, a 429 or a 5xx when there is time left. The rest

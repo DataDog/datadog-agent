@@ -198,6 +198,10 @@ func resolveAndCache(ctx context.Context, clusterName string, clusterCA []byte, 
 // every miss would fetch new credentials (an STS call with IRSA) each time. The credentials
 // cache refreshes itself, and the client keeps the clock skew it learned. A failed load is not
 // kept, so the next miss tries again.
+//
+// The mutex is held while the configuration loads. That is bounded by the resolve's context, and
+// callers rarely contend: eksidentity.Resolve already runs one resolve at a time, and a waiter
+// here would only load the same configuration again.
 var describeClient struct {
 	sync.Mutex
 	client describeClusterAPI

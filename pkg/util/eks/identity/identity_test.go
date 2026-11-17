@@ -36,19 +36,20 @@ func TestClusterIdentityTags(t *testing.T) {
 	}, (&ClusterIdentity{ClusterARN: id.ClusterARN}).Tags())
 }
 
-func TestIsValidClusterARN(t *testing.T) {
-	assert.True(t, IsValidClusterARN("arn:aws:eks:us-west-2:123456789012:cluster/orders"))
-	assert.True(t, IsValidClusterARN("arn:aws-us-gov:eks:us-gov-west-1:123456789012:cluster/orders"))
-	assert.False(t, IsValidClusterARN(""))
-	assert.False(t, IsValidClusterARN("not-an-arn"))
-	assert.False(t, IsValidClusterARN("arn:aws:ec2:us-west-2:123456789012:cluster/orders"))   // wrong service
-	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2:12345:cluster/orders"))          // bad account
-	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2:123456789012:nodegroup/orders")) // wrong resource
+func TestParseClusterARNValidation(t *testing.T) {
+	valid := func(clusterARN string) bool { _, ok := ParseClusterARN(clusterARN); return ok }
+	assert.True(t, valid("arn:aws:eks:us-west-2:123456789012:cluster/orders"))
+	assert.True(t, valid("arn:aws-us-gov:eks:us-gov-west-1:123456789012:cluster/orders"))
+	assert.False(t, valid(""))
+	assert.False(t, valid("not-an-arn"))
+	assert.False(t, valid("arn:aws:ec2:us-west-2:123456789012:cluster/orders"))   // wrong service
+	assert.False(t, valid("arn:aws:eks:us-west-2:12345:cluster/orders"))          // bad account
+	assert.False(t, valid("arn:aws:eks:us-west-2:123456789012:nodegroup/orders")) // wrong resource
 	// Region/partition charset must be constrained so a value with a comma or space cannot be
 	// emitted verbatim as a tag value (which would corrupt comma-joined static tags).
-	assert.False(t, IsValidClusterARN("arn::eks:us-west-2 oops,tag:123456789012:cluster/orders")) // bad region + empty partition
-	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2,x:123456789012:cluster/orders"))     // comma in region
-	assert.False(t, IsValidClusterARN("arn:AWS:eks:us-west-2:123456789012:cluster/orders"))       // upper-case partition
+	assert.False(t, valid("arn::eks:us-west-2 oops,tag:123456789012:cluster/orders")) // bad region + empty partition
+	assert.False(t, valid("arn:aws:eks:us-west-2,x:123456789012:cluster/orders"))     // comma in region
+	assert.False(t, valid("arn:AWS:eks:us-west-2:123456789012:cluster/orders"))       // upper-case partition
 }
 
 func TestParseClusterARN(t *testing.T) {
