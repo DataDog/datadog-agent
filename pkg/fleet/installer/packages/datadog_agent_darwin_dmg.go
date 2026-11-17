@@ -365,35 +365,41 @@ func readInstallEnv(layout dmgLayout) installEnv {
 // on a first install, applies what the install script was given, writes the install info, and gives
 // the configuration to the Agent's account.
 func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
-	conf := layout.confDir()
-	if err := os.MkdirAll(filepath.Join(conf, "checks.d"), 0o755); err != nil {
+	confPath := layout.confDir()
+	if err := os.MkdirAll(confPath, 0o755); err != nil {
+		return err
+	}
+	conf, err := os.OpenRoot(confPath)
+	if err != nil {
+		return err
+	}
+	defer conf.Close()
+	if err := conf.MkdirAll("checks.d", 0o755); err != nil {
 		return err
 	}
 	saved := layout.savedConfDir()
-	if info, err := os.Stat(saved); err == nil && info.IsDir() {
+	if info, err := os.Lstat(saved); err == nil && info.IsDir() {
 		for _, name := range []string{"datadog.yaml", "system-probe.yaml"} {
-			_ = copyFile(filepath.Join(saved, name), filepath.Join(conf, name))
+			_ = restoreEntry(filepath.Join(saved, name), conf, name)
 		}
-		_ = copyTree(filepath.Join(saved, "conf.d"), filepath.Join(conf, "conf.d"), true)
-		_ = copyTree(filepath.Join(saved, "checks.d"), filepath.Join(conf, "checks.d"), false)
+		_ = restoreTree(filepath.Join(saved, "conf.d"), conf, "conf.d", true)
+		_ = restoreTree(filepath.Join(saved, "checks.d"), conf, "checks.d", false)
 	}
-	datadogYAML := filepath.Join(conf, "datadog.yaml")
-	if _, err := os.Stat(datadogYAML); errors.Is(err, fs.ErrNotExist) {
-		example, err := os.ReadFile(filepath.Join(conf, "datadog.yaml.example"))
+	if _, err := conf.Lstat("datadog.yaml"); errors.Is(err, fs.ErrNotExist) {
+		example, err := readConfFile(conf, "datadog.yaml.example")
 		if err != nil {
 			return fmt.Errorf("could not read the example configuration: %w", err)
 		}
-		if err := os.WriteFile(datadogYAML, replaceLines(example, `^api_key:$`, "api_key: APIKEY"), 0o660); err != nil {
+		if err := writeConfFile(conf, "datadog.yaml", replaceLines(example, `^api_key:$`, "api_key: APIKEY"), 0o660); err != nil {
 			return err
 		}
 	}
-	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
-	if example, err := os.ReadFile(nativeHostYAML + ".example"); err == nil {
+	if example, err := readConfFile(conf, "ai_usage_native_host.yaml.example"); err == nil {
 		content := example
-		if port := apmReceiverPort(datadogYAML); port != "" && port != "8126" {
+		if port := apmReceiverPort(conf); port != "" && port != "8126" {
 			content = replaceLines(content, `^[ #]*trace_agent_url:.*`, `trace_agent_url: "http://127.0.0.1:`+port+`"`)
 		}
-		if err := os.WriteFile(nativeHostYAML, content, 0o660); err != nil {
+		if err := writeConfFile(conf, "ai_usage_native_host.yaml", content, 0o660); err != nil {
 			return err
 		}
 	}
@@ -403,12 +409,108 @@ func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
 	if err := writeInstallInfo(conf, env); err != nil {
 		return err
 	}
-	return secureConfig(ctx, conf)
+	return secureConfig(ctx, confPath)
+}
+
+// errNotOwnFile is returned by readConfFile for an entry that is not a regular file with a single
+// link.
+var errNotOwnFile = errors.New("not a file of its own")
+
+// readConfFile reads a configuration file for the install. The configuration belongs to the
+// Agent's account, which can replace any entry of it while the install runs as root, so the file
+// is read through conf, an os.Root that a link cannot lead out of, without following a link, and
+// only when it is a regular file with a single link.
+func readConfFile(conf *os.Root, name string) ([]byte, error) {
+	if info, err := conf.Lstat(name); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("refusing to read %s: %w", name, errNotOwnFile)
+	}
+	f, err := conf.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.Mode().IsRegular() || !ok || st.Nlink != 1 {
+		return nil, fmt.Errorf("refusing to read %s: %w", name, errNotOwnFile)
+	}
+	return io.ReadAll(f)
+}
+
+// writeConfFile replaces a configuration file with a new one holding content. Whatever stood at
+// name is removed first, and the file is created exclusively, so the write never goes through a
+// link or into a file linked from elsewhere.
+func writeConfFile(conf *os.Root, name string, content []byte, mode fs.FileMode) error {
+	if err := conf.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	f, err := conf.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(content); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// restoreEntry restores one saved entry at name in conf: a link as a link, a regular file through
+// writeConfFile. src is in the root-only staging copy; it is never followed.
+func restoreEntry(src string, conf *os.Root, name string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	switch {
+	case info.Mode()&fs.ModeSymlink != 0:
+		link, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		if err := conf.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return conf.Symlink(link, name)
+	case info.Mode().IsRegular():
+		content, err := os.ReadFile(src)
+		if err != nil {
+			return err
+		}
+		return writeConfFile(conf, name, content, 0o660)
+	default:
+		return nil
+	}
+}
+
+// restoreTree copies the saved directory src into sub of conf, as copyTree does, keeping links as
+// links and replacing existing entries only when overwrite is set. Every write into the
+// configuration goes through conf.
+func restoreTree(src string, conf *os.Root, sub string, overwrite bool) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(sub, rel)
+		if d.IsDir() {
+			return conf.MkdirAll(target, 0o755)
+		}
+		if !overwrite {
+			if _, err := conf.Lstat(target); err == nil {
+				return nil
+			}
+		}
+		return restoreEntry(path, conf, target)
+	})
 }
 
 // apmReceiverPort returns apm_config.receiver_port from datadog.yaml when it is a number.
-func apmReceiverPort(datadogYAML string) string {
-	content, err := os.ReadFile(datadogYAML)
+func apmReceiverPort(conf *os.Root) string {
+	content, err := readConfFile(conf, "datadog.yaml")
 	if err != nil {
 		return ""
 	}
@@ -439,23 +541,26 @@ func apmReceiverPort(datadogYAML string) string {
 }
 
 // applyInstallEnv writes what install_mac_os.sh was given into the configuration.
-func applyInstallEnv(conf string, env installEnv) error {
-	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
+func applyInstallEnv(conf *os.Root, env installEnv) error {
 	if id := installChromeExtensionID(env); id != "" {
-		if content, err := os.ReadFile(nativeHostYAML); err == nil {
+		if content, err := readConfFile(conf, "ai_usage_native_host.yaml"); err == nil {
 			if regexp.MustCompile(`(?m)^\s*#?\s*chrome_extension_id:`).Match(content) {
 				content = replaceLines(content, `^# *chrome_extension_id:.*`, "chrome_extension_id: "+id)
 				content = replaceLines(content, `^chrome_extension_id:.*`, "chrome_extension_id: "+id)
 			} else {
 				content = append(content, []byte("\nchrome_extension_id: "+id+"\n")...)
 			}
-			if err := os.WriteFile(nativeHostYAML, content, 0o660); err != nil {
+			if err := writeConfFile(conf, "ai_usage_native_host.yaml", content, 0o660); err != nil {
 				return err
 			}
 		}
 	}
-	datadogYAML := filepath.Join(conf, "datadog.yaml")
-	content, err := os.ReadFile(datadogYAML)
+	content, err := readConfFile(conf, "datadog.yaml")
+	if errors.Is(err, errNotOwnFile) {
+		// A link, or a file linked from elsewhere: left as it is rather than written through.
+		log.Warnf("not applying the install settings to datadog.yaml: %v", err)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -471,17 +576,17 @@ func applyInstallEnv(conf string, env installEnv) error {
 	if logs := env["DD_LOGS_ENABLED"]; logs == "true" || logs == "false" {
 		content = setOrAppend(content, `^(# *)?logs_enabled:.*`, "logs_enabled: "+logs)
 	}
-	return os.WriteFile(datadogYAML, content, 0o660)
+	return writeConfFile(conf, "datadog.yaml", content, 0o660)
 }
 
 // writeInstallInfo records how the Agent was installed.
-func writeInstallInfo(conf string, env installEnv) error {
+func writeInstallInfo(conf *os.Root, env installEnv) error {
 	method, version := "macos_dmg", "macos_dmg"
 	if m := env["DD_INSTALL_METHOD"]; m != "" {
 		method, version = m, m+"-"+env["DD_INSTALL_SCRIPT_VERSION"]
 	}
 	content := fmt.Sprintf("---\ninstall_method:\n  tool: %s\n  tool_version: %s\n  installer_version: %s\n\n", method, method, version)
-	return os.WriteFile(filepath.Join(conf, "install_info"), []byte(content), 0o660)
+	return writeConfFile(conf, "install_info", []byte(content), 0o660)
 }
 
 // secureConfig gives the configuration to the Agent's account, the admin group able to edit it,
