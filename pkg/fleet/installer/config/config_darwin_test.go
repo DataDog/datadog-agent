@@ -644,3 +644,64 @@ func TestWriteExperimentDoesNotMigrateALegacyLayout(t *testing.T) {
 	assert.NotContains(t, string(content), "stolen", "a file reached through the legacy link must not be merged in")
 	assert.Contains(t, string(content), "debug")
 }
+
+// TestAPromoteInterruptedAfterTheSwapIsNotReadAsAnExperiment covers a crash between the swap and
+// resting the link again: the experiment path then holds the previous stable configuration, with
+// its own deployment ID, and must not be reported as a deployed experiment, or recovery would run
+// that previous configuration as one.
+func TestAPromoteInterruptedAfterTheSwapIsNotReadAsAnExperiment(t *testing.T) {
+	dirs := newTestDirectories(t)
+	ctx := context.Background()
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
+
+	// PromoteExperiment up to and including the swap, then the crash.
+	require.NoError(t, writePromotingMarker(dirs.ExperimentPath))
+	require.NoError(t, renameSwap(dirs.ExperimentPath, dirs.StablePath))
+
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, State{StableDeploymentID: "experiment-1"}, state)
+
+	// Recovery discards what is left, which finishes the promote.
+	require.NoError(t, dirs.RemoveExperiment(ctx))
+	assertResting(t, dirs)
+	assert.NoFileExists(t, filepath.Join(dirs.StablePath, promotingFile))
+	content, err := os.ReadFile(filepath.Join(dirs.StablePath, "datadog.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "debug", "the promoted configuration should be the stable one")
+}
+
+// TestPromoteLeavesNoMarkerBehind pins that a promote that runs to completion leaves the marker
+// nowhere, and that a stale one in the stable directory is not copied into the next experiment.
+func TestPromoteLeavesNoMarkerBehind(t *testing.T) {
+	dirs := newTestDirectories(t)
+	ctx := context.Background()
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
+
+	require.NoError(t, dirs.PromoteExperiment(ctx))
+	assertResting(t, dirs)
+	assert.NoFileExists(t, filepath.Join(dirs.StablePath, promotingFile))
+
+	require.NoError(t, writePromotingMarker(dirs.StablePath))
+	require.NoError(t, dirs.RemoveExperiment(ctx))
+	require.NoError(t, writePromotingMarker(dirs.StablePath))
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-2", `{"log_level":"info"}`)))
+	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, promotingFile))
+}
+
+// TestPromoteClearsTheMarkerWhenTheSwapFails pins that a failed swap leaves the experiment exactly
+// as deployed as before: no marker that would make a later successful swap read as promoted early.
+func TestPromoteClearsTheMarkerWhenTheSwapFails(t *testing.T) {
+	dirs := newTestDirectories(t)
+	ctx := context.Background()
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
+	original := renameSwap
+	renameSwap = func(string, string) error { return errors.New("boom") }
+	t.Cleanup(func() { renameSwap = original })
+
+	require.Error(t, dirs.PromoteExperiment(ctx))
+	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, promotingFile))
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	assert.Equal(t, "experiment-1", state.ExperimentDeploymentID)
+}

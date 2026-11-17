@@ -465,8 +465,16 @@ func revertExperimentIfStillPending(ctx context.Context, jobs launchd.JobSet, de
 //
 // The watcher reverts every job (configExperimentJobSet). The resume hook, run by the stable
 // daemon, reverts the agent jobs only (see resumeConfigExperimentDatadogAgent).
+//
+// An experiment whose configuration is no longer deployed while its deadline is still pending is a
+// promote whose hook never ran: the configuration was promoted, the jobs were not handed back. It is
+// finished as a promote, so the process manager is restarted onto the promoted configuration.
 func revertExperiment(ctx context.Context, jobs launchd.JobSet) error {
-	if err := (configExperiment{jobs: jobs}).Stop(context.WithoutCancel(ctx)); err != nil {
+	finish := configExperiment{jobs: jobs}.Stop
+	if !experimentConfigDeployed() {
+		finish = configExperiment{jobs: jobs}.Promote
+	}
+	if err := finish(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("could not revert experiment: %w", err)
 	}
 	return discardExperimentConfig(ctx)
