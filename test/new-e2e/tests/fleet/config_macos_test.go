@@ -570,7 +570,12 @@ func (s *configMacOSSuite) AfterTest(suiteName, testName string) {
 	s.resetStableConfig()
 }
 
-const stableConfigBaselinePath = "/var/tmp/e2e-fleet-etc-baseline.tar"
+const (
+	stableConfigBaselinePath = "/var/tmp/e2e-fleet-etc-baseline.tar"
+	// configStateBaselinePath holds a copy of configStatePath taken with the stable configuration
+	// baseline, or nothing when there was no state file then.
+	configStateBaselinePath = "/var/tmp/e2e-fleet-config-state-baseline.json"
+)
 
 // saveStableConfigBaseline archives the stable configuration the suite starts from, so that
 // resetStableConfig can put it back after every test.
@@ -581,6 +586,9 @@ func (s *configMacOSSuite) saveStableConfigBaseline() {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
 		"sudo tar --acls --xattrs -cpf %[1]s -C /opt/datadog-agent etc && sudo chmod 600 %[1]s", stableConfigBaselinePath))
 	require.NoError(s.T(), err, "could not archive the stable configuration")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+		"sudo sh -c 'rm -f %[2]s; if [ -f %[1]s ]; then cp -p %[1]s %[2]s; fi'", configStatePath, configStateBaselinePath))
+	require.NoError(s.T(), err, "could not save the configuration state")
 	s.stableConfigBaseline = s.stableConfigFingerprint()
 }
 
@@ -596,8 +604,8 @@ func (s *configMacOSSuite) stableConfigFingerprint() string {
 // resetStableConfig puts back the stable configuration archived by saveStableConfigBaseline, when
 // a test changed it.
 //
-// The archive restores etc's .deployment-id with the rest, and the daemon reads its stable config
-// version from that file, so the daemon is restarted to report it. Its pending UPDATER_TASKs are
+// The daemon reads its stable config version from the configuration state file, which is put back
+// along with etc, so the daemon is restarted to report it. Its pending UPDATER_TASKs are
 // cleared first: a restarted daemon has no memory of the tasks it already executed, and an early
 // task whose expected_state matches the restored configuration again would be re-applied.
 func (s *configMacOSSuite) resetStableConfig() {
@@ -610,6 +618,9 @@ func (s *configMacOSSuite) resetStableConfig() {
 		`rm -rf .e2e-etc-restore; mkdir .e2e-etc-restore; tar --acls --xattrs -xpf %s -C .e2e-etc-restore; `+
 		`rm -rf etc; mv .e2e-etc-restore/etc etc; rmdir .e2e-etc-restore'`, stableConfigBaselinePath))
 	require.NoError(s.T(), err, "could not restore the stable configuration")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+		"sudo sh -c 'if [ -f %[2]s ]; then cp -p %[2]s %[1]s; else rm -f %[1]s; fi'", configStatePath, configStateBaselinePath))
+	require.NoError(s.T(), err, "could not restore the configuration state")
 	for _, label := range append(append([]string{}, swappableJobLabels...), "com.datadoghq.installer") {
 		_, err := s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/" + label)
 		require.NoError(s.T(), err, "could not restart %s on the restored configuration", label)
@@ -1354,7 +1365,54 @@ func (s *configMacOSSuite) TestShutdownAfterDeadlineExpiryRevertsMacOS() {
 const (
 	installerSocketPath    = "/opt/datadog-agent/run/installer.sock"
 	experimentDeadlinePath = "/opt/datadog-packages/run/experiment-deadline"
+	// configStatePath records which configuration is deployed: the stable and experiment deployment
+	// IDs, and the inode of the experiment's directory.
+	configStatePath = "/opt/datadog-packages/run/config-state.json"
+	// installerPIDPath is the root installer daemon's pidfile.
+	installerPIDPath = "/opt/datadog-packages/run/installer.pid"
 )
+
+// configState is the content of configStatePath.
+type configState struct {
+	StableDeploymentID string `json:"stable_deployment_id"`
+	Experiment         *struct {
+		DeploymentID string `json:"deployment_id"`
+		Inode        uint64 `json:"inode"`
+	} `json:"experiment"`
+}
+
+// readConfigState returns the configuration state file's content.
+func (s *configMacOSSuite) readConfigState() configState {
+	var state configState
+	require.NoError(s.T(), json.Unmarshal([]byte(s.readFile(configStatePath)), &state), "could not parse %s", configStatePath)
+	return state
+}
+
+// TestInstallerStateIsRootOwnedMacOS pins where the root installer keeps its own state: the
+// configuration state file and the daemon's pidfile are root's, in the root-only state directory,
+// and neither the configuration tree nor the Agent's run directory holds any of it.
+func (s *configMacOSSuite) TestInstallerStateIsRootOwnedMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-state"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	for _, path := range []string{configStatePath, installerPIDPath} {
+		perms, err := s.Host.GetFilePermissions(path)
+		require.NoError(s.T(), err, "%s should exist", path)
+		require.Equal(s.T(), [3]string{"644", "root", "wheel"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+			"%s should be root:wheel 0644", path)
+	}
+	for _, path := range []string{
+		"/opt/datadog-agent/run/installer.pid",
+		"/opt/datadog-agent/etc/.deployment-id",
+		"/opt/datadog-agent/etc-exp/.deployment-id",
+		"/opt/datadog-agent/etc-exp/.promoting",
+	} {
+		require.False(s.T(), s.pathExists(path), "%s should not exist", path)
+	}
+	s.stopConfigExperimentRC()
+}
 
 // socketRequestAs calls the installer daemon's local API as user and returns the HTTP status code it
 // answered with.
@@ -1819,7 +1877,7 @@ func (s *configMacOSSuite) TestInstallerDaemonSwappedWithTheExperimentMacOS() {
 
 // TestPromoteSwapsTheExperimentDirectoryMacOS pins promote and stop at the directory level
 // (pkg/fleet/installer/config/config_darwin.go, dir_swap.go): promote moves the experiment
-// directory itself onto etc, deployment ID included, rather than copying it, and stop leaves etc
+// directory itself onto etc rather than copying it, and stop leaves etc
 // untouched. It does not tell the atomic swap apart from a pair of renames; the unit tests cover
 // that.
 func (s *configMacOSSuite) TestPromoteSwapsTheExperimentDirectoryMacOS() {
@@ -1829,14 +1887,18 @@ func (s *configMacOSSuite) TestPromoteSwapsTheExperimentDirectoryMacOS() {
 	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
 		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
 	}, nil)
-	require.Equal(s.T(), deploymentID, strings.TrimSpace(s.readFile("/opt/datadog-agent/etc-exp/.deployment-id")),
-		"etc-exp should record the deployment it holds")
 	experimentInode := s.inode("/opt/datadog-agent/etc-exp")
+	state := s.readConfigState()
+	require.NotNil(s.T(), state.Experiment, "the configuration state should record the experiment")
+	require.Equal(s.T(), deploymentID, state.Experiment.DeploymentID, "the configuration state should record the deployment etc-exp holds")
+	require.Equal(s.T(), experimentInode, strconv.FormatUint(state.Experiment.Inode, 10),
+		"the configuration state should record etc-exp's directory")
 
 	s.promoteConfigExperimentRC()
 	require.Equal(s.T(), experimentInode, s.inode("/opt/datadog-agent/etc"), "promote should move the experiment directory onto etc")
-	require.Equal(s.T(), deploymentID, strings.TrimSpace(s.readFile("/opt/datadog-agent/etc/.deployment-id")),
-		"etc should record the promoted deployment")
+	state = s.readConfigState()
+	require.Equal(s.T(), deploymentID, state.StableDeploymentID, "the configuration state should record the promoted deployment")
+	require.Nil(s.T(), state.Experiment, "the configuration state should record no experiment once it is promoted")
 	require.Equal(s.T(), deploymentID, s.packageState(s.readStatus()).StableConfigVersion,
 		"the daemon should report the promoted deployment as stable")
 
@@ -1894,7 +1956,7 @@ func (s *configMacOSSuite) TestExperimentCopyPreservesMetadataMacOS() {
 	// one, which grants the same access, because chmod rejects the marker.
 	metadata := func(dir string) string {
 		out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'cd %s && `+
-			`find . -mindepth 1 ! -path ./datadog.yaml ! -path ./.deployment-id | sort | while read -r f; do `+
+			`find . -mindepth 1 ! -path ./datadog.yaml | sort | while read -r f; do `+
 			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | sed "s/ inherited / /"; done'`, dir))
 		require.NoError(s.T(), err)
 		return out
