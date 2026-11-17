@@ -179,7 +179,7 @@ func TestGetClusterIdentityThroughSignedClient(t *testing.T) {
 	t.Cleanup(func() { loadAWSConfig = origLoad })
 	loadAWSConfig = func(context.Context) (aws.Config, error) { return testAWSConfig(srv.URL), nil }
 
-	id, err := GetClusterIdentity(t.Context(), name)
+	id, err := GetClusterIdentity(t.Context(), name, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &ClusterIdentity{
 		ClusterName: name,
@@ -328,7 +328,7 @@ func TestFIPSPseudoRegions(t *testing.T) {
 			loadAWSConfig = func(context.Context) (aws.Config, error) { return cfg, nil }
 			newDescribeClusterAPI = newSignedDescribeClusterClient
 
-			id, err := GetClusterIdentity(t.Context(), "orders")
+			id, err := GetClusterIdentity(t.Context(), "orders", nil)
 			require.NoError(t, err)
 			assert.Equal(t, "us-east-1", id.Region)
 			assert.Contains(t, req.Header.Get("Authorization"), "/us-east-1/eks/aws4_request")

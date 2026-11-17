@@ -46,8 +46,14 @@ const (
 
 // describedCluster holds the only DescribeCluster response fields the resolver uses.
 type describedCluster struct {
-	Name *string `json:"name"`
-	Arn  *string `json:"arn"`
+	Name                 *string               `json:"name"`
+	Arn                  *string               `json:"arn"`
+	CertificateAuthority *certificateAuthority `json:"certificateAuthority"`
+}
+
+// certificateAuthority is the cluster's CA: base64 encoded PEM.
+type certificateAuthority struct {
+	Data *string `json:"data"`
 }
 
 // describeClusterOutput is the DescribeCluster response, reduced to the fields used.

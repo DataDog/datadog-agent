@@ -7,10 +7,19 @@ package eks
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +48,7 @@ func clusterOutput(name, clusterARN string) *describeClusterOutput {
 func TestResolveClusterIdentity(t *testing.T) {
 	client := &mockEKSClient{output: clusterOutput("orders", "arn:aws:eks:us-west-2:123456789012:cluster/orders")}
 
-	identity, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", client)
+	identity, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", nil, client)
 
 	require.NoError(t, err)
 	assert.Equal(t, "orders", client.name)
@@ -60,7 +69,7 @@ func TestResolveClusterIdentitySupportsPartitions(t *testing.T) {
 	} {
 		t.Run(clusterARN, func(t *testing.T) {
 			client := &mockEKSClient{output: clusterOutput("orders", clusterARN)}
-			identity, err := resolveClusterIdentity(t.Context(), "orders", "", client)
+			identity, err := resolveClusterIdentity(t.Context(), "orders", "", nil, client)
 			require.NoError(t, err)
 			assert.Equal(t, clusterARN, identity.ClusterARN)
 		})
@@ -88,7 +97,7 @@ func TestResolveClusterIdentityRejectsInvalidResponses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			identity, err := resolveClusterIdentity(t.Context(), tt.requestedName, tt.requestRegion, &mockEKSClient{output: tt.output})
+			identity, err := resolveClusterIdentity(t.Context(), tt.requestedName, tt.requestRegion, nil, &mockEKSClient{output: tt.output})
 			assert.Nil(t, identity)
 			assert.ErrorIs(t, err, ErrInvalidClusterIdentity)
 		})
@@ -97,7 +106,7 @@ func TestResolveClusterIdentityRejectsInvalidResponses(t *testing.T) {
 
 func TestResolveClusterIdentityReturnsAPIErrors(t *testing.T) {
 	apiErr := errors.New("access denied")
-	identity, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", &mockEKSClient{err: apiErr})
+	identity, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", nil, &mockEKSClient{err: apiErr})
 	assert.Nil(t, identity)
 	assert.ErrorIs(t, err, apiErr)
 }
@@ -105,7 +114,7 @@ func TestResolveClusterIdentityReturnsAPIErrors(t *testing.T) {
 func TestGetClusterIdentityRejectsInvalidNamesBeforeLoadingAWSConfig(t *testing.T) {
 	for _, name := range []string{"", "-orders", "orders.example", "orders/name", " orders "} {
 		t.Run(name, func(t *testing.T) {
-			identity, err := GetClusterIdentity(t.Context(), name)
+			identity, err := GetClusterIdentity(t.Context(), name, nil)
 			assert.Nil(t, identity)
 			assert.ErrorIs(t, err, ErrInvalidClusterName)
 		})
@@ -151,9 +160,9 @@ func TestGetClusterIdentityCachesSuccess(t *testing.T) {
 	client := &mockEKSClient{output: clusterOutput(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name)}
 	stubAWS(t, client)
 
-	first, err := GetClusterIdentity(t.Context(), name)
+	first, err := GetClusterIdentity(t.Context(), name, nil)
 	require.NoError(t, err)
-	second, err := GetClusterIdentity(t.Context(), name)
+	second, err := GetClusterIdentity(t.Context(), name, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)
@@ -167,9 +176,9 @@ func TestGetClusterIdentityCachesFailure(t *testing.T) {
 	client := &mockEKSClient{err: errors.New("AccessDeniedException")}
 	stubAWS(t, client)
 
-	_, err := GetClusterIdentity(t.Context(), name)
+	_, err := GetClusterIdentity(t.Context(), name, nil)
 	require.Error(t, err)
-	_, err = GetClusterIdentity(t.Context(), name)
+	_, err = GetClusterIdentity(t.Context(), name, nil)
 	require.Error(t, err)
 
 	assert.Equal(t, 1, client.calls, "a failing resolution must not be retried on every request")
@@ -183,12 +192,12 @@ func TestGetClusterIdentityCachesConfigLoadFailure(t *testing.T) {
 	configLoads := 0
 	loadAWSConfig = func(context.Context) (aws.Config, error) { configLoads++; return aws.Config{}, configErr }
 
-	identity, err := GetClusterIdentity(t.Context(), name)
+	identity, err := GetClusterIdentity(t.Context(), name, nil)
 	assert.Nil(t, identity)
 	require.ErrorIs(t, err, configErr)
 	assert.EqualError(t, err, "load AWS configuration: resolve EKS region: IMDS unavailable")
 
-	_, err = GetClusterIdentity(t.Context(), name)
+	_, err = GetClusterIdentity(t.Context(), name, nil)
 	require.ErrorIs(t, err, configErr)
 	assert.Equal(t, 1, configLoads, "config failure must be negatively cached")
 	assert.Equal(t, 0, client.calls, "config failure must never reach DescribeCluster")
@@ -212,7 +221,7 @@ func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 
 func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {
 	// clusterNamePattern bounds the name at 100 chars; a 101-char name is rejected before any API call.
-	id, err := GetClusterIdentity(context.Background(), "a"+strings.Repeat("b", 100))
+	id, err := GetClusterIdentity(context.Background(), "a"+strings.Repeat("b", 100), nil)
 	assert.Nil(t, id)
 	assert.ErrorIs(t, err, ErrInvalidClusterName)
 }
@@ -248,7 +257,7 @@ func TestGetClusterIdentityCallerCancelDoesNotFailOtherCallers(t *testing.T) {
 	firstCtx, cancelFirst := context.WithCancel(t.Context())
 	firstErr := make(chan error, 1)
 	go func() {
-		_, err := GetClusterIdentity(firstCtx, name)
+		_, err := GetClusterIdentity(firstCtx, name, nil)
 		firstErr <- err
 	}()
 	<-client.started
@@ -256,7 +265,7 @@ func TestGetClusterIdentityCallerCancelDoesNotFailOtherCallers(t *testing.T) {
 	// A second node is waiting on the same resolve.
 	secondResult := make(chan error, 1)
 	go func() {
-		_, err := GetClusterIdentity(t.Context(), name)
+		_, err := GetClusterIdentity(t.Context(), name, nil)
 		secondResult <- err
 	}()
 
@@ -266,7 +275,7 @@ func TestGetClusterIdentityCallerCancelDoesNotFailOtherCallers(t *testing.T) {
 	close(client.release)
 	require.NoError(t, <-secondResult, "a waiter must not inherit another caller's cancellation")
 
-	id, err := GetClusterIdentity(t.Context(), name)
+	id, err := GetClusterIdentity(t.Context(), name, nil)
 	require.NoError(t, err, "a caller's cancellation must not be cached")
 	assert.Equal(t, "arn:aws:eks:us-west-2:123456789012:cluster/"+name, id.ClusterARN)
 }
@@ -275,9 +284,10 @@ func TestFailureTTLDoesNotCacheCancellation(t *testing.T) {
 	name := "orders-cancelled-error"
 	stubAWS(t, &mockEKSClient{err: context.Canceled})
 
-	_, err := GetClusterIdentity(t.Context(), name)
+	_, err := GetClusterIdentity(t.Context(), name, nil)
 	require.ErrorIs(t, err, context.Canceled)
-	_, found := cache.Cache.Get(cache.BuildAgentKey("eks", "cluster-identity", name))
+	_, cacheKey := identityKeys(name, nil)
+	_, found := cache.Cache.Get(cacheKey)
 	assert.False(t, found, "context.Canceled must never be cached")
 }
 
@@ -317,7 +327,7 @@ func TestGetClusterIdentityLoadsAWSConfigOnce(t *testing.T) {
 	}
 
 	for _, name := range []string{"orders-a", "orders-b", "orders-c"} {
-		_, err := GetClusterIdentity(t.Context(), name)
+		_, err := GetClusterIdentity(t.Context(), name, nil)
 		require.NoError(t, err)
 	}
 	assert.Equal(t, 1, loads, "the AWS configuration and its credentials cache are built once")
@@ -340,9 +350,9 @@ func TestGetClusterIdentityRetriesFailedAWSConfigLoad(t *testing.T) {
 		})
 	}
 
-	_, err := GetClusterIdentity(t.Context(), "orders-a")
+	_, err := GetClusterIdentity(t.Context(), "orders-a", nil)
 	require.Error(t, err)
-	_, err = GetClusterIdentity(t.Context(), "orders-b")
+	_, err = GetClusterIdentity(t.Context(), "orders-b", nil)
 	require.NoError(t, err, "a failed load is not kept")
 }
 
@@ -350,4 +360,77 @@ type describeFunc func(name string) (*describeClusterOutput, error)
 
 func (f describeFunc) DescribeCluster(_ context.Context, name string) (*describeClusterOutput, error) {
 	return f(name)
+}
+
+// testCAPEM returns a self-signed CA certificate in PEM form, like the cluster CA mounted into
+// every pod at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt.
+func testCAPEM(t *testing.T, commonName string) []byte {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: commonName},
+		NotBefore:             time.Unix(0, 0),
+		NotAfter:              time.Unix(0, 0).Add(100 * 365 * 24 * time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+}
+
+func clusterOutputWithCA(name, clusterARN string, caPEM []byte) *describeClusterOutput {
+	out := clusterOutput(name, clusterARN)
+	out.Cluster.CertificateAuthority = &certificateAuthority{Data: aws.String(base64.StdEncoding.EncodeToString(caPEM))}
+	return out
+}
+
+func TestResolveClusterIdentityVerifiesClusterCA(t *testing.T) {
+	const arn = "arn:aws:eks:us-west-2:123456789012:cluster/orders"
+	ours := testCAPEM(t, "kubernetes")
+	other := testCAPEM(t, "kubernetes")
+
+	t.Run("match", func(t *testing.T) {
+		client := &mockEKSClient{output: clusterOutputWithCA("orders", arn, ours)}
+		id, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", ours, client)
+		require.NoError(t, err)
+		assert.Equal(t, arn, id.ClusterARN)
+	})
+
+	t.Run("another cluster with the same name", func(t *testing.T) {
+		// A stale or reused cluster name (blue/green) resolves to a different cluster whose
+		// ARN passes every other check. Its CA is not the one this pod trusts.
+		client := &mockEKSClient{output: clusterOutputWithCA("orders", arn, other)}
+		id, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", ours, client)
+		assert.Nil(t, id)
+		assert.ErrorIs(t, err, ErrClusterMismatch)
+		assert.Equal(t, failureCacheTTL, failureTTL(err))
+	})
+
+	t.Run("no CA in the answer", func(t *testing.T) {
+		client := &mockEKSClient{output: clusterOutput("orders", arn)}
+		_, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", ours, client)
+		assert.ErrorIs(t, err, ErrClusterMismatch)
+	})
+
+	t.Run("not verified when the caller has no CA", func(t *testing.T) {
+		client := &mockEKSClient{output: clusterOutput("orders", arn)}
+		_, err := resolveClusterIdentity(t.Context(), "orders", "us-west-2", nil, client)
+		require.NoError(t, err)
+	})
+}
+
+func TestGetClusterIdentityCacheKeyIncludesCA(t *testing.T) {
+	const name = "orders-ca-key"
+	ours := testCAPEM(t, "kubernetes")
+	client := &mockEKSClient{output: clusterOutputWithCA(name, "arn:aws:eks:us-west-2:123456789012:cluster/"+name, ours)}
+	stubAWS(t, client)
+
+	_, err := GetClusterIdentity(t.Context(), name, testCAPEM(t, "kubernetes"))
+	require.ErrorIs(t, err, ErrClusterMismatch)
+	// A mismatch cached for one CA must not answer a lookup with another.
+	_, err = GetClusterIdentity(t.Context(), name, ours)
+	require.NoError(t, err)
 }

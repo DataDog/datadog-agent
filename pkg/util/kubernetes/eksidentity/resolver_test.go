@@ -8,6 +8,7 @@ package eksidentity
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,16 +22,19 @@ import (
 
 type stubState struct {
 	requested   string
+	requestedCA []byte
 	ec2Lookups  int
 	resolveCall int
 }
 
+var testClusterCA = []byte("-----BEGIN CERTIFICATE-----\nY2x1c3Rlcg==\n-----END CERTIFICATE-----\n")
+
 func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, configured string) *stubState {
 	t.Helper()
 	cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
-	origDistribution, origEC2, origConfigured, origResolve := detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey
+	origDistribution, origEC2, origConfigured, origResolve, origCA := detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey, readClusterCA
 	t.Cleanup(func() {
-		detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey = origDistribution, origEC2, origConfigured, origResolve
+		detectDistribution, ec2ClusterName, configuredCluster, resolveIdentityByKey, readClusterCA = origDistribution, origEC2, origConfigured, origResolve, origCA
 		cache.Cache.Delete(cache.BuildAgentKey("eks", "cluster-name"))
 	})
 
@@ -38,8 +42,10 @@ func stub(t *testing.T, distribution string, ec2Name string, ec2Err error, confi
 	detectDistribution = func(context.Context) string { return distribution }
 	ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return ec2Name, ec2Err }
 	configuredCluster = func(context.Context, string) string { return configured }
-	resolveIdentityByKey = func(_ context.Context, name string) (*eks.ClusterIdentity, error) {
+	readClusterCA = func() ([]byte, error) { return testClusterCA, nil }
+	resolveIdentityByKey = func(_ context.Context, name string, clusterCA []byte) (*eks.ClusterIdentity, error) {
 		state.requested = name
+		state.requestedCA = clusterCA
 		state.resolveCall++
 		return &eks.ClusterIdentity{
 			ClusterName: name,
@@ -169,4 +175,46 @@ func TestResolveBoundsEC2TagDiscovery(t *testing.T) {
 		require.NoError(t, err, "the configured name is used for this request")
 		assert.LessOrEqual(t, time.Since(start), clusterNameDiscoveryTimeout, "discovery has its own short budget")
 	})
+}
+
+func TestResolveVerifiesAgainstTheClusterCA(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		ec2Name  string
+		ec2Err   error
+		wantName string
+	}{
+		{name: "EC2 tag name", ec2Name: "Orders_Prod", wantName: "Orders_Prod"},
+		{name: "configured fallback", ec2Err: errors.New("no ec2 tags"), wantName: "orders"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := stub(t, "eks", tc.ec2Name, tc.ec2Err, "orders")
+			_, err := Resolve(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantName, state.requested)
+			assert.Equal(t, testClusterCA, state.requestedCA, "the pod's cluster CA is passed for verification")
+		})
+	}
+}
+
+func TestResolveRefusesUnverifiedConfiguredName(t *testing.T) {
+	// Without the cluster CA, a configured name can name another cluster (a stale value, a
+	// blue/green pair), so it is not used.
+	state := stub(t, "eks", "", errors.New("no ec2 tags"), "orders")
+	readClusterCA = func() ([]byte, error) { return nil, os.ErrNotExist }
+	identity, err := Resolve(t.Context())
+	assert.Nil(t, identity)
+	assert.ErrorIs(t, err, ErrClusterUnverified)
+	assert.Equal(t, 0, state.resolveCall)
+}
+
+func TestResolveUsesEC2NameWithoutClusterCA(t *testing.T) {
+	// The EC2 kubernetes.io/cluster/<name> tag is set by EKS on the node this pod runs on, so it
+	// names this cluster even when the CA cannot be read.
+	state := stub(t, "eks", "Orders_Prod", nil, "orders")
+	readClusterCA = func() ([]byte, error) { return nil, os.ErrNotExist }
+	_, err := Resolve(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "Orders_Prod", state.requested)
+	assert.Nil(t, state.requestedCA)
 }

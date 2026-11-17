@@ -36,7 +36,7 @@ func getEKSClusterIdentity(w http.ResponseWriter, r *http.Request) {
 		// Not running on EKS, or no cluster name to look up, is a permanent and expected
 		// outcome on other distributions. Report it as "not found" without marking the
 		// span errored so non-EKS clusters do not emit a steady stream of false errors.
-		if errors.Is(err, eksidentity.ErrNotEKS) || errors.Is(err, eksidentity.ErrClusterNameUnavailable) {
+		if errors.Is(err, eksidentity.ErrNotEKS) || errors.Is(err, eksidentity.ErrClusterNameUnavailable) || errors.Is(err, eksidentity.ErrClusterUnverified) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}

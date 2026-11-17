@@ -69,7 +69,7 @@ func TestGetEKSClusterIdentity(t *testing.T) {
 }
 
 func TestGetEKSClusterIdentityNotApplicableIsNotAnError(t *testing.T) {
-	for _, sentinel := range []error{eksidentity.ErrNotEKS, eksidentity.ErrClusterNameUnavailable} {
+	for _, sentinel := range []error{eksidentity.ErrNotEKS, eksidentity.ErrClusterNameUnavailable, eksidentity.ErrClusterUnverified} {
 		t.Run(sentinel.Error(), func(t *testing.T) {
 			// Wrapped sentinels must still be recognized.
 			stubEKSIdentityResolver(t, nil, fmt.Errorf("resolve: %w", sentinel))

@@ -13,6 +13,10 @@ package eks
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -53,6 +57,9 @@ var (
 	ErrInvalidClusterName = errors.New("invalid EKS cluster name")
 	// ErrInvalidClusterIdentity indicates that DescribeCluster returned an unusable identity.
 	ErrInvalidClusterIdentity = errors.New("invalid EKS cluster identity")
+	// ErrClusterMismatch indicates that the cluster DescribeCluster answered for is not the
+	// cluster this pod runs in.
+	ErrClusterMismatch = errors.New("EKS cluster does not match the running cluster")
 
 	clusterNamePattern = regexp.MustCompile(`^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$`)
 )
@@ -78,13 +85,15 @@ var loadAWSConfig = func(ctx context.Context) (aws.Config, error) {
 }
 
 // GetClusterIdentity resolves a cluster ARN through EKS DescribeCluster and caches successful results.
-// Node account metadata is never used as cluster ownership evidence.
-func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdentity, error) {
+// Node account metadata is never used as cluster ownership evidence. When clusterCA is set, the
+// cluster DescribeCluster answers for must have that certificate authority (see verifyClusterCA).
+func GetClusterIdentity(ctx context.Context, clusterName string, clusterCA []byte) (*ClusterIdentity, error) {
 	if !clusterNamePattern.MatchString(clusterName) {
 		return nil, ErrInvalidClusterName
 	}
 
-	cacheKey := cache.BuildAgentKey("eks", "cluster-identity", clusterName)
+	// The CA is part of the key: a mismatch cached for one CA must not answer for another.
+	flightKey, cacheKey := identityKeys(clusterName, clusterCA)
 	if id, ok, err := lookupCache(cacheKey); ok {
 		return id, err
 	}
@@ -97,7 +106,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	// The resolve runs on a context detached from the caller that started it: that caller is
 	// one node Agent's HTTP request, and its disconnect (restart, its own response timeout)
 	// must not fail the resolve for every other waiter. Each waiter still honors its own ctx.
-	results := resolveGroup.DoChan(clusterName, func() (interface{}, error) {
+	results := resolveGroup.DoChan(flightKey, func() (interface{}, error) {
 		// Re-check the cache inside the flight: the winner of a prior flight may have just
 		// populated it while this goroutine was waiting to enter.
 		if id, ok, err := lookupCache(cacheKey); ok {
@@ -105,7 +114,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 		}
 		resolveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), identityTimeout)
 		defer cancel()
-		return resolveAndCache(resolveCtx, clusterName, cacheKey)
+		return resolveAndCache(resolveCtx, clusterName, clusterCA, cacheKey)
 	})
 
 	var res singleflight.Result
@@ -121,6 +130,13 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	// Return a copy so no caller aliases the value shared by the cache and the other waiters.
 	out := *id
 	return &out, nil
+}
+
+// identityKeys returns the singleflight and cache keys for a cluster name and expected CA.
+func identityKeys(clusterName string, clusterCA []byte) (flightKey, cacheKey string) {
+	caSum := sha256.Sum256(clusterCA)
+	flightKey = clusterName + "/" + hex.EncodeToString(caSum[:8])
+	return flightKey, cache.BuildAgentKey("eks", "cluster-identity", flightKey)
 }
 
 // resolveGroup coalesces concurrent GetClusterIdentity misses by cluster name.
@@ -145,14 +161,14 @@ func lookupCache(cacheKey string) (*ClusterIdentity, bool, error) {
 // resolveAndCache performs the DescribeCluster resolve and populates the cache. The returned
 // pointer is the cached value; callers copy before handing it out.
 // ctx is the resolve's own context, already bounded by identityTimeout.
-func resolveAndCache(ctx context.Context, clusterName, cacheKey string) (*ClusterIdentity, error) {
+func resolveAndCache(ctx context.Context, clusterName string, clusterCA []byte, cacheKey string) (*ClusterIdentity, error) {
 	client, region, err := getDescribeClient(ctx)
 	if err != nil {
 		cacheFailure(cacheKey, err)
 		return nil, err
 	}
 
-	id, err := resolveClusterIdentity(ctx, clusterName, region, client)
+	id, err := resolveClusterIdentity(ctx, clusterName, region, clusterCA, client)
 	if err != nil {
 		cacheFailure(cacheKey, err)
 		return nil, err
@@ -248,7 +264,7 @@ var transientErrorCodes = map[string]bool{
 // list. apiError exposes ErrorCode and HTTPStatusCode, which is what the classifier inspects.
 var retryableClassifier = retry.IsErrorRetryables(retry.DefaultRetryables)
 
-func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion string, client describeClusterAPI) (*ClusterIdentity, error) {
+func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion string, clusterCA []byte, client describeClusterAPI) (*ClusterIdentity, error) {
 	output, err := client.DescribeCluster(ctx, clusterName)
 	if err != nil {
 		return nil, fmt.Errorf("describe EKS cluster %q: %w", clusterName, err)
@@ -272,5 +288,47 @@ func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion stri
 	if requestRegion != "" && parsed.Region != requestRegion {
 		return nil, fmt.Errorf("%w: requested Region %q but received %q", ErrInvalidClusterIdentity, requestRegion, parsed.Region)
 	}
+	if clusterCA != nil {
+		if err := verifyClusterCA(output.Cluster, clusterCA); err != nil {
+			return nil, err
+		}
+	}
 	return &parsed, nil
+}
+
+// verifyClusterCA checks that the cluster DescribeCluster answered for is the cluster this pod
+// runs in. Every pod gets the cluster's CA at
+// /var/run/secrets/kubernetes.io/serviceaccount/ca.crt, on EC2 nodes and on Fargate alike, and
+// EKS creates a new CA for every cluster. So when the name is stale or reused (a blue/green
+// pair, a recreated cluster) the ARN still parses, but the CA does not match.
+func verifyClusterCA(cluster *describedCluster, clusterCA []byte) error {
+	if cluster.CertificateAuthority == nil || cluster.CertificateAuthority.Data == nil {
+		return fmt.Errorf("%w: DescribeCluster returned no certificate authority", ErrClusterMismatch)
+	}
+	eksPEM, err := base64.StdEncoding.DecodeString(aws.ToString(cluster.CertificateAuthority.Data))
+	if err != nil {
+		return fmt.Errorf("%w: decode the cluster certificate authority: %v", ErrClusterMismatch, err)
+	}
+	local := certificates(clusterCA)
+	for der := range certificates(eksPEM) {
+		if local[der] {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: the cluster certificate authority does not match this cluster's", ErrClusterMismatch)
+}
+
+// certificates returns the DER bytes of every certificate in a PEM bundle, as set keys.
+func certificates(bundle []byte) map[string]bool {
+	certs := map[string]bool{}
+	for {
+		var block *pem.Block
+		block, bundle = pem.Decode(bundle)
+		if block == nil {
+			return certs
+		}
+		if block.Type == "CERTIFICATE" {
+			certs[string(block.Bytes)] = true
+		}
+	}
 }
