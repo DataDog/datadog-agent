@@ -6,7 +6,10 @@
 // Package rcx509client defines the Agent's Remote Config x509 client component.
 package rcx509client
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 // team: remote-config
 
@@ -48,6 +51,10 @@ type ClientConfig struct {
 	APIKey           string
 	HTTPClient       *http.Client
 	DebugPingEnabled bool
+
+	// PrepareSecretDelivery, when set, is registered as the handler for the RC
+	// secrets SecretsService/PrepareSecretDelivery RPC.
+	PrepareSecretDelivery func(ctx context.Context, correlationID uint64, payload []byte) ([]byte, error)
 }
 
 // ClientFactory constructs an x509 client.

@@ -8,12 +8,15 @@ package rcx509clientimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
@@ -25,6 +28,8 @@ import (
 const (
 	enabledSetting          = "remote_configuration.x509.enabled"
 	debugPingEnabledSetting = "remote_configuration.x509.debug_ping_enabled"
+	secretsEnabledSetting   = "remote_configuration.x509.secrets.enabled"
+	secretProductsSetting   = "remote_configuration.x509.secrets.products"
 	websocketPath           = "api/v2/ws"
 	appName                 = "core-agent"
 )
@@ -33,10 +38,11 @@ const (
 type Dependencies struct {
 	compdef.In
 
-	Lifecycle compdef.Lifecycle
-	Config    cfgcomp.Component
-	Logger    log.Component
-	Factory   rcx509client.ClientFactory `optional:"true"`
+	Lifecycle     compdef.Lifecycle
+	Config        cfgcomp.Component
+	Logger        log.Component
+	Factory       rcx509client.ClientFactory `optional:"true"`
+	DelegatedAuth delegatedauth.Component    `optional:"true"`
 }
 
 // Provides defines the output of the x509 client component.
@@ -76,6 +82,15 @@ func New(deps Dependencies) Provides {
 		return Provides{Comp: comp}
 	}
 
+	if deps.Config.GetBool(secretsEnabledSetting) {
+		clientConfig.PrepareSecretDelivery = newSecretPreparer(
+			deps.Config.GetStringSlice(secretProductsSetting),
+			workloadTokenFromDelegatedAuth(deps),
+			placeholderKeys{},
+			deps.Logger,
+		).prepare
+	}
+
 	client, err := deps.Factory(clientConfig)
 	if err != nil {
 		comp.state = rcx509client.StateFailed
@@ -95,6 +110,21 @@ func New(deps Dependencies) Provides {
 		OnStop:  comp.stop,
 	})
 	return Provides{Comp: comp}
+}
+
+// workloadTokenFromDelegatedAuth requests an rc_secrets workload token from the
+// same delegated auth instance that authenticates Remote Config.
+func workloadTokenFromDelegatedAuth(deps Dependencies) workloadTokenSource {
+	instance := "api_key"
+	if deps.Config.IsConfigured("remote_configuration.api_key") {
+		instance = "remote_configuration.api_key"
+	}
+	return func(ctx context.Context) (string, error) {
+		if deps.DelegatedAuth == nil {
+			return "", errors.New("workload identity is unavailable")
+		}
+		return deps.DelegatedAuth.GetWorkloadToken(ctx, instance, common.WorkloadTokenRequest{Grants: []string{"rc_secrets"}})
+	}
 }
 
 func buildClientConfig(cfg cfgcomp.Component) (rcx509client.ClientConfig, error) {
