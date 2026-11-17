@@ -244,7 +244,8 @@ def reset(ctx):
 @task
 def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
-    for mod in get_default_modules().values():
+    modules = get_default_modules()
+    for mod in modules.values():
         with ctx.cd(mod.path):
             go_sum = os.path.join(mod.full_path(), "go.sum")
             if not os.path.exists(go_sum):
@@ -253,9 +254,14 @@ def check_go_mod_replaces(ctx, fix=False):
                 for line in f:
                     if "github.com/datadog/datadog-agent" in line.lower():
                         err_mod = line.split()[0]
-                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        err_mod_path = err_mod.removeprefix("github.com/DataDog/datadog-agent/")
+                        if (Path(err_mod_path) / "go.mod").exists():
                             if fix:
-                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                # Point to the directory go.work uses, or `go work sync` reports conflicting replacements
+                                target = (
+                                    modules[err_mod_path].workspace_dir() if err_mod_path in modules else err_mod_path
+                                )
+                                relative_path = os.path.relpath(target, mod.path)
                                 ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
                             else:
                                 errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
