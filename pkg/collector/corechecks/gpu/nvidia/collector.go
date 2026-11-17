@@ -48,6 +48,7 @@ const (
 	nvlinkFields    CollectorName = "nvlink_fields"
 	nvlinkStateless CollectorName = "nvlink_stateless"
 	nvlinkGPM       CollectorName = "nvlink_gpm"
+	nvlinkState     CollectorName = "nvlink_state"
 	sharing         CollectorName = "sharing"
 )
 
@@ -68,6 +69,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	nvlinkFields:    newNVLinkFieldsCollector,
 	nvlinkStateless: newNVLinkStatelessCollector,
 	nvlinkGPM:       newNVLinkGPMCollector,
+	nvlinkState:     newNVLinkStateCollector,
 	gpm:             newGPMCollector,
 	deviceEvents:    newDeviceEventsCollector,
 	ebpf:            newEbpfCollector,

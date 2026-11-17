@@ -877,8 +877,9 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// eBPF and KAI Scheduler support are disabled by default, and PLR
 	// requires the system-probe endpoint.
 	parentCollectorTypes := nvidia.NumCollectors() - 3
-	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
-	migCollectorTypes := parentCollectorTypes - 4
+	// MIG slices have no NVLink ports, so the NVLink collectors (per-port and
+	// link state) are not created.
+	migCollectorTypes := parentCollectorTypes - 5
 
 	// Track the number of visible MIG children dynamically.
 	migDeviceCount := 0
@@ -2013,7 +2014,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 
 	disabled := []string{
 		"stateless", "sampling", "fields", "gpm", "device_events",
-		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
+		"nvlink_plr", "nvlink_fec", "nvlink_gpm", "nvlink_state",
 	}
 	deps := &nvidia.CollectorDependencies{
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
