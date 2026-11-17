@@ -197,6 +197,10 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(t testing.TB, kind string) err
 func newDockerCmdWrapper(t testing.TB, mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
 	t.Helper()
 
+	if err := checkContainerRuntime(); err != nil {
+		return nil, err
+	}
+
 	if runtimeCommand == "" {
 		runtimeCommand = "docker"
 	}
