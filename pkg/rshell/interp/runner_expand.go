@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -402,8 +403,11 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 			return false
 		}
 		remaining := int64(MaxExpandedBytesPerCommand) - c.bytes
-		estimatedWord := *word
-		syntax.SplitBraces(&estimatedWord)
+		estimatedWord, err := c.r.splitBracesBounded(word)
+		if err != nil {
+			c.r.expandErr(err)
+			return false
+		}
 		if err := c.r.checkWordExpansionSize(&estimatedWord, remaining,
 			fmt.Sprintf("expansion exceeds maximum command size (%d bytes)", MaxExpandedBytesPerCommand)); err != nil {
 			c.r.expandErr(err)
@@ -450,6 +454,162 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 		}
 	}
 	return true
+}
+
+// maxBraceSplitWork bounds the parts syntax.SplitBraces copies for one word.
+const maxBraceSplitWork = 1 << 20
+
+// maxBraceAlternativeParts bounds the parts expand.BracesSeq holds at once
+// while building one alternative: each brace level on the alternative's path
+// keeps its own copy of the remaining parts until the alternative is yielded.
+const maxBraceAlternativeParts = 1 << 20
+
+// maxBraceExpansionWork bounds the parts copied and the value bytes scanned
+// while expanding the braces of one word across all of its alternatives. The
+// expander takes no context and an alternative that expands to no field never
+// reaches a cancellation check, so the bound must cover the whole word, not
+// one field.
+const maxBraceExpansionWork = 1 << 25
+
+// maxBraceAlternatives is the number of alternatives expand.BracesSeq builds
+// before it fails the word.
+const maxBraceAlternatives = 16<<10 + 1
+
+func braceWorkLimitError() error {
+	return &expansionLimitError{message: "brace expansion exceeds maximum word complexity"}
+}
+
+// splitBracesBounded returns a copy of word with its braces split, or an
+// error if splitting or expanding them would exceed maxBraceSplitWork,
+// maxBraceAlternativeParts or maxBraceExpansionWork. Check never reaches expand.FieldsSeq with an
+// unquoted "{", so only Run needs it.
+func (r *Runner) splitBracesBounded(word *syntax.Word) (syntax.Word, error) {
+	if braceSplitWorkExceeds(word.Parts) {
+		return syntax.Word{}, braceWorkLimitError()
+	}
+	split := *word
+	if !syntax.SplitBraces(&split) {
+		return split, nil
+	}
+	// An unsupported part fails checkWordExpansionSize right after this.
+	size, err := r.wordPartsExpansionSize(split.Parts)
+	if err == nil && braceExpansionWorkExceeds(split.Parts, size.known) {
+		return syntax.Word{}, braceWorkLimitError()
+	}
+	return split, nil
+}
+
+// braceSplitWorkExceeds reports whether syntax.SplitBraces could exceed
+// maxBraceSplitWork on parts. SplitBraces copies each part once per
+// enclosing open brace beyond the first, so the bound is the maximum "{"
+// nesting depth, tracked the way SplitBraces tracks open braces, less one,
+// times the word's literal bytes plus its other parts.
+func braceSplitWorkExceeds(parts []syntax.WordPart) bool {
+	var depth, maxDepth, size int64
+	for _, part := range parts {
+		lit, ok := part.(*syntax.Lit)
+		if !ok {
+			size++
+			continue
+		}
+		size += int64(len(lit.Value))
+		for i := 0; i < len(lit.Value); i++ {
+			switch lit.Value[i] {
+			case '\\':
+				i++
+			case '{':
+				depth++
+				maxDepth = max(maxDepth, depth)
+			case '}':
+				depth = max(depth-1, 0)
+			}
+		}
+	}
+	return (maxDepth-1)*size > maxBraceSplitWork
+}
+
+// braceExpansionWorkExceeds reports whether expanding brace-split parts could
+// exceed maxBraceAlternativeParts or maxBraceExpansionWork. For each alternative it builds,
+// expand.BracesSeq copies the alternative's parts once per brace expression on
+// its path, and the expander then scans up to alternativeBytes of literal and
+// variable text, even when none of it becomes a field.
+func braceExpansionWorkExceeds(parts []syntax.WordPart, alternativeBytes int64) bool {
+	braces, length := braceAlternativeShape(parts)
+	if braces*length > maxBraceAlternativeParts {
+		return true
+	}
+	return (braces*length+alternativeBytes)*braceAlternatives(parts) > maxBraceExpansionWork
+}
+
+// braceAlternativeShape returns upper bounds on the brace expressions on any
+// one alternative's path and on that alternative's parts, counting an
+// unexpanded brace expression as at least one part. braceSplitWorkExceeds,
+// checked first, bounds the recursion depth.
+func braceAlternativeShape(parts []syntax.WordPart) (braces, length int64) {
+	for _, part := range parts {
+		br, ok := part.(*syntax.BraceExp)
+		if !ok {
+			length++
+			continue
+		}
+		var elemBraces, elemLength int64
+		for _, elem := range br.Elems {
+			b, l := braceAlternativeShape(elem.Parts)
+			elemBraces, elemLength = max(elemBraces, b), max(elemLength, l)
+		}
+		braces += 1 + elemBraces
+		length += max(elemLength, 1)
+	}
+	return braces, length
+}
+
+// braceAlternatives returns the number of words expand.BracesSeq builds from
+// brace-split parts, saturating at maxBraceAlternatives.
+func braceAlternatives(parts []syntax.WordPart) int64 {
+	n := int64(1)
+	for _, part := range parts {
+		br, ok := part.(*syntax.BraceExp)
+		if !ok {
+			continue
+		}
+		var m int64
+		if br.Sequence {
+			m = braceSequenceLength(br)
+		} else {
+			for _, elem := range br.Elems {
+				m = min(m+braceAlternatives(elem.Parts), maxBraceAlternatives)
+			}
+		}
+		n = min(n*m, maxBraceAlternatives)
+	}
+	return n
+}
+
+// braceSequenceLength returns the number of elements expand.BracesSeq steps
+// through for a sequence, or maxBraceAlternatives for any range it could step
+// past the int64 bounds on, where its unchecked addition wraps.
+func braceSequenceLength(br *syntax.BraceExp) int64 {
+	const bound = 1 << 32
+	fromLit, toLit := br.Elems[0].Lit(), br.Elems[1].Lit()
+	from, err1 := strconv.ParseInt(fromLit, 10, 64)
+	to, err2 := strconv.ParseInt(toLit, 10, 64)
+	if err1 != nil || err2 != nil {
+		from, to = int64(fromLit[0]), int64(toLit[0])
+	}
+	step := int64(1)
+	if len(br.Elems) > 2 {
+		n, _ := strconv.ParseInt(br.Elems[2].Lit(), 10, 64)
+		if n != 0 {
+			step = n
+		}
+	}
+	if from < -bound || from > bound || to < -bound || to > bound || step < -bound || step > bound {
+		return maxBraceAlternatives
+	}
+	if step < 0 {
+		step = -step
+	}
+	return min((max(from, to)-min(from, to))/step+1, maxBraceAlternatives)
 }
 
 // fieldSplitIFS returns the IFS value the expander splits with, mirroring
