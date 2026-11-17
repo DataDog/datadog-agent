@@ -223,7 +223,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			return err
 		}
 
-		if isMacOSPoolMember && poolAcquired.Found {
+		if isMacOSPoolMember && poolAcquired.Found && !isCI {
 			// The imported Instance's own IgnoreChanges(["tags", ...]) only protects its tags
 			// attribute; the pool identity tags live in separate aws:ec2/tag:Tag resources
 			// declared by RegisterPoolMember on the run that first registered this member.
@@ -231,6 +231,11 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// no longer part of the program and deleting them. The runner's own options
 			// (Parent/DependsOn) are used rather than opts: by this point opts also carries this
 			// Instance's pulumi.Import/IgnoreChanges, which don't apply to these Tag resources.
+			//
+			// Only a local run does this: it acquires the member it owns (Acquire filters on
+			// its username), from the stack that registered it. A CI run acquires any idle
+			// member, from a stack that never declared these tags, and writing them would hand
+			// a developer's member to the CI user.
 			if err := ec2.TagPoolMember(e, name, instance.ID().ToStringOutput(), username, c.OS.Runner().PulumiOptions()...); err != nil {
 				return err
 			}
