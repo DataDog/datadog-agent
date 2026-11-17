@@ -20,7 +20,8 @@ type ContainerCreationHandler struct {
 	store workloadmeta.Component
 
 	mu sync.Mutex
-	// seen maps a container ID to whether the event emitted for it carried owner info.
+	// seen maps a container ID to whether the event emitted for it carried both the
+	// owner and the creation timestamp.
 	seen map[string]bool
 }
 
@@ -91,15 +92,21 @@ func (h *ContainerCreationHandler) Handle(ev workloadmeta.Event) ([]LifecycleEve
 				log.Tracef("Cannot handle owner for container %q with type %q", containerID, c.Owner.Kind)
 			}
 		}
+		if ctr.OptionalCreationTimestamp == nil && !c.State.CreatedAt.IsZero() {
+			ts := c.State.CreatedAt.Unix()
+			ctr.OptionalCreationTimestamp = &contlcycle.ContainerEvent_CreationTimestamp{CreationTimestamp: ts}
+		}
 	}
 
 	h.mu.Lock()
-	hadOwner, alreadySeen := h.seen[containerID]
-	if alreadySeen && (hadOwner || ctr.Owner == nil) {
+	// If we've already seen it, and it was complete (had both owner and creation timestamp), don't re-emit
+	// Otherwise this could be an improvement (WLM merged from orchestrator source or from runtime source?), so re-emit
+	complete, alreadySeen := h.seen[containerID]
+	if alreadySeen && complete {
 		h.mu.Unlock()
 		return nil, nil
 	}
-	h.seen[containerID] = ctr.Owner != nil
+	h.seen[containerID] = ctr.Owner != nil && ctr.OptionalCreationTimestamp != nil
 	h.mu.Unlock()
 
 	return []LifecycleEvent{{
