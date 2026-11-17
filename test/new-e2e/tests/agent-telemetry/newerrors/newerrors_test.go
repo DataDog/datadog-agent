@@ -43,7 +43,8 @@ func TestNormalize(t *testing.T) {
 func TestFingerprint_StableAcrossCallerAndNumberingChanges(t *testing.T) {
 	frame := func(fn, file string) string { return fn + "\n\t/x/" + file + ":1 +0x1\n" }
 	logging := frame("github.com/DataDog/datadog-agent/pkg/util/log.Errorf", "log.go") +
-		frame("github.com/DataDog/datadog-agent/pkg/util/log/errortracking.(*handler).Handle", "handler.go")
+		frame("github.com/DataDog/datadog-agent/pkg/util/log/errortracking.(*handler).Handle", "handler.go") +
+		frame("github.com/DataDog/datadog-agent/comp/core/log/impl.(*logger).Errorf", "logger.go")
 	core := frame("pkg/a.Fail", "a.go") + frame("pkg/a.Run.func1", "a.go") + frame("pkg/b.Loop", "b.go") +
 		frame("pkg/c.Start", "c.go") + frame("pkg/d.Main", "d.go")
 
@@ -55,6 +56,7 @@ func TestFingerprint_StableAcrossCallerAndNumberingChanges(t *testing.T) {
 		{"extra deep caller", logging + core + frame("pkg/e.Extra", "e.go") + frame("runtime.goexit", "asm.s")},
 		{"no goexit", logging + core},
 		{"closure renumbered", logging + strings.Replace(core, "Run.func1", "Run.func3", 1) + frame("runtime.goexit", "asm.s")},
+		{"nested closure renumbered", logging + strings.Replace(core, "Run.func1", "Run.func1.2", 1) + frame("runtime.goexit", "asm.s")},
 		{"no logging frames", core + frame("runtime.goexit", "asm.s")},
 	}
 	for _, tt := range tests {
@@ -62,6 +64,10 @@ func TestFingerprint_StableAcrossCallerAndNumberingChanges(t *testing.T) {
 			assert.Equal(t, Fingerprint(base), Fingerprint(tt.stack))
 		})
 	}
+
+	// A sibling package sharing the logging prefix text is not plumbing.
+	lookalike := frame("github.com/DataDog/datadog-agent/pkg/util/logfoo.Fail", "x.go") + core
+	assert.NotEqual(t, Fingerprint(core), Fingerprint(lookalike))
 
 	// A change in the top frames is a different error.
 	assert.NotEqual(t, Fingerprint(base), Fingerprint(logging+strings.Replace(core, "pkg/a.Fail", "pkg/a.Other", 1)))

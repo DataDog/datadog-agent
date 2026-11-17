@@ -53,7 +53,8 @@ var (
 	lineRe = regexp.MustCompile(`:\d+$`)
 	// closureNumberRe matches the numbering the compiler gives closures and
 	// wrappers (".func2", ".gowrap1"), which changes when code is added nearby.
-	closureNumberRe = regexp.MustCompile(`\.(func|gowrap|deferwrap)\d+`)
+	// Nested closures append further numbers (".func1.2"), dropped as well.
+	closureNumberRe = regexp.MustCompile(`\.(func|gowrap|deferwrap)\d+(\.\d+)*`)
 )
 
 // maxFrames is how many frames, after dropping logging plumbing, make up a
@@ -65,6 +66,8 @@ const maxFrames = 5
 // event passes through, which carry no information about the fault.
 var loggingPlumbingPrefixes = []string{
 	"github.com/DataDog/datadog-agent/pkg/util/log",
+	// The logger component wraps pkg/util/log, adding one frame per event.
+	"github.com/DataDog/datadog-agent/comp/core/log",
 }
 
 // Normalize reduces a stack trace to its release-independent shape: one
@@ -72,7 +75,7 @@ var loggingPlumbingPrefixes = []string{
 // addresses and call arguments are dropped so builds compare equal, and line
 // numbers are dropped because they move between releases. Two call sites in
 // one function and file therefore share a fingerprint. Closure numbering is
-// dropped, frames of the logging path (pkg/util/log and below) are skipped,
+// dropped, frames of the logging path (pkg/util/log, comp/core/log and below) are skipped,
 // and only the first maxFrames remaining frames are kept, so an extra caller
 // or a different goroutine entry does not change the result. Lines that are
 // not frames are ignored; a stack with no frames normalizes to "".
@@ -106,7 +109,9 @@ func Normalize(stack string) string {
 
 func isLoggingPlumbing(fn string) bool {
 	for _, p := range loggingPlumbingPrefixes {
-		if strings.HasPrefix(fn, p) {
+		// The prefix must end at a package or method boundary, so
+		// "pkg/util/logfoo" is not mistaken for "pkg/util/log".
+		if rest, ok := strings.CutPrefix(fn, p); ok && (rest == "" || rest[0] == '.' || rest[0] == '/') {
 			return true
 		}
 	}

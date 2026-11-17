@@ -30,6 +30,9 @@ var agentVersionRe = regexp.MustCompile(`Agent (\d+\.\d+\.\d+(?:-[^\s+]+)?)`)
 // stackOffsetRe matches the "+0x..." offset of a stack frame.
 var stackOffsetRe = regexp.MustCompile(`\+0x[0-9a-f]+`)
 
+// stackLineRe matches the ":line " of a stack frame, ahead of its offset.
+var stackLineRe = regexp.MustCompile(`:\d+ `)
+
 type errorTrackingIdentitySuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -92,7 +95,7 @@ func (s *errorTrackingIdentitySuite) TestIdentityTags() {
 // from FakeIntake. The candidate cohort is what the build under test emitted.
 // The baseline is synthetic: the same events minus one seeded fingerprint, with
 // offsets rewritten. Fingerprint stability across builds (offsets, line
-// numbers, paths) is proven by the newerrors unit tests, not here. No real previous release
+// numbers, paths) is proven by the newerrors unit tests. No real previous release
 // emits errortracking with identity tags yet, and versions are never faked
 // inside a real agent.
 func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
@@ -112,23 +115,33 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 		assert.GreaterOrEqual(c, len(distinct), 2, "need at least two distinct error fingerprints")
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for two distinct error fingerprints")
 
-	var seeded string
+	// Seed the lowest fingerprint so the choice is deterministic for a given set of payloads.
+	distinct := map[string]struct{}{}
+	seeded := ""
 	for _, l := range logs {
-		if seeded = newerrors.Fingerprint(l.StackTrace); seeded != "" {
-			break
+		fp := newerrors.Fingerprint(l.StackTrace)
+		if fp == "" {
+			continue
+		}
+		distinct[fp] = struct{}{}
+		if seeded == "" || fp < seeded {
+			seeded = fp
 		}
 	}
 	require.NotEmpty(s.T(), seeded, "no log with a usable stack")
 
+	// The baseline stands for another release: the same events minus the seeded
+	// error, with offsets and line numbers shifted and one more caller added.
 	var candidate, baseline newerrors.Cohort
 	for _, l := range logs {
 		candidate.Events = append(candidate.Events, newerrors.Event{Host: "candidate", StackTrace: l.StackTrace, Count: l.Count})
 		if newerrors.Fingerprint(l.StackTrace) == seeded {
 			continue
 		}
+		drifted := stackLineRe.ReplaceAllString(stackOffsetRe.ReplaceAllString(l.StackTrace, "+0x1"), ":1 ")
 		baseline.Events = append(baseline.Events, newerrors.Event{
 			Host:       "baseline",
-			StackTrace: stackOffsetRe.ReplaceAllString(l.StackTrace, "+0x1"),
+			StackTrace: drifted + "\nexample.com/extra.Caller\n\t/build/extra.go:1 +0x1",
 			Count:      l.Count,
 		})
 	}
@@ -137,6 +150,12 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 	require.Len(s.T(), found, 1, "only the seeded error may be reported as new")
 	assert.Equal(s.T(), seeded, found[0].Fingerprint)
 	assert.Positive(s.T(), found[0].RatePerHost)
+	// Every other fingerprint is shared by both cohorts and so is not new.
+	for fp := range distinct {
+		if fp != seeded {
+			assert.NotEqual(s.T(), fp, found[0].Fingerprint)
+		}
+	}
 
 	// The reverse comparison finds nothing: every baseline error is in the candidate.
 	assert.Empty(s.T(), newerrors.FindNew(candidate, baseline))
