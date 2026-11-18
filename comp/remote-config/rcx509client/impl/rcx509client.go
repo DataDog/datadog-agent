@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	enabledSetting          = "remote_configuration.x509.enabled"
-	debugPingEnabledSetting = "remote_configuration.x509.debug_ping_enabled"
-	websocketPath           = "api/v2/ws"
-	appName                 = "core-agent"
+	enabledSetting            = "remote_configuration.x509.enabled"
+	debugPingEnabledSetting   = "remote_configuration.x509.debug_ping_enabled"
+	reportConnectionIDSetting = "remote_configuration.x509.report_connection_id"
+	websocketPath             = "api/v2/ws"
+	appName                   = "core-agent"
 )
 
 // Dependencies defines the dependencies for the x509 client component.
@@ -137,12 +138,13 @@ func buildClientConfig(cfg cfgcomp.Component) (rcx509client.ClientConfig, error)
 	}
 
 	return rcx509client.ClientConfig{
-		URL:              websocketURL.String(),
-		AppName:          appName,
-		Version:          version.AgentVersion,
-		APIKey:           apiKey,
-		HTTPClient:       &http.Client{Transport: transport},
-		DebugPingEnabled: cfg.GetBool(debugPingEnabledSetting),
+		URL:                websocketURL.String(),
+		AppName:            appName,
+		Version:            version.AgentVersion,
+		APIKey:             apiKey,
+		HTTPClient:         &http.Client{Transport: transport},
+		DebugPingEnabled:   cfg.GetBool(debugPingEnabledSetting),
+		ReportConnectionID: cfg.GetBool(reportConnectionIDSetting),
 	}, nil
 }
 

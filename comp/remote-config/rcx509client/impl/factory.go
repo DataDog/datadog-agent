@@ -22,6 +22,16 @@ const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/
 // behavior without initializing the native x509 subsystem.
 func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 	return func(config rcx509client.ClientConfig) (rcx509client.Client, error) {
+		// The sink is process-global and installed before the client exists so
+		// that no handshake is missed. It is never touched unless asked for.
+		var reporter *connectionReporter
+		if config.ReportConnectionID {
+			reporter = newConnectionReporter(logger, rcx509.EnableLogSink)
+			if !reporter.install() {
+				reporter = nil
+			}
+		}
+
 		client, err := rcx509.NewClient(
 			config.URL,
 			config.AppName,
@@ -30,12 +40,14 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 			rcx509.WithHTTPClient(config.HTTPClient),
 		)
 		if err != nil {
+			reporter.close()
 			return nil, err
 		}
 
 		if config.DebugPingEnabled {
 			if err := client.RegisterHandler(debugServicePingURI, newDebugPingHandler(logger)); err != nil {
 				_ = client.Close()
+				reporter.close()
 				return nil, fmt.Errorf("register x509 debug ping handler: %w", err)
 			}
 			logger.Info("remote config x509 debug ping handler enabled for manual staging validation")
@@ -44,11 +56,16 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 		if config.ExecuteHandler != nil {
 			if err := client.RegisterHandler(remoteQueriesExecuteURI, rcx509.HandlerFunc(config.ExecuteHandler)); err != nil {
 				_ = client.Close()
+				reporter.close()
 				return nil, fmt.Errorf("register x509 remote queries execute handler: %w", err)
 			}
+			reporter.markExecuteHandlerRegistered()
 			logger.Info("remote config x509 remote queries execute handler registered")
 		}
 
+		if reporter != nil {
+			return &reportingClient{Client: client, reporter: reporter}, nil
+		}
 		return client, nil
 	}
 }

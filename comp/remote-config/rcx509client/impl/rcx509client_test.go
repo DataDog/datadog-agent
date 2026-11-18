@@ -137,6 +137,35 @@ func TestClientConfigurationAndLifecycle(t *testing.T) {
 	}
 }
 
+func TestReportConnectionIDIsOffByDefaultAndOnlyWhenEnabled(t *testing.T) {
+	for name, tc := range map[string]struct {
+		overrides map[string]interface{}
+		want      bool
+	}{
+		"default":       {map[string]interface{}{enabledSetting: true}, false},
+		"explicit off":  {map[string]interface{}{enabledSetting: true, reportConnectionIDSetting: false}, false},
+		"on":            {map[string]interface{}{enabledSetting: true, reportConnectionIDSetting: true}, true},
+		"client absent": {map[string]interface{}{reportConnectionIDSetting: true}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			called := false
+			var got rcx509client.ClientConfig
+			deps, _ := newDependencies(t, tc.overrides, func(config rcx509client.ClientConfig) (rcx509client.Client, error) {
+				called = true
+				got = config
+				return newFakeClient(), nil
+			})
+			New(deps)
+			if name == "client absent" {
+				require.False(t, called, "a disabled client must not reach the factory")
+				return
+			}
+			require.True(t, called)
+			require.Equal(t, tc.want, got.ReportConnectionID)
+		})
+	}
+}
+
 func TestDebugPingHandler(t *testing.T) {
 	payload, err := proto.Marshal(&remoteconfigv1.PingRequest{
 		ConnectionId: "staging-connection",

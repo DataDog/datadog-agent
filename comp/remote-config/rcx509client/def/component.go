@@ -56,6 +56,10 @@ type ClientConfig struct {
 	APIKey           string
 	HTTPClient       *http.Client
 	DebugPingEnabled bool
+	// ReportConnectionID asks the client factory to log the current RC
+	// connection ID. Off by default; when false the factory installs no log
+	// sink and starts no goroutine.
+	ReportConnectionID bool
 	// ExecuteHandler, if set, is registered for the Remote Queries Execute URI.
 	// A nil handler leaves the URI unregistered.
 	ExecuteHandler ExecuteHandler
