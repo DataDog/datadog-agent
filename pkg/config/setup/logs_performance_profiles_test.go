@@ -204,6 +204,13 @@ logs_config:
 	assert.Equal(t, 20, cfg.GetInt("logs_config.batch_max_concurrent_send"))
 }
 
+func mergeFleetYAML(t *testing.T, cfg pkgconfigmodel.Config, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	require.NoError(t, cfg.MergeFleetPolicy(path))
+}
+
 func TestLogsPerformanceProfileSelectedByFleetIsExpanded(t *testing.T) {
 	// No profile in the config file: the first override pass is a no-op.
 	cfg := confFromYAML(t, ``)
@@ -212,7 +219,7 @@ func TestLogsPerformanceProfileSelectedByFleetIsExpanded(t *testing.T) {
 		"no profile yet: defaults must stand")
 
 	// Fleet policies merge after the first pass and select a profile.
-	cfg.Set("logs_config.profile", "high-throughput", pkgconfigmodel.SourceFleetPolicies)
+	mergeFleetYAML(t, cfg, "logs_config:\n  profile: high-throughput\n")
 	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"),
@@ -229,7 +236,7 @@ logs_config:
 	require.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"))
 
 	// A fleet-policy knob must win over the first pass's post-init write.
-	cfg.Set("logs_config.pipelines", 1, pkgconfigmodel.SourceFleetPolicies)
+	mergeFleetYAML(t, cfg, "logs_config:\n  pipelines: 1\n")
 	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 1, cfg.GetInt("logs_config.pipelines"),
@@ -246,7 +253,7 @@ logs_config:
 	ApplyLogsPerformanceProfile(cfg)
 	require.Equal(t, 200, cfg.GetInt("logs_config.message_channel_size"))
 
-	cfg.Set("logs_config.profile", "low-latency", pkgconfigmodel.SourceFleetPolicies)
+	mergeFleetYAML(t, cfg, "logs_config:\n  profile: low-latency\n")
 	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 100, cfg.GetInt("logs_config.message_channel_size"))

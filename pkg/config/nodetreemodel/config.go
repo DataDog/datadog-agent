@@ -1163,6 +1163,12 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 		return err
 	}
 
+	fleetPolicies, err := c.fleetPolicies.Merge(other)
+	if err != nil {
+		return err
+	}
+	c.fleetPolicies = fleetPolicies
+
 	merged, err := c.root.Merge(other)
 	if err != nil {
 		return err

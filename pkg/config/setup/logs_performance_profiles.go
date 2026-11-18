@@ -158,7 +158,7 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 		for _, p := range logsPerformanceProfiles {
 			names = append(names, p.name)
 		}
-		log.Errorf("Unknown logs_config.profile %q; ignoring and using default logs settings. Available profiles: %s",
+		log.Warnf("Unknown logs_config.profile %q; ignoring and using default logs settings. Available profiles: %s",
 			name, strings.Join(names, ", "))
 	}
 

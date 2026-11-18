@@ -1456,6 +1456,11 @@ func TestMergeFleetPolicy(t *testing.T) {
 
 	assert.Equal(t, "baz", config.Get("foo"))
 	assert.Equal(t, model.SourceFleetPolicies, config.GetSource("foo"))
+
+	config.Set("foo", "post", model.SourceConfigPostInit)
+	config.UnsetForSource("foo", model.SourceConfigPostInit)
+	assert.Equal(t, "baz", config.Get("foo"))
+	assert.Equal(t, model.SourceFleetPolicies, config.GetSource("foo"))
 }
 
 func TestMergeConfig(t *testing.T) {
