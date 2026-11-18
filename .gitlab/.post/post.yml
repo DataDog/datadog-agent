@@ -1,12 +1,4 @@
 ---
-new-e2e-cleanup-on-failure:
-  extends: .post-validation-cleanup
-  dependencies: [go_e2e_deps]
-  rules:
-    - !reference [.except_post_validation_child]
-    - !reference [.except_light_pipeline]
-    - when: always
-
 do-not-merge:
   stage: check_merge
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -39,6 +31,11 @@ do-not-merge:
 # notify stage
 # Contains jobs which send notifications depending on pipeline status.
 
+.notify_setup:
+  - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  - dda self dep sync -f legacy-tasks -f legacy-notifications
+
 # Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
 .notify-job:
   stage: .post
@@ -70,15 +67,6 @@ notify:
   script:
     - !reference [.notify_setup]
     - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
-
-send_pipeline_stats:
-  extends: .post-validation-stats
-  rules:
-    - !reference [.except_post_validation_child]
-    # Preserve the implicit MR exclusion of the former job without rules.
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: never
-    - when: always
 
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

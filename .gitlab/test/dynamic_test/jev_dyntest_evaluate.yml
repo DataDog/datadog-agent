@@ -1,21 +1,3 @@
-# Evaluate the accuracy of the Jev-based e2e test skipping with the same
-# evaluate-index task and DynTestEvaluator harness as the coverage-based
-# selection: Jev is plugged in as an alternative DynTestExecutor implementation
-# (tasks/libs/dynamic_test/jev_selection.py), judged over every e2e job that
-# ran in this pipeline, using its configured TARGETS/EXTRA_PARAMS (no coverage
-# restriction). not_executed_failing_count is the miss count; stats are tagged
-# index_kind:jev. Skipped tests are not counted as executed.
-#
-# Evaluation only: Jev is NOT used to select the tests that run in this
-# pipeline, it only measures what it would have skipped.
-jev-dyntest-evaluate:
-  extends: .post-validation-jev
-  dependencies: [jev-pr-summary]
-  rules:
-    - !reference [.except_post_validation_child]
-    - !reference [.on_dev_branches]
-    - when: always
-
 # The LLM summary of the PR changes, generated ONCE per pipeline (one AI
 # Gateway call) and shared as an artifact with the jobs passing it to Jev
 # instead of the raw diff. Gated by the 'datadog-agent-jev-llm-summary'

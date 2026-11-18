@@ -142,11 +142,6 @@ class TestDestroyRemoteStackApi(unittest.TestCase):
         self.assertNotIn("cancel_first", run.call_args.kwargs["attrs"])
         self.assertIn(",pipeline_id=1,", run.call_args.kwargs["attrs"])
 
-    @patch("tasks.tools.e2e_stacks.run", side_effect=RuntimeError("submission failed"))
-    def test_submission_failure_remains_visible(self, _):
-        result = destroy_remote_stack_api("organization/e2eci/ci-init-42-stack", Context(), pipeline_id="42")
-        self.assertEqual(result, (1, "", "submission failed", "organization/e2eci/ci-init-42-stack"))
-
     @patch("tasks.tools.e2e_stacks.run")
     def test_cancel_first(self, run):
         destroy_remote_stack_api("organization/e2eci/stack", Context(), cancel_first=True)

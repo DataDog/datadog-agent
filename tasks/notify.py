@@ -47,13 +47,14 @@ def send_stats(_, dry_run=False, pipeline_id=None):
     Use the --dry-run option to test this locally, without sending
     data points to Datadog.
     """
-    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+    pipeline_id = pipeline_id if pipeline_id is not None else os.getenv("CI_PIPELINE_ID")
+    if pipeline_id is None or not str(pipeline_id).isdecimal():
         raise Exit("Provide a numeric --pipeline-id", code=1)
     if not (dry_run or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
-    series = compute_failed_jobs_series(PROJECT_NAME, pipeline_id=pipeline_id)
+    series = compute_failed_jobs_series(PROJECT_NAME, pipeline_id=str(pipeline_id))
 
     if not dry_run:
         send_metrics(series)

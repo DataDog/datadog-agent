@@ -1,7 +1,6 @@
 ---
 include:
   - local: .gitlab/.pre/common/shared.yml
-  - local: .gitlab/common/post-validation.yml
 
 workflow:
   # An already-created child survives parent-only graceful cancellation.
@@ -14,6 +13,8 @@ workflow:
     - when: never
 
 default:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   retry:
     max: 1
     when: always
@@ -25,29 +26,67 @@ default:
 stages:
   - post_validation
 
+variables:
+  GIT_DEPTH: $POST_VALIDATION_GIT_DEPTH
+  GIT_STRATEGY: $POST_VALIDATION_GIT_STRATEGY
+
 jev-dyntest-evaluate:
-  extends: .post-validation-jev
+  extends: .dd_octo_sts
   stage: post_validation
-  dependencies: []
+  tags: ["arch:arm64"]
+  # Evaluation only: Jev does not select the tests that run in the parent.
+  allow_failure: true
+  variables:
+    GIT_DEPTH: 0
+    GIT_STRATEGY: clone
   rules:
+    - if: >-
+        $POST_VALIDATION_PARENT_BRANCH == "main" ||
+        $POST_VALIDATION_PARENT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ ||
+        $POST_VALIDATION_PARENT_BRANCH =~ /^mq-working-branch-/ ||
+        $POST_VALIDATION_PARENT_TAG
+      when: never
     - when: always
+  before_script:
+    - !reference [.setup_github_token_read]
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
   script:
     - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha "$CI_COMMIT_SHA" --pipeline-id "$POST_VALIDATION_PARENT_ID" --pr-summary-from-pipeline
 
 new-e2e-cleanup-on-failure:
-  extends: .post-validation-cleanup
   stage: post_validation
-  dependencies: []
+  allow_failure: true
   variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     CLEANUP_TARGET_PIPELINE_ID: $POST_VALIDATION_PARENT_ID
+    REMOTE_STACK_CLEANING: "true"
   rules:
-    - when: always
+    - if: $POST_VALIDATION_CLEANUP_ENABLED == "true"
+      when: always
+  before_script:
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  script:
+    - STACK_REGEX="ci-init-${CLEANUP_TARGET_PIPELINE_ID}-.*"
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" --pipeline-id "$CLEANUP_TARGET_PIPELINE_ID"
 
 send_pipeline_stats:
-  extends: .post-validation-stats
   stage: post_validation
+  allow_failure: true
   needs: []
   rules:
+    - if: $POST_VALIDATION_PARENT_SOURCE == "merge_request_event"
+      when: never
     - when: always
+  before_script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - dda self dep sync -f legacy-tasks -f legacy-notifications
   script:
     - dda inv -- -e notify.send-stats --pipeline-id "$POST_VALIDATION_PARENT_ID"

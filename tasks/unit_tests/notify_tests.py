@@ -30,9 +30,16 @@ def get_github_slack_map():
 
 
 class TestSendStats(unittest.TestCase):
-    def test_invalid_explicit_pipeline_id(self):
-        with self.assertRaisesRegex(Exit, "numeric"):
-            notify.send_stats(MockContext(), dry_run=True, pipeline_id="")
+    def test_invalid_pipeline_id(self):
+        for pipeline_id, environment in (
+            ("", {"CI_PIPELINE_ID": "99"}),
+            (None, {}),
+            (None, {"CI_PIPELINE_ID": ""}),
+            (None, {"CI_PIPELINE_ID": "not-an-id"}),
+        ):
+            with self.subTest(pipeline_id=pipeline_id, environment=environment):
+                with patch.dict("os.environ", environment, clear=True), self.assertRaisesRegex(Exit, "numeric"):
+                    notify.send_stats(MockContext(), dry_run=True, pipeline_id=pipeline_id)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "99", "CI_COMMIT_REF_NAME": "pr-branch", "DD_API_KEY": "test"})
     @patch("tasks.notify.send_metrics")
