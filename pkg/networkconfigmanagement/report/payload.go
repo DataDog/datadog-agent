@@ -21,8 +21,9 @@ type NCMPayload struct {
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device.
-// ID and ConfigHash are populated when the agent was able to persist the
-// config in the local store; both are omitted from the payload otherwise.
+// ConfigHash is a hash of the config before redaction, so it changes when only
+// a redacted value changes. ID is populated when the agent was able to persist
+// the config in the local store, and is omitted from the payload otherwise.
 type NetworkDeviceConfig struct {
 	DeviceID      string             `json:"device_id"`
 	DeviceIP      string             `json:"device_ip"`
@@ -61,7 +62,7 @@ func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDevic
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-// id and configHash are optional — pass empty strings when the config could not be persisted in the local store.
+// uuid is optional - pass an empty string when the config could not be persisted in the local store.
 func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, configProfile string, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte, uuid string, configHash string) NetworkDeviceConfig {
 	var ts int64
 	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {

@@ -107,7 +107,7 @@ func TestFormatTagsIncludesTCPErrorsIncomplete(t *testing.T) {
 	var conn network.ConnectionStats
 	conn.AddTag(network.ConnTagTCPErrorsIncomplete)
 
-	indexes, checksum := formatTags(conn, tagSet, nil)
+	indexes, checksum := formatTags(&conn, conn.StaticTags, tagSet, nil)
 	require.NotZero(t, checksum)
 	require.Len(t, indexes, 1)
 	require.Equal(t, []string{network.ConnTagTCPErrorsIncomplete}, tagSet.Subset([]int32{int32(indexes[0])}))
@@ -124,7 +124,7 @@ func BenchmarkFormatTags(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		formatTags(c, tagSet, nil)
+		formatTags(&c, c.StaticTags, tagSet, nil)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestFormatConnectionNetNSOriginalContainerID(t *testing.T) {
 
 			streamer := NewProtoTestStreamer[*model.Connection]()
 			builder := model.NewConnectionBuilder(streamer)
-			FormatConnection(builder, conn, nil, nil, newDNSFormatter(conns, ipc), ipc, newResolvConfFormatter(conns), indexedset.New[string](0), 0)
+			FormatConnection(builder, &conn, nil, nil, newDNSFormatter(conns, ipc), ipc, newResolvConfFormatter(conns), indexedset.New[string](0), 0)
 			got := streamer.Unwrap(t, &model.Connection{})
 
 			require.Equal(t, "app-container", got.Laddr.ContainerId)

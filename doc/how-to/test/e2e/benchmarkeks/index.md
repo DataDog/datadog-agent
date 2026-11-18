@@ -15,7 +15,7 @@ For each version, the test measures three components, each loaded by a different
 
 | Component | What loads it |
 |---|---|
-| Node Agent | The containers of its node, through the `kubelet`, `container` and `containerd` checks and Autodiscovery |
+| Node Agent | The containers of its node, through the `kubelet`, `container`, `containerd` and `cri` checks and Autodiscovery |
 | Cluster Agent | The objects of the Kubernetes API server it watches |
 | Cluster checks runner | The `kubernetes_state_core` (KSM) check its Cluster Agent dispatches to it, which watches the API server too |
 
@@ -63,7 +63,7 @@ The job `new-e2e-containers-benchmarkeks` prints the report at the end of its lo
 - `report.json`, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;
 - `report.md`, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.
 
-The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes:
+The report gives the times of every phase, then a table like this one, from a CI run comparing two builds of the same Agent code, made when the benchmark ran 2 phases of 20 minutes and [the sleeper pods](how-it-works.md#real-pods-for-the-node-agents) had only 70 containers per node:
 
 | Component | Metric | Baseline | Comparison | Change | p-value | Verdict |
 |---|---|--:|--:|--:|--:|---|
@@ -83,7 +83,9 @@ The report gives the times of every phase, then a table like this one, from a CI
 
 In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the `kubelet` check (−13.4%, under 20%). Both builds run the same code: these are differences that [escape the p-value](statistics.md#limits), and that the thresholds absorb.
 
-The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.
+The report then lists the images of both versions, and links, for each component, to the comparison page of dddev between the CPU profiles of the baseline (A) and of the comparison (B): the Agents upload a profile every 5 minutes throughout the run, which shows where a regression comes from. The profiles are selected by `image_tag`, that is by version as long as the images of the two versions have different tags, from the start of the first phase to the end of the last one, so that a comparison holds those of all the processes of each version, on both installations, rather than the 3 profiles a single process uploads in a phase.
+
+The report and the end of the log also link to the dashboard [E2e tests — containers — benchmarkeks](https://dddev.datadoghq.com/dashboard/bkx-svx-pjc) of dddev, set to the cluster and the time of the run. Its graphs of the Agents have a curve per `image_tag`, that is per version, as long as the images of the two versions have different tags: a version keeps its curve across the swaps, which only move it to the node pools of the other installation. The links of the metrics in the report split them by `image_tag` too. Green and orange markers show the start and the end of each phase: the test posts them to dddev as events, whose text tells which images each installation runs. Its table of profiles links to the same comparisons, for the CPU time, the allocations, the live heap and the goroutines of each component.
 
 ## Run it locally
 

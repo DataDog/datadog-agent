@@ -59,21 +59,20 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --output-bin.")
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN, fips_backend=fips_backend)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
 
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=fips_backend)
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/installer/windows_resources/datadog-installer.rc",
             vars=vars,
             out="cmd/installer/rsrc.syso",
+            fips_backend=fips_backend,
         )
 
     build_tags = compute_build_tags_for_flavor(

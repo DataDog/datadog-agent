@@ -51,6 +51,7 @@ go_library(
         "//pkg/collector/corechecks/gpu",
         "//pkg/collector/corechecks/gpu/amd",
         "//pkg/collector/corechecks/gpu/nccl",
+        "//pkg/collector/corechecks/gpu/tpu",
         "//pkg/collector/corechecks/net/network",
         "//pkg/collector/corechecks/net/networkv2",
         "//pkg/collector/corechecks/net/ntp",
