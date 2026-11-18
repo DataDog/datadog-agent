@@ -44,6 +44,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -132,7 +133,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 	}
 
 	err := fxutil.Run(fxOptions...)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) {
+	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) || errors.Is(err, deployment.ErrFIPSUnsupported) {
 		return nil
 	}
 	return err
