@@ -5,8 +5,9 @@ load("//packages/rules:dd_pkg_owned_dirs.bzl", "dd_pkg_owned_dirs")
 load("//packages/rules:description.bzl", "rpm_description")
 
 _DEFAULT_DEFINES = {
-    "__provides_exclude": ".*",
-    "__requires_exclude": ".*",
+    # Skip the steps rpmbuild runs after %install (brp-strip, brp-compress,
+    # ...), like omnibus does. Binaries are already stripped by dd_strip.
+    "__spec_install_post": "%{nil}",
     "_build_id_links": "none",
 }
 
@@ -26,6 +27,7 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwar
     pkg_rpm_impl(
         name = name,
         srcs = srcs + [":" + owned_dirs],
+        autoreqprov = False,
         binary_payload_compression = select({
             "//:is_release": "w9T8.xzdio",
             "//conditions:default": "w5T8.xzdio",
@@ -43,6 +45,7 @@ dd_pkg_rpm = macro(
     inherit_attrs = pkg_rpm_impl,
     implementation = _dd_pkg_rpm_impl,
     attrs = {
+        "autoreqprov": None,
         "binary_payload_compression": None,
         "defines": attr.string_dict(configurable = False),
         "description": attr.string(configurable = False),
