@@ -42,10 +42,6 @@ type timeseriesLayout struct {
 	// using the timeseries response, and falls back to tableData for the call when one
 	// does not. It is set for layouts not yet checked against a real timeseries response.
 	strictKeyParts bool
-	// noDrillKeyColumn marks a parser that reads its first attribute from column zero
-	// instead of a drill key column. Its joined rows start with the attribute columns,
-	// whose first value is the entity key.
-	noDrillKeyColumn bool
 	// valueOrder, when set, lists the requested metrics in the order the parser reads
 	// their values, for a parser whose positions differ from the request order.
 	valueOrder []string
@@ -65,11 +61,16 @@ var (
 // against customer provided Versa responses is pending. Until then each checks its key
 // part count and falls back to tableData when a response does not match the expected
 // layout, and the two with attribute arguments take those columns from tableData.
+//
+// linkstatus(site,accckt) and the site query have no timeseries layout. A linkstatus
+// timeseries response holds one series per link status value (Up, Down, Degraded,
+// Indeterminable) for the tenant, not one per link, so it cannot give per link
+// availability. Versa rejects the site query as timeseries: with jq=siteStatus it answers
+// that joined queries are not allowed for the report, and without it that availability
+// is an invalid metric. Both stay on tableData.
 var (
 	// intfUtil(site,accCkt,intf): plain arguments, so the series name holds every column.
 	interfaceTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, strictKeyParts: true}
-	// linkstatus(site,accckt): plain arguments, so the series name holds every column.
-	linkStatusTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, strictKeyParts: true}
 	// linkusage(site,accckt,accckt.uplinkBW,...): keyed on site,accckt; the parser also
 	// needs site, accckt, uplink and downlink BW, type, media, ip and isp.
 	linkUsageTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 8, strictKeyParts: true}
@@ -86,11 +87,6 @@ var (
 	// tableData is left as is; timeseries series are named, so valueOrder places each one
 	// in the field of the same name.
 	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true, valueOrder: []string{"volume-rx", "volume-tx"}}
-	// linkusage(site,site.address,site.latitude,site.longitude,site.locationSource) with
-	// jq siteStatus: keyed on site, and parseSiteMetrics has no drill key column, so the
-	// joined row is the site, address, latitude, longitude and location source from
-	// tableData followed by the metric values.
-	siteTimeseriesLayout = &timeseriesLayout{drillKeyFields: 1, attributeColumns: 5, strictKeyParts: true, noDrillKeyColumn: true}
 )
 
 // keyPartsMismatch returns the first series name that does not split into the layout's
@@ -113,9 +109,6 @@ func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (s
 // uses tableData instead. Identical duplicate rows are not ambiguous.
 func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, ambiguousKeys int) {
 	prefix := 1 + layout.attributeColumns
-	if layout.noDrillKeyColumn {
-		prefix = layout.attributeColumns
-	}
 	byKey := make(map[string][]interface{}, len(tableRows))
 	conflicts := make(map[string]bool)
 	for _, row := range tableRows {

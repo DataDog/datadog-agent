@@ -25,8 +25,8 @@ import (
 //
 // The drill key is not always the group by arguments joined: linkusage and tunnelstats
 // take attribute arguments that key on a subset, and site metrics have no drill key column
-// at all. linkusage and DIA therefore take their attribute columns from tableData, and
-// site metrics and tunnelstats stay on tableData.
+// at all. linkusage, DIA and tunnelstats therefore take their attribute columns from
+// tableData.
 func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -39,10 +39,8 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "path qos", fixture: fixtures.GetPathQoSMetrics, layout: pathQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "interface", fixture: fixtures.GetAnalyticsInterfaceMetrics, layout: interfaceTimeseriesLayout, metricCount: 8, parserWidth: 12},
-		{name: "link status", fixture: fixtures.GetLinkStatusMetrics, layout: linkStatusTimeseriesLayout, metricCount: 1, parserWidth: 4},
 		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
 		{name: "tunnel", fixture: fixtures.GetTunnelMetrics, layout: tunnelTimeseriesLayout, metricCount: 2, parserWidth: 7},
-		{name: "site", fixture: fixtures.GetSiteMetrics, layout: siteTimeseriesLayout, metricCount: 5, parserWidth: 10},
 		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
 
@@ -61,11 +59,7 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 			if tt.layout.attributeColumns > 0 {
 				leading = tt.layout.attributeColumns
 			}
-			drillKeyColumn := 1
-			if tt.layout.noDrillKeyColumn {
-				drillKeyColumn = 0
-			}
-			assert.Equal(t, tt.parserWidth, drillKeyColumn+leading+tt.metricCount,
+			assert.Equal(t, tt.parserWidth, 1+leading+tt.metricCount,
 				"flattened row width must match what the parser expects")
 		})
 	}

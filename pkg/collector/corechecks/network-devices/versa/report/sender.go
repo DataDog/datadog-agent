@@ -177,6 +177,19 @@ func (s *Sender) SendSLAMetrics(tenant string, slaMetrics []client.SLAMetrics, d
 	s.UpdateTimestamps(newTimestamps)
 }
 
+// SendTimeseriesFallbacks counts, as versa.timeseries.fallback, each timeseries call that
+// was answered from tableData this run, tagged by tenant, query and reason, so a fallback
+// can be monitored rather than only seen in the log.
+func (s *Sender) SendTimeseriesFallbacks(fallbacks []client.Fallback) {
+	for _, f := range fallbacks {
+		s.Count(versaMetricPrefix+"timeseries.fallback", 1, "", []string{
+			"tenant:" + f.Tenant,
+			"query:" + f.Query,
+			"reason:" + string(f.Reason),
+		})
+	}
+}
+
 // bucketTimestamp decides how one entry of a timeseries capable endpoint should be
 // submitted. A zero entry timestamp means the row came from a tableData query, which
 // aggregates the whole lookback window and carries no bucket time, so it is sent at

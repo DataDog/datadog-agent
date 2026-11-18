@@ -150,6 +150,52 @@ type Client struct {
 	// check keeps one for its lifetime and passes it in, since the client is recreated on
 	// every run.
 	warnings *WarnLimiter
+	// fallbacks records the timeseries calls answered from tableData since the last
+	// TakeFallbacks, for the check to report.
+	fallbacks   []Fallback
+	fallbacksMu sync.Mutex
+}
+
+// FallbackReason says why a timeseries call was answered from tableData.
+type FallbackReason string
+
+// Fallback reasons, reported as the reason tag of versa.timeseries.fallback.
+const (
+	// FallbackHTTPError: the timeseries request failed or its response could not be parsed.
+	FallbackHTTPError FallbackReason = "http_error"
+	// FallbackKeyParts: an entity key did not have the layout's part count.
+	FallbackKeyParts FallbackReason = "key_parts"
+	// FallbackJoinAmbiguous: a join key matched tableData rows with differing attributes.
+	FallbackJoinAmbiguous FallbackReason = "join_ambiguous"
+	// FallbackJoinUnmatched: no entity, or fewer than half of them, matched a tableData row.
+	FallbackJoinUnmatched FallbackReason = "join_unmatched"
+)
+
+// Fallback is one timeseries call answered from tableData.
+type Fallback struct {
+	Tenant string
+	// Query is the short name of the analytics query, for example slam or linkusage.
+	Query  string
+	Reason FallbackReason
+}
+
+func (client *Client) recordFallback(tenant, query string, reason FallbackReason) {
+	short := query
+	if i := strings.Index(query, "("); i >= 0 {
+		short = query[:i]
+	}
+	client.fallbacksMu.Lock()
+	client.fallbacks = append(client.fallbacks, Fallback{Tenant: tenant, Query: short, Reason: reason})
+	client.fallbacksMu.Unlock()
+}
+
+// TakeFallbacks returns the fallbacks recorded since the last call, and clears them.
+func (client *Client) TakeFallbacks() []Fallback {
+	client.fallbacksMu.Lock()
+	defer client.fallbacksMu.Unlock()
+	out := client.fallbacks
+	client.fallbacks = nil
+	return out
 }
 
 // WarnLimiter logs a warning at most once per hour for a key, and at debug level
@@ -182,6 +228,21 @@ func (w *WarnLimiter) Warnf(key string, format string, args ...interface{}) {
 	log.Debugf(format, args...)
 }
 
+// Debugf logs at debug level unless the same key was logged within the hour.
+func (w *WarnLimiter) Debugf(key string, format string, args ...interface{}) {
+	w.mu.Lock()
+	last, seen := w.last[key]
+	now := timeNow()
+	logNow := !seen || now.Sub(last) >= time.Hour
+	if logNow {
+		w.last[key] = now
+	}
+	w.mu.Unlock()
+	if logNow {
+		log.Debugf(format, args...)
+	}
+}
+
 // WithWarnLimiter is a functional option sharing a WarnLimiter across clients, so the
 // rate limit holds across check runs.
 func WithWarnLimiter(w *WarnLimiter) ClientOptions {
@@ -192,12 +253,17 @@ func WithWarnLimiter(w *WarnLimiter) ClientOptions {
 	}
 }
 
-// warnRateLimited logs through the client's WarnLimiter.
-func (client *Client) warnRateLimited(key string, format string, args ...interface{}) {
+// limiter returns the client's WarnLimiter, creating one when none was passed in.
+func (client *Client) limiter() *WarnLimiter {
 	if client.warnings == nil {
 		client.warnings = NewWarnLimiter()
 	}
-	client.warnings.Warnf(key, format, args...)
+	return client.warnings
+}
+
+// warnRateLimited logs through the client's WarnLimiter.
+func (client *Client) warnRateLimited(key string, format string, args ...interface{}) {
+	client.limiter().Warnf(key, format, args...)
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -803,7 +869,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		[]string{
 			"availability",
 		},
-		linkStatusTimeseriesLayout,
+		nil,
 		parseLinkStatusMetrics,
 	)
 }
@@ -848,7 +914,7 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 			"bw-rx",
 			"availability",
 		},
-		siteTimeseriesLayout,
+		nil,
 		parseSiteMetrics,
 	)
 }
