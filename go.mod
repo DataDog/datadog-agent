@@ -16,8 +16,8 @@ retract (
 // for more details.
 
 // Reuse encoding/json in OTTL core to avoid linking a second JSON encoder.
-// Fork of v1.3.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
-replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c
+// Fork of v1.4.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261118151526-4efa93beb221
 
 // Internal deps fix version
 replace (
