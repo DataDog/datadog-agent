@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration leaves out the
+    content of the kubelet systemd service file, which it reported as the
+    name of the unit's first section, such as ``["Unit"]``.

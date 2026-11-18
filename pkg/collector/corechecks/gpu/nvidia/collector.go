@@ -286,8 +286,11 @@ func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
 	case nvlinkPLR:
 		return !config.Enabled || !config.PRMEndpointEnabled
 	case sharing:
-		// Only KAI Scheduler fractions assign containers a share of a GPU.
-		return !config.KAISchedulerEnabled
+		// KAI Scheduler fractions and shared-device replicas (time-slicing,
+		// MPS) are reported through the sharing collector. It walks only the
+		// containers holding a GPU share or replicas, so it costs nothing on
+		// nodes without shared GPUs and needs no gate of its own.
+		return false
 	default:
 		return false
 	}
@@ -371,14 +374,18 @@ func driverVersionForTelemetry() string {
 	return cachedDriverVersion
 }
 
+// isMIGParent returns true for a GPU that hosts MIG devices.
+func isMIGParent(device ddnvml.Device) bool {
+	physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+	return ok && len(physicalDevice.MIGChildren) > 0
+}
+
 func slicingModeTag(device ddnvml.Device) string {
-	switch device := device.(type) {
-	case *ddnvml.MIGDevice:
+	if physicalDevice, ok := device.(*ddnvml.PhysicalDevice); ok && (physicalDevice.HasMIGFeatureEnabled || isMIGParent(device)) {
+		return "mig-parent"
+	}
+	if _, ok := device.(*ddnvml.MIGDevice); ok {
 		return "mig"
-	case *ddnvml.PhysicalDevice:
-		if len(device.MIGChildren) > 0 {
-			return "mig-parent"
-		}
 	}
 	return "none"
 }

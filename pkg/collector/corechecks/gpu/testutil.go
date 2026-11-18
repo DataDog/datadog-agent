@@ -159,7 +159,7 @@ func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTa
 	wmetaGpus := wmetaMock.ListGPUs()
 
 	if validateDeviceCount {
-		if mode == gpuspec.DeviceModeMIG {
+		if mode == gpuspec.DeviceModeMIG || mode == gpuspec.DeviceModeMIGParent {
 			require.Len(t, wmetaGpus, 2, "expected 2 GPUs in MIG mode (parent + child)")
 		} else {
 			require.Len(t, wmetaGpus, 1, "expected 1 GPU in non-MIG mode")

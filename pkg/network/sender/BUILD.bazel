@@ -173,15 +173,20 @@ go_library(
 dd_agent_go_test(
     name = "sender_test",
     srcs = [
+        "batches_bench_test.go",
         "docker_proxy_test.go",
         "sender_bench_test.go",
         "sender_test.go",
         "service_resolver_test.go",
+        "sort_test.go",
         "tagcache_reference_test.go",
         "tagcache_test.go",
     ],
     embed = [":sender"],
-    gotags_sets = [["npm"]],
+    gotags_sets = [
+        ["bpf"],
+        ["npm"],
+    ],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
@@ -207,6 +212,7 @@ dd_agent_go_test(
             "//pkg/network/dns",
             "//pkg/network/encoding/marshal",
             "//pkg/network/indexedset",
+            "//pkg/network/protocols/http",
             "//pkg/network/protocols/tls",
             "//pkg/process/util",
             "//pkg/process/util/api",
@@ -242,6 +248,7 @@ dd_agent_go_test(
             "//pkg/network/dns",
             "//pkg/network/encoding/marshal",
             "//pkg/network/indexedset",
+            "//pkg/network/protocols/http",
             "//pkg/network/protocols/tls",
             "//pkg/process/util",
             "//pkg/process/util/api",

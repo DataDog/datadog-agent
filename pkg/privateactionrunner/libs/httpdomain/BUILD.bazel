@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "httpdomain",
+    srcs = ["httpdomain.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_net//idna"],
+)
+
+dd_agent_go_test(
+    name = "httpdomain_test",
+    srcs = ["httpdomain_test.go"],
+    embed = [":httpdomain"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

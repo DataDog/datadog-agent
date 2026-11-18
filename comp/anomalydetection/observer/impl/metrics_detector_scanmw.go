@@ -65,7 +65,7 @@ type ScanMWDetector struct {
 	series map[scanmwStateKey]*scanmwSeriesState
 	// Shared scratch avoids retaining a scan buffer per series and aggregation.
 	scanBuf   []observer.Point
-	workspace scanDetectorWorkspace
+	workspace stableDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef

@@ -99,7 +99,7 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
-def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str]:
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None, fips_backend: FipsBackend) -> dict[str, str]:
     """
     Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
     build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
@@ -109,8 +109,10 @@ def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
-    gcc = bazel("cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
-    output_base = bazel("info", "output_base", capture_output=True).strip()
+    gcc = bazel(
+        "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True, fips_backend=fips_backend
+    ).strip()
+    output_base = bazel("info", "output_base", capture_output=True, fips_backend=fips_backend).strip()
     mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
@@ -154,7 +156,7 @@ def go_build(
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
             if sys.platform == "win32":
-                env = _with_hermetic_mingw_path(ctx, env)
+                env = _with_hermetic_mingw_path(ctx, env, fips_backend)
 
     args = ["build"]
     if coverage:
@@ -190,18 +192,19 @@ def go_build(
     if fips_backend == FipsBackend.boringcrypto:
         env = env | {"GOEXPERIMENT": "boringcrypto"}
     elif fips_backend == FipsBackend.msgo and target_os == "linux":
-        env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
+        env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}  # TODO(agent-build): remove with Go 1.27
 
     if with_bazel:
         stderr = bazel(
             "run",
-            "//:msgo" if fips_backend == FipsBackend.msgo else "@rules_go//go",
+            "@rules_go//go",
             "--",
             "-C",
             os.getcwd(),
             *args,
             capture_stderr=check_deadcode,
             env=env,
+            fips_backend=fips_backend.strip_boringcrypto(),
         )
     else:  # AIX and the Docker images building the OTel agent
         ctx.run(join_command(["go", *args]), env=env)
@@ -218,6 +221,7 @@ def go_build(
             "--ignore-unrecognized-input",
             input=stderr,
             capture_output=True,
+            fips_backend=fips_backend.strip_boringcrypto(),
         )
     ):
         print(
