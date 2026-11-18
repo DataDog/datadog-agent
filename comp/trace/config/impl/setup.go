@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -511,13 +512,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	var grpcPort int
 	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {
-		switch err := configcheck.ValidateDataPlaneProxy(datadog); {
-		case err != nil:
-			log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
-		case configcheck.IsDataPlaneOnlyEnabled(datadog):
-			log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
-		default:
-			grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
+		// ADP does not own DDOT's embedded trace-agent listeners.
+		if flavor.GetFlavor() != flavor.OTelAgent {
+			switch err := configcheck.ValidateDataPlaneProxy(datadog); {
+			case err != nil:
+				grpcPort = 0
+				log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
+			case configcheck.IsDataPlaneOnlyEnabled(datadog):
+				grpcPort = 0
+				log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
+			}
 		}
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {
@@ -117,15 +118,28 @@ otlp_config:
 			env:  map[string]string{dataPlaneEnabled: "true", dataPlaneOTLP: "true", proxyTraces: "true"},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.env {
-				t.Setenv(key, value)
-			}
-			cfg := buildComponent(t, true, configcomp.NewMockFromYAML(t, tt.yaml)).Object()
+	for _, agentFlavor := range []string{flavor.DefaultAgent, flavor.TraceAgent, flavor.OTelAgent} {
+		t.Run(agentFlavor, func(t *testing.T) {
+			previousFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(agentFlavor)
+			t.Cleanup(func() { flavor.SetFlavor(previousFlavor) })
+			t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 
-			assert.Equal(t, tt.grpcPort, cfg.OTLPReceiver.GRPCPort)
-			assert.Equal(t, 18126, cfg.ReceiverPort)
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					for key, value := range tt.env {
+						t.Setenv(key, value)
+					}
+					cfg := buildComponent(t, true, configcomp.NewMockFromYAML(t, tt.yaml)).Object()
+
+					grpcPort := tt.grpcPort
+					if agentFlavor == flavor.OTelAgent {
+						grpcPort = 50053
+					}
+					assert.Equal(t, grpcPort, cfg.OTLPReceiver.GRPCPort)
+					assert.Equal(t, 18126, cfg.ReceiverPort)
+				})
+			}
 		})
 	}
 }
