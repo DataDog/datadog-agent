@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -33,7 +34,11 @@ const (
 	urnField           = "urn"
 	orchClusterIDField = "orch_cluster_id"
 	apiKeyHashField    = "api_key_hash"
+	wifOrgUUIDField    = "wif_org_uuid"
+	wifSiteField       = "wif_site"
 	secretPollInterval = 1 * time.Second
+	// staleSecretWarnTicks spaces the warning about a mismatched secret to once per ~30s.
+	staleSecretWarnTicks = 30
 )
 
 var errNoLeaderSource = errors.New("leader election is not available")
@@ -45,6 +50,11 @@ type k8sIdentityStorage struct {
 	secretName   string
 	leader       LeaderSource
 	pollInterval time.Duration
+	apiKeyHash   string
+	selfEnroll   bool
+	useWIF       bool
+	wifOrgUUID   string
+	wifSite      string
 }
 
 func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIdentityStorage {
@@ -54,7 +64,30 @@ func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIden
 		secretName:   getSecretName(cfg),
 		leader:       leader,
 		pollInterval: secretPollInterval,
+		apiKeyHash:   HashAPIKey(cfg.GetString("api_key")),
+		selfEnroll:   cfg.GetBool(par.SelfEnroll),
+		useWIF:       UsesWIF(cfg) && cfg.GetBool(par.SelfEnroll),
+		wifOrgUUID:   cfg.GetString("delegated_auth.org_uuid"),
+		wifSite:      par.Site(cfg),
 	}
+}
+
+// NewK8sIdentityStorage returns the secret storage backed by the given client instead of the apiserver client.
+func NewK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource, client kubernetes.Interface, pollInterval time.Duration) IdentityStorage {
+	s := newK8sIdentityStorage(cfg, leader)
+	s.kubeClient = func() (kubernetes.Interface, error) { return client, nil }
+	s.pollInterval = pollInterval
+	return s
+}
+
+// acceptsSecret reports whether the secret's identity can be used with the configured enrollment scope.
+func (s *k8sIdentityStorage) acceptsSecret(secret *corev1.Secret) bool {
+	if s.useWIF {
+		orgUUID := string(secret.Data[wifOrgUUIDField])
+		return orgUUID != "" && strings.EqualFold(orgUUID, s.wifOrgUUID) && string(secret.Data[wifSiteField]) == s.wifSite
+	}
+	hash := string(secret.Data[apiKeyHashField])
+	return hash == "" || hash == s.apiKeyHash
 }
 
 // Load retrieves the PAR identity from the Kubernetes secret
@@ -68,24 +101,31 @@ func (s *k8sIdentityStorage) Load(ctx context.Context) (*PersistedIdentity, erro
 	}
 
 	secret, err := client.CoreV1().Secrets(s.namespace).Get(ctx, s.secretName, metav1.GetOptions{})
-	if err != nil {
-		if isNonTransientK8sError(err) {
-			return nil, fmt.Errorf("failed to get identity secret: %w", err)
-		}
-		if k8serrors.IsNotFound(err) {
-			log.Info("PAR identity secret does not exist, waiting for leader to create it...")
-		} else {
-			log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
-		}
-		leadershipChange, isLeader := s.leader.Subscribe()
-		secret, err = waitForLeaderAndSecret(
-			ctx, leadershipChange, isLeader, client, s.namespace, s.secretName,
-			s.pollInterval,
-		)
-		if err != nil {
-			return nil, err
-		}
+	switch {
+	case err == nil && s.acceptsSecret(secret):
+		return parseSecretData(secret, s.namespace, s.secretName)
+	case err == nil && !s.selfEnroll:
+		log.Warn("PAR identity secret does not match the configured enrollment scope and self-enrollment is disabled, ignoring it")
+		return nil, nil
+	case err == nil:
+		log.Info("PAR identity secret does not match the configured enrollment scope, waiting for the leader to re-enroll...")
+	case isNonTransientK8sError(err):
+		return nil, fmt.Errorf("failed to get identity secret: %w", err)
+	case k8serrors.IsNotFound(err):
+		log.Info("PAR identity secret does not exist, waiting for leader to create it...")
+	default:
+		log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
 	}
+
+	leadershipChange, isLeader := s.leader.Subscribe()
+	secret, err = waitForLeaderAndSecret(
+		ctx, leadershipChange, isLeader, client, s.namespace, s.secretName,
+		s.pollInterval, s.acceptsSecret,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	if secret == nil {
 		return nil, nil
 	}
@@ -94,9 +134,10 @@ func (s *k8sIdentityStorage) Load(ctx context.Context) (*PersistedIdentity, erro
 
 // waitForLeaderAndSecret waits until either:
 // - We become leader (then returns nil to trigger enrollment)
-// - The secret appears (created by current or previous leader)
+// - A secret accepted by accept appears (created by current or previous leader)
 // - The context is cancelled
 //
+// Leadership is re-checked on every poll so a missed notification cannot block forever.
 // Transient K8s API errors (timeouts, rate limiting, 5xx) are logged and
 // retried indefinitely at a constant polling interval.
 func waitForLeaderAndSecret(
@@ -106,6 +147,7 @@ func waitForLeaderAndSecret(
 	client kubernetes.Interface,
 	ns, secretName string,
 	pollInterval time.Duration,
+	accept func(*corev1.Secret) bool,
 ) (*corev1.Secret, error) {
 	if isLeader() {
 		log.Info("This replica is the leader, will create PAR identity secret")
@@ -116,6 +158,7 @@ func waitForLeaderAndSecret(
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
+	staleTicks := 0
 
 	for {
 		select {
@@ -129,10 +172,21 @@ func waitForLeaderAndSecret(
 			}
 
 		case <-ticker.C:
+			if isLeader() {
+				log.Info("Became leader, will create PAR identity secret")
+				return nil, nil
+			}
 			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 			if err == nil {
-				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
-				return secret, nil
+				if accept(secret) {
+					log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
+					return secret, nil
+				}
+				if staleTicks%staleSecretWarnTicks == 0 {
+					log.Warnf("PAR identity secret %s/%s does not match the configured enrollment scope, still waiting for the leader to re-enroll", ns, secretName)
+				}
+				staleTicks++
+				continue
 			}
 			if isNonTransientK8sError(err) {
 				return nil, fmt.Errorf("non-transient error checking for secret %s/%s: %w", ns, secretName, err)
@@ -163,6 +217,8 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 		URN:           string(urn),
 		OrchClusterID: string(secret.Data[orchClusterIDField]),
 		APIKeyHash:    string(secret.Data[apiKeyHashField]),
+		WIFOrgUUID:    string(secret.Data[wifOrgUUIDField]),
+		WIFSite:       string(secret.Data[wifSiteField]),
 	}, nil
 }
 
@@ -188,6 +244,10 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		urnField:           []byte(result.URN),
 		orchClusterIDField: []byte(result.OrchClusterID),
 		apiKeyHashField:    []byte(result.APIKeyHash),
+	}
+	if result.WIFOrgUUID != "" {
+		data[wifOrgUUIDField] = []byte(result.WIFOrgUUID)
+		data[wifSiteField] = []byte(result.WIFSite)
 	}
 
 	newSecret := &corev1.Secret{

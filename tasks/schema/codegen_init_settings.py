@@ -291,6 +291,9 @@ def setting_sourcecode(name, node):
     if env_parser:
         sourcecode.append(env_parser_to_func_call(name, env_parser, node))
 
+    if node.get('sensitive'):
+        sourcecode.append(f"\tconfig.SetSensitive({settingname})")
+
     return sourcecode
 
 

@@ -1,0 +1,28 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+    datadog:
+        api:
+            key: ggggg77777
+        deployment_type: daemonset
+    datadog/explicit:
+        api:
+            key: ggggg77777
+        hostname: user-host
+
+service:
+    extensions: [datadog, datadog/explicit]
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

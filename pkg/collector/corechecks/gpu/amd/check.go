@@ -69,6 +69,7 @@ type Check struct {
 	readTimeout         time.Duration                    // readTimeout bounds the wait for the telemetry of one device
 	pendingReads        map[string]<-chan struct{}       // pendingReads holds telemetry reads, by device UUID, that have not returned yet
 	warnedNoDevices     bool                             // warnedNoDevices is set once the absence of AMD GPUs has been logged
+	gpuMetrics          *gpuMetricsCollector             // gpuMetrics turns the gpu_metrics tables of the devices into samples
 }
 
 type checkTelemetry struct {
@@ -122,6 +123,7 @@ func newCheck(tagger tagger.Component, tm telemetry.Component, wmeta workloadmet
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceTags:          make(map[string][]string),
+		gpuMetrics:          newGPUMetricsCollector(tm),
 	}
 }
 
@@ -311,6 +313,7 @@ func amdTelemetryTags(dev *amdgpu.Device) []string {
 // collectSamples reads the telemetry of every AMD device and the GPU memory
 // of the processes using them.
 func (c *Check) collectSamples() []gpu.CollectorSamples {
+	c.gpuMetrics.forget(c.devices)
 	if len(c.devices) == 0 {
 		return nil
 	}
@@ -323,7 +326,12 @@ func (c *Check) collectSamples() []gpu.CollectorSamples {
 		processesByDevice[u.DeviceUUID] = append(processesByDevice[u.DeviceUUID], u)
 	}
 
-	readings := c.readMetrics()
+	now := time.Now()
+	readGPUMetrics := make([]bool, len(c.devices))
+	for i, dev := range c.devices {
+		readGPUMetrics[i] = c.gpuMetrics.readDue(dev.UUID, now)
+	}
+	readings := c.readMetrics(readGPUMetrics)
 	results := make([]gpu.CollectorSamples, len(c.devices))
 	for i, dev := range c.devices {
 		reading := readings[i]
@@ -340,11 +348,15 @@ func (c *Check) collectSamples() []gpu.CollectorSamples {
 				reading.err = errors.Join(reading.err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
 			}
 		}
+		gpuMetricsSamples, averages := c.gpuMetrics.samples(dev, &reading.metrics, readGPUMetrics[i], now)
+		samples := amdSamples(reading.metrics, c.gpuMetrics.chooseActivity(dev.UUID, &reading.metrics, averages))
+		samples = append(samples, gpuMetricsSamples...)
+		samples = append(samples, amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...)
 		results[i] = gpu.CollectorSamples{
 			Name:          amdCollectorName,
 			DeviceUUID:    dev.UUID,
 			TelemetryTags: amdTelemetryTags(dev),
-			Samples:       append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...),
+			Samples:       samples,
 			Err:           reading.err,
 			Duration:      reading.duration,
 		}
@@ -365,7 +377,8 @@ type amdReading struct {
 // reported with an error and skipped by later runs until that read returns:
 // one stuck device neither holds the check runner nor piles up blocked
 // goroutines. Its process memory, read from the KFD, is still reported.
-func (c *Check) readMetrics() []amdReading {
+// readGPUMetrics selects, by device index, the reads that include gpu_metrics.
+func (c *Check) readMetrics(readGPUMetrics []bool) []amdReading {
 	if c.pendingReads == nil {
 		c.pendingReads = make(map[string]<-chan struct{})
 	}
@@ -392,7 +405,7 @@ func (c *Check) readMetrics() []amdReading {
 		go func() {
 			defer close(done)
 			start := time.Now()
-			m, err := dev.ReadMetrics()
+			m, err := dev.ReadMetricsWithOptions(amdgpu.ReadOptions{SkipGPUMetrics: !readGPUMetrics[i]})
 			results <- indexedReading{index: i, reading: amdReading{metrics: m, err: err, duration: time.Since(start)}}
 		}()
 	}
@@ -454,9 +467,9 @@ func amdProcessSamples(m amdgpu.Metrics, processes []amdgpu.ProcessMemory) []nvi
 }
 
 // amdSamples converts AMD telemetry to GPU check metrics, using the metric
-// names and units of the GPU metrics spec. Values the device does not expose
-// are not emitted.
-func amdSamples(m amdgpu.Metrics) []nvidia.Sample {
+// names and units of the GPU metrics spec, and the activity values chosen by
+// chooseActivity. Values the device does not expose are not emitted.
+func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
 	samples := make([]nvidia.Sample, 0, 17)
 	add := func(name string, r amdgpu.Reading) {
 		if r.Valid {
@@ -465,13 +478,15 @@ func amdSamples(m amdgpu.Metrics) []nvidia.Sample {
 	}
 
 	add("device.total", amdgpu.Reading{Value: 1, Valid: true})
-	add("gr_engine_active", m.GPUBusyPercent)
-	// No passive per-CU activity counter exists without ROCm profiling, so
-	// sm_active uses the GFX busy percentage, as NVIDIA's eBPF fallback does.
-	// On multi-XCC Instinct GPUs this is averaged over XCCs; it overstates
-	// kernels that occupy only some of the compute units.
-	add("sm_active", m.GPUBusyPercent)
-	add("dram_active", m.MemoryBusyPercent)
+	// The socket's graphics activity, the mean over its XCDs: averaged over
+	// the interval from gpu_metrics, or sampled from gpu_busy_percent.
+	add("gr_engine_active", act.graphics)
+	// No passive per-CU activity counter exists, so sm_active is temporal,
+	// like gr_engine_active and NVIDIA's eBPF fallback: it overstates kernels
+	// that occupy only some of the compute units.
+	add("sm_active", act.graphics)
+	// On MI300 and MI350, HBM bandwidth utilization in percent of the peak, not busy time.
+	add("dram_active", act.memory)
 
 	add("memory.limit", m.VRAMTotalBytes)
 	if m.VRAMTotalBytes.Valid && m.VRAMUsedBytes.Valid && m.VRAMUsedBytes.Value <= m.VRAMTotalBytes.Value {
@@ -534,10 +549,15 @@ func (c *Check) gpuToContainers() map[string][]*workloadmeta.Container {
 		}
 		matched := make(map[string]struct{})
 		for _, resource := range container.ResolvedAllocatedResources {
-			if !strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) {
+			var dev *amdgpu.Device
+			switch {
+			case strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix):
+				dev = amdgpu.MatchDevicePluginID(c.sysRoot, c.devices, resource.ID)
+			case resource.Name == amdgpu.DRADriverName:
+				dev = amdgpu.MatchDRADevice(c.sysRoot, c.devices, resource.ID, resource.CdiDevices, containers.CDISpecDirs)
+			default:
 				continue
 			}
-			dev := amdgpu.MatchDevicePluginID(c.sysRoot, c.devices, resource.ID)
 			if dev == nil {
 				c.telemetry.missingContainerGpuMapping.Inc(container.Name)
 				continue
@@ -556,7 +576,7 @@ func (c *Check) gpuToContainers() map[string][]*workloadmeta.Container {
 // resource to the container.
 func hasAMDGPUResource(container *workloadmeta.Container) bool {
 	for _, resource := range container.ResolvedAllocatedResources {
-		if strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) {
+		if strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) || resource.Name == amdgpu.DRADriverName {
 			return true
 		}
 	}

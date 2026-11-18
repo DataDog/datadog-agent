@@ -25,6 +25,7 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
+	UseMetricPipeline   bool     `json:"use_metric_pipeline"`
 	Scenario            string   `json:"scenario"`
 	TimelineStart       int64    `json:"timeline_start"`
 	TimelineEnd         int64    `json:"timeline_end"`
@@ -184,6 +185,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	metadata := ObserverMetadata{
+		UseMetricPipeline:   tb.settings.UseMetricPipeline,
 		Scenario:            scenario,
 		TimelineStart:       timelineStart,
 		TimelineEnd:         timelineEnd,

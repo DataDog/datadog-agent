@@ -8,6 +8,7 @@ End-to-End (E2E) tests validate complete user workflows in production-like envir
 - [Writing tests](writing.md) — provisioners, environments, and assertions
 - [Test dependencies](dependencies.md) — how to get a tool, image, or artifact onto a test host without reaching the public internet
 - [Custom AMIs](custom-amis.md) — how machine images are selected, and how to add, bump or pin one
+- [Performance benchmark](benchmarkeks/index.md) — `benchmarkeks`, which compares the resource usage of two Agent versions on EKS
 
 ## Prerequisites
 
@@ -33,6 +34,8 @@ The simplest path is to run E2E tests from a [developer environment](../../../tu
 ### Cloud Provider Access
 
 You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account. If `dda inv e2e.setup` (below) reports it can't reach that account, you don't have access yet — ask #agent-devx-help for it; the request process is documented internally on Confluence.
+
+Kubernetes tests also need the `agent-dev` role on the `agent-qa` AWS account, to pull images from the ECR pull-through cache (see [Dependencies](dependencies.md)).
 
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 

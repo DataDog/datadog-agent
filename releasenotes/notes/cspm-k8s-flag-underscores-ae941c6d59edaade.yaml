@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: a Kubernetes component flag spelled with
+    underscores, such as ``--read_only_port=10255``, is now read as the same
+    flag spelled with dashes, as the components themselves read it. Such a
+    flag used to go to the ``skippedFlags`` of the Kubernetes node
+    configuration, which reported the flag's default value in its place.

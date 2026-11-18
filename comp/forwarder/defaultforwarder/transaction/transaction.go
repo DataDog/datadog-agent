@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -413,13 +414,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	resp, err := client.Do(req)
 
 	if err != nil {
-		// Do not requeue transaction if that one was canceled
-		if ctx.Err() == context.Canceled {
-			return 0, nil, nil
-		}
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
+
+		if errors.Is(ctx.Err(), context.Canceled) {
+			// The request was canceled before the Agent observed an intake response.
+			// Delivery is ambiguous: the intake may have accepted the payload just before
+			// cancellation. Surface the cancellation as a retryable error so shutdown
+			// keeps the transaction for retry/persistence, preferring at-least-once
+			// delivery over silent loss.
+			return 0, nil, fmt.Errorf("request canceled while sending transaction to %q: %w", logURL, ctx.Err())
+		}
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()

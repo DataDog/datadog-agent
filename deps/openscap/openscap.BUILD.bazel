@@ -212,6 +212,7 @@ cc_library(
     srcs = [
         "compat/dev_to_tty.c",
     ] + PUBLIC_HEADERS,
+    copts = ["-O2"],
     implementation_deps = [
         ":config_h",
     ],

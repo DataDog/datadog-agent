@@ -32,6 +32,12 @@ func TestExtractSimpleGPUName(t *testing.T) {
 			expected: "nvidia",
 		},
 		{
+			name:     "known amd dra gpu resource",
+			gpuName:  GpuAMDDRA,
+			found:    true,
+			expected: "amd",
+		},
+		{
 			name:     "unknown gpu resource",
 			gpuName:  ResourceGPU("cpu"),
 			found:    false,
@@ -69,6 +75,16 @@ func TestIsNvidiaKubernetesResource(t *testing.T) {
 			expected:     true,
 		},
 		{
+			name:         "shared GPU, renamed by the plugin's default",
+			resourceName: string(GpuNvidiaGenericShared),
+			expected:     true,
+		},
+		{
+			name:         "time-sliced MIG GPU, renamed by the plugin's default",
+			resourceName: "nvidia.com/mig-3g.20gb.shared",
+			expected:     true,
+		},
+		{
 			name:         "non-NVIDIA resource",
 			resourceName: string(GpuAMD),
 			expected:     false,
@@ -80,6 +96,7 @@ func TestIsNvidiaKubernetesResource(t *testing.T) {
 			assert.Equal(t, test.expected, IsNvidiaKubernetesResource(test.resourceName))
 		})
 	}
+
 }
 
 func TestExtractGPUType(t *testing.T) {

@@ -86,6 +86,7 @@ deploy_deb_testing-a7_arm64:
   rules:
     - !reference [.on_all_install_script_tests]
     - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_adp_version_bump] # needed by new-e2e-agent-platform-install-script-ubuntu-a7-arm64
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7

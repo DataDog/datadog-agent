@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Support DELA directives in Agent self-telemetry and network packet capture
+    additional endpoints. Destinations use resolved and rotated API keys without
+    restarting the Agent. Telemetry skips pending destinations; packet capture
+    retains its existing upload error behavior for pending reliable destinations.

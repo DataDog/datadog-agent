@@ -1725,25 +1725,46 @@ snmp_traps:
 		"my_key",
 	}, handles)
 
-	// paths from origins other than datadog.yaml are prefixed with the origin, and listed after datadog.yaml
-	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), "postgres.yaml", "", "", false)
+	// integrations use their config digest as origin.
+	postgresDigest, apacheDigest := "1a2b3c4d5e6f7a8b", "f1e2d3c4b5a69788"
+	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), postgresDigest, "", "", false)
 	require.NoError(t, err)
-	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), "apache.yaml", "", "", false)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), apacheDigest, "", "", false)
 	require.NoError(t, err)
 
+	// without names for origins, will get config digest as path prefix
 	paths, handles = resolver.GetPathsAndHandles()
 	require.Len(t, paths, 15)
 	assert.Equal(t, "api_key", paths[0])
-	assert.Equal(t, []string{"apache.yaml:token", "postgres.yaml:instances.0.password"}, paths[13:])
+	assert.Equal(t, []string{"1a2b3c4d5e6f7a8b:instances.0.password", "f1e2d3c4b5a69788:token"}, paths[13:])
+	assert.Equal(t, []string{"db_pass", "other_token"}, handles[13:])
+
+	// origins registered with a check name are prefixed with, and sorted by, that name
+	resolver.SetOriginName(postgresDigest, "postgres")
+	resolver.SetOriginName(apacheDigest, "apache")
+	paths, handles = resolver.GetPathsAndHandles()
+	require.Len(t, paths, 15)
+	assert.Equal(t, "api_key", paths[0])
+	assert.Equal(t, []string{"apache:token", "postgres:instances.0.password"}, paths[13:])
 	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
 
-	// removing the origin removes its paths and handles
+	// removing the origin removes its paths, handles and name
 	resolver.RemoveOrigin("datadog.yaml")
-	resolver.RemoveOrigin("postgres.yaml")
-	resolver.RemoveOrigin("apache.yaml")
+	resolver.RemoveOrigin(postgresDigest)
+	resolver.RemoveOrigin(apacheDigest)
 	paths, handles = resolver.GetPathsAndHandles()
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)
+	assert.Empty(t, resolver.originNames)
+
+	// Reporting must sanitize URL keys without changing the resolver's original paths.
+	_, err = resolver.Resolve([]byte("some_setting:\n  https://alice:url-secret@proxy.example.com:\n    password: ENC[url_key]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, paths)
+	assert.Equal(t, []string{"url_key"}, handles)
+	require.Len(t, resolver.origin["url_key"], 1)
+	assert.Equal(t, []string{"some_setting", "https://alice:url-secret@proxy.example.com", "password"}, resolver.origin["url_key"][0].path)
 }
 
 func TestGetHashValues(t *testing.T) {

@@ -264,6 +264,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kueue_local_queue:batch",
+						"kube_scheduler:kueue",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -2397,6 +2398,108 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
+func TestKueueSchedulerTags(t *testing.T) {
+	const containerID = "container-id"
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   workloadmeta.GenerateKueueWorkloadEntityID("default", "job-sample"),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:  "batch",
+	}
+	localQueue := &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "batch", Namespace: "default"},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	}
+
+	for _, tt := range []struct {
+		name        string
+		entities    []workloadmeta.Entity
+		labels      map[string]string
+		annotations map[string]string
+		expected    []string
+	}{
+		{
+			name:        "from the Workload and its LocalQueue",
+			entities:    []workloadmeta.Entity{workload, localQueue},
+			annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
+			expected: []string{
+				"kube_scheduler:kueue",
+				"kube_scheduler_queue:cluster-batch",
+				"kube_scheduler_workload:job-sample",
+			},
+		},
+		{
+			name:   "from the pod labels when the Workload is missing",
+			labels: map[string]string{kubernetes.KueueLocalQueueNameLabelKey: "batch", kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch"},
+			annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
+			},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with the ClusterQueue of the LocalQueue entity",
+			entities: []workloadmeta.Entity{localQueue},
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with only a LocalQueue name",
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue"},
+		},
+		{
+			name:   "not for pods without Kueue information",
+			labels: map[string]string{"app": "web"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+			for _, entity := range tt.entities {
+				store.Set(entity)
+			}
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "pod",
+						Namespace:   "default",
+						Labels:      tt.labels,
+						Annotations: tt.annotations,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			for _, tagInfo := range tagInfos {
+				var schedulerTags []string
+				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
+					if strings.HasPrefix(tag, "kube_scheduler") {
+						schedulerTags = append(schedulerTags, tag)
+					}
+				}
+				assert.ElementsMatch(t, tt.expected, schedulerTags, "tags of %s", tagInfo.EntityID)
+			}
+		})
+	}
+}
+
 func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 	const (
 		namespace    = "team-a"
@@ -2459,7 +2562,7 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 	podGroupTags := func(queue string) []string {
 		return []string{
 			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_workload:" + podGroupName, "kai_team:ml",
+			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 
@@ -5261,6 +5364,54 @@ func TestHandleGPU(t *testing.T) {
 			},
 		},
 		{
+			name: "MIG mode enabled without MIG devices",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				GPUType:            "a100",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				MIGModeEnabled:     true,
+				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
+						"gpu_type:a100",
+						"gpu_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "shared by KAI fractions",
 			gpu: workloadmeta.GPU{
 				EntityID: entityID,
@@ -5293,6 +5444,40 @@ func TestHandleGPU(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "shared by time-slicing",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:          "nvidia",
+				Device:          "NVIDIA A10G",
+				NVLinkVersion:   "not_nvlink_capable",
+				SharingMode:     workloadmeta.GPUSharingModeTimeSlicing,
+				SharingReplicas: 4,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:nvidia_a10g",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:time-slicing",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -5309,7 +5494,6 @@ func TestHandleGPU(t *testing.T) {
 		})
 	}
 }
-
 func TestHandleDelete(t *testing.T) {
 	const (
 		podName       = "datadog-agent-foobar"
