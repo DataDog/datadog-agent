@@ -52,6 +52,9 @@ build do
   # later with `psycopg` (for the postgres integration).
   # TODO(agent-build) This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
   # of openssl copies in a more general way while keeping risk low.
+  # On Linux, integrations-core now builds these wheels without their own OpenSSL copy: they load the Agent's
+  # `embedded/lib` OpenSSL through their RPATH, leaving nothing to patch. The Linux blocks below can be removed once
+  # the pinned integrations-core dependency wheels are all built that way.
   if fips_mode?
     if linux_target?
       block "Patch cryptography's openssl linking" do
@@ -61,6 +64,7 @@ build do
         so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
         libssl_matches = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")
         libcrypto_matches = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")
+        next if libssl_matches.empty? && libcrypto_matches.empty?
         raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
         raise "expected exactly one match for 'libcrypto-*.so.3' but got: #{libcrypto_matches}" if libcrypto_matches.size != 1
         libssl_match = libssl_matches.fetch(0)
@@ -76,6 +80,7 @@ build do
         psycopg_folder = "#{site_packages_path}/psycopg_c"
         libssl_matches = Dir.glob("#{psycopg_folder}.libs/libssl-*.so.3")
         libcrypto_matches = Dir.glob("#{psycopg_folder}.libs/libcrypto-*.so.3")
+        next if libssl_matches.empty? && libcrypto_matches.empty?
         raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
         raise "expected exactly one match for 'libcrypto-*.so.3' but got: #{libcrypto_matches}" if libcrypto_matches.size != 1
         libssl_match = libssl_matches.fetch(0)
