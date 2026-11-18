@@ -141,11 +141,16 @@ func stubInstallerState(t *testing.T) string {
 
 	root := filepath.Join(t.TempDir(), "datadog-packages")
 	originalRoot, originalEnsure, originalUserExists := packagesRoot, ensureInstallerDataDir, agentUserExists
+	originalProcmgr := procmgrEnabled
 	packagesRoot = root
 	ensureInstallerDataDir = func() error { return nil }
 	agentUserExists = func() bool { return true }
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
+		return true, procmgrSourceDefault
+	}
 	t.Cleanup(func() {
 		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
+		procmgrEnabled = originalProcmgr
 	})
 	stubDmgLayout(t)
 	return root
@@ -249,7 +254,7 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 
-	require.NoError(t, installStableJobs(testHookContext(t)))
+	require.NoError(t, installStableJobs(testHookContext(t), nil))
 
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
@@ -300,7 +305,7 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	}
 
 	dir := launchdJobDir
-	err := installStableJobs(testHookContext(t))
+	err := installStableJobs(testHookContext(t), nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
@@ -910,4 +915,269 @@ func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
 	stubProcmgrCatalog(t, calls).removeErr = errors.New("permission denied")
 
 	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
+}
+
+func stubProcmgrOff(t *testing.T) {
+	t.Helper()
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
+		return false, procmgrSourceDatadogYAML
+	}
+}
+
+func assertProcmgrOmitted(t *testing.T, calls [][]string, dir string) {
+	t.Helper()
+	bootout := callIndex(calls, "bootout", "system/"+procmgrLabel)
+	require.NotEqual(t, -1, bootout, "procmgr was not booted out")
+	remove := callIndex(calls, catalogRemoveCall, defaultDmgLayout.installDir)
+	require.NotEqual(t, -1, remove, "the catalog was not removed")
+	assert.Less(t, bootout, remove, "the catalog was removed before procmgr was booted out")
+	assert.Equal(t, -1, callIndex(calls, catalogWriteCall, defaultDmgLayout.installDir), "the catalog was written")
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	for _, call := range calls {
+		if len(call) == 0 {
+			continue
+		}
+		switch call[0] {
+		case "enable", "bootstrap", "kickstart":
+			for _, arg := range call {
+				assert.NotContains(t, arg, procmgrLabel, "%s touched procmgr", call[0])
+			}
+		}
+	}
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if label == procmgrLabel {
+			continue
+		}
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPostInstallDMGOmitsProcmgrWhenDisabled(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	stubProcmgrOff(t)
+
+	require.NoError(t, postInstallDMG(testHookContext(t)))
+
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGKeepsProcmgrWhenBootoutFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	stubProcmgrOff(t)
+	path := filepath.Join(dir, procmgrLabel+".plist")
+	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
+	stubFailingBootout(t, procmgrLabel)
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), procmgrLabel)
+	assert.FileExists(t, path)
+	assert.Equal(t, -1, callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir))
+	for _, call := range *calls {
+		if len(call) == 0 {
+			continue
+		}
+		if call[0] == "enable" || call[0] == "bootstrap" || call[0] == "kickstart" {
+			for _, arg := range call {
+				assert.NotContains(t, arg, procmgrLabel)
+			}
+		}
+	}
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if label == procmgrLabel {
+			continue
+		}
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPostInstallDMGKeepsProcmgrWhenDefinitionRemovalFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	stubProcmgrOff(t)
+	path := filepath.Join(dir, procmgrLabel+".plist")
+	require.NoError(t, os.Mkdir(path, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(path, "keep"), []byte("x"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), procmgrLabel)
+	assert.DirExists(t, path)
+	assert.Equal(t, -1, callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir))
+	for _, call := range *calls {
+		if len(call) == 0 {
+			continue
+		}
+		if call[0] == "enable" || call[0] == "bootstrap" {
+			for _, arg := range call {
+				assert.NotContains(t, arg, procmgrLabel)
+			}
+		}
+	}
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if label == procmgrLabel {
+			continue
+		}
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPostInstallDMGReportsAnIncompleteOptOutWhenCatalogRemovalFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	stubProcmgrOff(t)
+	stubProcmgrCatalog(t, calls).removeErr = errors.New("permission denied")
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "opt-out is incomplete")
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.NotEqual(t, -1, callIndex(*calls, "bootout", "system/"+procmgrLabel))
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if label == procmgrLabel {
+			continue
+		}
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	stubProcmgrOff(t)
+	agentUserExists = func() bool { return false }
+	path := filepath.Join(dir, procmgrLabel+".plist")
+	require.NoError(t, os.WriteFile(path, []byte("definition"), 0o644))
+
+	err := postInstallDMG(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "_dd-agent does not exist")
+	assert.NotEqual(t, -1, callIndex(*calls, "bootout", "system/"+procmgrLabel))
+	assert.NoFileExists(t, path)
+	for _, call := range *calls {
+		if len(call) > 0 && call[0] == "bootstrap" {
+			t.Errorf("a job was loaded without the Agent's account: %v", call)
+		}
+	}
+}
+
+func TestPostInstallDMGLoadsProcmgrAgainAfterAnOptOut(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	ctx := dmgHookContext(t)
+	stubProcmgrOff(t)
+	require.NoError(t, postInstallDMG(ctx))
+	procmgrEnabled = func(func(string) (string, bool), installEnv, string) (bool, string) {
+		return true, procmgrSourceDefault
+	}
+
+	require.NoError(t, postInstallDMG(ctx))
+
+	assert.FileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.Contains(t, *calls, []string{"enable", "system/" + procmgrLabel})
+	assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, procmgrLabel+".plist")})
+	assert.NotEqual(t, -1, callIndex(*calls, catalogWriteCall, defaultDmgLayout.installDir))
+}
+
+func TestInstallStableJobsSkipsALabel(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+
+	require.NoError(t, installStableJobs(testHookContext(t), map[string]bool{procmgrLabel: true}))
+
+	for _, call := range *calls {
+		for _, arg := range call {
+			assert.NotContains(t, arg, procmgrLabel)
+		}
+	}
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if label == procmgrLabel {
+			continue
+		}
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, *calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+func TestPreRemoveAfterProcmgrWasOmitted(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	ctx := dmgHookContext(t)
+	stubProcmgrOff(t)
+	require.NoError(t, postInstallDMG(ctx))
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	ctx.Upgrade = true
+
+	require.NoError(t, preRemoveDatadogAgent(ctx))
+
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+}
+
+func TestPostInstallDMGHonorsSavedConfig(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+
+	require.NoError(t, postInstallDMG(testHookContext(t)))
+
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGHonorsTheInstallScriptEnv(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.stagingDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.stagingDir, "env"), []byte(envProcessManagerEnabled+"=false\n"), 0o600))
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: true\n"), 0o644))
+
+	require.NoError(t, postInstallDMG(testHookContext(t)))
+
+	assertProcmgrOmitted(t, *calls, dir)
+}
+
+func TestPostInstallDMGOptOutIsIdempotent(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	ctx := dmgHookContext(t)
+	procmgrEnabled = resolveProcmgrEnabled
+	t.Setenv(envProcessManagerEnabled, "")
+	require.NoError(t, os.MkdirAll(defaultDmgLayout.savedConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(defaultDmgLayout.savedConfDir(), "datadog.yaml"), []byte("process_manager:\n  enabled: false\n"), 0o644))
+
+	require.NoError(t, postInstallDMG(ctx))
+	require.NoError(t, postInstallDMG(ctx))
+
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.NotEqual(t, -1, callIndex(*calls, "bootout", "system/"+procmgrLabel))
+	for _, call := range *calls {
+		if len(call) == 0 {
+			continue
+		}
+		if call[0] == "enable" || call[0] == "bootstrap" {
+			for _, arg := range call {
+				assert.NotContains(t, arg, procmgrLabel)
+			}
+		}
+	}
 }

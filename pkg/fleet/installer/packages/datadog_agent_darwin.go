@@ -92,7 +92,7 @@ var (
 //
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
 // and one that fails must not also leave the others stopped.
-func installStableJobs(ctx HookContext) (err error) {
+func installStableJobs(ctx HookContext, skip map[string]bool) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
 		span.Finish(err)
@@ -101,11 +101,28 @@ func installStableJobs(ctx HookContext) (err error) {
 	client := launchdClient()
 	var errs []error
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if skip[label] {
+			continue
+		}
 		if err := loadStableJob(ctx, client, label); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// unloadStableJob unloads a job and removes its definition. A job that can't be unloaded keeps its
+// definition, as in loadStableJob.
+func unloadStableJob(ctx context.Context, client *launchd.Client, label string) error {
+	if err := client.Bootout(ctx, label); err != nil {
+		log.Warnf("failed to unload %s: %v", label, err)
+		return fmt.Errorf("failed to unload %s: %w", label, err)
+	}
+	if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !os.IsNotExist(err) {
+		log.Warnf("failed to remove job definition %s: %v", label, err)
+		return fmt.Errorf("failed to remove job definition %s: %w", label, err)
+	}
+	return nil
 }
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.
@@ -154,7 +171,8 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // application and links (setUpDMGInstall), writing the processes.d catalog, registering the Agent
 // as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
 // it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
-// when its job loads. A catalog write error is only logged.
+// when its job loads. A catalog write error is only logged. When process_manager.enabled is false,
+// com.datadoghq.procmgr is removed instead, and the other jobs still load.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -165,8 +183,26 @@ func postInstallDMG(ctx HookContext) error {
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
 	}
-	if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
-		log.Warnf("failed to write the processes.d catalog: %v", err)
+	skip := map[string]bool{}
+	enabled, source := procmgrEnabled(os.LookupEnv, env, filepath.Join(defaultDmgLayout.confDir(), "datadog.yaml"))
+	if span, ok := telemetry.SpanFromContext(ctx); ok {
+		span.SetTag("process_manager.enabled", enabled)
+		span.SetTag("process_manager.enabled_source", source)
+	}
+	if enabled {
+		log.Infof("process_manager.enabled is %t (from %s)", enabled, source)
+		if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+			log.Warnf("failed to write the processes.d catalog: %v", err)
+		}
+	} else {
+		log.Warnf("process_manager.enabled is false (from %s): %s is not loaded", source, procmgrLabel)
+		skip[procmgrLabel] = true
+		// dd-procmgrd runs as root, so the opt-out does not depend on the Agent's account.
+		if err := unloadStableJob(ctx, launchdClient(), procmgrLabel); err != nil {
+			errs = append(errs, fmt.Errorf("process_manager.enabled is false but %s could not be fully removed: %w", procmgrLabel, err))
+		} else if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+			errs = append(errs, fmt.Errorf("process_manager.enabled is false but the opt-out is incomplete: the processes.d catalog could not be removed: %w", err))
+		}
 	}
 	// The packages root holds the package entry the installer daemon reports the Agent from, and
 	// only root may write to it. Create it, or repair it, before the entry is registered below.
@@ -180,7 +216,7 @@ func postInstallDMG(ctx HookContext) error {
 	// could not be created, they are left unloaded and the hook fails, so the postinstall script
 	// fails the install instead of waiting on jobs that will never run.
 	if agentUserExists() {
-		if err := installStableJobs(ctx); err != nil {
+		if err := installStableJobs(ctx, skip); err != nil {
 			errs = append(errs, err)
 		}
 	} else {
@@ -348,16 +384,8 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
 	var errs []error
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
-		if err := client.Bootout(ctx, label); err != nil {
-			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
-			// never left running a job whose file is gone, and the postinstall script reloads it.
-			log.Warnf("failed to unload %s: %v", label, err)
-			errs = append(errs, fmt.Errorf("failed to unload %s: %w", label, err))
-			continue
-		}
-		if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !os.IsNotExist(err) {
-			log.Warnf("failed to remove job definition %s: %v", label, err)
-			errs = append(errs, fmt.Errorf("failed to remove job definition %s: %w", label, err))
+		if err := unloadStableJob(ctx, client, label); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {

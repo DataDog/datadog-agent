@@ -105,6 +105,19 @@ case "$DD_LOGS_ENABLED" in
         ;;
 esac
 
+process_manager_enabled=
+case "$DD_PROCESS_MANAGER_ENABLED" in
+    true|false) process_manager_enabled="$DD_PROCESS_MANAGER_ENABLED" ;;
+    "") ;;
+    *)
+        printf "${RED}DD_PROCESS_MANAGER_ENABLED must be true or false.${NC}\n"
+        exit 1
+        ;;
+esac
+if [ "$process_manager_enabled" = "false" ]; then
+    printf "${YELLOW}DD_PROCESS_MANAGER_ENABLED=false applies to this install only. Set process_manager.enabled: false in datadog.yaml to keep the process manager off across upgrades.${NC}\n"
+fi
+
 # Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
 ai_usage_chrome_extension_id=
 if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
@@ -247,6 +260,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
     [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
     [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
     [ -n "$logs_enabled" ] && echo "DD_LOGS_ENABLED=$logs_enabled"
+    [ -n "$process_manager_enabled" ] && echo "DD_PROCESS_MANAGER_ENABLED=$process_manager_enabled"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null

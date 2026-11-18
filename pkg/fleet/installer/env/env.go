@@ -571,12 +571,17 @@ func getBoolEnv(env string) *bool {
 	}
 }
 
+// ProcessManagerEnabledValue reports whether a DD_PROCESS_MANAGER_ENABLED value turns the process manager on.
+func ProcessManagerEnabledValue(value string) bool {
+	return !strings.EqualFold(strings.TrimSpace(value), "false")
+}
+
 func processManagerEnabledFromEnv() bool {
 	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
 	if v == "" {
 		return defaultEnv.ProcessManagerEnabled
 	}
-	return !strings.EqualFold(v, "false")
+	return ProcessManagerEnabledValue(v)
 }
 
 func getProxySetting(ddEnv string, env string) string {

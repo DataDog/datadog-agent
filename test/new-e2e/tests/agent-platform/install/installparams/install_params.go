@@ -24,6 +24,7 @@ type Params struct {
 	APIKey         string
 	TestingKeysURL string
 	Username       string
+	ExtraEnvVars   map[string]string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -108,5 +109,12 @@ func WithPipelineID(id string) Option {
 func WithUsername(username string) Option {
 	return func(p *Params) {
 		p.Username = username
+	}
+}
+
+// WithExtraEnvVars sets extra environment variables for the install script.
+func WithExtraEnvVars(vars map[string]string) Option {
+	return func(p *Params) {
+		p.ExtraEnvVars = vars
 	}
 }
