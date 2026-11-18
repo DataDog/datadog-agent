@@ -138,7 +138,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-intervals v0.0.2 // indirect
 	github.com/google/licensecheck v0.3.1 // indirect
-	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b // indirect
+	github.com/google/pprof v0.0.0-20261110164715-8bb1ee682bd8 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
@@ -244,7 +244,7 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.3.1 // indirect
