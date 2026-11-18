@@ -1809,3 +1809,36 @@ func TestMarshalAgentPayload_WithContainerDebugPartialFields(t *testing.T) {
 	assert.Equal(t, int64(50), cd.BufferMs)
 	assert.Equal(t, uint32(0), cd.BufferEvictionReasonRef)
 }
+
+func TestPrepareTracerPayloadSparseMatchesDense(t *testing.T) {
+	strs := []string{"", "unused-a", "svc", "unused-b", "name", "env", "key", "val", "unused-c"}
+	tp := &idx.TracerPayload{
+		Strings: strs,
+		EnvRef:  5,
+		Chunks: []*idx.TraceChunk{{
+			Priority: 1,
+			Spans: []*idx.Span{{
+				ServiceRef: 2,
+				NameRef:    4,
+				Attributes: map[uint32]*idx.AnyValue{6: {Value: &idx.AnyValue_StringValueRef{StringValueRef: 7}}},
+			}},
+		}},
+	}
+	dense := PrepareTracerPayload(tp)
+	sparse := PrepareTracerPayloadSparse(tp)
+	assert.Equal(t, dense.Size, sparse.Size)
+	ap := &AgentPayload{HostName: "h", Env: "e"}
+	db, err := MarshalAgentPayloadPrepared(ap, []*PreparedTracerPayload{dense})
+	require.NoError(t, err)
+	sb, err := MarshalAgentPayloadPrepared(ap, []*PreparedTracerPayload{sparse})
+	require.NoError(t, err)
+	assert.Equal(t, db, sb)
+
+	var got AgentPayload
+	require.NoError(t, proto.Unmarshal(sb, &got))
+	require.Len(t, got.IdxTracerPayloads, 1)
+	assert.Equal(t, []string{"", "env", "svc", "name", "key", "val"}, got.IdxTracerPayloads[0].Strings)
+
+	sub := PrepareTracerPayloadWithChunksSparse(tp, tp.Chunks)
+	assert.Equal(t, dense.Size, sub.Size)
+}

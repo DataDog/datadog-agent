@@ -791,3 +791,47 @@ func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
 		assert.Equal(t, map[[2]string]int{{"prod", "v1"}: 1, {"staging", "v2"}: 2, {"prod", "v3"}: 1}, collect(pkg))
 	})
 }
+
+// TestTraceWriterV1ManyEnvGroupsMemory checks that splitting a payload into many env groups
+// does not allocate per-group structures proportional to the shared string table.
+func TestTraceWriterV1ManyEnvGroupsMemory(t *testing.T) {
+	cfg := &config.AgentConfig{
+		Hostname:    testHostname,
+		DefaultEnv:  testEnv,
+		Endpoints:   []*config.Endpoint{{APIKey: "123", Host: "http://localhost"}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 1, QueueSize: 1, FlushPeriodSeconds: 1_000},
+	}
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer tw.Stop()
+
+	const groups = 2000
+	pkg := randomSampledSpansV1(1, 0)
+	tp := pkg.TracerPayload
+	base := tp.Chunks[0]
+	tp.Chunks = tp.Chunks[:0]
+	for i := 0; i < groups; i++ {
+		c := base.ShallowCopy()
+		c.SetEnv(fmt.Sprintf("env-%d", i))
+		tp.Chunks = append(tp.Chunks, c)
+	}
+	// Grow the shared string table well beyond what any single group references.
+	for i := 0; i < 20_000; i++ {
+		tp.Strings.Add(fmt.Sprintf("unused-%d", i))
+	}
+	tableSize := tp.Strings.Len()
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	toFlush := tw.appendChunksV1(pkg)
+	runtime.ReadMemStats(&after)
+
+	n := len(tw.preparedPayloadsV1)
+	for _, f := range toFlush {
+		n += len(f)
+	}
+	assert.Equal(t, groups, n)
+	// A dense remap costs at least 4 bytes per table string per group; require well under 1.
+	allocated := after.TotalAlloc - before.TotalAlloc
+	assert.Less(t, allocated, uint64(groups*tableSize), "allocated %d bytes for %d groups over a %d-string table", allocated, groups, tableSize)
+}
