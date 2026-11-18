@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -177,4 +180,72 @@ func Test_getIntentToken_setsExpiryAndPurgesStale(t *testing.T) {
 	expiresAt, ok := g.intentTokens[token]
 	require.True(t, ok)
 	assert.WithinDuration(t, time.Now().Add(intentTokenTTL), expiresAt, 2*time.Second)
+}
+
+func Test_serveAssets(t *testing.T) {
+	root := t.TempDir()
+	viewsDir := filepath.Join(root, "views")
+	files := map[string]string{
+		"css/stylesheet.css": "body{}",
+		"js/app.js":          "console.log(1);",
+		"a.unknownext":       "plain text content",
+	}
+	for name, content := range files {
+		p := filepath.Join(viewsDir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
+	}
+	// sentinel outside of viewsDir that must never be served
+	const secret = "top-secret-sentinel"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "secret.txt"), []byte(secret), 0o644))
+
+	serve := func(target string) *httptest.ResponseRecorder {
+		rr := httptest.NewRecorder()
+		serveAssetsFromDir(rr, httptest.NewRequest(http.MethodGet, target, nil), viewsDir)
+		return rr
+	}
+
+	t.Run("existing css file", func(t *testing.T) {
+		rr := serve("/css/stylesheet.css")
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "body{}", rr.Body.String())
+		assert.Regexp(t, "^text/css", rr.Header().Get("Content-Type"))
+		assert.Equal(t, strconv.Itoa(len("body{}")), rr.Header().Get("Content-Length"))
+	})
+
+	t.Run("existing js file", func(t *testing.T) {
+		rr := serve("/js/app.js")
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, files["js/app.js"], rr.Body.String())
+		assert.Contains(t, rr.Header().Get("Content-Type"), "javascript")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		rr := serve("/css/missing.css")
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
+
+	t.Run("path traversal is confined to the views directory", func(t *testing.T) {
+		for _, target := range []string{
+			"/../secret.txt",
+			"/..%2fsecret.txt",
+			"/../../etc/passwd",
+			"/..%2f..%2fetc/passwd",
+		} {
+			rr := serve(target)
+
+			assert.Equal(t, http.StatusNotFound, rr.Code, target)
+			assert.NotContains(t, rr.Body.String(), secret, target)
+		}
+	})
+
+	t.Run("unknown extension falls back to content sniffing", func(t *testing.T) {
+		rr := serve("/a.unknownext")
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, http.DetectContentType([]byte(files["a.unknownext"])), rr.Header().Get("Content-Type"))
+	})
 }
