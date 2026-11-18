@@ -190,6 +190,7 @@ dd_agent_go_test(
         "discovery_test.go",
         "kubeutil_test.go",
         "loader_test.go",
+        "loader_windows_test.go",
         "tagger_test.go",
         "util_test.go",
         "version_test.go",
@@ -210,5 +211,10 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_go_ole_go_ole//:go-ole",
+        ],
+        "//conditions:default": [],
+    }),
 )

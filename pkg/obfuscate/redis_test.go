@@ -454,6 +454,314 @@ func TestRedisObfuscator(t *testing.T) {
 			"ZADD key XX LT score ?",
 		},
 		{
+			"CONFIG SET maxmemory 1gb requirepass s3cret",
+			"CONFIG SET maxmemory ? requirepass ?",
+		},
+		{
+			"config set p1 v1 p2 v2 p3 v3",
+			"config set p1 ? p2 ? p3 ?",
+		},
+		{
+			"CONFIG SET p1 v1 p2",
+			"CONFIG SET p1 ? p2",
+		},
+		{
+			"GEOADD key NX 13.36 38.11 member",
+			"GEOADD key NX 13.36 38.11 ?",
+		},
+		{
+			"GEOADD key XX CH 13.36 38.11 member1 15.08 37.50 member2",
+			"GEOADD key XX CH 13.36 38.11 ? 15.08 37.50 ?",
+		},
+		{
+			"geoadd key ch 13.36 38.11 member",
+			"geoadd key ch 13.36 38.11 ?",
+		},
+		{
+			"GEOADD key NX CH",
+			"GEOADD key NX CH",
+		},
+		{
+			"GEORADIUSBYMEMBER_RO key member 10 km WITHDIST",
+			"GEORADIUSBYMEMBER_RO key ? 10 km WITHDIST",
+		},
+		{
+			"georadiusbymember_ro key member 10 km",
+			"georadiusbymember_ro key ? 10 km",
+		},
+		{
+			"SMISMEMBER key member1 member2",
+			"SMISMEMBER key ?",
+		},
+		{
+			"smismember key member",
+			"smismember key ?",
+		},
+		{
+			"ZMSCORE key member1 member2",
+			"ZMSCORE key ?",
+		},
+		{
+			"zmscore key member",
+			"zmscore key ?",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER member BYRADIUS 10 km ASC",
+			"GEOSEARCH key FROMMEMBER ? BYRADIUS 10 km ASC",
+		},
+		{
+			"geosearch key bybox 10 20 km frommember member",
+			"geosearch key bybox 10 20 km frommember ?",
+		},
+		{
+			"GEOSEARCH key FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+			"GEOSEARCH key FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCHSTORE dest src FROMMEMBER member BYRADIUS 10 km STOREDIST",
+			"GEOSEARCHSTORE dest src FROMMEMBER ? BYRADIUS 10 km STOREDIST",
+		},
+		{
+			"GEOSEARCHSTORE frommember src FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+			"GEOSEARCHSTORE frommember src FROMLONLAT 13.36 38.11 BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER",
+			"GEOSEARCH key FROMMEMBER",
+		},
+		{
+			"SENTINEL SET mymaster auth-pass s3cret",
+			"SENTINEL SET mymaster auth-pass ?",
+		},
+		{
+			"sentinel set mymaster quorum 2 auth-pass s3cret",
+			"sentinel set mymaster quorum ? auth-pass ?",
+		},
+		{
+			"SENTINEL CONFIG SET sentinel-pass s3cret",
+			"SENTINEL CONFIG SET sentinel-pass ?",
+		},
+		{
+			"SENTINEL CONFIG SET resolve-hostnames yes sentinel-pass s3cret",
+			"SENTINEL CONFIG SET resolve-hostnames ? sentinel-pass ?",
+		},
+		{
+			"SENTINEL CONFIG GET sentinel-pass",
+			"SENTINEL CONFIG GET sentinel-pass",
+		},
+		{
+			"SENTINEL GET-MASTER-ADDR-BY-NAME mymaster",
+			"SENTINEL GET-MASTER-ADDR-BY-NAME mymaster",
+		},
+		{
+			"SENTINEL CONFIG",
+			"SENTINEL CONFIG",
+		},
+		{
+			"PUBLISH channel message",
+			"PUBLISH channel ?",
+		},
+		{
+			"spublish channel message",
+			"spublish channel ?",
+		},
+		{
+			"PUBLISH channel",
+			"PUBLISH channel",
+		},
+		{
+			"XADD stream * field value",
+			"XADD stream * field ?",
+		},
+		{
+			"XADD stream 1526919030474-0 f1 v1 f2 v2",
+			"XADD stream 1526919030474-0 f1 ? f2 ?",
+		},
+		{
+			"xadd stream nomkstream maxlen ~ 1000 limit 100 * field value",
+			"xadd stream nomkstream maxlen ~ 1000 limit 100 * field ?",
+		},
+		{
+			"XADD stream MINID 1526919030474 * field value",
+			"XADD stream MINID 1526919030474 * field ?",
+		},
+		{
+			"XADD stream MAXLEN = 10 * f1 v1 f2 v2",
+			"XADD stream MAXLEN = 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD stream *",
+			"XADD stream *",
+		},
+		{
+			"XADD stream MAXLEN",
+			"XADD stream MAXLEN",
+		},
+		{
+			"LPOS key element",
+			"LPOS key ?",
+		},
+		{
+			"lpos key element RANK -1 COUNT 2 MAXLEN 100",
+			"lpos key ? RANK -1 COUNT 2 MAXLEN 100",
+		},
+		{
+			"HSETEX key FIELDS 1 field value",
+			"HSETEX key FIELDS 1 field ?",
+		},
+		{
+			"hsetex key fnx ex 60 fields 2 f1 v1 f2 v2",
+			"hsetex key fnx ex 60 fields 2 f1 ? f2 ?",
+		},
+		{
+			"HSETEX fields KEEPTTL FIELDS 1 field value",
+			"HSETEX fields KEEPTTL FIELDS 1 field ?",
+		},
+		{
+			"HSETEX key FIELDS 1 field",
+			"HSETEX key FIELDS 1 field",
+		},
+		{
+			"EVAL \"return redis.call('set', KEYS[1], ARGV[1])\" 1 key value",
+			"EVAL \"return redis.call('set', KEYS[1], ARGV[1])\" 1 key ?",
+		},
+		{
+			"EVALSHA 1b936e3fe509bcbc9cd0664897bbe8fd0ac95f9e 2 k1 k2 a1 a2",
+			"EVALSHA 1b936e3fe509bcbc9cd0664897bbe8fd0ac95f9e 2 k1 k2 ?",
+		},
+		{
+			"fcall myfunc 0 a1 a2",
+			"fcall myfunc 0 ?",
+		},
+		{
+			"FCALL_RO myfunc 1 key arg",
+			"FCALL_RO myfunc 1 key ?",
+		},
+		{
+			"EVAL_RO script 1 key arg",
+			"EVAL_RO script 1 key ?",
+		},
+		{
+			"EVALSHA_RO sha 1 key arg",
+			"EVALSHA_RO sha 1 key ?",
+		},
+		{
+			"EVAL script 2 k1 k2",
+			"EVAL script 2 k1 k2",
+		},
+		{
+			"EVAL script 9223372036854775807 k1 k2",
+			"EVAL script 9223372036854775807 k1 k2",
+		},
+		{
+			"EVAL script notanumber k1 a1",
+			"EVAL script notanumber ?",
+		},
+		{
+			"EVAL script -1 a1",
+			"EVAL script -1 ?",
+		},
+		{
+			"EVAL script 1",
+			"EVAL script 1",
+		},
+		{
+			"BITFIELD key SET i8 0 SET",
+			"BITFIELD key SET i8 0 ?",
+		},
+		{
+			"BITFIELD key SET i8 0 set SET u4 4 7",
+			"BITFIELD key SET i8 0 ? SET u4 4 ?",
+		},
+		{
+			"BITFIELD key SET i8 0 SET i8 0 100",
+			"BITFIELD key SET i8 0 ? i8 0 ?",
+		},
+		{
+			"ZRANGEBYLEX key [aaa (g LIMIT 0 10",
+			"ZRANGEBYLEX key ? ? LIMIT 0 10",
+		},
+		{
+			"zrevrangebylex key (g [aaa",
+			"zrevrangebylex key ? ?",
+		},
+		{
+			"ZLEXCOUNT key - +",
+			"ZLEXCOUNT key ? ?",
+		},
+		{
+			"ZREMRANGEBYLEX key [alpha [omega",
+			"ZREMRANGEBYLEX key ? ?",
+		},
+		{
+			"ZRANGEBYLEX key",
+			"ZRANGEBYLEX key",
+		},
+		{
+			"ZRANGE key [aaa (g BYLEX LIMIT 0 10",
+			"ZRANGE key ? ? BYLEX LIMIT 0 10",
+		},
+		{
+			"zrange key (g [aaa bylex rev",
+			"zrange key ? ? bylex rev",
+		},
+		{
+			"ZRANGE key 0 -1 WITHSCORES",
+			"ZRANGE key 0 -1 WITHSCORES",
+		},
+		{
+			"ZRANGE key 0 10 BYSCORE",
+			"ZRANGE key 0 10 BYSCORE",
+		},
+		{
+			"ZRANGESTORE dst src [aaa (g BYLEX",
+			"ZRANGESTORE dst src ? ? BYLEX",
+		},
+		{
+			"ZRANGESTORE dst src 0 -1",
+			"ZRANGESTORE dst src 0 -1",
+		},
+		{
+			"ZRANGE key bylex bylex",
+			"ZRANGE key bylex bylex",
+		},
+		{
+			"XADD stream KEEPREF * field value",
+			"XADD stream KEEPREF * field ?",
+		},
+		{
+			"xadd stream nomkstream delref maxlen ~ 10 * f1 v1 f2 v2",
+			"xadd stream nomkstream delref maxlen ~ 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD stream ACKED MINID 0 * field value",
+			"XADD stream ACKED MINID 0 * field ?",
+		},
+		{
+			"XADD s IDMP p1 req-1 * f v",
+			"XADD s IDMP p1 req-1 * f ?",
+		},
+		{
+			"xadd s idmpauto p1 maxlen ~ 10 * f1 v1 f2 v2",
+			"xadd s idmpauto p1 maxlen ~ 10 * f1 ? f2 ?",
+		},
+		{
+			"XADD s UNKNOWNOPT * f v",
+			"XADD s ?",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER alice FROMMEMBER secret BYRADIUS 10 km",
+			"GEOSEARCH key FROMMEMBER ? FROMMEMBER ? BYRADIUS 10 km",
+		},
+		{
+			"GEOSEARCHSTORE dest src frommember alice FROMMEMBER secret BYBOX 1 2 km",
+			"GEOSEARCHSTORE dest src frommember ? FROMMEMBER ? BYBOX 1 2 km",
+		},
+		{
+			"GEOSEARCH key FROMMEMBER FROMMEMBER BYRADIUS 10 km",
+			"GEOSEARCH key FROMMEMBER ? BYRADIUS 10 km",
+		},
+		{
 			`
 CONFIG command
 SET k v

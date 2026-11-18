@@ -40,6 +40,17 @@ type KindConfigFlags struct {
 type KindWorkerNode struct {
 	Labels []Label
 	Taints []Taint
+	// KubeletExtraArgs maps kubelet flag names, such as config-dir, to their
+	// values. Node labels go in Labels.
+	KubeletExtraArgs map[string]string
+	ExtraMounts      []Mount
+}
+
+// Mount is a host path bind-mounted into a kind node container. Docker
+// creates a missing host path as an empty directory owned by root.
+type Mount struct {
+	HostPath      string
+	ContainerPath string
 }
 
 // Label represents a Kubernetes node label as a key-value pair.
@@ -128,6 +139,11 @@ func generateKindConfig(kindClusterTemplateFs embed.FS, flags KindConfigFlags) (
 	}
 	if flags.APIServerAddress != "" && net.ParseIP(flags.APIServerAddress) == nil {
 		return "", fmt.Errorf("invalid kind API server address %q", flags.APIServerAddress)
+	}
+	for i, node := range flags.WorkerNodes {
+		if _, ok := node.KubeletExtraArgs["node-labels"]; ok {
+			return "", fmt.Errorf("kind worker node %d: set node-labels with Labels", i)
+		}
 	}
 
 	tmpl, err := template.ParseFS(kindClusterTemplateFs, "kind-cluster.yaml")
