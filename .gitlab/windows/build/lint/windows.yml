@@ -31,7 +31,6 @@
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
-    - if: $CI_COMMIT_BRANCH == "dd/cmourot/golangci-lint-discard-linkobj"  # TEMPORARY: test #60141 on native Windows, revert before merge
     - !reference [.on_native_os_linters]
     - !reference [.on_main_or_release_branch]  # lint_cross_windows-x64 missed regressions, leading to #55162 and #55210
   variables:
