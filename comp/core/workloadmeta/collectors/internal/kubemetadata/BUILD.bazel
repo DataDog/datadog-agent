@@ -27,6 +27,7 @@ go_library(
         "//pkg/errors",
         "//pkg/proto/pbgo/core",
         "//pkg/util/clusteragent",
+        "//pkg/util/clusteragent/connectivity",
         "//pkg/util/grpc",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/apiserver",
