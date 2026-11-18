@@ -43,6 +43,10 @@ type sweepRequest struct {
 	Workers int64
 	// Interval is how long after this cycle ends the range is next due.
 	Interval time.Duration
+	// Fresh sweeps the range now under a new run, whatever the cursor holds.
+	// A requested sweep sets it, so neither a stale cursor nor a failed write
+	// can turn the request into a no-op or a resume.
+	Fresh bool
 }
 
 // sweeper runs one cycle over one range, chunk by chunk, persisting a resumable cursor.
@@ -173,6 +177,10 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 // dueIn is how long is left before the range is next due, and zero when it is
 // due now. A range with no finished cycle on record is always due.
 func (s *sweeper) dueIn(r sweepRequest) time.Duration {
+	if r.Fresh {
+		return 0
+	}
+
 	saved, ok := s.cursors.Load(r.Config.AutodiscoveryID)
 	if !ok || saved.EndedAtMs == 0 || saved.ConfigDigest != r.Digest {
 		return 0
@@ -196,7 +204,7 @@ func (s *sweeper) nextRunAt(r sweepRequest, endedAtMs int64) int64 {
 // startState resumes the persisted cycle when the range and its credentials
 // are unchanged, and starts a new one otherwise.
 func (s *sweeper) startState(r sweepRequest) cursorState {
-	if saved, ok := s.cursors.Load(r.Config.AutodiscoveryID); ok &&
+	if saved, ok := s.cursors.Load(r.Config.AutodiscoveryID); !r.Fresh && ok &&
 		saved.ConfigDigest == r.Digest &&
 		saved.NextChunk > 0 &&
 		saved.NextChunk < r.Plan.chunkCount() {
