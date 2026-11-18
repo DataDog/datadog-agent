@@ -17,20 +17,86 @@ import (
 	discoverytypes "github.com/DataDog/datadog-agent/pkg/networkdevices/discovery"
 )
 
+// cycleWaits signals once per loop iteration, when the scheduler starts waiting
+// for the next one. The sweep has finished and the range is idle by then, which
+// recording a scan call does not tell us: the scanner records on entry.
+// Install it before the scheduler starts.
+func cycleWaits(s *scheduler) <-chan struct{} {
+	waits := make(chan struct{}, 8)
+	s.newTimer = func(d time.Duration) (<-chan time.Time, func()) {
+		waits <- struct{}{}
+		timer := time.NewTimer(d)
+		return timer.C, func() { timer.Stop() }
+	}
+	return waits
+}
+
+func awaitCycle(t *testing.T, waits <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-waits:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the scheduler never finished a cycle")
+	}
+}
+
 func TestSchedulerTriggerSweepsWithoutWaitingForTheInterval(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
+	waits := cycleWaits(s)
 	s.start(context.Background())
 	defer s.stop()
 
 	// The range sweeps once on add, then is not due again for an hour.
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
-	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
+	awaitCycle(t, waits)
+	require.Len(t, scanner.recorded(), 1)
 
 	require.NoError(t, s.triggerNow("ad-1"))
+	awaitCycle(t, waits)
 
-	require.Eventually(t, func() bool { return len(scanner.recorded()) == 2 }, 5*time.Second, 10*time.Millisecond,
+	assert.Len(t, scanner.recorded(), 2,
 		"a triggered range sweeps now rather than at its next scheduled run")
+}
+
+func TestSchedulerTriggerSweepsThroughAnUnexpiredCursor(t *testing.T) {
+	scanner := answerAll()
+	store := testSchedulerStore()
+	cursors := newMemCursorStore()
+	sw := newTestSweeper(t, scanner, &recordingReporter{}, cursors, 10)
+
+	// A cursor whose cycle completed moments ago: dueIn would defer the sweep
+	// for the whole interval, and clearing it is no longer what makes it due.
+	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
+	opts, _ := cfg.Probes.resolve(store)
+	cursors.Save("ad-1", cursorState{
+		RunID:        "run-completed",
+		NextChunk:    1,
+		Scanned:      64,
+		StartedAtMs:  1700000000000,
+		EndedAtMs:    1700000000000,
+		ConfigDigest: rangeDigest(cfg, opts.Fingerprints()),
+	})
+
+	s := newScheduler(sw, logmock.New(t), schedulerOptions{
+		Workers:      10,
+		MaxAddresses: 65536,
+		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
+		Credentials:  store,
+	})
+	waits := cycleWaits(s)
+	s.start(context.Background())
+	defer s.stop()
+
+	require.NoError(t, s.set(cfg))
+	awaitCycle(t, waits)
+	require.Empty(t, scanner.recorded(), "the range is not due for another hour")
+
+	require.NoError(t, s.triggerNow("ad-1"))
+	awaitCycle(t, waits)
+
+	assert.Len(t, scanner.recorded(), 1,
+		"a requested sweep runs even though the cursor says the range is not due")
 }
 
 func TestSchedulerTriggerRescansTheChunksAResumeWouldSkip(t *testing.T) {
@@ -56,17 +122,20 @@ func TestSchedulerTriggerRescansTheChunksAResumeWouldSkip(t *testing.T) {
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  store,
 	})
+	waits := cycleWaits(s)
 	s.start(context.Background())
 	defer s.stop()
 
 	// The first cycle resumes, so it scans only the last two chunks.
 	require.NoError(t, s.set(cfg))
-	require.Eventually(t, func() bool { return len(scanner.recorded()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	awaitCycle(t, waits)
+	require.Len(t, scanner.recorded(), 2)
 	require.False(t, scannedFirstAddress(scanner), "a resumed cycle skips the chunks already scanned")
 
 	require.NoError(t, s.triggerNow("ad-1"))
+	awaitCycle(t, waits)
 
-	require.Eventually(t, func() bool { return scannedFirstAddress(scanner) }, 5*time.Second, 10*time.Millisecond,
+	assert.True(t, scannedFirstAddress(scanner),
 		"the triggered sweep starts from the first chunk instead of resuming")
 }
 

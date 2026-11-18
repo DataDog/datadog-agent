@@ -258,8 +258,11 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 		interval = floor
 	}
 
+	// fresh carries a request to sweep now into the cycle that follows it.
+	fresh := false
 	for {
-		wait := s.runCycle(ctx, sr, interval)
+		wait := s.runCycle(ctx, sr, interval, fresh)
+		fresh = false
 		if wait <= 0 {
 			wait = interval
 		}
@@ -271,11 +274,7 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 			return
 		case <-tick:
 		case <-sr.trigger:
-			// Dropping the cursor makes the range due now and starts a new run,
-			// rather than resuming whatever a previous cycle left half-finished.
-			if err := s.sweeper.cursors.Clear(sr.cfg.AutodiscoveryID); err != nil {
-				s.log.Warnf("ndmdiscovery: failed to clear the cursor of range %s before a triggered sweep: %v", sr.cfg.AutodiscoveryID, err)
-			}
+			fresh = true
 			s.log.Infof("ndmdiscovery: sweeping range %s now, on request", sr.cfg.AutodiscoveryID)
 		}
 		stopTimer()
@@ -284,7 +283,7 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 
 // runCycle sweeps the range when it is due, and otherwise returns how long is
 // left before it is.
-func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval time.Duration) time.Duration {
+func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval time.Duration, fresh bool) time.Duration {
 	if ctx.Err() != nil {
 		return 0
 	}
@@ -318,6 +317,7 @@ func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval t
 		Digest:   rangeDigest(cfg, opts.Fingerprints()),
 		Workers:  s.workerShare(),
 		Interval: interval,
+		Fresh:    fresh,
 	}
 
 	if wait := s.sweeper.dueIn(req); wait > 0 {
