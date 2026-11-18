@@ -1255,8 +1255,8 @@ func TestComputePercentDropPathQoS(t *testing.T) {
 		// No volume: no defined ratio, so unset rather than a misleading 0.
 		{VolumeTx: 0, TotalDrop: 0, PercentDrop: 0},
 	}
-	computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool) {
-		return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+	computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool, bool) {
+		return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset, true
 	})
 	assert.Equal(t, 0.005, metrics[0].PercentDrop)
 	assert.False(t, metrics[0].PercentDropUnset)

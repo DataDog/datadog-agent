@@ -33,10 +33,13 @@ features:
     status, site, application and top user metrics stay on ``tableData``.
 
     A timeseries query falls back to its ``tableData`` result for that collection, with a
-    warning giving the reason, when Versa does not answer it (including the HTTP status
-    and Versa's error message), when its entity keys do not match the expected layout,
-    when ``tableData`` rows sharing a key differ in their tags, or when no more than half
-    of its entities match a ``tableData`` row. Each fallback is counted as
+    warning giving the reason, when Versa rejects the timeseries request with an error
+    response or returns a body that cannot be parsed (the warning includes the HTTP
+    status and Versa's error message), when its entity keys do not match the expected
+    layout, when ``tableData`` rows sharing a key differ in their tags, or when no entity
+    matches a ``tableData`` row or unmatched entities outnumber matched ones.
+    Authentication, connection and server errors are reported as errors, as in
+    ``tableData`` mode. Each fallback is counted as
     ``versa.timeseries.fallback``, tagged by ``tenant``, ``query`` and ``reason``, so it can
     be monitored. With debug logging, a fallback also logs sample series names and
     ``tableData`` keys, which contain site, circuit and IP names.

@@ -15,7 +15,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -540,7 +542,7 @@ func TestTimeseriesHTTPErrorFallsBackToTableData(t *testing.T) {
 	}
 
 	out := logs()
-	assert.Contains(t, out, "the timeseries request failed (HTTP 400: Joined queries are not allowed for this report)")
+	assert.Contains(t, out, "Timeseries query slam: Versa rejected the timeseries request with HTTP 400: Joined queries are not allowed for this report")
 	assert.NotContains(t, out, "testpass")
 }
 
@@ -597,4 +599,173 @@ func TestFallbackLogsNameSamples(t *testing.T) {
 	assert.Equal(t, 3, strings.Count(sample, "(3 parts)"))
 	assert.NotContains(t, sample, "site-004")
 	assert.NotContains(t, out, "testpass")
+}
+
+// timeseriesHandlerServer serves the given handler for SLA timeseries requests and a
+// one row SLA tableData response, so a test can shape the timeseries failure.
+func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options ...ClientOptions) (*Client, map[string]int) {
+	counts := map[string]int{}
+	mock := SetupMockAPIServer()
+	t.Cleanup(mock.Close)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Query().Get("q"), "slam(") {
+			qt := r.URL.Query().Get("qt")
+			counts[qt]++
+			if qt == QueryTypeTimeseries {
+				timeseries(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(tableBody(t, [][]any{{"site-001,site-002,circuit-a,circuit-b,fc_ef", "site-001", "site-002", "circuit-a", "circuit-b", "fc_ef", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0}})))
+			return
+		}
+		mock.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	client, err := testClient(server, append([]ClientOptions{WithMaxAttempts(1)}, options...)...)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+	return client, counts
+}
+
+// Authentication, transport, timeout and server errors are not answers to the timeseries
+// request itself, so they surface as errors as before and are not counted as fallbacks.
+func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
+	jsonError := func(status int) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			w.Write([]byte(`{"code":-1,"error":"rejected"}`))
+		}
+	}
+	for _, tt := range []struct {
+		name    string
+		handler http.HandlerFunc
+		options []ClientOptions
+	}{
+		{"401", jsonError(http.StatusUnauthorized), nil},
+		{"403", jsonError(http.StatusForbidden), nil},
+		{"500", jsonError(http.StatusInternalServerError), nil},
+		{"html login page", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte("<html>login</html>"))
+		}, nil},
+		{"transport error", func(w http.ResponseWriter, _ *http.Request) {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			require.NoError(t, err)
+			conn.Close()
+		}, nil},
+		{"timeout", func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(300 * time.Millisecond)
+			w.Write([]byte(`{"data":[]}`))
+		}, []ClientOptions{WithTimeout(50 * time.Millisecond)}},
+		// A 4xx without a Versa JSON error body is not a Versa answer either.
+		{"400 without a Versa error body", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"message":"bad"}`))
+		}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client, counts := timeseriesHandlerServer(t, tt.handler, tt.options...)
+			metrics, err := client.GetSLAMetrics("datadog")
+			require.Error(t, err)
+			assert.Nil(t, metrics)
+			assert.Empty(t, client.TakeFallbacks())
+			assert.Zero(t, counts[QueryTypeTableData])
+		})
+	}
+}
+
+// A Versa rejection with a JSON error body, and a timeseries body that is not valid JSON,
+// are answered from tableData.
+func TestTimeseriesRejectionAndParseErrorFallBack(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{"400 with a Versa error body", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(versaReportError))
+		}},
+		{"unparsable body", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"data": [`))
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client, counts := timeseriesHandlerServer(t, tt.handler)
+			metrics, err := client.GetSLAMetrics("datadog")
+			require.NoError(t, err)
+			require.Len(t, metrics, 1)
+			assert.Zero(t, metrics[0].Timestamp)
+			assert.Equal(t, []Fallback{{Tenant: "datadog", Query: "slam", Reason: FallbackHTTPError}}, client.TakeFallbacks())
+			assert.Equal(t, 1, counts[QueryTypeTableData])
+		})
+	}
+}
+
+// The pathcos and cos fallbacks report exactly what tableData mode reports for the same
+// response, percent_drop included.
+func TestQoSFallbackMatchesTableData(t *testing.T) {
+	for _, tt := range []struct {
+		prefix string
+		table  string
+		get    func(*Client) (any, error)
+	}{
+		{"pathcos(", fixtures.GetPathQoSMetrics, func(c *Client) (any, error) { return c.GetPathQoSMetrics("datadog") }},
+		{"cos(", fixtures.GetCircuitQoSMetrics, func(c *Client) (any, error) { return c.GetCircuitQoSMetrics("datadog") }},
+	} {
+		t.Run(tt.prefix, func(t *testing.T) {
+			fallbackClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			fallback, err := tt.get(fallbackClient)
+			require.NoError(t, err)
+			require.Len(t, fallbackClient.TakeFallbacks(), 1)
+
+			tableClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			WithAnalyticsQueryType(QueryTypeTableData)(tableClient)
+			table, err := tt.get(tableClient)
+			require.NoError(t, err)
+
+			assert.Equal(t, table, fallback)
+		})
+	}
+}
+
+// The fallback warning carries the query name, HTTP status and a sanitized Versa message
+// only, even when Versa echoes the request, the tenant and credentials back.
+func TestTimeseriesRejectionWarningIsSanitized(t *testing.T) {
+	logs := captureLogs(t)
+	echo := `{"code":-3,"error":"Invalid request https://testuser:testpass@10.0.0.1:9182/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN?q=slam&count=2000 from director.example:9182 password testpass for tenant datadog"}`
+	client, _ := timeseriesHandlerServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(echo))
+	})
+	_, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	var warning string
+	for _, line := range strings.Split(logs(), "\n") {
+		if strings.Contains(line, "| WARN |") && strings.Contains(line, "Timeseries query slam") {
+			warning = line
+		}
+	}
+	require.NotEmpty(t, warning)
+	assert.Contains(t, warning, "Versa rejected the timeseries request with HTTP 400: Invalid request")
+	for _, leaked := range []string{"testpass", "testuser", "https://", "10.0.0.1", "9182", "/tenants/", "datadog", "count=2000", "director.example"} {
+		assert.NotContains(t, warning, leaked)
+	}
+}
+
+func TestSanitizeAPIMessage(t *testing.T) {
+	client := &Client{username: "operator", password: "s3cret-pass", sessionToken: "csrf-abc123"}
+	message := client.sanitizeAPIMessage("bad token csrf-abc123 or s3cret-pass at /versa/x?y=1 host:8443 for tenant-one\n\n  "+strings.Repeat("x", 200), "tenant-one")
+	for _, leaked := range []string{"csrf-abc123", "s3cret-pass", "/versa", "8443", "tenant-one", "\n"} {
+		assert.NotContains(t, message, leaked)
+	}
+	assert.True(t, strings.HasPrefix(message, "bad token <redacted> or <redacted> at for <redacted>"), message)
+	assert.LessOrEqual(t, len(message), maxLoggedMessageLength)
 }

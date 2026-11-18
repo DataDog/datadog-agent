@@ -167,7 +167,7 @@ const (
 	FallbackKeyParts FallbackReason = "key_parts"
 	// FallbackJoinAmbiguous: a join key matched tableData rows with differing attributes.
 	FallbackJoinAmbiguous FallbackReason = "join_ambiguous"
-	// FallbackJoinUnmatched: no entity, or fewer than half of them, matched a tableData row.
+	// FallbackJoinUnmatched: no entity matched a tableData row, or unmatched entities outnumber matched ones.
 	FallbackJoinUnmatched FallbackReason = "join_unmatched"
 )
 
@@ -179,13 +179,18 @@ type Fallback struct {
 	Reason FallbackReason
 }
 
-func (client *Client) recordFallback(tenant, query string, reason FallbackReason) {
-	short := query
+// shortQueryName returns the analytics query name without its arguments, for example
+// linkusage for linkusage(site,accckt,...).
+func shortQueryName(query string) string {
 	if i := strings.Index(query, "("); i >= 0 {
-		short = query[:i]
+		return query[:i]
 	}
+	return query
+}
+
+func (client *Client) recordFallback(tenant, query string, reason FallbackReason) {
 	client.fallbacksMu.Lock()
-	client.fallbacks = append(client.fallbacks, Fallback{Tenant: tenant, Query: short, Reason: reason})
+	client.fallbacks = append(client.fallbacks, Fallback{Tenant: tenant, Query: shortQueryName(query), Reason: reason})
 	client.fallbacksMu.Unlock()
 }
 
@@ -776,8 +781,8 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 		return nil, err
 	}
 	if client.analyticsQueryType == QueryTypeTimeseries {
-		computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool) {
-			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool, bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset, m.Timestamp != 0
 		})
 	}
 	return metrics, nil
@@ -829,8 +834,8 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 		return nil, err
 	}
 	if client.analyticsQueryType == QueryTypeTimeseries {
-		computePercentDrop(metrics, func(m *CircuitQoSMetrics) (*float64, *float64, *float64, *bool) {
-			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		computePercentDrop(metrics, func(m *CircuitQoSMetrics) (*float64, *float64, *float64, *bool, bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset, m.Timestamp != 0
 		})
 	}
 	return metrics, nil
@@ -841,10 +846,16 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 // tableData reports it as totaldrop/volume-tx, a fraction. Each bucket gets that same
 // ratio here; a bucket with no transmitted volume has no defined ratio, so its percent
 // drop is marked unset. fields returns pointers to the row's volume, drop, percent drop
-// and unset marker, so path and circuit QoS share the computation.
-func computePercentDrop[T any](metrics []T, fields func(*T) (volumeTx, totalDrop, percentDrop *float64, unset *bool)) {
+// and unset marker, and whether the row is a timeseries bucket, so path and circuit QoS
+// share the computation.
+func computePercentDrop[T any](metrics []T, fields func(*T) (volumeTx, totalDrop, percentDrop *float64, unset *bool, bucket bool)) {
 	for i := range metrics {
-		volumeTx, totalDrop, percentDrop, unset := fields(&metrics[i])
+		volumeTx, totalDrop, percentDrop, unset, bucket := fields(&metrics[i])
+		if !bucket {
+			// A row answered from tableData by a fallback keeps Versa's value, exactly as
+			// the tableData path reports it.
+			continue
+		}
 		if *volumeTx == 0 {
 			*percentDrop = 0
 			*unset = true
