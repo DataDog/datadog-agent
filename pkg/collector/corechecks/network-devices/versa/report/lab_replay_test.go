@@ -33,36 +33,58 @@ import (
 type labEndpoint struct {
 	name   string // testdata file prefix
 	prefix string // analytics query prefix
+	// metrics are the requested metric ids, in request order, and gauges the metric
+	// each is submitted as, without the versa. prefix.
+	metrics, gauges []string
+	// keyTags are the tags whose values, joined with commas, make the drill key, and
+	// keyParts how many leading series name parts make it.
+	keyTags  []string
+	keyParts int
 	// collect gets the endpoint's rows and sends them, returning the number of rows.
 	collect func(c *client.Client, s *Sender) ([]any, error)
 }
 
 var labEndpoints = []labEndpoint{
-	{"sla", "slam(", func(c *client.Client, s *Sender) ([]any, error) {
-		m, err := c.GetSLAMetrics("datadog")
-		s.SendSLAMetrics("datadog", m, nil)
-		return toAny(m), err
-	}},
-	{"cos", "cos(", func(c *client.Client, s *Sender) ([]any, error) {
-		m, err := c.GetCircuitQoSMetrics("datadog")
-		s.SendCircuitQoSMetrics("datadog", m, nil)
-		return toAny(m), err
-	}},
-	{"intfutil", "intfUtil(", func(c *client.Client, s *Sender) ([]any, error) {
-		m, err := c.GetAnalyticsInterfaces("datadog")
-		s.SendAnalyticsInterfaceMetrics("datadog", m, nil)
-		return toAny(m), err
-	}},
-	{"linkusage", "linkusage(site,accckt", func(c *client.Client, s *Sender) ([]any, error) {
-		m, err := c.GetLinkUsageMetrics("datadog")
-		s.SendLinkUsageMetrics("datadog", m, nil)
-		return toAny(m), err
-	}},
-	{"dia", "usage(", func(c *client.Client, s *Sender) ([]any, error) {
-		m, err := c.GetDIAMetrics("datadog")
-		s.SendDIAMetrics("datadog", m, nil)
-		return toAny(m), err
-	}},
+	{"sla", "slam(",
+		[]string{"delay", "fwdDelayVar", "revDelayVar", "fwdLossRatio", "revLossRatio", "pduLossRatio"},
+		[]string{"sla.delay", "sla.fwd_delay_var", "sla.rev_delay_var", "sla.fwd_loss_ratio", "sla.rev_loss_ratio", "sla.pdu_loss_ratio"},
+		[]string{"local_site", "remote_site", "local_access_circuit", "remote_access_circuit", "forwarding_class"}, 5, func(c *client.Client, s *Sender) ([]any, error) {
+			m, err := c.GetSLAMetrics("datadog")
+			s.SendSLAMetrics("datadog", m, nil)
+			return toAny(m), err
+		}},
+	{"cos", "cos(",
+		[]string{"betx", "betxdrop", "eftx", "eftxdrop", "aftx", "aftxdrop", "nctx", "nctxdrop", "bebandwidth", "efbandwidth", "afbandwidth", "ncbandwidth", "volume-tx", "totaldrop", "percentdrop", "bandwidth"},
+		[]string{"circuit_qos.best_effort_tx", "circuit_qos.best_effort_tx_drop", "circuit_qos.expedited_forward_tx", "circuit_qos.expedited_forward_drop", "circuit_qos.assured_forward_tx", "circuit_qos.assured_forward_drop", "circuit_qos.network_control_tx", "circuit_qos.network_control_drop", "circuit_qos.best_effort_bandwidth", "circuit_qos.expedited_forward_bw", "circuit_qos.assured_forward_bw", "circuit_qos.network_control_bw", "circuit_qos.volume_tx", "circuit_qos.total_drop", "circuit_qos.percent_drop", "circuit_qos.bandwidth"},
+		[]string{"site", "access_circuit"}, 2, func(c *client.Client, s *Sender) ([]any, error) {
+			m, err := c.GetCircuitQoSMetrics("datadog")
+			s.SendCircuitQoSMetrics("datadog", m, nil)
+			return toAny(m), err
+		}},
+	{"intfutil", "intfUtil(",
+		[]string{"rxUtil", "txUtil", "volume-rx", "volume-tx", "volume", "bw-rx", "bw-tx", "bandwidth"},
+		[]string{"interface.rx_util", "interface.tx_util", "interface.volume_rx", "interface.volume_tx", "interface.volume", "interface.bandwidth_rx", "interface.bandwidth_tx", "interface.bandwidth"},
+		[]string{"site", "access_circuit", "interface"}, 3, func(c *client.Client, s *Sender) ([]any, error) {
+			m, err := c.GetAnalyticsInterfaces("datadog")
+			s.SendAnalyticsInterfaceMetrics("datadog", m, nil)
+			return toAny(m), err
+		}},
+	{"linkusage", "linkusage(site,accckt",
+		[]string{"volume-tx", "volume-rx", "bw-tx", "bw-rx"},
+		[]string{"link.volume_tx", "link.volume_rx", "link.bandwidth_tx", "link.bandwidth_rx"},
+		[]string{"site", "access_circuit"}, 2, func(c *client.Client, s *Sender) ([]any, error) {
+			m, err := c.GetLinkUsageMetrics("datadog")
+			s.SendLinkUsageMetrics("datadog", m, nil)
+			return toAny(m), err
+		}},
+	{"dia", "usage(",
+		[]string{"volume-tx", "volume-rx", "bw-tx", "bw-rx"},
+		[]string{"dia.volume_tx", "dia.volume_rx", "dia.bandwidth_tx", "dia.bandwidth_rx"},
+		[]string{"site", "access_circuit"}, 2, func(c *client.Client, s *Sender) ([]any, error) {
+			m, err := c.GetDIAMetrics("datadog")
+			s.SendDIAMetrics("datadog", m, nil)
+			return toAny(m), err
+		}},
 }
 
 func readLab(t *testing.T, name string) []byte {
@@ -137,8 +159,18 @@ func expectedBuckets(t *testing.T, raw []byte) (map[string][]int64, int) {
 }
 
 type submission struct {
-	tags string
-	ts   float64
+	tags  string
+	ts    float64
+	value float64
+	// key is the drill key rebuilt from the tags.
+	key string
+}
+
+// valueKey identifies one submitted value: metric, entity and bucket time in seconds.
+type valueKey struct {
+	metric string
+	key    string
+	ts     float64
 }
 
 // submissions runs the endpoint in a query type and returns, per metric name, the sorted
@@ -167,7 +199,12 @@ func submissions(t *testing.T, ep labEndpoint, queryType string) (map[string][]s
 		}
 		sorted := append([]string(nil), tags...)
 		sort.Strings(sorted)
-		out[call.Arguments.String(0)] = append(out[call.Arguments.String(0)], submission{strings.Join(sorted, ","), ts})
+		out[call.Arguments.String(0)] = append(out[call.Arguments.String(0)], submission{
+			tags:  strings.Join(sorted, ","),
+			ts:    ts,
+			value: call.Arguments.Get(1).(float64),
+			key:   keyFromTags(ep, tags),
+		})
 	}
 	return out, rows, counts
 }
@@ -287,4 +324,101 @@ func TestLabCircuitQoSSingleBucketIsHeldBack(t *testing.T) {
 	rows, err := c.GetCircuitQoSMetrics("datadog")
 	require.NoError(t, err)
 	assert.Empty(t, rows)
+}
+
+func keyFromTags(ep labEndpoint, tags []string) string {
+	values := map[string]string{}
+	for _, tag := range tags {
+		if name, value, ok := strings.Cut(tag, ":"); ok {
+			if _, seen := values[name]; !seen {
+				values[name] = value
+			}
+		}
+	}
+	parts := make([]string, len(ep.keyTags))
+	for i, name := range ep.keyTags {
+		parts[i] = values[name]
+	}
+	return strings.Join(parts, ",")
+}
+
+func submittedValues(subs map[string][]submission) map[valueKey]float64 {
+	out := map[valueKey]float64{}
+	for metric, list := range subs {
+		for _, s := range list {
+			out[valueKey{metric, s.key, s.ts}] = s.value
+		}
+	}
+	return out
+}
+
+// expectedTableValues reads each tableData cell for the gauge it is submitted as.
+func expectedTableValues(t *testing.T, ep labEndpoint) map[valueKey]float64 {
+	var resp client.AnalyticsMetricsResponse
+	require.NoError(t, json.Unmarshal(readLab(t, ep.name+"_tableData"), &resp))
+	out := map[valueKey]float64{}
+	for _, row := range resp.AaData {
+		first := len(row) - len(ep.metrics)
+		for i, gauge := range ep.gauges {
+			out[valueKey{versaMetricPrefix + gauge, row[0].(string), 0}] = row[first+i].(float64)
+		}
+	}
+	return out
+}
+
+// expectedSeriesValues reads, for every published bucket, each series value for the
+// gauge it is submitted as. Circuit QoS percent_drop is the bucket's totaldrop over
+// volume-tx, and is not sent for a bucket with no volume.
+func expectedSeriesValues(t *testing.T, ep labEndpoint) map[valueKey]float64 {
+	raw := readLab(t, ep.name+"_timeseries")
+	buckets, _ := expectedBuckets(t, raw)
+	var resp client.AnalyticsTimeseriesResponse
+	require.NoError(t, json.Unmarshal(raw, &resp))
+	values := map[string]map[string]map[int64]float64{} // name, metric, ms
+	for _, s := range resp.Data {
+		if values[s.Name] == nil {
+			values[s.Name] = map[string]map[int64]float64{}
+		}
+		values[s.Name][s.Metric] = map[int64]float64{}
+		for _, p := range s.Data {
+			if v, ok := p[1].(float64); ok {
+				values[s.Name][s.Metric][int64(p[0].(float64))] = v
+			}
+		}
+	}
+	out := map[valueKey]float64{}
+	for name, published := range buckets {
+		key := strings.Join(strings.Split(name, ",")[:ep.keyParts], ",")
+		for _, ms := range published {
+			for i, metric := range ep.metrics {
+				v := values[name][metric][ms]
+				if metric == "percentdrop" && ep.name == "cos" {
+					volume := values[name]["volume-tx"][ms]
+					if volume == 0 {
+						continue
+					}
+					v = values[name]["totaldrop"][ms] / volume
+				}
+				out[valueKey{versaMetricPrefix + ep.gauges[i], key, float64(ms) / 1000}] = v
+			}
+		}
+	}
+	return out
+}
+
+// TestLabResponsesReplayValues checks every submitted value against the lab response it
+// came from: each tableData gauge equals its tableData cell, and each timeseries gauge
+// equals its series value at that bucket, for the same entity.
+func TestLabResponsesReplayValues(t *testing.T) {
+	for _, ep := range labEndpoints {
+		t.Run(ep.name, func(t *testing.T) {
+			table, _, _ := submissions(t, ep, client.QueryTypeTableData)
+			assert.Equal(t, expectedTableValues(t, ep), submittedValues(table), "tableData values")
+
+			series, _, _ := submissions(t, ep, client.QueryTypeTimeseries)
+			want := expectedSeriesValues(t, ep)
+			require.NotEmpty(t, want)
+			assert.Equal(t, want, submittedValues(series), "timeseries values")
+		})
+	}
 }
