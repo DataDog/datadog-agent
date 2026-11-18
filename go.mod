@@ -36,7 +36,7 @@ require (
 	cel.dev/cel-go v0.32.0
 	code.cloudfoundry.org/bbs v1.30.0
 	code.cloudfoundry.org/bbs/models v1.29.0
-	code.cloudfoundry.org/garden v0.11.0
+	code.cloudfoundry.org/garden v0.12.0
 	code.cloudfoundry.org/lager/v3 v3.95.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
@@ -705,7 +705,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de // indirect
-	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b // indirect
+	github.com/google/pprof v0.0.0-20261110164715-8bb1ee682bd8 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
