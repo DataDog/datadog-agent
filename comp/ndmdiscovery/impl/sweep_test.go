@@ -605,7 +605,7 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 	assert.Len(t, sent[0].Targets, 64)
 }
 
-func TestSweepStopsPingingForTheRestOfTheSweepOnceItCannotBeSent(t *testing.T) {
+func TestSweepKeepsPingingAfterAPingCannotBeSent(t *testing.T) {
 	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
 		results := make([]probe.Result, 0, len(call.Targets))
 		for _, ip := range call.Targets {
@@ -628,9 +628,7 @@ func TestSweepStopsPingingForTheRestOfTheSweepOnceItCannotBeSent(t *testing.T) {
 	sent := scanner.recorded()
 	require.Len(t, sent, 2)
 	assert.NotNil(t, sent[0].Options.Ping)
-	assert.Nil(t, sent[1].Options.Ping)
-	assert.NotNil(t, sent[1].Options.SNMP)
-	assert.NotNil(t, req.Options.Ping, "the next sweep pings again")
+	assert.NotNil(t, sent[1].Options.Ping, "one unsent ping may be specific to its target")
 }
 
 func TestSweepReportsNothingWhenNoAddressAnswers(t *testing.T) {
