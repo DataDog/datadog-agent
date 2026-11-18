@@ -5514,4 +5514,20 @@ func TestProcessV1CanonicalizesChunkEnvVersionAliases(t *testing.T) {
 		}
 	}
 	assert.Equal(t, map[string][]string{"version": {pt.AppVersion}}, values)
+
+	// The canonicalized attributes survive the protobuf serialization used for forwarding.
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{out.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	decodedValues := map[string][]string{}
+	for k, v := range dtp.Chunks[0].Attributes {
+		if name := dtp.Strings[k]; name == "env" || name == "version" {
+			decodedValues[name] = append(decodedValues[name], dtp.Strings[v.GetStringValueRef()])
+		}
+	}
+	assert.Equal(t, map[string][]string{"version": {"v2"}}, decodedValues)
 }
