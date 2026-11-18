@@ -41,6 +41,14 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 			logger.Info("remote config x509 debug ping handler enabled for manual staging validation")
 		}
 
+		if config.ExecuteHandler != nil {
+			if err := client.RegisterHandler(remoteQueriesExecuteURI, rcx509.HandlerFunc(config.ExecuteHandler)); err != nil {
+				_ = client.Close()
+				return nil, fmt.Errorf("register x509 remote queries execute handler: %w", err)
+			}
+			logger.Info("remote config x509 remote queries execute handler registered")
+		}
+
 		return client, nil
 	}
 }

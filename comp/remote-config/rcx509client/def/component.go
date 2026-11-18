@@ -6,7 +6,10 @@
 // Package rcx509client defines the Agent's Remote Config x509 client component.
 package rcx509client
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 // team: remote-config
 
@@ -39,6 +42,11 @@ type Client interface {
 	Close() error
 }
 
+// ExecuteHandler handles the Remote Queries Execute URI. It is registered only
+// when the Agent has a handler that carries its own trusted authorization; the
+// component adds none and treats the debug ping as no authorization at all.
+type ExecuteHandler func(ctx context.Context, correlationID uint64, payload []byte) ([]byte, error)
+
 // ClientConfig contains the Agent-owned settings used to construct an x509
 // client. APIKey must never be logged.
 type ClientConfig struct {
@@ -48,6 +56,9 @@ type ClientConfig struct {
 	APIKey           string
 	HTTPClient       *http.Client
 	DebugPingEnabled bool
+	// ExecuteHandler, if set, is registered for the Remote Queries Execute URI.
+	// A nil handler leaves the URI unregistered.
+	ExecuteHandler ExecuteHandler
 }
 
 // ClientFactory constructs an x509 client.

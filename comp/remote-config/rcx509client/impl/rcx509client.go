@@ -37,6 +37,10 @@ type Dependencies struct {
 	Config    cfgcomp.Component
 	Logger    log.Component
 	Factory   rcx509client.ClientFactory `optional:"true"`
+	// ExecuteHandler is provided only by code that holds a trusted
+	// authorization for Remote Queries. Nothing in the Agent provides it by
+	// default, so the Execute URI stays unregistered.
+	ExecuteHandler rcx509client.ExecuteHandler `optional:"true"`
 }
 
 // Provides defines the output of the x509 client component.
@@ -75,6 +79,7 @@ func New(deps Dependencies) Provides {
 		deps.Logger.Errorf("remote config x509 client configuration failed: %v", err)
 		return Provides{Comp: comp}
 	}
+	clientConfig.ExecuteHandler = deps.ExecuteHandler
 
 	client, err := deps.Factory(clientConfig)
 	if err != nil {

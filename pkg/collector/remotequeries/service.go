@@ -286,6 +286,12 @@ func ParseActionAnswer(raw []byte, resolve bool) (Answer, error) {
 }
 
 func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
+	return s.start(ctx, req, stats, nil)
+}
+
+// start resolves the target and, for an execution, hands the run off to a
+// detached goroutine. detachedDone, if set, is called once that goroutine ends.
+func (s *Service) start(ctx context.Context, req Request, stats *summary, detachedDone func()) Answer {
 	var delivery *integrationDelivery
 	if !req.ResolveOnly {
 		baseURL, err := uploadBaseURL(s.Config.GetString("site"))
@@ -359,7 +365,12 @@ func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
 		return failure(false, "cancelled", "caller ended before execution")
 	}
 	executeInput, _ := json.Marshal(integrationRequest{Operation: "execute", Target: req.Target, Query: req.Query, IncludeSchema: &req.IncludeSchema, ResultDelivery: delivery, TraceContext: req.TraceContext})
-	go s.runDetached(context.WithoutCancel(ctx), querier, string(executeInput), req)
+	go func() {
+		if detachedDone != nil {
+			defer detachedDone()
+		}
+		s.runDetached(context.WithoutCancel(ctx), querier, string(executeInput), req)
+	}()
 	return Answer{Status: "SUCCEEDED"}
 }
 
@@ -378,6 +389,11 @@ func (s *Service) runDetached(ctx context.Context, querier check.RemoteQuerier, 
 	}
 	if s.Log != nil {
 		d := req.ResultDelivery
-		s.Log.Infof("remote query integration=%q crawl_id=%q task_id=%q upload_id=%q kind=run outcome=%s code=%s duration=%s message=%q", req.Integration, d.CrawlID, d.TaskID, d.UploadID, outcome, code, time.Since(start), detail)
+		crawl := ""
+		if d.CrawlID != "" {
+			// A tunnel run has no crawl; do not log an empty or invented one.
+			crawl = fmt.Sprintf("crawl_id=%q ", d.CrawlID)
+		}
+		s.Log.Infof("remote query integration=%q %stask_id=%q upload_id=%q kind=run outcome=%s code=%s duration=%s message=%q", req.Integration, crawl, d.TaskID, d.UploadID, outcome, code, time.Since(start), detail)
 	}
 }
