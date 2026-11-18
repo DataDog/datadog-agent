@@ -43,8 +43,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
@@ -159,10 +159,7 @@ health_platform:
 		t.Setenv(noIssueCanaryEnvVar, "not-a-number")
 	}
 
-	// Reset the global configurations to their defaults: the config components load into them. The environment must
-	// be set before, since the configurations read it when they are built.
-	configmock.New(t)
-	configmock.NewSystemProbe(t)
+	initGlobalConfigs(t)
 
 	secretResolver := secretsmock.New(t)
 	if strings.Contains(scenarioConfig, "ENC[") {
@@ -252,6 +249,21 @@ health_platform:
 			assert.NotContains(t, string(encoded), marker, "a health report leaks a configured value")
 		}
 	}
+}
+
+// initGlobalConfigs recreates the global datadog and system-probe configurations the config components load into,
+// exactly like the Agent does when it starts: declared settings and defaults, post-init fixups, then the environment
+// variable layer. The environment must therefore be set before. The previous configurations are restored at the end
+// of the test.
+func initGlobalConfigs(t *testing.T) {
+	t.Helper()
+	previousDatadog := pkgconfigsetup.GlobalConfigBuilder()
+	previousSystemProbe := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	t.Cleanup(func() {
+		pkgconfigsetup.SetDatadog(previousDatadog)         // nolint: forbidigo // restores the globals replaced by InitConfigObjects
+		pkgconfigsetup.SetSystemProbe(previousSystemProbe) // nolint: forbidigo // restores the globals replaced by InitConfigObjects
+	})
+	pkgconfigsetup.InitConfigObjects()
 }
 
 // readScenarioFile returns the content of a scenario file, or an empty string for a missing optional file
