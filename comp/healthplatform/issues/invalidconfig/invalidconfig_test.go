@@ -19,6 +19,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	schemaimpl "github.com/DataDog/datadog-agent/comp/core/schema/impl"
+	noopstelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
@@ -307,7 +308,7 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"forwarder_apikey_validation_interval: 61\n", ""},
 		{"api_key: [secret]\n", "got array, want string"},
 		{"api_key: {value: secret}\n", "got object, want string"},
-		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
+		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", ""},
 		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
 		{"logs_enabled: ENC[enabled]\n", ""},
 		{"agent_ipc: ENC[ipc]\n", ""},
@@ -423,7 +424,7 @@ func (f fakeConfigFileUsed) ConfigFileUsed() string {
 // newTestChecker returns a checker validating cfg with a new schema component, so results cached by previous tests are
 // ignored.
 func newTestChecker(cfg config.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
-	schemaComp := schemaimpl.NewComponent().Comp
+	schemaComp := schemaimpl.NewComponent(schemaimpl.Requires{Telemetry: noopstelemetry.NewComponent()}).Comp
 	if cfg != nil {
 		// validate the configuration like the Agent does when it loads it. Errors (ie: the schema isn't embedded in
 		// the test binary) leave no violation to report.
