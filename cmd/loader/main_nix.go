@@ -367,6 +367,8 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd
 	} else if err := configcheck.ValidateDataPlaneProxy(cfg); err != nil {
 		log.Errorf("Not listening on %s: %v", pkgconfigsetup.OTLPTracePort, err)
+	} else if configcheck.IsConfigEnabled(cfg) && configcheck.IsDataPlaneOnlyEnabled(cfg) {
+		log.Infof("Not listening on %s because the data plane handles OTLP ingest", pkgconfigsetup.OTLPTracePort)
 	} else {
 		log.Info("Trace-agent OTLP receiver is disabled")
 	}

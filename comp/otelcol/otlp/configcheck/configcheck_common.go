@@ -104,7 +104,8 @@ func IsDataPlaneOnlyEnabled(cfg configmodel.Reader) bool {
 	return isDataPlaneOTLPEnabled(cfg) && len(enabledDataPlaneProxySignals(cfg)) == 0
 }
 
-// IsAgentPipelineEnabled reports whether OTLP ingest is configured and the Agent runs its own OTLP pipeline.
+// IsAgentPipelineEnabled reports whether OTLP ingest is configured and not left entirely to the data plane. Unlike
+// IsEnabled, it does not check that the binary has OTLP support.
 func IsAgentPipelineEnabled(cfg configmodel.Reader) bool {
 	return IsConfigEnabled(cfg) && !IsDataPlaneOnlyEnabled(cfg)
 }
