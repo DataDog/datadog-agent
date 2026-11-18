@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,6 +117,79 @@ func TestParseKubeletPods_ImageFromContainerSpec(t *testing.T) {
 	assert.Equal(t, "nginx", container.Image.Name)
 	assert.Equal(t, "1.23.0", container.Image.Tag, "tag should be preserved from spec")
 	assert.Equal(t, "nginx", container.Image.ShortName)
+}
+
+// TestParseKubeletPods_ContainerStateTimestamps covers StartedAt/FinishedAt reported
+// as-is and CreatedAt left zero, since the kubelet API reports no creation time.
+func TestParseKubeletPods_ContainerStateTimestamps(t *testing.T) {
+	startedAt := time.Unix(1700000000, 0).UTC()
+	finishedAt := time.Unix(1700000100, 0).UTC()
+
+	pod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "test-pod",
+			Namespace: "default",
+			UID:       "test-uid-timestamps",
+		},
+		Spec: kubelet.Spec{
+			Containers: []kubelet.ContainerSpec{
+				{Name: "running-container", Image: "nginx:1.23.0"},
+				{Name: "terminated-container", Image: "busybox:latest"},
+			},
+		},
+		Status: kubelet.Status{
+			Containers: []kubelet.ContainerStatus{
+				{
+					Name:    "running-container",
+					ID:      "containerd://running123",
+					Image:   "nginx:1.23.0",
+					ImageID: "nginx@sha256:abc123",
+					State: kubelet.ContainerState{
+						Running: &kubelet.ContainerStateRunning{StartedAt: startedAt},
+					},
+				},
+				{
+					Name:    "terminated-container",
+					ID:      "containerd://terminated456",
+					Image:   "busybox:latest",
+					ImageID: "busybox@sha256:def456",
+					State: kubelet.ContainerState{
+						Terminated: &kubelet.ContainerStateTerminated{
+							StartedAt:  startedAt,
+							FinishedAt: finishedAt,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	events := ParseKubeletPods([]*kubelet.Pod{pod}, false, mockStore)
+
+	states := make(map[string]workloadmeta.ContainerState)
+	for _, ev := range events {
+		if c, ok := ev.Entity.(*workloadmeta.Container); ok {
+			states[c.Name] = c.State
+		}
+	}
+	require.Len(t, states, 2)
+
+	running := states["running-container"]
+	assert.True(t, running.Running)
+	assert.Equal(t, workloadmeta.ContainerStatusRunning, running.Status)
+	assert.Equal(t, startedAt, running.StartedAt, "StartedAt should be reported as-is")
+	assert.True(t, running.CreatedAt.IsZero(), "CreatedAt should stay zero, the kubelet does not report it")
+
+	terminated := states["terminated-container"]
+	assert.False(t, terminated.Running)
+	assert.Equal(t, workloadmeta.ContainerStatusStopped, terminated.Status)
+	assert.Equal(t, startedAt, terminated.StartedAt, "StartedAt should be reported as-is")
+	assert.Equal(t, finishedAt, terminated.FinishedAt, "FinishedAt should be reported as-is")
+	assert.True(t, terminated.CreatedAt.IsZero(), "CreatedAt should stay zero, the kubelet does not report it")
 }
 
 // TestParseKubeletPods_NamespaceMetadataFromCache tests that namespace labels and annotations
