@@ -28,7 +28,6 @@ dd_agent_go_test(
         "sender_test.go",
     ],
     data = [
-        # keep
         "testdata/lab/cos_tableData.json",
         "testdata/lab/cos_timeseries.json",
         "testdata/lab/dia_tableData.json",
