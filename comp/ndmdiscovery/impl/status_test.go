@@ -224,3 +224,24 @@ func TestStatusRendersTextAndHTML(t *testing.T) {
 	require.NoError(t, p.JSON(false, stats))
 	assert.Contains(t, stats, "ndmDiscoveryStats")
 }
+
+func TestStatusShowsANewRunBeforeItsFirstChunkCompletes(t *testing.T) {
+	cursors := newMemCursorStore()
+	require.NoError(t, cursors.Save("ad-1", cursorState{RunID: "run-old", NextChunk: 3, Scanned: 192, StartedAtMs: statusNowMs, ConfigDigest: "stale"}))
+	scanner := newBlockingScanner()
+	sw := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, cursors, 10)
+	sw.newRunID = func() string { return "run-new" }
+	d := &ndmDiscovery{log: logmock.New(t), sched: newScheduler(sw, logmock.New(t), schedulerOptions{Workers: 10, MaxAddresses: 65536})}
+	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
+
+	done := make(chan error, 1)
+	go func() { done <- sw.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
+	<-scanner.entered
+
+	r := statusAt(d, statusNowMs).Ranges[0]
+	assert.Equal(t, "run-new", r.RunID)
+	assert.Equal(t, int64(0), r.Scanned)
+
+	close(scanner.release)
+	require.NoError(t, <-done)
+}
