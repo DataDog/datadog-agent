@@ -1157,14 +1157,6 @@ mod tests {
         assert_eq!(status.message(), "operation requires root");
     }
 
-    fn skip_denial_when_root() -> bool {
-        if nix::unistd::Uid::effective().is_root() {
-            eprintln!("skipping: effective uid is 0, which the policy allows");
-            return true;
-        }
-        false
-    }
-
     #[tokio::test]
     async fn test_server_sees_peer_uid_over_uds() {
         let dir = tempfile::tempdir().unwrap();
@@ -1218,7 +1210,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_enforced_policy_denies_non_root_mutations() {
-        if skip_denial_when_root() {
+        // Root is allowed, so the denial assertions cannot run. A successful
+        // ReloadConfig is the enforced allow path over a real socket.
+        if nix::unistd::Uid::effective().is_root() {
+            let (mut client, _shutdown) = start_test_server_with_catalog(
+                LoadedCatalog::valid(vec![]),
+                CallerPolicy::from_enforce(true),
+            )
+            .await;
+            client
+                .reload_config(proto::ReloadConfigRequest {})
+                .await
+                .unwrap();
             return;
         }
         let (mut client, _shutdown) = start_test_server_with_catalog(
@@ -1327,7 +1330,7 @@ mod tests {
 
     /// A request with no peer credential is denied while enforcing, whatever
     /// uid runs the test. This keeps every handler's guard covered under root,
-    /// where the socket test above skips.
+    /// where the socket test above skips the denial assertions.
     #[tokio::test]
     async fn test_enforced_policy_denies_requests_without_peer_credential() {
         use super::proto::process_manager_server::ProcessManager as _;
