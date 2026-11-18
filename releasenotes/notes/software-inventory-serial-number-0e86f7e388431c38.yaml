@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Include the local hardware serial number, when available, in software
+    inventory snapshots on Windows and macOS to help identify the sending device.

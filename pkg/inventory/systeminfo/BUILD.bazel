@@ -8,6 +8,7 @@ go_library(
         "collector_darwin.go",
         "collector_nix.go",
         "collector_windows.go",
+        "serial.go",
         "systeminfo_darwin.h",
         "systeminfo_darwin.m",
     ],
@@ -46,16 +47,15 @@ dd_agent_go_test(
     srcs = [
         "collector_darwin_test.go",
         "collector_windows_test.go",
+        "serial_test.go",
     ],
     embed = [":systeminfo"],
-    deps = select({
+    deps = ["@com_github_stretchr_testify//require"] + select({
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
