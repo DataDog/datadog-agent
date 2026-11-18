@@ -825,3 +825,10 @@ func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestUploadDeadline(t *testing.T) {
+	assert.Equal(t, uploadTimeout, uploadDeadline(0))
+	assert.Equal(t, uploadTimeout, uploadDeadline(minUploadBytesPerSecond-1))
+	assert.Equal(t, uploadTimeout+time.Second, uploadDeadline(minUploadBytesPerSecond))
+	assert.Equal(t, uploadTimeout+200*time.Second, uploadDeadline(200*minUploadBytesPerSecond))
+}
