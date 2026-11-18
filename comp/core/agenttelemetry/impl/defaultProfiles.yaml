@@ -122,9 +122,11 @@ profiles:
       - name: serializer.metadata_payload_dropped
         preserve_tags:
           - reason
+          - payload_type
       - name: serializer.metadata_payload_dropped_bytes
         preserve_tags:
           - compressed
+          - payload_type
       - name: transactions.input_count
         preserve_tags:
           - domain

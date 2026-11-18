@@ -19,6 +19,7 @@ tags:
   gpu_architecture:
     regex: "^[a-z0-9_-]+$"
   gpu_slicing_mode:
+    # mig-parent: physical GPU with MIG mode enabled, even with no MIG devices yet.
     regex: "^(none|mig|mig-parent)$"
   gpu_sharing_mode:
     # How the GPU is currently shared between workloads: kai_fraction while KAI

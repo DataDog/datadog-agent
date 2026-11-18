@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Network Config Management now computes a config hash from the unredacted
+    configuration even when rollbacks are disabled, so a change to only a
+    redacted value (such as a password) is detectable.
