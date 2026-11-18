@@ -29,6 +29,10 @@ const (
 	aioStopTimeoutSec = "120"
 	// Any non-empty value passes 01-check-apikey.sh.
 	aioThrowawayAPIKey = "0123456789abcdef0123456789abcdef"
+	// A bare docker run has no hostname source: no docker.sock and its own UTS
+	// namespace. The core agent then exits, and dd-procmgrd removes its socket
+	// while children are still stopping. The framework container mounts docker.sock.
+	aioBareHostname = "aio-bare-container"
 
 	aioContInitMarker90 = "cont-init-marker-90-bash-sh"
 	aioContInitMarker91 = "cont-init-marker-91-no-suffix"
@@ -301,9 +305,10 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 	})
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e DD_API_KEY=%s -v %s:/etc/services.d/%s:ro %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/%s:ro %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
 		shSingleQuote(dir),
 		aioCustomService,
 		shSingleQuote(image),
@@ -323,12 +328,14 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 	}, 2*time.Minute, 2*time.Second)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
-			name,
-			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", aioCustomService,
-		)
-		require.NoError(c, err, stderr)
-		assertField(c, stdout, "State", "Running")
+		for _, process := range []string{"datadog-agent", aioCustomService} {
+			stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+				name,
+				"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", process,
+			)
+			require.NoError(c, err, stderr)
+			assertField(c, stdout, "State", "Running")
+		}
 	}, time.Minute, 2*time.Second)
 }
 
