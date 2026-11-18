@@ -3661,6 +3661,8 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !tt.deferred {
+				// tcp_done only flushes, and cleans up, a connection it reports as failed
+				checkSkipFailureConnectionsTests(t)
 				tr.closedNATTranslations.setMax(0)
 				t.Cleanup(func() { tr.closedNATTranslations.setMax(int(cfg.MaxTrackedConnections)) })
 			}
