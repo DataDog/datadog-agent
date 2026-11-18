@@ -43,10 +43,10 @@ func TestNewMaterializer(t *testing.T) {
 		assert.Nil(t, materializer)
 	})
 
-	t.Run("variant includes platform", func(t *testing.T) {
-		materializer, err := NewMaterializer(&installerenv.Env{}, http.DefaultClient)
+	t.Run("variant includes platform and flavor", func(t *testing.T) {
+		materializer, err := NewMaterializer(&installerenv.Env{FIPSMode: true}, http.DefaultClient)
 		require.NoError(t, err)
-		assert.Equal(t, strings.Join([]string{materializationLayoutVersion, runtime.GOOS, runtime.GOARCH}, "-"), materializer.MaterializationID())
+		assert.Equal(t, strings.Join([]string{materializationLayoutVersion, runtime.GOOS, runtime.GOARCH, "fips"}, "-"), materializer.MaterializationID())
 	})
 }
 
