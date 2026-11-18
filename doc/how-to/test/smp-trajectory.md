@@ -53,6 +53,31 @@ Two cases show detection limits:
 - `quoted-limit-needs-review` matches an outdated statement that the agent quotes. A reviewer must reject this candidate.
 - `implicit-need-not-detected` has a custom script but no SMP reference. These rules miss it.
 
+## Check Claude capture before your session
+
+For a Claude Code test, check the plugin from this checkout:
+
+```sh
+claude plugin list --json
+```
+
+Find `trajectory@trajectory` and confirm that `enabled` is `true`.
+An installed but disabled plugin does not supply Claude's capture hooks.
+A running Trajectory service alone does not confirm that those hooks are active.
+
+If the installed plugin is disabled, enable it for your user:
+
+```sh
+claude plugin enable trajectory@trajectory --scope user
+```
+
+This enables Claude capture under your existing Trajectory capture and publishing settings.
+In an existing Claude session, run `/reload-plugins`. You can also start a new session.
+Send another prompt and let the answer finish before you list captured sessions below.
+
+If the plugin is missing, read `trajectory user-guide clients/claude-code` for installation steps.
+The synthetic demo does not need this plugin or live capture.
+
 ## Create your own test session
 
 1. Start a new coding-agent session in this checkout. Use your normal client and capture settings.
