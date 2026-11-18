@@ -55,7 +55,7 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
 
         agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=agent_bin)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=agent_bin, fips_backend=flavor.fips_backend())
         return
 
     # TODO: remove once Bazel is used to build the Agent
@@ -68,13 +68,14 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=flavor.fips_backend())
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",
             vars=vars,
             out="cmd/trace-agent/rsrc.syso",
+            fips_backend=flavor.fips_backend(),
         )
 
     build_tags = compute_build_tags_for_flavor(

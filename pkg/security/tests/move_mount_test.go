@@ -28,6 +28,10 @@ import (
 func TestMoveMount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
+
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
@@ -40,6 +44,11 @@ func TestMoveMount(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer unix.Close(fdTmp)
+	defer func() {
+		if err := unix.Unmount(mountDir, unix.MNT_DETACH); err != nil {
+			t.Logf("Failed to unmount %s: %v", mountDir, err)
+		}
+	}()
 
 	// Make this mount private, so that the second mount doesn't propagate to all namespaces
 	err = unix.Mount("", mountDir, "", unix.MS_REC|unix.MS_PRIVATE, "")
@@ -74,6 +83,15 @@ func TestMoveMount(t *testing.T) {
 	}
 	defer test.CloseTest()
 
+	submountMoved := false
+	defer func() {
+		if submountMoved {
+			if err := unix.Unmount(submountDir, unix.MNT_DETACH); err != nil {
+				t.Logf("Failed to unmount %s: %v", submountDir, err)
+			}
+		}
+	}()
+
 	t.Run("move-detached-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			err = unix.MoveMount(fsmountfd, "", unix.AT_FDCWD, submountDir, unix.MOVE_MOUNT_F_EMPTY_PATH)
@@ -81,16 +99,21 @@ func TestMoveMount(t *testing.T) {
 				t.Fatal("Could not move mount: ", err)
 				return err
 			}
+			submountMoved = true
 
 			return nil
 		}, func(event *model.Event) bool {
 			if event.GetType() != "move_mount" || event.ProcessContext.Pid != testSuitePid {
 				return false
 			}
-			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			if !ok {
+				return false
+			}
 			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
-			assert.Equal(t, err, nil)
-			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
+			if assert.NoError(t, err) && assert.NotNil(t, mountPtr) {
+				assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
+			}
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
@@ -99,13 +122,6 @@ func TestMoveMount(t *testing.T) {
 			t.Fatal("Test timeout without any event")
 		}
 	})
-
-	if err := unix.Unmount(submountDir, unix.MNT_DETACH); err != nil {
-		t.Logf("Failed to unmount %s: %v", submountDir, err)
-	}
-	if err := unix.Unmount(mountDir, unix.MNT_DETACH); err != nil {
-		t.Logf("Failed to unmount %s: %v", mountDir, err)
-	}
 }
 
 type MountEnvironment struct {
@@ -116,18 +132,23 @@ type MountEnvironment struct {
 	submountDirDst string
 }
 
-func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error) {
+func newTestEnvironment(private bool, mountDir string) (env *MountEnvironment, retErr error) {
 	r := MountEnvironment{}
 
 	// Prepare the source directory:
 	r.mountDir = mountDir
-	r.tounmount = []string{mountDir}
 
 	fd, err := TmpMountAt(mountDir)
 	if err != nil {
 		return nil, err
 	}
 	unix.Close(fd)
+	r.tounmount = []string{mountDir}
+	defer func() {
+		if retErr != nil {
+			r.UnmountAll()
+		}
+	}()
 
 	if private {
 		// Make this mount private, so that the second mount doesn't propagate to all namespaces
@@ -219,6 +240,10 @@ func (r *MountEnvironment) UnmountAll() {
 func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
+
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
@@ -248,17 +273,21 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 			if event.GetType() != "move_mount" {
 				return false
 			}
-			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
-			assert.Equal(t, err, nil, "Error resolving mount")
-			assert.Equal(t, 2, len(mount.Children), "Wrong number of child mounts")
-			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
-
-			for _, childMountID := range mount.Children {
-				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0)
-				assert.Equal(t, err, nil, "Error resolving child mount")
-				assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
+			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			if !ok {
+				return false
 			}
+			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
+			if assert.NoError(t, err, "Error resolving mount") && assert.NotNil(t, mount) {
+				assert.Equal(t, 2, len(mount.Children), "Wrong number of child mounts")
+				for _, childMountID := range mount.Children {
+					child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0)
+					if assert.NoError(t, err, "Error resolving child mount") && assert.NotNil(t, child) {
+						assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
+					}
+				}
+			}
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
@@ -271,6 +300,10 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("not supported in ebpfless mode")
+	}
 
 	// Docker messes up with the propagation
 	if testEnvironment == DockerEnvironment {

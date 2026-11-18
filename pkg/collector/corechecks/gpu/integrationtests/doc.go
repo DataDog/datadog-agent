@@ -21,5 +21,9 @@ To run these tests locally, you need a machine with:
   - A supported NVIDIA GPU
   - NVIDIA drivers installed
   - NVML library available
+
+TestSpecMIG validates GPUs in MIG mode. It runs on a host that is already in MIG mode, or, with
+GPU_TEST_CONFIGURE_MIG=1 (any boolean true), it enables MIG mode on the MIG-capable GPUs and creates MIG devices through
+NVML, then restores the GPUs when it ends. That needs root and GPUs that are not in use.
 */
 package integrationtests

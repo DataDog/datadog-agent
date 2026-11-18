@@ -563,6 +563,64 @@ func TestGetPidProcfsZombieLeaderFallback(t *testing.T) {
 	assert.Equal(t, expectedNs, mounts[0].NamespaceInode)
 }
 
+func TestTrimMountRoot(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		root string
+		want string
+	}{
+		{
+			name: "empty root",
+			path: "/a/b",
+			root: "",
+			want: "/a/b",
+		},
+		{
+			name: "slash root",
+			path: "/a/b",
+			root: "/",
+			want: "/a/b",
+		},
+		{
+			name: "same as mount root",
+			path: "/a",
+			root: "/a",
+			want: "/",
+		},
+		{
+			name: "same as mount root without leading slash",
+			path: "a",
+			root: "/a",
+			want: "/",
+		},
+		{
+			name: "nested under mount root",
+			path: "/a/b",
+			root: "/a",
+			want: "b",
+		},
+		{
+			name: "deeply nested under mount root",
+			path: "/a/b/c",
+			root: "/a/b",
+			want: "c",
+		},
+		{
+			name: "sibling with shared prefix",
+			path: "/alphabet/b",
+			root: "/a",
+			want: "/alphabet/b",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, TrimMountRoot(tc.path, tc.root))
+		})
+	}
+}
+
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
 	mr, _ := NewResolver(nil, nil, ResolverOpts{})

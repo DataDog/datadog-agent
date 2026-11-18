@@ -986,3 +986,10 @@ func TestConfiguredMetricPriority(t *testing.T) {
 		})
 	}
 }
+
+func TestSlicingModeTag(t *testing.T) {
+	require.Equal(t, "none", slicingModeTag(&ddnvml.PhysicalDevice{}))
+	require.Equal(t, "mig-parent", slicingModeTag(&ddnvml.PhysicalDevice{HasMIGFeatureEnabled: true}))
+	require.Equal(t, "mig-parent", slicingModeTag(&ddnvml.PhysicalDevice{MIGChildren: []*ddnvml.MIGDevice{{}}}))
+	require.Equal(t, "mig", slicingModeTag(&ddnvml.MIGDevice{}))
+}

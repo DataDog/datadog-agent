@@ -127,8 +127,8 @@ const (
 	SchedulerWorkload = "job_scheduler_workload"
 	// SchedulerQueue is the tag for the queue that manages the quota of a pod's scheduling unit
 	SchedulerQueue = "job_scheduler_queue"
-	// KAIWorkload is the tag for the KAI PodGroup name
-	KAIWorkload = "kai_workload"
+	// KAIPodGroup is the tag for the KAI PodGroup name
+	KAIPodGroup = "kai_pod_group"
 	// KAIQueue is the tag for the KAI queue name
 	KAIQueue = "kai_queue"
 	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
@@ -165,10 +165,11 @@ const (
 	GPUArchitecture = "gpu_architecture"
 	// GPUType is the tag for the normalized GPU model type (e.g., a100, t4)
 	GPUType = "gpu_type"
-	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
+	// GPUSlicingMode is the tag for the GPU slicing mode (mig, mig-parent, none)
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUSharingMode is the tag for the mechanism through which the GPU is
-	// shared between workloads (none, kai_fraction)
+	// shared between workloads (none, kai_fraction, time-slicing, mps,
+	// unknown)
 	GPUSharingMode = "gpu_sharing_mode"
 	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
 	// Only set on MIG devices.
