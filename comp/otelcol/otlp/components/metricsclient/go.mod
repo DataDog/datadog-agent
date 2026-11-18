@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
-	github.com/DataDog/datadog-go/v5 v5.9.1
+	github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.1-0.20261102082644-9c507082cd98
 	go.opentelemetry.io/otel/metric v1.47.1-0.20261102082644-9c507082cd98

@@ -89,7 +89,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0 // indirect
-	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
+	github.com/DataDog/datadog-go/v5 v5.9.2-0.20261118144720-1114bfec5a3d // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.6 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
