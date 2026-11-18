@@ -37,7 +37,10 @@ dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --confi
 The workflows are mutually exclusive. The pipeline owns its detector defaults;
 legacy detector toggles and parameters do not configure it. Baseline and scorer
 settings apply in both modes. Pipeline replays include the stable
-relative-change gate (5% default). The UI does not switch workflows.
+relative-change gate (5% default). Select the stable detector with a top-level
+`stable` object: `scanmw` (default), `scanwelch`, or `bocpd`. At most one
+detector block is allowed, and omitted fields use the production stable
+defaults. The UI does not switch workflows.
 
 Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
 `eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
@@ -343,6 +346,12 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 ```json
 {
+  "stable": {
+    "bocpd": {
+      "warmup_points": 60,
+      "max_run_length": 120
+    }
+  },
   "components": {
     "<component-name>": {
       "enabled": true,
@@ -364,6 +373,10 @@ retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
 preserves the current bucket setting, initially configured by the Agent and
 disabled by default.
 This setting changes detector inputs; keep it identical across binary comparisons.
+
+An optional top-level `stable` object configures the metric pipeline detector.
+Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
+`components.*` settings do not configure this pipeline.
 
 ### Example
 
