@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Agent container now fails at startup with an explicit error when
+    ``DD_API_KEY`` is the all-zeros placeholder ``00000000000000000000000000000000``
+    and payloads are sent to Datadog, instead of running while every payload is
+    rejected as unauthorized. The placeholder is still accepted when a custom
+    intake is configured through ``DD_DD_URL``, ``DD_URL`` or
+    ``DD_ADDITIONAL_ENDPOINTS``, or when ``DD_DELEGATED_AUTH_ORG_UUID`` is set.
