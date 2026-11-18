@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    System-probe now downloads kernel headers on Debian hosts running a kernel
+    whose headers Debian has removed from its mirrors. When the official Debian
+    repositories configured on the host, ``deb.debian.org`` and
+    ``security.debian.org``, no longer provide them, system-probe looks them up
+    in the ``snapshot.debian.org`` copies of these repositories, authenticated
+    with the same Debian archive keys.

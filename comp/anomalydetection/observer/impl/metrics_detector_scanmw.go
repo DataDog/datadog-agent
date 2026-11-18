@@ -65,7 +65,7 @@ type ScanMWDetector struct {
 	series map[scanmwStateKey]*scanmwSeriesState
 	// Shared scratch avoids retaining a scan buffer per series and aggregation.
 	scanBuf   []observer.Point
-	workspace scanDetectorWorkspace
+	workspace stableDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -327,6 +327,10 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		Timestamp:           changePtTime,
 		Score:               &score,
 		SamplingIntervalSec: d.workspace.medianPointInterval(points),
+		LevelChange: &observer.LevelChangeEvidence{
+			BeforeMedian: preMedian,
+			AfterMedian:  postMedian,
+		},
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,

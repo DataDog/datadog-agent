@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { AnomalyScoreTimeline } from './AnomalyScoreTimeline';
+import type { ScorerTimeMode } from './AnomalyScoreTimeline';
 import { BaselineTimelineWidget } from './BaselineView';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
-import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly, ScorerReport } from '../api/client';
+import type { ScoreState, SeverityEvent, Anomaly, LogAnomaly, ScorerReport, ScorerInput, MetricName, SeriesID } from '../api/client';
 
 // ── ScenarioSelector (reused pattern) ───────────────────────────────────────
 
@@ -78,13 +79,40 @@ function buildEventWindows(
   return events.map((ev, i) => {
     const end = i + 1 < events.length ? events[i + 1].timestamp - 1 : lastSec;
     const anomalies = allAnomalies.filter(
-      (a) => a.timestamp >= ev.timestamp && a.timestamp <= end,
+      (a) => (a.scoringSecond ?? a.timestamp) >= ev.timestamp && (a.scoringSecond ?? a.timestamp) <= end,
     );
     const logAnomalies = allLogAnomalies.filter(
-      (a) => a.timestamp >= ev.timestamp && a.timestamp <= end,
+      (a) => (a.scoringSecond ?? a.timestamp) >= ev.timestamp && (a.scoringSecond ?? a.timestamp) <= end,
     );
     return { event: ev, endSec: end, anomalies, logAnomalies };
   });
+}
+
+function scorerInputToAnomaly(input: ScorerInput): Anomaly {
+  return {
+    source: input.source as MetricName,
+    sourceSeriesId: input.sourceSeriesId as SeriesID | undefined,
+    detectorName: input.detectorName,
+    detectorComponent: input.detectorComponent,
+    title: input.title,
+    description: input.description,
+    host: input.host,
+    tags: input.tags,
+    timestamp: input.timestamp,
+    scoringSecond: input.scoringSecond,
+  };
+}
+
+function scorerInputToLogAnomaly(input: ScorerInput): LogAnomaly {
+  return {
+    source: input.source,
+    detectorName: input.detectorName,
+    title: input.title,
+    description: input.description,
+    tags: input.tags,
+    timestamp: input.timestamp,
+    scoringSecond: input.scoringSecond,
+  };
 }
 
 function AnomalyRow({ anomaly }: { anomaly: Anomaly }) {
@@ -93,6 +121,11 @@ function AnomalyRow({ anomaly }: { anomaly: Anomaly }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-xs text-slate-300 font-mono">{formatTs(anomaly.timestamp)}</span>
+          {anomaly.scoringSecond !== undefined && anomaly.scoringSecond !== anomaly.timestamp && (
+            <span className="text-[10px] text-cyan-400 font-mono" title="Effective scorer second">
+              scored {formatTs(anomaly.scoringSecond)}
+            </span>
+          )}
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono">
             {anomaly.detectorComponent ?? anomaly.detectorName}
           </span>
@@ -112,6 +145,11 @@ function LogAnomalyRow({ anomaly }: { anomaly: LogAnomaly }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-xs text-slate-300 font-mono">{formatTs(anomaly.timestamp)}</span>
+          {anomaly.scoringSecond !== undefined && anomaly.scoringSecond !== anomaly.timestamp && (
+            <span className="text-[10px] text-cyan-400 font-mono" title="Effective scorer second">
+              scored {formatTs(anomaly.scoringSecond)}
+            </span>
+          )}
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-mono">
             log
           </span>
@@ -248,12 +286,27 @@ interface ScorerViewProps {
 
 export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRange, onTimeRangeChange }: ScorerViewProps) {
   const [scoreState, setScoreState] = useState<ScoreState | null>(null);
+  const [timeMode, setTimeMode] = useState<ScorerTimeMode>('detection');
   const [anomalyFilter, setAnomalyFilter] = useState<AnomalyFilter>('all');
   const [hoveredEvent, setHoveredEvent] = useState<SeverityEvent | null>(null);
 
-  const handleScoreState = useCallback((ss: ScoreState) => {
+  const handleScoreState = useCallback((ss: ScoreState | null) => {
     setScoreState(ss);
   }, []);
+
+  const metricAnomalies = useMemo(() => {
+    if (timeMode === 'detection' && scoreState?.inputs) {
+      return scoreState.inputs.filter(input => !input.isLog).map(scorerInputToAnomaly);
+    }
+    return state.anomalies ?? [];
+  }, [timeMode, scoreState, state.anomalies]);
+
+  const logAnomalies = useMemo(() => {
+    if (timeMode === 'detection' && scoreState?.inputs) {
+      return scoreState.inputs.filter(input => input.isLog).map(scorerInputToLogAnomaly);
+    }
+    return state.logAnomalies ?? [];
+  }, [timeMode, scoreState, state.logAnomalies]);
 
   const eventWindows = useMemo(() => {
     if (!scoreState || !(scoreState.events ?? []).length) return [];
@@ -262,10 +315,10 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
     return buildEventWindows(
       scoreState.events,
       lastSec,
-      state.anomalies ?? [],
-      state.logAnomalies ?? [],
+      metricAnomalies,
+      logAnomalies,
     );
-  }, [scoreState, state.anomalies, state.logAnomalies]);
+  }, [scoreState, metricAnomalies, logAnomalies]);
 
   const ewmaPeak = useMemo(() =>
     (scoreState?.buckets ?? []).reduce((m, b) => Math.max(m, b.ewma), 0),
@@ -288,7 +341,13 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
           onLoadScenario={actions.loadScenario}
         />
 
-        {scoreState && (
+        {scoreState?.available === false && (
+          <div className="p-4 border-b border-slate-700 text-xs text-amber-300">
+            Scorer unavailable for this run.
+          </div>
+        )}
+
+        {scoreState && scoreState.available !== false && (
           <div className="p-4 border-b border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Summary
@@ -297,6 +356,10 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
               <div className="flex justify-between">
                 <span className="text-slate-500">Buckets</span>
                 <span>{(scoreState.buckets ?? []).length}s</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Timing</span>
+                <span>{timeMode === 'detection' ? 'Detection' : 'Change point'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">EWMA peak</span>
@@ -338,6 +401,8 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
           <div className="p-4 shrink-0">
             <AnomalyScoreTimeline
               scenarioDataVersion={state.scenarioDataVersion}
+              timeMode={timeMode}
+              onTimeModeChange={setTimeMode}
               phaseMarkers={phaseMarkers}
               timeRange={timeRange}
               hoveredEvent={hoveredEvent}
@@ -357,6 +422,8 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
                   {scoreState && (
                     <span className="text-xs text-slate-500">
                       · {(scoreState.events ?? []).length} transition{(scoreState.events ?? []).length !== 1 ? 's' : ''}
+                      {' · '}
+                      {timeMode === 'detection' ? 'grouped by scoring second' : 'grouped by change-point time'}
                       · click to expand
                     </span>
                   )}
@@ -381,6 +448,8 @@ export function ScorerView({ state, actions, sidebarWidth, phaseMarkers, timeRan
                   <div className="px-4 py-8 text-center text-slate-500 text-sm">
                     {state.scenarioDataVersion === 0
                       ? 'Load a scenario to see severity events'
+                      : scoreState?.available === false
+                      ? 'Scorer unavailable for this run'
                       : 'No severity transitions detected'}
                   </div>
                 ) : (
