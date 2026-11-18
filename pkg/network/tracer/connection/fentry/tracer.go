@@ -51,7 +51,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+	var m *ddebpf.Manager
 	var closeFn func()
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
@@ -60,9 +60,13 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.BypassEnabled = mgrOpts.BypassEnabled
-		var initErr error
-		closeFn, initErr = initFentryTracer(ar, o, config, m)
-		return initErr
+		// The tp_btf trial load can pass while the verifier rejects the full program.
+		return util.RetryWithoutTPBTF(netDevQueueTPBTF, func() error {
+			m = ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
+			var initErr error
+			closeFn, initErr = fentryTracerInit(ar, o, config, m)
+			return initErr
+		})
 	})
 
 	if err != nil {
@@ -71,6 +75,9 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 	return m, closeFn, nil
 }
+
+// fentryTracerInit exists for mocking out in tests
+var fentryTracerInit = initFentryTracer
 
 // protocolClassificationTailCalls returns the tail call routes for protocol classification
 func protocolClassificationTailCalls() []manager.TailCallRoute {

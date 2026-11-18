@@ -12,5 +12,5 @@ new-e2e-alp-windows-registry-durability:
   variables:
     TARGETS: ./tests/agent-log-pipelines/windows-log/registry-durability
     TEAM: agent-log-pipelines
-    EXTRA_PARAMS: --run "TestRegistryDurability$"
+    EXTRA_PARAMS: --run "TestWindowsRegistryDurability$"
   retry: !reference [.retry_only_infra_failure, retry]

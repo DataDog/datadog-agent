@@ -92,14 +92,18 @@ func newMetricPipeline(
 	return p, nil
 }
 
-// newScanMWMetricPipeline builds the initial kind-routed composition.
+// newStableMetricPipeline builds the initial kind-routed composition.
 // stableCfg may be nil to select the default stable pipeline configuration.
-func newScanMWMetricPipeline(cfg ScanMWConfig, anomalyCutoff bool, stableCfg *StablePipelineConfig) (*MetricPipeline, error) {
+func newStableMetricPipeline(stableCfg *StablePipelineConfig, anomalyCutoff bool) (*MetricPipeline, error) {
 	stableConfig := DefaultStablePipelineConfig()
 	if stableCfg != nil {
 		stableConfig = *stableCfg
 	}
-	stable, err := newStablePipeline(NewScanMWDetector(cfg), stableConfig)
+	detector, err := newStableDetector(stableConfig)
+	if err != nil {
+		return nil, fmt.Errorf("select stable detector: %w", err)
+	}
+	stable, err := newStablePipeline(detector, stableConfig)
 	if err != nil {
 		return nil, fmt.Errorf("build stable pipeline: %w", err)
 	}
@@ -115,12 +119,6 @@ func newScanMWMetricPipeline(cfg ScanMWConfig, anomalyCutoff bool, stableCfg *St
 	}
 	p.anomalyCutoff = anomalyCutoff
 	return p, nil
-}
-
-// newDefaultMetricPipeline builds the default metric workflow. stableCfg may
-// be nil to select the default stable pipeline configuration.
-func newDefaultMetricPipeline(stableCfg *StablePipelineConfig, anomalyCutoff bool) (*MetricPipeline, error) {
-	return newScanMWMetricPipeline(DefaultScanMWConfig(), anomalyCutoff, stableCfg)
 }
 
 func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observer.Detector) {
