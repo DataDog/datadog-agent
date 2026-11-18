@@ -7,7 +7,6 @@ package profiledefinition
 
 import (
 	"encoding/json"
-	"github.com/invopop/jsonschema"
 )
 
 // ListMap is used to marshall a map into a list (map[string]T to []MapItem[T]) and vice versa.
@@ -40,16 +39,4 @@ func (lm *ListMap[T]) UnmarshalJSON(data []byte) error {
 	}
 	*lm = result
 	return nil
-}
-
-// JSONSchema is needed to customize jsonschema to match []MapItem[T] used in json format
-func (lm ListMap[T]) JSONSchema() *jsonschema.Schema {
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-		DoNotReference:            true,
-	}
-	schema := reflector.Reflect([]MapItem[T]{})
-	// don't need version because this is a child of a versioned schema.
-	schema.Version = ""
-	return schema
 }
