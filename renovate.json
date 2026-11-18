@@ -261,7 +261,7 @@
         ],
         "depNameTemplate": "base",
         "packageNameTemplate": "base",
-        "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts",
+        "registryUrlTemplate": "https://blob.istio.io/istio-release/charts",
         "datasourceTemplate": "helm"
       },
       {
