@@ -3044,6 +3044,8 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		{name: "dogstatsd_client.bytes_dropped_writer", preserveTags: []string{"client", "client_transport"}},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
+		{name: "logs.processed"},
+		{name: "logs.sent"},
 		{name: "points.sent", preserveTags: []string{"domain"}},
 		{name: "points.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},

@@ -95,11 +95,13 @@ profiles:
       - name: logs.http_connectivity_failure
         preserve_tags:
           - failure_cause
+      - name: logs.processed
       - name: logs.restart_attempt
         preserve_tags:
           - status
           - transport
       - name: logs.sender_latency
+      - name: logs.sent
       - name: logs.truncated
         preserve_tags:
           - service
