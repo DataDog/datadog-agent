@@ -25,7 +25,7 @@ func TestDarwinPathsMatchTheLayout(t *testing.T) {
 	assert.Equal(t, "/opt/datadog-agent", DefaultUserConfigsDir)
 	assert.Equal(t, "/opt/datadog-agent/etc", AgentConfigDir)
 	assert.Equal(t, "/opt/datadog-agent/etc-exp", AgentConfigDirExp)
-	assert.Equal(t, "/opt/datadog-packages/run", RunPath)
+	assert.Equal(t, "/opt/datadog-agent/run", RunPath)
 	assert.Equal(t, "/opt/datadog-agent/etc", DatadogDataDir)
 	assert.Equal(t, "/opt/datadog-agent/embedded/bin/installer", StableInstallerPath)
 	assert.Equal(t, "", DatadogProgramFilesDir)
@@ -63,13 +63,21 @@ func TestThereIsOnlyOneInstallerBinary(t *testing.T) {
 	assert.Equal(t, StableInstallerPath, ExperimentInstallerPath)
 }
 
-// TestTheInstallerRunPathIsOutsideTheAgentsTree pins that the root daemon's state is not kept
-// anywhere under the install root, which the Agent's account can write to.
-func TestTheInstallerRunPathIsOutsideTheAgentsTree(t *testing.T) {
-	assert.False(t, strings.HasPrefix(RunPath, DefaultUserConfigsDir+"/"))
-	assert.True(t, strings.HasPrefix(RunPath, PackagesPath+"/"))
-	assert.False(t, strings.HasPrefix(InstallerLogPath, DefaultUserConfigsDir+"/"))
-	assert.True(t, strings.HasPrefix(InstallerLogPath, PackagesPath+"/"))
+// TestTheInstallerRunPathIsTheAgentsRunDirectory pins that the installer daemon keeps its socket
+// and task database in the Agent's run directory, next to its remote configuration cache.
+func TestTheInstallerRunPathIsTheAgentsRunDirectory(t *testing.T) {
+	assert.Equal(t, DefaultUserConfigsDir+"/run", RunPath)
+}
+
+// TestEnsureInstallerDataDirOnlyManagesTheInstallersOwnState pins the directories made root-owned:
+// the packages root and the daemon's run directory, nothing under the install root, whose log
+// directory the Agent's account must keep writing to.
+func TestEnsureInstallerDataDirOnlyManagesTheInstallersOwnState(t *testing.T) {
+	assert.Equal(t, []string{PackagesPath}, installerDataDirs)
+	assert.NotContains(t, installerDataDirs, RunPath, "the Agent's run directory must keep its owner")
+	for _, dir := range installerDataDirs {
+		assert.False(t, strings.HasPrefix(dir, DefaultUserConfigsDir+"/"), dir)
+	}
 }
 
 func testOwner() dirOwner {

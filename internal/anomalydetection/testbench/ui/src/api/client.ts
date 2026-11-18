@@ -7,6 +7,7 @@ export type MetricName = string & { readonly __metricNameBrand: unique symbol };
 
 export interface ServerConfig {
   components: Record<string, boolean>;
+  useMetricPipeline?: boolean;
   /** When true, scenarios load log rows only (no parquet metrics / trace stats). */
   logsOnly?: boolean;
 }
@@ -165,6 +166,8 @@ export interface Anomaly {
 	host?: string;
 	tags: string[];
   timestamp: number;
+  /** Effective scorer second in detection-time mode. */
+  scoringSecond?: number;
   debugInfo?: AnomalyDebugInfo;
 }
 
@@ -212,6 +215,8 @@ export interface LogAnomaly {
   description: string;
   tags: string[];
   timestamp: number;
+  /** Effective scorer second in detection-time mode. */
+  scoringSecond?: number;
   score?: number;
 }
 
@@ -344,12 +349,30 @@ export interface ScorerReport {
   }>;
 }
 
+/** An anomaly as consumed by the scorer during the original replay. */
+export interface ScorerInput {
+  scoringSecond: number;
+  isLog?: boolean;
+  source: string;
+  sourceSeriesId?: SeriesID;
+  detectorName: string;
+  detectorComponent?: string;
+  title: string;
+  description: string;
+  host?: string;
+  tags: string[];
+  timestamp: number;
+}
+
 /** Full snapshot of the scorer's state — what /api/scores returns. */
 export interface ScoreState {
   buckets: ScoreBucket[];
   events: SeverityEvent[];
   reports?: ScorerReport[];
   config: ScorerConfig;
+  available?: boolean;
+  cooldown_secs?: number;
+  inputs?: ScorerInput[];
 }
 
 class ApiClient {

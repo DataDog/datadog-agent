@@ -19,6 +19,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -586,6 +587,10 @@ func TestHandleTerminate_ForceFlushesTraceFlusherWithoutStop(t *testing.T) {
 // outlasts the flush budget (e.g. the trace receiver waiting on an in-flight
 // request) doesn't hold up the /terminate response.
 func TestHandleTerminate_BlockedTraceStopReturnsWithinBudget(t *testing.T) {
+	synctest.Test(t, syncTestHandleTerminateBlockedTraceStopReturnsWithinBudget)
+}
+
+func syncTestHandleTerminateBlockedTraceStopReturnsWithinBudget(t *testing.T) {
 	trace := &mockTraceStopper{stopBlock: make(chan struct{})}
 	defer close(trace.stopBlock)
 	const flushTimeout = 100 * time.Millisecond
@@ -595,7 +600,7 @@ func TestHandleTerminate_BlockedTraceStopReturnsWithinBudget(t *testing.T) {
 	start := time.Now()
 	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
 
-	assert.Less(t, time.Since(start), 10*flushTimeout, "/terminate must return within the flush budget")
+	assert.Equal(t, flushTimeout, time.Since(start), "/terminate must return as soon as the flush budget expires")
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
 }

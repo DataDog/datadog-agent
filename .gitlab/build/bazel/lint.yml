@@ -54,8 +54,10 @@ bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - bazel run //:gazelle -- -mode=diff
+    - dda inv -- -e go.write-tag-manifest
+    - git diff --exit-code
   variables:
-    REMEDIATION: "bazel run //:gazelle"
+    REMEDIATION: "bazel run //:gazelle && dda inv go.write-tag-manifest"
 
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
@@ -63,3 +65,11 @@ bazel:run-go-mod-tidy:
     - bazel run //:go_mod_tidy_all -- -diff
   variables:
     REMEDIATION: "bazel run //:go_mod_tidy_all"
+
+bazel:write-test-binaries-bzl:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - dda inv -- -e new-e2e-tests.write-test-binaries-bzl
+    - git diff --exit-code -- test/new-e2e/tests/test_binaries.bzl
+  variables:
+    REMEDIATION: "dda inv new-e2e-tests.write-test-binaries-bzl"

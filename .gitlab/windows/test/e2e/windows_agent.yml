@@ -25,6 +25,8 @@ new-e2e-agent-runtimes-windows:
           - cmd/agent/subcommands/run/dependent_services_windows.go
           - test/new-e2e/tests/agent-runtimes/**/*
         compare_to: $COMPARE_TO_BRANCH
+    # TestProcmgrSmokeWindowsSuite starts ADP; the ADP 1.5.0 bump regressed it (#54505).
+    - !reference [.on_adp_version_bump]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-runtimes

@@ -123,6 +123,10 @@ type Config struct {
 	// IncludeDetectorAnomalies retains every detector return value before downstream
 	// filtering so headless output can compare detector behavior directly.
 	IncludeDetectorAnomalies bool
+
+	// TrackScorerHistory retains the original-run scorer timeline for the
+	// interactive UI. Leave it off for headless and production runs.
+	TrackScorerHistory bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -188,8 +192,9 @@ type StatusResponse struct {
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	Components map[string]bool `json:"components"`
-	LogsOnly   bool            `json:"logsOnly"`
+	UseMetricPipeline bool            `json:"useMetricPipeline"`
+	Components        map[string]bool `json:"components"`
+	LogsOnly          bool            `json:"logsOnly"`
 }
 
 // Bench is the main controller for the observer test bench.
@@ -740,7 +745,7 @@ func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricT
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
 // anomaly and correlation history accumulation enabled (disabled in live mode
 // because production reporters consume advance-local events directly).
-func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
+func unboundedStorageCfg(includeDetectorAnomalies, trackScorerHistory bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	cfg.InactiveSeriesTTLSeconds = 0
@@ -749,18 +754,22 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	cfg.TrackAnomalyHistory = true     // retain raw detector output for replay UI / output
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
+	cfg.TrackScorerHistory = trackScorerHistory
 	return cfg
 }
 
 // streamingStorageCfg preserves production storage policies for the configured
 // detectors. Only output-history capture is enabled for finite replay evaluation.
-func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
-	cfg := observerimpl.StorageConfigForComponents(settings)
+func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) (observerimpl.StorageConfig, error) {
+	cfg, err := observerimpl.StorageConfigForComponents(settings)
+	if err != nil {
+		return observerimpl.StorageConfig{}, err
+	}
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
-	return cfg
+	return cfg, nil
 }
 
 // resetAllState resets engine state via DebugView.Reset.
@@ -770,9 +779,13 @@ func (tb *Bench) resetAllState() error {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
+	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies, tb.config.TrackScorerHistory)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		cfg, err := streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		if err != nil {
+			return err
+		}
+		storageCfg = cfg
 	}
 	return tb.debug.Reset(tb.settings, storageCfg)
 }
@@ -780,7 +793,17 @@ func (tb *Bench) resetAllState() error {
 // catalogEntries includes testbench-only adapters in addition to production
 // observer components.
 func (tb *Bench) catalogEntries() []observerimpl.CatalogEntry {
-	return observerimpl.TestbenchCatalogEntries()
+	entries := observerimpl.TestbenchCatalogEntries()
+	if !tb.settings.UseMetricPipeline {
+		return entries
+	}
+	filtered := make([]observerimpl.CatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Kind != "detector" {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // correlationsLocked returns production correlations plus testbench-only
@@ -897,8 +920,9 @@ func (tb *Bench) GetStatus() StatusResponse {
 		ScenarioEnd:           scenarioEndPtr,
 		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
-			Components: compMap,
-			LogsOnly:   tb.config.LogsOnly,
+			Components:        compMap,
+			UseMetricPipeline: tb.settings.UseMetricPipeline,
+			LogsOnly:          tb.config.LogsOnly,
 		},
 		Baseline: baselineInfo,
 	}
@@ -923,7 +947,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)); err != nil {
+	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies, tb.config.TrackScorerHistory)); err != nil {
 		return err
 	}
 
