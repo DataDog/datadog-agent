@@ -74,5 +74,6 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/windows/install-test:install-test_test": "tests-windows-install-test.test",
     "//test/new-e2e/tests/windows/powershell-check:powershell-check_test": "tests-windows-powershell-check.test",
     "//test/new-e2e/tests/windows/service-test:service-test_test": "tests-windows-service-test.test",
+    "//test/new-e2e/tests/windows/vdi:vdi_test": "tests-windows-vdi.test",
     "//test/new-e2e/tests/windows/windows-certificate:windows-certificate_test": "tests-windows-windows-certificate.test",
 }
