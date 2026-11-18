@@ -24,6 +24,7 @@ dd_agent_go_test(
             "//pkg/vdi/model",
             "//pkg/vdi/provider/avd",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

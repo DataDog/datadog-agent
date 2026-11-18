@@ -14,20 +14,21 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/vdi/model"
 	"github.com/DataDog/datadog-agent/pkg/vdi/provider/avd"
 )
 
 type fakeWTS struct {
-	sessions     []wtsSessionInfo
+	sessions     []windows.WTS_SESSION_INFO
 	enumerateErr error
 	strings      map[uint32]map[uint32]string
 	info         map[uint32]wtsInfo
 	protocols    map[uint32]uint16
 }
 
-func (f fakeWTS) enumerateSessions() ([]wtsSessionInfo, error) {
+func (f fakeWTS) enumerateSessions() ([]windows.WTS_SESSION_INFO, error) {
 	return f.sessions, f.enumerateErr
 }
 
@@ -50,7 +51,7 @@ func (f fakeWTS) queryInfo(sessionID uint32) (wtsInfo, error) {
 func TestEnumerateSessions(t *testing.T) {
 	windowsEpoch := int64(116444736000000000)
 	sessions, err := enumerateSessions(fakeWTS{
-		sessions: []wtsSessionInfo{{SessionID: 4, State: 0}, {SessionID: 5, State: 4}},
+		sessions: []windows.WTS_SESSION_INFO{{SessionID: 4, State: windows.WTSActive}, {SessionID: 5, State: windows.WTSDisconnected}},
 		strings: map[uint32]map[uint32]string{
 			4: {wtsUserName: "alice", wtsDomainName: "EXAMPLE", wtsWinStationName: "rdp-tcp#4"},
 		},
@@ -87,7 +88,7 @@ func TestEnumerateSessionsReturnsEnumerationError(t *testing.T) {
 
 func TestDisconnectedSessionQueryFailuresMakeInventoryPartial(t *testing.T) {
 	sessions, err := enumerateSessions(fakeWTS{
-		sessions: []wtsSessionInfo{{SessionID: 3, State: 4}},
+		sessions: []windows.WTS_SESSION_INFO{{SessionID: 3, State: windows.WTSDisconnected}},
 	})
 	require.NoError(t, err)
 	require.Len(t, sessions, 1)
@@ -101,8 +102,8 @@ func TestDisconnectedSessionQueryFailuresMakeInventoryPartial(t *testing.T) {
 }
 
 func TestStateName(t *testing.T) {
-	require.Equal(t, "active", stateName(0))
-	require.Equal(t, "disconnected", stateName(4))
+	require.Equal(t, "active", stateName(windows.WTSActive))
+	require.Equal(t, "disconnected", stateName(windows.WTSDisconnected))
 	require.Equal(t, "unknown_99", stateName(99))
 }
 
