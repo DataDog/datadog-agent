@@ -127,7 +127,8 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
 
-			for _, nc := range connsChunk {
+			for i := range connsChunk {
+				nc := &connsChunk[i]
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
 					d.addContainerTagsReference(builder, nc.ContainerID.Source, tagsEncoder)
@@ -181,7 +182,7 @@ func (d *directSender) addContainerTagsReference(builder *model.ConnectionBuilde
 	builder.SetLocalContainerTagsIndex(-1)
 }
 
-func (d *directSender) addTagsReference(builder *model.ConnectionBuilder, nc network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+func (d *directSender) addTagsReference(builder *model.ConnectionBuilder, nc *network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {
@@ -193,18 +194,22 @@ func (d *directSender) addTagsReference(builder *model.ConnectionBuilder, nc net
 		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
-	nc.StaticTags |= staticTags
-	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
+	// nc points into the shared connections buffer, so the encoder tags are merged locally
+	tagIndexes, tagChecksum := formatTags(nc, nc.StaticTags|staticTags, tagsSet, dynamicTags)
 	builder.SetTagsChecksum(tagChecksum)
 
 	tagsStr := tagsSet.Subset(tagIndexes)
 	if nc.Pid > 0 {
+		// a socket reattributed to its network namespace's container is still owned by the proxy
+		// process, so the PID's service context and process tags describe the proxy, not the pod
 		reattributed := nc.NetNSOriginalContainerID != nil
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
 			if !reattributed {
 				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
 			}
+			// process_name is kept for reattributed connections: it names the socket's owning process
+			// (for example ztunnel), not a service, and lets users find proxied traffic
 			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
