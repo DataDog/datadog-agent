@@ -37,6 +37,8 @@ The benchmark keeps an EKS cluster for about two and a half hours, so it only ru
 
 The paths of the first two rows are in <<<repo(".gitlab/test/e2e/e2e_containers_benchmarkeks.yml", "the CI jobs", match="^\\.benchmarkeks_test_changes:")>>>. The benchmark only runs automatically, and the button is only posted, in push pipelines, not in the pipelines started from the GitLab UI or API, which would run the benchmark again, or replace its results with the button, for a commit whose push pipeline ran it. The benchmark runs automatically even before the pull request is opened, as the first push of a branch usually comes before its pull request: the comment then appears with the results, if the pull request exists by then.
 
+The pull requests changing the code the benchmark measures also get the label `performance/benchmarkeks`, from <<<repo(".github/labeler.yml", "the same paths", match="^performance/benchmarkeks:")>>>, to find them.
+
 To run it, play the manual job `new-e2e-containers-benchmarkeks-baseline` of the pipeline, which the button of the pull request comment links to. The other jobs of the benchmark wait for it, then start on their own:
 
 ```text
@@ -59,9 +61,9 @@ A single comment of the pull request follows the benchmark, which its jobs updat
 
 1. `new-e2e-containers-benchmarkeks-instructions` posts a button, ▶ **Run the benchmark**, linking to the manual job, when the pull request changes the code the benchmark measures.
 2. `new-e2e-containers-benchmarkeks-baseline` turns it into ⏳ **Benchmark running** when it starts, linking to the job of the benchmark.
-3. `new-e2e-containers-benchmarkeks-pr-comment` replaces it with the outcome, followed by the report: ✅ **No regression**, ❌ **Regression**, ⚠️ **Incomplete comparison** when a metric couldn't be compared, or ⚠️ **Benchmark failed** when the benchmark failed before comparing the versions.
+3. `new-e2e-containers-benchmarkeks-pr-comment`, or `new-e2e-containers-benchmarkeks-pr-comment-on-failure` after the benchmark of a manual run failed, replaces it with the outcome, followed by the report: ✅ **No regression**, ❌ **Regression**, ⚠️ **Incomplete comparison** when a metric couldn't be compared, or ⚠️ **Benchmark failed** when the benchmark failed before comparing the versions.
 
-Each pipeline starts the comment over, and GitHub keeps its previous versions in the history of its edits. Only the jobs of the pipeline of the head commit of the pull request update it: a push cancels the jobs of the previous pipeline that haven't started yet, and those of an older commit that still run leave the comment as it is. On a manual run, though, when the job of the benchmark doesn't run, e.g. because a build of the images of the pipeline failed, the comment keeps saying that the benchmark runs.
+Each pipeline starts the comment over, and GitHub keeps its previous versions in the history of its edits. Only the jobs of the pipeline of the head commit of the pull request update it: a push cancels the jobs of the previous pipeline that haven't started yet, and those of an older commit that still run leave the comment as it is. On a manual run, though, when the job of the benchmark doesn't run, e.g. because a build of the images of the pipeline failed, or is canceled, the comment keeps saying that the benchmark runs.
 
 The baseline commit is the merge base of the branch with the `base_branch` of `release.json`, which is `main`, or the release branch for a branch based on one. When no pipeline built images for that commit, it is the closest older commit of the base branch with images, up to <<<repo("tasks/libs/testing/benchmarkeks.py", "about 4 days old", match="^MAX_BASELINE_AGE =")>>>. Otherwise, the job fails and asks to rebase the branch on its base branch. The E2E tests pull their images from `agent-qa`, where images expire after a day, so the job copies the baseline images there again from the registry of the builds, which keeps them for months.
 
@@ -72,7 +74,7 @@ The benchmark jobs only exist in the full pipelines of development branches. Fol
 - light pipelines, such as those of pull requests based on another branch than `main` or a release branch;
 - coverage pipelines, deploy pipelines, and pipelines run with `RUN_E2E_TESTS` set to `off`.
 
-They are allowed to fail for now: a regression shows as a failed `new-e2e-containers-benchmarkeks` job, but doesn't fail the pipeline.
+Once the benchmark runs, any failure of the `new-e2e-containers-benchmarkeks` job fails the pipeline: a regression, a metric that couldn't be compared, but also a baseline that couldn't be found or a cluster that couldn't be created. The manual job is optional: a pipeline in which it isn't played passes.
 ///
 
 ### Read the result

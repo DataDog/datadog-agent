@@ -340,7 +340,8 @@ def pending_comment(baseline_job_url: str | None, pipeline_url: str) -> str:
     return (
         "This pull request changes code that the `benchmarkeks` performance benchmark measures. To compare the "
         f"resource usage of its Agent with the one of its base branch, {action}: the other jobs of the benchmark run "
-        "after it, on an EKS cluster, for about 2 hours, and this comment then shows their progress and results.\n"
+        "after it, on an EKS cluster, for about 2 hours, and this comment then shows their progress and results. A "
+        "regression, or any other failure of the benchmark, fails the pipeline.\n"
         f"{button}"
     )
 

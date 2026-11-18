@@ -39,7 +39,8 @@
     - tasks/libs/testing/benchmarkeks.py
   compare_to: $COMPARE_TO_BRANCH
 
-# The code measured by the benchmark: the pull requests changing it get a comment with a button to run the benchmark
+# The code measured by the benchmark: the pull requests changing it get a comment with a button to run the benchmark,
+# and the label performance/benchmarkeks of .github/labeler.yml, which lists the same paths
 .benchmarkeks_component_changes: &benchmarkeks_component_changes
   paths:
     - comp/core/autodiscovery/**/*
@@ -62,12 +63,6 @@
 .if_benchmarkeks_automatic_run: &if_benchmarkeks_automatic_run
   if: $CI_PIPELINE_SOURCE == "push"
   changes: *benchmarkeks_test_changes
-
-# The jobs following new-e2e-containers-benchmarkeks-baseline: needing it, directly or not, they are skipped while it
-# is not played, and run after it once it is, or right away on an automatic run. Like it, they are allowed to fail.
-.after_benchmarkeks_baseline:
-  - when: on_success
-    allow_failure: true
 
 # Fails before provisioning anything if the baseline is unknown, the dotenv report of
 # new-e2e-containers-benchmarkeks-baseline being missing when it failed while allowed to.
@@ -113,7 +108,7 @@ new-e2e-containers-benchmarkeks-baseline:
   stage: e2e_init
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # Like a manual run, the automatic one is allowed to fail
+    # Like a manual run, the automatic one is allowed to fail: the benchmark job then fails, pointing to this one
     - <<: *if_benchmarkeks_automatic_run
       when: on_success
       allow_failure: true
@@ -158,7 +153,7 @@ new-e2e-containers-benchmarkeks-init:
     - new-e2e-containers-benchmarkeks-baseline
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    - !reference [.after_benchmarkeks_baseline]
+    - when: on_success
   before_script:
     - !reference [.benchmarkeks_check_baseline]
     - !reference [.new_e2e_template, before_script]
@@ -174,6 +169,7 @@ new-e2e-containers-benchmarkeks-init:
     # Same as new-e2e-containers-eks-init.
     KUBERNETES_MEMORY_REQUEST: 24Gi
     KUBERNETES_MEMORY_LIMIT: 24Gi
+  # The benchmark job runs anyway, provisioning the cluster again if needed, so that a comment job follows
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -190,7 +186,7 @@ new-e2e-containers-benchmarkeks:
       artifacts: true
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    - !reference [.after_benchmarkeks_baseline]
+    - when: on_success
   before_script:
     - !reference [.benchmarkeks_check_baseline]
     - !reference [.new_e2e_template, before_script]
@@ -205,9 +201,6 @@ new-e2e-containers-benchmarkeks:
     DYNAMIC_TESTS_FLAG: "" # Never skipped by the test selection
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
   retry: !reference [.retry_only_infra_failure, retry]
-  # Temporary, until the benchmark has proven reliable enough to block the merge of pull requests: a regression fails
-  # this job, but not the pipeline.
-  allow_failure: true
 
 # Shows the results of the benchmark in the pull request comment, whatever they are, or that it failed, in a job of its
 # own as the GitHub token only lives an hour.
@@ -218,21 +211,31 @@ new-e2e-containers-benchmarkeks-pr-comment:
   extends: .dd_octo_sts
   rules:
     - !reference [.except_benchmarkeks_unsupported]
-    # Automatic run: whatever the result of the benchmark, even canceled, a failure being how it reports a regression
+    # Automatic run: whatever the result of the benchmark, even canceled
     - <<: *if_benchmarkeks_automatic_run
       when: always
-      allow_failure: true
-    # Manual run: after the benchmark, which is allowed to fail. Not `always`, which would run this job before
+    # Manual run: after the benchmark passed. Not `always`, which would run this job before
     # new-e2e-containers-benchmarkeks-baseline is played.
-    - !reference [.after_benchmarkeks_baseline]
+    - when: on_success
   needs:
     - job: new-e2e-containers-benchmarkeks
       artifacts: true
   variables:
     # E2E_BENCHMARKEKS_REPORT_DIR of new-e2e-containers-benchmarkeks, relative to the project directory
     BENCHMARKEKS_REPORT_DIR: e2e-output/benchmarkeks-report
+  # A comment that couldn't be posted must not block the pull request
+  allow_failure: true
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
     # The reports are missing when the benchmark failed before comparing the versions: the comment says so
     - dda inv -- -e new-e2e-tests.benchmarkeks-comment --state=done --report-dir="$BENCHMARKEKS_REPORT_DIR"
+
+# The same, after the benchmark of a manual run failed
+new-e2e-containers-benchmarkeks-pr-comment-on-failure:
+  extends: new-e2e-containers-benchmarkeks-pr-comment
+  rules:
+    - !reference [.except_benchmarkeks_unsupported]
+    - <<: *if_benchmarkeks_automatic_run
+      when: never
+    - when: on_failure
