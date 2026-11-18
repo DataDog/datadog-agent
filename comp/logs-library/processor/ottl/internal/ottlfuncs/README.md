@@ -1,7 +1,7 @@
 # Agent OTTL function subset
 
 These function implementations are copied from
-`github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1`,
+`github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1`,
 under `ottlfuncs/`. Their OpenTelemetry copyright and Apache-2.0 SPDX headers
 are preserved; the upstream license is included in `LICENSE`. The canonical package import comment is removed. `func_is_list.go` and
 `func_len.go` additionally omit Collector log, metric, and trace slice types:

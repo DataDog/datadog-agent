@@ -381,3 +381,26 @@ of 300 ms. It measures the encoder only, excluding context handling:
 The extra cost applies to rules that explicitly stringify numbers or containers.
 The shared JSON parse and fastjson field-mask serialization paths are unchanged.
 Raw measurements are in `bin/benchmarks/ottl-filtering/json-fork-*` (ignored by Git).
+
+## Moving the fork to OTTL v1.4.1 (2026-11-18)
+
+`main` moved `pkg/ottl` to v1.4.1 with the Collector v0.165.0 update (#60483).
+Because the fork replacement lives in the root `go.mod`, keeping the v1.3.1-based
+fork would have pinned every OTTL consumer in the root workspace, including the
+Collector components `main` had just upgraded, back to v1.3.1. The same two-line
+change is now applied on top of upstream v1.4.1
+([DataDog fork commit](https://github.com/DataDog/opentelemetry-collector-contrib/commit/4efa93beb221851c9ad62d830da09ee74e5d39e5),
+branch `yoon/ottl-v1.4.1-std-json`); the old v1.3.1-based commit is no longer used.
+
+Of the copied functions, only `func_is_match.go`, `func_replace_pattern.go`, and
+`regex_helpers.go` changed between v1.3.1 and v1.4.1: upstream added a literal
+fast path that uses `strings.Contains` when a regex is a plain string. They were
+recopied unchanged apart from the removed import comment.
+
+## Small exponents now match upstream (2026-11-24)
+
+`main` moved `goccy/go-json` to v0.12.0, which spells small negative exponents
+the stdlib way (`1e-9`). The fork's `encoding/json` output and upstream OTTL now
+agree, so `TestOTTLStringJSONCompatibility` no longer special-cases the
+`small exponent` row, and the exponent difference described above no longer
+applies.
