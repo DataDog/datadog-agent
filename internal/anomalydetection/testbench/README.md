@@ -190,7 +190,7 @@ Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
 JSON eval configs inherit the same replay profile as CLI toggles, including
-BOCPD's 40-point warmup. Only fields explicitly supplied in JSON override that
+BOCPD's 20-point warmup. Only fields explicitly supplied in JSON override that
 profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
@@ -406,7 +406,7 @@ Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 40 | Points used to build the initial baseline (testbench replay profile) |
+| `warmup_points` | 20 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |
