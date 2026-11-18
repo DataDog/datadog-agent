@@ -75,12 +75,16 @@ filegroup(
 pkg_files(
     name = "integrations_runtime_files",
     srcs = [":integrations_runtime"],
-    attributes = pkg_attributes(mode = "0644"),
+    attributes = pkg_attributes(
+        mode = "0644",
+        rpm_own_tree_dirs = True,
+    ),
     prefix = embedded_dir,
     renames = {
         ":integrations_runtime": REMOVE_BASE_DIRECTORY,
     },
     tags = ["manual"],
+    visibility = ["//packages/agent:__subpackages__"],
 )
 
 pkg_files(
@@ -92,6 +96,7 @@ pkg_files(
         ":integrations_bin": REMOVE_BASE_DIRECTORY,
     },
     tags = ["manual"],
+    visibility = ["//packages/agent:__subpackages__"],
 )
 
 pkg_filegroup(
@@ -99,6 +104,7 @@ pkg_filegroup(
     srcs = ["@integration_source_packages//:integrations_configuration_files"],
     prefix = conf_dir(),
     tags = ["manual"],
+    visibility = ["//packages/agent:__subpackages__"],
 )
 
 # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
@@ -109,6 +115,7 @@ pkg_files(
     srcs = ["@integration_source_packages//:requirements-agent-release.txt"],
     prefix = "",
     tags = ["manual"],
+    visibility = ["//packages/agent:__subpackages__"],
 )
 
 package_licenses(

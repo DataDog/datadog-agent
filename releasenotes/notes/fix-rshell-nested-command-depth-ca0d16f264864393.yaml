@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The restricted shell (``rshell``) now limits how deeply ``find -exec``,
+    ``find -execdir``, and ``xargs`` may nest commands to 16 levels. A command
+    past that depth is refused with an error instead of running, where a
+    command chain that kept nesting previously ended the process.

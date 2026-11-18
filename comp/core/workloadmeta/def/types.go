@@ -862,7 +862,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
+	Containers                 []OrchestratorContainer // Pod spec order. Containers that have not started have an empty ID and no Container entity.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -2032,7 +2032,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
-	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
+	GenerationMethod   string // method used to generate the SBOM, converted to the `scan_method` tag: tarball or overlayfs for an image, as reported by the collector of its container runtime (docker, containerd or cri-o), and filesystem for a container scanned through procfs.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
@@ -2650,6 +2650,10 @@ type GPU struct {
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
 
+	// MIGModeEnabled is true when MIG mode is enabled on a physical GPU, even
+	// if no MIG devices have been created on it yet.
+	MIGModeEnabled bool
+
 	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
@@ -2724,6 +2728,10 @@ func (g GPU) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
 	}
 
+	if g.MIGModeEnabled {
+		_, _ = fmt.Fprintln(&sb, "MIG Mode Enabled: true")
+	}
+
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {
 		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
@@ -2732,10 +2740,13 @@ func (g GPU) String(verbose bool) string {
 	return sb.String()
 }
 
+// SlicingMode returns the value of the gpu_slicing_mode tag: "mig" for a MIG
+// device, "mig-parent" for a physical GPU with MIG mode enabled (whether or not
+// it has MIG devices yet) and "none" otherwise.
 func (g GPU) SlicingMode() string {
 	if g.DeviceType == GPUDeviceTypeMIG {
 		return "mig"
-	} else if len(g.ChildrenGPUUUIDs) > 0 {
+	} else if g.MIGModeEnabled || len(g.ChildrenGPUUUIDs) > 0 {
 		return "mig-parent"
 	}
 	return "none"

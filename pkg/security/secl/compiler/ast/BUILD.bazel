@@ -6,6 +6,7 @@ go_library(
         "ast.go",
         "expr.go",
         "literal.go",
+        "name.go",
         "ops.go",
         "print.go",
         "value.go",

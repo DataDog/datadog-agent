@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 )
 
 const eksProcTable = `
@@ -975,6 +977,80 @@ func TestKubAksConfigLoader(t *testing.T) {
 	}
 }
 
+// On AKS the loader reports the ownership and permissions of azure.json and
+// keeps its content, the cluster credentials, out of the payload. An absent
+// file leaves the field out, and a file of mode 0 writes mode 0.
+func TestKubAksAzureJSON(t *testing.T) {
+	usr, err := user.Current()
+	require.NoError(t, err)
+	grp, err := user.LookupGroupId(usr.Gid)
+	require.NoError(t, err)
+
+	const name = "/etc/kubernetes/azure.json"
+	const secret = "azure-json-client-secret"
+	azureJSON := func(mode uint32) *mockFile {
+		return &mockFile{
+			name:    name,
+			mode:    mode,
+			content: `{"cloud": "AzurePublicCloud", "aadClientId": "6196d48f", "aadClientSecret": "` + secret + `"}`,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		table     string
+		files     []*mockFile
+		azureJSON *mockFile
+		typ       types.ResourceType
+	}{
+		{"labels", aksProcTable, aksFs, azureJSON(0600), types.ResourceTypeAzureAksWorkerNode},
+		{"kubeconfig server", "kubelet --kubeconfig=/var/lib/kubelet/kubeconfig\n", aksFs, azureJSON(0644), types.ResourceTypeAzureAksWorkerNode},
+		{"mode 0", aksProcTable, aksFs, azureJSON(0), types.ResourceTypeAzureAksWorkerNode},
+		{"absent", aksProcTable, aksFs, nil, types.ResourceTypeAzureAksWorkerNode},
+		{"not aks", openshiftProcTable, openshiftFs, azureJSON(0600), types.ResourceTypeKubernetesWorkerNode},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			if tt.azureJSON != nil {
+				tt.azureJSON.create(t, tmpDir)
+			}
+
+			l := &loader{hostroot: tmpDir}
+			typ, node := l.load(context.Background(), func(_ context.Context) []proc {
+				return procTable(tt.table)
+			})
+			assert.Equal(t, tt.typ, typ)
+			assert.Empty(t, node.Errors)
+
+			b, err := json.Marshal(node)
+			require.NoError(t, err)
+			assert.NotContains(t, string(b), secret)
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(b, &payload))
+
+			if tt.azureJSON == nil || tt.typ != types.ResourceTypeAzureAksWorkerNode {
+				assert.Nil(t, node.AzureJSON)
+				assert.NotContains(t, payload, "azureJson")
+				return
+			}
+			want := &K8sFileMeta{Path: name, User: usr.Username, Group: grp.Name, Mode: tt.azureJSON.mode}
+			assert.Equal(t, want, node.AzureJSON)
+			// A mode of 0 is written out, so a rule tells it from a
+			// missing file.
+			assert.Equal(t, map[string]interface{}{
+				"path":  name,
+				"user":  usr.Username,
+				"group": grp.Name,
+				"mode":  float64(tt.azureJSON.mode),
+			}, payload["azureJson"])
+		})
+	}
+}
+
 func TestBottleRocketConfigLoader(t *testing.T) {
 	tmpDir := t.TempDir()
 	for _, f := range bottleRocketFs {
@@ -1049,6 +1125,66 @@ func TestKubeletLegacyDefaults(t *testing.T) {
 
 	anonymousAuth := true
 	assert.Equal(t, &anonymousAuth, conf.Components.Kubelet.AnonymousAuth)
+}
+
+// The kubelet service file is a systemd unit, so the loader reports its
+// ownership and permissions alone.
+func TestKubeletServiceFileMeta(t *testing.T) {
+	unit := mockFile{
+		name: "/etc/systemd/system/kubelet.service",
+		mode: 0644,
+		content: `[Unit]
+Description=Kubelet
+ConditionPathExists=/usr/local/bin/kubelet
+
+[Service]
+ExecStart=/usr/local/bin/kubelet --config=/etc/default/kubeletconfig.json
+`,
+	}
+	dropin := mockFile{
+		name: "/etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
+		mode: 0600,
+		content: `# Note: This dropin only works with kubeadm and kubelet v1.11+
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS
+`,
+	}
+	dir := mockFile{
+		isDir: true,
+		name:  "/etc/systemd/system/kubelet.service.d/kubelet.conf",
+		mode:  0755,
+	}
+	unreadable := unit
+	unreadable.mode = 0200
+	tests := []struct {
+		name  string
+		files []mockFile
+		want  mockFile
+	}{
+		{"unit", []mockFile{unit}, unit},
+		{"drop-in", []mockFile{dropin}, dropin},
+		{"drop-in over unit", []mockFile{unit, dropin}, dropin},
+		{"directory skipped", []mockFile{dir, unit}, unit},
+		{"unreadable unit", []mockFile{unreadable}, unreadable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			conf := loadTestConfiguration(t, tmpDir, "")
+			assert.Empty(t, conf.Errors)
+			require.NotNil(t, conf.KubeletService)
+			assert.Equal(t, tt.want.name, conf.KubeletService.Path)
+			assert.Equal(t, tt.want.mode, conf.KubeletService.Mode)
+			assert.NotEmpty(t, conf.KubeletService.User)
+			assert.NotEmpty(t, conf.KubeletService.Group)
+			assert.Nil(t, conf.KubeletService.Content)
+		})
+	}
 }
 
 // A drop-in that turns the read-only port on wins over the file given to

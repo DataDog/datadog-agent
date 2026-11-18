@@ -1,0 +1,14 @@
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_files(
+    name = "all_files",
+    srcs = [
+        "packages.py",
+        "post.py",
+        "pre.py",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "python-scripts",
+)
