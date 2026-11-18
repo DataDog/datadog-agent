@@ -1195,6 +1195,37 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 		"a clean sandbox configuration must produce no warnings")
 }
 
+func TestRunCommandLogsSandboxWarningsOnceAtDebugLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.DebugLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
+	log.SetupLogger(logger, "debug")
+
+	dir := filepath.ToSlash(t.TempDir())
+	file := dir + "/file.txt"
+	require.NoError(t, os.WriteFile(filepath.FromSlash(file), []byte("x"), 0o600))
+	missing := "/__rshell_sandbox_warnings_test_missing__"
+	handler := newDefaultRunCommandHandler()
+
+	task := makeTaskWithPaths("echo hello",
+		[]string{"rshell:echo"},
+		[]string{file, missing})
+
+	out, err := handler.Run(context.Background(), task, nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	require.Len(t, result.SandboxWarnings, 2)
+	logs := logBuffer.String()
+	assert.NotContains(t, logs, "[WARN]")
+	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] rshell sandbox warnings:"))
+	for _, warning := range result.SandboxWarnings {
+		assert.Contains(t, logs, warning)
+	}
+}
+
 func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
 	dir := filepath.ToSlash(t.TempDir())
 	handler := newDefaultRunCommandHandler()

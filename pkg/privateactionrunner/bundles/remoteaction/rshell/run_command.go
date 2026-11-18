@@ -341,12 +341,6 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
-	for _, p := range effectiveAllowedPaths {
-		statPath := pathSpecPath(p)
-		if _, err := statFn(statPath); err != nil {
-			log.Warnf("path %q not found, rshell may fail to execute commands", statPath)
-		}
-	}
 	var stdout, stderr bytes.Buffer
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
@@ -372,6 +366,10 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 	defer runner.Close()
+	sandboxWarnings := runner.Warnings()
+	if len(sandboxWarnings) > 0 {
+		log.Debugf("rshell sandbox warnings: %v", sandboxWarnings)
+	}
 
 	// Spans emitted by rshell inherit the rshell service via context.
 	runErr := runner.Run(telemetry.WithService(ctx, observability.RshellService), prog)
@@ -389,7 +387,7 @@ func (h *RunCommandHandler) Run(
 		ExitCode:        exitCode,
 		Stdout:          stdout.String(),
 		Stderr:          stderr.String(),
-		SandboxWarnings: runner.Warnings(),
+		SandboxWarnings: sandboxWarnings,
 	}, nil
 }
 
