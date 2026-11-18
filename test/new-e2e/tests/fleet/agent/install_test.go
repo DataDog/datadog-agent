@@ -23,7 +23,7 @@ func TestStablePackageVersionPin(t *testing.T) {
 		"DD_AGENT_MINOR_VERSION":                         "86.3-2",
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "7.86.3-2",
 	}, params.pinnedStableEnvironment())
-	require.Equal(t, "fleet-automation/datadog-installer-7.86.3-2-x86_64.exe", params.stableInstallerArtifactKey())
+	require.Equal(t, "https://s3.amazonaws.com/dd-agent/datadog-installer-7.86.3-2-x86_64.exe", params.stableInstallerURL())
 }
 
 func TestStablePackageVersionRejectsInvalidBeforeHostAccess(t *testing.T) {

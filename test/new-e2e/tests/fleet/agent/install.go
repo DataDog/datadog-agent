@@ -144,8 +144,8 @@ func (p *installParams) pinnedStableEnvironment() map[string]string {
 	}
 }
 
-func (p *installParams) stableInstallerArtifactKey() string {
-	return fmt.Sprintf("fleet-automation/datadog-installer-%s-x86_64.exe", *p.stablePackageVersion)
+func (p *installParams) stableInstallerURL() string {
+	return fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", *p.stablePackageVersion)
 }
 
 // NativePackageVersion returns the installed package version, including its
@@ -276,18 +276,7 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 		env[name] = value
 	}
 	if params.stablePackageVersion != nil {
-		installerPath, err := a.host.RemoteHost.Execute(`[System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [guid]::NewGuid().ToString() + ".exe")`)
-		if err != nil {
-			return fmt.Errorf("creating historical installer path: %w", err)
-		}
-		installerPath = strings.TrimSpace(installerPath)
-		artifactKey := params.stableInstallerArtifactKey()
-		if err := a.host.RemoteHost.HostArtifactClient.Get(artifactKey, installerPath); err != nil {
-			return fmt.Errorf("downloading historical installer %s from QA artifacts: %w", artifactKey, err)
-		}
-		quotedPath := strings.ReplaceAll(installerPath, "'", "''")
-		_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`try { & '%s' } finally { Remove-Item -LiteralPath '%s' -Force }`, quotedPath, quotedPath), client.WithEnvVariables(env))
-		return err
+		installerURL = params.stableInstallerURL()
 	}
 	// Download the installer exe and run it directly, retrying the download since e2e VMs
 	// occasionally hit transient network errors right after boot.
