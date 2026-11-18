@@ -199,6 +199,7 @@ rust_test(
         "//Dockerfiles/agent:entrypoint.d/_default",
         "//Dockerfiles/agent:entrypoint.d/privateactionrunner",
         "//Dockerfiles/agent:entrypoint.d/procmgr-all-in-one",
+        "//Dockerfiles/agent:entrypoint.d/s6-all-in-one",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-data-plane.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-otel.yaml",
         "//Dockerfiles/agent/processes.d:aio/datadog-agent-par.yaml",
@@ -258,6 +259,7 @@ rust_test(
     crate = ":dd-procmgr",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
@@ -275,9 +277,12 @@ rust_test(
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
     edition = "2024",
-    rustc_env = {
+    # Read with std::env::var in tests/helpers, so set at run time.
+    env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
+    },
+    rustc_env = {
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },

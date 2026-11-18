@@ -198,20 +198,92 @@ func TestTruncateAttributeValueTooLongV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	s := newTestSpanV1(idx.NewStringTable())
 	val := strings.Repeat("TOOLONG", 25000)
+	atLimitKey := strings.Repeat("k", MaxMetaKeyLen)
+	atLimitVal := strings.Repeat("v", MaxMetaValLen)
 	s.SetStringAttribute("foo", val)
+	s.SetStringAttribute(atLimitKey, atLimitVal)
+	// Legacy spans hold these in Meta, so they get the Meta value limit.
+	s.SetEnv(val)
+	s.SetComponent(val)
+	s.SetVersion(atLimitVal)
 	a.TruncateV1(s)
 	actualVal, ok := s.GetAttributeAsString("foo")
 	assert.True(t, ok)
 	assert.Len(t, actualVal, MaxMetaValLen+3)
+	actualVal, ok = s.GetAttributeAsString(atLimitKey)
+	assert.True(t, ok)
+	assert.Equal(t, atLimitVal, actualVal)
+	assert.Equal(t, val[:MaxMetaValLen]+"...", s.Env())
+	assert.Equal(t, val[:MaxMetaValLen]+"...", s.Component())
+	assert.Equal(t, atLimitVal, s.Version())
 }
 
-func TestTruncateAttributeValueStructuredKeyTooLongV1(t *testing.T) {
+// TestTruncateStructuredMetaTagV1 mirrors TestTruncateStructuredMetaTag: string attributes with
+// a structured meta key keep their key and value, others are truncated.
+func TestTruncateStructuredMetaTagV1(t *testing.T) {
+	key := strings.Repeat("k", MaxMetaKeyLen+1)
+	val := strings.Repeat("v", MaxMetaValLen+1)
+
+	for _, suffix := range []string{"json", "protobuf", "msgpack"} {
+		t.Run(suffix, func(t *testing.T) {
+			a := &Agent{conf: config.New()}
+			s := newTestSpanV1(idx.NewStringTable())
+			structuredTagName := fmt.Sprintf("_dd.%s.%s", key, suffix)
+			notStructuredTagName := "key." + suffix
+			s.SetStringAttribute(structuredTagName, val)
+			s.SetStringAttribute(notStructuredTagName, val)
+			a.TruncateV1(s)
+			got, ok := s.GetAttributeAsString(structuredTagName)
+			require.True(t, ok)
+			require.Equal(t, val, got)
+			got, ok = s.GetAttributeAsString(notStructuredTagName)
+			require.True(t, ok)
+			require.Len(t, got, MaxMetaValLen+3)
+		})
+	}
+}
+
+// TestTruncateNonStringAttributeKeysV1 checks that TruncateV1 truncates the keys of non-string
+// attributes the same way Truncate truncates legacy Metrics keys.
+func TestTruncateNonStringAttributeKeysV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	s := newTestSpanV1(idx.NewStringTable())
-	val := strings.Repeat("TOOLONG", 25000)
-	s.SetStringAttribute("_dd.protected_key.json", val)
+	attrs := s.Attributes()
+	// Each long key uses its own character so that the truncated keys do not collide.
+	values := map[string]*idx.AnyValue{
+		"d": {Value: &idx.AnyValue_DoubleValue{DoubleValue: 42}},
+		"i": {Value: &idx.AnyValue_IntValue{IntValue: 42}},
+		"b": {Value: &idx.AnyValue_BoolValue{BoolValue: true}},
+		"a": {Value: &idx.AnyValue_ArrayValue{ArrayValue: &idx.ArrayValue{Values: []*idx.AnyValue{{Value: &idx.AnyValue_IntValue{IntValue: 1}}}}}},
+		"m": {Value: &idx.AnyValue_KeyValueList{KeyValueList: &idx.KeyValueList{}}},
+	}
+	for c, v := range values {
+		attrs[s.Strings.Add(strings.Repeat(c, MaxMetricsKeyLen+1))] = v
+	}
+	// Bytes attributes hold legacy meta_struct entries, whose keys Truncate does not touch.
+	bytesKey := strings.Repeat("y", MaxMetricsKeyLen+1)
+	bytesValue := &idx.AnyValue{Value: &idx.AnyValue_BytesValue{BytesValue: []byte("x")}}
+	attrs[s.Strings.Add(bytesKey)] = bytesValue
+	atLimitKey := strings.Repeat("l", MaxMetricsKeyLen)
+	atLimitValue := &idx.AnyValue{Value: &idx.AnyValue_DoubleValue{DoubleValue: 43}}
+	attrs[s.Strings.Add(atLimitKey)] = atLimitValue
+	// Structured meta keys are only exempt in Meta: a long structured Metrics key is truncated.
+	structuredKey := "_dd." + strings.Repeat("s", MaxMetricsKeyLen) + ".json"
+	structuredValue := &idx.AnyValue{Value: &idx.AnyValue_DoubleValue{DoubleValue: 44}}
+	attrs[s.Strings.Add(structuredKey)] = structuredValue
+
 	a.TruncateV1(s)
-	actualVal, ok := s.GetAttributeAsString("_dd.protected_key.json")
-	assert.True(t, ok)
-	assert.Equal(t, actualVal, val)
+
+	got := make(map[string]*idx.AnyValue, len(s.Attributes()))
+	for k, v := range s.Attributes() {
+		got[s.Strings.Get(k)] = v
+	}
+	for c, v := range values {
+		assert.NotContains(t, got, strings.Repeat(c, MaxMetricsKeyLen+1))
+		assert.Same(t, v, got[strings.Repeat(c, MaxMetricsKeyLen)+"..."], c)
+	}
+	assert.Same(t, bytesValue, got[bytesKey])
+	assert.Same(t, atLimitValue, got[atLimitKey])
+	assert.NotContains(t, got, structuredKey)
+	assert.Same(t, structuredValue, got[structuredKey[:MaxMetricsKeyLen]+"..."])
 }

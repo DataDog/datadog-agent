@@ -655,6 +655,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_runtime_profile_for_datadog_agent_process() {
+        let proc = ManagedProcess::new_runtime(
+            "datadog-agent-process".to_string(),
+            test_helpers::test_uuid(),
+            ProcessConfig::default(),
+        );
+        let list = process_to_proto(&proc);
+        let detail = process_detail_fields(&proc);
+
+        assert_eq!(list.profile, "agent");
+        assert_eq!(detail.profile, "agent");
+        assert_eq!(list.user, proc.user());
+        assert_eq!(detail.user, proc.user());
+    }
+
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
         let cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);

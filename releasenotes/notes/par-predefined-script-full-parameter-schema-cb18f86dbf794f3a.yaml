@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Private Action Runner: ``runPredefinedScript``, ``runPredefinedPowershellScript``
+    and authored scripts now validate task parameters against the whole
+    ``parameterSchema``.

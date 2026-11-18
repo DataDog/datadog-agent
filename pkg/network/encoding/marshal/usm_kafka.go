@@ -39,14 +39,14 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 	}
 }
 
-func (e *kafkaEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+func (e *kafkaEncoder) EncodeConnection(c *network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
 		staticTags = e.encodeData(c, b)
 	})
 	return
 }
 
-func (e *kafkaEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64 {
+func (e *kafkaEncoder) encodeData(c *network.ConnectionStats, w io.Writer) uint64 {
 	if e == nil {
 		return 0
 	}
