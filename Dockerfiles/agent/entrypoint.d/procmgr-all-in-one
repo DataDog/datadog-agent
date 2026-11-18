@@ -2,12 +2,52 @@
 # Opt-in all-in-one supervisor. Unset ENTRYPOINT still runs /opt/entrypoints/_default (s6).
 set -euo pipefail
 
-# /var/run/s6 is a VOLUME: writable under --read-only, and kept across docker restart,
-# so wipe it before staging. Image COPY and ConfigMap mounts leave cont-init entries
-# mode 0644, often as symlinks into a read-only ..data directory.
-copy_dir=/var/run/s6/procmgr-cont-init.d
-rm -rf "$copy_dir"
-mkdir -p "$copy_dir"
+# Stage executable copies: entries are mode 0644, often symlinks into a read-only
+# ..data directory, and executing them fails on a noexec mount.
+# /var/run/s6 is a VOLUME kept across docker restart, so wipe it with rm -rf. mkdir without
+# -p then proves the directory did not exist and this UID created it. Then ${TMPDIR:-/tmp},
+# then mktemp under /opt/datadog-agent/run, which may be shared. /tmp comes first so that a
+# SIGKILL leaves any leftover in the container's own /tmp rather than on that mount. Plain
+# --read-only leaves /tmp read-only, and --tmpfs /tmp defaults to noexec.
+# bash as PID 1 ignores an unhandled SIGTERM, so only a fallback directory installs a TERM trap.
+stage_executes() {
+    local probe="$1/.procmgr-exec-probe" status=1
+    if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then
+        status=0
+    fi
+    rm -f "$probe"
+    return "$status"
+}
+
+copy_dir=
+primary=/var/run/s6/procmgr-cont-init.d
+if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then
+    copy_dir=$primary
+else
+    rm -rf "$primary" 2>/dev/null || true
+fi
+if [[ -z "$copy_dir" ]]; then
+    for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do
+        if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then
+            continue
+        fi
+        # Install the trap before the probe, so a signal during it removes this directory.
+        copy_dir=$candidate
+        trap 'rm -rf "$copy_dir"' EXIT
+        trap 'rm -rf "$copy_dir"; exit 143' TERM INT
+        if stage_executes "$candidate"; then
+            break
+        fi
+        rm -rf "$candidate"
+        trap - EXIT TERM INT
+        copy_dir=""
+    done
+fi
+if [[ -z "$copy_dir" ]]; then
+    echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2
+    exit 1
+fi
+printf '===== STAGING cont-init in %s =====\n' "$copy_dir"
 
 # C-locale order, as a prefix so dd-procmgrd does not inherit LC_ALL.
 # pipefail does not cover the process substitution, so wait reaps it: a failed sort
@@ -30,6 +70,8 @@ for init in "${selected[@]}"; do
     printf '===== RUNNING %s =====\n' "$init"
     "$copy_dir/${init##*/}"
 done
+# exec does not fire the EXIT trap, so remove the fallback here.
+if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi
 
 export DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio
 # The image VOLUME keeps this directory writable under Docker --read-only.

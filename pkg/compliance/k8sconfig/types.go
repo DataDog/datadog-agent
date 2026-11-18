@@ -17,6 +17,7 @@ type K8sNodeConfig struct {
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
 	KubeletService     *K8sConfigFileMeta   `json:"kubeletService,omitempty"`
 	AdminKubeconfig    *K8sKubeconfigMeta   `json:"adminKubeconfig,omitempty"`
+	AzureJSON          *K8sFileMeta         `json:"azureJson,omitempty"`
 	Components         struct {
 		Etcd                  *K8sEtcdConfig                  `json:"etcd,omitempty"`
 		KubeApiserver         *K8sKubeApiserverConfig         `json:"kubeApiserver,omitempty"`
@@ -44,6 +45,25 @@ type K8sDirMeta struct {
 	User  string `json:"user,omitempty"`
 	Group string `json:"group,omitempty"`
 	Mode  uint32 `json:"mode,omitempty"`
+}
+
+// K8sFileMeta holds the ownership and permissions of a file found on the node.
+// Every field is written out, a mode of 0 included.
+type K8sFileMeta struct {
+	Path  string `json:"path" jsonschema:"required"`
+	User  string `json:"user" jsonschema:"required"`
+	Group string `json:"group" jsonschema:"required"`
+	Mode  uint32 `json:"mode" jsonschema:"required"`
+}
+
+// K8sConfigDirMeta holds the ownership and permissions of the kubelet drop-in
+// directory and of the drop-ins under it, in the order the kubelet reads them.
+type K8sConfigDirMeta struct {
+	Path  string         `json:"path"`
+	User  string         `json:"user,omitempty"`
+	Group string         `json:"group,omitempty"`
+	Mode  uint32         `json:"mode,omitempty"`
+	Files []*K8sFileMeta `json:"files,omitempty"`
 }
 
 type K8sConfigFileMeta struct {

@@ -68,6 +68,19 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 `components.py`, `go_deps.py`, `go.py`, `modules.py`, `renovate.py`,
 `new_e2e_tests.py`, `ebpf.py`.
 
+## Tasks That Regenerate a `go.mod`
+
+A task that rewrites a `go.mod` wholesale rather than editing it in place — a code generator such as OCB in
+`collector.generate`, for instance — drops the intra-repo `replace` block that `modules.add-all-replace` maintains.
+Tidying from there resolves those modules to their published versions and CI's `modules.check-all-replace` fails, so
+the task has to restore the block itself.
+
+Restoring takes two `add_all_replace` passes with a `tidy` between them. `add_all_replace` ends by calling
+`check_go_mod_replaces(fix=True)`, which repairs replaces that are missing according to `go.sum` and spells them
+`../../../core/config` where `add_all_replace` itself writes the canonical `../../../../comp/core/config`. Until
+`tidy` drops the published versions from `go.sum`, that repair keeps firing and leaves the non-canonical spelling
+behind — which `check-all-replace` then reports as a diff even though both paths resolve to the same directory.
+
 ## Writing Commands That Work on Windows
 
 `ctx.run` goes through `/bin/bash` on Unix but `cmd.exe` on Windows, so a command string that works locally can be silently broken for Windows developers. The invoke unit tests only run on Linux in CI, so nothing catches this for you.

@@ -13,7 +13,7 @@ import (
 )
 
 // USMLookup determines the strategy for associating a given connection to USM
-func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
+func USMLookup[K comparable, V any](c *network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
 	for _, key := range network.ConnectionKeysFromConnectionStats(c) {
 		if v, ok := data[key]; ok {
 			return v
