@@ -178,6 +178,12 @@ type Fallback struct {
 	Reason FallbackReason
 }
 
+// HasTimeseriesLayout reports whether an endpoint is collected per bucket when the
+// analytics query type is timeseries. Endpoints without a layout always use tableData.
+func HasTimeseriesLayout(endpoint Endpoint) bool {
+	return timeseriesLayouts[endpoint] != nil
+}
+
 // shortQueryName returns the analytics query name without its arguments, for example
 // linkusage for linkusage(site,accckt,...).
 func shortQueryName(query string) string {
@@ -739,7 +745,7 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 			"revLossRatio",
 			"pduLossRatio",
 		},
-		slaTimeseriesLayout,
+		timeseriesLayouts[EndpointSLAMetrics],
 		parseSLAMetrics,
 	)
 }
@@ -773,7 +779,7 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 			"percentdrop", // percent drop bytes
 			"bandwidth",   // total bandwidth bps
 		},
-		pathQoSTimeseriesLayout,
+		timeseriesLayouts[EndpointQoSMetrics],
 		parsePathQoSMetrics,
 	)
 	if err != nil {
@@ -826,7 +832,7 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 			"percentdrop", // percent drop bytes
 			"bandwidth",   // total bandwidth bps
 		},
-		circuitQoSTimeseriesLayout,
+		timeseriesLayouts[EndpointCircuitQoSMetrics],
 		parseCircuitQoSMetrics,
 	)
 	if err != nil {
@@ -901,7 +907,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-tx",
 			"bw-rx",
 		},
-		linkUsageTimeseriesLayout,
+		timeseriesLayouts[EndpointLinkUsageMetrics],
 		parseLinkUsageMetrics,
 	)
 }
@@ -1028,7 +1034,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 			"bw-tx",
 			"bw-rx",
 		},
-		diaTimeseriesLayout,
+		timeseriesLayouts[EndpointDIAMetrics],
 		parseDIAMetrics,
 	)
 }
@@ -1058,7 +1064,7 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 			"bw-tx",
 			"bandwidth",
 		},
-		interfaceTimeseriesLayout,
+		timeseriesLayouts[EndpointInterfaceMetrics],
 		parseAnalyticsInterfaceMetrics,
 	)
 }

@@ -602,15 +602,29 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 }
 
 // collectsLookbackTimeseries reports whether any enabled query both uses
-// lookback_time_window_minutes and supports timeseries collection.
+// lookback_time_window_minutes and is collected per bucket in timeseries mode. Whether an
+// endpoint supports timeseries comes from the client's layouts; DIA, applications and
+// top users are left out because they always query a 1 day window.
 func (v *VersaCheck) collectsLookbackTimeseries() bool {
-	for _, enabled := range []*bool{
-		v.config.CollectSLAMetrics, v.config.CollectQoSMetrics, v.config.CollectCircuitQoSMetrics,
-		v.config.CollectInterfaceMetrics, v.config.CollectLinkMetrics,
-		v.config.CollectTunnelMetrics,
+	for _, q := range []struct {
+		enabled   *bool
+		endpoints []client.Endpoint
+	}{
+		{v.config.CollectSLAMetrics, []client.Endpoint{client.EndpointSLAMetrics}},
+		{v.config.CollectQoSMetrics, []client.Endpoint{client.EndpointQoSMetrics}},
+		{v.config.CollectCircuitQoSMetrics, []client.Endpoint{client.EndpointCircuitQoSMetrics}},
+		{v.config.CollectInterfaceMetrics, []client.Endpoint{client.EndpointInterfaceMetrics}},
+		{v.config.CollectLinkMetrics, []client.Endpoint{client.EndpointLinkStatusMetrics, client.EndpointLinkUsageMetrics}},
+		{v.config.CollectTunnelMetrics, []client.Endpoint{client.EndpointTunnelMetrics}},
+		{v.config.CollectSiteMetrics, []client.Endpoint{client.EndpointSiteMetrics}},
 	} {
-		if enabled != nil && *enabled {
-			return true
+		if q.enabled == nil || !*q.enabled {
+			continue
+		}
+		for _, endpoint := range q.endpoints {
+			if client.HasTimeseriesLayout(endpoint) {
+				return true
+			}
 		}
 	}
 	return false

@@ -39,6 +39,8 @@ func TestConfigureWarnsOnShortTimeseriesLookback(t *testing.T) {
 		{"timeseries above 45", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 60\n", false},
 		// Unset uses the 30 minute default, which is below 45.
 		{"timeseries lookback unset", "analytics_query_type: timeseries\ncollect_sla_metrics: true\n", true},
+		// Tunnel and site use tableData, so they do not need a longer window.
+		{"timeseries lookback unset with only tunnel and site", "analytics_query_type: timeseries\ncollect_tunnel_metrics: true\ncollect_site_metrics: true\n", false},
 		{"tableData lookback unset", "analytics_query_type: tableData\ncollect_sla_metrics: true\n", false},
 		{"tableData below 45", "analytics_query_type: tableData\ncollect_sla_metrics: true\nlookback_time_window_minutes: 15\n", false},
 		{"default query type below 45", "lookback_time_window_minutes: 15\n", false},
