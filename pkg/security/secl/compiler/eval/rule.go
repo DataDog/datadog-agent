@@ -162,6 +162,35 @@ func (r *Rule) GetPartialEval(fields ...Field) BoolEvalFnc {
 	return partial
 }
 
+// ComparesFields returns whether a comparison of the rule reads at least two of the fields, as
+// `a == b` or `a != b`. A rule not compiled yet is reported as comparing them.
+func (r *Rule) ComparesFields(fields ...Field) bool {
+	if r.evaluator == nil || r.evaluator.tree == nil {
+		return true
+	}
+
+	var compares func(node ast.Node) bool
+	compares = func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.LogicalExpr:
+			return compares(n.Left) || compares(n.Right)
+		case *ast.UnaryExpr:
+			if n.Op == ast.UnaryNot {
+				return compares(n.Operand)
+			}
+		}
+
+		var read []Field
+		return ast.Any(node, func(x ast.Node) bool {
+			if ref, ok := x.(*ast.FieldRef); ok && slices.Contains(fields, ref.Name) && !slices.Contains(read, ref.Name) {
+				read = append(read, ref.Name)
+			}
+			return len(read) >= 2
+		})
+	}
+	return compares(r.evaluator.tree.Root)
+}
+
 // GetFields - Returns all the Field of the Rule including field of the Macro used
 func (r *Rule) GetFields() []Field {
 	return r.evaluator.GetFields()

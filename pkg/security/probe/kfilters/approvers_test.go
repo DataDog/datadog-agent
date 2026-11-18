@@ -1000,18 +1000,37 @@ func TestApproverMultiFieldLinkAndRename(t *testing.T) {
 		assert.Empty(t, approvers)
 	})
 
-	t.Run("open-mixed-modes-keeps-discarders", func(t *testing.T) {
+	t.Run("rename-partially-equal-fields-rejected", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-		rules.AddTestRuleExpr(t, rs, `(open.file.path == "/etc/passwd" || open.file.in_upper_layer) && process.file.path == "/usr/bin/cat"`)
+		rules.AddTestRuleExpr(t, rs, `rename.file.path == "/p1" || rename.file.destination.path == "/p2" || rename.file.name == "n3" || (rename.file.path == rename.file.destination.path && rename.file.path != rename.file.name)`)
 
-		approvers, _, noDiscarder, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		approvers, _, _, err := rs.GetEventTypeApprovers("rename", allCapabilities["rename"])
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Len(t, approvers["open.file.path"], 1)
-		assert.Len(t, approvers["open.file.in_upper_layer"], 1)
-		assert.Empty(t, noDiscarder)
+		assert.Empty(t, approvers)
 	})
+
+	for _, tc := range []struct {
+		name      string
+		eventType string
+		expr      string
+	}{
+		{"path-or-upper-layer", "open", `(open.file.path == "/etc/passwd" || open.file.in_upper_layer) && process.file.path == "/usr/bin/cat"`},
+		{"path-or-auid", "link", `link.file.path == "/etc/shadow" || process.auid == 1000`},
+		{"path-or-flags-range", "open", `open.file.path == "/etc/passwd" || (open.flags & O_CREAT) > 0 || open.flags > 1000`},
+	} {
+		t.Run("non-string-field-rejected/"+tc.name, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			rules.AddTestRuleExpr(t, rs, tc.expr)
+
+			approvers, _, _, err := rs.GetEventTypeApprovers(tc.eventType, allCapabilities[tc.eventType])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Empty(t, approvers)
+		})
+	}
 }
 
 func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {
@@ -1028,6 +1047,20 @@ func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {
 		}
 		assert.Len(t, approvers["open.file.name"], 2)
 		assert.Empty(t, approvers["open.flags"])
+	})
+
+	t.Run("filename-scalar-and-pattern-same-text", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.name in ["abc*", ~"abc*"]`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !assert.Len(t, approvers["open.file.name"], 2) {
+			return
+		}
+		assert.ElementsMatch(t, []eval.FieldValueType{eval.ScalarValueType, eval.PatternValueType}, []eval.FieldValueType{approvers["open.file.name"][0].Type, approvers["open.file.name"][1].Type})
 	})
 
 	t.Run("parent-basename-wins-over-rdonly", func(t *testing.T) {

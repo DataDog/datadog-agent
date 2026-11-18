@@ -25,7 +25,7 @@ func (fv FilterValues) Merge(n ...FilterValue) FilterValues {
 LOOP:
 	for _, v1 := range n {
 		for _, v2 := range fv {
-			if v1.Field == v2.Field && v1.Value == v2.Value {
+			if v1.Field == v2.Field && v1.Value == v2.Value && v1.Type == v2.Type {
 				continue LOOP
 			}
 		}
