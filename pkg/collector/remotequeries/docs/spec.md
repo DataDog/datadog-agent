@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Datadog Agent runs Remote Queries next to customer databases. Its private action runner receives the Remote Queries action from Action Platform (AP), sent by the `its-agent` worker, and passes it to the core Agent. For a match check, the core Agent reports whether exactly one of its loaded integration checks serves the requested database. For a query request, it finds that check again and hands it the query and delivery instructions. The integration runs the query and uploads the results to `its-agent-intake`, and the Agent returns the outcome.
+The Datadog Agent runs Remote Queries next to customer databases. Its private action runner receives the Remote Queries action from Action Platform (AP), sent by the `its-agent` worker, and passes it to the core Agent. For a match check, the core Agent reports whether exactly one of its loaded integration checks serves the requested database. For a query request, it finds that check again, hands it the query and delivery instructions, and answers as soon as the check has the run. The integration then runs the query and uploads the results to `its-agent-intake`.
 
 The Agent does not validate SQL, connect to databases, convert or upload results, choose among Agents, or report run status to ITS. Result rows never pass through the core Agent or the runner. Integration behavior, such as matching a check to a target and running the query, is specified per integration, starting with the [Postgres integration](https://dd-quick.us1.staging.dog/postgres-integration-spec/).
 
@@ -10,7 +10,7 @@ The Agent does not validate SQL, connect to databases, convert or upload results
 
 - **Runner:** the private action runner, the Agent process that receives AP actions.
 - **Core Agent:** the Agent process that loads and schedules integration checks.
-- **Action:** the AP action `com.datadoghq.remoteaction.queries.execute`, the only Remote Queries action ([its-agent](https://dd-quick.us1.staging.dog/its-agent-spec/) AP-02).
+- **Action:** the AP action `com.datadoghq.remoteaction.integrations.runQuery`, the only Remote Queries action ([its-agent](https://dd-quick.us1.staging.dog/its-agent-spec/) AP-02).
 - **Integration:** the Agent integration the action names, such as `postgres`.
 - **Check:** one loaded instance of an integration, built from one instance configuration.
 - **Target:** the database the action names: either a host, port, and database name, or a database instance name.
@@ -120,11 +120,11 @@ A match check runs no SQL, contacts no intake, and changes no state on the Agent
 
 ### RUN-01 — Hand the query to the matched check
 
-The core Agent adds its locally resolved upload address (INPUT-05) to the delivery instructions. It passes the matched check the target, the query, the schema choice, these instructions, and the trace context (OBS-01), in one execute call (annex). The check runs the query with its own configuration and credentials.
+The core Agent adds its locally resolved upload address (INPUT-05) to the delivery instructions. It passes the matched check the target, the query, the schema choice, these instructions, and the trace context (OBS-01), in one execute call (annex). The check runs the query with its own configuration and credentials. It starts the execute call and answers the query request without waiting for the call to return (OUT-02).
 
 ### RUN-02 — Run alongside scheduled check runs and other runs
 
-A run does not wait for its check's schedule, and the check's scheduled runs do not wait for it. Several runs can be in progress at once, on one check or on different checks. The Agent bounds them only by the runner's task concurrency.
+A run does not wait for its check's schedule, and the check's scheduled runs do not wait for it. Several runs can be in progress at once, on one check or on different checks. The core Agent does not limit how many are in progress.
 
 ### RUN-03 — Never start a run on an unscheduled check
 
@@ -134,19 +134,15 @@ When the core Agent unschedules a check, including at shutdown:
 - it starts no resolve or execute call on the check once it has signaled it; and
 - the integration stops the check's runs in progress and delays the check's teardown until they end ([Postgres integration](https://dd-quick.us1.staging.dog/postgres-integration-spec/) CANCEL-01, CANCEL-03).
 
-### RUN-04 — Cancel a run whose caller is gone
+### RUN-04 — Keep a run going after the query request is answered
 
-The core Agent cancels a run when the runner's call for it ends before the run does. The runner's call ends:
+A run continues after the core Agent answers its query request, and after the runner's call ends for any reason. Only these stop it:
 
-- at the task timeout (RUN-05);
-- when the runner stops; or
-- when its connection to the core Agent breaks.
+- its run time limit (Postgres TIME-01);
+- the worker aborting its upload session, which makes intake reject its next page (Postgres UPLOAD-04); and
+- its check being unscheduled, including at shutdown (RUN-03).
 
-The integration then stops the query and aborts the upload ([Postgres integration](https://dd-quick.us1.staging.dog/postgres-integration-spec/) CANCEL-01). A cancelled run's answer is discarded.
-
-### RUN-05 — End each action at the runner's task timeout
-
-The runner ends an action at the task's timeout, or at the runner's default task timeout when the task sets none. The worker sets the task timeout for query requests (its-agent TIME-03). AP then reports the action as timed out.
+Why: A query can run until the job deadline, which is longer than the runner's task timeout, 60 s by default. The worker learns how the run ended from its upload session (its-agent RESULT-01), not from the runner's call.
 
 ## Answering
 
@@ -154,19 +150,19 @@ The runner ends an action at the task's timeout, or at the runner's default task
 
 A match check is answered with a status of matched, target not found, ambiguous target, or resolution error. Every status other than matched also carries an error with the same code and a message. A resolution error's message says which candidate could not answer and why, by the check's identifier, never by its configuration.
 
-### OUT-02 — Answer a successful query request with its status
+### OUT-02 — Answer success once the check has the run
 
-When the integration reports success, the action's output has a succeeded status and nothing else.
+When the core Agent has started the matched check's execute call, the action's output has a succeeded status and nothing else.
 
-Why: The worker decides the run from intake's completion record (its-agent RESULT-01), which holds the run's totals and files.
+Why: The worker decides the run from its upload session (its-agent RESULT-01), which the integration finalizes or aborts.
 
-### OUT-03 — Answer a failed query request with a code and a message
+### OUT-03 — Answer a failure before the run with a code and a message
 
-When the run fails, the action's output has a failed status, and an error with the failure code and a message. Target not found, ambiguous target, and resolution error come from the core Agent's resolution (CHECK-05). Codes the integration reports pass through unchanged. The annex lists the core Agent's codes.
+When the query request fails before the core Agent starts the execute call, the action's output has a failed status, and an error with the failure code and a message. Target not found, ambiguous target, and resolution error come from the core Agent's resolution (CHECK-05). The annex lists the core Agent's codes.
 
-### OUT-04 — Fail the action on a malformed answer
+### OUT-04 — Log a malformed final answer as a failure
 
-The action fails, with a message that names the problem, when the integration:
+The core Agent logs a run as failed, with a message that names the problem, when the integration:
 
 - ends a run without exactly one final answer; or
 - reports both success and failure.
@@ -191,7 +187,7 @@ Every Agent log line about a request carries its integration, and its run, task,
 
 ### OBS-03 — Summarize each request
 
-At the end of each request the core Agent logs one line with its kind, its outcome and code, its duration, the number of candidates, and the matched check's identifier.
+At the end of each request the core Agent logs one line with its kind, its outcome and code, its duration, the number of candidates, and the matched check's identifier. When a run's execute call returns, the core Agent logs one line with the run's outcome, code, and duration. The call's answer goes nowhere else.
 
 ## Performance
 
@@ -222,7 +218,7 @@ Outside the integration, the memory the core Agent and the runner use for a run 
 | Operation | Caller | Does |
 |---|---|---|
 | Action, match check | AP, for the worker | Reports whether exactly one loaded check serves the target (CHECK-01 to CHECK-06, OUT-01) |
-| Action, query request | AP, for the worker | Runs the query on the matched check and returns the outcome (CHECK-05, RUN-01 to RUN-05, OUT-02 to OUT-06) |
+| Action, query request | AP, for the worker | Starts the query on the matched check and answers once the check has the run (CHECK-05, RUN-01 to RUN-04, OUT-02 to OUT-06) |
 | Core Agent: resolve | Runner, over local IPC | The match check inside the Agent (ENABLE-02) |
 | Core Agent: execute | Runner, over local IPC | The query request inside the Agent (ENABLE-02) |
 | Integration: resolve | Core Agent | Asks one check whether it serves the target (CHECK-02) |
@@ -232,8 +228,6 @@ Outside the integration, the memory the core Agent and the runner use for a run 
 
 | Limit | Bounds | Value |
 |---|---|---|
-| Task timeout | One action, when the task sets none | The runner's default task timeout |
-| Concurrent runs | Runs in progress on one Agent | The runner's task concurrency |
 | Trace sampling priorities | Priorities passed to the integration | 1 or 2 |
 
 ## Verification
@@ -244,14 +238,14 @@ Each item is checked at one layer. Performance and resource-use items are checke
 |---|---|---|
 | Unit | ENABLE-03, INPUT-01, INPUT-02, INPUT-03, INPUT-04, INPUT-05, CHECK-04, OUT-06 | none |
 | Core Agent over local IPC | ENABLE-01, ENABLE-02, INPUT-06, CHECK-01, CHECK-02, CHECK-03, CHECK-05, CHECK-06, RUN-01, RUN-02, RUN-03, RUN-04, OUT-01, OUT-02, OUT-03, OUT-04, OUT-05, OBS-02, OBS-03, SCALE-01 | stub integration checks that can match, fail, stall, or answer wrongly; an IPC client in place of the runner |
-| Runner | RUN-05, OBS-01 | a stub core Agent; a tracer that records spans |
+| Runner | OBS-01 | a stub core Agent; a tracer that records spans |
 | Quality, opt-in | PERF-01, PERF-02, RES-01 | EC2 `m6gd.4xlarge`; stub integration checks |
 | Deployed Agent | PERF-01, PERF-02, RES-01 confirmed end to end | staging Agent with a Postgres database, reached through staging AP; Agent memory metrics |
 
 ## Open questions
 
 1. ENABLE-01: one remote queries setting, or separate settings for resolve and execute? Does a change take effect without a restart?
-2. RUN-02: should the Agent bound concurrent runs per check, to protect the customer database, or leave that to each integration?
+2. RUN-02: runs are no longer limited by the runner's task concurrency (RUN-04). Should the Agent limit concurrent runs per check or per Agent, to protect the customer database, or leave that to each integration?
 3. INPUT-04: an older Agent rejects delivery instructions with a field a newer worker adds. How does the worker learn which Agent and integration versions can run a request?
 4. CHECK-02: does the ClickHouse integration answer its own resolve operation, as CHECK-02 requires of every integration?
 
@@ -266,7 +260,7 @@ The action input and output are shown in the [its-agent annex](https://dd-quick.
 | `resolution_error` | A candidate check could not answer, or a match check was invalid or arrived while remote queries were off |
 | `invalid_request` | The query request failed INPUT-01 to INPUT-05 |
 | `disabled` | Remote queries are off on this Agent |
-| `cancelled` | The run was cancelled (RUN-03, RUN-04) |
+| `cancelled` | The check was being unscheduled when the core Agent would have started the run (RUN-03) |
 | `integration_unavailable` | The matched check does not support remote queries, or the call into it failed |
 
 ## Annex: calls into the integration
