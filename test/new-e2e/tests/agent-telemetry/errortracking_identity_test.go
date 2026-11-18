@@ -7,6 +7,7 @@ package agenttelemetry
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +73,8 @@ func (s *errorTrackingIdentitySuite) TestIdentityTags() {
 	require.Len(s.T(), match, 2, "could not parse the running agent version")
 	runningVersion := match[1]
 	wantRC := "false"
-	if strings.Contains(runningVersion, "-rc.") {
+	_, pre, _ := strings.Cut(runningVersion, "-")
+	if slices.Contains(strings.Split(pre, "."), "rc") {
 		wantRC = "true"
 	}
 
