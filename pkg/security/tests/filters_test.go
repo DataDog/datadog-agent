@@ -862,8 +862,12 @@ func testFilterDiscarderApplied(t *testing.T, test *testModule, eventType model.
 		t.Fatal(err)
 	}
 
-	if err := waitForProbeEvent(test, action, eventType, eventKeyValueFilter{key: pathField, value: testFile}); err == nil {
+	err := waitForProbeEvent(test, action, eventType, eventKeyValueFilter{key: pathField, value: testFile})
+	if err == nil {
 		t.Fatal("shouldn't get an event")
+	}
+	if _, ok := err.(ErrTimeout); !ok {
+		t.Fatal(err)
 	}
 }
 
