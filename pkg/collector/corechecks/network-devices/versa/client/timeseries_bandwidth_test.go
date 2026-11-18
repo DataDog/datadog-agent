@@ -612,9 +612,9 @@ func TestQoSFallbackMatchesTableDataWithZeroVolume(t *testing.T) {
 	}
 }
 
-// Every analytics getter takes its layout from timeseriesLayouts: in timeseries mode it
-// requests qt=timeseries exactly when HasTimeseriesLayout reports a layout for its
-// endpoint, and tableData otherwise.
+// Every analytics getter takes its layout from timeseriesLayouts under its own endpoint:
+// in timeseries mode it requests qt=timeseries when only its own endpoint has an entry,
+// and tableData when every endpoint but its own has one.
 func TestGettersFollowTimeseriesLayouts(t *testing.T) {
 	var requested []string
 	mock := SetupMockAPIServer()
@@ -652,11 +652,47 @@ func TestGettersFollowTimeseriesLayouts(t *testing.T) {
 		EndpointDIAMetrics:                     func() error { _, err := client.GetDIAMetrics("datadog"); return err },
 		EndpointInterfaceMetrics:               func() error { _, err := client.GetAnalyticsInterfaces("datadog"); return err },
 	}
+	require.Len(t, getters, 11)
 	for endpoint := range timeseriesLayouts {
 		require.Contains(t, getters, endpoint, "layout for an endpoint without a getter")
 	}
+
+	original := timeseriesLayouts
+	t.Cleanup(func() { timeseriesLayouts = original })
+	// layoutFor reuses an endpoint's real layout, or any valid one when it has none; the
+	// stub's timeseries responses are empty, so the layout's shape does not matter.
+	layoutFor := func(endpoint Endpoint) *timeseriesLayout {
+		if layout := original[endpoint]; layout != nil {
+			return layout
+		}
+		return &timeseriesLayout{drillKeyFields: 2}
+	}
+
 	for endpoint, get := range getters {
-		t.Run(string(endpoint), func(t *testing.T) {
+		t.Run(string(endpoint)+"/own entry only", func(t *testing.T) {
+			timeseriesLayouts = map[Endpoint]*timeseriesLayout{endpoint: layoutFor(endpoint)}
+			t.Cleanup(func() { timeseriesLayouts = original })
+			requested = nil
+			require.NoError(t, get())
+			assert.Equal(t, []string{QueryTypeTimeseries}, requested)
+		})
+		t.Run(string(endpoint)+"/every other entry", func(t *testing.T) {
+			timeseriesLayouts = map[Endpoint]*timeseriesLayout{}
+			for other := range getters {
+				if other != endpoint {
+					timeseriesLayouts[other] = layoutFor(other)
+				}
+			}
+			t.Cleanup(func() { timeseriesLayouts = original })
+			requested = nil
+			require.NoError(t, get())
+			assert.Equal(t, []string{QueryTypeTableData}, requested)
+		})
+	}
+
+	// With the real map, each getter requests what HasTimeseriesLayout reports.
+	for endpoint, get := range getters {
+		t.Run(string(endpoint)+"/real map", func(t *testing.T) {
 			requested = nil
 			require.NoError(t, get())
 			want := QueryTypeTableData
