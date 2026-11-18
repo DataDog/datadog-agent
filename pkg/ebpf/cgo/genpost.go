@@ -177,6 +177,8 @@ func processFile(rdr io.Reader, out io.Writer, goos string) error {
 		return err
 	}
 
+	// The host's cgo wrote the path, so strip it in host style, and before
+	// windowsCgoHeader renames "cgo": the POSIX pattern expects "// cgo -godefs".
 	b = removeAbsolutePath(b, runtime.GOOS)
 	b = windowsCgoHeader(b, goos)
 
