@@ -268,6 +268,7 @@ func TestInitData(t *testing.T) {
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
 		"private_action_runner.enabled":               true,
+		"private_action_runner.split_enabled":         true,
 		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
