@@ -45,8 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
@@ -66,12 +66,10 @@ import (
 // variables, schema enforcement, secrets) → startup checks → store → forwarder → intake payload.
 const invalidConfigScenarioDir = "testdata/invalidconfig"
 
-// baseConfigTemplate is the datadog.yaml every scenario configuration is appended to
+// baseConfigTemplate is the datadog.yaml every scenario configuration is appended to, as a text/template
 //
 //go:embed testdata/invalidconfig/base.yaml
-var baseConfigFile string
-
-var baseConfigTemplate = template.Must(template.New("base.yaml").Option("missingkey=error").Parse(baseConfigFile))
+var baseConfigTemplate string
 
 // invalidConfigSecrets are the values the secrets resolver returns for the ENC[] handles of the scenarios
 const invalidConfigSecrets = "secrets.json"
@@ -150,8 +148,10 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	confDir := t.TempDir()
 	datadogYAML := filepath.Join(confDir, "datadog.yaml")
 	sysprobeYAML := filepath.Join(confDir, "system-probe.yaml")
+	baseTemplate, err := template.New("base.yaml").Parse(baseConfigTemplate)
+	require.NoError(t, err)
 	var baseConfig strings.Builder
-	require.NoError(t, baseConfigTemplate.Execute(&baseConfig, struct{ RunPath, IntakeURL string }{
+	require.NoError(t, baseTemplate.Execute(&baseConfig, struct{ RunPath, IntakeURL string }{
 		RunPath:   filepath.Join(confDir, "run"),
 		IntakeURL: fi.URL(),
 	}))
@@ -164,7 +164,7 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 		t.Setenv(noIssueCanaryEnvVar, "not-a-number")
 	}
 
-	initGlobalConfigs(t)
+	configmock.InitAgentConfigs(t)
 
 	secretResolver := secretsmock.New(t)
 	if strings.Contains(scenarioConfig, "ENC[") {
@@ -254,21 +254,6 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 			assert.NotContains(t, string(encoded), marker, "a health report leaks a configured value")
 		}
 	}
-}
-
-// initGlobalConfigs recreates the global datadog and system-probe configurations the config components load into,
-// exactly like the Agent does when it starts: declared settings and defaults, post-init fixups, then the environment
-// variable layer. The environment must therefore be set before. The previous configurations are restored at the end
-// of the test.
-func initGlobalConfigs(t *testing.T) {
-	t.Helper()
-	previousDatadog := pkgconfigsetup.GlobalConfigBuilder()
-	previousSystemProbe := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-	t.Cleanup(func() {
-		pkgconfigsetup.SetDatadog(previousDatadog)         // nolint: forbidigo // restores the globals replaced by InitConfigObjects
-		pkgconfigsetup.SetSystemProbe(previousSystemProbe) // nolint: forbidigo // restores the globals replaced by InitConfigObjects
-	})
-	pkgconfigsetup.InitConfigObjects()
 }
 
 // readScenarioFile returns the content of a scenario file, or an empty string for a missing optional file

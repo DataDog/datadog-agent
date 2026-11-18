@@ -173,7 +173,6 @@ linters:
             - "!**/comp/forwarder/eventplatform/impl/pipelines_sbom.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go"
             - "!**/comp/forwarder/eventplatform/impl/pipelines_synthetics.go"
-            - "!**/comp/healthplatform/invalidconfig_payload_integration_test.go"
             - "!**/comp/logs-library/pipeline/provider.go"
             - "!**/comp/logs-library/pipeline/provider_test.go"
             - "!**/comp/logs/agent/impl/agent_test.go"
