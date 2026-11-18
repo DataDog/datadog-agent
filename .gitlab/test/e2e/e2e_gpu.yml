@@ -17,6 +17,9 @@
         - test/e2e-framework/components/kubernetes/kaischeduler/**/*
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/kai*.go
         - comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers/kai*.go
+        - test/e2e-framework/components/kubernetes/kueue/**/*
+        - comp/core/workloadmeta/collectors/internal/kubeapiserver/kueue*.go
+        - comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers/kueue*.go
       compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-gpu:
@@ -38,6 +41,7 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite" # CPU-only kind cluster with GPUs simulated by Mokka (no CUDA/eBPF)
       - EXTRA_PARAMS: "--run TestGPUMokkaKAISuite" # KAI Scheduler tagging on GPUs simulated by Mokka
+      - EXTRA_PARAMS: "--run TestGPUMokkaKueueSuite" # Kueue tagging on GPUs simulated by Mokka
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
   retry: !reference [.retry_only_infra_failure, retry]

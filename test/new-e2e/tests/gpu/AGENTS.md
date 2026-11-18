@@ -15,6 +15,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `TestGPUK8sSuiteUbuntu2204`: Tests GPU monitoring in Kubernetes on Ubuntu 22.04
 - `TestGPUMokkaK8sSuite`: Tests GPU monitoring in Kubernetes on a CPU-only kind cluster, with two NVIDIA T4 GPUs simulated by Mokka (see [Mokka (simulated GPUs)](#mokka-simulated-gpus))
 - `TestGPUMokkaKAISuite`: Tests the KAI Scheduler integration (`kube_scheduler*` and `kai_*` tags on container and allocated-GPU metrics) on the same Mokka setup, with KAI installed by `kindvm.WithKAIScheduler`
+- `TestGPUMokkaKueueSuite`: Tests the Kueue integration (`kube_scheduler*` and `kueue_*` tags on container and allocated-GPU metrics) on the same Mokka setup, with Kueue installed by `kindvm.WithKueue`
 
 ## Key Components
 
@@ -23,7 +24,8 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `provisioner.go`: Infrastructure provisioning logic
 - `capabilities.go`: Environment-specific capabilities (host vs k8s)
 - `mokka_provisioner.go`, `mokka_test.go`: Mokka suite (simulated GPUs)
-- `mokka_kai_test.go`: KAI Scheduler suite on Mokka
+- `mokka_kai_test.go`, `mokka_kueue_test.go`: KAI Scheduler and Kueue suites on Mokka
+- `mokka_scheduler_helpers_test.go`: Shared helpers to run a one-GPU Job through a batch scheduler and check its tags
 
 ### Test Cases
 
