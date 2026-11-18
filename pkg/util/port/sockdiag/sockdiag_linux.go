@@ -15,13 +15,13 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"runtime"
 	"sync/atomic"
 
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
 )
@@ -170,17 +170,46 @@ func procNetlinkSocket() (int, error) {
 		return -1, fmt.Errorf("opening process network namespace: %w", err)
 	}
 	defer ns.Close()
-	fd := -1
-	err = netns.WithNS(ns, func() error {
-		var serr error
-		fd, serr = unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_SOCK_DIAG)
-		return serr
-	})
+	fd, err := netlinkSocketIn(ns)
 	if err != nil {
-		if fd >= 0 {
-			unix.Close(fd)
-		}
 		return -1, fmt.Errorf("netlink socket: %w", err)
+	}
+	return fd, nil
+}
+
+// setNS is a variable so tests can make restoring the namespace fail.
+var setNS = vnetns.Set
+
+// netlinkSocketIn creates the sock_diag socket in ns. If switching the thread
+// back fails it stays locked, so the runtime discards it with the goroutine.
+func netlinkSocketIn(ns vnetns.NsHandle) (int, error) {
+	runtime.LockOSThread()
+	prev, err := vnetns.Get()
+	if err != nil {
+		runtime.UnlockOSThread()
+		return -1, err
+	}
+	defer prev.Close()
+
+	switched := !ns.Equal(prev)
+	if switched {
+		if err := setNS(ns); err != nil {
+			runtime.UnlockOSThread()
+			return -1, err
+		}
+	}
+	fd, sockErr := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_SOCK_DIAG)
+	if switched {
+		if err := setNS(prev); err != nil {
+			if sockErr == nil {
+				unix.Close(fd)
+			}
+			return -1, errors.Join(sockErr, fmt.Errorf("restoring network namespace: %w", err))
+		}
+	}
+	runtime.UnlockOSThread()
+	if sockErr != nil {
+		return -1, sockErr
 	}
 	return fd, nil
 }

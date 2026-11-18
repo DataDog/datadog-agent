@@ -22,6 +22,7 @@ import (
 	"sync"
 	"testing"
 
+	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
@@ -815,4 +816,45 @@ func openConns(n int) (fds []int, err error) {
 		fds = append(fds, c, s)
 	}
 	return fds, nil
+}
+
+// TestNetlinkSocketRestoreFailure stubs setNS so switching succeeds as a no-op
+// and restoring fails, and checks the socket is not returned.
+func TestNetlinkSocketRestoreFailure(t *testing.T) {
+	// A handle that never equals the current namespace; setNS never sees it.
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	errRestore := errors.New("forced restore failure")
+	orig := setNS
+	t.Cleanup(func() { setNS = orig })
+	calls := 0
+	setNS = func(vnetns.NsHandle) error {
+		calls++
+		if calls > 1 {
+			return errRestore
+		}
+		return nil
+	}
+
+	type result struct {
+		fd  int
+		err error
+	}
+	done := make(chan result, 1)
+	// Run on its own goroutine: the thread stays locked and is discarded on exit.
+	go func() {
+		fd, err := netlinkSocketIn(vnetns.NsHandle(f.Fd()))
+		done <- result{fd, err}
+	}()
+	r := <-done
+	if calls != 2 {
+		t.Fatalf("setNS called %d times, want 2", calls)
+	}
+	if r.fd != -1 || !errors.Is(r.err, errRestore) {
+		t.Fatalf("got fd=%d err=%v, want -1 and the restore error", r.fd, r.err)
+	}
 }
