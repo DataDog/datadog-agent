@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Log Data Lost After Rotation Agent Health issue now resolves about an
+    hour after the last loss, instead of 24 hours later, so the issue clears
+    soon after the cause is fixed without restarting the Agent. It reports the
+    loss since the incident started, and its details rename
+    ``bytes_missed_24h`` and ``rotation_count_24h`` to ``bytes_missed`` and
+    ``rotation_count`` and add ``started_at``.

@@ -18,8 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A whole number of missedBytesBucketSize since the epoch, so records land on
-// predictable bucket boundaries.
+// A fixed start so incident times are predictable.
 var missedBytesBase = time.Unix(1704067200, 0)
 
 func newTestMissedBytesTracker() (*missedBytesTracker, *clock.Mock) {
@@ -92,27 +91,41 @@ func TestMissedBytesRecord(t *testing.T) {
 func TestMissedBytesLastLossAt(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
+	start := clk.Now()
 	tr.record("nginx", "web", 100)
 	clk.Add(time.Minute)
 	tr.record("nginx", "web", 100)
 
 	summaries := tr.collectAndPrune()
 	require.Len(t, summaries, 1)
+	assert.Equal(t, start.UnixNano(), summaries[0].StartedAt.UnixNano())
 	assert.Equal(t, clk.Now().UnixNano(), summaries[0].LastLossAt.UnixNano())
 }
 
-func TestMissedBytesWindowExpiry(t *testing.T) {
+// An hour without a new loss ends the incident, which is what resolves the issue.
+func TestMissedBytesQuietPeriodEndsIncident(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
 	tr.record("nginx", "web", 512)
 
-	clk.Add(missedBytesWindow - missedBytesBucketSize)
+	clk.Add(lossQuietPeriod - time.Minute)
 	require.Equal(t, []string{"nginx:web 512/1"}, summarize(tr.collectAndPrune()))
 
-	// Takes one further bucket beyond the window to disappear entirely.
-	clk.Add(2 * missedBytesBucketSize)
+	clk.Add(time.Minute)
 	assert.Empty(t, tr.collectAndPrune())
-	assert.Empty(t, tr.entries, "an aged-out tuple must be dropped from the map, not retained")
+	assert.Empty(t, tr.entries, "a quiet tuple must be dropped from the map, not retained")
+}
+
+// A loss after the quiet period starts a new incident; the old one's totals don't
+// carry over even if nothing read the tracker in between.
+func TestMissedBytesNewIncidentAfterQuiet(t *testing.T) {
+	tr, clk := newTestMissedBytesTracker()
+
+	tr.record("nginx", "web", 512)
+	clk.Add(lossQuietPeriod + time.Minute)
+	tr.record("nginx", "web", 64)
+
+	assert.Equal(t, []string{"nginx:web 64/1"}, summarize(tr.collectAndPrune()))
 }
 
 // collectAndPrune only runs when the health check is scheduled, so record has to
@@ -120,31 +133,21 @@ func TestMissedBytesWindowExpiry(t *testing.T) {
 func TestMissedBytesBoundedWithoutCollect(t *testing.T) {
 	tr, clk := newTestMissedBytesTracker()
 
-	bucketsPerWindow := int(missedBytesWindow / missedBytesBucketSize)
-	steady := missedBytesKey{source: "nginx", service: "web"}
-
-	// Ten windows of hourly rotations: one steady tuple plus a fresh one each hour to
-	// push against the key cap. collectAndPrune is never called in the loop.
-	for hour := 0; hour < 10*bucketsPerWindow; hour++ {
-		tr.record(steady.source, steady.service, 1)
-		tr.record(fmt.Sprintf("churn-%03d", hour), "svc", 1)
-		clk.Add(missedBytesBucketSize)
+	// Ten days of rotations every 30 minutes: one steady tuple plus a fresh one each
+	// time to push against the key cap. collectAndPrune is never called in the loop.
+	for tick := 0; tick < 10*48; tick++ {
+		tr.record("nginx", "web", 1)
+		tr.record(fmt.Sprintf("churn-%03d", tick), "svc", 1)
+		clk.Add(30 * time.Minute)
 
 		require.LessOrEqual(t, len(tr.entries), missedBytesMaxKeys+1,
-			"tracked tuples must stay capped at hour %d", hour)
-		for key, entry := range tr.entries {
-			require.LessOrEqual(t, len(entry.buckets), missedBytesMaxBuckets,
-				"%s:%s held more than one window of buckets at hour %d", key.source, key.service, hour)
-		}
+			"tracked tuples must stay capped at tick %d", tick)
 	}
 
-	assert.Len(t, tr.entries[steady].buckets, missedBytesMaxBuckets,
-		"a continuously losing tuple must settle at exactly one window of buckets")
-
-	// record's pruning drops only what aged out, so a reader still sees a full window
-	// summed across every bucket in it.
-	assert.Equal(t, int64(bucketsPerWindow), findMissedBytes(t, tr.collectAndPrune(),
-		steady.source, steady.service).Bytes)
+	// The steady tuple never went quiet, so it rolled over and holds at most a day.
+	steady := findMissedBytes(t, tr.collectAndPrune(), "nginx", "web")
+	assert.LessOrEqual(t, steady.Rotations, int64(lossMaxIncident/(30*time.Minute)))
+	assert.WithinDuration(t, clk.Now(), steady.StartedAt, lossMaxIncident)
 }
 
 func TestMissedBytesOverflowFoldsIntoSharedKey(t *testing.T) {

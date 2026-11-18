@@ -54,8 +54,9 @@ func (m *missedBytesModule) BuildIssue(context map[string]string) (*healthplatfo
 }
 
 // BuiltInPeriodicHealthCheck omits Interval to take the scheduler's 15-minute
-// default; the tracker's window is 24 hours. The logs gate is inside Fn, not here,
-// so a logs-disabled agent still resolves an issue a prior run left.
+// default, so an issue resolves at most 15 minutes after the tracker's hour of quiet.
+// The logs gate is inside Fn, not here, so a logs-disabled agent still resolves an
+// issue a prior run left.
 func (m *missedBytesModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return &runnerdef.BuiltInPeriodicHealthCheck{
 		BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
