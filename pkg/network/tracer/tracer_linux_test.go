@@ -66,6 +66,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -3484,10 +3485,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the conntrack map")
 		}
-		natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
-		if natMap == nil {
-			t.Skip("ebpf conntracker map not shared")
-		}
+		natMap := requireConntrackNATMapShared(t, cfg, tr)
 		// the shared map is still reported as the conntracker's
 		if info, err := natMap.Info(); err == nil {
 			if id, ok := info.ID(); ok {
@@ -3569,6 +3567,176 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+// requireConntrackNATMapShared skips the test unless the eBPF conntracker loaded, then requires that the connection
+// tracer shares its map.
+func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) *ebpf.Map {
+	ctks := []netlink.Conntracker{tr.conntracker}
+	if chain, ok := tr.conntracker.(*chainConntracker); ok {
+		ctks = chain.ctks
+	}
+	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
+		t.Skip("ebpf conntracker not loaded")
+	}
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	require.NotNil(t, natMap, "ebpf conntracker map not shared")
+	m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), m.MaxEntries(), "tracer loaded without the conntracker's map")
+	return natMap
+}
+
+// TestNATClassificationCleanup checks that closing both ends of a SNAT'd connection on this host deletes the
+// classification under both of its tuples. Each tuple is one end's own and the other end's packet tuple, and is
+// marked as seen from both sides, so it is only deleted by the second of its two cleanups.
+func (s *TracerSuite) TestNATClassificationCleanup() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("the sk tracer doesn't classify with the conntrack map")
+	}
+	requireConntrackNATMapShared(t, cfg, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+	tlsMap, err := tr.GetMap(probes.EnhancedTLSTagsMap)
+	require.NoError(t, err)
+
+	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry
+	waitClosed := func(t *testing.T, c net.Conn) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+			if assert.NotNil(collect, conn, "closed connection not found") {
+				assert.True(collect, conn.IsClosed)
+			}
+		}, 5*time.Second, 100*time.Millisecond)
+	}
+
+	tests := []struct {
+		name string
+		// deferred is whether userspace defers deleting the conntrack entry of the first end to close
+		deferred bool
+		close    func(t *testing.T, client, server net.Conn)
+	}{
+		{
+			name:     "client closes first",
+			deferred: true,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, client.Close())
+				waitClosed(t, client)
+				require.NoError(t, server.Close())
+			},
+		},
+		{
+			name:     "server closes first",
+			deferred: true,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, server.Close())
+				waitClosed(t, server)
+				require.NoError(t, client.Close())
+			},
+		},
+		{
+			// the server's tcp_done flushes it before close(), and its conntrack entry is gone by then, so only
+			// tcp_done's cleanup can find the client's tuple
+			name:     "client resets",
+			deferred: false,
+			close: func(t *testing.T, client, server net.Conn) {
+				require.NoError(t, client.(*net.TCPConn).SetLinger(0))
+				require.NoError(t, client.Close())
+				waitClosed(t, client)
+				require.NoError(t, server.Close())
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.deferred {
+				tr.closedNATTranslations.setMax(0)
+				t.Cleanup(func() { tr.closedNATTranslations.setMax(int(cfg.MaxTrackedConnections)) })
+			}
+			ln, err := net.Listen("tcp4", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = ln.Close() })
+			accepted := make(chan net.Conn, 1)
+			go func() {
+				c, err := ln.Accept()
+				if err == nil {
+					accepted <- c
+				}
+				close(accepted)
+			}()
+			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+			client, err := d.Dial("tcp", ln.Addr().String())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+			server := <-accepted
+			require.NotNil(t, server)
+			t.Cleanup(func() { _ = server.Close() })
+			require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+			now, err := ddebpf.NowNanoseconds()
+			require.NoError(t, err)
+			stack := netebpf.ProtocolStackWrapper{Updated: uint64(now), Stack: netebpf.ProtocolStack{Flags: flagServerSide | flagClientSide}}
+			tags := netebpf.TLSTagsWrapper{Updated: uint64(now), Info: netebpf.TLSTags{Chosen_version: tls.VersionTLS12}}
+			keys := map[string]netebpf.ConnTuple{
+				"client's tuple": normalizedClassificationKey(client.LocalAddr(), client.RemoteAddr()),
+				"server's tuple": normalizedClassificationKey(server.LocalAddr(), server.RemoteAddr()),
+			}
+			for _, k := range keys {
+				require.NoError(t, protoMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&stack)))
+				require.NoError(t, tlsMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&tags)))
+			}
+
+			tt.close(t, client, server)
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				for name, k := range keys {
+					var gotStack netebpf.ProtocolStackWrapper
+					assert.ErrorIs(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&gotStack)), ebpf.ErrKeyNotExist, "connection_protocol under the %s", name)
+					var gotTags netebpf.TLSTagsWrapper
+					assert.ErrorIs(collect, tlsMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&gotTags)), ebpf.ErrKeyNotExist, "tls_enhanced_tags under the %s", name)
+				}
+			}, 3*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+const (
+	flagServerSide = 1 << 5
+	flagClientSide = 1 << 6
+)
+
+// normalizedClassificationKey returns the classification maps' key for an IPv4 TCP connection, normalized the way
+// normalize_tuple does.
+func normalizedClassificationKey(local, remote net.Addr) netebpf.ConnTuple {
+	l, r := local.(*net.TCPAddr), remote.(*net.TCPAddr)
+	lLow, lHigh := util.ToLowHigh(util.AddressFromNetIP(l.IP))
+	rLow, rHigh := util.ToLowHigh(util.AddressFromNetIP(r.IP))
+	k := netebpf.ConnTuple{
+		Saddr_h: lHigh, Saddr_l: lLow, Sport: uint16(l.Port),
+		Daddr_h: rHigh, Daddr_l: rLow, Dport: uint16(r.Port),
+		Metadata: uint32(netebpf.TCP) | uint32(netebpf.IPv4),
+	}
+	begin, end := network.EphemeralRange()
+	ephemeral := func(p uint16) bool { return p >= begin && p <= end }
+	if ephemeral(k.Sport) && !ephemeral(k.Dport) {
+		return k
+	}
+	if (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport {
+		k.Saddr_h, k.Saddr_l, k.Daddr_h, k.Daddr_l = k.Daddr_h, k.Daddr_l, k.Saddr_h, k.Saddr_l
+		k.Sport, k.Dport = k.Dport, k.Sport
+	}
+	return k
 }
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {
