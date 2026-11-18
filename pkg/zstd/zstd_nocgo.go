@@ -104,7 +104,11 @@ func NewCompressor() Compressor {
 
 func (c *nocgoCompressor) CompressLevel(dst, src []byte, level Level) ([]byte, error) {
 	if c.enc == nil || c.level != level {
-		enc, err := kzstd.NewWriter(nil, nocgoEncoderOptions(level)...)
+		options, err := nocgoEncoderOptions(level)
+		if err != nil {
+			return nil, err
+		}
+		enc, err := kzstd.NewWriter(nil, options...)
 		if err != nil {
 			return nil, err
 		}
