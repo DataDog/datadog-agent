@@ -286,7 +286,8 @@ func TestLogMetricsMatchingFromAgentConfig(t *testing.T) {
 	} {
 		t.Run(test.value, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_metrics_extractor:\n      min_token_match_ratio: "+test.value+"\n")
-			settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
 			actual := settings.configs[LogMetricsExtractorName].(LogMetricsExtractorConfig)
 			require.Equal(t, test.want, actual.MinTokenMatchRatio)
 			require.Equal(t, test.want, NewLogMetricsExtractor(actual).config.MinTokenMatchRatio)
