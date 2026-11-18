@@ -58,10 +58,6 @@ func (c *lifecycleQueryCheck) Cancel() {
 	c.cancelOnce.Do(func() { close(c.cancelled) })
 	c.calls.Wait()
 }
-func (c *lifecycleQueryCheck) CancelRemoteQuery(string) error {
-	c.cancelOnce.Do(func() { close(c.cancelled) })
-	return nil
-}
 func (c *lifecycleQueryCheck) RemoteQuery(ctx context.Context, input string) (string, error) {
 	c.mu.Lock()
 	if c.unscheduled {
@@ -177,7 +173,7 @@ func TestRUN02(t *testing.T) {
 }
 
 // RUN-03: both StopCheck and shutdown close admission and keep teardown blocked
-// until an in-progress query has ended. The IPC client sees a cancelled outcome.
+// until an in-progress query has ended. The query request was already answered.
 func TestRUN03(t *testing.T) {
 	for _, shutdown := range []bool{false, true} {
 		t.Run(map[bool]string{false: "unschedule", true: "shutdown"}[shutdown], func(t *testing.T) {
@@ -192,6 +188,8 @@ func TestRUN03(t *testing.T) {
 			errDone := make(chan error, 1)
 			go func() { answer, err := f.call(false); answerDone <- answer; errDone <- err }()
 			waitQueryEvent(t, ch.entered)
+			require.NoError(t, <-errDone)
+			require.Equal(t, "SUCCEEDED", (<-answerDone).Status)
 			stopped := make(chan error, 1)
 			go func() {
 				if shutdown {
@@ -210,8 +208,6 @@ func TestRUN03(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "resolution_error", answer.Status)
 			ch.finish()
-			require.NoError(t, <-errDone)
-			require.Equal(t, "cancelled", (<-answerDone).Error.Code)
 			select {
 			case err := <-stopped:
 				require.NoError(t, err)

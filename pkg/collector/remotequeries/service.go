@@ -246,31 +246,6 @@ func parseAnswer(raw []byte, resolve bool) (Answer, error) {
 	return Answer{Status: status, Error: &Error{code, message}}, nil
 }
 
-// Cancellation can race the integration registering its run. Retrying the
-// idempotent signal until the call returns covers that race, including Python
-// interpreter thread switches before registration. Waiting never holds the GIL.
-func cancelUntilDone(querier check.RemoteQuerier, crawlID string, answer <-chan callResult) {
-	// A buggy check must not panic out of this detached cleanup goroutine.
-	defer func() { _ = recover() }()
-	for {
-		select {
-		case <-answer:
-			return
-		default:
-		}
-		if err := querier.CancelRemoteQuery(crawlID); err != nil {
-			return
-		}
-		timer := time.NewTimer(100 * time.Millisecond)
-		select {
-		case <-answer:
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
-	}
-}
-
 func resolutionCode(matches int) string {
 	if matches == 0 {
 		return "target_not_found"
@@ -384,24 +359,25 @@ func (s *Service) run(ctx context.Context, req Request, stats *summary) Answer {
 		return failure(false, "cancelled", "caller ended before execution")
 	}
 	executeInput, _ := json.Marshal(integrationRequest{Operation: "execute", Target: req.Target, Query: req.Query, IncludeSchema: &req.IncludeSchema, ResultDelivery: delivery, TraceContext: req.TraceContext})
-	answer := make(chan callResult, 1)
-	go func() { answer <- invoke(ctx, querier, string(executeInput), false) }()
-	select {
-	case <-ctx.Done():
-		// Runs with the same crawl ID are cancelled together by the integration.
-		// Cancellation is prompt, but must not extend the caller's task deadline.
-		go cancelUntilDone(querier, req.ResultDelivery.CrawlID, answer)
-		return failure(false, "cancelled", "caller ended during execution")
-	case result := <-answer:
-		if ctx.Err() != nil {
-			return failure(false, "cancelled", "caller ended during execution")
-		}
-		if result.err != nil {
-			if errors.Is(result.err, check.ErrRemoteQueryCancelled) {
-				return failure(false, "cancelled", "check is being unscheduled")
-			}
-			return failure(false, "integration_unavailable", result.err.Error())
-		}
-		return result.answer
+	go s.runDetached(context.WithoutCancel(ctx), querier, string(executeInput), req)
+	return Answer{Status: "SUCCEEDED"}
+}
+
+// runDetached runs the execute call without the caller and logs its final answer.
+func (s *Service) runDetached(ctx context.Context, querier check.RemoteQuerier, input string, req Request) {
+	start := time.Now()
+	result := invoke(ctx, querier, input, false)
+	outcome, code, detail := "SUCCEEDED", "", ""
+	switch {
+	case errors.Is(result.err, check.ErrRemoteQueryCancelled):
+		outcome, code = "FAILED", "cancelled"
+	case result.err != nil:
+		outcome, code, detail = "FAILED", "integration_unavailable", result.err.Error()
+	case result.answer.Status != "SUCCEEDED":
+		outcome, code = result.answer.Status, result.answer.Error.Code
+	}
+	if s.Log != nil {
+		d := req.ResultDelivery
+		s.Log.Infof("remote query integration=%q crawl_id=%q task_id=%q upload_id=%q kind=run outcome=%s code=%s duration=%s message=%q", req.Integration, d.CrawlID, d.TaskID, d.UploadID, outcome, code, time.Since(start), detail)
 	}
 }

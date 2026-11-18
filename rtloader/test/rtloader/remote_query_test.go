@@ -98,16 +98,15 @@ rq.RemoteQueryCheck.remote_query = None`)
 	})
 }
 
-// RUN-04 bridge conformance: cancel_remote_query can enter Python from another
+// RUN-03 bridge conformance: cancel_check can enter Python from another
 // Go/OS thread while remote_query is blocked in Python I/O-like waiting.
-func TestRemoteQueryCancellationBridge(t *testing.T) {
+func TestRemoteQueryUnscheduleBridge(t *testing.T) {
 	_, err := runString(`import remote_query_check as rq
 rq.fail = False
 rq.blocking = True
 rq.reply = '{"status":"FAILED","error":{"code":"cancelled","message":"cancelled"}}'
 rq.entered.clear()
-rq.released.clear()
-rq.cancelled = []`)
+rq.released.clear()`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,19 +121,16 @@ rq.cancelled = []`)
 	if err != nil || out != "True" {
 		t.Fatalf("call did not enter Python: %q, %v", out, err)
 	}
-	if err := c.cancel("crawl-123"); err != nil {
-		t.Fatal(err)
-	}
+	c.unschedule()
 	select {
 	case err := <-done:
 		if err != nil {
 			t.Fatal(err)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("remote_query held GIL or was not cancelled")
+		t.Fatal("remote_query held the GIL or was not released")
 	}
-	out, err = runString(fmt.Sprintf("with open(r'%s', 'w') as f:\n    f.write(rq.cancelled[-1])\nrq.blocking = False", tmpfile.Name()))
-	if err != nil || out != "crawl-123" {
-		t.Fatalf("crawl ID changed: %q, %v", out, err)
+	if _, err := runString("rq.blocking = False"); err != nil {
+		t.Fatal(err)
 	}
 }

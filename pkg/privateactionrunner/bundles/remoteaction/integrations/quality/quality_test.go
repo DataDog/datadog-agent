@@ -47,12 +47,12 @@ type qualityCheck struct {
 	pages    *atomic.Int64
 	started  *atomic.Int64
 	checksum *atomic.Uint64
+	finished chan struct{}
 }
 
-func (*qualityCheck) String() string                 { return "postgres" }
-func (c *qualityCheck) ID() checkid.ID               { return checkid.ID(fmt.Sprintf("postgres:%d", c.id)) }
-func (*qualityCheck) SupportsRemoteQueries() bool    { return true }
-func (*qualityCheck) CancelRemoteQuery(string) error { return nil }
+func (*qualityCheck) String() string              { return "postgres" }
+func (c *qualityCheck) ID() checkid.ID            { return checkid.ID(fmt.Sprintf("postgres:%d", c.id)) }
+func (*qualityCheck) SupportsRemoteQueries() bool { return true }
 func (c *qualityCheck) RemoteQuery(_ context.Context, input string) (string, error) {
 	var request struct {
 		Operation string `json:"operation"`
@@ -79,6 +79,7 @@ func (c *qualityCheck) RemoteQuery(_ context.Context, input string) (string, err
 		}
 	}
 	c.checksum.Add(sum)
+	c.finished <- struct{}{}
 	return `{"status":"SUCCEEDED"}`, nil
 }
 
@@ -92,18 +93,19 @@ type qualityFixture struct {
 	task           *types.Task
 	pages, started atomic.Int64
 	checksum       atomic.Uint64
+	finished       chan struct{}
 }
 
 func qualitySetup(t *testing.T) *qualityFixture {
 	t.Helper()
-	f := &qualityFixture{}
+	f := &qualityFixture{finished: make(chan struct{}, 1)}
 	f.pages.Store(1)
 	conf := config.NewMock(t)
 	conf.SetInTest("remote_queries.enabled", true)
 	conf.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.remoteaction.integrations.runQuery"})
 	checks := make([]check.Check, 50)
 	for i := range checks {
-		checks[i] = &qualityCheck{id: i, pages: &f.pages, started: &f.started, checksum: &f.checksum}
+		checks[i] = &qualityCheck{id: i, pages: &f.pages, started: &f.started, checksum: &f.checksum, finished: f.finished}
 	}
 	svc := &remotequeries.Service{Config: conf, Checks: func() []check.Check { return checks }}
 	server := httptest.NewTLSServer(ipchttp.NewHTTPMiddleware(func(string, ...interface{}) {}, "session-token")(svc))
@@ -137,6 +139,14 @@ func (f *qualityFixture) run(t *testing.T) {
 	defer cancel()
 	_, err := f.executor.RunPrepared(ctx, &runners.PreparedWorkflowTask{Task: f.task})
 	require.NoError(t, err)
+	// The action answers once the run has started; wait for the stub run to end.
+	if resolve, _ := f.task.Data.Attributes.Inputs["resolveOnly"].(bool); !resolve {
+		select {
+		case <-f.finished:
+		case <-ctx.Done():
+			t.Fatal("run did not end")
+		}
+	}
 }
 func median(values []int64) int64 { slices.Sort(values); return values[len(values)/2] }
 

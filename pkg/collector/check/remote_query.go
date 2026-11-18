@@ -17,10 +17,8 @@ var ErrRemoteQueryCancelled = errors.New("check is being unscheduled")
 // queries. Calls may overlap each other and scheduled Run calls. Only JSON
 // requests and final outcome JSON cross this boundary, never result data.
 // Implementations must not start work if ctx has ended. The Python bridge checks
-// this while holding the GIL before entering Python. Cancellation is idempotent;
-// the core may repeat it to cover cancellation racing the run's registration.
+// this while holding the GIL before entering Python.
 type RemoteQuerier interface {
 	SupportsRemoteQueries() bool
 	RemoteQuery(ctx context.Context, request string) (string, error)
-	CancelRemoteQuery(crawlID string) error
 }

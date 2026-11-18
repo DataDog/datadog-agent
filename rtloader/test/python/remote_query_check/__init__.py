@@ -11,7 +11,6 @@ reply = '{"status":"SUCCEEDED"}'
 fail = False
 blocking = False
 received = []
-cancelled = []
 entered = threading.Event()
 released = threading.Event()
 
@@ -25,10 +24,6 @@ class RemoteQueryCheck(AgentCheck):
             entered.set()
             released.wait(5)
         return reply
-
-    def cancel_remote_query(self, crawl_id):
-        cancelled.append(crawl_id)
-        released.set()
 
     def cancel(self):
         released.set()

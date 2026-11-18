@@ -112,13 +112,6 @@ char *remote_query(rtloader_t *s, rtloader_pyobject_t *check, const char *reques
     strncpy(remote_query_request, request, sizeof(remote_query_request)-1);
     return remote_query_return;
 }
-int remote_query_cancel_calls = 0;
-char remote_query_crawl_id[128];
-int cancel_remote_query(rtloader_t *s, rtloader_pyobject_t *check, const char *crawl_id) {
-    remote_query_cancel_calls++;
-    strncpy(remote_query_crawl_id, crawl_id, sizeof(remote_query_crawl_id)-1);
-    return 1;
-}
 
 char *get_check_diagnoses_return = NULL;
 int get_check_diagnoses_calls = 0;
@@ -242,7 +235,6 @@ func testRemoteQueryBridge(t *testing.T) {
 	require.False(t, ch.SupportsRemoteQueries())
 	C.remote_query_supported = 1
 	C.remote_query_calls = 0
-	C.remote_query_cancel_calls = 0
 	outcome := C.CString(`{"status":"SUCCEEDED"}`)
 	defer C.free(unsafe.Pointer(outcome))
 	C.remote_query_return = outcome
@@ -252,9 +244,6 @@ func testRemoteQueryBridge(t *testing.T) {
 	require.Equal(t, `{"status":"SUCCEEDED"}`, answer)
 	require.Equal(t, request, C.GoString(&C.remote_query_request[0]))
 	require.Equal(t, ch.instance, C.remote_query_instance)
-	require.NoError(t, ch.CancelRemoteQuery("crawl-123"))
-	require.Equal(t, "crawl-123", C.GoString(&C.remote_query_crawl_id[0]))
-	require.Equal(t, C.int(1), C.remote_query_cancel_calls)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = ch.RemoteQuery(ctx, request)
@@ -263,9 +252,7 @@ func testRemoteQueryBridge(t *testing.T) {
 	ch.Cancel()
 	_, err = ch.RemoteQuery(context.Background(), request)
 	require.Error(t, err)
-	require.NoError(t, ch.CancelRemoteQuery("crawl-123"))
 	require.Equal(t, C.int(1), C.remote_query_calls)
-	require.Equal(t, C.int(1), C.remote_query_cancel_calls)
 	C.remote_query_return = nil
 }
 
