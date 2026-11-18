@@ -39,6 +39,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
