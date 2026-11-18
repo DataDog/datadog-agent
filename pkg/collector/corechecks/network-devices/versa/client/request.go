@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -188,12 +190,20 @@ func apiErrorCode(body []byte) *int64 {
 	if json.Unmarshal(body, &parsed) != nil || parsed.Code == nil {
 		return nil
 	}
-	var code int64
-	if json.Unmarshal(parsed.Code, &code) != nil {
+	// Only a JSON integer within int64 range is a code: null, fractions, exponents,
+	// strings and out of range values mean there is none.
+	if !jsonInteger.Match(parsed.Code) {
+		return nil
+	}
+	code, err := strconv.ParseInt(string(parsed.Code), 10, 64)
+	if err != nil {
 		return nil
 	}
 	return &code
 }
+
+// jsonInteger matches a JSON number literal without fraction or exponent.
+var jsonInteger = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
 
 // versaErrorDescriptions describes the Versa error codes seen on timeseries requests, in
 // our own words, so the warning never repeats Versa's free text.
@@ -264,9 +274,8 @@ func get[T Content](client *Client, endpoint string, params map[string]string, u
 
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
-		log.Tracef("Failed to unmarshal response: %s", err)
-		// Log the response body for debugging
-		log.Tracef("Response body: %s", string(bytes))
+		// Neither the body nor the error text is logged: both can echo response content.
+		log.Tracef("Failed to unmarshal response from %s: %T", strings.SplitN(endpoint, "?", 2)[0], err)
 		return nil, err
 	}
 
