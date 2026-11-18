@@ -611,3 +611,59 @@ func TestQoSFallbackMatchesTableDataWithZeroVolume(t *testing.T) {
 		})
 	}
 }
+
+// Every analytics getter takes its layout from timeseriesLayouts: in timeseries mode it
+// requests qt=timeseries exactly when HasTimeseriesLayout reports a layout for its
+// endpoint, and tableData otherwise.
+func TestGettersFollowTimeseriesLayouts(t *testing.T) {
+	var requested []string
+	mock := SetupMockAPIServer()
+	defer mock.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/features/") {
+			qt := r.URL.Query().Get("qt")
+			requested = append(requested, qt)
+			w.Header().Set("Content-Type", "application/json")
+			if qt == QueryTypeTimeseries {
+				w.Write([]byte(`{"qTime":1,"data":[]}`))
+			} else {
+				w.Write([]byte(`{"qTime":1,"aaData":[]}`))
+			}
+			return
+		}
+		mock.Config.Handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+
+	getters := map[Endpoint]func() error{
+		EndpointSLAMetrics:                     func() error { _, err := client.GetSLAMetrics("datadog"); return err },
+		EndpointQoSMetrics:                     func() error { _, err := client.GetPathQoSMetrics("datadog"); return err },
+		EndpointCircuitQoSMetrics:              func() error { _, err := client.GetCircuitQoSMetrics("datadog"); return err },
+		EndpointLinkStatusMetrics:              func() error { _, err := client.GetLinkStatusMetrics("datadog"); return err },
+		EndpointLinkUsageMetrics:               func() error { _, err := client.GetLinkUsageMetrics("datadog"); return err },
+		EndpointSiteMetrics:                    func() error { _, err := client.GetSiteMetrics("datadog"); return err },
+		EndpointApplicationsByApplianceMetrics: func() error { _, err := client.GetApplicationsByAppliance("datadog"); return err },
+		EndpointTopUserMetrics:                 func() error { _, err := client.GetTopUsers("datadog"); return err },
+		EndpointTunnelMetrics:                  func() error { _, err := client.GetTunnelMetrics("datadog"); return err },
+		EndpointDIAMetrics:                     func() error { _, err := client.GetDIAMetrics("datadog"); return err },
+		EndpointInterfaceMetrics:               func() error { _, err := client.GetAnalyticsInterfaces("datadog"); return err },
+	}
+	for endpoint := range timeseriesLayouts {
+		require.Contains(t, getters, endpoint, "layout for an endpoint without a getter")
+	}
+	for endpoint, get := range getters {
+		t.Run(string(endpoint), func(t *testing.T) {
+			requested = nil
+			require.NoError(t, get())
+			want := QueryTypeTableData
+			if HasTimeseriesLayout(endpoint) {
+				want = QueryTypeTimeseries
+			}
+			assert.Equal(t, []string{want}, requested)
+		})
+	}
+}
