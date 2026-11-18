@@ -782,7 +782,7 @@ func (l *loader) parseDuration(v string) *time.Duration {
 func buildProc(name string, cmdline []string) proc {
 	p := proc{name: name}
 	if len(cmdline) > 1 {
-		cmdline = cmdline[1:]
+		cmdline = normalizeFlagNames(cmdline[1:])
 		p.flags = make(map[string]string)
 		pendingFlagValue := false
 		for i, arg := range cmdline {
@@ -812,4 +812,21 @@ func buildProc(name string, cmdline []string) proc {
 		}
 	}
 	return p
+}
+
+// normalizeFlagNames spells the name of every --flag argument with dashes, as
+// Kubernetes components read them: --read_only_port is --read-only-port.
+func normalizeFlagNames(args []string) []string {
+	normalized := make([]string, len(args))
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "--") {
+			name, value, found := strings.Cut(arg, "=")
+			arg = strings.ReplaceAll(name, "_", "-")
+			if found {
+				arg += "=" + value
+			}
+		}
+		normalized[i] = arg
+	}
+	return normalized
 }

@@ -1112,6 +1112,32 @@ func TestKubOpenshiftConfigLoader(t *testing.T) {
 	assert.Equal(t, false, anonymous["enabled"])
 }
 
+// Kubernetes components read a flag spelled with underscores as the same flag
+// spelled with dashes. Each value below differs from the legacy default.
+func TestKubeletFlagsWithUnderscores(t *testing.T) {
+	conf := loadTestConfiguration(t, t.TempDir(), "kubelet --read_only_port=0 --anonymous_auth=false --authorization_mode=Webhook --streaming_connection_idle_timeout=0 --node-labels=pool_name=general_purpose\n")
+	kubelet := conf.Components.Kubelet
+	require.NotNil(t, kubelet)
+
+	readOnlyPort := 0
+	assert.Equal(t, &readOnlyPort, kubelet.ReadOnlyPort)
+
+	anonymousAuth := false
+	assert.Equal(t, &anonymousAuth, kubelet.AnonymousAuth)
+
+	authorizationMode := "Webhook"
+	assert.Equal(t, &authorizationMode, kubelet.AuthorizationMode)
+
+	require.NotNil(t, kubelet.StreamingConnectionIdleTimeout)
+	assert.EqualValues(t, 0, *kubelet.StreamingConnectionIdleTimeout)
+
+	assert.Equal(t, map[string]string{"--node-labels": "pool_name=general_purpose"}, kubelet.SkippedFlags)
+
+	p := buildProc("kubelet", strings.Fields("kubelet --authorization_mode Webhook"))
+	assert.Equal(t, "Webhook", p.flags["--authorization-mode"])
+	assert.NotContains(t, p.flags, "--authorization_mode")
+}
+
 // A kubelet started on flags alone keeps the legacy command line defaults.
 func TestKubeletLegacyDefaults(t *testing.T) {
 	conf := loadTestConfiguration(t, t.TempDir(), "kubelet --kubeconfig=/var/lib/kubelet/kubeconfig\n")
