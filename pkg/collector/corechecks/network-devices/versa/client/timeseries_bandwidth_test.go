@@ -487,9 +487,9 @@ func errorServer(t *testing.T, prefix, table string, counts map[string]int) *Cli
 
 func captureLogs(t *testing.T) func() string {
 	var logs bytes.Buffer
-	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.DebugLvl)
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&logs, pkglog.TraceLvl)
 	require.NoError(t, err)
-	pkglog.SetupLogger(logger, pkglog.DebugStr)
+	pkglog.SetupLogger(logger, pkglog.TraceStr)
 	t.Cleanup(func() {
 		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
 		logger.Close()
@@ -747,10 +747,16 @@ func TestQoSFallbackMatchesTableData(t *testing.T) {
 // rejectionLines runs an SLA timeseries request that Versa rejects with body, and
 // returns the WARN and DEBUG lines logged.
 func rejectionLines(t *testing.T, body string) (warnings []string, debugs []string) {
+	return responseLines(t, http.StatusBadRequest, body)
+}
+
+// responseLines runs an SLA timeseries request answered with status and body, and returns
+// the WARN lines and the DEBUG and TRACE lines logged.
+func responseLines(t *testing.T, status int, body string) (warnings []string, debugs []string) {
 	logs := captureLogs(t)
 	client, _ := timeseriesHandlerServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(status)
 		w.Write([]byte(body))
 	})
 	_, err := client.GetSLAMetrics("datadog")
@@ -759,7 +765,7 @@ func rejectionLines(t *testing.T, body string) (warnings []string, debugs []stri
 		if i := strings.Index(line, "| WARN | "); i >= 0 {
 			msg := line[i+len("| WARN | "):]
 			warnings = append(warnings, msg[strings.Index(msg, ") | ")+len(") | "):])
-		} else if strings.Contains(line, "| DEBUG |") {
+		} else if strings.Contains(line, "| DEBUG |") || strings.Contains(line, "| TRACE |") {
 			debugs = append(debugs, line)
 		}
 	}
@@ -767,7 +773,7 @@ func rejectionLines(t *testing.T, body string) (warnings []string, debugs []stri
 }
 
 // The rejection warning is built only from the query name, HTTP status and Versa's numeric
-// code; Versa's error text never reaches a WARN or DEBUG line, whatever it contains.
+// code; Versa's error text never reaches a WARN, DEBUG or TRACE line, whatever it contains.
 func TestTimeseriesRejectionWarningOmitsVersaText(t *testing.T) {
 	const prefix = "Timeseries query slam: Versa rejected the timeseries request with HTTP 400"
 	const suffix = ", using tableData for it instead"
@@ -788,7 +794,11 @@ func TestTimeseriesRejectionWarningOmitsVersaText(t *testing.T) {
 		{"known code -3", "-3", prefix + " (Versa error code -3: joined queries are not allowed for this report)" + suffix},
 		{"known code -8", "-8", prefix + " (Versa error code -8: invalid metric)" + suffix},
 		{"unknown code", "-42", prefix + " (Versa error code -42)" + suffix},
-		{"non numeric code", `"-3"`, prefix + suffix},
+		{"string code", `"-3"`, prefix + suffix},
+		{"null code", "null", prefix + suffix},
+		{"fractional code", "-3.5", prefix + suffix},
+		{"exponent code", "-3e0", prefix + suffix},
+		{"overflowing code", "99999999999999999999", prefix + suffix},
 		{"no code", "", prefix + suffix},
 	} {
 		for _, text := range secretTexts {
@@ -808,6 +818,19 @@ func TestTimeseriesRejectionWarningOmitsVersaText(t *testing.T) {
 				}
 			})
 		}
+	}
+
+	// A body that cannot be parsed falls back without logging any of it, at any level.
+	for _, text := range secretTexts {
+		t.Run("unparsable body/"+text, func(t *testing.T) {
+			warnings, debugs := responseLines(t, http.StatusOK, `{"data": "`+text)
+			assert.Equal(t, []string{"Timeseries query slam: the timeseries response could not be parsed" + suffix}, warnings)
+			for _, line := range debugs {
+				assert.NotContains(t, line, "testpass")
+				assert.NotContains(t, line, "dGVzdHBhc3M")
+				assert.NotContains(t, line, "test+pass")
+			}
+		})
 	}
 }
 
