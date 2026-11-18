@@ -20,7 +20,7 @@ import "context"
 type TelemetryType string
 
 const (
-	// Logs is the core logs agent's HTTP intake (agent-http-intake.logs.<site>).
+	// Logs is the core logs agent's HTTP intake (<name>.logs.<site>, such as agent-http-intake.logs.<site>).
 	Logs TelemetryType = "logs"
 )
 
