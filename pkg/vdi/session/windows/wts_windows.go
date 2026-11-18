@@ -30,16 +30,8 @@ const (
 
 var (
 	wtsapi32                       = windows.NewLazySystemDLL("wtsapi32.dll")
-	procWTSEnumerateSessionsW      = wtsapi32.NewProc("WTSEnumerateSessionsW")
 	procWTSQuerySessionInformation = wtsapi32.NewProc("WTSQuerySessionInformationW")
-	procWTSFreeMemory              = wtsapi32.NewProc("WTSFreeMemory")
 )
-
-type wtsSessionInfo struct {
-	SessionID      uint32
-	WinStationName *uint16
-	State          uint32
-}
 
 type wtsInfo struct {
 	State              uint32
@@ -61,7 +53,7 @@ type wtsInfo struct {
 }
 
 type wtsAPI interface {
-	enumerateSessions() ([]wtsSessionInfo, error)
+	enumerateSessions() ([]windows.WTS_SESSION_INFO, error)
 	queryString(sessionID uint32, infoClass uint32) (string, error)
 	queryProtocol(sessionID uint32) (uint16, error)
 	queryInfo(sessionID uint32) (wtsInfo, error)
@@ -113,18 +105,14 @@ func enumerateSessions(api wtsAPI) ([]vdimodel.WindowsSession, error) {
 	return sessions, nil
 }
 
-func (nativeWTS) enumerateSessions() ([]wtsSessionInfo, error) {
-	var buffer *wtsSessionInfo
+func (nativeWTS) enumerateSessions() ([]windows.WTS_SESSION_INFO, error) {
+	var buffer *windows.WTS_SESSION_INFO
 	var count uint32
-	success, _, callErr := procWTSEnumerateSessionsW.Call(
-		0,
-		0,
-		1,
-		uintptr(unsafe.Pointer(&buffer)),
-		uintptr(unsafe.Pointer(&count)),
-	)
-	if success == 0 {
-		return nil, fmt.Errorf("WTSEnumerateSessionsW failed: %w", normalizeCallError(callErr))
+	if err := windows.WTSEnumerateSessions(0, 0, 1, &buffer, &count); err != nil {
+		return nil, fmt.Errorf("WTSEnumerateSessionsW failed: %w", err)
+	}
+	if buffer != nil {
+		defer windows.WTSFreeMemory(uintptr(unsafe.Pointer(buffer)))
 	}
 	if count == 0 {
 		return nil, nil
@@ -132,8 +120,13 @@ func (nativeWTS) enumerateSessions() ([]wtsSessionInfo, error) {
 	if buffer == nil {
 		return nil, errors.New("WTSEnumerateSessionsW returned an empty response")
 	}
-	defer func() { _, _, _ = procWTSFreeMemory.Call(uintptr(unsafe.Pointer(buffer))) }()
-	return append([]wtsSessionInfo(nil), unsafe.Slice(buffer, count)...), nil
+	sessions := make([]windows.WTS_SESSION_INFO, count)
+	for i, session := range unsafe.Slice(buffer, count) {
+		// The station-name pointer belongs to the WTS allocation. Only retain
+		// ID and state; the name is queried separately while enriching sessions.
+		sessions[i] = windows.WTS_SESSION_INFO{SessionID: session.SessionID, State: session.State}
+	}
+	return sessions, nil
 }
 
 func (nativeWTS) queryString(sessionID uint32, infoClass uint32) (string, error) {
@@ -152,7 +145,7 @@ func (nativeWTS) queryString(sessionID uint32, infoClass uint32) (string, error)
 	if buffer == nil {
 		return "", nil
 	}
-	defer func() { _, _, _ = procWTSFreeMemory.Call(uintptr(unsafe.Pointer(buffer))) }()
+	defer windows.WTSFreeMemory(uintptr(unsafe.Pointer(buffer)))
 	if bytesReturned < 2 {
 		return "", nil
 	}
@@ -175,7 +168,7 @@ func (nativeWTS) queryInfo(sessionID uint32) (wtsInfo, error) {
 	if buffer == nil {
 		return wtsInfo{}, errors.New("WTSSessionInfo returned an empty response")
 	}
-	defer func() { _, _, _ = procWTSFreeMemory.Call(uintptr(unsafe.Pointer(buffer))) }()
+	defer windows.WTSFreeMemory(uintptr(unsafe.Pointer(buffer)))
 	if bytesReturned < uint32(unsafe.Sizeof(wtsInfo{})) {
 		return wtsInfo{}, errors.New("WTSSessionInfo response was truncated")
 	}
@@ -197,16 +190,16 @@ func windowsTimestamp(value int64) *time.Time {
 
 func stateName(state uint32) string {
 	names := [...]string{
-		"active",
-		"connected",
-		"connect_query",
-		"shadow",
-		"disconnected",
-		"idle",
-		"listen",
-		"reset",
-		"down",
-		"init",
+		windows.WTSActive:       "active",
+		windows.WTSConnected:    "connected",
+		windows.WTSConnectQuery: "connect_query",
+		windows.WTSShadow:       "shadow",
+		windows.WTSDisconnected: "disconnected",
+		windows.WTSIdle:         "idle",
+		windows.WTSListen:       "listen",
+		windows.WTSReset:        "reset",
+		windows.WTSDown:         "down",
+		windows.WTSInit:         "init",
 	}
 	if int(state) < len(names) {
 		return names[state]
@@ -231,8 +224,11 @@ func (nativeWTS) queryProtocol(sessionID uint32) (uint16, error) {
 	if success == 0 {
 		return 0, normalizeCallError(callErr)
 	}
-	defer func() { _, _, _ = procWTSFreeMemory.Call(uintptr(unsafe.Pointer(buffer))) }()
-	if buffer == nil || bytesReturned < 2 {
+	if buffer == nil {
+		return 0, errors.New("WTSClientProtocolType returned an empty response")
+	}
+	defer windows.WTSFreeMemory(uintptr(unsafe.Pointer(buffer)))
+	if bytesReturned < 2 {
 		return 0, errors.New("WTSClientProtocolType response was truncated")
 	}
 	return *buffer, nil
