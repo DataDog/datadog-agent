@@ -6,7 +6,6 @@
 package remotequeriesimpl
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -52,7 +51,7 @@ func TestExecuteStreamResolvesResultDeliveryBaseURLFromLocalSite(t *testing.T) {
 			req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1", false, syntheticForwardDelivery())
 			require.NoError(t, err)
 
-			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+			result := executeAndWait(service, req)
 
 			require.Nil(t, result.Error)
 			var wire remoteQueryProduceJSONPagesRequestJSON
@@ -84,7 +83,7 @@ func TestExecuteStreamRejectsUnsupportedLocalSiteBeforeDispatch(t *testing.T) {
 			req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1", false, syntheticForwardDelivery())
 			require.NoError(t, err)
 
-			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+			result := executeAndWait(service, req)
 
 			require.NotNil(t, result.Error)
 			assert.Equal(t, statusExecutorUnavailable, result.Error.Code)

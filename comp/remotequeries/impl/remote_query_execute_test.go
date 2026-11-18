@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,22 +36,154 @@ func executeTestRequest(t *testing.T) RemoteQueryExecuteRequest {
 	return req
 }
 
-// Agent OUT-04: success is accepted without an upload receipt.
-func TestExecuteStreamAcceptsSuccessWithoutReceipt(t *testing.T) {
-	collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
-	service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
-	var events []check.RemoteQueryStreamEvent
+// executeAndWait executes the request and waits for the started detached run to end.
+func executeAndWait(service *RemoteQueryExecuteService, req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
+	result := service.ExecuteStream(context.Background(), req)
+	service.runs.Wait()
+	return result
+}
 
-	result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(event check.RemoteQueryStreamEvent) error {
-		events = append(events, event)
+// blockingRunnerCheck blocks its execute run until release is closed and records
+// whether emit kept working and whether the run ended.
+type blockingRunnerCheck struct {
+	*fakeStreamRunnerCheck
+	started  chan struct{}
+	release  chan struct{}
+	finished chan struct{}
+	emitErr  error
+}
+
+func newBlockingRunnerCheck(instance string) *blockingRunnerCheck {
+	b := &blockingRunnerCheck{
+		fakeStreamRunnerCheck: &fakeStreamRunnerCheck{
+			fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: instance}},
+		},
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+		finished: make(chan struct{}),
+	}
+	b.run = func(emit func(check.RemoteQueryStreamEvent) error) error {
+		defer close(b.finished)
+		close(b.started)
+		<-b.release
+		b.emitErr = emit(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`})
 		return nil
-	})
+	}
+	return b
+}
+
+// The request is answered as soon as the run starts; the run keeps going after the
+// answer and after the request context ends, and its emit callback never fails.
+func TestExecuteStreamAnswersBeforeRunEnds(t *testing.T) {
+	runner := newBlockingRunnerCheck("host: localhost\nport: 5432\ndbname: postgres\n")
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{runner}}, true, remoteQueryTestConfig(t))
+	ctx, cancel := context.WithCancel(context.Background())
+
+	result := service.ExecuteStream(ctx, executeTestRequest(t))
+	cancel()
 
 	require.Nil(t, result.Error)
+	assert.Equal(t, http.StatusOK, result.HTTPStatus)
 	assert.Equal(t, "SUCCEEDED", result.Status)
-	require.Len(t, events, 1)
-	assert.Equal(t, "final", events[0].Type)
-	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, events[0].MetadataJSON)
+	select {
+	case <-runner.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run did not start")
+	}
+	select {
+	case <-runner.finished:
+		t.Fatal("the run ended before it was released")
+	default:
+	}
+
+	close(runner.release)
+	select {
+	case <-runner.finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run did not continue after the request context ended")
+	}
+	service.runs.Wait()
+	assert.NoError(t, runner.emitErr)
+}
+
+func TestExecuteStreamCancelledRequestDoesNotStartRun(t *testing.T) {
+	runner := newBlockingRunnerCheck("host: localhost\nport: 5432\ndbname: postgres\n")
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{runner}}, true, remoteQueryTestConfig(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := service.ExecuteStream(ctx, executeTestRequest(t))
+	service.runs.Wait()
+
+	require.NotNil(t, result.Error)
+	assert.Equal(t, http.StatusRequestTimeout, result.HTTPStatus)
+	assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
+	assert.Zero(t, runner.executeCalls)
+}
+
+// Errors before the hand-off keep their codes and never start a run.
+func TestExecuteStreamErrorsBeforeHandOffKeepCodes(t *testing.T) {
+	const instance = "host: localhost\nport: 5432\ndbname: postgres\n"
+	runnerService := func(t *testing.T, enabled bool, collector RemoteQueryCollector) *RemoteQueryExecuteService {
+		return NewRemoteQueryExecuteService(collector, enabled, remoteQueryTestConfig(t))
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		runner := newBlockingRunnerCheck(instance)
+		result := executeAndWait(runnerService(t, false, fakeCollector{checks: []check.Check{runner}}), executeTestRequest(t))
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, http.StatusServiceUnavailable, result.HTTPStatus)
+		assert.Equal(t, statusBridgeDisabled, result.Error.Code)
+		assert.Zero(t, runner.executeCalls)
+	})
+
+	t.Run("missing delivery", func(t *testing.T) {
+		runner := newBlockingRunnerCheck(instance)
+		req := executeTestRequest(t)
+		req.ResultDelivery = nil
+		result := executeAndWait(runnerService(t, true, fakeCollector{checks: []check.Check{runner}}), req)
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, http.StatusBadRequest, result.HTTPStatus)
+		assert.Equal(t, statusInvalidRequest, result.Error.Code)
+		assert.Zero(t, runner.executeCalls)
+	})
+
+	t.Run("check without stream support", func(t *testing.T) {
+		collector := fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: &fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: instance}}},
+		}}
+		result := executeAndWait(runnerService(t, true, collector), executeTestRequest(t))
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
+	})
+}
+
+func TestRemoteQueryRunOutcomeObservesTerminalEvents(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		events   []check.RemoteQueryStreamEvent
+		status   string
+		wantCode string
+	}{
+		{name: "no events"},
+		{name: "metadata only", events: []check.RemoteQueryStreamEvent{{Type: "metadata", MetadataJSON: `{"status":"STARTED"}`}}},
+		{name: "final", events: []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}}, status: "SUCCEEDED"},
+		{name: "nested error code", events: []check.RemoteQueryStreamEvent{{Type: "error", MetadataJSON: `{"status":"FAILED","error":{"code":"cancelled","message":"m"}}`}}, status: "FAILED", wantCode: "cancelled"},
+		{name: "top-level error code without status", events: []check.RemoteQueryStreamEvent{{Type: "error", MetadataJSON: `{"code":"boom"}`}}, status: "FAILED", wantCode: "boom"},
+		{name: "malformed metadata", events: []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{`}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var outcome remoteQueryRunOutcome
+			for _, event := range tc.events {
+				outcome.observe(event)
+			}
+			assert.Equal(t, tc.status, outcome.status)
+			assert.Equal(t, tc.wantCode, outcome.code)
+		})
+	}
 }
 
 // TestExecuteStreamAnswersPlainMatchOutcomes proves execute resolves the target
@@ -65,7 +198,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 		runner := collector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
 		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
-		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, executeTestRequest(t))
 
 		require.Nil(t, result.Error)
 		assert.Equal(t, http.StatusOK, result.HTTPStatus)
@@ -80,7 +213,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 		runner.resolveEvents = resolveTargetNotFoundEvents()
 		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
-		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, executeTestRequest(t))
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, http.StatusNotFound, result.HTTPStatus)
@@ -95,7 +228,7 @@ func TestExecuteStreamAnswersPlainMatchOutcomes(t *testing.T) {
 		}}
 		service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
 
-		result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, executeTestRequest(t))
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, http.StatusConflict, result.HTTPStatus)

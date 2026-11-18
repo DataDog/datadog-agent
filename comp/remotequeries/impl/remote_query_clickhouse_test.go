@@ -6,7 +6,6 @@
 package remotequeriesimpl
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -378,7 +377,7 @@ func TestRemoteQueryExecuteServiceClickHouseDatabaseInstanceTarget(t *testing.T)
 	req, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{DatabaseInstance: "rq-ch-a1"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.streamCalls)

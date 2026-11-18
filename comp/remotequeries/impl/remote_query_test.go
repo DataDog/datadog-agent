@@ -6,7 +6,6 @@
 package remotequeriesimpl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1132,14 +1131,9 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"}, "SELECT city, country FROM cities ORDER BY city", true, pagedTestDelivery())
 	require.NoError(t, err)
 
-	var events []check.RemoteQueryStreamEvent
-	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
-		events = append(events, event)
-		return nil
-	})
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
-	assert.Equal(t, runner.events, events)
 	// The resolution sweep asks the check once, then the execute dispatch runs once,
 	// within the same execution.
 	assert.Equal(t, 1, runner.resolveCalls)
@@ -1190,12 +1184,11 @@ func TestRemoteQueryExecuteStreamRunsConcurrently(t *testing.T) {
 	chReq, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{Host: "localhost", Port: 8123, DBName: "default"}, "SELECT 1 AS value", false, pagedTestDelivery())
 	require.NoError(t, err)
 
-	emit := func(check.RemoteQueryStreamEvent) error { return nil }
 	var wg sync.WaitGroup
 	var pgResult, chResult RemoteQueryExecuteResult
 	wg.Add(2)
-	go func() { defer wg.Done(); pgResult = pgService.ExecuteStream(context.Background(), pgReq, emit) }()
-	go func() { defer wg.Done(); chResult = chService.ExecuteStream(context.Background(), chReq, emit) }()
+	go func() { defer wg.Done(); pgResult = executeAndWait(pgService, pgReq) }()
+	go func() { defer wg.Done(); chResult = executeAndWait(chService, chReq) }()
 	wg.Wait()
 
 	assert.Nil(t, pgResult.Error)
@@ -1211,7 +1204,7 @@ func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T)
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	// database_instance matching is delegated to the resolver sweep; the matched
@@ -1237,7 +1230,7 @@ func TestRemoteQueryExecuteServiceForwardsArbitraryQuery(t *testing.T) {
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	assert.Equal(t, 1, runner.executeCalls)
@@ -1270,7 +1263,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.Nil(t, result.Error)
 		assert.Equal(t, 1, matched.executeCalls)
@@ -1288,7 +1281,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusTargetNotFound, result.Error.Code)
@@ -1308,7 +1301,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusAmbiguous, result.Error.Code)
@@ -1329,7 +1322,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
@@ -1355,7 +1348,7 @@ func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) 
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "otherhost", Port: 5432, DBName: "other"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusTargetNotFound, result.Error.Code)
@@ -1372,7 +1365,7 @@ func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) 
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusAmbiguous, result.Error.Code)
@@ -1382,7 +1375,7 @@ func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) 
 	})
 }
 
-func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testing.T) {
+func TestRemoteQueryExecuteServiceUnsupportedCheckIsSanitized(t *testing.T) {
 	t.Run("unsupported", func(t *testing.T) {
 		// A loaded check that cannot provide the bridge resolver fails the sweep:
 		// the resolution itself is unavailable, before any match is selected.
@@ -1392,7 +1385,7 @@ func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testi
 		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+		result := executeAndWait(service, req)
 
 		require.NotNil(t, result.Error)
 		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
@@ -1400,37 +1393,19 @@ func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testi
 		assert.NotContains(t, result.Error.Message, "secret-value")
 	})
 
-	t.Run("runner error", func(t *testing.T) {
-		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
-			&fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}, err: assert.AnError},
-		}}, true, remoteQueryTestConfig(t))
-		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
-		require.NoError(t, err)
-
-		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
-
-		require.NotNil(t, result.Error)
-		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
-		assert.Equal(t, "remote query stream executor failed", result.Error.Message)
-		assert.NotContains(t, result.Error.Message, "secret-value")
-		assert.NotContains(t, result.Error.Message, assert.AnError.Error())
-	})
 }
 
-func TestRemoteQueryExecuteServiceUnavailableEmitterIsExecutorError(t *testing.T) {
-	t.Run("emit callback unavailable", func(t *testing.T) {
-		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
-			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
-		}}, true, remoteQueryTestConfig(t))
-		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
-		require.NoError(t, err)
+func TestRemoteQueryExecuteServiceRunnerErrorDoesNotChangeTheAnswer(t *testing.T) {
+	runner := &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}}, err: assert.AnError}
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{runner}}, true, remoteQueryTestConfig(t))
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+	require.NoError(t, err)
 
-		result := service.ExecuteStream(context.Background(), req, nil)
+	result := executeAndWait(service, req)
 
-		require.NotNil(t, result.Error)
-		assert.Equal(t, statusExecutorUnavailable, result.Error.Code)
-		assert.Equal(t, "remote query stream emitter is unavailable", result.Error.Message)
-	})
+	require.Nil(t, result.Error)
+	assert.Equal(t, "SUCCEEDED", result.Status)
+	assert.Equal(t, 1, runner.executeCalls)
 }
 
 func callExecuteHandler(handler *remoteQueryExecuteHandler, body string) *httptest.ResponseRecorder {
