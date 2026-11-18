@@ -7,6 +7,9 @@ load("//packages/rules:description.bzl", "rpm_description")
 _DEFAULT_DEFINES = {
     "__provides_exclude": ".*",
     "__requires_exclude": ".*",
+    # Skip the steps rpmbuild runs after %install (brp-strip, brp-compress,
+    # ...), like omnibus does. Binaries are already stripped by dd_strip.
+    "__spec_install_post": "%{nil}",
     "_build_id_links": "none",
 }
 
