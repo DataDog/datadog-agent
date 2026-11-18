@@ -192,6 +192,22 @@ func TestNewLoadModuleEventFromProcFSSnapshotTimes(t *testing.T) {
 	assert.Equal(t, uint64(st.Mtim.Nano()), event.LoadModule.File.MTime)
 }
 
+func TestLoadModuleNameFallbackFromFilename(t *testing.T) {
+	p := newTestEBPFProbe()
+
+	t.Run("derives module name from file basename when kernel name is empty", func(t *testing.T) {
+		ev := p.getPoolEvent()
+		ev.LoadModule.File.SetBasenameStr("nf-conntrack-netlink.ko.zst")
+		ev.LoadModule.LoadedFromMemory = false
+		ev.LoadModule.Name = ""
+
+		if !ev.LoadModule.LoadedFromMemory && ev.LoadModule.Name == "" {
+			ev.LoadModule.Name = utils.ModuleNameFromFilename(p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+		}
+		assert.Equal(t, "nf_conntrack_netlink", ev.LoadModule.Name)
+	})
+}
+
 func TestSameProcessAsCached(t *testing.T) {
 	selfInode := selfExeInode(t)
 	selfStart := selfStartTime(t)

@@ -6,7 +6,65 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-static __always_inline int trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs) {
+static __always_inline struct file *get_task_file_from_fd(int fd) {
+    if (fd < 0) {
+        return NULL;
+    }
+
+    u64 files_offset;
+    LOAD_CONSTANT("task_struct_files_offset", files_offset);
+    if (files_offset == 0) {
+        return NULL;
+    }
+
+    u64 fdt_offset;
+    LOAD_CONSTANT("files_struct_fdt_offset", fdt_offset);
+    if (fdt_offset == 0) {
+        return NULL;
+    }
+
+    u64 fd_offset;
+    LOAD_CONSTANT("fdtable_fd_offset", fd_offset);
+    if (fd_offset == 0) {
+        return NULL;
+    }
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    if (!task) {
+        return NULL;
+    }
+
+    void *files = NULL;
+    bpf_probe_read(&files, sizeof(files), (void *)task + files_offset);
+    if (!files) {
+        return NULL;
+    }
+
+    void *fdt = NULL;
+    bpf_probe_read(&fdt, sizeof(fdt), files + fdt_offset);
+    if (!fdt) {
+        return NULL;
+    }
+
+    u32 max_fds = 0;
+    bpf_probe_read(&max_fds, sizeof(max_fds), fdt);
+    u32 ufd = (u32)fd;
+    if (ufd >= max_fds) {
+        return NULL;
+    }
+
+    struct file **fd_array = NULL;
+    bpf_probe_read(&fd_array, sizeof(fd_array), fdt + fd_offset);
+    if (!fd_array) {
+        return NULL;
+    }
+
+    struct file *f = NULL;
+    bpf_probe_read(&f, sizeof(f), (void *)fd_array + (u64)ufd * sizeof(f));
+    return f;
+}
+
+static __always_inline int trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs, struct file *f) {
     struct syscall_cache_t syscall = {
         .type = EVENT_INIT_MODULE,
         .init_module = {
@@ -19,21 +77,41 @@ static __always_inline int trace_init_module(void *ctx, u32 loaded_from_memory, 
         syscall.init_module.args_truncated = 1;
     }
 
+    if (f) {
+        syscall.init_module.dentry = get_file_dentry(f);
+        syscall.init_module.file.path_key.mount_id = get_file_mount_id(f);
+        set_file_inode(syscall.init_module.dentry, &syscall.init_module.file, PATH_ID_INVALIDATE_TYPE_NONE);
+
+        syscall.resolver.key = syscall.init_module.file.path_key;
+        syscall.resolver.dentry = syscall.init_module.dentry;
+        syscall.resolver.iteration = 0;
+        syscall.resolver.event_type = syscall.type;
+        syscall.resolver.flags = get_resolver_flags(&syscall, 1);
+        syscall.resolver.callback = DR_NO_CALLBACK;
+        syscall.resolver.ret = 0;
+
+        cache_syscall(ctx, &syscall);
+        update_proc_cache_cgroup();
+
+        resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
+        return 0;
+    }
+
     cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY3(init_module, void *, umod, unsigned long, len, const char *, uargs) {
-    return trace_init_module(ctx, 1, uargs);
+    return trace_init_module(ctx, 1, uargs, NULL);
 }
 
 HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
-    return trace_init_module(ctx, 0, uargs);
+    return trace_init_module(ctx, 0, uargs, get_task_file_from_fd(fd));
 }
 
 static __always_inline int trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
-    if (!syscall) {
+    if (!syscall || syscall->resolver.iteration > 0) {
         return 0;
     }
 
