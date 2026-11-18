@@ -80,6 +80,7 @@ const (
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
 	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
+	genResourcesEndpoint         = "/api/v2/genresources"
 	sdsResultEndpoint            = "/api/v2/sdsresult"
 	containerImageEndpoint       = "/api/v2/contimage"
 	containerLifecycleEndpoint   = "/api/v2/contlcycle"
@@ -158,6 +159,7 @@ type Client struct {
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
 	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
+	genResourcesAggregator         aggregator.GenResourcesAggregator
 	sdsResultAggregator            aggregator.SDSResultAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
 	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
@@ -200,6 +202,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
 		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
+		genResourcesAggregator:         aggregator.NewGenResourcesAggregator(),
 		sdsResultAggregator:            aggregator.NewSDSResultAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
@@ -912,6 +915,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
 	c.agentDiscoveryAggregator.Reset()
+	c.genResourcesAggregator.Reset()
 	c.sdsResultAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
 	return nil
@@ -1052,6 +1056,35 @@ func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayloa
 	}
 
 	return payloads, nil
+}
+
+// GetGenResources returns all generic resource events received by fakeintake.
+func (c *Client) GetGenResources() ([]*aggregator.GenResourcePayload, error) {
+	payloads, err := c.getFakePayloads(genResourcesEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.genResourcesAggregator.UnmarshallPayloads(payloads); err != nil {
+		return nil, err
+	}
+
+	var resources []*aggregator.GenResourcePayload
+	for _, name := range c.genResourcesAggregator.GetNames() {
+		resources = append(resources, c.genResourcesAggregator.GetPayloadsByName(name)...)
+	}
+	return resources, nil
+}
+
+// FilterGenResources returns events matching the resource type and all options.
+func (c *Client) FilterGenResources(resourceType string, options ...MatchOpt[*aggregator.GenResourcePayload]) ([]*aggregator.GenResourcePayload, error) {
+	resources, err := c.GetGenResources()
+	if err != nil {
+		return nil, err
+	}
+	byType := func(payload *aggregator.GenResourcePayload) (bool, error) {
+		return payload.GetResource().GetType() == resourceType, nil
+	}
+	return filterPayload(resources, append([]MatchOpt[*aggregator.GenResourcePayload]{byType}, options...)...)
 }
 
 // GetSDSResults fetches fakeintake on `/api/v2/sdsresult` and returns all received

@@ -51,6 +51,7 @@ dd_agent_go_test(
         "fixtures/api_v2_series_response",
     ],
     deps = [
+        "//pkg/proto/pbgo/genresources",
         "//pkg/proto/pbgo/sds",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",

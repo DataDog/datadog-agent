@@ -457,7 +457,8 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
-	if fi.dddevForward {
+	// Generic resources use a dedicated intake and stay local to fakeintake.
+	if fi.dddevForward && req.URL.Path != "/api/v2/genresources" {
 		err := fi.forwardRequestToDDDev(req, payload)
 		if err != nil {
 			log.Printf("Error forwarding request on endpoint %v to DDDev: %v", req.URL.Path, err)

@@ -39,6 +39,7 @@ test/fakeintake/
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
 | `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
+| `/api/v2/genresources` | GenResourcesAggregator | `GetGenResources()` / `FilterGenResources()` |
 | `/api/v2/sdsresult` | SDSResultAggregator | `GetSDSResults()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
@@ -209,6 +210,9 @@ $FAKEINTAKECTL --url http://127.0.0.1:8080 get metric names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get sketch names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get histogram names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 route-stats
+
+# Inspect generic resource events:
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get genresources
 
 # Reset state between assertions:
 $FAKEINTAKECTL --url http://127.0.0.1:8080 flush
