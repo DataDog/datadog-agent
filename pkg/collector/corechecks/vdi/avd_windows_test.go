@@ -24,9 +24,15 @@ import (
 type fakeAVDInventory struct {
 	response model.InventoryResponse
 	err      error
+	onGet    func()
 }
 
-func (f fakeAVDInventory) Get() (model.InventoryResponse, error) { return f.response, f.err }
+func (f fakeAVDInventory) Get() (model.InventoryResponse, error) {
+	if f.onGet != nil {
+		f.onGet()
+	}
+	return f.response, f.err
+}
 
 func configuredAVDCheck(t *testing.T, config string) (*checkImpl, *mocksender.MockSender) {
 	t.Helper()
@@ -102,6 +108,43 @@ func TestAVDFailedAndStaleInventoryDoesNotEmitZeroCountsOrOldUsers(t *testing.T)
 			s.On("ServiceCheck", "vdi.session_enrichment.health", servicecheck.ServiceCheckCritical, "", c.baseTags(), mock.Anything).Return().Once()
 			require.NoError(t, c.Run())
 			s.AssertNumberOfCalls(t, "Gauge", 0)
+			s.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAVDInventoryFreshnessUsesResponseTime(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		collectedOffset time.Duration
+		expectedHealth  servicecheck.ServiceCheckStatus
+		expectedGauges  int
+	}{
+		{name: "new snapshot after slow request", collectedOffset: 10 * time.Second, expectedHealth: servicecheck.ServiceCheckOK, expectedGauges: 3},
+		{name: "snapshot expires during request", collectedOffset: -55 * time.Second, expectedHealth: servicecheck.ServiceCheckCritical},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c, s := configuredAVDCheck(t, "")
+			now := time.Now().UTC()
+			c.now = func() time.Time { return now }
+			c.startedAt = now.Add(-10 * time.Minute)
+			c.inventoryClient = fakeAVDInventory{
+				response: model.InventoryResponse{
+					CollectedAt: now.Add(test.collectedOffset),
+					Providers: map[string]model.ProviderInventory{
+						model.ProviderAzureVirtualDesktop: {SourceStatus: model.SourceStatus{Status: model.StatusOK}},
+					},
+				},
+				onGet: func() { now = now.Add(10 * time.Second) },
+			}
+			if test.expectedGauges > 0 {
+				for _, metric := range []string{"count", "active", "disconnected"} {
+					s.On("Gauge", "vdi.session."+metric, 0.0, "", c.baseTags()).Return().Once()
+				}
+			}
+			s.On("ServiceCheck", "vdi.session_enrichment.health", test.expectedHealth, "", c.baseTags(), mock.Anything).Return().Once()
+			require.NoError(t, c.Run())
+			s.AssertNumberOfCalls(t, "Gauge", test.expectedGauges)
 			s.AssertExpectations(t)
 		})
 	}

@@ -127,6 +127,11 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache, os: Hos
         return true;
     }
 
+    // VDIModule is Windows-only and reads the core Agent configuration.
+    if os == HostOs::Windows && cfg.agent_bool("vdi.enabled") {
+        return true;
+    }
+
     // SoftwareInventoryModule and InjectorModule. The injector's
     // default-on-when-other-modules-are-enabled rule is skipped: it can never be the
     // first module to turn system-probe on. Auto-enabled Windows crash detection

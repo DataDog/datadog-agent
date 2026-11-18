@@ -59,6 +59,17 @@ new-e2e-windows-powershell-check:
     EXTRA_PARAMS: --run "^TestPowerShellCheckWindows$"
     ON_NIGHTLY_FIPS: "true"
 
+new-e2e-windows-vdi:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_windows_vdi_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/vdi
+    TEAM: windows-products
+    EXTRA_PARAMS: --run "^TestVDIWindows$"
+    ON_NIGHTLY_FIPS: "true"
+
 new-e2e-windows-certificate:
   extends: .new_e2e_template
   rules:

@@ -78,3 +78,16 @@ func TestDisconnectedDesktopSurvivesMissingClientProtocol(t *testing.T) {
 	require.Empty(t, result.Sessions[0].Connections)
 	require.Equal(t, "3", result.Sessions[1].ID)
 }
+
+func TestDisconnectedDesktopWithUnknownEligibilityMakesInventoryPartial(t *testing.T) {
+	result := FromWindowsInventory(model.WindowsInventory{
+		SourceStatus: model.SourceStatus{Status: model.StatusOK},
+		Sessions: []model.WindowsSession{
+			{WindowsSessionID: 3, State: "disconnected"},
+		},
+	})
+
+	require.Equal(t, model.StatusPartial, result.Status)
+	require.Contains(t, result.Error, "eligibility could not be determined")
+	require.Empty(t, result.Sessions)
+}

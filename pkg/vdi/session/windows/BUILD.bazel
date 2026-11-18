@@ -21,6 +21,8 @@ dd_agent_go_test(
     embed = [":windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/vdi/model",
+            "//pkg/vdi/provider/avd",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

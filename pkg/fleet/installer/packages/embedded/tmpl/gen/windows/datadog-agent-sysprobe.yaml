@@ -10,7 +10,7 @@ command: '__SYSPROBE_INSTALL_ROOT__/bin/agent/system-probe.exe'
 auto_start: true
 condition_path_exists: '__SYSPROBE_INSTALL_ROOT__/bin/agent/system-probe.exe'
 # Transcribes the legacy SCM decision in cmd/agent/subcommands/run/dependent_services_windows.go:
-# any-of over these keys, the first four from system-probe.yaml and the last from datadog.yaml.
+# any-of over these keys, the first four from system-probe.yaml and the rest from datadog.yaml.
 condition_config_any:
   - path: '__SYSPROBE_ETC_ROOT__/system-probe.yaml'
     keys:
@@ -21,6 +21,7 @@ condition_config_any:
   - path: '__SYSPROBE_ETC_ROOT__/datadog.yaml'
     keys:
       - software_inventory.enabled
+      - vdi.enabled
 # An externally managed system-probe makes every term above moot: startSystemProbe returns
 # ErrNotEnabled, sleeps 5 seconds and exits 0, whatever else is enabled. The veto is scoped
 # to this entry because process-agent reads the same keys and has to keep running, since
