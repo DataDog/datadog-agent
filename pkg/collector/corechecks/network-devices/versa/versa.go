@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	// minTimeseriesLookbackMinutes is the shortest lookback that spans two buckets on a
-	// tenant with 15 minute buckets.
-	minTimeseriesLookbackMinutes = 30
+	// minTimeseriesLookbackMinutes is the shortest lookback that always holds two
+	// complete buckets on a tenant with 15 minute buckets, wherever the window starts.
+	minTimeseriesLookbackMinutes = 45
 	// CheckName is the name of the check
 	CheckName            = "versa"
 	defaultCheckInterval = 1 * time.Minute
@@ -584,10 +584,10 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	// Timeseries holds back the newest bucket of every entity, so a window that cannot
 	// hold two buckets publishes nothing. Only queries that use the configured lookback
 	// count: DIA, applications and top users always query a 1 day window. The bucket size behind a 1MINUTE gap is tenant
-	// dependent (often 15 minutes), so warn conservatively below 30 minutes.
+	// dependent (often 15 minutes), so warn below 45 minutes.
 	if v.config.AnalyticsQueryType == client.QueryTypeTimeseries && v.collectsLookbackTimeseries() &&
 		v.config.LookbackTimeWindowMinutes > 0 && v.config.LookbackTimeWindowMinutes < minTimeseriesLookbackMinutes {
-		log.Warnf("lookback_time_window_minutes %d may not span two analytics buckets; timeseries queries hold back the newest bucket and may publish nothing. Use at least %d (45 or more preferred)",
+		log.Warnf("lookback_time_window_minutes %d may not span two analytics buckets; timeseries queries hold back the newest bucket and may publish nothing. Use at least %d",
 			v.config.LookbackTimeWindowMinutes, minTimeseriesLookbackMinutes)
 	}
 
