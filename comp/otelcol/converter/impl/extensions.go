@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -188,6 +189,38 @@ func (c *ddConverter) addExtensionToPipeline(conf *confmap.Conf, comp component)
 	if err := wireExtensionIDToPipeline(conf, comp.EnhancedName); err != nil && c.logger != nil {
 		c.logger.Warn("Could not wire autoconfigured extension into service::extensions",
 			zap.String("extension", comp.EnhancedName), zap.Error(err))
+	}
+}
+
+// setDatadogExtensionHostname sets the resolved hostname on every datadog extension
+// in conf that leaves hostname empty; an explicit hostname wins. Without it, the
+// extension runs its own detection chain and can report a host that differs from
+// the one the rest of DDOT uses (e.g. <node> instead of <node>-<cluster>).
+func (c *ddConverter) setDatadogExtensionHostname(ctx context.Context, conf *confmap.Conf) {
+	extensions := findComps(conf.ToStringMap(), datadogName, "extensions")
+	if len(extensions) == 0 || c.hostname == nil {
+		return
+	}
+	hostname, err := c.hostname.Get(ctx)
+	if err != nil || hostname == "" {
+		if c.logger != nil {
+			c.logger.Warn("Could not resolve the hostname to set on the datadog extension; it will detect its own",
+				zap.Error(err))
+		}
+		return
+	}
+	for id, cfg := range extensions {
+		if value, ok := cfg["hostname"]; ok && value != nil && value != "" {
+			continue
+		}
+		if err := conf.Merge(confmap.NewFromStringMap(map[string]any{
+			"extensions": map[string]any{
+				id: map[string]any{"hostname": hostname},
+			},
+		})); err != nil && c.logger != nil {
+			c.logger.Warn("Could not set the hostname on the datadog extension",
+				zap.String("extension", id), zap.Error(err))
+		}
 	}
 }
 

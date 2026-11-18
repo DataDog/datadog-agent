@@ -343,14 +343,4 @@ build do
       end
     end
   end
-
-  block do
-    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-    mkdir "#{install_dir}/python-scripts"
-    Dir.glob("#{python_scripts_dir}/*").each do |file|
-      unless File.basename(file).end_with?('_tests.py')
-        copy file, "#{install_dir}/python-scripts"
-      end
-    end
-  end
 end
