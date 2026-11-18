@@ -54,3 +54,15 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: buildifier
+        name: buildifier
+        entry: 'dda inv pre-commit.check-buildifier'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: rustfmt
+        name: rustfmt
+        entry: 'dda inv pre-commit.check-rustfmt'
+        language: system
+        pass_filenames: false
+        always_run: true

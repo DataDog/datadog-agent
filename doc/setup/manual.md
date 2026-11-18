@@ -139,7 +139,11 @@ dda inv install-shellcheck --destination <path>
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`). On Windows, install the native ShellCheck executable and add it to `PATH`.
 
-Use the Go version in `.go-version`. DDA supplies Ruff, and pre-commit installs the pinned actionlint environment.
+Use the Go version in `.go-version`. DDA supplies Ruff, and pre-commit installs the pinned actionlint environment. For the Buildifier hook, run `dda inv install-tools --buildifier` after configuring Bazel access. This copies CI's pinned Buildifier into `bin/`. For rustfmt, install the version declared by `toolchains.toolchain` in `MODULE.bazel`:
+
+```sh
+rustup toolchain install <version> --profile minimal --component rustfmt
+```
 
 The default checks validate staged contents without applying fixes. Re-run setup to remove an old pre-push hook when migrating; the new profile installs only pre-commit. See [the default profile and explicit validation commands](optional.md#pre-commit-hooks).
 
