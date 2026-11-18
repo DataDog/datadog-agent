@@ -496,6 +496,35 @@ func TestContainerCreationHandlerHandle(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, les)
 	})
+
+	t.Run("creation timestamp arriving after the owner re-emits with both", func(t *testing.T) {
+		h := NewContainerCreationHandler(storeWithOwner("cy-d-fect", &workloadmeta.EntityID{
+			ID: "pod-uid", Kind: workloadmeta.KindKubernetesPod,
+		}))
+		containerID := workloadmeta.EntityID{ID: "cy-d-fect", Kind: workloadmeta.KindContainer}
+
+		// The first Set correlates (the store has the owner) but carries no creation timestamp
+		les, err := h.Handle(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.Container{EntityID: containerID}})
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		ctr := les[0].ProtoEvent.GetContainer()
+		require.NotNil(t, ctr.Owner)
+		assert.Nil(t, ctr.OptionalCreationTimestamp)
+
+		// A later Set carries the creation timestamp; nothing after it is new
+		withTs := workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.Container{
+			EntityID: containerID,
+			State:    workloadmeta.ContainerState{CreatedAt: now},
+		}}
+		les, err = h.Handle(withTs)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, now.Unix(), les[0].ProtoEvent.GetContainer().GetCreationTimestamp())
+
+		les, err = h.Handle(withTs)
+		require.NoError(t, err)
+		assert.Nil(t, les)
+	})
 }
 
 // TestPodStateHandlerCanHandle tests the CanHandle method for the PodStateHandler.
