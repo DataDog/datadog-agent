@@ -777,21 +777,21 @@ func TestSanitizeAPIMessage(t *testing.T) {
 	filler := strings.Repeat("a", 195) + " "
 	for _, tt := range []struct {
 		name    string
-		client  Client
+		client  *Client
 		tenant  string
 		message string
 	}{
-		{"secret straddling the 200 character mark", Client{password: "Pa55word!"}, "t1", filler + "Pa55word!"},
-		{"one character password", Client{password: "x"}, "tenant-one", "invalid value x"},
-		{"two character password", Client{password: "q7"}, "tenant-one", "rejected q7"},
-		{"password containing the username", Client{username: "admin", password: "admin2024"}, "tenant-one", "bad login admin2024"},
-		{"username containing the password", Client{username: "ops-admin", password: "admin"}, "tenant-one", "unknown user ops-admin"},
-		{"secret in another letter case", Client{password: "Secret-Value"}, "tenant-one", "rejected SECRET-VALUE"},
-		{"secret repeated", Client{password: "hunter22"}, "tenant-one", "hunter22 and hunter22 again"},
-		{"url encoded secret", Client{password: "p@ss&word"}, "tenant-one", "bad value p%40ss%26word"},
-		{"json escaped secret", Client{password: "a&b/c"}, "tenant-one", `bad value a\u0026b\/c`},
-		{"session token", Client{sessionToken: "csrf-abc123"}, "tenant-one", "token csrf-abc123 expired"},
-		{"tenant", Client{}, "Tenant-One", "no access to tenant-one"},
+		{"secret straddling the 200 character mark", &Client{password: "Pa55word!"}, "t1", filler + "Pa55word!"},
+		{"one character password", &Client{password: "x"}, "tenant-one", "invalid value x"},
+		{"two character password", &Client{password: "q7"}, "tenant-one", "rejected q7"},
+		{"password containing the username", &Client{username: "admin", password: "admin2024"}, "tenant-one", "bad login admin2024"},
+		{"username containing the password", &Client{username: "ops-admin", password: "admin"}, "tenant-one", "unknown user ops-admin"},
+		{"secret in another letter case", &Client{password: "Secret-Value"}, "tenant-one", "rejected SECRET-VALUE"},
+		{"secret repeated", &Client{password: "hunter22"}, "tenant-one", "hunter22 and hunter22 again"},
+		{"url encoded secret", &Client{password: "p@ss&word"}, "tenant-one", "bad value p%40ss%26word"},
+		{"json escaped secret", &Client{password: "a&b/c"}, "tenant-one", `bad value a\u0026b\/c`},
+		{"session token", &Client{sessionToken: "csrf-abc123"}, "tenant-one", "token csrf-abc123 expired"},
+		{"tenant", &Client{}, "Tenant-One", "no access to tenant-one"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Empty(t, tt.client.sanitizeAPIMessage(tt.message, tt.tenant))
