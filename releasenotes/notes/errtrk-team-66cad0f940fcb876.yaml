@@ -7,6 +7,6 @@
 ---
 other:
   - |
-    Error logs reported through Agent telemetry now include a ``team`` tag naming
+    Error logs reported through Agent telemetry now include an ``owner_team`` tag naming
     the team that owns the code the error originated from, so reported errors can be
     routed to the right team.

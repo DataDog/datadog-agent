@@ -53,7 +53,7 @@ type errorTrackingTeamSuite struct {
 }
 
 // TestErrorTrackingTeamSuite provisions one host with three faults owned by
-// three different teams, so a constant team tag cannot satisfy the test.
+// three different teams, so a constant owner_team tag cannot satisfy the test.
 func TestErrorTrackingTeamSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &errorTrackingTeamSuite{},
@@ -72,11 +72,11 @@ func TestErrorTrackingTeamSuite(t *testing.T) {
 	)
 }
 
-// teamTagValues returns the values of every team: tag in a CSV tags string.
-func teamTagValues(tags string) []string {
+// ownerTeamTagValues returns the values of every owner_team: tag in a CSV tags string.
+func ownerTeamTagValues(tags string) []string {
 	var teams []string
 	for _, tag := range strings.Split(tags, ",") {
-		if team, ok := strings.CutPrefix(tag, "team:"); ok {
+		if team, ok := strings.CutPrefix(tag, "owner_team:"); ok {
 			teams = append(teams, team)
 		}
 	}
@@ -112,8 +112,8 @@ func (s *errorTrackingTeamSuite) TestTeamTagFollowsOwner() {
 	seen := map[string]bool{}
 	for _, f := range teamFaults {
 		for _, l := range byFault[f.name] {
-			assert.Equal(t, []string{f.team}, teamTagValues(l.Tags),
-				"%s fault must carry exactly team:%s; tags: %q", f.name, f.team, l.Tags)
+			assert.Equal(t, []string{f.team}, ownerTeamTagValues(l.Tags),
+				"%s fault must carry exactly owner_team:%s; tags: %q", f.name, f.team, l.Tags)
 		}
 		seen[f.team] = true
 	}

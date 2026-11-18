@@ -187,9 +187,9 @@ func TestTeamTag(t *testing.T) {
 
 	want := ownerOfPath(codeOwnersRules(), "pkg/version/version.go")
 	require.NotEmpty(t, want)
-	assert.Equal(t, ",team:"+want, teamTag(e))
+	assert.Equal(t, ",owner_team:"+want, teamTag(e))
 	assert.Equal(t, "", teamTag(errortracking.ErrorLog{}), "no stack gives no tag")
 
 	e.Time = time.Unix(1, 0)
-	assert.Contains(t, enrichErrorLog(e).Tags, ",team:"+want)
+	assert.Contains(t, enrichErrorLog(e).Tags, ",owner_team:"+want)
 }

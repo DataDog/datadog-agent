@@ -55,7 +55,7 @@ func teamTag(e errortracking.ErrorLog) string {
 		}
 	}
 	if team := owningTeam(codeOwnersRules(), frames); team != "" {
-		return ",team:" + team
+		return ",owner_team:" + team
 	}
 	return ""
 }
