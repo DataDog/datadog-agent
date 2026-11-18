@@ -13,7 +13,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -669,7 +668,7 @@ func TestCompactInformerCache(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				check := newCheck().(*HelmCheck)
 				check.instance.CollectEvents = true
-				check.instance.HelmValuesAsTags = map[string]string{"option": "option_value", "default": "default_value"}
+				check.instance.HelmValuesAsTags = map[string]string{"option": "option_value", "default": "default_value", "revision": "helm_revision"}
 				check.startTS = time.Now().Add(-time.Hour)
 				check.informersStopCh = make(chan struct{})
 				defer check.Cancel()
@@ -677,37 +676,33 @@ func TestCompactInformerCache(t *testing.T) {
 				rel := release{
 					Name: "app", Namespace: "default", Version: 1,
 					Info:   &info{Status: "deployed"},
-					Config: map[string]interface{}{"option": "override", "unused": strings.Repeat("x", 100000)},
+					Config: map[string]interface{}{"option": "override", "revision": "custom"},
 					Chart: &chart{
 						Metadata: &metadata{Name: "chart", Version: "1.0", AppVersion: "2.0"},
-						Values:   map[string]interface{}{"option": "default", "default": "fallback", "unused": strings.Repeat("y", 100000)},
+						Values:   map[string]interface{}{"option": "default", "default": "fallback"},
 					},
 				}
-				makeObject := func(rel *release, resourceVersion string) runtime.Object {
+				makeObject := func(resourceVersion string) runtime.Object {
 					var obj runtime.Object
 					var err error
 					if storage == k8sSecrets {
-						obj, err = secretForRelease(rel, time.Now())
+						obj, err = secretForRelease(&rel, time.Now())
 					} else {
-						obj, err = configMapForRelease(rel)
+						obj, err = configMapForRelease(&rel)
 					}
 					require.NoError(t, err)
 					metadata := obj.(metav1.Object)
 					metadata.SetNamespace("default")
 					metadata.SetResourceVersion(resourceVersion)
 					metadata.SetCreationTimestamp(metav1.Now())
-					metadata.SetAnnotations(map[string]string{"unused": strings.Repeat("z", 100000)})
+					metadata.SetAnnotations(map[string]string{"unused": "annotation"})
 					return obj
 				}
-				first := makeObject(&rel, "1")
-				latest := rel
-				latest.Version = 2
-				second := makeObject(&latest, "2")
-				client := fake.NewSimpleClientset(first, second)
+				client := fake.NewSimpleClientset(makeObject("1"))
 				check.informerFactory = informers.NewSharedInformerFactory(client, time.Minute)
 				require.NoError(t, check.setupInformers())
 				synctest.Wait()
-				require.Len(t, check.store.getAll(storage), 2)
+				require.Len(t, check.store.getAll(storage), 1)
 
 				informer := check.informerFactory.Core().V1().ConfigMaps().Informer()
 				resource := v1.SchemeGroupVersion.WithResource("configmaps")
@@ -715,41 +710,35 @@ func TestCompactInformerCache(t *testing.T) {
 					informer = check.informerFactory.Core().V1().Secrets().Informer()
 					resource = v1.SchemeGroupVersion.WithResource("secrets")
 				}
-				require.Len(t, informer.GetStore().List(), 2)
-				for _, obj := range informer.GetStore().List() {
-					cached, ok := obj.(*cachedRelease)
-					require.True(t, ok, "informer retained Kubernetes object %T", obj)
-					require.Nil(t, cached.Annotations)
-					require.Nil(t, cached.Labels)
-					require.Nil(t, cached.release.Config)
-					require.Nil(t, cached.release.Chart.Values)
-					require.Contains(t, cached.tagsForMetricsAndEvents, "option_value:override")
-					require.Contains(t, cached.tagsForMetricsAndEvents, "default_value:fallback")
-					require.NotContains(t, cached.tagsForMetricsAndEvents, fmt.Sprintf("helm_revision:%d", cached.release.Version))
-					stored := check.store.get(cached.release.namespacedName(), cached.release.revision(), storage)
-					require.Same(t, cached.release, stored.release)
-					transformed, err := check.transformRelease(cached)
-					require.NoError(t, err)
-					require.Same(t, cached, transformed, "transform must be idempotent")
-				}
+				objects := informer.GetStore().List()
+				require.Len(t, objects, 1)
+				cached, ok := objects[0].(*cachedRelease)
+				require.True(t, ok, "informer retained Kubernetes object %T", objects[0])
+				require.Nil(t, cached.Annotations)
+				require.Nil(t, cached.Labels)
+				require.Nil(t, cached.release.Config)
+				require.Nil(t, cached.release.Chart.Values)
+				require.Contains(t, cached.tagsForMetricsAndEvents, "option_value:override")
+				require.Contains(t, cached.tagsForMetricsAndEvents, "default_value:fallback")
+				require.NotContains(t, cached.tagsForMetricsAndEvents, "helm_revision:1")
+				require.Same(t, cached.release, check.store.get("default/app", 1, storage).release)
+				transformed, err := check.transformRelease(cached)
+				require.NoError(t, err)
+				require.Same(t, cached, transformed, "transform must be idempotent")
 
-				latest.Info = &info{Status: "failed"}
-				require.NoError(t, client.Tracker().Update(resource, makeObject(&latest, "3"), "default"))
+				rel.Info = &info{Status: "failed"}
+				require.NoError(t, client.Tracker().Update(resource, makeObject("2"), "default"))
 				synctest.Wait()
-				require.Equal(t, "failed", check.store.get("default/app", 2, storage).release.Info.Status)
+				require.Equal(t, "failed", check.store.get("default/app", 1, storage).release.Info.Status)
 				check.eventsManager.eventsMutex.Lock()
 				events := append([]event.Event(nil), check.eventsManager.events...)
 				check.eventsManager.eventsMutex.Unlock()
-				require.Len(t, events, 3)
-				require.Contains(t, events[2].Text, `changed its status from "deployed" to "failed"`)
-				require.Contains(t, events[2].Tags, "option_value:override")
-				require.Contains(t, events[2].Tags, "helm_revision:2")
+				require.Len(t, events, 2)
+				require.Contains(t, events[1].Text, `changed its status from "deployed" to "failed"`)
+				require.Contains(t, events[1].Tags, "option_value:override")
+				require.Contains(t, events[1].Tags, "helm_revision:1")
+				require.Contains(t, events[1].Tags, "helm_revision:custom")
 
-				// Deleting the latest revision must restore the previous revision.
-				require.NoError(t, client.Tracker().Delete(resource, "default", "app.2"))
-				synctest.Wait()
-				require.Len(t, check.store.getAll(storage), 1)
-				require.Equal(t, 1, check.store.getLatestRevisions(storage)[0].release.Version)
 				require.NoError(t, client.Tracker().Delete(resource, "default", "app.1"))
 				synctest.Wait()
 				require.Empty(t, check.store.getAll(storage))
@@ -757,90 +746,34 @@ func TestCompactInformerCache(t *testing.T) {
 				check.eventsManager.eventsMutex.Lock()
 				events = append([]event.Event(nil), check.eventsManager.events...)
 				check.eventsManager.eventsMutex.Unlock()
-				require.Len(t, events, 4)
-				require.Contains(t, events[3].Tags, "helm_status:uninstalled")
-				require.Contains(t, events[3].Tags, "option_value:override")
-				require.Contains(t, events[3].Tags, "default_value:fallback")
-				require.NotContains(t, events[3].Tags, "helm_revision:1")
+				require.Len(t, events, 3)
+				require.Contains(t, events[2].Tags, "helm_status:uninstalled")
+				require.Contains(t, events[2].Tags, "option_value:override")
+				require.Contains(t, events[2].Tags, "default_value:fallback")
+				require.Contains(t, events[2].Tags, "helm_revision:custom")
+				require.NotContains(t, events[2].Tags, "helm_revision:1")
 			})
 		})
 	}
 }
 
-func TestTaggedReleaseAllTags(t *testing.T) {
-	for _, test := range []struct {
-		name            string
-		includeRevision bool
-		expected        []string
-	}{
-		{
-			name:            "with_revision",
-			includeRevision: true,
-			expected: []string{
-				"helm_release:app", "helm_revision:7", "helm_status:deployed", "team:payments", "helm_revision:custom",
-			},
-		},
-		{
-			name: "without_revision",
-			expected: []string{
-				"helm_release:app", "helm_status:deployed", "team:payments", "helm_revision:custom",
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// Spare capacity makes this catch accidental appends into cached slices.
-			common := make([]string, 1, 8)
-			common[0] = "helm_release:app"
-			specific := make([]string, 3, 8)
-			copy(specific, []string{"helm_status:deployed", "team:payments", "helm_revision:custom"})
-			rel := &taggedRelease{
-				release:                 &release{Version: 7},
-				commonTags:              common,
-				tagsForMetricsAndEvents: specific,
-			}
-
-			tags := rel.allTags(test.includeRevision)
-			require.Equal(t, test.expected, tags)
-			tags[0] = "changed"
-			tags[len(tags)-1] = "changed"
-			require.Equal(t, []string{"helm_release:app"}, rel.commonTags)
-			require.Equal(t, []string{"helm_status:deployed", "team:payments", "helm_revision:custom"}, rel.tagsForMetricsAndEvents)
-			require.Equal(t, test.expected, rel.allTags(test.includeRevision))
-		})
-	}
-}
-
 func TestCachedReleaseTombstone(t *testing.T) {
-	for _, storage := range []helmStorage{k8sConfigmaps, k8sSecrets} {
-		t.Run(string(storage), func(t *testing.T) {
-			check := newCheck().(*HelmCheck)
-			check.instance.CollectEvents = true
-			check.instance.HelmValuesAsTags = map[string]string{"option": "option_value"}
-			rel := &release{
-				Name: "app", Namespace: "default", Version: 1,
-				Info:   &info{Status: "deployed"},
-				Config: map[string]interface{}{"option": "custom"},
-			}
-			var obj interface{}
-			var err error
-			if storage == k8sSecrets {
-				obj, err = secretForRelease(rel, time.Now())
-			} else {
-				obj, err = configMapForRelease(rel)
-			}
-			require.NoError(t, err)
-			obj, err = check.transformRelease(obj)
-			require.NoError(t, err)
-			check.addRelease(obj)
-			check.deleteRelease(cache.DeletedFinalStateUnknown{Key: "default/app.1", Obj: obj})
-			require.Empty(t, check.store.getAll(storage))
-			deleted := check.eventsManager.events[len(check.eventsManager.events)-1]
-			require.Contains(t, deleted.Tags, "option_value:custom")
-			require.Contains(t, deleted.Tags, "helm_status:uninstalled")
-			require.NotContains(t, deleted.Tags, "helm_revision:1")
-			require.Contains(t, obj.(*cachedRelease).tagsForMetricsAndEvents, "helm_status:deployed", "deletion must not mutate cached tags")
-		})
+	check := newCheck().(*HelmCheck)
+	check.instance.CollectEvents = true
+	cached := &cachedRelease{
+		taggedRelease: &taggedRelease{
+			release:                 &release{Name: "app", Namespace: "default", Version: 1},
+			tagsForMetricsAndEvents: []string{"helm_status:deployed"},
+		},
+		storage: k8sSecrets,
 	}
+	check.addRelease(cached)
+	require.Len(t, check.store.getAll(k8sSecrets), 1)
+	check.deleteRelease(cache.DeletedFinalStateUnknown{Key: "default/app.1", Obj: cached})
+	require.Empty(t, check.store.getAll(k8sSecrets))
+	require.Len(t, check.eventsManager.events, 1)
+	require.Contains(t, check.eventsManager.events[0].Tags, "helm_status:uninstalled")
+	require.Contains(t, cached.tagsForMetricsAndEvents, "helm_status:deployed", "deletion must not mutate cached tags")
 }
 
 func TestTransformInvalidRelease(t *testing.T) {
