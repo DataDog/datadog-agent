@@ -110,7 +110,10 @@ See http://www.datadoghq.com/ for more information
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 dd_pkg_deb(
     name = "debian",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/debian/etc:all_files",
+    ],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
     description = _DESCRIPTION,
@@ -147,18 +150,16 @@ spdx(
 dd_pkg_rpm(
     name = "rpm",
     package_name = "{product_name}",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/redhat/etc:all_files",
+    ],
     # glibc-common < 2.17 conflict applies to RHEL-based distros only;
     # TODO: use select() when a RHEL vs SUSE constraint is defined.
     conflicts = [
         "datadog-iot-agent",
         "glibc-common < 2.17",
     ],
-    # brp-strip corrupts eBPF objects, and fails on the read-only files that
-    # pkg_rpm copies from TreeArtifacts (Python extension modules).
-    defines = {
-        "__strip": "/bin/true",
-    },
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",

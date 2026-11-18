@@ -6,6 +6,7 @@
 package obfuscate
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -146,15 +147,19 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			args = args[:2]
 		}
 
-	case "APPEND", "GETSET", "GEORADIUSBYMEMBER",
-		"SET", "SETNX", "SISMEMBER", "ZRANK", "ZREVRANK", "ZSCORE":
+	case "APPEND", "GETSET", "LPOS", "GEORADIUSBYMEMBER", "GEORADIUSBYMEMBER_RO",
+		"PUBLISH", "SET", "SETNX", "SISMEMBER", "SPUBLISH", "ZRANK", "ZREVRANK", "ZSCORE":
 		// Obfuscate 2nd argument:
 		// • APPEND key value
 		// • GETSET key value
+		// • LPOS key element [RANK rank] [COUNT num-matches] [MAXLEN len]
 		// • GEORADIUSBYMEMBER key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
+		// • GEORADIUSBYMEMBER_RO key member radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC]
+		// • PUBLISH channel message
 		// • SET key value [expiration EX seconds|PX milliseconds] [NX|XX]
 		// • SETNX key value
 		// • SISMEMBER key member
+		// • SPUBLISH shardchannel message
 		// • ZRANK key member
 		// • ZREVRANK key member
 		// • ZSCORE key member
@@ -181,7 +186,7 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		obfuscateRedisArgN(args, 3)
 
 	case "GEOHASH", "GEOPOS", "GEODIST", "LPUSH", "LPUSHX", "RPUSH",
-		"RPUSHX", "SREM", "ZREM", "SADD":
+		"RPUSHX", "SREM", "ZREM", "SADD", "SMISMEMBER", "ZMSCORE":
 		// Obfuscate all arguments after the first one.
 		// • GEOHASH key member [member ...]
 		// • GEOPOS key member [member ...]
@@ -190,24 +195,117 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • LPUSHX key value [value ...]
 		// • RPUSH key value [value ...]
 		// • RPUSHX key value [value ...]
+		// • SMISMEMBER key member [member ...]
 		// • SREM key member [member ...]
 		// • ZREM key member [member ...]
 		// • SADD key member [member ...]
+		// • ZMSCORE key member [member ...]
 		if len(args) > 1 {
 			args[1] = "?"
 			args = args[:2]
 		}
 
 	case "GEOADD":
-		// Obfuscating every 3rd argument starting from first
-		// • GEOADD key longitude latitude member [longitude latitude member ...]
-		obfuscateRedisArgsStep(args, 1, 3)
+		// Obfuscating every 3rd argument after potential optional ones.
+		// • GEOADD key [NX|XX] [CH] longitude latitude member [longitude latitude member ...]
+		i := 1
+	geoaddOptions:
+		for ; i < len(args); i++ {
+			switch strings.ToUpper(args[i]) {
+			case "NX", "XX", "CH":
+				// continue
+			default:
+				break geoaddOptions
+			}
+		}
+		obfuscateRedisArgsStep(args, i, 3)
+
+	case "GEOSEARCH", "GEOSEARCHSTORE":
+		// Obfuscate the argument following every FROMMEMBER.
+		// • GEOSEARCH key <FROMMEMBER member | FROMLONLAT longitude latitude> <BYRADIUS radius unit | BYBOX width height unit> [ASC|DESC] [COUNT count [ANY]] [WITHCOORD] [WITHDIST] [WITHHASH]
+		// • GEOSEARCHSTORE destination source <FROMMEMBER member | FROMLONLAT longitude latitude> <BYRADIUS radius unit | BYBOX width height unit> [ASC|DESC] [COUNT count [ANY]] [STOREDIST]
+		start := 1 // skip key
+		if strings.ToUpper(cmd) == "GEOSEARCHSTORE" {
+			start = 2 // skip destination and source
+		}
+		for i := start; i < len(args)-1; i++ {
+			if strings.ToUpper(args[i]) == "FROMMEMBER" {
+				i++
+				args[i] = "?"
+			}
+		}
 
 	case "HSET", "HMSET":
 		// Every 2nd argument starting from first.
 		// • HSET key field value [field value ...]
 		// • HMSET key field value [field value ...]
 		obfuscateRedisArgsStep(args, 1, 2)
+
+	case "XADD":
+		// Every 2nd argument after the entry ID, skipping potential optional ones.
+		// • XADD key [NOMKSTREAM] [KEEPREF|DELREF|ACKED] [IDMPAUTO producer-id|IDMP producer-id idempotent-id] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|id field value [field value ...]
+		i := 1
+	xaddOptions:
+		for i < len(args) {
+			switch strings.ToUpper(args[i]) {
+			case "NOMKSTREAM", "KEEPREF", "DELREF", "ACKED":
+				i++
+			case "IDMPAUTO":
+				i += 2 // producer-id
+			case "IDMP":
+				i += 3 // producer-id idempotent-id
+			case "MAXLEN", "MINID":
+				i++
+				if i < len(args) && (args[i] == "=" || args[i] == "~") {
+					i++
+				}
+				i++ // threshold
+			case "LIMIT":
+				i += 2
+			default:
+				break xaddOptions
+			}
+		}
+		// args[i] is the entry ID
+		if i < len(args) && (len(args)-i-1)%2 != 0 {
+			// Field/value pairs are misaligned, likely due to an unknown option:
+			// fail closed by obfuscating everything after the key.
+			args[1] = "?"
+			args = args[:2]
+			break
+		}
+		obfuscateRedisArgsStep(args, i+1, 2)
+
+	case "HSETEX":
+		// Every 2nd argument after the FIELDS numfields block.
+		// • HSETEX key [FNX|FXX] [EX seconds|PX milliseconds|EXAT unix-time-seconds|PXAT unix-time-milliseconds|KEEPTTL] FIELDS numfields field value [field value ...]
+		for i := 1; i < len(args); i++ {
+			if strings.ToUpper(args[i]) == "FIELDS" {
+				obfuscateRedisArgsStep(args, i+2, 2)
+				break
+			}
+		}
+
+	case "EVAL", "EVAL_RO", "EVALSHA", "EVALSHA_RO", "FCALL", "FCALL_RO":
+		// Obfuscate all arguments after the keys.
+		// • EVAL script numkeys [key [key ...]] [arg [arg ...]]
+		// • EVAL_RO script numkeys [key [key ...]] [arg [arg ...]]
+		// • EVALSHA sha1 numkeys [key [key ...]] [arg [arg ...]]
+		// • EVALSHA_RO sha1 numkeys [key [key ...]] [arg [arg ...]]
+		// • FCALL function numkeys [key [key ...]] [arg [arg ...]]
+		// • FCALL_RO function numkeys [key [key ...]] [arg [arg ...]]
+		if len(args) < 3 {
+			break
+		}
+		start := 2
+		if numkeys, err := strconv.Atoi(args[1]); err == nil && numkeys > 0 {
+			// clamp numkeys so that a huge value can't overflow start
+			start += min(numkeys, len(args))
+		}
+		if start < len(args) {
+			args[start] = "?"
+			args = args[:start+1]
+		}
 
 	case "MSET", "MSETNX":
 		// Every 2nd argument starting from command.
@@ -216,10 +314,23 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		obfuscateRedisArgsStep(args, 0, 2)
 
 	case "CONFIG":
-		// Obfuscate 2nd argument to SET sub-command.
-		// • CONFIG SET parameter value
+		// Obfuscate every value of the SET sub-command.
+		// • CONFIG SET parameter value [parameter value ...]
 		if strings.ToUpper(args[0]) == "SET" {
-			obfuscateRedisArgN(args, 2)
+			obfuscateRedisArgsStep(args, 1, 2)
+		}
+
+	case "SENTINEL":
+		// Obfuscate every value of the SET and CONFIG SET sub-commands.
+		// • SENTINEL SET master-name option value [option value ...]
+		// • SENTINEL CONFIG SET parameter value [parameter value ...]
+		switch strings.ToUpper(args[0]) {
+		case "SET":
+			obfuscateRedisArgsStep(args, 2, 2)
+		case "CONFIG":
+			if len(args) > 1 && strings.ToUpper(args[1]) == "SET" {
+				obfuscateRedisArgsStep(args, 2, 2)
+			}
 		}
 
 	case "BITFIELD":
@@ -227,12 +338,39 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		// • BITFIELD key [GET type offset] [SET type offset value] [INCRBY type offset increment] [OVERFLOW WRAP|SAT|FAIL]
 		var n int
 		for i, arg := range args {
-			if strings.ToUpper(arg) == "SET" {
-				n = i
-			}
 			if n > 0 && i-n == 3 {
 				args[i] = "?"
 				n = 0
+				// no continue: arg still holds the original token, so a masked
+				// "SET" value is still recognized as the next SET sub-command.
+			}
+			if strings.ToUpper(arg) == "SET" {
+				n = i
+			}
+		}
+
+	case "ZRANGEBYLEX", "ZREVRANGEBYLEX", "ZLEXCOUNT", "ZREMRANGEBYLEX":
+		// Obfuscate the lexicographical range, made of member values.
+		// • ZRANGEBYLEX key min max [LIMIT offset count]
+		// • ZREVRANGEBYLEX key max min [LIMIT offset count]
+		// • ZLEXCOUNT key min max
+		// • ZREMRANGEBYLEX key min max
+		obfuscateRedisArgN(args, 1)
+		obfuscateRedisArgN(args, 2)
+
+	case "ZRANGE", "ZRANGESTORE":
+		// Obfuscate the range when it is lexicographical.
+		// • ZRANGE key start stop [BYSCORE|BYLEX] [REV] [LIMIT offset count] [WITHSCORES]
+		// • ZRANGESTORE dst src min max [BYSCORE|BYLEX] [REV] [LIMIT offset count]
+		start := 1 // skip key
+		if strings.ToUpper(cmd) == "ZRANGESTORE" {
+			start = 2 // skip dst and src
+		}
+		for i := start + 2; i < len(args); i++ {
+			if strings.ToUpper(args[i]) == "BYLEX" {
+				obfuscateRedisArgN(args, start)
+				obfuscateRedisArgN(args, start+1)
+				break
 			}
 		}
 

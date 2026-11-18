@@ -11,6 +11,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -165,22 +166,27 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
+// selectImageFromLibrary only inspects the images on CI, and errors if none is found.
 func (d *dockerCmdWrapper) selectImageFromLibrary(t testing.TB, kind string) error {
 	t.Helper()
+
+	action, args := "pull", []string{"pull"}
+	if os.Getenv("CI_JOB_NAME") != "" {
+		action, args = "inspect", []string{"image", "inspect", "--format", "{{.Id}}"}
+	}
 
 	var err error
 	var output []byte
 	for _, entry := range dockerImageLibrary[kind] {
-		t.Logf("pulling image %s", entry)
+		t.Logf("docker %s of image %s", action, entry)
 		start := time.Now()
-		cmd := exec.Command(d.executable, "pull", entry)
-		output, err = cmd.CombinedOutput()
+		output, err = exec.Command(d.executable, append(args, entry)...).CombinedOutput()
 		if err == nil {
-			t.Logf("pulled image %s in %s", entry, time.Since(start))
+			t.Logf("docker %s of image %s succeeded in %s", action, entry, time.Since(start))
 			d.image = entry
 			break
 		}
-		t.Logf("failed to pull image %s after %s: %v, cmd output:\n%s", entry, time.Since(start), err, output)
+		t.Logf("docker %s of image %s failed after %s: %v, cmd output:\n%s", action, entry, time.Since(start), err, output)
 	}
 	if err != nil {
 		return fmt.Errorf("%w, cmd output:\n%s", err, string(output))
@@ -190,6 +196,10 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(t testing.TB, kind string) err
 
 func newDockerCmdWrapper(t testing.TB, mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
 	t.Helper()
+
+	if err := checkContainerRuntime(); err != nil {
+		return nil, err
+	}
 
 	if runtimeCommand == "" {
 		runtimeCommand = "docker"
