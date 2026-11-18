@@ -31,3 +31,6 @@ func NewComponent() Provides {
 
 // WritePayloadAsJSON writes the payload as JSON to the response writer. NOOP implementation.
 func (n *noopImpl) WritePayloadAsJSON(_ http.ResponseWriter, _ *http.Request) {}
+
+// SetRCClientID records the Remote Config client ID. NOOP implementation.
+func (n *noopImpl) SetRCClientID(_ string) {}

@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -77,6 +78,9 @@ type datadogclusteragent struct {
 	clusterid    string
 	clusteridErr string
 	metadata     map[string]interface{}
+	// rcClientID is the ID of this replica's Remote Config client, empty while RC is disabled
+	// or not initialized.
+	rcClientID atomic.Pointer[string]
 }
 
 // Provides defines the output of the clusteragent metadata component
@@ -213,6 +217,7 @@ func (dca *datadogclusteragent) marshalAndScrub(data interface{}) (string, error
 }
 
 func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
+	dca.metadata["rc_client_id"] = dca.getRCClientID()
 	dca.metadata["leader_election"] = dca.conf.GetBool("leader_election")
 	dca.metadata["is_leader"] = false
 	if dca.conf.GetBool("leader_election") {
@@ -246,6 +251,18 @@ func getClusterID() (string, error) {
 	coreCl := cl.Cl.CoreV1().(*corev1.CoreV1Client)
 	// get clusterID
 	return common.GetOrCreateClusterID(coreCl)
+}
+
+// SetRCClientID records the ID of this cluster-agent's Remote Config client.
+func (dca *datadogclusteragent) SetRCClientID(id string) {
+	dca.rcClientID.Store(&id)
+}
+
+func (dca *datadogclusteragent) getRCClientID() string {
+	if id := dca.rcClientID.Load(); id != nil {
+		return *id
+	}
+	return ""
 }
 
 // WritePayloadAsJSON writes the payload as JSON to the response writer. It is used by cluster-agent metadata endpoint.

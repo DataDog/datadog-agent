@@ -92,3 +92,51 @@ func TestWritePayload(t *testing.T) {
 	require.NoError(t, err)
 	assertClusterAgentPayload(t, p.Metadata)
 }
+
+func getPayloadMetadata(t *testing.T, dca *datadogclusteragent) (map[string]interface{}, map[string]json.RawMessage) {
+	body, err := dca.GetAsJSON()
+	require.NoError(t, err)
+
+	p := Payload{}
+	require.NoError(t, json.Unmarshal(body, &p))
+
+	raw := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(body, &raw))
+	return p.Metadata, raw
+}
+
+func TestRCClientIDSet(t *testing.T) {
+	dca := getClusterAgentComp(t)
+	dca.SetRCClientID("aBc_123-xyz")
+
+	metadata, _ := getPayloadMetadata(t, dca)
+	assert.Equal(t, "aBc_123-xyz", metadata["rc_client_id"])
+}
+
+func TestRCClientIDRemoteConfigDisabled(t *testing.T) {
+	// When RC is disabled the client is never created, so SetRCClientID is never called.
+	dca := getClusterAgentComp(t)
+	dca.conf.Set("remote_configuration.enabled", false, model.SourceUnknown)
+
+	metadata, _ := getPayloadMetadata(t, dca)
+	id, ok := metadata["rc_client_id"]
+	require.True(t, ok, "rc_client_id should always be present")
+	assert.Equal(t, "", id)
+}
+
+func TestRCClientIDPayloadShape(t *testing.T) {
+	dca := getClusterAgentComp(t)
+	dca.SetRCClientID("client-id")
+
+	_, raw := getPayloadMetadata(t, dca)
+	// rc_client_id lives in datadog_cluster_agent_metadata, next to pod_name and is_leader,
+	// not at the top level of the payload.
+	_, topLevel := raw["rc_client_id"]
+	assert.False(t, topLevel)
+
+	var metadata map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw["datadog_cluster_agent_metadata"], &metadata))
+	assert.JSONEq(t, `"client-id"`, string(metadata["rc_client_id"]))
+	assert.Contains(t, metadata, "pod_name")
+	assert.Contains(t, metadata, "is_leader")
+}
