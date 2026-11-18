@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -178,20 +179,15 @@ func (e *requestError) Error() string {
 	return fmt.Sprintf("%s http responded with %d code and error %v", e.endpoint, e.statusCode, e.cause)
 }
 
-// maxAPIMessageLength bounds the Versa error message carried into log lines.
-const maxAPIMessageLength = 200
-
-// apiErrorMessage returns the "error" field of a Versa JSON error body, truncated, or an
-// empty string when the body is not such an object.
+// apiErrorMessage returns the full "error" field of a Versa JSON error body, or an
+// empty string when the body is not such an object. It is sanitized before any use in a
+// log line.
 func apiErrorMessage(body []byte) string {
 	var parsed struct {
 		Error string `json:"error"`
 	}
 	if json.Unmarshal(body, &parsed) != nil {
 		return ""
-	}
-	if len(parsed.Error) > maxAPIMessageLength {
-		return parsed.Error[:maxAPIMessageLength] + "..."
 	}
 	return parsed.Error
 }
@@ -237,27 +233,56 @@ const maxLoggedMessageLength = 120
 
 var (
 	// loggedMessageDrop matches tokens that could carry request details: URLs, paths,
-	// query strings and host:port pairs.
-	loggedMessageDrop = regexp.MustCompile(`\S*(://|/|\?|&|=)\S*|\S*[A-Za-z0-9.-]+:\d+\S*`)
-	whitespace        = regexp.MustCompile(`\s+`)
+	// query strings, escapes and host:port pairs.
+	loggedMessageDrop = regexp.MustCompile(`\S*(://|/|\\|\?|&|=|%)\S*|\S*[A-Za-z0-9.-]+:\d+\S*`)
+	// loggedMessageDisallowed matches characters outside the set kept in a logged Versa message.
+	loggedMessageDisallowed = regexp.MustCompile(`[^A-Za-z0-9 .,:;!()'_-]`)
+	whitespace              = regexp.MustCompile(`\s+`)
 )
 
-// sanitizeAPIMessage makes a Versa error message safe for a log line: tokens that look
-// like a URL, path, query string or host:port are removed, values the client sent
-// (credentials, session tokens, tenant) are redacted, whitespace is collapsed and the
-// result is capped at maxLoggedMessageLength characters.
+// sanitizeAPIMessage makes a Versa error message safe for a log line, or returns an empty
+// string when it cannot. If any value the client sent (credentials, session tokens or the
+// tenant), in any letter case and in its plain, URL encoded or JSON escaped form, appears
+// anywhere in the full message, the message is dropped entirely. Otherwise tokens that
+// look like a URL, path, query string, escape or host:port are removed, only letters,
+// digits, spaces and basic punctuation are kept, whitespace is collapsed and the result
+// is capped at maxLoggedMessageLength characters.
 func (client *Client) sanitizeAPIMessage(message string, tenant string) string {
-	message = loggedMessageDrop.ReplaceAllString(message, "")
+	haystacks := []string{strings.ToLower(message)}
+	if unescaped, err := url.QueryUnescape(message); err == nil {
+		haystacks = append(haystacks, strings.ToLower(unescaped))
+	}
 	for _, secret := range []string{client.password, client.username, client.clientSecret, client.sessionToken, client.directorToken, tenant} {
-		if len(secret) >= 3 {
-			message = strings.ReplaceAll(message, secret, "<redacted>")
+		if secret == "" {
+			continue
+		}
+		for _, form := range secretForms(secret) {
+			form = strings.ToLower(form)
+			for _, haystack := range haystacks {
+				if strings.Contains(haystack, form) {
+					return ""
+				}
+			}
 		}
 	}
+	message = loggedMessageDrop.ReplaceAllString(message, "")
+	message = loggedMessageDisallowed.ReplaceAllString(message, "")
 	message = strings.TrimSpace(whitespace.ReplaceAllString(message, " "))
 	if len(message) > maxLoggedMessageLength {
 		message = message[:maxLoggedMessageLength]
 	}
 	return message
+}
+
+// secretForms returns the forms a value can take when echoed back in a response: as is,
+// URL encoded, and JSON escaped with and without escaped slashes.
+func secretForms(secret string) []string {
+	forms := []string{secret, url.QueryEscape(secret), url.PathEscape(secret)}
+	if encoded, err := json.Marshal(secret); err == nil {
+		escaped := strings.Trim(string(encoded), `"`)
+		forms = append(forms, escaped, strings.ReplaceAll(escaped, "/", `\/`))
+	}
+	return forms
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
