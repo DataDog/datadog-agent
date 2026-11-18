@@ -7,6 +7,7 @@
 package io
 
 import (
+	"fmt"
 	"regexp"
 	"runtime"
 	"testing"
@@ -14,6 +15,9 @@ import (
 
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -231,4 +235,59 @@ func TestIOCheckBlacklist(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestIOCheckLowercaseDeviceTagBooleans(t *testing.T) {
+	// The typed bool field keeps accepting the YAML 1.1 spellings that the
+	// yaml v2 generic map resolved, including case variants and single
+	// letters, and now also their quoted forms.
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{
+		{"true", true},
+		{"false", false},
+		{"yes", true},
+		{"no", false},
+		{"on", true},
+		{"off", false},
+		{"Yes", true},
+		{"y", true},
+		{`"yes"`, true},
+	} {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", tc.value)), "test", "provider"))
+		assert.Equal(t, tc.want, ioCheck.lowercaseDeviceTag, "expected %s to be %v", tc.value, tc.want)
+	}
+
+	// Quoted string booleans and non-boolean values fail the configuration.
+	for _, value := range []string{`"true"`, `"false"`, "maybe"} {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.Error(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(fmt.Sprintf("lowercase_device_tag: %s\n", value)), "test", "provider"), "expected %s to be rejected", value)
+	}
+}
+
+func TestIOCheckDeviceExcludeRePrecedence(t *testing.T) {
+	// device_blacklist_re only applies when device_exclude_re is absent:
+	// an explicitly empty device_exclude_re must not fall back to it.
+	configure := func(initConfig string) *IOCheck {
+		ioCheck := new(IOCheck)
+		mock := mocksender.NewMockSender(t, ioCheck.ID())
+		require.NoError(t, ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, integration.Data(initConfig), "test", "provider"))
+		return ioCheck
+	}
+
+	ioCheck := configure("device_exclude_re: \"\"\ndevice_blacklist_re: ^sd.*\n")
+	assert.Nil(t, ioCheck.blacklist)
+
+	ioCheck = configure("device_blacklist_re: ^sd.*\n")
+	require.NotNil(t, ioCheck.blacklist)
+	assert.True(t, ioCheck.blacklist.MatchString("sda"))
+
+	ioCheck = configure("device_exclude_re: ^x.*\ndevice_blacklist_re: ^sd.*\n")
+	require.NotNil(t, ioCheck.blacklist)
+	assert.True(t, ioCheck.blacklist.MatchString("xvda"))
+	assert.False(t, ioCheck.blacklist.MatchString("sda"))
 }

@@ -162,6 +162,22 @@ func BenchmarkLogContextSteadyState(b *testing.B) {
 	}
 }
 
+// BenchmarkLogMetricsExtractor_ProcessLog measures the per-log cost of the
+// log metrics extractor across the twenty diverse line shapes.
+func BenchmarkLogMetricsExtractor_ProcessLog(b *testing.B) {
+	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+	logs := make([]*logObs, 20)
+	for s := range logs {
+		logs[s] = &logObs{content: diverseLogContent(s)}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		extractor.ProcessLog(logs[i%len(logs)])
+	}
+}
+
 func highLoadLogTags() []string {
 	return []string{
 		"pod_name:api-123", "container_id:abc", "env:staging", "service:api",

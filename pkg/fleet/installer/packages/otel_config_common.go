@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -41,7 +42,20 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 		existing = map[string]any{}
 	}
 	existing["otelcollector"] = map[string]any{"enabled": true}
-	existing["agent_ipc"] = map[string]any{"port": 5009, "config_refresh_interval": 60}
+	// On linux, config sync uses the IPC server over a unix socket; other
+	// platforms only support the TCP listener. The socket path is explicit
+	// because the default one is per-package-root, not shared in the OCI layout.
+	var agentIPC map[string]any
+	if runtime.GOOS == "linux" {
+		agentIPC = map[string]any{
+			"use_socket":              true,
+			"socket_path":             "/opt/datadog-packages/run/agent_ipc.socket",
+			"config_refresh_interval": 60,
+		}
+	} else {
+		agentIPC = map[string]any{"port": 5009, "config_refresh_interval": 60}
+	}
+	existing["agent_ipc"] = agentIPC
 	updated, err := yaml.Marshal(existing)
 	if err != nil {
 		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -413,12 +412,12 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
 	for _, path := range paths {
-		// Scrubbed keys are bare YAML key names (ex: "community_strings")
-		// Secret paths are full dotted settings, optionally prefixed by their origin
-		//   (ex: "snmp_traps.community_strings.0" or "a3f9c01b2d4e5f67:auth.password")
-		// get last non-numerical element of the path, to match what the scrubbed keys uses
-		last := getPathLastName(path)
-		seen[last] = struct{}{}
+		// Scrubbed keys are full dotted settings (ex: "snmp_traps.community_strings.0")
+		// Secret paths are too, but integrations are prefixed by their name (ex: "http_check:auth.password")
+		if idx := strings.Index(path, ":"); idx != -1 {
+			path = path[idx+1:]
+		}
+		seen[path] = struct{}{}
 	}
 	res := []string{}
 	for _, key := range scrubbedKeys {
@@ -429,20 +428,6 @@ func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 		res = append(res, key)
 	}
 	return res
-}
-
-// getPathLastName returns last element of a setting path, skipping the last if it's a number
-// origin prefix is removed if present
-func getPathLastName(path string) string {
-	if idx := strings.Index(path, ":"); idx != -1 {
-		path = path[idx+1:]
-	}
-	elems := strings.Split(path, ".")
-	leaf := elems[len(elems)-1]
-	if _, err := strconv.Atoi(leaf); err == nil && len(elems) >= 2 {
-		leaf = elems[len(elems)-2]
-	}
-	return leaf
 }
 
 func (ia *inventoryagent) refreshMetadata() {
@@ -516,35 +501,39 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 
 	rawConfigFiles := make(map[string]agentmetadata.RawFile)
 	for _, file := range possibleFiles {
-		if scrubbedConfig, ok := ia.readAndScrubConfig(file); ok {
+		if scrubbedConfig, secrets, ok := ia.readAndScrubConfig(file); ok {
 			hash := sha256.Sum256(scrubbedConfig)
 			rawConfigFiles[file] = agentmetadata.RawFile{
 				RawConfig: string(scrubbedConfig),
 				Hash:      hex.EncodeToString(hash[:]),
+				Secrets:   secrets,
 			}
 		}
 	}
 	return rawConfigFiles
 }
 
-func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
+func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.ConfigSecret, bool) {
 	if path == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	rawContent, err := os.ReadFile(path)
 	if err != nil {
 		ia.log.Debugf("could not read configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawContent)
+	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
 	if err != nil {
 		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
-	return scrubbedConfig, true
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		secrets = nil
+	}
+	return scrubbedConfig, secrets, true
 }
 
 func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {

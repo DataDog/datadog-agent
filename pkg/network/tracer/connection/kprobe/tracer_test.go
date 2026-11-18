@@ -8,9 +8,13 @@
 package kprobe
 
 import (
+	"fmt"
+	"syscall"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
+	libebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -314,4 +320,106 @@ func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
 		require.NoError(t, err)
 	})
+}
+
+func TestNetDevQueueProbeSelection(t *testing.T) {
+	cfg := config.New()
+	// prebuilt rejects UDPv6 on 5.18+
+	cfg.CollectUDPv6Conns = false
+	if !ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+	if features.HaveProgramType(libebpf.RawTracepoint) != nil {
+		t.Skip("raw tracepoints not supported")
+	}
+	prev := netDevQueueTPBTFSupported
+	t.Cleanup(func() {
+		netDevQueueTPBTFSupported = prev
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
+
+	netDevQueueProbes := []probes.ProbeFuncName{
+		probes.NetDevQueueTPBTF,
+		probes.NetDevQueueRawTracepoint,
+		probes.NetDevQueueTracepoint,
+		probes.DevQueueXmitNitKprobe,
+	}
+	for _, tc := range []struct {
+		name            string
+		runtime, core   bool
+		tpBTFSupported  bool
+		tpBTFRejected   bool
+		expectedNetDevQ probes.ProbeFuncName
+	}{
+		{"CO-RE with tp_btf", false, true, true, false, probes.NetDevQueueTPBTF},
+		{"CO-RE without tp_btf", false, true, false, false, probes.NetDevQueueRawTracepoint},
+		{"CO-RE with tp_btf rejected", false, true, true, true, probes.NetDevQueueRawTracepoint},
+		{"runtime compiled", true, false, true, false, probes.NetDevQueueRawTracepoint},
+		{"prebuilt", false, false, true, false, probes.NetDevQueueRawTracepoint},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			netDevQueueTPBTFSupported = func() bool { return tc.tpBTFSupported }
+			util.NetDevQueueTPBTFRejected.Store(tc.tpBTFRejected)
+			enabled, err := enabledProbes(cfg, tc.runtime, tc.core)
+			require.NoError(t, err)
+			for _, p := range netDevQueueProbes {
+				_, ok := enabled[manager.ProbeIdentificationPair{EBPFFuncName: p, UID: probeUID}]
+				assert.Equal(t, p == tc.expectedNetDevQ, ok, "probe %s", p)
+			}
+		})
+	}
+}
+
+func verifierErrorFor(prog string, cause error) error {
+	return fmt.Errorf("failed to init ebpf manager: verifier error loading eBPF programs: %w",
+		fmt.Errorf("program %s: load program: %w", prog, &libebpf.VerifierError{Cause: cause}))
+}
+
+func TestLoadCORETracerRetriesWithoutTPBTF(t *testing.T) {
+	if err := isCORETracerSupported(); err != nil {
+		t.Skipf("CO-RE tracer not supported: %s", err)
+	}
+	prevLoader := tracerLoaderFromAsset
+	t.Cleanup(func() {
+		tracerLoaderFromAsset = prevLoader
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
+
+	for _, tc := range []struct {
+		name          string
+		firstErr      error
+		expectedCalls int
+	}{
+		{"tp_btf verifier error", verifierErrorFor(probes.NetDevQueueTPBTF, syscall.EACCES), 2},
+		{"other program verifier error", verifierErrorFor(probes.NetDevQueueRawTracepoint, syscall.EACCES), 1},
+		{"tp_btf ENOMEM", verifierErrorFor(probes.NetDevQueueTPBTF, syscall.ENOMEM), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			util.NetDevQueueTPBTFRejected.Store(false)
+			var calls int
+			var rejectedOnRetry bool
+			tracerLoaderFromAsset = func(bytecode.AssetReader, bool, bool, *config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+				calls++
+				if calls == 1 {
+					return nil, nil, tc.firstErr
+				}
+				rejectedOnRetry = util.NetDevQueueTPBTFRejected.Load()
+				return nil, nil, nil
+			}
+
+			_, _, err := loadCORETracer(config.New(), manager.Options{}, nil)
+			assert.Equal(t, tc.expectedCalls, calls)
+			coreResult := ddebpf.GetCORETelemetryByAsset()["tracer"]
+			if tc.expectedCalls == 1 {
+				assert.ErrorIs(t, err, tc.firstErr)
+				assert.False(t, util.NetDevQueueTPBTFRejected.Load())
+				assert.Equal(t, int32(ddebpf.VerifierError), coreResult)
+				return
+			}
+			assert.NoError(t, err)
+			assert.True(t, rejectedOnRetry)
+			// a recovered rejection is not a CO-RE verifier failure
+			assert.NotEqual(t, int32(ddebpf.VerifierError), coreResult)
+		})
+	}
 }

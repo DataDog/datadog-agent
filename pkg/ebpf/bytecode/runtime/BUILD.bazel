@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
@@ -31,11 +32,11 @@ exports_files(
 # gazelle:exclude integrity_gen.go
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
-genrule(
+expand_template(
     name = "integrity_src",
-    srcs = ["integrity.go"],
-    outs = ["integrity_gen.go"],
-    cmd = "grep -v '^//go:build ignore' $< > $@",
+    out = "integrity_gen.go",
+    substitutions = {"//go:build ignore\n": ""},
+    template = "integrity.go",
 )
 
 go_binary(
