@@ -54,3 +54,28 @@ func TestReportFailure_NilError(t *testing.T) {
 	f, _ := tr.FailingFor(0)
 	assert.Equal(t, "unknown error", f.LastError)
 }
+
+func TestFailingFor_LoneFailure(t *testing.T) {
+	clock := &fakeClock{t: time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)}
+	tr := NewTracker(clock.now)
+	tr.ReportFailure(errors.New("context deadline exceeded"))
+	clock.t = clock.t.Add(time.Hour)
+
+	_, failing := tr.FailingFor(time.Minute)
+	assert.False(t, failing, "failures must keep arriving for the whole threshold")
+}
+
+func TestSettled(t *testing.T) {
+	clock := &fakeClock{t: time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)}
+	tr := NewTracker(clock.now)
+	assert.False(t, tr.Settled(time.Minute))
+
+	clock.t = clock.t.Add(time.Minute)
+	assert.True(t, tr.Settled(time.Minute), "settled once older than grace")
+
+	tr = NewTracker(clock.now)
+	tr.ReportFailure(errors.New("connection refused"))
+	assert.False(t, tr.Settled(time.Minute), "a failure alone doesn't settle it")
+	tr.ReportSuccess()
+	assert.True(t, tr.Settled(time.Minute), "a success settles it")
+}

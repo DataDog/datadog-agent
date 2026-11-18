@@ -160,6 +160,9 @@ func (s *scheduler) runAndSchedule(check *registeredHealthCheck) {
 // transient probe failure does not resolve still-active issues.
 func (s *scheduler) tick(check *registeredHealthCheck) {
 	newIDs, err := s.runner.Run(check.source, check.fn)
+	if errors.Is(err, runnerdef.ErrNotReady) {
+		return
+	}
 	if err != nil {
 		s.log.Warnf("health check %q returned error: %v", check.source, err)
 		return

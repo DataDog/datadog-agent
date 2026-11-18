@@ -43,6 +43,9 @@ const (
 	// failureThreshold absorbs Cluster Agent rollouts and leader changes, which
 	// the cluster checks provider already tolerates for its 60s grace period.
 	failureThreshold = time.Minute
+	// startupGrace covers the time a restart needs to confirm an ongoing
+	// outage: until then an issue restored from the previous run is kept.
+	startupGrace = 2 * failureThreshold
 )
 
 type clusterAgentUnreachableModule struct {

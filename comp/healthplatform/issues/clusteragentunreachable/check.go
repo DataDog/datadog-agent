@@ -32,6 +32,9 @@ func newChecker(tracker *connectivity.Tracker, hostname hostnameinterface.Compon
 func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 	failure, failing := c.tracker.FailingFor(failureThreshold)
 	if !failing {
+		if !c.tracker.Settled(startupGrace) {
+			return nil, runnerdef.ErrNotReady
+		}
 		return nil, nil
 	}
 

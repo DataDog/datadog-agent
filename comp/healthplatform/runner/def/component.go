@@ -11,6 +11,8 @@ package runner
 
 // team: fleet-remediation
 
+import "errors"
+
 // IssueReport is the lightweight value that HealthCheckFunc implementations
 // return. The runner translates each IssueReport into a proto Issue using the
 // issue registry before forwarding to the store.
@@ -42,6 +44,12 @@ type IssueReport struct {
 // issue was detected. The function must return new IssueReport values on each
 // call; the runner fills Source if empty.
 type HealthCheckFunc func() ([]IssueReport, error)
+
+// ErrNotReady is returned by a HealthCheckFunc that has not observed enough
+// yet to judge, for example right after the agent starts. Like any error, it
+// keeps the issues the check reported before (including ones restored from a
+// previous run) instead of resolving them, but it is logged at debug level.
+var ErrNotReady = errors.New("health check is not ready to evaluate yet")
 
 // Component is the health platform runner component.
 type Component interface {

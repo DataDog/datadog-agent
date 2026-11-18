@@ -24,16 +24,19 @@ type Failure struct {
 
 // Tracker records Cluster Agent connectivity outcomes.
 type Tracker struct {
-	mu      sync.Mutex
-	now     func() time.Time
-	failing bool
-	since   time.Time
-	lastErr error
+	mu          sync.Mutex
+	now         func() time.Time
+	created     time.Time
+	succeeded   bool
+	failing     bool
+	since       time.Time
+	lastFailure time.Time
+	lastErr     error
 }
 
 // NewTracker returns a Tracker that reads the time from now.
 func NewTracker(now func() time.Time) *Tracker {
-	return &Tracker{now: now}
+	return &Tracker{now: now, created: now()}
 }
 
 // Default is the process-wide tracker fed by the Cluster Agent clients.
@@ -51,12 +54,14 @@ func ReportSuccess() {
 
 // ReportFailure records a network-level failure to reach the Cluster Agent.
 func (t *Tracker) ReportFailure(err error) {
+	now := t.now()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if !t.failing {
 		t.failing = true
-		t.since = t.now()
+		t.since = now
 	}
+	t.lastFailure = now
 	t.lastErr = err
 }
 
@@ -65,19 +70,21 @@ func (t *Tracker) ReportFailure(err error) {
 func (t *Tracker) ReportSuccess() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.succeeded = true
 	t.failing = false
 	t.lastErr = nil
 }
 
-// FailingFor returns the current failure if the Cluster Agent has been
-// unreachable for at least threshold.
+// FailingFor returns the current failure if failures, with no success in
+// between, have kept arriving for at least threshold. A lone failure followed
+// by silence doesn't count: callers retry while the Cluster Agent is down, so
+// a real outage keeps reporting.
 func (t *Tracker) FailingFor(threshold time.Duration) (Failure, bool) {
 	t.mu.Lock()
-	failing, since, lastErr := t.failing, t.since, t.lastErr
-	now := t.now()
+	failing, since, lastFailure, lastErr := t.failing, t.since, t.lastFailure, t.lastErr
 	t.mu.Unlock()
 
-	if !failing || now.Sub(since) < threshold {
+	if !failing || lastFailure.Sub(since) < threshold {
 		return Failure{}, false
 	}
 	msg := "unknown error"
@@ -85,4 +92,12 @@ func (t *Tracker) FailingFor(threshold time.Duration) (Failure, bool) {
 		msg = lastErr.Error()
 	}
 	return Failure{Since: since, LastError: msg}, true
+}
+
+// Settled reports whether the tracker has enough history to call the Cluster
+// Agent reachable: it has seen a success, or it is older than grace.
+func (t *Tracker) Settled(grace time.Duration) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.succeeded || t.now().Sub(t.created) >= grace
 }
