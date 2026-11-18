@@ -23,11 +23,16 @@ go_library(
 
 dd_agent_go_test(
     name = "report_test",
-    srcs = ["sender_test.go"],
+    srcs = [
+        "lab_replay_test.go",
+        "sender_test.go",
+    ],
+    data = glob(["testdata/**"]),
     embed = [":report"],
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/network-devices/versa/client",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],
