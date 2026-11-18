@@ -379,3 +379,49 @@ ebpf_program_suite = macro(
     },
     implementation = _ebpf_program_suite_impl,
 )
+
+def _ebpf_core_objects_impl(ctx):
+    relocations = ctx.actions.declare_file(ctx.label.name + ".relocations.o")
+    args = ctx.actions.args()
+    args.add("-o", relocations)
+    args.add_all(ctx.files.srcs)
+    ctx.actions.run(
+        inputs = ctx.files.srcs,
+        outputs = [relocations],
+        executable = ctx.executable._corerelo,
+        arguments = [args],
+        mnemonic = "EbpfCoreRelocs",
+        progress_message = "Extracting CO-RE relocations of %{label}",
+    )
+    return [
+        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.exclude_from_btf)),
+        OutputGroupInfo(core_relocations = depset([relocations])),
+    ]
+
+ebpf_core_objects = rule(
+    implementation = _ebpf_core_objects_impl,
+    doc = """Groups the shipped CO-RE objects and extracts their CO-RE relocations.
+
+    The `core_relocations` output group holds one stub ELF with the merged
+    relocations of `srcs`, which is all `bpftool gen min_core_btf` reads, or an
+    empty file when `srcs` have no CO-RE relocations. The stub changes only with
+    the relocations, their order within a local type, or the local types they
+    reference, so BTF minimization keyed on it is not invalidated by logic-only
+    changes to the objects.
+    """,
+    attrs = {
+        "srcs": attr.label_list(
+            allow_files = [".o"],
+            doc = "CO-RE objects the minimized BTFs must cover.",
+        ),
+        "exclude_from_btf": attr.label_list(
+            allow_files = [".o"],
+            doc = "CO-RE objects shipped with `srcs` but left out of BTF minimization.",
+        ),
+        "_corerelo": attr.label(
+            default = "//bazel/rules/ebpf/corerelo",
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+)
