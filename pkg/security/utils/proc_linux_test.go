@@ -16,6 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestModuleNameFromFilename(t *testing.T) {
+	assert.Equal(t, "cifs", ModuleNameFromFilename("cifs.ko"))
+	assert.Equal(t, "nf_conntrack_netlink", ModuleNameFromFilename("nf-conntrack-netlink.ko.zst"))
+	assert.Equal(t, "xt_addrtype", ModuleNameFromFilename("xt_addrtype.ko.xz"))
+	assert.Equal(t, "some_driver", ModuleNameFromFilename("some-driver.ko.gz"))
+	assert.Equal(t, "", ModuleNameFromFilename("modules.alias"))
+	assert.Equal(t, "", ModuleNameFromFilename(""))
+}
+
 func TestScanKernelModulePathsIn(t *testing.T) {
 	t.Run("plain .ko", func(t *testing.T) {
 		root := t.TempDir()

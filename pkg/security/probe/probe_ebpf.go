@@ -1975,6 +1975,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			// no need to trigger a dentry resolver, not backed by any file
 			event.LoadModule.File.SetPathnameStr("")
 			event.LoadModule.File.SetBasenameStr("")
+		} else if event.LoadModule.Name == "" {
+			event.LoadModule.Name = utils.ModuleNameFromFilename(p.fieldHandlers.ResolveFileBasename(event, &event.LoadModule.File))
 		}
 	case model.UnloadModuleEventType:
 		if !p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data) {
@@ -4386,6 +4388,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// module
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructFiles, "struct task_struct", "files")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFilesStructFdt, "struct files_struct", "fdt")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFdtableStructFd, "struct fdtable", "fd")
 
 	// cgroup
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
