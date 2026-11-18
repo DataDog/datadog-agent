@@ -47,7 +47,12 @@ func TestParseGPUMetricsMI300XVF(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(350407088),
 		SocketThermalResidency: filled(12105768),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(0),
+		PCIeRecoveryCount:      filled(1),
+		PCIeNAKSentCount:       filled(0),
+		PCIeNAKReceivedCount:   filled(0),
 		GFXActivityAcc:         filled(1336391183), // U32: wrapped, 1 off the mean of GFX_BUSY_ACC mod 2^32
 		MemActivityAcc:         filled(2862819467),
 		XGMIReadKB:             counters(0, 1, 2, 1, 1, 1, 1, 1),
@@ -68,7 +73,12 @@ func TestParseGPUMetricsMI350XVF(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(23598934),
 		SocketThermalResidency: filled(0),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(0),
+		PCIeRecoveryCount:      filled(0),
+		PCIeNAKSentCount:       filled(0),
+		PCIeNAKReceivedCount:   filled(0),
 		GFXActivityAcc:         filled(2889439947), // 131 off the mean of GFX_BUSY_ACC
 		MemActivityAcc:         filled(715102902),
 		XGMIReadKB:             counters(0, 53615, 17933, 71768, 0, 0, 35882, 53828),
@@ -90,7 +100,12 @@ func TestParseGPUMetricsSMU1508(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(5e5),
 		SocketThermalResidency: filled(1000),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(3),
+		PCIeRecoveryCount:      Counter{Value: math.MaxUint64},
+		PCIeNAKSentCount:       Counter{Value: math.MaxUint64},
+		PCIeNAKReceivedCount:   Counter{Value: math.MaxUint64},
 		GFXActivityAcc:         filled(1e8),
 		MemActivityAcc:         filled(1e7),
 		XGMILinkSpeedGTs:       Counter{Value: math.MaxUint16},
@@ -248,7 +263,7 @@ func TestParseGPUMetricsFieldSignatures(t *testing.T) {
 		testAttr{attrAccumulationCounter, typeU64, unitNone, []uint64{math.MaxUint64}},        // unfilled
 		testAttr{attrSocketThmResidencyAcc, typeU32, unitNone, []uint64{math.MaxUint32}},      // unfilled
 		testAttr{attrProchotResidencyAcc, typeU32, unitNone, []uint64{math.MaxUint32 - 1}},    // filled
-		testAttr{13, typeU16, unitNone, []uint64{1}},                                          // VR_THM_RESIDENCY_ACC: not used
+		testAttr{15, typeU16, unitNone, []uint64{1}},                                          // GFXCLK_LOCK_STATUS: not used
 		testAttr{999, typeS64, 200, []uint64{1, 2}},                                           // unknown attribute
 	))
 	require.NoError(t, err)
@@ -353,18 +368,21 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{4}},
 		},
 		"Linux 7.0": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{4}},
 		},
 		"Linux 7.3": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU64, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU64, unitNone, []uint64{2}},
 			{attrMemActivityAcc, typeU64, unitNone, []uint64{3}},
+			{attrPCIeNAKSentCountAcc, typeU64, unitNone, []uint64{4}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -374,6 +392,7 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			assert.Equal(t, filled(1), gm.PPTResidency)
 			assert.Equal(t, filled(2), gm.GFXActivityAcc)
 			assert.Equal(t, filled(3), gm.MemActivityAcc)
+			assert.Equal(t, filled(4), gm.PCIeNAKSentCount)
 		})
 	}
 

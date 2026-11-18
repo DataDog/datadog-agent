@@ -31,22 +31,30 @@ import (
 // accumulation period.
 func gpuMetricsFields(step uint64) map[string][]uint64 {
 	return map[string][]uint64{
-		"system_clock_counter":     {1e12 + step*15e9},
-		"accumulation_counter":     {1e6 + step*15000},
-		"ppt_residency_acc":        {5e5 + step*12600}, // 84%
-		"socket_thm_residency_acc": {1e3 + step*150},   // 1%
-		"prochot_residency_acc":    {0},
-		"pcie_replay_count_acc":    {3 + step},
-		"xgmi_read_data_acc":       {math.MaxUint64, 1e6 + step*15e6, 2e6, 0, 0, 0, 0, 0},
-		"xgmi_write_data_acc":      {math.MaxUint64, 1e6 + step*30e6, 2e6, 0, 0, 0, 0, 0},
-		"xgmi_link_speed":          {32},
-		"xgmi_link_width":          {16},
-		"current_uclk":             {1300},
+		"system_clock_counter":       {1e12 + step*15e9},
+		"accumulation_counter":       {1e6 + step*15000},
+		"ppt_residency_acc":          {5e5 + step*12600}, // 84%
+		"socket_thm_residency_acc":   {1e3 + step*150},   // 1%
+		"prochot_residency_acc":      {0},
+		"vr_thm_residency_acc":       {step * 300}, // 2%
+		"hbm_thm_residency_acc":      {0},
+		"pcie_replay_count_acc":      {3 + step},
+		"pcie_l0_to_recov_count_acc": {1},
+		"pcie_nak_sent_count_acc":    {2 * step},
+		"pcie_nak_rcvd_count_acc":    {0},
+		"xgmi_read_data_acc":         {math.MaxUint64, 1e6 + step*15e6, 2e6, 0, 0, 0, 0, 0},
+		"xgmi_write_data_acc":        {math.MaxUint64, 1e6 + step*30e6, 2e6, 0, 0, 0, 0, 0},
+		"xgmi_link_speed":            {32},
+		"xgmi_link_width":            {16},
+		"current_uclk":               {1300},
 		// Graphics busy 23.75% of the time on average over the XCDs; HBM at 3.5%.
 		"gfx_activity_acc": {1e8 + step*356250},
 		"mem_activity_acc": {1e7 + step*52500},
 	}
 }
+
+// cumulativeMetrics are the samples of a table without a baseline.
+var cumulativeMetrics = []string{"pci.replay_counter", "pci.recovery_counter", "pci.nak_sent_counter", "pci.nak_received_counter"}
 
 func parseTable(t *testing.T, fields map[string][]uint64) *amdgpu.GPUMetrics {
 	t.Helper()
@@ -391,19 +399,19 @@ func TestGPUMetricsCollectorBaselineResets(t *testing.T) {
 	start := time.Unix(1000, 0)
 	names := func(samples []nvidia.Sample, _ activity) []string { return metricNames(samples) }
 
-	require.Equal(t, []string{"pci.replay_counter"}, names(c.samples(dev, readAt(t, gpuMetricsFields(5)), true, start)))
+	require.Equal(t, cumulativeMetrics, names(c.samples(dev, readAt(t, gpuMetricsFields(5)), true, start)))
 	require.Contains(t, names(c.samples(dev, readAt(t, gpuMetricsFields(6)), true, start.Add(15*time.Second))), "clock.throttle_reasons.sw_power_cap")
 
 	assert.Empty(t, names(c.samples(dev, &amdgpu.Metrics{}, true, start.Add(30*time.Second))), "the read fails")
-	assert.Equal(t, []string{"pci.replay_counter"}, names(c.samples(dev, readAt(t, gpuMetricsFields(8)), true, start.Add(45*time.Second))), "a new baseline")
-	assert.Equal(t, []string{"pci.replay_counter"}, names(c.samples(dev, readAt(t, gpuMetricsFields(2)), true, start.Add(60*time.Second))), "the counters went back")
+	assert.Equal(t, cumulativeMetrics, names(c.samples(dev, readAt(t, gpuMetricsFields(8)), true, start.Add(45*time.Second))), "a new baseline")
+	assert.Equal(t, cumulativeMetrics, names(c.samples(dev, readAt(t, gpuMetricsFields(2)), true, start.Add(60*time.Second))), "the counters went back")
 	assert.Equal(t, 1.0, countTelemetry(t, tm, "gpu_metrics_failures", map[string]string{"reason": "counter_reset"}))
 	assert.Contains(t, names(c.samples(dev, readAt(t, gpuMetricsFields(3)), true, start.Add(75*time.Second))), "clock.throttle_reasons.sw_power_cap")
 
 	// A new version starts a new baseline.
 	m := readAt(t, gpuMetricsFields(4))
 	m.GPUMetrics.Version.Content = 10
-	assert.Equal(t, []string{"pci.replay_counter"}, names(c.samples(dev, m, true, start.Add(90*time.Second))))
+	assert.Equal(t, cumulativeMetrics, names(c.samples(dev, m, true, start.Add(90*time.Second))))
 	assert.Zero(t, countTelemetry(t, tm, "gpu_metrics_failures", map[string]string{"reason": "implausible_value"}))
 }
 
@@ -420,7 +428,7 @@ func TestGPUMetricsCollectorSystemClockReset(t *testing.T) {
 	}
 	c.samples(dev, read(1, 2e12), true, start)
 	samples, _ := c.samples(dev, read(2, 1e12), true, start.Add(15*time.Second))
-	assert.Equal(t, []string{"pci.replay_counter"}, metricNames(samples), "a new baseline")
+	assert.Equal(t, cumulativeMetrics, metricNames(samples), "a new baseline")
 	assert.Equal(t, 1.0, countTelemetry(t, tm, "gpu_metrics_failures", map[string]string{"reason": "counter_reset"}))
 }
 
@@ -437,7 +445,7 @@ func TestGPUMetricsCollectorForget(t *testing.T) {
 	assert.Contains(t, c.devices, other.UUID)
 
 	samples, act := c.samples(dev, readAt(t, gpuMetricsFields(1)), true, start.Add(15*time.Second))
-	assert.Equal(t, []string{"pci.replay_counter"}, metricNames(samples), "no baseline after a return")
+	assert.Equal(t, cumulativeMetrics, metricNames(samples), "no baseline after a return")
 	assert.Equal(t, activity{}, act)
 	samples, _ = c.samples(other, readAt(t, gpuMetricsFields(1)), true, start.Add(15*time.Second))
 	assert.Contains(t, metricNames(samples), "clock.throttle_reasons.sw_power_cap", "a present device keeps its baseline")
@@ -558,20 +566,23 @@ func TestAMDGPUMetricsEmitted(t *testing.T) {
 	require.NoError(t, check.Run())
 	gauges = emittedGauges(mockSender)
 	for name, value := range map[string]float64{
-		"gpu.clock.throttle_reasons.sw_power_cap":        0.84,
-		"gpu.clock.throttle_reasons.sw_thermal_slowdown": 0.01,
-		"gpu.clock.throttle_reasons.hw_slowdown":         0,
-		"gpu.pci.replay_counter":                         4,
-		"gpu.gr_engine_active":                           23.75, // the socket mean over the interval
-		"gpu.sm_active":                                  23.75,
-		"gpu.dram_active":                                3.5,
+		"gpu.clock.throttle_reasons.sw_power_cap":         0.84,
+		"gpu.clock.throttle_reasons.sw_thermal_slowdown":  0.01,
+		"gpu.clock.throttle_reasons.hw_slowdown":          0,
+		"gpu.clock.throttle_reasons.vr_thermal_slowdown":  0.02,
+		"gpu.clock.throttle_reasons.hbm_thermal_slowdown": 0,
+		"gpu.pci.replay_counter":                          4,
+		"gpu.pci.recovery_counter":                        1,
+		"gpu.pci.nak_sent_counter":                        2,
+		"gpu.pci.nak_received_counter":                    0,
+		"gpu.gr_engine_active":                            23.75, // the socket mean over the interval
+		"gpu.sm_active":                                   23.75,
+		"gpu.dram_active":                                 3.5,
 	} {
 		require.Len(t, gauges[name], 1, name)
 		assert.InDelta(t, value, gauges[name][0].Arguments.Get(1), 1e-9, name)
 		assert.Contains(t, gauges[name][0].Arguments.Get(3), "gpu_uuid:"+testAMDUUID, name)
 	}
-	assert.NotContains(t, gauges, "gpu.clock.throttle_reasons.vr_thermal")
-	assert.NotContains(t, gauges, "gpu.clock.throttle_reasons.hbm_thermal")
 	for name := range gauges {
 		assert.NotContains(t, name, "xgmi", "not in an XGMI hive")
 	}

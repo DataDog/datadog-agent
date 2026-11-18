@@ -48,8 +48,9 @@ const (
 	failureCounterReset       gpuMetricsFailure = "counter_reset"
 )
 
-// throttleReason maps a gpu_metrics residency counter to the NVIDIA throttle
-// reason metric of the same cause.
+// throttleReason maps a gpu_metrics residency counter to its throttle reason
+// metric: the NVIDIA one of the same cause, or an AMD-only one for VR and HBM
+// thermal limits.
 type throttleReason struct {
 	metric    string
 	residency func(*amdgpu.GPUMetrics) amdgpu.Counter
@@ -59,6 +60,20 @@ var throttleReasons = []throttleReason{
 	{"clock.throttle_reasons.sw_power_cap", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PPTResidency }},
 	{"clock.throttle_reasons.sw_thermal_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.SocketThermalResidency }},
 	{"clock.throttle_reasons.hw_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.ProchotResidency }},
+	{"clock.throttle_reasons.vr_thermal_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.VRThermalResidency }},
+	{"clock.throttle_reasons.hbm_thermal_slowdown", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.HBMThermalResidency }},
+}
+
+// pcieCounters are the cumulative PCIe counters of gpu_metrics, reported as
+// gauges like pci.replay_counter.
+var pcieCounters = []struct {
+	metric string
+	value  func(*amdgpu.GPUMetrics) amdgpu.Counter
+}{
+	{"pci.replay_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeReplayCount }},
+	{"pci.recovery_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeRecoveryCount }},
+	{"pci.nak_sent_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeNAKSentCount }},
+	{"pci.nak_received_counter", func(g *amdgpu.GPUMetrics) amdgpu.Counter { return g.PCIeNAKReceivedCount }},
 }
 
 type gpuMetricsTelemetry struct {
@@ -85,7 +100,7 @@ type gpuMetricsDevice struct {
 }
 
 // gpuMetricsCollector turns the gpu_metrics tables of AMD GPUs into XGMI,
-// throttling, PCIe replay and activity values. A table is used only when its
+// throttling, PCIe link error and activity values. A table is used only when its
 // version is decoded, its structure is consistent and its used fields have
 // expected encodings; its values are used only when they satisfy invariants
 // between the fields of the table and between consecutive tables.
@@ -183,9 +198,10 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 // table, with previous as the baseline of its accumulated counters, or nil for
 // the first table. implausible reports values dropped by an invariant.
 func intervalSamples(previous, gm *amdgpu.GPUMetrics, xgmi bool) (samples []nvidia.Sample, act activity, implausible bool) {
-	if gm.PCIeReplayCount.Valid {
-		// A cumulative firmware counter, reported as a gauge like the NVML one.
-		samples = append(samples, nvidia.NewMetric("pci.replay_counter", float64(gm.PCIeReplayCount.Value), metrics.GaugeType, nvidia.Low, nil, nil))
+	for _, counter := range pcieCounters {
+		if v := counter.value(gm); v.Valid {
+			samples = append(samples, nvidia.NewMetric(counter.metric, float64(v.Value), metrics.GaugeType, nvidia.Low, nil, nil))
+		}
 	}
 	if previous == nil {
 		return samples, activity{}, false // the first table is the baseline of accumulated counters
