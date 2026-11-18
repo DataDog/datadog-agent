@@ -21,11 +21,11 @@ tags:
   gpu_slicing_mode:
     regex: "^(none|mig|mig-parent)$"
   gpu_sharing_mode:
-    # How the GPU is currently shared between workloads: kai_fraction while KAI
+    # How the GPU is currently shared between workloads: kai-fraction while KAI
     # Scheduler holds it for fractional workloads, none when no sharing mechanism
     # was detected (mechanisms the Agent does not detect, such as time-slicing or
     # MPS, also report none).
-    regex: "^(none|kai_fraction)$"
+    regex: "^(none|kai-fraction)$"
   gpu_mig_profile:
     regex: "^(none|unknown|[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?)$"
   gpu_type:
