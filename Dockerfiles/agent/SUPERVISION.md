@@ -30,12 +30,10 @@ open. A process whose gate is closed is listed as `Skipped`, with the reason.
 | `datadog-agent-action-executor` | `privateactionrunner` | Never at boot. `par-control` starts it on demand |
 
 Auxiliary processes are restarted when they fail. A process that exits 0 stays stopped.
-The supervisor replaces `PATH` for each process with the catalog value, so a `PATH` set on
-the container does not reach the Agent processes. `DD_PM_*` variables are not passed to the
+Every process inherits the container `PATH`. `DD_PM_*` variables are not passed to the
 processes, except `DD_PM_SOCKET_PATH`.
 
-`datadog-agent-otel` keeps the s6 behavior: it inherits the container `PATH`, and it is
-restarted every 2 seconds after a failure, without a limit.
+`datadog-agent-otel` is restarted every 2 seconds after a failure, without a limit.
 
 ## Cont-init scripts
 
@@ -113,9 +111,6 @@ These differences from the s6 image are accepted:
 - `DD_PM_*` variables are not passed to the processes, except `DD_PM_SOCKET_PATH`.
 - Start, exit and restart messages come from `dd-procmgrd`, are written to the container output,
   and are worded differently from the s6 messages in `/var/log/datadog/init.log`.
-
-`PATH` set on the container reaches only `datadog-agent-otel`, as it did under s6. The other
-processes use the catalog `PATH`.
 
 ## Rolling back to s6
 

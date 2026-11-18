@@ -12,8 +12,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PATH_ENV: &str = "/opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-
 const AGENT_BIN: &str = "/opt/datadog-agent/bin/agent/agent";
 const TRACE_LOADER: &str = "/opt/datadog-agent/embedded/bin/trace-loader";
 const TRACE_AGENT: &str = "/opt/datadog-agent/embedded/bin/trace-agent";
@@ -157,7 +155,6 @@ fn aio_core_agent_is_the_critical_process() {
     assert!(core.condition_config_none.is_empty());
     assert_eq!(core.restart_sec, None);
     assert_shared_stdio(core);
-    assert_eq!(core.env.get("PATH").map(String::as_str), Some(PATH_ENV));
 
     let critical: Vec<_> = configs
         .iter()
@@ -197,11 +194,6 @@ fn aio_auxiliaries_restart_on_failure() {
             config.command
         );
         assert_shared_stdio(config);
-        assert_eq!(
-            config.env.get("PATH").map(String::as_str),
-            Some(PATH_ENV),
-            "{name} PATH"
-        );
     }
 }
 
@@ -213,10 +205,6 @@ fn aio_otel_matches_the_s6_service() {
     assert!(
         otel.condition_config_any.is_empty() && otel.condition_config_none.is_empty(),
         "otel-agent decides enablement itself, like the s6 service"
-    );
-    assert!(
-        !otel.env.contains_key("PATH"),
-        "otel-agent inherits the container PATH, like the s6 service"
     );
     assert_eq!(otel.restart, RestartPolicy::OnFailure);
     assert_eq!(otel.restart_delay(), 2.0);
@@ -600,6 +588,13 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
 
     let catalog = load_configs(aio_dir.path()).expect("aio directory parses");
     assert!(catalog.invalid.is_empty());
+    for process in &catalog.processes {
+        assert!(
+            !process.config.env.contains_key("PATH"),
+            "{} inherits the container PATH",
+            process.name
+        );
+    }
     let mut names: Vec<_> = catalog
         .processes
         .iter()

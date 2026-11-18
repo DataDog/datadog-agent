@@ -15,8 +15,7 @@ upgrade:
     when its name is not a process name or matches a catalog process. Its
     ``finish`` script does not run, and editing a shipped service's ``run``
     file has no effect. Scripts in ``/etc/cont-init.d/``
-    still run but need a shebang. A ``PATH`` set on the container no longer
-    reaches the Agent processes, except ``otel-agent``. ``DD_PM_*`` variables are
+    still run but need a shebang. ``DD_PM_*`` variables are
     not passed to the processes, except ``DD_PM_SOCKET_PATH``. Start, exit and
     restart messages now go to the container output instead of
     ``/var/log/datadog/init.log``, and they are worded differently. To keep s6

@@ -1,5 +1,5 @@
-# Matches the s6 otel service: otel-agent decides enablement itself (exits 0 when disabled),
-# inherits the container PATH, and restarts every 2 seconds without a limit.
+# Matches the s6 otel service: otel-agent decides enablement itself (exits 0 when disabled)
+# and restarts every 2 seconds without a limit.
 description: Datadog OTel Agent
 command: /opt/datadog-agent/embedded/bin/otel-agent
 args:

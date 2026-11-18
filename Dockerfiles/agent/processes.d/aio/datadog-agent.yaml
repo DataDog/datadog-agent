@@ -7,5 +7,3 @@ restart: never
 exit_with_supervisor: true
 stdout: inherit
 stderr: inherit
-env:
-  PATH: /opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
