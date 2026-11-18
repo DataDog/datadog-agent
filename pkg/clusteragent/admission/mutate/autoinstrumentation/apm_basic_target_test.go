@@ -243,11 +243,11 @@ gpu:
 			assert.Equal(t, test.wantSource, resolved.selectedBy)
 			assert.True(t, resolved.isSSI)
 			if !test.wantLayered {
-				assert.Nil(t, resolved.apmBasic)
+				assert.Empty(t, resolved.additions)
 				return
 			}
-			require.NotNil(t, resolved.apmBasic)
-			assert.Equal(t, c, resolved.apmBasic.libraries[0].lang)
+			require.Len(t, resolved.additions, 1)
+			assert.Equal(t, c, resolved.additions[0].libraries[0].lang)
 		})
 	}
 
@@ -265,7 +265,7 @@ gpu:
 		require.NotNil(t, resolved)
 		assert.Equal(t, injectionSourceAnnotation, resolved.selectedBy)
 		assert.False(t, resolved.isSSI)
-		assert.Nil(t, resolved.apmBasic)
+		assert.Empty(t, resolved.additions)
 	})
 
 	t.Run("opt-out blocks apm basic", func(t *testing.T) {

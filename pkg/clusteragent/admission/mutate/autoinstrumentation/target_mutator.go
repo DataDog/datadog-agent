@@ -39,8 +39,7 @@ type injectionResolution struct {
 	plan       *injectionPlan
 	isSSI      bool
 	selectedBy injectionSourceName
-	// apmBasic's libraries and tracer configs are added to plan's.
-	apmBasic *injectionPlan
+	additions  []*injectionPlan
 }
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -51,7 +50,6 @@ type TargetMutator struct {
 	disabledNamespaces            map[string]struct{}
 	sources                       []injectionSourceEntry
 	remoteSource                  *remotePolicySource
-	apmBasicSource                injectionSource
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -124,7 +122,6 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		disabledNamespaces:            disabledNamespaces,
 		remoteSource:                  remoteSource,
-		apmBasicSource:                apmBasicSource,
 		// This is the single declaration of source precedence. Sources remain
 		// in the list and decide for themselves to pass or inject.
 		sources: []injectionSourceEntry{
@@ -132,6 +129,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
+			{name: injectionSourceAPMBasic, determinesSSIMode: true, additive: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
@@ -220,8 +218,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		}
 	}
 	// After language detection, which replaces the library list.
-	if resolved.apmBasic != nil {
-		extracted = extracted.withLibs(withAPMBasicLibraries(extracted.libs, resolved.apmBasic))
+	if len(resolved.additions) > 0 {
+		extracted = extracted.withLibs(withAddedLibraries(extracted.libs, resolved.additions))
 	}
 
 	// Add the configuration for the security client library.
@@ -240,8 +238,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
 	}
 	// After the plan's configs, so the plan wins on a shared name.
-	if resolved.apmBasic != nil {
-		for _, envVar := range resolved.apmBasic.tracerEnvVars {
+	for _, addition := range resolved.additions {
+		for _, envVar := range addition.tracerEnvVars {
 			_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
 		}
 	}
@@ -311,6 +309,9 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	isSSI := false
 
 	for _, entry := range m.sources {
+		if entry.additive {
+			continue
+		}
 		result := entry.source.resolve(pod)
 		// An abstaining source has no matching plan, so move on to the next.
 		if result.action == sourcePass {
@@ -341,12 +342,8 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		}
 	}
 
-	apmBasic := m.resolveAPMBasic(pod)
 	if !selectionDecided {
-		if apmBasic == nil {
-			return nil
-		}
-		return &injectionResolution{plan: apmBasic, isSSI: true, selectedBy: injectionSourceAPMBasic}
+		return m.resolveAdditive(pod, nil, false)
 	}
 	if selected.plan == nil {
 		return nil
@@ -357,46 +354,58 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		isSSI:      isSSI,
 		selectedBy: selectedBy,
 	}
-	// An SSI source can deny after an annotation selected the libraries: the
-	// annotation still applies, but APM Basic does not.
+	// A denial also blocks additive sources. An SSI source can deny after an
+	// annotation selected the libraries: the annotation still applies.
 	ssiDenied := ssiDecided && !isSSI
-	denied := selected.action == sourceDeny || selected.plan.blocked || ssiDenied
-	if apmBasic == nil || denied {
+	if selected.action == sourceDeny || selected.plan.blocked || ssiDenied {
 		return resolved
 	}
-	// APM Basic is an SSI opt-in.
-	if !ssiDecided {
-		resolved.isSSI = true
-	}
-	// DD_APM_BASIC_ENABLED would switch a plan's own dd-trace-c (e.g. GPU) to RED metrics only.
-	if !injectsLanguage(selected.plan.libraries, c) {
-		resolved.apmBasic = apmBasic
-	}
-	return resolved
+	return m.resolveAdditive(pod, resolved, ssiDecided)
 }
 
-func (m *TargetMutator) resolveAPMBasic(pod *corev1.Pod) *injectionPlan {
-	if m.apmBasicSource == nil {
-		return nil
+func (m *TargetMutator) resolveAdditive(pod *corev1.Pod, resolved *injectionResolution, ssiDecided bool) *injectionResolution {
+	for _, entry := range m.sources {
+		if !entry.additive {
+			continue
+		}
+		result := entry.source.resolve(pod)
+		if result.action != sourceInject {
+			continue
+		}
+		if resolved == nil {
+			resolved = &injectionResolution{plan: result.plan, isSSI: entry.determinesSSIMode, selectedBy: entry.name}
+			ssiDecided = entry.determinesSSIMode
+			continue
+		}
+		if entry.determinesSSIMode && !ssiDecided {
+			resolved.isSSI = true
+			ssiDecided = true
+		}
+		// Its configs would retarget the plan's own library, e.g. switch GPU's dd-trace-c to RED metrics only.
+		if sharesLanguage(resolved.plan.libraries, result.plan.libraries) {
+			continue
+		}
+		resolved.additions = append(resolved.additions, result.plan)
 	}
-	result := m.apmBasicSource.resolve(pod)
-	if result.action != sourceInject {
-		return nil
-	}
-	return result.plan
+	return resolved
 }
 
 func injectsLanguage(libs []libInfo, lang language) bool {
 	return slices.ContainsFunc(libs, func(l libInfo) bool { return l.lang == lang })
 }
 
-// withAPMBasicLibraries copies libs: they may alias a plan shared across pods.
-func withAPMBasicLibraries(libs []libInfo, apmBasic *injectionPlan) []libInfo {
-	merged := make([]libInfo, 0, len(libs)+len(apmBasic.libraries))
-	merged = append(merged, libs...)
-	for _, lib := range apmBasic.libraries {
-		if !injectsLanguage(merged, lib.lang) {
-			merged = append(merged, lib)
+func sharesLanguage(libs, other []libInfo) bool {
+	return slices.ContainsFunc(other, func(l libInfo) bool { return injectsLanguage(libs, l.lang) })
+}
+
+// withAddedLibraries copies libs: they may alias a plan shared across pods.
+func withAddedLibraries(libs []libInfo, additions []*injectionPlan) []libInfo {
+	merged := slices.Clone(libs)
+	for _, addition := range additions {
+		for _, lib := range addition.libraries {
+			if !injectsLanguage(merged, lib.lang) {
+				merged = append(merged, lib)
+			}
 		}
 	}
 	return merged
