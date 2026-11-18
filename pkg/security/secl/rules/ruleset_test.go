@@ -10,6 +10,7 @@ package rules
 
 import (
 	"math"
+	"path"
 	"reflect"
 	"strings"
 	"syscall"
@@ -75,7 +76,7 @@ func newRuleSet() *RuleSet {
 	ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
 
 	ruleOpts.WithSupportedDiscarders(map[eval.Field][]eval.Field{
-		"open.file.path":  {"open.file.path", "open.file.name"},
+		"open.file.path":  {"open.file.path", "open.file.name", "open.file.extension"},
 		"mkdir.file.path": {"mkdir.file.path", "mkdir.file.name"},
 		"process.uid":     {"process.uid"},
 	})
@@ -181,6 +182,8 @@ func TestRuleSetDiscardersWithName(t *testing.T) {
 		{"name or-ed with the path", `open.file.path == "/etc/passwd" || open.file.name == "shadow"`, "/tmp/passwd", true},
 		{"name or-ed with the path, matching", `open.file.path == "/etc/passwd" || open.file.name == "shadow"`, "/tmp/shadow", false},
 		{"name compared to another field", `open.file.name == process.file.name`, "/tmp/sh", false},
+		{"extension alone", `open.file.extension == "php"`, "/var/www/index.html", true},
+		{"extension alone, matching", `open.file.extension == "php"`, "/var/www/index.php", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			rs := newRuleSet()
@@ -189,8 +192,8 @@ func TestRuleSetDiscardersWithName(t *testing.T) {
 
 			event := model.NewFakeEvent()
 			event.Type = uint32(model.FileOpenEventType)
-			fields := []eval.Field{"open.file.path", "open.file.name"}
-			values := []string{test.path, test.path[strings.LastIndex(test.path, "/")+1:]}
+			fields := []eval.Field{"open.file.path", "open.file.name", "open.file.extension"}
+			values := []string{test.path, path.Base(test.path), path.Ext(test.path)}
 			for i, field := range fields {
 				if err := event.SetFieldValue(field, values[i]); err != nil {
 					t.Fatal(err)
