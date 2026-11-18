@@ -8,10 +8,15 @@
 package tracer
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path"
 	"strings"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // pinned map name prefixes of BPF dataplanes that do NAT or load balancing in BPF
@@ -27,14 +32,24 @@ var bpfNATMapPrefixes = []string{
 // hostBPFNATDataplane looks for a BPF NAT dataplane in the host's bpffs, which is mounted at the same path in the
 // system-probe container.
 func hostBPFNATDataplane() string {
-	return findBPFNATDataplane(os.DirFS(ciliumBPFRoot()))
+	root := ciliumBPFRoot()
+	var st unix.Statfs_t
+	if err := unix.Statfs(root, &st); err != nil {
+		log.Infof("could not stat %s, so a BPF NAT dataplane can't be ruled out: %s", root, err)
+	} else if st.Type != unix.BPF_FS_MAGIC {
+		log.Infof("%s is not a bpffs mount, so a BPF NAT dataplane can't be ruled out", root)
+	}
+	return findBPFNATDataplane(os.DirFS(root))
 }
 
 // findBPFNATDataplane returns the first pinned map or directory in bpffs that shows a BPF NAT dataplane is
 // running, or "" if there's none.
 func findBPFNATDataplane(bpffs fs.FS) string {
 	const globals = "tc/globals"
-	entries, _ := fs.ReadDir(bpffs, globals)
+	entries, err := fs.ReadDir(bpffs, globals)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Infof("could not read %s in bpffs, so a BPF NAT dataplane can't be ruled out: %s", globals, err)
+	}
 	for _, e := range entries {
 		for _, prefix := range bpfNATMapPrefixes {
 			if strings.HasPrefix(e.Name(), prefix) {
