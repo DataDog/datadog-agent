@@ -203,7 +203,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 // each runner that reports its workers.
 func (d *dispatcher) runnerUtilization() map[string]float64 {
 	utilization := make(map[string]float64)
-	for name, runner := range d.currentDistribution().Runners {
+	for name, runner := range d.currentDistribution().runners {
 		if runner.Workers > 0 {
 			utilization[name] = runner.utilization()
 		}
@@ -352,15 +352,6 @@ func (d *dispatcher) shouldDispatchDangling() bool {
 	defer d.store.RUnlock()
 
 	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
-}
-
-// retrieveDangling extracts dangling configs from the store
-func (d *dispatcher) retrieveDangling() []integration.Config {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	configs := makeConfigArrayFromDangling(d.store.danglingConfigs)
-	return configs
 }
 
 // deleteDangling clears the dangling configs from the store
