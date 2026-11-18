@@ -9,7 +9,7 @@ use tonic::{Request, Status};
 use crate::transport::PipeCallerAuth;
 
 #[cfg(unix)]
-use log::info;
+use log::debug;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum MutatingRpc {
@@ -91,7 +91,7 @@ pub(crate) fn require_mutating_caller<T>(
     if peer_may_mutate(policy.enforce, uid) {
         return Ok(());
     }
-    info!("denied {rpc:?}: peer uid {uid:?} is not root");
+    debug!("denied {rpc:?}: peer uid {uid:?} is not root");
     Err(Status::permission_denied("operation requires root"))
 }
 
