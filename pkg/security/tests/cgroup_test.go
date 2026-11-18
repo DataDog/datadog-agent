@@ -735,7 +735,7 @@ func TestCGroupVariables(t *testing.T) {
 	if ebpfLessEnabled {
 		wrapper = newStdCmdWrapper()
 	} else {
-		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+		dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
@@ -800,7 +800,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
@@ -862,7 +862,7 @@ func TestCGroupWriteEvent(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
