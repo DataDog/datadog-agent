@@ -95,16 +95,23 @@ def copy_session(connection, source_path, session_id):
         session = source.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
         if session is None:
             raise ValueError(f"Session not found: {session_id}")
-        if not session["is_complete"]:
-            raise ValueError("Finish the selected session before evaluation.")
+        turns = source.execute("SELECT * FROM turns WHERE session_id = ?", (session_id,)).fetchall()
+        # Older captured turns can have an end timestamp without a lifecycle status.
+        completed = {row["turn_id"] for row in turns if row["ended_at"] and row["lifecycle_status"] in (None, "", "ok")}
+        if not completed:
+            raise ValueError("No completed turns are available yet. Wait for a turn to finish and capture to update.")
         for table in TABLES:
             columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
             for row in source.execute(f"SELECT * FROM {table} WHERE session_id = ?", (session_id,)):
+                if table != "sessions" and row["turn_id"] not in completed:
+                    continue
                 insert(connection, table, {key: row[key] for key in row.keys() if key in columns})
+        connection.execute("UPDATE sessions SET total_turns = ? WHERE session_id = ?", (len(completed), session_id))
     connection.commit()
+    return {"session_complete": bool(session["is_complete"]), "skipped_turns": len(turns) - len(completed)}
 
 
-def report(connection, cases):
+def report(connection, cases, snapshot=None):
     findings = connection.execute(
         "SELECT session_id, turn_id, marker_type FROM markers "
         "WHERE marker_type LIKE 'smp-%' AND kind = 'point' ORDER BY session_id, turn_id, marker_type"
@@ -130,6 +137,9 @@ def report(connection, cases):
         turns = connection.execute("SELECT COUNT(*) FROM turns").fetchone()[0]
         tools = connection.execute("SELECT COUNT(*) FROM tool_calls").fetchone()[0]
         print(f"Selected session snapshot: turns={turns}, tool calls={tools}.")
+        if not snapshot["session_complete"]:
+            print("The session is still open. These results cover completed turns only.")
+        print(f"Skipped incomplete or unknown turn states: {snapshot['skipped_turns']}.")
     for session_id, turn_id, marker in findings:
         turn = connection.execute(
             "SELECT input_prompt, agent_response FROM turns WHERE session_id = ? AND turn_id = ?",
@@ -145,7 +155,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--demo", action="store_true", help="Evaluate synthetic examples and check expected signals.")
-    mode.add_argument("--session", help="Evaluate one completed session from a local cache.")
+    mode.add_argument("--session", help="Evaluate completed turns from an open or closed local session.")
     parser.add_argument("--cache-db", type=Path, help="Source cache for --session. Opened read-only.")
     parser.add_argument("--trajectory", default="trajectory", help="Trajectory executable (tested with 0.6.2).")
     args = parser.parse_args()
@@ -166,10 +176,11 @@ def main():
         run(binary, environment, "patterns", "markers", "reevaluate", "--db", str(database))
         with closing(sqlite3.connect(database)) as connection:
             cases = load_demo(connection) if args.demo else None
+            snapshot = None
             if args.session:
-                copy_session(connection, args.cache_db, args.session)
+                snapshot = copy_session(connection, args.cache_db, args.session)
             run(binary, environment, "patterns", "markers", "reevaluate", "--db", str(database))
-            report(connection, cases)
+            report(connection, cases, snapshot)
 
 
 if __name__ == "__main__":

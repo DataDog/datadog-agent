@@ -5,7 +5,7 @@ The audience is Agent contributors and SMP maintainers who want to review candid
 
 The helper runs the real Trajectory marker evaluator in a temporary database.
 It copies only the session you select and opens the source cache read-only.
-The copy includes its session, turn, and tool-call rows. It does not follow child sessions.
+The copy includes completed turns and their tool calls. It does not follow child sessions.
 It prints matching turns, then removes the temporary database.
 
 It does not install hooks, change capture settings, call a model, or publish results.
@@ -70,7 +70,7 @@ Two cases show detection limits:
    Describe whether the current CLI supports this. Do not run SMP or change files.
    ```
 
-4. Let the agent answer, then end that coding-agent session.
+4. Let the agent finish its answer. You can keep the session open.
 5. In a separate terminal, find the session ID:
 
    ```sh
@@ -95,8 +95,14 @@ If your capture uses another cache path, pass that path to `--cache-db`.
 
 Expect `smp-capability-question` and `smp-expressed-wish` findings with your prompts and the agent's responses.
 Other findings depend on what the agent said or did.
-The helper refuses an unfinished session so it does not treat partial capture as a complete result.
-If capture has not finalized, wait for Trajectory to record the session end and try again.
+
+The helper evaluates a snapshot of completed turns. It skips unfinished turns and tool calls from those turns.
+For an open session, the report states that the session is still open and shows the number of skipped turns.
+Repeat the same command after another answer to evaluate a new snapshot.
+The helper does not collect continuously or add its results to earlier runs.
+
+Trajectory can publish turn-level data after each completed turn. Session completion is not necessary for that data.
+Session-end totals still depend on the session ending. Destination settings and capture delays affect when remote data appears.
 
 The report contains captured conversation text. Share real-session reports only through a destination approved for that content.
 
@@ -128,9 +134,12 @@ The helper shows turn context, not an automatic summary of the workaround or cau
 
 - Missing binary: use `--trajectory` with the installed executable path.
 - Missing session: check the selected ID and source cache path.
-- Unfinished session: end the source session and wait for capture to finalize.
+- No completed turns: wait for an answer to finish and for Trajectory to update the local cache, then try again.
 - No findings: inspect the wording and confirm that the cache contains the prompts and responses.
 - SQLite schema error: the helper uses Trajectory's internal cache schema. Check the installed version against the tested version.
+
+For this pilot, a completed turn has an end timestamp and an `ok` or absent lifecycle status.
+The helper skips unknown lifecycle states rather than treating them as complete.
 
 ## Collection after the pilot
 
