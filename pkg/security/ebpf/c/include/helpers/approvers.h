@@ -6,11 +6,9 @@
 #include "maps.h"
 #include "rate_limiter.h"
 
+// size of the prefix and suffix basename keys, which share one key on the stack;
 // has to be in sync with the userspace definition
-#define PATTERN_PREFIX_SIZE 3
-// has to be in sync with the userspace definition
-#define PATTERN_SUFFIX_SIZE 3
-_Static_assert(PATTERN_SUFFIX_SIZE == PATTERN_PREFIX_SIZE, "the suffix lookup overwrites exactly the bytes written by the prefix lookup");
+#define PATTERN_AFFIX_SIZE 3
 
 static struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
@@ -294,7 +292,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
         return APPROVED;
     }
 
-    // prefix fallback: build a key from the first PATTERN_PREFIX_SIZE bytes of
+    // prefix fallback: build a key from the first PATTERN_AFFIX_SIZE bytes of
     // the event basename with type=LEAF_BASENAME_PREFIX. Userspace inserts the
     // same shape for any rule whose basename contains '*' (e.g. rule
     // "abc*xyz" -> key {LEAF_BASENAME_PREFIX, "abc"}), so this matches every
@@ -307,7 +305,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
     #ifndef USE_FENTRY
     #pragma unroll
     #endif
-    for (int i = 0; i != PATTERN_PREFIX_SIZE; i++) {
+    for (int i = 0; i != PATTERN_AFFIX_SIZE; i++) {
         prefix.value[i] = basename.value[i];
     }
 
@@ -320,11 +318,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
     // {LEAF_BASENAME_SUFFIX, "php"}). The tail is read from the dentry name itself, not from
     // basename.value, which truncates names longer than BASENAME_FILTER_SIZE - 1 and would lose it.
     u32 len = get_dentry_name_len(dentry);
-    if (len >= PATTERN_SUFFIX_SIZE) {
-        // reuse the prefix key: only its first PATTERN_PREFIX_SIZE bytes were written, all overwritten below
+    if (len >= PATTERN_AFFIX_SIZE) {
+        // reuse the prefix key: only its first PATTERN_AFFIX_SIZE bytes were written, all overwritten below
         prefix.type = LEAF_BASENAME_SUFFIX;
         const char *name = get_dentry_name_ptr(dentry);
-        bpf_probe_read(prefix.value, PATTERN_SUFFIX_SIZE, (void *)name + len - PATTERN_SUFFIX_SIZE);
+        bpf_probe_read(prefix.value, PATTERN_AFFIX_SIZE, (void *)name + len - PATTERN_AFFIX_SIZE);
 
         if (is_basename_in_map(&prefix, event_type)) {
             monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);

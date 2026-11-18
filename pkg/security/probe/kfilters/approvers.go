@@ -41,13 +41,13 @@ const (
 const (
 	// leafBasename matches the event's own basename exactly.
 	leafBasename uint8 = iota
-	// leafBasenamePrefix matches the first patternPrefixSize bytes of the event's basename
+	// leafBasenamePrefix matches the first patternAffixSize bytes of the event's basename
 	// (used for wildcard rules whose leaf has a usable fixed prefix).
 	leafBasenamePrefix
 	// parentBasename matches the basename of the event's parent directory exactly
 	// (used for wildcard rules whose leaf has no usable prefix).
 	parentBasename
-	// leafBasenameSuffix matches the last patternSuffixSize bytes of the event's basename
+	// leafBasenameSuffix matches the last patternAffixSize bytes of the event's basename
 	// (used for wildcard rules whose leaf is `*<suffix>`, like `*.php`).
 	leafBasenameSuffix
 )
@@ -90,12 +90,12 @@ func newBasenameKFilter(tableName string, eventType model.EventType, basename st
 			// slices below are safe.
 			els := strings.Split(basename, "*")
 			switch {
-			case len(els[0]) >= patternPrefixSize:
+			case len(els[0]) >= patternAffixSize:
 				basenameType = leafBasenamePrefix
-				basename = els[0][:patternPrefixSize]
+				basename = els[0][:patternAffixSize]
 			case isSuffixPattern(basename):
 				basenameType = leafBasenameSuffix
-				basename = basename[len(basename)-patternSuffixSize:]
+				basename = basename[len(basename)-patternAffixSize:]
 			default:
 				return nil, errors.New("unexpected pattern prefix size")
 			}
