@@ -101,41 +101,6 @@ The provided profile limits what the Host Profiler container can execute. It all
 
 ## Selective deployment (optional)
 
-The Host Profiler runs on every node by default. To run it on selected nodes, set one of the following in [`operator/collector.yaml`](operator/collector.yaml).
+To run the Host Profiler on selected Linux nodes, add the labels that identify those nodes to `spec.nodeSelector` in [`operator/collector.yaml`](operator/collector.yaml). Keep `kubernetes.io/os: linux`. For more complex rules, use [required node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity) under `spec.affinity.nodeAffinity`. If taints block scheduling, add matching [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) under `spec.tolerations`.
 
-`nodeSelector` matches exact label values. Keep `kubernetes.io/os: linux`, because the Host Profiler only supports Linux nodes:
-
-```yaml
-spec:
-  nodeSelector:
-    kubernetes.io/os: linux
-    eks.amazonaws.com/nodegroup: ng1
-```
-
-`affinity.nodeAffinity` supports `In`/`NotIn` matching, multiple conditions, and soft preferences:
-
-```yaml
-spec:
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: eks.amazonaws.com/nodegroup
-                operator: In
-                values:
-                  - ng1
-```
-
-If the target nodes are tainted, also add a matching toleration. Tolerations allow scheduling on tainted nodes but do not restrict it to them:
-
-```yaml
-spec:
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: host-profiler
-      effect: NoSchedule
-```
-
-For all fields, see the [OpenTelemetryCollector API reference](https://github.com/open-telemetry/opentelemetry-operator/blob/main/docs/api/opentelemetrycollectors.md) and [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/).
+After rollout, verify that every intended node runs a Collector pod and that no Collector pods run on other nodes.
