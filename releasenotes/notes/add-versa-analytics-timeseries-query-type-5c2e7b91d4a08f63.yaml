@@ -25,9 +25,9 @@ features:
     set ``lookback_time_window_minutes`` to 45 or more on a tenant with 15 minute buckets;
     the check logs a warning below 45, including the default of 30, when an enabled query
     uses timeseries. SLA,
-    circuit QoS, interface, link usage and DIA are validated against real Versa
-    responses, from a lab with traffic and from a customer environment; path QoS is
-    validated against customer Versa responses. Link status, site, tunnel, application
+    circuit QoS and interface are validated against Versa responses from our lab and a
+    customer environment, path QoS against a customer environment, and link usage and
+    DIA against our lab only; customer validation of link usage and DIA is pending. Link status, site, tunnel, application
     and top user metrics use ``tableData``; tunnel timeseries is pending validation
     against a response with tunnel data, as is the tunnel ``tableData`` column order for
     ``volume-tx`` and ``volume-rx``.
