@@ -255,6 +255,10 @@ When that's not enough, common advanced patterns:
 | Docker Compose | `test/new-e2e/tests/agent-health/` |
 | ECS / Fargate | `test/new-e2e/tests/cws/` |
 
+When provisioning multiple AWS ECS fakeintakes in one stack, pass
+`fakeintake.WithUniqueTaskDefinitionFamily()` to each instance. By default,
+fakeintakes use the historical `<stack>-fakeintake-ecs` task definition family.
+
 ## Validating E2E tests
 
 E2E tests provision real cloud infrastructure (~10 min per run). **Always run

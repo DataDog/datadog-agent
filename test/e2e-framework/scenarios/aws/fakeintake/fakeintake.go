@@ -59,9 +59,13 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 			return err
 		}
 
+		family := "fakeintake-ecs"
+		if params.UniqueTaskDefinitionFamily {
+			family = fmt.Sprintf("fakeintake-%s-ecs", name)
+		}
 		taskDef, err := ecs.FargateTaskDefinitionWithAgent(e,
 			namer.ResourceName("taskdef"),
-			pulumi.Sprintf("fakeintake-%s-ecs", name),
+			pulumi.String(family),
 			params.CPU, params.Memory,
 			map[string]awsxEcs.TaskDefinitionContainerDefinitionArgs{"fakeintake": *fargateLinuxContainerDefinition(apiKeyParam.Name, params)},
 			apiKeyParam.Name,
@@ -74,7 +78,7 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 		if err != nil {
 			return err
 		}
-		e.Ctx().Log.Info(fmt.Sprintf("Fakeintake dashboard available at: https://dddev.datadoghq.com/dashboard/xzy-ybs-wz4/e2e-tests--fake-intake?fromUser=true&tpl_var_fake_intake_task_family[0]=%s-fakeintake-%s-ecs", e.Ctx().Stack(), name), nil)
+		e.Ctx().Log.Info(fmt.Sprintf("Fakeintake dashboard available at: https://dddev.datadoghq.com/dashboard/xzy-ybs-wz4/e2e-tests--fake-intake?fromUser=true&tpl_var_fake_intake_task_family[0]=%s-%s", e.Ctx().Stack(), family), nil)
 		useLoadBalancer := false
 		if params.LoadBalancerEnabled {
 			if len(e.DefaultFakeintakeLBs()) != 0 {

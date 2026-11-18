@@ -11,12 +11,13 @@ import (
 )
 
 type Params struct {
-	LoadBalancerEnabled bool
-	ImageURL            string
-	CPU                 int
-	Memory              int
-	DDDevForwarding     bool
-	RetentionPeriod     string
+	LoadBalancerEnabled        bool
+	UniqueTaskDefinitionFamily bool
+	ImageURL                   string
+	CPU                        int
+	Memory                     int
+	DDDevForwarding            bool
+	RetentionPeriod            string
 }
 
 type Option = func(*Params) error
@@ -41,6 +42,15 @@ func NewParams(options ...Option) (*Params, error) {
 func WithLoadBalancer() Option {
 	return func(p *Params) error {
 		p.LoadBalancerEnabled = true
+		return nil
+	}
+}
+
+// WithUniqueTaskDefinitionFamily includes the fakeintake name in its ECS task definition family.
+// Use this for each instance when provisioning multiple fakeintakes in the same stack.
+func WithUniqueTaskDefinitionFamily() Option {
+	return func(p *Params) error {
+		p.UniqueTaskDefinitionFamily = true
 		return nil
 	}
 }
