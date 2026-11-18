@@ -147,10 +147,9 @@ instances:
     ## connection and server errors are reported as errors, as in tableData mode. Each
     ## fallback is counted as versa.timeseries.fallback, tagged by tenant, query and
     ## reason (http_error, key_parts, join_ambiguous, join_unmatched), so it can be
-    ## monitored. With debug
-    ## logging, a fallback also logs up to three timeseries series names and tableData
-    ## keys, and every timeseries query logs how many series it received; these debug
-    ## lines contain site, circuit and IP names.
+    ## monitored. With debug logging, a fallback also logs up to three timeseries series
+    ## names and tableData keys, and every timeseries query logs how many series it
+    ## received; these debug lines contain site, circuit and IP names.
     ##
     ## DIA always queries a 1 day window, so its timeseries response is large; raise
     ## max_count if the warning below is logged for it.
