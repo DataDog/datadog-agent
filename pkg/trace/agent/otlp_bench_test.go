@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,6 +46,12 @@ import (
 // whole process per iteration (the local intake included, a ~1% overhead), is
 // the one to compare the pipelines with.
 //
+// The full pipeline variants also report wire-B/op, the compressed trace
+// payload bytes the intake receives per iteration, and raw-B/op, the same
+// payloads decompressed. raw-B/op is measured over one extra flush cycle after
+// the timed loop, so that decompressing doesn't count towards the other
+// metrics. Stats payloads aren't counted.
+//
 // The receive-only variants stop after the OTLP receiver, to tell its cost
 // apart from the one of the rest of the pipeline.
 func BenchmarkOTLPEndToEnd(b *testing.B) {
@@ -71,8 +78,23 @@ func BenchmarkOTLPEndToEnd(b *testing.B) {
 }
 
 func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiveOnly bool) {
+	comp := zstdcomp.NewComponent()
+	var wireBytes, rawBytes atomic.Int64
+	var decompress atomic.Bool
 	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.Copy(io.Discard, r.Body)
+		if r.URL.Path != "/api/v0.2/traces" {
+			_, _ = io.Copy(io.Discard, r.Body)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if !decompress.Load() {
+			n, _ := io.Copy(io.Discard, r.Body)
+			wireBytes.Add(n)
+		} else if zr, err := comp.NewReader(r.Body); err == nil {
+			n, _ := io.Copy(io.Discard, zr)
+			rawBytes.Add(n)
+			zr.Close()
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer intake.Close()
@@ -93,7 +115,7 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 	if legacy {
 		cfg.Features["disable-convert-traces"] = struct{}{}
 	}
-	a := NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstdcomp.NewComponent())
+	a := NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, comp)
 	go a.StatsWriter.Run()
 	defer func() {
 		a.TraceWriter.Stop()
@@ -122,7 +144,7 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 	b.ReportAllocs()
 	b.ResetTimer()
 	cpuStart := processCPUTime(b, proc)
-	for i := 0; i < b.N; i++ {
+	runBatch := func() {
 		for j := 0; j < rspans.Len(); j++ {
 			if _, err := a.OTLPReceiver.ReceiveResourceSpans(ctx, rspans.At(j), http.Header{}, nil); err != nil {
 				b.Fatal(err)
@@ -138,6 +160,9 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 				a.ProcessV1(<-a.InV1)
 			}
 		}
+	}
+	for i := 0; i < b.N; i++ {
+		runBatch()
 		if !receiveOnly && (i+1)%flushEvery == 0 {
 			flush()
 		}
@@ -146,6 +171,18 @@ func runOTLPEndToEndBenchmark(b *testing.B, traces ptrace.Traces, legacy, receiv
 		flush()
 	}
 	b.ReportMetric(float64(processCPUTime(b, proc)-cpuStart)/float64(b.N), "cpu-ns/op")
+	if receiveOnly {
+		return
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(wireBytes.Load())/float64(b.N), "wire-B/op")
+	rawBytes.Store(0)
+	decompress.Store(true)
+	for i := 0; i < flushEvery; i++ {
+		runBatch()
+	}
+	flush()
+	b.ReportMetric(float64(rawBytes.Load())/float64(flushEvery), "raw-B/op")
 }
 
 // processCPUTime returns the user and system CPU time the process has used.
