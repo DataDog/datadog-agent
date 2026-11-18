@@ -9,6 +9,7 @@ package healthplatform
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -63,6 +65,13 @@ import (
 // schema components, so this test covers the entire pipeline: schema → configuration loading (file, environment
 // variables, schema enforcement, secrets) → startup checks → store → forwarder → intake payload.
 const invalidConfigScenarioDir = "testdata/invalidconfig"
+
+// baseConfigTemplate is the datadog.yaml every scenario configuration is appended to
+//
+//go:embed testdata/invalidconfig/base.yaml
+var baseConfigFile string
+
+var baseConfigTemplate = template.Must(template.New("base.yaml").Option("missingkey=error").Parse(baseConfigFile))
 
 // invalidConfigSecrets are the values the secrets resolver returns for the ENC[] handles of the scenarios
 const invalidConfigSecrets = "secrets.json"
@@ -141,17 +150,13 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	confDir := t.TempDir()
 	datadogYAML := filepath.Join(confDir, "datadog.yaml")
 	sysprobeYAML := filepath.Join(confDir, "system-probe.yaml")
-	baseConfig := fmt.Sprintf(`api_key: "0000001"
-run_path: %q
-health_platform:
-  enabled: true
-  persist_on_kubernetes: true
-  forwarder:
-    dd_url: %q
-    interval: 100ms
-`, filepath.Join(confDir, "run"), fi.URL())
+	var baseConfig strings.Builder
+	require.NoError(t, baseConfigTemplate.Execute(&baseConfig, struct{ RunPath, IntakeURL string }{
+		RunPath:   filepath.Join(confDir, "run"),
+		IntakeURL: fi.URL(),
+	}))
 	scenarioConfig := readScenarioFile(t, name+".yaml", true)
-	require.NoError(t, os.WriteFile(datadogYAML, []byte(baseConfig+scenarioConfig), 0o600))
+	require.NoError(t, os.WriteFile(datadogYAML, []byte(baseConfig.String()+scenarioConfig), 0o600))
 	require.NoError(t, os.WriteFile(sysprobeYAML, []byte(readScenarioFile(t, name+".system-probe.yaml", false)), 0o600))
 
 	setScenarioEnv(t, readScenarioFile(t, name+".env", false))
