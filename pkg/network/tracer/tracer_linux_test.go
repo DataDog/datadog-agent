@@ -2784,8 +2784,8 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
-	// findClosedConn polls for the closed connection from localAddr and returns it, or nil if it isn't
-	// reported within waitFor. A closed connection is reported in a single fetch only. A failed fetch is
+	// findClosedConn polls for the failed connection from localAddr and returns it, or nil if it isn't
+	// reported within waitFor. The failure may be reported in a single fetch only. A failed fetch is
 	// logged and retried on the next tick, as EventuallyWithT would.
 	findClosedConn := func(t *testing.T, localAddr net.Addr, waitFor time.Duration) *network.ConnectionStats {
 		for deadline := time.Now().Add(waitFor); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
@@ -2794,12 +2794,14 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 				t.Logf("error getting active connections: %s", err)
 				continue
 			}
-			// GetDelta aggregates entries by tuple and direction, and merges a closed entry into an open
-			// one with the same tuple, keeping IsClosed=false. So this can't pick the closed entry over an
-			// open one. It keeps the checks to an entry the tracer reported as closed: an entry that isn't
-			// marked closed means the close wasn't reported, which is the case the retry below covers.
+			// Accept a matching entry that is closed or carries failure counters. The failure can arrive
+			// on an entry with IsClosed=false: the eBPF code writes the failure reason to tcp_stats before
+			// it removes the connection, so a fetch in between reports the still-open entry with
+			// TCPFailures set. And when GetDelta aggregates an open and a closed entry with the same
+			// tuple and different cookies, the open entry survives with its own IsClosed and TCPFailures.
+			// An entry with neither means the failure wasn't reported, which the retry below covers.
 			closed := network.FirstConnection(conns, network.ByTuple(localAddr, remoteAddr), func(c network.ConnectionStats) bool {
-				return c.IsClosed
+				return c.IsClosed || len(c.TCPFailures) > 0
 			})
 			cleanup()
 			if closed != nil {
