@@ -153,7 +153,7 @@ func (f senderFixture) setup(tb testing.TB, maxConns int) (*directSender, []netw
 	return d, f.build(d, tg), tg
 }
 
-func BenchmarkBatches(b *testing.B) {
+func BenchmarkBatchesTagCache(b *testing.B) {
 	for _, f := range []senderFixture{
 		{conns: 600, containers: 20, pids: 60, seed: 1},
 		{conns: 10000, containers: 30, pids: 100, seed: 1},
