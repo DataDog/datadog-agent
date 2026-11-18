@@ -138,22 +138,12 @@ const notMapped uint32 = ^uint32(0)
 type stringCompactor struct {
 	originalStrings []string
 	oldToNew        []uint32
-	// sparseOldToNew replaces oldToNew in sparse mode, so the compactor's memory scales
-	// with the number of used references instead of the size of the source string table.
-	sparseOldToNew map[uint32]uint32
-	newStrings     []string
+	newStrings      []string
 }
 
 // newStringCompactor creates a compactor that scans the TracerPayload to identify
 // all used string references and builds a compact remapping.
 func newStringCompactor(tp *idx.TracerPayload) *stringCompactor {
-	return newStringCompactorMode(tp, false)
-}
-
-// newStringCompactorMode is newStringCompactor with an optional sparse (map-based) remapping.
-// Sparse mode suits payloads that reference a small part of a large shared string table.
-// Both modes assign new indices in the same order and so produce identical output.
-func newStringCompactorMode(tp *idx.TracerPayload, sparse bool) *stringCompactor {
 	if tp == nil || len(tp.Strings) == 0 {
 		return &stringCompactor{
 			originalStrings: nil,
@@ -162,33 +152,23 @@ func newStringCompactorMode(tp *idx.TracerPayload, sparse bool) *stringCompactor
 		}
 	}
 
-	c := &stringCompactor{originalStrings: tp.Strings}
+	c := &stringCompactor{
+		originalStrings: tp.Strings,
+		oldToNew:        make([]uint32, len(tp.Strings)),
+	}
+
+	// Initialize all to notMapped
+	for i := range c.oldToNew {
+		c.oldToNew[i] = notMapped
+	}
+
 	nextIndex := uint32(0)
-	var markRef func(oldRef uint32)
-	if sparse {
-		c.sparseOldToNew = make(map[uint32]uint32)
-		markRef = func(oldRef uint32) {
-			if int(oldRef) >= len(c.originalStrings) {
-				return
-			}
-			if _, ok := c.sparseOldToNew[oldRef]; !ok {
-				c.sparseOldToNew[oldRef] = nextIndex
-				c.newStrings = append(c.newStrings, c.originalStrings[oldRef])
-				nextIndex++
-			}
-		}
-	} else {
-		c.oldToNew = make([]uint32, len(tp.Strings))
-		// Initialize all to notMapped
-		for i := range c.oldToNew {
-			c.oldToNew[i] = notMapped
-		}
-		// markRef marks a string reference as used and assigns it a new index
-		markRef = func(oldRef uint32) {
-			if int(oldRef) < len(c.oldToNew) && c.oldToNew[oldRef] == notMapped {
-				c.oldToNew[oldRef] = nextIndex
-				nextIndex++
-			}
+
+	// markRef marks a string reference as used and assigns it a new index
+	markRef := func(oldRef uint32) {
+		if int(oldRef) < len(c.oldToNew) && c.oldToNew[oldRef] == notMapped {
+			c.oldToNew[oldRef] = nextIndex
+			nextIndex++
 		}
 	}
 
@@ -244,9 +224,6 @@ func newStringCompactorMode(tp *idx.TracerPayload, sparse bool) *stringCompactor
 		}
 	}
 
-	if sparse {
-		return c
-	}
 	// Build the new compact strings table
 	c.newStrings = make([]string, nextIndex)
 	for oldIdx, newIdx := range c.oldToNew {
@@ -260,12 +237,6 @@ func newStringCompactorMode(tp *idx.TracerPayload, sparse bool) *stringCompactor
 
 // remap returns the new compacted index for an old reference
 func (c *stringCompactor) remap(oldRef uint32) uint32 {
-	if c.sparseOldToNew != nil {
-		if newRef, ok := c.sparseOldToNew[oldRef]; ok {
-			return newRef
-		}
-		return 0
-	}
 	if c.oldToNew == nil || int(oldRef) >= len(c.oldToNew) {
 		return 0
 	}
@@ -326,21 +297,10 @@ type PreparedTracerPayload struct {
 // PrepareTracerPayload creates a PreparedTracerPayload by computing the string
 // compaction and size upfront. The compactor is reused during serialization.
 func PrepareTracerPayload(tp *idx.TracerPayload) *PreparedTracerPayload {
-	return prepareTracerPayload(tp, false)
-}
-
-// PrepareTracerPayloadSparse is PrepareTracerPayload with a map-based string remapping whose
-// memory scales with the strings the payload references rather than the full string table.
-// Use it for payloads that share a large string table with others (e.g. split by env/version).
-func PrepareTracerPayloadSparse(tp *idx.TracerPayload) *PreparedTracerPayload {
-	return prepareTracerPayload(tp, true)
-}
-
-func prepareTracerPayload(tp *idx.TracerPayload, sparse bool) *PreparedTracerPayload {
 	if tp == nil {
 		return &PreparedTracerPayload{payload: nil, compactor: nil, Size: 0}
 	}
-	c := newStringCompactorMode(tp, sparse)
+	c := newStringCompactor(tp)
 	size := sizeTracerPayloadCompacting(tp, c)
 	return &PreparedTracerPayload{
 		payload:   tp,
@@ -353,15 +313,6 @@ func prepareTracerPayload(tp *idx.TracerPayload, sparse bool) *PreparedTracerPay
 // a subset of chunks from the source payload. This is useful for splitting
 // large payloads while reusing the string table. PreparedTracerPayloads must not be modified to avoid race conditions.
 func PrepareTracerPayloadWithChunks(source *idx.TracerPayload, chunks []*idx.TraceChunk) *PreparedTracerPayload {
-	return prepareTracerPayloadWithChunks(source, chunks, false)
-}
-
-// PrepareTracerPayloadWithChunksSparse is PrepareTracerPayloadWithChunks using sparse string remapping.
-func PrepareTracerPayloadWithChunksSparse(source *idx.TracerPayload, chunks []*idx.TraceChunk) *PreparedTracerPayload {
-	return prepareTracerPayloadWithChunks(source, chunks, true)
-}
-
-func prepareTracerPayloadWithChunks(source *idx.TracerPayload, chunks []*idx.TraceChunk, sparse bool) *PreparedTracerPayload {
 	if source == nil {
 		return &PreparedTracerPayload{payload: nil, compactor: nil, Size: 0}
 	}
@@ -380,7 +331,7 @@ func prepareTracerPayloadWithChunks(source *idx.TracerPayload, chunks []*idx.Tra
 		Attributes:         source.Attributes,
 		Chunks:             chunks,
 	}
-	return prepareTracerPayload(tp, sparse)
+	return PrepareTracerPayload(tp)
 }
 
 // MarshalAgentPayload serializes an AgentPayload to protobuf binary format.

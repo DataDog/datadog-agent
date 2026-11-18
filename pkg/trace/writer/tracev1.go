@@ -205,29 +205,10 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTra
 	var toFlush [][]*pb.PreparedTracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	// Chunks with their own env/app version are emitted as separate tracer payloads so each
-	// carries its effective env/app version at the payload level.
-	groups := pkg.TracerPayload.ToProtoByEnvVersion()
-	// Grouped payloads share one string table, so they use sparse string remapping to keep
-	// memory proportional to the strings each group references. A single group is unchanged.
-	sparse := len(groups) > 1
-	for _, pbTracerPayload := range groups {
-		toFlush = append(toFlush, w.appendTracerPayloadV1(pbTracerPayload, sparse)...)
-	}
-	return toFlush
-}
+	pbTracerPayload := pkg.TracerPayload.ToProto()
 
-// appendTracerPayloadV1 buffers a single tracer payload, returning any payload groups to flush.
-// w.mu must be held.
-func (w *TraceWriterV1) appendTracerPayloadV1(pbTracerPayload *idx.TracerPayload, sparse bool) [][]*pb.PreparedTracerPayload {
-	var toFlush [][]*pb.PreparedTracerPayload
 	// Prepare the payload - this computes string compaction and accurate size
-	var prepared *pb.PreparedTracerPayload
-	if sparse {
-		prepared = pb.PrepareTracerPayloadSparse(pbTracerPayload)
-	} else {
-		prepared = pb.PrepareTracerPayload(pbTracerPayload)
-	}
+	prepared := pb.PrepareTracerPayload(pbTracerPayload)
 	size := prepared.Size
 
 	if size+w.bufferedSizeV1 <= MaxPayloadSize {
@@ -249,7 +230,7 @@ func (w *TraceWriterV1) appendTracerPayloadV1(pbTracerPayload *idx.TracerPayload
 	}
 
 	log.Debugf("Writer: payload with %d chunks and size %d exceeds %d bytes, splitting it", len(pbTracerPayload.Chunks), size, MaxPayloadSize)
-	for _, p := range splitPreparedBySize(pbTracerPayload, prepared, 0, len(pbTracerPayload.Chunks), sparse) {
+	for _, p := range splitPreparedBySize(pbTracerPayload, prepared, 0, len(pbTracerPayload.Chunks)) {
 		if p.Size > MaxPayloadSize {
 			log.Debugf("Writer: sending a single trace chunk of %d bytes, above the %d bytes target", p.Size, MaxPayloadSize)
 		}
@@ -260,19 +241,15 @@ func (w *TraceWriterV1) appendTracerPayloadV1(pbTracerPayload *idx.TracerPayload
 
 // splitPreparedBySize splits source.Chunks[lo:hi] in halves until each part fits in MaxPayloadSize
 // or holds a single chunk. prepared is the already computed payload for [lo:hi], or nil.
-func splitPreparedBySize(source *idx.TracerPayload, prepared *pb.PreparedTracerPayload, lo, hi int, sparse bool) []*pb.PreparedTracerPayload {
+func splitPreparedBySize(source *idx.TracerPayload, prepared *pb.PreparedTracerPayload, lo, hi int) []*pb.PreparedTracerPayload {
 	if prepared == nil {
-		if sparse {
-			prepared = pb.PrepareTracerPayloadWithChunksSparse(source, source.Chunks[lo:hi])
-		} else {
-			prepared = pb.PrepareTracerPayloadWithChunks(source, source.Chunks[lo:hi])
-		}
+		prepared = pb.PrepareTracerPayloadWithChunks(source, source.Chunks[lo:hi])
 	}
 	if prepared.Size <= MaxPayloadSize || hi-lo <= 1 {
 		return []*pb.PreparedTracerPayload{prepared}
 	}
 	mid := lo + (hi-lo)/2
-	return append(splitPreparedBySize(source, nil, lo, mid, sparse), splitPreparedBySize(source, nil, mid, hi, sparse)...)
+	return append(splitPreparedBySize(source, nil, lo, mid), splitPreparedBySize(source, nil, mid, hi)...)
 }
 
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent

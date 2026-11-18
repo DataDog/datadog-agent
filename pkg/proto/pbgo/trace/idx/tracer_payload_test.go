@@ -518,6 +518,14 @@ func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
 		assert.Empty(t, c.Env())
 	})
 
+	t.Run("only native msgpack decode enables overrides", func(t *testing.T) {
+		assert.False(t, (&InternalTracerPayload{}).ChunkEnvVersionOverridesEnabled())
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(msgp.AppendMapHeader(nil, 0))
+		require.NoError(t, err)
+		assert.True(t, tp.ChunkEnvVersionOverridesEnabled())
+	})
+
 	t.Run("msgpack round trip", func(t *testing.T) {
 		strs := NewStringTable()
 		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
@@ -530,82 +538,5 @@ func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "prod", got.Env())
 		assert.Equal(t, "1.2.3", got.AppVersion())
-	})
-}
-
-func TestToProtoByEnvVersion(t *testing.T) {
-	newPayload := func() *InternalTracerPayload {
-		strings := NewStringTable()
-		tp := &InternalTracerPayload{Strings: strings, chunkEnvVersionOverrides: true}
-		tp.SetEnv("prod")
-		tp.SetAppVersion("v1")
-		return tp
-	}
-	addChunk := func(tp *InternalTracerPayload, env, version string) *InternalTraceChunk {
-		c := NewInternalTraceChunk(tp.Strings, int32(len(tp.Chunks)), "", nil, nil, false, nil, 0)
-		if env != "" {
-			c.SetEnv(env)
-		}
-		if version != "" {
-			c.SetAppVersion(version)
-		}
-		tp.Chunks = append(tp.Chunks, c)
-		return c
-	}
-	envVersion := func(p *TracerPayload) [2]string { return [2]string{p.Strings[p.EnvRef], p.Strings[p.AppVersionRef]} }
-
-	t.Run("overrides disabled for converted payloads", func(t *testing.T) {
-		tp := newPayload()
-		tp.SetChunkEnvVersionOverridesEnabled(false)
-		addChunk(tp, "staging", "v2")
-		addChunk(tp, "", "")
-		out := tp.ToProtoByEnvVersion()
-		require.Len(t, out, 1)
-		assert.Equal(t, [2]string{"prod", "v1"}, envVersion(out[0]))
-	})
-
-	t.Run("native msgpack decode enables overrides", func(t *testing.T) {
-		tp := &InternalTracerPayload{}
-		_, err := tp.UnmarshalMsg(msgp.AppendMapHeader(nil, 0))
-		require.NoError(t, err)
-		assert.True(t, tp.ChunkEnvVersionOverridesEnabled())
-	})
-
-	t.Run("no overrides", func(t *testing.T) {
-		tp := newPayload()
-		addChunk(tp, "", "")
-		addChunk(tp, "", "")
-		out := tp.ToProtoByEnvVersion()
-		require.Len(t, out, 1)
-		assert.Equal(t, tp.ToProto(), out[0])
-	})
-
-	t.Run("override equal to payload values", func(t *testing.T) {
-		tp := newPayload()
-		addChunk(tp, "prod", "v1")
-		addChunk(tp, "", "")
-		out := tp.ToProtoByEnvVersion()
-		require.Len(t, out, 1)
-		assert.Len(t, out[0].Chunks, 2)
-	})
-
-	t.Run("mixed overrides", func(t *testing.T) {
-		tp := newPayload()
-		addChunk(tp, "staging", "v2") // 0
-		addChunk(tp, "", "")          // 1
-		addChunk(tp, "dev", "")       // 2: env-only override keeps payload version
-		addChunk(tp, "staging", "v2") // 3
-		out := tp.ToProtoByEnvVersion()
-		require.Len(t, out, 3)
-		assert.Equal(t, [2]string{"staging", "v2"}, envVersion(out[0]))
-		assert.Equal(t, [2]string{"prod", "v1"}, envVersion(out[1]))
-		assert.Equal(t, [2]string{"dev", "v1"}, envVersion(out[2]))
-		require.Len(t, out[0].Chunks, 2)
-		assert.Equal(t, int32(0), out[0].Chunks[0].Priority)
-		assert.Equal(t, int32(3), out[0].Chunks[1].Priority)
-		require.Len(t, out[1].Chunks, 1)
-		assert.Equal(t, int32(1), out[1].Chunks[0].Priority)
-		require.Len(t, out[2].Chunks, 1)
-		assert.Equal(t, int32(2), out[2].Chunks[0].Priority)
 	})
 }

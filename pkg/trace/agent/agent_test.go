@@ -5390,6 +5390,7 @@ func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
 	strs := idx.NewStringTable()
 	newChunk := func(id uint64, env, version string) *idx.InternalTraceChunk {
 		c := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: id, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+		c.Priority = 2 // user keep, so every chunk is forwarded
 		if env != "" {
 			c.SetEnv(env)
 		}
@@ -5416,6 +5417,18 @@ func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
 		got = append(got, [2]string{pt.TracerEnv, pt.AppVersion})
 	}
 	assert.ElementsMatch(t, [][2]string{{"prod", "v2"}, {"staging", "v1"}, {"payload-env", "v1"}}, got)
+
+	// The forwarded payload keeps its payload-level env/version and the chunk attributes.
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+	assert.Equal(t, "payload-env", out.Env())
+	assert.Equal(t, "v1", out.AppVersion())
+	envs := []string{}
+	for _, c := range out.Chunks {
+		envs = append(envs, c.Env())
+	}
+	assert.ElementsMatch(t, []string{"prod", "staging", ""}, envs)
 }
 
 // TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags checks that legacy chunk tags
@@ -5450,9 +5463,7 @@ func TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags(t *testing.T) {
 
 	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
 	require.NotEmpty(t, payloads)
-	out := payloads[0].TracerPayload.ToProtoByEnvVersion()
-	require.Len(t, out, 1)
-	assert.Equal(t, "prod", out[0].Strings[out[0].EnvRef])
-	assert.Equal(t, "v1", out[0].Strings[out[0].AppVersionRef])
+	assert.Equal(t, "prod", payloads[0].TracerPayload.Env())
+	assert.Equal(t, "v1", payloads[0].TracerPayload.AppVersion())
 	assert.Equal(t, "staging", payloads[0].TracerPayload.Chunks[0].Env(), "chunk env tag is not normalized or rewritten")
 }

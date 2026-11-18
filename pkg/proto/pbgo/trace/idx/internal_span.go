@@ -503,13 +503,7 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	for i, chunk := range tp.Chunks {
 		chunks[i] = chunk.ToProto()
 	}
-	p := tp.headerProto()
-	p.Chunks = chunks
-	return p
-}
 
-// headerProto returns a proto TracerPayload with the payload-level fields and no chunks.
-func (tp *InternalTracerPayload) headerProto() *TracerPayload {
 	return &TracerPayload{
 		Strings:            tp.Strings.strings,
 		ContainerIDRef:     tp.containerIDRef,
@@ -521,66 +515,9 @@ func (tp *InternalTracerPayload) headerProto() *TracerPayload {
 		HostnameRef:        tp.hostnameRef,
 		AppVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
+		Chunks:             chunks,
 		ContainerDebug:     tp.ContainerDebug,
 	}
-}
-
-// ToProtoByEnvVersion converts an InternalTracerPayload to one or more proto TracerPayloads,
-// grouping chunks by their effective env and app version (the chunk-level override when set,
-// otherwise the payload-level value). Each resulting payload carries its group's env and app
-// version at the payload level and shares the (read-only) string table with the others.
-// Chunk order is preserved within each group and groups are returned in first-seen order.
-// When all chunks resolve to the payload-level values, this returns exactly []*TracerPayload{tp.ToProto()}.
-func (tp *InternalTracerPayload) ToProtoByEnvVersion() []*TracerPayload {
-	type envVersion struct{ env, version string }
-	if !tp.chunkEnvVersionOverrides {
-		return []*TracerPayload{tp.ToProto()}
-	}
-	payloadKey := envVersion{tp.Env(), tp.AppVersion()}
-	keyOf := func(c *InternalTraceChunk) envVersion {
-		k := payloadKey
-		if len(c.Attributes) == 0 {
-			return k
-		}
-		if e := c.Env(); e != "" {
-			k.env = e
-		}
-		if v := c.AppVersion(); v != "" {
-			k.version = v
-		}
-		return k
-	}
-	split := false
-	for _, c := range tp.Chunks {
-		if keyOf(c) != payloadKey {
-			split = true
-			break
-		}
-	}
-	if !split {
-		return []*TracerPayload{tp.ToProto()}
-	}
-	var order []envVersion
-	groups := make(map[envVersion]*TracerPayload)
-	for _, c := range tp.Chunks {
-		k := keyOf(c)
-		g, ok := groups[k]
-		if !ok {
-			g = tp.headerProto()
-			g.EnvRef = tp.Strings.Add(k.env)
-			g.AppVersionRef = tp.Strings.Add(k.version)
-			groups[k] = g
-			order = append(order, k)
-		}
-		g.Chunks = append(g.Chunks, c.ToProto())
-	}
-	// Strings may have grown while adding group refs; refresh every group's view of the table.
-	out := make([]*TracerPayload, len(order))
-	for i, k := range order {
-		groups[k].Strings = tp.Strings.strings
-		out[i] = groups[k]
-	}
-	return out
 }
 
 // NewStringsClone returns a shallow copy of the tracer payload. where the strings are set to a new string table.
