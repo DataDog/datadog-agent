@@ -123,6 +123,28 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	assertFlowEventsCount(t, port, srv, packetData, 29)
 }
 
+func TestNetFlow_IntegrationTest_NetFlow9_SmallTemplateCache(t *testing.T) {
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+	var epForwarder forwardermock.MockComponent
+	cfg := singleListenerConfig("netflow9", port)
+	cfg.TemplateCacheMaxSize = 1
+	srv := fxutil.Test[server.Component](t, fx.Options(
+		testOptions,
+		fx.Populate(&epForwarder),
+		fx.Replace(cfg),
+		setTimeNow,
+	)).(*Server)
+
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil).Times(29)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	packetData, err := testutil.GetNetFlow9Packet()
+	require.NoError(t, err, "error getting packet")
+
+	assertFlowEventsCount(t, port, srv, packetData, 29)
+}
+
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
