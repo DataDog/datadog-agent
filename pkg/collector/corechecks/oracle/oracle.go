@@ -106,6 +106,7 @@ type Check struct {
 	schemaContainerID                       int64
 	schemaEmitter                           payloadEmitter
 	schemaQueryError                        error
+	schemaDetailsIncomplete                 bool
 	filePath                                string
 	sqlTraceRunsCount                       int
 	sqlSubstringLength                      int

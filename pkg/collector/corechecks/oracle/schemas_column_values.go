@@ -126,6 +126,7 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 			return nil
 		})
 		if err != nil {
+			c.schemaDetailsIncomplete = true
 			log.Warnf("%s failed to collect column defaults and index expressions in container %d: %v", c.logPrompt, id, err)
 		}
 	}

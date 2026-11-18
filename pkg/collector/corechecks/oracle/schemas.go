@@ -523,7 +523,8 @@ func (c *schemaSnapshotCoordinator) add(event schemaEvent) {
 	}
 	event.CollectionStartedAt = snapshot.startedAt
 	event.CollectionPayloadsCount = 0
-	event.Truncated = event.Truncated || snapshot.truncated
+	snapshot.truncated = snapshot.truncated || event.Truncated
+	event.Truncated = snapshot.truncated
 	// Completion can add both fields after this event has been buffered.
 	bounded := event
 	bounded.CollectionPayloadsCount = math.MaxInt
@@ -761,7 +762,7 @@ func (s *schemaCollector) maybeFlush(isLast bool) {
 		Name:    s.conName,
 		Schemas: s.schemas,
 	}}
-	e.Truncated = s.truncated
+	e.Truncated = s.truncated || s.check.schemaDetailsIncomplete
 
 	s.emit(e)
 	log.Debugf("%s schema payload con_id=%d tables=%d last=%t",
@@ -1443,10 +1444,12 @@ func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []s
 	for _, query := range queries {
 		args, err := c.schemaQueryArguments(query)
 		if err != nil {
+			c.schemaDetailsIncomplete = true
 			log.Warnf("%s failed to prepare table detail %q: %s", c.logPrompt, name, err)
 			return err
 		}
 		if err := c.queryMetadata(ctx, query.text, scan, args...); err != nil {
+			c.schemaDetailsIncomplete = true
 			log.Warnf("%s failed to collect table detail %q: %s", c.logPrompt, name, err)
 			return err
 		}
@@ -2211,6 +2214,7 @@ func (c *Check) schemaTableWindow(ctx context.Context, window []tableKey, select
 
 func (c *Check) schemaCollection(ctx context.Context) error {
 	c.schemaQueryError = nil
+	c.schemaDetailsIncomplete = false
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -2288,6 +2292,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			return errors.Join(collectionErr, err)
 		}
 		c.schemaQueryError = nil
+		c.schemaDetailsIncomplete = false
 		containerName, ok := containers[conID]
 		if !ok {
 			containerName = strconv.FormatInt(conID, 10)
@@ -2370,7 +2375,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			collector.emitEmptyContainers(container)
 		}
 		_, truncated := containerTruncated[conID]
-		if err := coordinator.completeContainer(conID, truncated); err != nil {
+		if err := coordinator.completeContainer(conID, truncated || c.schemaDetailsIncomplete); err != nil {
 			collectionErr = errors.Join(collectionErr, err)
 		}
 	}

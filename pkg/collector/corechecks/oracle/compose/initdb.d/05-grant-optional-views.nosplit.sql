@@ -7,7 +7,7 @@ begin
   for v in (select column_value name from table(sys.odcivarchar2list(
               'cdb_blockchain_tables', 'cdb_immutable_tables'))) loop
     begin
-      execute immediate 'grant select on ' || v.name || ' to c##datadog container=all';
+      execute immediate 'grant read on ' || v.name || ' to c##datadog';
     exception
       when table_or_view_does_not_exist then null;
     end;

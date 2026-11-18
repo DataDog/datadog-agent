@@ -777,7 +777,7 @@ func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
 	c, _, _, cleanup := newSchemaCheck(t)
 	defer cleanup()
 	events := []schemaEvent{
-		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Truncated: true, Metadata: []containerObject{{ID: "1"}}},
 		{Kind: "oracle_databases", CollectionStartedAt: 200, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
 		{Kind: "oracle_views", CollectionStartedAt: 300, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
 		{Kind: "oracle_views", CollectionStartedAt: 400, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
@@ -803,6 +803,8 @@ func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
 	assert.Zero(t, emitted[1].CollectionPayloadsCount)
 	assert.Equal(t, 2, emitted[2].CollectionPayloadsCount)
 	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
+	assert.True(t, emitted[2].Truncated)
+	assert.False(t, emitted[3].Truncated)
 }
 
 func TestSchemaPayloadKeepsMaterializedViewFreshness(t *testing.T) {
@@ -1003,6 +1005,15 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 		tableKey{conID: 3, owner: "APP", table: "V_ORDERS"}))
 	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(addViewRow(sqlmock.NewRows(viewSchemaColumns), 3, "APP", "V_ORDERS", 1))
 
+	for _, view := range []string{
+		"cdb_constraints", "cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews",
+		"cdb_tab_comments", "cdb_col_comments", "cdb_tab_cols", "cdb_indexes",
+	} {
+		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	}
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name, text_vc").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "VIEW_NAME", "TEXT_VC"}).AddRow(3, "APP", nil, "SELECT 1 FROM dual"))
+	dbMock.ExpectQuery("FROM cdb_tab_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 
@@ -1033,6 +1044,9 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 		"tables and views belong to the same snapshot")
 	assert.Zero(t, tables.CollectionPayloadsCount)
 	assert.Equal(t, 2, views.CollectionPayloadsCount)
+	assert.False(t, tables.Truncated)
+	assert.True(t, views.Truncated)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestViewCollectionFailureDropsBufferedTables(t *testing.T) {
@@ -1622,6 +1636,7 @@ func TestTableRetentionQueriesAreVersionGated(t *testing.T) {
 					IotType: "-", ClusterName: "-", Clustering: "YES", ReadOnly: "YES",
 				})
 				collector.finish()
+				require.Equal(t, incomplete, event.Truncated)
 				orders := findTable([]schemaEvent{event}, "APP", "ORDERS")
 				require.NotNil(t, orders)
 				require.Equal(t, []string{"temporary", "partitioned", "attribute_clustered", "read_only"}, orders.Properties)
@@ -2462,6 +2477,7 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(
 		addViewRow(sqlmock.NewRows(viewSchemaColumns), 3, "APP", "V_ORDERS", 1))
 
+	expectViewDetails(dbMock)
 	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 
@@ -2672,6 +2688,11 @@ func emptyTablesRows() *sqlmock.Rows {
 	})
 }
 
+func expectViewDetails(dbMock sqlmock.Sqlmock) {
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name, text_vc").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+	dbMock.ExpectQuery("FROM cdb_tab_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+}
+
 func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaEvent {
 	t.Helper()
 	byContainer := make(map[string]schemaEvent)
@@ -2734,6 +2755,7 @@ func TestMaxViewsCap(t *testing.T) {
 			dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identities)
 			dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
 
+			expectViewDetails(dbMock)
 			expectSchemaContainerAvailable(dbMock, 3)
 			require.NoError(t, c.SchemaCollection())
 
@@ -2783,8 +2805,10 @@ func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
 	addViewRow(rows4, 4, "APP", "V5", 1)
 	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WithArgs(append([]driver.Value{sql.Named("max_columns", c.config.Schemas.MaxColumns)}, schemaObjectArgs(4, "APP", "V4", "V5")...)...).WillReturnRows(rows4)
 
-	expectSchemaContainerAvailable(dbMock, 3)
-	expectSchemaContainerAvailable(dbMock, 4)
+	for _, conID := range []int64{3, 4} {
+		expectViewDetails(dbMock)
+		expectSchemaContainerAvailable(dbMock, conID)
+	}
 	require.NoError(t, c.SchemaCollection())
 
 	byContainer := viewPayloadsByContainer(t, &sender.Mock)
@@ -3236,6 +3260,7 @@ func TestSchemaConstraintWindowsKeepHydrationPagesBounded(t *testing.T) {
 			require.Equal(t, 2, constraintQueries)
 			seen := make(map[string]bool)
 			for _, event := range events {
+				require.Equal(t, scenario == "properties_incomplete", event.Truncated)
 				if scenario == "second_window_deadline" {
 					require.Zero(t, event.CollectionPayloadsCount)
 				}
@@ -3408,6 +3433,7 @@ func TestSchemaConstraintWindowFailurePolicy(t *testing.T) {
 				require.Len(t, events, 1)
 				require.Len(t, events[0].Metadata[0].Schemas[0].Tables, 1)
 				require.Nil(t, events[0].Metadata[0].Schemas[0].Tables[0].Constraints)
+				require.True(t, events[0].Truncated)
 				require.Equal(t, 1, events[0].CollectionPayloadsCount)
 			}
 			require.NoError(t, dbMock.ExpectationsWereMet())

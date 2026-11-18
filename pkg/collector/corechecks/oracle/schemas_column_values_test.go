@@ -10,6 +10,7 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -191,6 +192,53 @@ func TestSchemaLegacyColumnValuesUseCorrectContainer(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestSchemaLegacyColumnValueFailureTruncatesOnlyItsContainer(t *testing.T) {
+	c, _, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	c.dbVersion = "12.2.0.1.0"
+	views := false
+	c.config.Schemas.CollectViews = &views
+	mock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB1").AddRow(4, "PDB2"))
+	mock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104).AddRow(4, "APP", 104))
+	for _, id := range []int64{3, 4} {
+		key := tableKey{conID: id, owner: "APP", table: "ORDERS"}
+		mock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(key))
+		mock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
+		expectSchemaHydrationRows(mock, []tableKey{key}, nil)
+		for _, view := range []string{"cdb_mviews", "cdb_tab_comments", "cdb_col_comments", "cdb_indexes"} {
+			mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
+		}
+		expectSchemaSession(mock, id, "PDB")
+		query := mock.ExpectQuery("FROM dba_tab_cols")
+		if id == 3 {
+			query.WillReturnError(errors.New("column defaults unavailable"))
+		} else {
+			query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
+				AddRow(id, "APP", "ORDERS", "C1", "NO", "42"))
+		}
+		expectSchemaContainerAvailable(mock, id)
+	}
+	var events []schemaEvent
+	c.schemaEmitter = func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	}
+	require.NoError(t, c.SchemaCollection())
+	require.NoError(t, mock.ExpectationsWereMet())
+	require.Len(t, events, 2)
+	for _, event := range events {
+		require.Equal(t, 1, event.CollectionPayloadsCount)
+		require.Equal(t, event.Metadata[0].ID == "3", event.Truncated)
+	}
+	require.Equal(t, "3", events[0].Metadata[0].ID)
+	require.Empty(t, events[0].Metadata[0].Schemas[0].Tables[0].Columns[0].Default)
+	require.Equal(t, "4", events[1].Metadata[0].ID)
+	require.Equal(t, "42", events[1].Metadata[0].Schemas[0].Tables[0].Columns[0].Default)
 }
 
 func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {

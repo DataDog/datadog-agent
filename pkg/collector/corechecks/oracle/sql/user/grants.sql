@@ -7,7 +7,7 @@ grant create session to &&user ;
 
 declare
    type array_t is table of varchar2(30);
-   array array_t := array_t(
+   monitoring_views array_t := array_t(
     'v_$session',
     'v_$database',
     'v_$containers',
@@ -44,13 +44,13 @@ declare
     'gv_$lock',
     'dba_objects',
     'cdb_data_files',
-    'dba_data_files',
+    'dba_data_files'
+   );
+   schema_views array_t := array_t(
     'cdb_users',
-    'cdb_objects',
     'cdb_tables',
     'cdb_object_tables',
     'cdb_tab_cols',
-    'dba_tab_cols',
     'cdb_tab_comments',
     'cdb_col_comments',
     'cdb_indexes',
@@ -65,32 +65,40 @@ declare
     'cdb_views',
     'cdb_blockchain_tables',
     'cdb_immutable_tables'
-  );
-  command varchar2(4000);
-  object_name varchar2(30);
-  -- CDB connections require container=all; otherwise CDB_* queries return only CDB$ROOT rows.
-  -- RDS has no equivalent, but its users are local and never use CDB connections.
-  container_clause varchar2(20) := '';
+   );
+   container_clause varchar2(20);
+
+   procedure grant_views(view_names array_t, privilege_name varchar2, scope_clause varchar2 default null) is
+      command varchar2(4000);
+   begin
+      for i in 1..view_names.count loop
+         if :hostingType = :hostingTypeSelfManaged then
+            command := 'grant ' || privilege_name || ' on ' || view_names(i) || ' to &&user' || scope_clause;
+         elsif :hostingType = :hostingTypeRDS then
+            command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(view_names(i)) || ''',''&&user'',''SELECT'', p_grant_option => false); end;';
+         elsif :hostingType = :hostingTypeOCI then
+            command := 'grant select on ' || view_names(i) || ' to &&user with grant option' || scope_clause;
+         end if;
+         begin
+            execute immediate command;
+         exception
+            when others then
+               null;
+         end;
+      end loop;
+   end;
 begin
    if :connection_type = :connection_type_cdb then
       container_clause := ' container=all';
       execute immediate 'grant set container to &&user container=all';
    end if;
-   for i in 1..array.count loop
-      if :hostingType = :hostingTypeSelfManaged then
-        command := 'grant select on ' || array(i) || ' to &&user' || container_clause;
-      elsif :hostingType = :hostingTypeRDS then
-        command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(array(i)) || ''',''&&user'',''SELECT'', p_grant_option => false); end;';
-      elsif :hostingType = :hostingTypeOCI then
-        object_name := replace(array(i), 'V_$', 'V$');
-        command := 'grant select on ' || array(i) || ' to &&user with grant option' || container_clause;
+
+   grant_views(monitoring_views, 'select');
+   if dbms_db_version.version > 12 or (dbms_db_version.version = 12 and dbms_db_version.release >= 2) then
+      grant_views(schema_views, 'read');
+      if dbms_db_version.version < 23 then
+         grant_views(array_t('dba_tab_cols'), 'read', container_clause);
       end if;
-      begin
-         execute immediate command;
-      exception
-         when others then
-            null;
-      end;
-   end loop;
+   end if;
 end;
 /
