@@ -21,6 +21,7 @@ var templatesFS embed.FS
 // Range states shown on the status page.
 const (
 	stateScanning = "scanning"
+	statePaused   = "paused"
 	stateWaiting  = "waiting"
 	stateFailed   = "failed"
 	statePending  = "pending"
@@ -129,7 +130,7 @@ func (p statusProvider) rangeStatus(snap rangeSnapshot, now time.Time) rangeStat
 	}
 
 	if plan, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, p.d.sched.opts.MaxAddresses); err == nil {
-		rs.Total = int64(plan.totalAddresses() - plan.ignoredCount())
+		rs.Total = int64(plan.totalAddresses())
 	}
 
 	if p.d.sched.sweeper == nil {
@@ -137,6 +138,9 @@ func (p statusProvider) rangeStatus(snap rangeSnapshot, now time.Time) rangeStat
 	}
 	cursor, ok := p.d.sched.sweeper.cursors.Load(cfg.AutodiscoveryID)
 	if !ok || cursor.RunID == "" {
+		if snap.sweeping {
+			rs.State = stateScanning
+		}
 		return rs
 	}
 
@@ -149,8 +153,12 @@ func (p statusProvider) rangeStatus(snap rangeSnapshot, now time.Time) rangeStat
 		rs.StartedAt = formatTime(time.UnixMilli(cursor.StartedAtMs))
 	}
 
-	if cursor.EndedAtMs == 0 {
+	if snap.sweeping {
 		rs.State = stateScanning
+		return rs
+	}
+	if cursor.EndedAtMs == 0 {
+		rs.State = statePaused
 		return rs
 	}
 

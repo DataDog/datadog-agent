@@ -33,8 +33,10 @@ func newStatusTestDiscovery(t *testing.T, workers int64) (*ndmDiscovery, *memCur
 	return &ndmDiscovery{log: logmock.New(t), sched: s, enabled: true}, cursors
 }
 
-func addStatusRange(d *ndmDiscovery, cfg rangeConfig) {
-	d.sched.ranges[cfg.AutodiscoveryID] = &scheduledRange{cfg: cfg, cancel: func() {}}
+func addStatusRange(d *ndmDiscovery, cfg rangeConfig) *scheduledRange {
+	sr := &scheduledRange{cfg: cfg, cancel: func() {}}
+	d.sched.ranges[cfg.AutodiscoveryID] = sr
+	return sr
 }
 
 func statusAt(d *ndmDiscovery, nowMs int64) discoveryStatus {
@@ -43,7 +45,7 @@ func statusAt(d *ndmDiscovery, nowMs int64) discoveryStatus {
 
 func TestStatusShowsAScanningRangeWithItsProgress(t *testing.T) {
 	d, cursors := newStatusTestDiscovery(t, 10)
-	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
+	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24")).sweeping = true
 	require.NoError(t, cursors.Save("ad-1", cursorState{RunID: "run-1", Scanned: 128, StartedAtMs: statusNowMs}))
 
 	got := statusAt(d, statusNowMs)
@@ -107,7 +109,18 @@ func TestStatusShowsARangeWithoutACursorAsPending(t *testing.T) {
 	assert.Equal(t, int64(256), r.Total)
 }
 
-func TestStatusTotalLeavesOutIgnoredAddresses(t *testing.T) {
+func TestStatusShowsAnUnfinishedRunThatIsNotSweepingAsPaused(t *testing.T) {
+	d, cursors := newStatusTestDiscovery(t, 10)
+	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
+	require.NoError(t, cursors.Save("ad-1", cursorState{RunID: "run-1", NextChunk: 2, Scanned: 128, StartedAtMs: statusNowMs}))
+
+	got := statusAt(d, statusNowMs)
+
+	assert.Equal(t, statePaused, got.Ranges[0].State)
+	assert.Equal(t, int64(128), got.Ranges[0].Scanned)
+}
+
+func TestStatusTotalCountsIgnoredAddressesLikeScanned(t *testing.T) {
 	d, _ := newStatusTestDiscovery(t, 10)
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
 	cfg.IgnoredIPAddresses = []string{"10.0.0.7", "192.168.0.1"}
@@ -115,7 +128,7 @@ func TestStatusTotalLeavesOutIgnoredAddresses(t *testing.T) {
 
 	got := statusAt(d, statusNowMs)
 
-	assert.Equal(t, int64(255), got.Ranges[0].Total)
+	assert.Equal(t, int64(256), got.Ranges[0].Total)
 }
 
 func TestStatusSplitsTheWorkersAcrossRanges(t *testing.T) {
@@ -137,8 +150,9 @@ func TestStatusListsDroppedProbesAndCycleIssues(t *testing.T) {
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
 	cfg.Probes.Dropped = []string{"dropping the unknown probe \"ssh\""}
 	addStatusRange(d, cfg)
-	d.sched.setPrepared("ad-1", []string{"credential \"cred-b\" is not available on this agent"})
-	d.sched.setSweepError("ad-1", "boom")
+	sr := d.sched.ranges["ad-1"]
+	sr.prepared = []string{"credential \"cred-b\" is not available on this agent"}
+	sr.sweepErr = "boom"
 
 	got := statusAt(d, statusNowMs)
 
@@ -153,28 +167,25 @@ func TestRunCycleRecordsARangeWithNoUsableProbe(t *testing.T) {
 	d, _ := newStatusTestDiscovery(t, 10)
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
 	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
-	addStatusRange(d, cfg)
+	sr := addStatusRange(d, cfg)
 
-	d.sched.runCycle(context.Background(), cfg, time.Hour)
+	d.sched.runCycle(context.Background(), sr, time.Hour)
 
 	issues := statusAt(d, statusNowMs).Ranges[0].Issues
 	require.NotEmpty(t, issues)
 	assert.Equal(t, "skipped: it has no usable probe", issues[len(issues)-1])
 }
 
-func TestReplacingARangeClearsItsSweepError(t *testing.T) {
+func TestAReplacedCycleDoesNotRecordIssuesOnItsReplacement(t *testing.T) {
 	d, _ := newStatusTestDiscovery(t, 10)
-	d.sched.start(context.Background())
-	t.Cleanup(d.sched.stop)
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
-	addStatusRange(d, cfg)
-	d.sched.setSweepError("ad-1", "boom")
+	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
+	replaced := addStatusRange(d, cfg)
+	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
-	require.NoError(t, d.sched.set(cfg))
+	d.sched.runCycle(context.Background(), replaced, time.Hour)
 
-	for _, issue := range statusAt(d, statusNowMs).Ranges[0].Issues {
-		assert.NotContains(t, issue, "boom")
-	}
+	assert.Empty(t, statusAt(d, statusNowMs).Ranges[0].Issues)
 }
 
 func TestScheduleRecordsTheRangesItRejects(t *testing.T) {
