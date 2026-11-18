@@ -5,16 +5,6 @@
 
 package ast
 
-// Ident is a bare identifier: `process.file.name`, `O_RDONLY`, `my_macro`,
-// `process.ancestors[A].file.name`.
-//
-// It may name an event field, a constant, a macro or an iterator.
-type Ident struct {
-	Meta
-
-	Name string
-}
-
 // Literal is a literal value: `true`, `123`, `10s`, `"/etc/passwd"`,
 // `~"/etc/*"`, `r"/etc/.*"`, `127.0.0.1`, `192.168.0.0/24`.
 type Literal struct {
@@ -23,20 +13,14 @@ type Literal struct {
 	Value Value
 }
 
-// VariableRef is a reference to a SECL variable: `${my_var}`.
-type VariableRef struct {
+// Interpolation is a string with values interpolated in it:
+// `"pid:%{process.pid}"`, `"${my_var}/x"`.
+type Interpolation struct {
 	Meta
 
-	Name string
-}
-
-// FieldRef is an explicit reference to an event field: `%{process.pid}`.
-//
-// Unlike an Ident, it never names a constant or a macro.
-type FieldRef struct {
-	Meta
-
-	Name string
+	// Parts are the parts of the string, in order: a string Literal for its
+	// text, a VariableRef for a `${my_var}`, a name for a `%{process.pid}`.
+	Parts []Node
 }
 
 // Array is an array literal: `[1, 2]`, `["/etc/passwd", ~"/etc/*"]`,

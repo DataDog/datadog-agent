@@ -1,4 +1,7 @@
 import enum
+import sys
+
+from tasks.libs.common.color import Color, color_message
 
 
 # TODO: use StrEnum when we move to Python 3.11
@@ -27,3 +30,12 @@ class FipsBackend(enum.StrEnum):
 
     def agent_flavor(self):
         return AgentFlavor.base if self == FipsBackend.none else AgentFlavor.fips
+
+    def strip_boringcrypto(self):
+        if self != FipsBackend.boringcrypto:
+            return self
+        print(
+            f'{color_message("Warning", Color.ORANGE)}: Bazel has no {self} SDK yet, selecting its non-FIPS toolchain.',
+            file=sys.stderr,
+        )
+        return FipsBackend.none

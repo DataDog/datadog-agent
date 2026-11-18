@@ -216,6 +216,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer)
 	if err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
 		return nil, nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
 
@@ -250,6 +253,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
+		// The caller may load again, so release what this failed attempt registered. Stop is a no-op
+		// if the load itself failed, and releases the maps and programs if an AfterInit modifier failed.
+		_ = m.Manager.Stop(manager.CleanAll)
+		ebpftelemetry.ClearHelperErrorKeys(m.Name)
+		ebpftelemetry.UnregisterTelemetry(m.Manager)
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
@@ -259,16 +270,19 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	var m *ddebpf.Manager
 	var closeFn func()
-	var err error
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		o.BypassEnabled = mgrOpts.BypassEnabled
-		m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler)
-		return err
+		// The tp_btf trial load can pass while the verifier rejects the full program.
+		return util.RetryWithoutTPBTF(probes.NetDevQueueTPBTF, func() error {
+			var err error
+			m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler)
+			return err
+		})
 	})
 
 	return m, closeFn, err

@@ -1,0 +1,16 @@
+version: '3'
+name: ssl-threadpool-test
+services:
+  ssl-threadpool:
+    image: registry.ddbuild.io/images/gcc-libssl-dev:latest
+    volumes:
+      - ${TESTDIR}:/src:z
+      - ${OUTDIR}:/out:z
+    network_mode: host
+    # The test matches ssl_sock_by_ctx entries by the helper's PID, so it must be the host PID.
+    pid: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        make -C /src clean all &&
+        /src/ssl_threadpool ${HOST} ${PORT} /out ${CONNECTIONS} ${THREADS} ${REQUESTS_PER_THREAD} ${ROTATIONS}
