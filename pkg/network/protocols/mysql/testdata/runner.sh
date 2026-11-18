@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# Log the commands and their output for better debugging.
-set -x
-
 # Create a directory to store the configuration files
 mkdir -p /mysql-test
 
