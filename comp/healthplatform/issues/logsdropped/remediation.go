@@ -22,7 +22,7 @@ const remediationSummary = "Fix what makes the intake or a destination reject lo
 const (
 	firstStep = "Run `sudo datadog-agent status` and check the Logs Agent section for the endpoints in use, their API key status, and any errors."
 	logStep   = "Search the Agent log for rejected or failed sends to see each status code and endpoint: `grep -iE \"failed to post http payload|could not send payload|dropped message|dropping payload\" /var/log/datadog/agent.log` (on Windows, `C:\\ProgramData\\Datadog\\logs\\agent.log`). An endpoint whose buffer fills logs nothing."
-	lastStep  = "Run `sudo datadog-agent status` again and confirm the Logs Agent section shows no new errors. This issue clears about an hour after the last dropped log."
+	lastStep  = "Run `sudo datadog-agent status` again and confirm the Logs Agent section shows no new errors. This issue clears about an hour after the last dropped log, or within 30 minutes of running `sudo datadog-agent logs clear-health` once the cause is fixed."
 )
 
 // remediation lists the shared diagnosis, then one step per reason present, in
