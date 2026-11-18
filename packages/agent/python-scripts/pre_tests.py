@@ -1,37 +1,39 @@
-import unittest
 import os
 import tempfile
+import unittest
 from unittest import mock
+
 import pre as pre_module
 from pre import pre
+
 
 class TestPre(unittest.TestCase):
     def test_pre(self):
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
-        
+
         with open(post_file, 'w', encoding='utf-8') as f:
             f.write("# DO NOT REMOVE/MODIFY\n")
             f.write("package==1.0.0\n")
-        
+
         result = pre(install_directory, storage_location)
 
-        # assert it ran with no errors 
+        # assert it ran with no errors
         self.assertEqual(result, 0)
         self.assertFalse(os.path.exists(post_file))
 
         # assert that the diff file was created
         diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
         self.assertTrue(os.path.exists(diff_file))
-        with open(diff_file, 'r', encoding='utf-8') as f:
+        with open(diff_file, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
             self.assertIn("invoke", content)
 
         # Cleanup
         os.remove(diff_file)
-        
+
         # running rmdir verifies that the directory is empty
         # asserts no extra files are created
         os.rmdir(install_directory)
@@ -53,13 +55,13 @@ class TestPre(unittest.TestCase):
 
         result = pre(install_directory, storage_location)
 
-        # assert it ran with no errors 
+        # assert it ran with no errors
         self.assertEqual(result, 0)
         self.assertFalse(os.path.exists(post_file))
 
         # assert that the diff file was created
         self.assertTrue(os.path.exists(diff_file))
-        with open(diff_file, 'r', encoding='utf-8') as f:
+        with open(diff_file, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
 
@@ -203,7 +205,7 @@ class TestPre(unittest.TestCase):
 
         result = pre(install_directory, storage_location)
 
-        # assert it ran with no errors 
+        # assert it ran with no errors
         self.assertEqual(result, 0)
         self.assertFalse(os.path.exists(post_file))
         self.assertTrue(os.path.exists(diff_file))

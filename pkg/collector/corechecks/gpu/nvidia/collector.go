@@ -378,7 +378,7 @@ func isMIGParent(device ddnvml.Device) bool {
 }
 
 func slicingModeTag(device ddnvml.Device) string {
-	if isMIGParent(device) {
+	if physicalDevice, ok := device.(*ddnvml.PhysicalDevice); ok && (physicalDevice.HasMIGFeatureEnabled || isMIGParent(device)) {
 		return "mig-parent"
 	}
 	if _, ok := device.(*ddnvml.MIGDevice); ok {

@@ -15,6 +15,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
+	"github.com/DataDog/datadog-agent/pkg/gpu/tpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,9 +34,10 @@ var (
 
 // getTags returns a slice of tags indicating GPU presence
 func getTags() []string {
-	// AMD GPUs only make the host a GPU host when AMD collection is enabled,
-	// as it is opt-in while AMD support is preliminary.
-	if hasNvidiaGPU() || (pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") && hasAMDGPU()) {
+	// AMD GPUs and TPUs only make the host a GPU host when their collection is
+	// enabled, as it is opt-in while their support is preliminary.
+	if hasNvidiaGPU() || (pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") && hasAMDGPU()) ||
+		(pkgconfigsetup.Datadog().GetBool("gpu.tpu.enabled") && tpu.HasTPU(sysfsroot.DeviceSysFSRoot())) {
 		return []string{"gpu_host:true"}
 	}
 

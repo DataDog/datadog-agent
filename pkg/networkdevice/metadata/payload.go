@@ -123,6 +123,7 @@ type DeviceMetadata struct {
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
 	DeviceType     string       `json:"device_type,omitempty"`
 	AgentHostname  string       `json:"agent_hostname,omitempty"`
+	InventoryID    string       `json:"inventory_id,omitempty"`
 }
 
 // DeviceOID device scan oid data

@@ -1,14 +1,15 @@
 import os
+
 if not os.name == 'nt':
-    import pwd
     import grp
+    import pwd
 else:
     import win32security
 import importlib.metadata
-import packaging
 import subprocess
 import time
 
+import packaging
 import packaging.requirements
 import packaging.version
 
@@ -17,6 +18,7 @@ DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by inst
 
 class IntegrationInstallError(Exception):
     """Raised when a single package install fails after all retries."""
+
     def __init__(self, package, returncode, stderr):
         self.package = package
         self.returncode = returncode
@@ -26,10 +28,12 @@ class IntegrationInstallError(Exception):
 
 class IntegrationsRestoreError(Exception):
     """Raised when one or more packages could not be restored during an upgrade."""
+
     def __init__(self, failures):
         self.failures = failures  # list[IntegrationInstallError]
         names = ", ".join(e.package for e in failures)
         super().__init__(f"failed to restore {len(failures)} package(s): {names}")
+
 
 # List of PyPi package that start with datadog- prefix but that are datadog integrations
 DEPS_STARTING_WITH_DATADOG = [
@@ -68,6 +72,7 @@ DEPS_STARTING_WITH_DATADOG = [
     "datadog-threadstats",
 ]
 
+
 def run_command(args):
     """
     Execute a shell command and return its output, errors, and return code.
@@ -84,6 +89,7 @@ def run_command(args):
         print(f"Error: {e.stderr}")
         return e.stdout, e.stderr, e.returncode
 
+
 def extract_version(req):
     """
     Extract version from the specifier string using packaging.
@@ -96,11 +102,13 @@ def extract_version(req):
         print(f"Error parsing specifier: {e}")
         return None
 
+
 def pre_python_installed_packages_file(directory):
     """
     Create pre installed packages file path.
     """
     return os.path.join(directory, '.pre_python_installed_packages.txt')
+
 
 def post_python_installed_packages_file(directory):
     """
@@ -108,17 +116,20 @@ def post_python_installed_packages_file(directory):
     """
     return os.path.join(directory, '.post_python_installed_packages.txt')
 
+
 def diff_python_installed_packages_file(directory):
     """
     Create diff installed packages file path.
     """
     return os.path.join(directory, '.diff_python_installed_packages.txt')
 
+
 def requirements_agent_release_file(directory):
     """
     Create requirements agent release file path.
     """
     return os.path.join(directory, 'requirements-agent-release.txt')
+
 
 def check_file_owner_system_windows(filename):
     """
@@ -143,6 +154,7 @@ def check_file_owner_system_windows(filename):
 
     return owner_sid == system_sid or owner_sid == administrators_sid
 
+
 def check_all_files_owner_system_windows(directory):
     """
     Check if all files used by this feature are owned by SYSTEM or Administrators.
@@ -159,7 +171,9 @@ def check_all_files_owner_system_windows(directory):
 
     for file in files:
         if not check_file_owner_system_windows(file):
-            print(f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation.")
+            print(
+                f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation."
+            )
             return False
     return True
 
@@ -179,6 +193,7 @@ def create_python_installed_packages_file(filename):
     if not os.name == 'nt':
         os.chmod(filename, 0o644)
         os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
+
 
 def create_diff_installed_packages_file(directory, old_file, new_file):
     """
@@ -215,6 +230,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
         os.chmod(diff_file, 0o644)
         os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
+
 def install_datadog_package(package, install_directory):
     """
     Install a Datadog integration via the datadog-agent integration command.
@@ -239,6 +255,7 @@ def install_datadog_package(package, install_directory):
             print(f"Retrying '{package}'...")
     raise IntegrationInstallError(package, rc, stderr)
 
+
 def install_dependency_package(pip, package):
     """
     Install a Python dependency via pip.
@@ -260,6 +277,7 @@ def install_dependency_package(pip, package):
             time.sleep(1)
             print(f"Retrying '{package}'...")
     raise IntegrationInstallError(package, rc, stderr)
+
 
 def install_diff_packages_file(install_directory, filename, exclude_filename):
     """
@@ -302,13 +320,14 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
         print(f"ERROR: failed to restore {len(failures)} package(s): {names}")
         raise IntegrationsRestoreError(failures)
 
+
 def load_requirements(filename):
     """
     Load requirements from a file.
     """
     print(f"Loading requirements from file: '{filename}'")
     valid_requirements = []
-    with open(filename, 'r', encoding='utf-8') as f:
+    with open(filename, encoding='utf-8') as f:
         raw_requirements = f.readlines()
         for req in raw_requirements:
             req_stripped = req.strip()
@@ -337,8 +356,11 @@ def load_requirements(filename):
     # Parse valid requirements using packaging
     return {
         req.name: (req_stripped, req)
-        for req_stripped, req in zip(valid_requirements, (packaging.requirements.Requirement(r) for r in valid_requirements))
+        for req_stripped, req in zip(
+            valid_requirements, (packaging.requirements.Requirement(r) for r in valid_requirements), strict=False
+        )
     }
+
 
 def cleanup_files(*files):
     """
