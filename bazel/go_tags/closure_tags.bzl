@@ -330,6 +330,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/core/configsync/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/oidc": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/delegatedauth/common": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def": ["test"],
     "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
