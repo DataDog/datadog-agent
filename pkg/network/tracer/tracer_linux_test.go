@@ -77,6 +77,7 @@ import (
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
