@@ -1,0 +1,64 @@
+name: Backport label
+
+# Adds a 'backport/<branch>' label to a merged PR on demand. Triggered by the
+# endpoint configured in the BACKPORT_LABEL_ENDPOINT repo variable (Slack button
+# clicks from the 'Backport notify' workflow), or manually. Adding the label
+# makes the 'Backport PR' workflow create the backport PR.
+
+on:
+  repository_dispatch:
+    types: [backport-label]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to backport'
+        required: true
+      branch:
+        description: 'Target branch (e.g. 7.86.x)'
+        required: true
+
+permissions: {}
+
+jobs:
+  label:
+    name: Add backport label
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # This is required to add labels to the PR
+      pull-requests: read # This is required to check that the PR is merged
+    steps:
+      - name: Add backport label to PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.client_payload.pr || inputs.pr }}
+          BRANCH: ${{ github.event.client_payload.branch || inputs.branch }}
+        run: |
+          set -eu
+
+          # Only well-formed branch names; the label must already exist in the repo
+          if ! [[ "$BRANCH" =~ ^([0-9]+\.[0-9]+\.x|main)$ ]]; then
+            echo "Invalid branch '$BRANCH', refusing to label"
+            exit 1
+          fi
+          label="backport/${BRANCH}"
+
+          # The PR must exist and be merged
+          pr=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR}")
+          if [[ "$(jq -r '.merged' <<< "$pr")" != "true" ]]; then
+            echo "PR #${PR} is not merged, refusing to label"
+            exit 1
+          fi
+
+          # Idempotency: nothing to do if the PR already has the label
+          if jq -e --arg label "$label" 'any(.labels[].name == $label)' <<< "$pr" > /dev/null; then
+            echo "PR #${PR} already has the ${label} label"
+            exit 0
+          fi
+
+          curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR}/labels" \
+            -d "$(jq -cn --arg label "$label" '{labels: [$label]}')" > /dev/null
+
+          echo "Added ${label} to PR #${PR}; the Backport PR workflow will create the backport"
