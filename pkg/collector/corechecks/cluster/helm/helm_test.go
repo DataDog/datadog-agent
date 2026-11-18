@@ -351,7 +351,18 @@ func TestRun_withCollectEvents(t *testing.T) {
 	}, testTimeout, testTicker)
 	err = check.Run()
 	require.NoError(t, err)
-	expectedTags := check.allTags(&rel, k8sSecrets, true)
+	expectedTags := []string{
+		"helm_release:my_datadog",
+		"helm_storage:secret",
+		"kube_namespace:default",
+		"helm_namespace:default",
+		"helm_chart_name:datadog",
+		"helm_revision:1",
+		"helm_chart_version:2.30.5",
+		"helm_app_version:7",
+		"helm_chart:datadog-2.30.5",
+		"helm_status:deployed",
+	}
 	mockedSender.AssertEventWithCompareFunc(
 		t,
 		eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
@@ -372,7 +383,18 @@ func TestRun_withCollectEvents(t *testing.T) {
 	}, testTimeout, testTicker)
 	err = check.Run()
 	require.NoError(t, err)
-	expectedTags = check.allTags(&upgradedRel, k8sSecrets, true)
+	expectedTags = []string{
+		"helm_release:my_datadog",
+		"helm_storage:secret",
+		"kube_namespace:default",
+		"helm_namespace:default",
+		"helm_chart_name:datadog",
+		"helm_revision:2",
+		"helm_chart_version:2.30.5",
+		"helm_app_version:7",
+		"helm_chart:datadog-2.30.5",
+		"helm_status:deployed",
+	}
 	mockedSender.AssertEventWithCompareFunc(
 		t,
 		eventForRelease(&upgradedRel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
@@ -392,12 +414,16 @@ func TestRun_withCollectEvents(t *testing.T) {
 	}, testTimeout, testTicker)
 	err = check.Run()
 	require.NoError(t, err)
-	expectedTags = check.allTags(&rel, k8sSecrets, false)
-	for i, tag := range expectedTags {
-		if strings.HasPrefix(tag, "helm_status:") {
-			expectedTags[i] = "helm_status:uninstalled"
-			break
-		}
+	expectedTags = []string{
+		"helm_release:my_datadog",
+		"helm_storage:secret",
+		"kube_namespace:default",
+		"helm_namespace:default",
+		"helm_chart_name:datadog",
+		"helm_chart_version:2.30.5",
+		"helm_app_version:7",
+		"helm_chart:datadog-2.30.5",
+		"helm_status:uninstalled",
 	}
 	mockedSender.AssertEventWithCompareFunc(
 		t,
@@ -569,7 +595,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
-				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
+				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel))
 			}
 
 			mockedSender := mocksender.NewMockSender(t, CheckName)
@@ -699,6 +725,7 @@ func TestCompactInformerCache(t *testing.T) {
 					require.Nil(t, cached.release.Chart.Values)
 					require.Contains(t, cached.tagsForMetricsAndEvents, "option_value:override")
 					require.Contains(t, cached.tagsForMetricsAndEvents, "default_value:fallback")
+					require.NotContains(t, cached.tagsForMetricsAndEvents, fmt.Sprintf("helm_revision:%d", cached.release.Version))
 					stored := check.store.get(cached.release.namespacedName(), cached.release.revision(), storage)
 					require.Same(t, cached.release, stored.release)
 					transformed, err := check.transformRelease(cached)
@@ -716,6 +743,7 @@ func TestCompactInformerCache(t *testing.T) {
 				require.Len(t, events, 3)
 				require.Contains(t, events[2].Text, `changed its status from "deployed" to "failed"`)
 				require.Contains(t, events[2].Tags, "option_value:override")
+				require.Contains(t, events[2].Tags, "helm_revision:2")
 
 				// Deleting the latest revision must restore the previous revision.
 				require.NoError(t, client.Tracker().Delete(resource, "default", "app.2"))
@@ -735,6 +763,49 @@ func TestCompactInformerCache(t *testing.T) {
 				require.Contains(t, events[3].Tags, "default_value:fallback")
 				require.NotContains(t, events[3].Tags, "helm_revision:1")
 			})
+		})
+	}
+}
+
+func TestTaggedReleaseAllTags(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		includeRevision bool
+		expected        []string
+	}{
+		{
+			name:            "with_revision",
+			includeRevision: true,
+			expected: []string{
+				"helm_release:app", "helm_revision:7", "helm_status:deployed", "team:payments", "helm_revision:custom",
+			},
+		},
+		{
+			name: "without_revision",
+			expected: []string{
+				"helm_release:app", "helm_status:deployed", "team:payments", "helm_revision:custom",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// Spare capacity makes this catch accidental appends into cached slices.
+			common := make([]string, 1, 8)
+			common[0] = "helm_release:app"
+			specific := make([]string, 3, 8)
+			copy(specific, []string{"helm_status:deployed", "team:payments", "helm_revision:custom"})
+			rel := &taggedRelease{
+				release:                 &release{Version: 7},
+				commonTags:              common,
+				tagsForMetricsAndEvents: specific,
+			}
+
+			tags := rel.allTags(test.includeRevision)
+			require.Equal(t, test.expected, tags)
+			tags[0] = "changed"
+			tags[len(tags)-1] = "changed"
+			require.Equal(t, []string{"helm_release:app"}, rel.commonTags)
+			require.Equal(t, []string{"helm_status:deployed", "team:payments", "helm_revision:custom"}, rel.tagsForMetricsAndEvents)
+			require.Equal(t, test.expected, rel.allTags(test.includeRevision))
 		})
 	}
 }

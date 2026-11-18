@@ -159,7 +159,7 @@ func (hc *HelmCheck) Run() error {
 
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, rel := range hc.store.getAll(storageDriver) {
-			tags := append(rel.commonTags, rel.tagsForMetricsAndEvents...)
+			tags := rel.allTags(true)
 			sender.Gauge("helm.release", 1, "", tags)
 		}
 	}
@@ -209,19 +209,8 @@ func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
 		}))
 }
 
-func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
-	return append(
-		commonTags(release, storageDriver),
-		hc.tagsForMetricsAndEvents(release, includeRevision)...,
-	)
-}
-
-func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision bool) []string {
+func (hc *HelmCheck) tagsForMetricsAndEvents(release *release) []string {
 	var tags []string
-
-	if includeRevision {
-		tags = append(tags, fmt.Sprintf("helm_revision:%d", release.Version))
-	}
 
 	// I've found releases without a chart reference. Not sure if it's due to
 	// failed deployments, bugs in Helm, etc.
@@ -325,7 +314,7 @@ func (hc *HelmCheck) transformRelease(obj interface{}) (interface{}, error) {
 	cached.taggedRelease = &taggedRelease{
 		release:                 decodedRelease,
 		commonTags:              commonTags(decodedRelease, storage),
-		tagsForMetricsAndEvents: hc.tagsForMetricsAndEvents(decodedRelease, true),
+		tagsForMetricsAndEvents: hc.tagsForMetricsAndEvents(decodedRelease),
 	}
 	// Values are only needed to compute helm_values_as_tags above.
 	decodedRelease.Config = nil
@@ -346,7 +335,7 @@ func (hc *HelmCheck) addRelease(obj interface{}) {
 	}
 	rel := cached.release
 	if hc.instance.CollectEvents && cached.CreationTimestamp.After(hc.startTS) {
-		tags := append(append([]string(nil), cached.commonTags...), cached.tagsForMetricsAndEvents...)
+		tags := cached.allTags(true)
 		if previous := hc.store.get(rel.namespacedName(), rel.revision(), cached.storage); previous != nil {
 			hc.eventsManager.addEventForUpdatedRelease(previous.release, rel, tags)
 		} else {
@@ -386,9 +375,7 @@ func (hc *HelmCheck) deleteRelease(obj interface{}) {
 	// When a release is deleted, all its revisions are deleted at the same
 	// time. Emit one event when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
-		// The first metric tag is the revision, which deletion events omit.
-		// Copy the tags before replacing the status, as the cache is read-only.
-		tags := append(append([]string(nil), cached.commonTags...), cached.tagsForMetricsAndEvents[1:]...)
+		tags := cached.allTags(false)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "helm_status:") {
 				tags[i] = "helm_status:uninstalled"
