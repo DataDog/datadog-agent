@@ -1,7 +1,10 @@
+import ast
+import json
 import os
 import re
 import subprocess
 import sys
+from fnmatch import fnmatchcase
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -272,3 +275,104 @@ def check_release_json_newline(ctx):
     """Check the committed release metadata during CI."""
     if not _staged_bytes(ctx, "release.json").endswith(b"\n"):
         raise Exit("release.json requires a final newline.")
+
+
+def _buildifier_input(path):
+    # File patterns from the pinned buildtools buildifier/runner.bash.template.
+    name = Path(path).name
+    return name in {"BUILD", "BUILD.oss", "WORKSPACE", "WORKSPACE.oss", "WORKSPACE.bzlmod"} or any(
+        fnmatchcase(name, pattern)
+        for pattern in ("*.bzl", "*.sky", "*.star", "*.bazel", "*.BUILD", "BUILD.*.oss", "WORKSPACE.*.oss")
+    )
+
+
+@task
+def check_buildifier(ctx):
+    """Check staged Bazel files with the version, warnings and path exclusions used by CI."""
+    rules = "bazel/buildifier/BUILD.bazel"
+    pins = "bazel/prebuilt_buildtools.json"
+    config = ".buildifier.json"
+    tracked = _tracked_paths(ctx)
+    changed = set(_staged_paths(ctx))
+    scope = tracked if changed & {config, rules, pins} else tracked & changed
+    files = sorted(filter(_buildifier_input, scope))
+    if not files:
+        return
+    if rules not in tracked or pins not in tracked:
+        raise Exit(f"Buildifier requires staged CI settings from {rules} and {pins}.")
+    assignments = (node for node in ast.parse(_staged_bytes(ctx, rules)).body if isinstance(node, ast.Assign))
+    exclusions = next(
+        (
+            node.value
+            for node in assignments
+            if any(isinstance(name, ast.Name) and name.id == "exclude_patterns" for name in node.targets)
+        ),
+        None,
+    )
+    if exclusions is None:
+        raise Exit(f"Cannot read the exclude_patterns list in {rules}.")
+    patterns = ast.literal_eval(exclusions)
+    files = [p for p in files if not any(fnmatchcase("./" + p, pattern) for pattern in patterns)]
+    if not files:
+        return
+    version = json.loads(_staged_bytes(ctx, pins))["buildifier"]["version"].removeprefix("v")
+    binary = Path("bin", "buildifier.exe" if os.name == "nt" else "buildifier").resolve()
+    if not binary.is_file() or f"buildifier version: {version}" not in (
+        line.strip() for line in subprocess.check_output([binary, "-version"], text=True).splitlines()
+    ):
+        raise Exit(f"Install Buildifier {version} with 'dda inv install-tools --buildifier'.")
+    with TemporaryDirectory() as directory:
+        config_path = "off"
+        if config in tracked:
+            config_path = str(Path(directory, config))
+            Path(config_path).write_bytes(_staged_bytes(ctx, config))
+        for path, data in _staged_blobs(files):
+            result = subprocess.run(
+                [binary, "-mode=check", "-lint=warn", f"-config={config_path}", f"-path={path}"], input=data
+            )
+            if result.returncode:
+                raise Exit(f"Buildifier reported problems in {path}.", code=result.returncode)
+
+
+@task
+def check_rustfmt(ctx):
+    """Check staged Rust files with the Bazel rustfmt aspect's toolchain, edition and configuration."""
+    tracked = _tracked_paths(ctx)
+    changed = set(_staged_paths(ctx))
+    settings = {"rust-toolchain", "rust-toolchain.toml", "rustfmt.toml", ".rustfmt.toml", "Cargo.toml"}
+    expand = bool(changed & {"MODULE.bazel", ".bazelrc"}) or any(Path(p).name in settings for p in changed)
+    files = sorted(p for p in (tracked if expand else tracked & changed) if p.endswith(".rs"))
+    if not files:
+        return
+    if "MODULE.bazel" not in tracked:
+        raise Exit("Rust formatting requires the toolchains.toolchain declaration from MODULE.bazel.")
+    module = _staged_bytes(ctx, "MODULE.bazel").decode()
+    toolchain = re.search(r"(?ms)^toolchains\.toolchain\((.*?)\)", module)
+    if not toolchain:
+        raise Exit("Cannot find toolchains.toolchain in MODULE.bazel.")
+    options = dict(re.findall(r'(?:^|,)\s*(edition|version)\s*=\s*"([^"]+)"', re.sub(r"#[^\n]*", "", toolchain[1])))
+    if options.keys() != {"edition", "version"}:
+        raise Exit("The Rust toolchain in MODULE.bazel requires literal version and edition values.")
+    with TemporaryDirectory() as directory:
+        # The Bazel aspect passes rules_rust's empty default configuration and skips child modules.
+        config = Path(directory, "rustfmt.toml")
+        config.touch()
+        for path, data in _staged_blobs(files):
+            _write_blob(directory, path, data)
+        _run_files(
+            [
+                "rustup",
+                "run",
+                options["version"],
+                "rustfmt",
+                "--check",
+                "--edition",
+                options["edition"],
+                "--config-path",
+                str(config),
+                "--config",
+                "skip_children=true",
+            ],
+            files,
+            directory,
+        )
