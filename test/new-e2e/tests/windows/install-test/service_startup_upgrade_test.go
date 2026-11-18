@@ -59,10 +59,11 @@ func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
 			s.Require().NoError(windowsCommon.InstallMSI(vm, oldMSI, installArgs, filepath.Join(s.SessionOutputDir(), "install.log")))
 			oldProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
 			s.Require().NoError(err)
-			// Nondefault settings distinguish snapshot restoration from package defaults.
+			defer s.cleanupAgent()
+			// Rollback deliberately applies the outgoing package's defaults rather
+			// than restoring these customer-customized startup settings.
 			vm.MustExecute(`Set-Service datadogagent -StartupType Manual; Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent' -Name DelayedAutoStart -Value 0; Set-Service 'Datadog Installer' -StartupType Disabled`)
-			original := s.captureProtectedServiceStartup()
-			s.Require().Len(original, 3)
+			s.Require().Len(s.captureProtectedServiceStartup(), len(protectedServiceNames))
 
 			err = windowsCommon.InstallMSI(vm, newMSI, installArgs, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 			failed := scenario.oldFailure != "" || scenario.newFailure != ""
@@ -76,12 +77,8 @@ func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
 				data, err := vm.ReadFile(directory + `\` + role + "-" + action + ".txt")
 				s.Require().NoError(err, "execution must reach %s/%s", role, action)
 				lines := strings.FieldsFunc(strings.TrimSpace(string(data)), func(r rune) bool { return r == '\r' || r == '\n' })
-				s.Require().Len(lines, 3)
+				s.Require().Len(lines, len(protectedServiceNames))
 				for _, line := range lines {
-					// ConfigureUser precedes InstallServices: removed services are also safe.
-					if action == "ConfigureUser" && strings.HasSuffix(line, "=absent") {
-						continue
-					}
 					start := "4"
 					if enabled {
 						start = "3"
@@ -95,6 +92,8 @@ func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
 			checkpoint("old", "StopDDServices", false)
 			checkpoint("old", "UninstallUser", false)
 			if scenario.oldFailure == "" {
+				// Registrations must survive removal even after DeleteServices.
+				checkpoint("old", "DeleteServices", false)
 				checkpoint("new", "ConfigureUser", false)
 				checkpoint("new", "ConfigureServices", false)
 				if scenario.newFailure != "ConfigureServices" {
@@ -105,17 +104,63 @@ func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
 			s.Require().NoError(err)
 			if failed {
 				s.Require().Equal(oldProduct, product, "rollback must restore the outgoing product")
-				s.assertProtectedServiceStartup(original)
-				// Startup restoration must leave a usable installation after permissions rollback.
-				vm.MustExecute(`Set-Service 'Datadog Installer' -StartupType Manual`)
+				s.assertServiceStartupDefaults()
+				// Default enablement must leave a usable installation after permissions rollback.
 				s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
 				RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 			} else {
 				s.Require().NotEqual(oldProduct, product, "must exercise a major upgrade, not repair")
+				s.assertServiceStartupDefaults()
 			}
 			s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "", filepath.Join(s.SessionOutputDir(), "uninstall.log")))
+			s.Require().Empty(s.captureProtectedServiceStartup(), "true uninstall must delete service registrations")
 		}) {
 			s.Require().FailNow("stopping after failed upgrade scenario")
+		}
+	}
+}
+
+// Fleet removes the MSI between package versions. Its removal must retain
+// disabled registrations, and a subsequent true uninstall must remove them.
+func (s *testUpgradeServiceProtectionSuite) TestFleetRemovalKeepsServices() {
+	vm := s.Env().RemoteHost
+	msi := s.installAgentPackage(vm, s.AgentPackage, windowsAgent.WithInstallOnly("1"))
+	defer func() {
+		// A failed assertion between Fleet removal and reinstall must not leave
+		// orphaned registrations that break a retry on the same VM.
+		if _, err := windowsAgent.GetDatadogAgentProductCode(vm); err != nil && len(s.captureProtectedServiceStartup()) != 0 {
+			s.Assert().NoError(windowsCommon.InstallMSI(vm, msi, `DD_INSTALL_ONLY=1`, filepath.Join(s.SessionOutputDir(), "cleanup-reinstall.log")))
+		}
+		s.cleanupAgent()
+	}()
+	product, err := windowsAgent.GetDatadogAgentProductCode(vm)
+	s.Require().NoError(err)
+
+	s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "FLEET_INSTALL=1", filepath.Join(s.SessionOutputDir(), "fleet-uninstall.log")))
+	retained := s.captureProtectedServiceStartup()
+	s.Require().Len(retained, len(protectedServiceNames))
+	for name, setting := range retained {
+		s.Require().Equal(windowsCommon.SERVICE_DISABLED, setting.startType, "%s must remain disabled between Fleet packages", name)
+	}
+
+	s.Require().NoError(windowsCommon.InstallMSI(vm, msi, `DD_INSTALL_ONLY=1`, filepath.Join(s.SessionOutputDir(), "fleet-reinstall.log")))
+	s.assertServiceStartupDefaults()
+	s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+
+	s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "FLEET_INSTALL=0", filepath.Join(s.SessionOutputDir(), "full-uninstall.log")))
+	s.Require().Empty(s.captureProtectedServiceStartup(), "true uninstall must delete retained service registrations")
+}
+
+func (s *baseAgentMSISuite) assertServiceStartupDefaults() {
+	actual := s.captureProtectedServiceStartup()
+	s.Require().Len(actual, len(protectedServiceNames))
+	for name, setting := range actual {
+		if name == "datadogagent" {
+			s.Assert().Equal(windowsCommon.SERVICE_AUTO_START, setting.startType, name)
+			s.Assert().Equal("1", setting.delayedAutoStart, name)
+		} else {
+			s.Assert().Equal(windowsCommon.SERVICE_DEMAND_START, setting.startType, name)
 		}
 	}
 }

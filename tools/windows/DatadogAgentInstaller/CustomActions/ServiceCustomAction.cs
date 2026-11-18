@@ -445,172 +445,106 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        internal sealed class StartupSettings
-        {
-            public string Name { get; set; }
-            public ServiceStartMode StartType { get; set; }
-            public bool DelayedAutoStart { get; set; }
-        }
-
-        internal static readonly string[] ProtectedServices =
+        // Keep retired services here until full uninstall, even after removing them
+        // from ActiveServices. Retain their uninstall ServiceControl entries too, so
+        // full uninstall can delete them after their binaries leave the package.
+        internal static readonly string[] ServicesToDisable =
         {
             Constants.AgentServiceName,
             Constants.ProcmgrServiceName,
-            Constants.InstallerServiceName
+            Constants.InstallerServiceName,
+            Constants.TraceAgentServiceName,
+            Constants.ProcessAgentServiceName,
+            Constants.SystemProbeServiceName,
+            Constants.SecurityAgentServiceName,
+            Constants.PrivateActionRunnerServiceName
         };
 
-        internal static void DisableServices(IServiceController controller, Action<List<StartupSettings>> save, Action stop)
+        // Package-owned defaults, shared by successful installation and removal
+        // rollback. Remove a service from this list when it is retired by procmgr.
+        // Core Agent last: an SCM start must not race enabling its dependencies.
+        internal static readonly string[] ActiveServices =
         {
-            var services = controller.Services;
-            var settings = new List<StartupSettings>();
-            foreach (var name in ProtectedServices)
-            {
-                var service = services.FirstOrDefault(s => s.ServiceName.Equals(name, StringComparison.OrdinalIgnoreCase));
-                if (service == null)
-                {
-                    continue;
-                }
-                settings.Add(new StartupSettings
-                {
-                    Name = name,
-                    StartType = service.StartType,
-                    DelayedAutoStart = service.DelayedAutoStart
-                });
-            }
+            Constants.InstallerServiceName,
+            Constants.ProcmgrServiceName,
+            Constants.TraceAgentServiceName,
+            Constants.ProcessAgentServiceName,
+            Constants.SystemProbeServiceName,
+            Constants.SecurityAgentServiceName,
+            Constants.PrivateActionRunnerServiceName,
+            Constants.AgentServiceName
+        };
 
-            // Persist the entire snapshot before the first mutation. A failed disable or
-            // stop is undone by the registered rollback action, including partial failures.
-            save(settings);
-            foreach (var setting in settings)
-            {
-                controller.SetStartType(setting.Name, ServiceStartMode.Disabled);
-            }
-            stop();
-        }
-
-        internal static bool RestoreServiceStartup(ISession session, IServiceController controller, IEnumerable<StartupSettings> settings)
+        internal static ActionResult EnableDDServices(ISession session, IServiceController controller, bool continueOnError = false)
         {
-            var restored = true;
-            // Enable the core Agent last, after its dependent services are usable again.
-            foreach (var setting in settings.Reverse())
+            var result = ActionResult.Success;
+            foreach (var name in ActiveServices)
             {
                 try
-                {
-                    if (!controller.ServiceExists(setting.Name))
-                    {
-                        session.Log($"Service {setting.Name} no longer exists, skipping startup settings restore");
-                        continue;
-                    }
-                    controller.SetDelayedAutoStart(setting.Name, setting.DelayedAutoStart);
-                    controller.SetStartType(setting.Name, setting.StartType);
-                }
-                catch (Exception e)
-                {
-                    // One failed restore must not prevent restoring the other services.
-                    restored = false;
-                    session.Log($"Failed to restore startup settings for {setting.Name}: {e}");
-                }
-            }
-            // Deliberately do not start services on rollback.
-            return restored;
-        }
-
-        internal static ActionResult PrepareServiceStartupRollback(ISession session)
-        {
-            session["ServiceStartupRollbackId"] = Guid.NewGuid().ToString("N");
-            return ActionResult.Success;
-        }
-
-        public static ActionResult PrepareServiceStartupRollback(Session session)
-        {
-            return PrepareServiceStartupRollback(new SessionWrapper(session));
-        }
-
-        internal static string ServiceStartupRollbackDataName(ISession session)
-        {
-            // Validate and normalize both IDs before using them in a filename.
-            var product = Guid.Parse(session.Property("ProductCode"));
-            var operation = Guid.Parse(session.Property("ServiceStartupRollbackId"));
-            return $"StopDDServices-{product:N}-{operation:N}";
-        }
-
-        internal static void SaveSnapshot(ISession session, List<StartupSettings> settings)
-        {
-            var store = new RollbackDataStore(session, ServiceStartupRollbackDataName(session));
-            store.Add(new ServiceStartupRollbackData(settings));
-            store.Store();
-        }
-
-        public static ActionResult StopDDServicesRollback(Session session)
-        {
-            var wrapper = new SessionWrapper(session);
-            try
-            {
-                new RollbackDataStore(wrapper, ServiceStartupRollbackDataName(wrapper)).Restore();
-            }
-            catch (Exception e)
-            {
-                session.Log($"Failed to restore service startup settings: {e}");
-            }
-            return ActionResult.Success;
-        }
-
-        internal static ActionResult EnableDDServices(ISession session, IServiceController controller)
-        {
-            try
-            {
-                // Core Agent last: an SCM start must not race enabling procmgr.
-                foreach (var name in ProtectedServices.Reverse())
                 {
                     if (!controller.ServiceExists(name))
                     {
                         continue;
                     }
                     var startType = name == Constants.AgentServiceName ? ServiceStartMode.Automatic : ServiceStartMode.Manual;
-                    controller.SetDelayedAutoStart(name, startType == ServiceStartMode.Automatic);
+                    // Windows requires automatic startup before enabling delayed start.
                     controller.SetStartType(name, startType);
+                    controller.SetDelayedAutoStart(name, startType == ServiceStartMode.Automatic);
                 }
-                return ActionResult.Success;
+                catch (Exception e)
+                {
+                    session.Log($"Failed to enable service {name}: {e}");
+                    result = ActionResult.Failure;
+                    if (!continueOnError)
+                    {
+                        return result;
+                    }
+                }
             }
-            catch (Exception e)
-            {
-                session.Log($"Failed to enable services: {e}");
-                return ActionResult.Failure;
-            }
+            return result;
         }
 
-        internal ActionResult StopDDServicesWithSnapshot(Action<List<StartupSettings>> save)
+        internal ActionResult StopDDServicesForInstall()
         {
-            // The outgoing MSI owns the original settings during upgrade removal.
-            // The incoming MSI has a separate snapshot, normally empty after removal.
-            if (_session.Property("RollbackDisabled") == "1")
+            // Only the outgoing MSI disables existing services. The incoming MSI
+            // still stops them, but must not disable services owned by an older MSI
+            // whose rollback has no corresponding enable action.
+            if (string.Equals(_session.Property("REMOVE"), "ALL", StringComparison.OrdinalIgnoreCase))
             {
-                _session.Log("Service protection requires Windows Installer rollback to be enabled");
-                return ActionResult.Failure;
-            }
-            try
-            {
-                DisableServices(_serviceController, save, () =>
+                if (_session.Property("RollbackDisabled") == "1")
                 {
-                    if (StopDDServices(false) != ActionResult.Success)
+                    _session.Log("Service protection requires Windows Installer rollback to be enabled");
+                    return ActionResult.Failure;
+                }
+                try
+                {
+                    foreach (var name in ServicesToDisable)
                     {
-                        throw new InvalidOperationException("Could not stop Agent services");
+                        if (_serviceController.ServiceExists(name))
+                        {
+                            _serviceController.SetStartType(name, ServiceStartMode.Disabled);
+                        }
                     }
-                });
-                return ActionResult.Success;
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to disable services: {e}");
+                    return ActionResult.Failure;
+                }
             }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to disable and stop services: {e}");
-                return ActionResult.Failure;
-            }
+            return StopDDServices(false);
         }
 
         public static ActionResult StopDDServices(Session session)
         {
-            var wrapper = new SessionWrapper(session);
-            return new ServiceCustomAction(wrapper).StopDDServicesWithSnapshot(
-                settings => SaveSnapshot(wrapper, settings));
+            return new ServiceCustomAction(new SessionWrapper(session)).StopDDServicesForInstall();
+        }
+
+        public static ActionResult StopDDServicesRollback(Session session)
+        {
+            // Runs only for removal, after service/file/user rollback. Apply this
+            // outgoing package's defaults, without starting any services.
+            return EnableDDServices(new SessionWrapper(session), new ServiceController(), continueOnError: true);
         }
 
         internal ActionResult StartDDServices()
@@ -670,27 +604,11 @@ namespace Datadog.CustomActions
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServices();
         }
 
-        private ActionResult StartDDServicesRollback()
+        internal ActionResult StartDDServicesRollback()
         {
-            // Re-establish protection before undoing files/configuration after a late
-            // failure. StopDDServicesRollback restores this product's startup settings
-            // after its service, file and user rollback actions.
-            foreach (var name in ProtectedServices)
-            {
-                try
-                {
-                    if (_serviceController.ServiceExists(name))
-                    {
-                        _serviceController.SetStartType(name, ServiceStartMode.Disabled);
-                    }
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to disable {name} during rollback: {e}");
-                }
-            }
-            // rollback StartDDServices by stopping all of the services
-            // continue on error so we can send a stop to all services.
+            // Stop before undoing configuration. Do not disable retained services:
+            // a released outgoing MSI cannot re-enable them during its rollback.
+            // Patched outgoing MSIs restore their own defaults in StopDDServicesRollback.
             return StopDDServices(true);
         }
 

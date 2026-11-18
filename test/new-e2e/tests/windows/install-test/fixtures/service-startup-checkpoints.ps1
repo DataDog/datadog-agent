@@ -42,21 +42,13 @@ if ($sequences['RemoveExistingProducts'] -le $sequences['InstallInitialize'] -or
 if ($sequences.ContainsKey('InstallExecute') -and $sequences['InstallExecute'] -lt $sequences['RemoveExistingProducts']) {
     throw 'Unexpected early InstallExecute'
 }
-if ($sequences['PrepareServiceStartupRollback'] -ge $sequences['InstallInitialize'] -or
-    $sequences['StopDDServicesRollback'] -ge $sequences['StopDDServices'] -or
+if ($sequences['StopDDServicesRollback'] -ge $sequences['StopDDServices'] -or
     $sequences['StopDDServices'] -ge $sequences['UninstallUser']) {
     throw 'Unexpected service-protection sequence'
 }
-foreach ($row in (Read-Rows 'SELECT `Action`, `Source` FROM `CustomAction` WHERE `Type` = 51')) {
-    if ($row.StringData(2) -in @('StopDDServices', 'StopDDServicesRollback')) {
-        if ($sequences[$row.StringData(1)] -le $sequences['PrepareServiceStartupRollback']) {
-            throw 'Snapshot identity must exist before custom-action data is captured'
-        }
-    }
-}
 
 $condition = if ($Role -eq 'old') { 'UPGRADINGPRODUCTCODE' } else { 'NOT Installed' }
-$checkpoints = if ($Role -eq 'old') { @('StopDDServices', 'UninstallUser') } else { @('ConfigureUser', 'ConfigureServices', 'StartDDServices') }
+$checkpoints = if ($Role -eq 'old') { @('StopDDServices', 'UninstallUser', 'DeleteServices') } else { @('ConfigureUser', 'ConfigureServices', 'StartDDServices') }
 foreach ($anchor in $checkpoints) {
     if (-not $sequences.ContainsKey($anchor)) { throw "Missing action $anchor" }
     $name = "TestStartupAfter$anchor"
@@ -66,7 +58,7 @@ Dim shell, fs, output, name, start, readError
 Set shell = CreateObject("WScript.Shell")
 Set fs = CreateObject("Scripting.FileSystemObject")
 Set output = fs.CreateTextFile("$output", True)
-For Each name In Array("datadogagent", "dd-procmgr-service", "Datadog Installer")
+For Each name In Array("datadogagent", "dd-procmgr-service", "Datadog Installer", "datadog-trace-agent", "datadog-process-agent", "datadog-system-probe", "datadog-security-agent", "datadog-agent-action")
     On Error Resume Next
     start = shell.RegRead("HKLM\SYSTEM\CurrentControlSet\Services\" & name & "\Start")
     readError = Err.Number

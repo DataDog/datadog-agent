@@ -10,8 +10,6 @@ namespace Datadog.CustomActions.Interfaces
         ServiceControllerStatus Status { get; }
         ServiceStartMode StartType { get; }
 
-        bool DelayedAutoStart { get; }
-
         void Refresh();
     }
 }

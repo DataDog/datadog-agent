@@ -518,6 +518,13 @@ func TestUpgradeFromV6(t *testing.T) {
 	Run(t, s)
 }
 
+// User-mode services protected during removal. Driver start modes are managed separately.
+var protectedServiceNames = []string{
+	"datadogagent", "dd-procmgr-service", "Datadog Installer",
+	"datadog-trace-agent", "datadog-process-agent", "datadog-system-probe",
+	"datadog-security-agent", "datadog-agent-action",
+}
+
 // protectedServiceStartup records only startup configuration, not running state.
 // Rollback does not promise to restart services.
 type protectedServiceStartup struct {
@@ -528,12 +535,12 @@ type protectedServiceStartup struct {
 func (s *baseAgentMSISuite) captureProtectedServiceStartup() map[string]protectedServiceStartup {
 	vm := s.Env().RemoteHost
 	settings := make(map[string]protectedServiceStartup)
-	for _, name := range []string{"datadogagent", "dd-procmgr-service", "Datadog Installer"} {
+	for _, name := range protectedServiceNames {
 		registryPath := `HKLM:\SYSTEM\CurrentControlSet\Services\` + name
 		exists, err := windowsCommon.RegistryKeyExists(vm, registryPath)
 		s.Require().NoError(err)
 		if !exists {
-			continue // Older Agent packages do not contain all three services.
+			continue // Older Agent packages do not contain every service.
 		}
 		config, err := windowsCommon.GetServiceConfig(vm, name)
 		s.Require().NoError(err)

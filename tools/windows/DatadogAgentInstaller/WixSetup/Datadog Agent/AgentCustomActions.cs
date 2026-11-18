@@ -82,8 +82,6 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureServicesRollback { get; }
 
-        public ManagedAction PrepareServiceStartupRollback { get; }
-
         public ManagedAction StopDDServicesRollback { get; }
 
         public ManagedAction StopDDServices { get; }
@@ -663,7 +661,7 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
-            // Each product protects its own removal, including removal during an upgrade.
+            // Only removal disables services; incoming installs/repairs still stop them.
             StopDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServices)),
                 CustomActions.StopDDServices,
@@ -676,34 +674,22 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("ProductCode=[ProductCode], " +
-                               "ServiceStartupRollbackId=[ServiceStartupRollbackId], " +
-                               "RollbackDisabled=[RollbackDisabled]");
+                .SetProperties("REMOVE=[REMOVE], RollbackDisabled=[RollbackDisabled]");
 
+            // Removal rollback re-enables this package's active services after
+            // its service, file and user rollback actions have completed.
             StopDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServicesRollback)),
                 CustomActions.StopDDServicesRollback,
                 Return.ignore,
                 When.Before,
                 new Step(StopDDServices.Id),
-                Condition.Always
+                Conditions.Uninstalling | Conditions.RemovingForUpgrade
             )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
-            }
-                .SetProperties("ProductCode=[ProductCode], " +
-                               "ServiceStartupRollbackId=[ServiceStartupRollbackId]");
-
-            // Generate once per MSI invocation, before either action's data is captured.
-            // A previous operation's snapshot must never be used after a failed save.
-            PrepareServiceStartupRollback = new CustomAction<CustomActions>(
-                new Id(nameof(PrepareServiceStartupRollback)),
-                CustomActions.PrepareServiceStartupRollback,
-                Return.check,
-                When.Before,
-                Step.InstallInitialize
-            );
+            };
 
             // WiX built-in StartServices only starts services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
@@ -722,7 +708,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
-            // Rollback StartDDServices disables and stops services so that any file locks are released.
+            // Rollback StartDDServices stops services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
                 CustomActions.StartDDServicesRollback,

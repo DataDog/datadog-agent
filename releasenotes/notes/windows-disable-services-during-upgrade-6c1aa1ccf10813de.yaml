@@ -1,7 +1,8 @@
 ---
 fixes:
   - |
-    Prevent Windows Agent services from starting while MSI installation or removal
-    updates their configuration and permissions. Startup settings are restored
-    if the operation rolls back. Protection during an upgrade's old-version removal
-    applies when the installed version already includes this fix.
+    Disable Windows Agent services during MSI removal while configuration and
+    permissions change. Installation and removal rollback enable the package's
+    active services using default startup settings. Fleet removal retains disabled
+    service registrations until a full non-Fleet uninstall. Upgrade removal
+    protection applies when the installed version already contains this fix.

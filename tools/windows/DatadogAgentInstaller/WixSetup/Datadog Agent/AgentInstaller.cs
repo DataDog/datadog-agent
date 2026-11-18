@@ -436,7 +436,7 @@ namespace WixSetup.Datadog_Agent
                 document
                     .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE) AND FLEET_INSTALL<>\"1\")");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
@@ -581,7 +581,8 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                Start = SvcStartType.demand,
+                // Enable only after configuration, like the core Agent service.
+                Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -708,7 +709,6 @@ namespace WixSetup.Datadog_Agent
                 "Manage Datadog agent processes",
                 "LocalSystem",
                 null);
-            procmgrService.Start = SvcStartType.disabled;
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {

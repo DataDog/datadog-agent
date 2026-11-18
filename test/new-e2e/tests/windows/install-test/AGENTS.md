@@ -45,8 +45,8 @@ to validate the full post-install/post-uninstall state.
 
 ## Running tests
 
-See the `run-windows-e2e` skill references for environment setup and `go test`
-invocations: `.claude/skills/run-windows-e2e/references/setup.md` and
+Run through `dda inv new-e2e-tests.run`. See the `run-windows-e2e` skill
+references for environment setup: `.agents/skills/run-windows-e2e/references/setup.md` and
 `.../running.md` (or invoke the `/run-windows-e2e` skill).
 
 ## CI
@@ -103,11 +103,20 @@ runs as its own parallel job via the `E2E_MSI_TEST` matrix (see parent
 
 ## Service protection upgrade coverage
 
-`TestUpgradeServiceProtection` uses the current MSI and its same-pipeline
-`-upgrade-test` MSI (override with `UPGRADE_AGENT_MSI_URL`). Both packages must
-contain the service-protection fix. Test-only copies are instrumented with
-deferred startup-setting observations and WiX failure checkpoints; production
-custom actions retain their relative order. The scenarios cover old-product
-removal failure, incoming configuration failure, failure after enabling services,
-and successful upgrade. Do not substitute a released old MSI: that tests
-compatibility, not the outgoing product's new rollback behavior.
+Service protection covers all packaged user-mode Agent services (drivers manage
+startup separately). The outgoing MSI disables them during removal; the incoming
+MSI stops existing services and installs new registrations Disabled. Successful
+installation and outgoing removal rollback enable that package's active services
+using package defaults, without preserving customized startup modes. Keep retired
+services in the disable list but remove them from the active list. Retain their
+uninstall ServiceControl entries even after removing their binaries, so full
+non-Fleet uninstall can delete their registrations.
+
+`TestUpgradeServiceProtection` exercises removal, configuration and late rollback
+and success using the current MSI and its same-pipeline `-upgrade-test` MSI
+(override with `UPGRADE_AGENT_MSI_URL`). Both must contain the fix to exercise
+outgoing rollback enablement. Test-only copies observe service settings at
+execution checkpoints without changing production action order. The same suite
+checks Fleet removal retains disabled services, reinstall enables them, and true
+uninstall deletes them. Released-version upgrade tests separately cover legacy
+rollback without the new outgoing enable action.

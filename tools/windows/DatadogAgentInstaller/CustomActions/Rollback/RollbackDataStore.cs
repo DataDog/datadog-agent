@@ -91,8 +91,7 @@ namespace Datadog.CustomActions.Rollback
             {
                 KnownTypes = System.Reflection.Assembly.GetExecutingAssembly().GetTypes()
                     .Where(p => (p.GetInterfaces().Contains(typeof(IRollbackAction)) && typeof(IRollbackAction).IsAssignableFrom(p))
-                                || p == typeof(RegistryValueSnapshot)
-                                || p == typeof(ServiceCustomAction.StartupSettings))
+                                || p == typeof(RegistryValueSnapshot))
                     .ToList()
             }
         };
