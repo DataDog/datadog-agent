@@ -326,7 +326,7 @@ customers, and they apply only to the full Agent.
 | `intake_routing.enabled` | `false` | |
 | `intake_routing.startup_grace_period` | `1s` | 0s to 30s. A value outside this range is changed, with a warning. |
 | `intake_routing.refresh_interval` | `10m` | 1m minimum. A smaller value is changed, with a warning. |
-| `intake_routing.preflight_path` | `/api/v1/validate` | An absolute path, without a query or a fragment. A different value is changed to the default, with a warning. |
+| `intake_routing.preflight_path` | `/api/v1/validate` | An absolute path, without a query or a fragment. An invalid path is changed to the default, with a warning. |
 
 ## Telemetry
 
