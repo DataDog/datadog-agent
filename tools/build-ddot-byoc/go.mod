@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/google/go-containerregistry v0.22.1
-	github.com/klauspost/compress v1.20.3
+	github.com/klauspost/compress v1.20.4
 )
 
 require (
@@ -16,7 +16,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/mod v0.43.0 // indirect
-	golang.org/x/oauth2 v0.37.0 // indirect
+	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
