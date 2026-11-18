@@ -213,6 +213,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     if (!val) {
         return;
     }
+    // The 4.4 verifier marks only the checked register as non-null, not a copy spilled before the check, so make the
+    // compiler take its copies of val after the check.
+    barrier_var(val);
 
     SSL_report_cert(val);
 
