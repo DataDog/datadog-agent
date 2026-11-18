@@ -272,17 +272,15 @@ func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
 func loadEarlyConfig() {
 	// Load the config file early so that yaml-configured values (e.g.
 	// api_key, dogstatsd_tags, tags, extra_tags) are visible to the tag
-	// computation, the merge, and the api_key check below. setup() calls
-	// LoadDatadog again with the real Fx-injected components; that is
-	// intentional — the second call resolves secrets and applies any
-	// delegated-auth overrides. The noop implementations used here are
-	// consistent with the pattern in cmd/agent/common/import.go.
+	// computation, the merge, and the api_key check below. The Fx config
+	// component loads the config again with the real secrets and delegated
+	// auth components. The noop implementations used here are consistent
+	// with the pattern in cmd/agent/common/import.go.
 	//
 	// Caveat: because this early load uses noop secrets, ENC[...] secret
 	// references inside yaml-configured `tags` / `extra_tags` are NOT
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
-	// view. The second LoadDatadog in setup() resolves them for the config,
-	// but the already-snapshotted metricTags keep the raw values.
+	// view. A later load that resolves them does not change metricTags.
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
@@ -291,9 +289,7 @@ func loadEarlyConfig() {
 	// before fxutil.OneShot. The metrics forwarder and its HTTP transport are
 	// built during Fx construction, and CreateHTTPTransport only installs a
 	// proxy function if the proxy settings are already in the config at that
-	// point. setup() also calls LoadProxyFromEnv, but it runs after OneShot has
-	// started, which is too late for the forwarder: metrics and sketches would
-	// bypass the proxy while logs and traces (created in setup()) honor it.
+	// point. Without this call, metrics and sketches would bypass the proxy.
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
 }
 
@@ -413,8 +409,8 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(
-	secretComp secrets.Component,
-	delegatedAuthComp delegatedauth.Component,
+	_ secrets.Component,
+	_ delegatedauth.Component,
 	_ healthprobeDef.Component,
 	tagger tagger.Component,
 	logsCompression logscompression.Component,
@@ -433,7 +429,7 @@ func run(
 	metadata serverlessdef.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
-		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
+		modeConf, tagger, logsCompression, hostname,
 		cloudService, tagConfig, metricTags, demux, metadata,
 	)
 
@@ -504,8 +500,6 @@ func run(
 }
 
 func setup(
-	secretComp secrets.Component,
-	delegatedAuthComp delegatedauth.Component,
 	_ mode.Conf,
 	tagger tagger.Component,
 	compression logscompression.Component,
@@ -518,18 +512,8 @@ func setup(
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
-	// load proxy settings
-	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
-
 	defaultSource := cloudService.GetDefaultLogsSource()
 	agentLogConfig := serverlessInitLog.CreateConfig(defaultSource, logsFlushTimeout)
-
-	// The datadog-agent requires Load to be called or it could
-	// panic down the line.
-	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, &schemanoopimpl.SchemaNoop{})
-	if err != nil {
-		log.Debugf("Error loading config: %v\n", err)
-	}
 
 	origin := cloudService.GetOrigin()
 	// Note: we do not modify tags for the LogsAgent.
@@ -632,6 +616,7 @@ func setup(
 
 	var enhancedMetricsCollector *enhancedmetrics.Collector
 	if enhancedMetricsEnabled {
+		var err error
 		enhancedMetricsCollector, err = enhancedmetrics.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix(), cloudService.GetUsageMetricSuffix(), 3*time.Second)
 		if err != nil {
 			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)

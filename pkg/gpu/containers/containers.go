@@ -290,6 +290,14 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 }
 
 func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnvml.Device, error) {
+	// A shared-device replica (time-slicing, MPS) is exposed as
+	// "<base-device-id>::<replica>": the container sees the whole device its
+	// replica belongs to, so the allocation resolves to the base device. The
+	// suffix is independent of the resource name, so it is keyed off the ID.
+	if replica, ok := gpuutil.ParseNvidiaDeviceReplica(resourceID); ok {
+		resourceID = replica.BaseDeviceID
+	}
+
 	// The NVIDIA device plugin resource ID is the GPU UUID, while GKE
 	// device plugin sets the ID as nvidiaX, where X is the GPU index.
 	match := numberedResourceRegex.FindStringSubmatch(resourceID)
@@ -331,6 +339,13 @@ func findDeviceForDRAResourceName(devices []ddnvml.Device, deviceName string) (d
 }
 
 func findDeviceByUUID(devices []ddnvml.Device, uuid string) (ddnvml.Device, error) {
+	// A shared-device replica ID resolves to its base device, see
+	// findDeviceForResourceName. Stripping here as well keeps any caller
+	// that receives a replica ID working.
+	if replica, ok := gpuutil.ParseNvidiaDeviceReplica(uuid); ok {
+		uuid = replica.BaseDeviceID
+	}
+
 	for _, device := range devices {
 		if device.GetDeviceInfo().UUID == uuid {
 			return device, nil

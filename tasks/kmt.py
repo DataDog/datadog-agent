@@ -2560,7 +2560,7 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
         return
 
     info(
-        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}({kmt_pipeline.gitlab.web_url}/-/pipelines/{pipeline_id}):"
     )
     for job in jobs_to_retry:
         info(f"[+] {job.name} (status: {job.status})")

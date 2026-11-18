@@ -31,8 +31,8 @@ func init() {
 	}
 }
 
-// WithMockNVML calls the WithPartialMockNVML with all symbols available
-func WithMockNVML(tb testing.TB, lib nvml.Interface) {
+// defaultMockCapabilities excludes APIs the generated mock cannot implement.
+func defaultMockCapabilities() map[string]struct{} {
 	capabilities := maps.Clone(allSymbols)
 	// The generated NVML mock cannot construct GpuFabricInfoHandler or
 	// GpuInstanceProfileInfoByIdHandler, which are required to invoke the
@@ -43,7 +43,12 @@ func WithMockNVML(tb testing.TB, lib nvml.Interface) {
 	delete(capabilities, toNativeName("GetGpuInstanceById"))
 	delete(capabilities, toNativeName("GetGpuInstanceProfileInfoByIdV"))
 	delete(capabilities, "nvmlGpuInstanceGetInfo")
-	WithPartialMockNVML(tb, lib, capabilities)
+	return capabilities
+}
+
+// WithMockNVML installs the default mock capabilities.
+func WithMockNVML(tb testing.TB, lib nvml.Interface) {
+	WithPartialMockNVML(tb, lib, defaultMockCapabilities())
 }
 
 func resetSingleton() {
