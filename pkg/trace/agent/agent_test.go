@@ -5380,3 +5380,39 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		assert.False(t, ok)
 	})
 }
+
+func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	newChunk := func(id uint64, env, version string) *idx.InternalTraceChunk {
+		c := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: id, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+		if env != "" {
+			c.SetEnv(env)
+		}
+		if version != "" {
+			c.SetAppVersion(version)
+		}
+		return c
+	}
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{newChunk(1, "PROD", "v2"), newChunk(2, "staging", ""), newChunk(3, "", "")},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+
+	agent.ProcessV1(payload)
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	traces := mco.statsV1[0].Traces
+	require.Len(t, traces, 3)
+	got := [][2]string{}
+	for _, pt := range traces {
+		got = append(got, [2]string{pt.TracerEnv, pt.AppVersion})
+	}
+	assert.ElementsMatch(t, [][2]string{{"prod", "v2"}, {"staging", "v1"}, {"payload-env", "v1"}}, got)
+}

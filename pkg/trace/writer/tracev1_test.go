@@ -741,3 +741,53 @@ func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert.Equal("foo", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
+
+func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:            testHostname,
+		DefaultEnv:          testEnv,
+		Endpoints:           []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 1_000},
+		SynchronousFlushing: true,
+	}
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	defer tw.Stop()
+
+	collect := func(pkg *SampledChunksV1) map[[2]string]int {
+		srv.payloads = nil
+		tw.WriteChunksV1(pkg)
+		require.NoError(t, tw.FlushSync())
+		groups := map[[2]string]int{}
+		mapPayloads(t, srv.payloads, tw.compressor, func(ap *pb.AgentPayload) {
+			for _, tp := range ap.IdxTracerPayloads {
+				groups[[2]string{tp.Strings[tp.EnvRef], tp.Strings[tp.AppVersionRef]}] += len(tp.Chunks)
+			}
+		})
+		return groups
+	}
+
+	t.Run("no override keeps a single tracer payload", func(t *testing.T) {
+		pkg := randomSampledSpansV1(4, 0)
+		pkg.TracerPayload.Chunks = append(pkg.TracerPayload.Chunks, pkg.TracerPayload.Chunks[0].ShallowCopy())
+		pkg.TracerPayload.SetEnv("prod")
+		pkg.TracerPayload.SetAppVersion("v1")
+		assert.Equal(t, map[[2]string]int{{"prod", "v1"}: 2}, collect(pkg))
+	})
+
+	t.Run("mixed overrides split by env and version", func(t *testing.T) {
+		pkg := randomSampledSpansV1(4, 0)
+		tp := pkg.TracerPayload
+		tp.SetEnv("prod")
+		tp.SetAppVersion("v1")
+		base := tp.Chunks[0]
+		c1 := base.ShallowCopy()
+		c1.SetEnv("staging")
+		c1.SetAppVersion("v2")
+		c2 := base.ShallowCopy()
+		c2.SetAppVersion("v3")
+		tp.Chunks = append(tp.Chunks, c1, c2, c1.ShallowCopy())
+		assert.Equal(t, map[[2]string]int{{"prod", "v1"}: 1, {"staging", "v2"}: 2, {"prod", "v3"}: 1}, collect(pkg))
+	})
+}

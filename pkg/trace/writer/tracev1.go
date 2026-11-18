@@ -205,8 +205,18 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTra
 	var toFlush [][]*pb.PreparedTracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	pbTracerPayload := pkg.TracerPayload.ToProto()
+	// Chunks with their own env/app version are emitted as separate tracer payloads so each
+	// carries its effective env/app version at the payload level.
+	for _, pbTracerPayload := range pkg.TracerPayload.ToProtoByEnvVersion() {
+		toFlush = append(toFlush, w.appendTracerPayloadV1(pbTracerPayload)...)
+	}
+	return toFlush
+}
 
+// appendTracerPayloadV1 buffers a single tracer payload, returning any payload groups to flush.
+// w.mu must be held.
+func (w *TraceWriterV1) appendTracerPayloadV1(pbTracerPayload *idx.TracerPayload) [][]*pb.PreparedTracerPayload {
+	var toFlush [][]*pb.PreparedTracerPayload
 	// Prepare the payload - this computes string compaction and accurate size
 	prepared := pb.PrepareTracerPayload(pbTracerPayload)
 	size := prepared.Size
