@@ -732,7 +732,7 @@ func TestToDiscoveredDevicesSkipsAProbeThatDidNotRun(t *testing.T) {
 		"a probe that did not run contributes no result entry")
 }
 
-func TestToDiscoveredDevicesLeavesOutAPingThisAgentCouldNotSend(t *testing.T) {
+func TestToDiscoveredDevicesReportsAPingThisAgentCouldNotSendAsUnavailable(t *testing.T) {
 	results := []probe.Result{{
 		Target: "10.0.0.1",
 		Ping:   &pingprobe.Reading{FailureReason: failure.PingUnavailable, Error: "socket: permission denied"},
@@ -741,8 +741,22 @@ func TestToDiscoveredDevicesLeavesOutAPingThisAgentCouldNotSend(t *testing.T) {
 
 	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 1)
-	require.Len(t, got[0].ProbeResults, 1, "the backend reports an absent ping as unknown, not unreachable")
-	assert.Equal(t, kindSNMP, got[0].ProbeResults[0].Kind)
+	require.Len(t, got[0].ProbeResults, 2)
+	assert.Equal(t, metadata.ProbeResult{
+		Kind:          kindPing,
+		Status:        statusPingUnavailable,
+		FailureReason: failure.PingUnavailable,
+	}, got[0].ProbeResults[0], "the backend stores the status and drops the reason")
+}
+
+func TestToDiscoveredDevicesReportsNoDeviceWhenOnlyPingIsUnavailable(t *testing.T) {
+	results := []probe.Result{{
+		Target: "10.0.0.1",
+		Ping:   &pingprobe.Reading{FailureReason: failure.PingUnavailable},
+		SNMP:   &snmpprobe.Reading{FailureReason: "timeout"},
+	}}
+
+	assert.Empty(t, toDiscoveredDevices("ad-1", "run-1", results))
 }
 
 func TestToDiscoveredDevicesReportsTheKindsInProbeOrder(t *testing.T) {

@@ -26,6 +26,8 @@ import (
 const (
 	statusOK          = "ok"
 	statusUnreachable = "unreachable"
+	// statusPingUnavailable is a ping this agent could not send, which says nothing about the device.
+	statusPingUnavailable = "ping_unavailable"
 )
 
 // progressInterval is how often a running sweep reports its progress.
@@ -340,12 +342,14 @@ func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) 
 		}
 		answered := false
 
-		// A ping this agent could not send says nothing about the device, so it is left out.
-		if p := r.Ping; p != nil && p.FailureReason != failure.PingUnavailable {
+		if p := r.Ping; p != nil {
 			result := metadata.ProbeResult{
 				Kind:   kindPing,
 				Status: statusString(p.Success),
 				RttMs:  rttMs(p.Success, p.RTT),
+			}
+			if p.FailureReason == failure.PingUnavailable {
+				result.Status = statusPingUnavailable
 			}
 			if p.Success {
 				answered = true
