@@ -11,13 +11,13 @@ import (
 )
 
 type Params struct {
-	LoadBalancerEnabled        bool
-	UniqueTaskDefinitionFamily bool
-	ImageURL                   string
-	CPU                        int
-	Memory                     int
-	DDDevForwarding            bool
-	RetentionPeriod            string
+	LoadBalancerEnabled bool
+	TaskFamilyName      string
+	ImageURL            string
+	CPU                 int
+	Memory              int
+	DDDevForwarding     bool
+	RetentionPeriod     string
 }
 
 type Option = func(*Params) error
@@ -28,6 +28,7 @@ func NewParams(options ...Option) (*Params, error) {
 	// of the service definition, so the pull-through cache is unreachable.
 	params := &Params{
 		LoadBalancerEnabled: false,
+		TaskFamilyName:      "fakeintake-ecs",
 		ImageURL:            fakeintake.ImageURL("public.ecr.aws/datadog/fakeintake"),
 		CPU:                 512,
 		Memory:              1024,
@@ -46,11 +47,11 @@ func WithLoadBalancer() Option {
 	}
 }
 
-// WithUniqueTaskDefinitionFamily includes the fakeintake name in its ECS task definition family.
-// Use this for each instance when provisioning multiple fakeintakes in the same stack.
-func WithUniqueTaskDefinitionFamily() Option {
+// WithTaskFamilyName sets the ECS task definition family name, which is prefixed by the stack name.
+// Default is fakeintake-ecs. Use distinct names when provisioning multiple fakeintakes in the same stack.
+func WithTaskFamilyName(name string) Option {
 	return func(p *Params) error {
-		p.UniqueTaskDefinitionFamily = true
+		p.TaskFamilyName = name
 		return nil
 	}
 }

@@ -256,8 +256,9 @@ When that's not enough, common advanced patterns:
 | ECS / Fargate | `test/new-e2e/tests/cws/` |
 
 When provisioning multiple AWS ECS fakeintakes in one stack, pass
-`fakeintake.WithUniqueTaskDefinitionFamily()` to each instance. By default,
-fakeintakes use the historical `<stack>-fakeintake-ecs` task definition family.
+`fakeintake.WithTaskFamilyName("fakeintake-<name>-ecs")` with a distinct name for
+each instance. The stack name is prepended automatically. By default, fakeintakes
+use the historical `<stack>-fakeintake-ecs` task definition family.
 
 ## Validating E2E tests
 
