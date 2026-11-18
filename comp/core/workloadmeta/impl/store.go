@@ -78,7 +78,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 	w.startWg.Add(1)
 	go func() {
 		defer w.startWg.Done()
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
+		if err := w.startCandidatesWithRetry(ctx); err != nil && ctx.Err() == nil {
 			w.log.Errorf("error starting collectors: %s", err)
 		}
 	}()
@@ -750,7 +750,11 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	if err != nil {
 		// Close so the pull goroutine unblocks instead of waiting for firstPullWaitTimeout.
 		w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
-		w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		if ctx.Err() != nil {
+			w.log.Debugf("workloadmeta stopped before all collectors started: %s", err)
+		} else {
+			w.log.Warnf("workloadmeta failed to start collectors: %s", err)
+		}
 	}
 	return err
 }
