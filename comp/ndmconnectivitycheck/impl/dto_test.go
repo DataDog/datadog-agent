@@ -32,7 +32,6 @@ func TestTheFailureReasonsMatchTheWireContract(t *testing.T) {
 	assert.Equal(t, connectivity.FailureUnknownUser, failure.UnknownUser)
 	assert.Equal(t, connectivity.FailureUnsupportedSecurityLevel, failure.UnsupportedSecurityLevel)
 	assert.Equal(t, connectivity.FailureUnknownEngineID, failure.UnknownEngineID)
-	assert.Equal(t, connectivity.FailurePingUnavailable, failure.PingUnavailable)
 	assert.Equal(t, connectivity.FailureUnknown, failure.Unknown)
 }
 

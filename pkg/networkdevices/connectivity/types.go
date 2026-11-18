@@ -30,7 +30,6 @@ const (
 	FailureUnknownUser              = "unknown_user"
 	FailureUnsupportedSecurityLevel = "unsupported_security_level"
 	FailureUnknownEngineID          = "unknown_engine_id"
-	FailurePingUnavailable          = "ping_unavailable"
 )
 
 type PingOptions struct {

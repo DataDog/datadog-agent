@@ -21,7 +21,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/snmpprobe"
 )
@@ -605,32 +604,6 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 	assert.Len(t, sent[0].Targets, 64)
 }
 
-func TestSweepKeepsPingingAfterAPingCannotBeSent(t *testing.T) {
-	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
-		results := make([]probe.Result, 0, len(call.Targets))
-		for _, ip := range call.Targets {
-			r := probe.Result{Target: ip, SNMP: &snmpprobe.Reading{FailureReason: "timeout"}}
-			if call.Options.Ping != nil {
-				r.Ping = &pingprobe.Reading{FailureReason: failure.PingUnavailable, Error: "socket: permission denied"}
-			}
-			results = append(results, r)
-		}
-		return results, nil
-	}}
-	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 10)
-
-	req := testSweepRequestWithOptions(t, "10.0.0.0/25", nil, probe.Options{
-		Ping: &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second},
-		SNMP: testSNMPOptions(),
-	})
-	require.NoError(t, s.sweep(context.Background(), req))
-
-	sent := scanner.recorded()
-	require.Len(t, sent, 2)
-	assert.NotNil(t, sent[0].Options.Ping)
-	assert.NotNil(t, sent[1].Options.Ping, "one unsent ping may be specific to its target")
-}
-
 func TestSweepReportsNothingWhenNoAddressAnswers(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, silentAll(), reporter, newMemCursorStore(), 10)
@@ -728,33 +701,6 @@ func TestToDiscoveredDevicesSkipsAProbeThatDidNotRun(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, []metadata.ProbeResult{{Kind: kindPing, Status: statusOK, RttMs: ms(0)}}, got[0].ProbeResults,
 		"a probe that did not run contributes no result entry")
-}
-
-func TestToDiscoveredDevicesReportsAPingThisAgentCouldNotSendAsUnavailable(t *testing.T) {
-	results := []probe.Result{{
-		Target: "10.0.0.1",
-		Ping:   &pingprobe.Reading{FailureReason: failure.PingUnavailable, Error: "socket: permission denied"},
-		SNMP:   &snmpprobe.Reading{Success: true, CredID: "cred-a"},
-	}}
-
-	got := toDiscoveredDevices("ad-1", "run-1", results)
-	require.Len(t, got, 1)
-	require.Len(t, got[0].ProbeResults, 2)
-	assert.Equal(t, metadata.ProbeResult{
-		Kind:          kindPing,
-		Status:        statusPingUnavailable,
-		FailureReason: failure.PingUnavailable,
-	}, got[0].ProbeResults[0], "the backend stores the status and drops the reason")
-}
-
-func TestToDiscoveredDevicesReportsNoDeviceWhenOnlyPingIsUnavailable(t *testing.T) {
-	results := []probe.Result{{
-		Target: "10.0.0.1",
-		Ping:   &pingprobe.Reading{FailureReason: failure.PingUnavailable},
-		SNMP:   &snmpprobe.Reading{FailureReason: "timeout"},
-	}}
-
-	assert.Empty(t, toDiscoveredDevices("ad-1", "run-1", results))
 }
 
 func TestToDiscoveredDevicesReportsTheKindsInProbeOrder(t *testing.T) {

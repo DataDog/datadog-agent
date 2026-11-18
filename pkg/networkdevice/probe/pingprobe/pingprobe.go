@@ -45,16 +45,15 @@ func Run(target string, opts Options) *Reading {
 	})
 	if err != nil {
 		return &Reading{
-			FailureReason: failure.PingUnavailable,
+			FailureReason: failure.Unknown,
 			Error:         fmt.Sprintf("Failed to create a pinger for host '%s': %s", target, err.Error()),
 		}
 	}
 
-	// Ping errors only when no echo request left this host; a silent target returns no error.
 	res, err := p.Ping(target)
 	if err != nil {
 		return &Reading{
-			FailureReason: failure.PingUnavailable,
+			FailureReason: failure.Unreachable,
 			Error:         fmt.Sprintf("Failed to reach host '%s': %s", target, err.Error()),
 		}
 	}

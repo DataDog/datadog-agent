@@ -19,15 +19,12 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 )
 
 // Probe statuses reported per address.
 const (
 	statusOK          = "ok"
 	statusUnreachable = "unreachable"
-	// statusPingUnavailable is a ping this agent could not send, which says nothing about the device.
-	statusPingUnavailable = "ping_unavailable"
 )
 
 // progressInterval is how often a running sweep reports its progress.
@@ -108,15 +105,10 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	// reported is a lower bound after a restart: a resumed run inherits no count.
 	reported := 0
-	warnedPing := false
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
-		devices, pingErr, err := s.probe(ctx, r, state.RunID, chunk)
-		if pingErr != "" && !warnedPing {
-			s.log.Warnf("ndmdiscovery: range %s: some pings could not be sent from this agent: %s", id, pingErr)
-			warnedPing = true
-		}
+		devices, err := s.probe(ctx, r, state.RunID, chunk)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				s.saveCursor(id, state)
@@ -232,28 +224,24 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 	}
 }
 
-// probe sweeps one chunk. pingErr is set when this agent could not send a ping at all.
-func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) (devices []metadata.DiscoveredDeviceMetadata, pingErr string, err error) {
+func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {
 	if len(chunk.Targets) == 0 {
-		return nil, "", ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	if err := s.sem.Acquire(ctx, r.Workers); err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	defer s.sem.Release(r.Workers)
 
 	res, err := s.scan(ctx, int(r.Workers), chunk.Targets, r.Options)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	for _, result := range res {
-		if p := result.Ping; p != nil && p.FailureReason == failure.PingUnavailable {
-			pingErr = p.Error
-			break
-		}
-	}
-	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), pingErr, nil
+	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
 }
 
 // clampWorkers keeps a range's worker share inside [1, budget].
@@ -347,9 +335,6 @@ func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) 
 				Kind:   kindPing,
 				Status: statusString(p.Success),
 				RttMs:  rttMs(p.Success, p.RTT),
-			}
-			if p.FailureReason == failure.PingUnavailable {
-				result.Status = statusPingUnavailable
 			}
 			if p.Success {
 				answered = true
