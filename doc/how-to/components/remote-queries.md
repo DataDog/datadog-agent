@@ -12,6 +12,8 @@ The action selects its operation with the required boolean `resolveOnly`, not a
 `resultDelivery`; `timeout` is optional and belongs to the runner.
 
 `resultDelivery` contains only `crawlId`, `taskId`, `uploadId`, and `limits`.
+(`crawlId` is required here. The inactive embedded RC tunnel path has no crawl and
+hands the integration a `resultDelivery` without it.)
 The remote caller does **not** provide `baseUrl`, another upload address, or
 credentials. Unknown fields, including a legacy `resultDelivery.baseUrl`, are
 rejected before any integration check is called. There is no remote override or

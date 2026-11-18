@@ -46,6 +46,11 @@ func executeRemoteQuery(ctx context.Context, tunnel *remotequeries.Tunnel, corre
 		return &remotequeriesv1alpha1.ExecuteResponse{Status: remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_ALREADY_ACCEPTED}
 	case remotequeries.TunnelMatched:
 		return &remotequeriesv1alpha1.ExecuteResponse{Status: remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_MATCHED}
+	case remotequeries.TunnelUnconfirmed:
+		// Neither accepted nor refused: an identical request is still being
+		// admitted. Answering with a definite refusal would make the worker
+		// abort the session that the first request may be starting.
+		return &remotequeriesv1alpha1.ExecuteResponse{Status: remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_UNSPECIFIED}
 	default:
 		return rejected(outcome.Code, outcome.Message)
 	}

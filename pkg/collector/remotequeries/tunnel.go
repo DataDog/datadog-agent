@@ -24,9 +24,14 @@ const (
 	tunnelMaxInFlight = 4
 	// tunnelMaxRetained bounds the admission records kept for duplicate detection.
 	tunnelMaxRetained = 1024
-	// tunnelRetention is how long an admission is remembered. The record lives
-	// in memory only: nothing here survives an Agent restart.
+	// tunnelRetention is how long an admission is remembered after its run has
+	// ended. A run that is still active is never forgotten. The record lives in
+	// memory only: nothing here survives an Agent restart.
 	tunnelRetention = 24 * time.Hour
+	// tunnelDuplicateWait bounds how long an identical request waits for the
+	// first request's admission to settle. It stays inside the RC transport's
+	// 30s handler deadline.
+	tunnelDuplicateWait = 25 * time.Second
 )
 
 // TunnelStatus is the transport-neutral outcome of one tunnel Execute request.
@@ -42,6 +47,10 @@ const (
 	TunnelAlreadyAccepted
 	// TunnelMatched means a resolve-only request found exactly one check.
 	TunnelMatched
+	// TunnelUnconfirmed means an identical request is still being admitted, or
+	// ended without a confirmed handoff. It is neither an acceptance nor a
+	// refusal of the run, and no query was started for this request.
+	TunnelUnconfirmed
 )
 
 // TunnelOutcome is the sanitized result of a tunnel Execute request.
@@ -90,19 +99,30 @@ type TunnelRequest struct {
 	Limits *TunnelLimits
 }
 
+// tunnelAdmission is the record of one run ID. Every field except digest and
+// settled is guarded by Tunnel.mu.
 type tunnelAdmission struct {
-	digest   [sha256.Size]byte
-	admitted bool // false while the first request is still resolving
-	expires  time.Time
+	digest [sha256.Size]byte
+	// settled is closed once the first request's admission is decided: either
+	// the handoff happened (admitted) or the record was dropped.
+	settled chan struct{}
+	// admitted is set when the run was handed to the integration.
+	admitted bool
+	// finished is set when the detached run ended. It can happen before
+	// admitted, if the run ends before start returns.
+	finished bool
+	// expires is when a finished, admitted record may be forgotten.
+	expires time.Time
 }
 
 // Tunnel admits Remote Queries started over the RC tunnel. It reuses the
 // Service's target resolution, upload destination and detached hand-off, and
 // adds only the tunnel's identity, authorization and duplicate rules.
 type Tunnel struct {
-	service   *Service
-	authority TunnelAuthority
-	now       func() time.Time
+	service       *Service
+	authority     TunnelAuthority
+	now           func() time.Time
+	duplicateWait time.Duration
 
 	mu       sync.Mutex
 	inFlight int
@@ -119,7 +139,7 @@ func NewTunnel(service *Service, authority TunnelAuthority) (*Tunnel, error) {
 	if authority == nil {
 		return nil, errors.New("remote query tunnel requires a trusted authority")
 	}
-	return &Tunnel{service: service, authority: authority, now: time.Now, admissions: make(map[string]*tunnelAdmission)}, nil
+	return &Tunnel{service: service, authority: authority, now: time.Now, duplicateWait: tunnelDuplicateWait, admissions: make(map[string]*tunnelAdmission)}, nil
 }
 
 func reject(code, message string) TunnelOutcome {
@@ -131,7 +151,6 @@ var tunnelMessages = map[string]string{
 	"unauthorized":            "request is not authorized",
 	"disabled":                "remote queries are disabled",
 	"conflict":                "run was already admitted with different parameters",
-	"in_progress":             "run is already being admitted",
 	"busy":                    "too many runs in progress",
 	"capacity":                "too many admitted runs to track",
 	"target_not_found":        "no loaded check matches the target",
@@ -191,18 +210,20 @@ func (t *Tunnel) rejection(answer Answer) TunnelOutcome {
 
 func (t *Tunnel) execute(ctx context.Context, tr TunnelRequest, req Request) TunnelOutcome {
 	digest := tunnelDigest(tr)
-	now := t.now()
 	t.mu.Lock()
-	t.pruneLocked(now)
+	t.pruneLocked(t.now())
 	if prior, exists := t.admissions[tr.RunID]; exists {
+		// Everything read from prior happens under the lock.
+		conflict := prior.digest != digest
+		admitted := prior.admitted
 		t.mu.Unlock()
 		switch {
-		case prior.digest != digest:
+		case conflict:
 			return rejectCode("conflict")
-		case !prior.admitted:
-			return rejectCode("in_progress")
+		case admitted:
+			return TunnelOutcome{Status: TunnelAlreadyAccepted}
 		}
-		return TunnelOutcome{Status: TunnelAlreadyAccepted}
+		return t.awaitFirst(ctx, prior)
 	}
 	if t.inFlight >= tunnelMaxInFlight {
 		t.mu.Unlock()
@@ -212,37 +233,67 @@ func (t *Tunnel) execute(ctx context.Context, tr TunnelRequest, req Request) Tun
 		t.mu.Unlock()
 		return rejectCode("capacity")
 	}
-	record := &tunnelAdmission{digest: digest, expires: now.Add(tunnelRetention)}
+	record := &tunnelAdmission{digest: digest, settled: make(chan struct{})}
 	t.admissions[tr.RunID] = record
 	t.inFlight++
 	t.mu.Unlock()
 
-	release := func() {
+	// The run ends the record's activity, possibly before start returns.
+	finish := func() {
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		t.inFlight--
+		record.finished = true
+		record.expires = t.now().Add(tunnelRetention)
 	}
 	ctx, cancel := context.WithTimeout(ctx, tunnelResolveTimeout)
 	defer cancel()
-	answer := t.service.start(ctx, req, &summary{}, release)
+	answer := t.service.start(ctx, req, &summary{}, finish)
+	t.mu.Lock()
 	if answer.Status != "SUCCEEDED" {
 		// Not handed off: forget it so the same run can be admitted later.
-		t.mu.Lock()
-		delete(t.admissions, tr.RunID)
-		t.mu.Unlock()
 		// start spawns the detached goroutine only on success, so release the slot here.
-		release()
+		delete(t.admissions, tr.RunID)
+		t.inFlight--
+		close(record.settled)
+		t.mu.Unlock()
 		return t.rejection(answer)
 	}
-	t.mu.Lock()
 	record.admitted = true
+	close(record.settled)
 	t.mu.Unlock()
 	return TunnelOutcome{Status: TunnelAccepted}
 }
 
+// awaitFirst answers an identical request that arrived while the first one was
+// still being admitted. It confirms only a completed handoff. The first request
+// may yet be accepted, so a refusal here could make the worker abort a session
+// that is about to run: anything unsettled is reported as unconfirmed instead.
+// It never starts a query.
+func (t *Tunnel) awaitFirst(ctx context.Context, prior *tunnelAdmission) TunnelOutcome {
+	timer := time.NewTimer(t.duplicateWait)
+	defer timer.Stop()
+	select {
+	case <-prior.settled:
+	case <-timer.C:
+		return TunnelOutcome{Status: TunnelUnconfirmed}
+	case <-ctx.Done():
+		return TunnelOutcome{Status: TunnelUnconfirmed}
+	}
+	t.mu.Lock()
+	admitted := prior.admitted
+	t.mu.Unlock()
+	if admitted {
+		return TunnelOutcome{Status: TunnelAlreadyAccepted}
+	}
+	return TunnelOutcome{Status: TunnelUnconfirmed}
+}
+
+// pruneLocked forgets records whose run has ended and whose retention is over.
+// Active records stay, so a running query is never re-admitted.
 func (t *Tunnel) pruneLocked(now time.Time) {
 	for id, a := range t.admissions {
-		if a.admitted && now.After(a.expires) {
+		if a.admitted && a.finished && now.After(a.expires) {
 			delete(t.admissions, id)
 		}
 	}

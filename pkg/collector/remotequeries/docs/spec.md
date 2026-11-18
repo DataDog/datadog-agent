@@ -57,7 +57,7 @@ A target with any other key, a mix of the two forms, or a missing part is invali
 
 A query request has a non-empty query and delivery instructions with:
 
-- a crawl ID and a task ID that are UUIDs;
+- a crawl ID and a task ID that are UUIDs (the crawl ID is required on this action path only: the embedded RC tunnel path, which is inactive unless a trusted authority is wired in, has no crawl and omits the field from the delivery instructions);
 - an upload ID of letters, digits, `.`, `_`, or `-`;
 - a result file size target and limits that are positive integers.
 
@@ -183,7 +183,7 @@ The runner passes the trace ID and span ID of its active action span, and the tr
 
 ### OBS-02 — Log without data
 
-Every Agent log line about a request carries its integration, and its run, task, and upload IDs when it has them. Logs never contain the query text, result values, credentials, or check configurations.
+Every Agent log line about a request carries its integration, and its run, task, and upload IDs when it has them. The crawl ID is logged only when the request has one; a run started over the RC tunnel has none, and its log line omits the field rather than logging an empty or substituted one. Logs never contain the query text, result values, credentials, or check configurations.
 
 ### OBS-03 — Summarize each request
 
