@@ -207,7 +207,7 @@
       },
       {
         "matchManagers": ["dockerfile", "docker-compose"],
-        "matchDepNames": ["golang"],
+        "matchDepNames": ["golang", "docker.io/library/golang"],
         "enabled": false
       },
       {
@@ -261,7 +261,7 @@
         ],
         "depNameTemplate": "base",
         "packageNameTemplate": "base",
-        "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts",
+        "registryUrlTemplate": "https://blob.istio.io/istio-release/charts",
         "datasourceTemplate": "helm"
       },
       {

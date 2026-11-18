@@ -238,10 +238,13 @@ After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
-The stable registration runs a `StablePipeline`: ScanMW plus a relative-change
+The stable registration runs a `StablePipeline` plus a relative-change
 gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
-5%, `0` disables it). The gate mutes candidates whose medians differ by less
-than the threshold without touching ScanMW state. `detections.gated` counts
+5%, `0` disables it). Select the detector with `stable.scanmw` (default),
+`stable.scanwelch`, or `stable.bocpd`; at most one block is allowed, and empty
+blocks use that detector's defaults. Stable BOCPD derives pre/post medians from
+retained history at alert onset. The gate mutes candidates whose medians differ
+by less than the threshold without touching detector state. `detections.gated` counts
 these mutes; kind emission counters stay downstream of dedup.
 Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
 bands) and gain one level when detector confidence is High or XHigh.

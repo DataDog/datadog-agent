@@ -438,7 +438,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			enabled := true
 			anomalyCutoff = &enabled
 		}
-		pipeline, pipelineErr := newDefaultMetricPipeline(settings.StablePipeline, *anomalyCutoff)
+		pipeline, pipelineErr := newStableMetricPipeline(settings.StablePipeline, *anomalyCutoff)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}
