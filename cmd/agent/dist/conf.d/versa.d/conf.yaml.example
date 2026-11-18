@@ -140,7 +140,7 @@ instances:
     ## A timeseries query falls back to its tableData result for that collection, with a
     ## warning giving the reason, when Versa rejects the timeseries request with an error
     ## response or returns a body that cannot be parsed (the warning includes the HTTP
-    ## status and Versa's error message), when its entity keys do not match the expected
+    ## status and Versa's numeric error code), when its entity keys do not match the expected
     ## layout, when tableData rows sharing a key differ in their tags (for example tunnels
     ## with different peers on one appliance and local IP), or when no entity matches a
     ## tableData row or unmatched entities outnumber matched ones. Authentication,

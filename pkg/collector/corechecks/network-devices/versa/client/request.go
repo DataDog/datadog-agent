@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -153,13 +151,14 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
+	// The response body is not logged: Versa error text can echo request values.
+	log.Tracef("%d error code hitting endpoint %q with error %+v", statusCode, endpoint, lastErr)
 	return nil, &requestError{
 		endpoint:   endpoint,
 		statusCode: statusCode,
 		cause:      lastErr,
-		apiMessage: apiErrorMessage(bytes),
 		apiError:   isAPIErrorBody(bytes),
+		apiCode:    apiErrorCode(bytes),
 	}
 }
 
@@ -169,27 +168,51 @@ type requestError struct {
 	endpoint   string
 	statusCode int
 	cause      error
-	// apiMessage is the "error" field of a JSON error body, truncated, or empty.
-	apiMessage string
 	// apiError is true when the body is a Versa JSON error object with a code or error field.
 	apiError bool
+	// apiCode is the numeric "code" field of a Versa JSON error body, if any. The free
+	// text "error" and "message" fields are never kept, so they cannot reach a log line.
+	apiCode *int64
 }
 
 func (e *requestError) Error() string {
 	return fmt.Sprintf("%s http responded with %d code and error %v", e.endpoint, e.statusCode, e.cause)
 }
 
-// apiErrorMessage returns the full "error" field of a Versa JSON error body, or an
-// empty string when the body is not such an object. It is sanitized before any use in a
-// log line.
-func apiErrorMessage(body []byte) string {
+// apiErrorCode returns the numeric "code" field of a Versa JSON error body, or nil when
+// there is none or it is not an integer.
+func apiErrorCode(body []byte) *int64 {
 	var parsed struct {
-		Error string `json:"error"`
+		Code json.RawMessage `json:"code"`
 	}
-	if json.Unmarshal(body, &parsed) != nil {
-		return ""
+	if json.Unmarshal(body, &parsed) != nil || parsed.Code == nil {
+		return nil
 	}
-	return parsed.Error
+	var code int64
+	if json.Unmarshal(parsed.Code, &code) != nil {
+		return nil
+	}
+	return &code
+}
+
+// versaErrorDescriptions describes the Versa error codes seen on timeseries requests, in
+// our own words, so the warning never repeats Versa's free text.
+var versaErrorDescriptions = map[int64]string{
+	-3: "joined queries are not allowed for this report",
+	-8: "invalid metric",
+}
+
+// rejectionReason describes a rejected timeseries request from its HTTP status and Versa
+// error code only.
+func rejectionReason(status int, code *int64) string {
+	reason := fmt.Sprintf("Versa rejected the timeseries request with HTTP %d", status)
+	if code == nil {
+		return reason
+	}
+	if description, ok := versaErrorDescriptions[*code]; ok {
+		return fmt.Sprintf("%s (Versa error code %d: %s)", reason, *code, description)
+	}
+	return fmt.Sprintf("%s (Versa error code %d)", reason, *code)
 }
 
 // isAPIErrorBody reports whether body is a Versa JSON error object, carrying a code or
@@ -204,20 +227,21 @@ func isAPIErrorBody(body []byte) bool {
 	return hasCode || hasError
 }
 
-// timeseriesRejection returns the HTTP status and Versa error message when err is Versa
-// rejecting the request itself: a 4xx other than 401 and 403, with a Versa JSON error
-// body. Authentication failures, HTML responses (reported as 401), transport errors,
-// timeouts and 5xx responses are not rejections and keep their usual error handling.
-func timeseriesRejection(err error) (int, string, bool) {
+// timeseriesRejection returns the HTTP status and Versa's numeric error code, if any,
+// when err is Versa rejecting the request itself: a 4xx other than 401 and 403, with a
+// Versa JSON error body. Authentication failures, HTML responses (reported as 401),
+// transport errors, timeouts and 5xx responses are not rejections and keep their usual
+// error handling.
+func timeseriesRejection(err error) (int, *int64, bool) {
 	var reqErr *requestError
 	if !errors.As(err, &reqErr) {
-		return 0, "", false
+		return 0, nil, false
 	}
 	status := reqErr.statusCode
 	if status < 400 || status >= 500 || status == 401 || status == 403 || !reqErr.apiError {
-		return 0, "", false
+		return 0, nil, false
 	}
-	return status, reqErr.apiMessage, true
+	return status, reqErr.apiCode, true
 }
 
 // isBodyParseError reports whether err is a response body that is not valid JSON for the
@@ -226,63 +250,6 @@ func isBodyParseError(err error) bool {
 	var syntaxErr *json.SyntaxError
 	var typeErr *json.UnmarshalTypeError
 	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
-}
-
-// maxLoggedMessageLength caps a sanitized Versa error message in a log line.
-const maxLoggedMessageLength = 120
-
-var (
-	// loggedMessageDrop matches tokens that could carry request details: URLs, paths,
-	// query strings, escapes and host:port pairs.
-	loggedMessageDrop = regexp.MustCompile(`\S*(://|/|\\|\?|&|=|%)\S*|\S*[A-Za-z0-9.-]+:\d+\S*`)
-	// loggedMessageDisallowed matches characters outside the set kept in a logged Versa message.
-	loggedMessageDisallowed = regexp.MustCompile(`[^A-Za-z0-9 .,:;!()'_-]`)
-	whitespace              = regexp.MustCompile(`\s+`)
-)
-
-// sanitizeAPIMessage makes a Versa error message safe for a log line, or returns an empty
-// string when it cannot. If any value the client sent (credentials, session tokens or the
-// tenant), in any letter case and in its plain, URL encoded or JSON escaped form, appears
-// anywhere in the full message, the message is dropped entirely. Otherwise tokens that
-// look like a URL, path, query string, escape or host:port are removed, only letters,
-// digits, spaces and basic punctuation are kept, whitespace is collapsed and the result
-// is capped at maxLoggedMessageLength characters.
-func (client *Client) sanitizeAPIMessage(message string, tenant string) string {
-	haystacks := []string{strings.ToLower(message)}
-	if unescaped, err := url.QueryUnescape(message); err == nil {
-		haystacks = append(haystacks, strings.ToLower(unescaped))
-	}
-	for _, secret := range []string{client.password, client.username, client.clientSecret, client.sessionToken, client.directorToken, tenant} {
-		if secret == "" {
-			continue
-		}
-		for _, form := range secretForms(secret) {
-			form = strings.ToLower(form)
-			for _, haystack := range haystacks {
-				if strings.Contains(haystack, form) {
-					return ""
-				}
-			}
-		}
-	}
-	message = loggedMessageDrop.ReplaceAllString(message, "")
-	message = loggedMessageDisallowed.ReplaceAllString(message, "")
-	message = strings.TrimSpace(whitespace.ReplaceAllString(message, " "))
-	if len(message) > maxLoggedMessageLength {
-		message = message[:maxLoggedMessageLength]
-	}
-	return message
-}
-
-// secretForms returns the forms a value can take when echoed back in a response: as is,
-// URL encoded, and JSON escaped with and without escaped slashes.
-func secretForms(secret string) []string {
-	forms := []string{secret, url.QueryEscape(secret), url.PathEscape(secret)}
-	if encoded, err := json.Marshal(secret); err == nil {
-		escaped := strings.Trim(string(encoded), `"`)
-		forms = append(forms, escaped, strings.ReplaceAll(escaped, "/", `\/`))
-	}
-	return forms
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -467,12 +434,8 @@ func getTimeseriesAnalytics[T any](
 
 	resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
 	if err != nil {
-		if status, message, ok := timeseriesRejection(err); ok {
-			reason := fmt.Sprintf("Versa rejected the timeseries request with HTTP %d", status)
-			if message = client.sanitizeAPIMessage(message, tenant); message != "" {
-				reason += ": " + message
-			}
-			return useTableData(FallbackHTTPError, reason, nil)
+		if status, code, ok := timeseriesRejection(err); ok {
+			return useTableData(FallbackHTTPError, rejectionReason(status, code), nil)
 		}
 		if isBodyParseError(err) {
 			return useTableData(FallbackHTTPError, "the timeseries response could not be parsed", nil)

@@ -542,7 +542,7 @@ func TestTimeseriesHTTPErrorFallsBackToTableData(t *testing.T) {
 	}
 
 	out := logs()
-	assert.Contains(t, out, "Timeseries query slam: Versa rejected the timeseries request with HTTP 400: Joined queries are not allowed for this report")
+	assert.Contains(t, out, "Timeseries query slam: Versa rejected the timeseries request with HTTP 400 (Versa error code -3: joined queries are not allowed for this report), using tableData for it instead")
 	assert.NotContains(t, out, "testpass")
 }
 
@@ -632,8 +632,10 @@ func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options 
 // Authentication, transport, timeout and server errors are not answers to the timeseries
 // request itself, so they surface as errors as before and are not counted as fallbacks.
 func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
-	testDone := make(chan struct{})
-	defer close(testDone)
+	// release unblocks the timeout handler independently of client cancellation. It is
+	// closed by a cleanup registered after the server's, so it runs before server.Close
+	// waits on the handler.
+	var release chan struct{}
 	jsonError := func(status int) http.HandlerFunc {
 		return func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -662,7 +664,7 @@ func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
 			// Block until the client gives up, or the test ends.
 			select {
 			case <-r.Context().Done():
-			case <-testDone:
+			case <-release:
 			}
 		}, []ClientOptions{WithTimeout(20 * time.Millisecond)}},
 		// A 4xx without a Versa JSON error body is not a Versa answer either.
@@ -673,7 +675,10 @@ func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
 		}, nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			release = make(chan struct{})
 			client, counts := timeseriesHandlerServer(t, tt.handler, tt.options...)
+			done := release
+			t.Cleanup(func() { close(done) })
 			metrics, err := client.GetSLAMetrics("datadog")
 			require.Error(t, err)
 			assert.Nil(t, metrics)
@@ -739,63 +744,70 @@ func TestQoSFallbackMatchesTableData(t *testing.T) {
 	}
 }
 
-// The fallback warning carries the query name, HTTP status and a sanitized Versa message
-// only, even when Versa echoes the request, the tenant and credentials back.
-func TestTimeseriesRejectionWarningIsSanitized(t *testing.T) {
+// rejectionLines runs an SLA timeseries request that Versa rejects with body, and
+// returns the WARN and DEBUG lines logged.
+func rejectionLines(t *testing.T, body string) (warnings []string, debugs []string) {
 	logs := captureLogs(t)
-	echo := `{"code":-3,"error":"Invalid request https://testuser:testpass@10.0.0.1:9182/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN?q=slam&count=2000 from director.example:9182 password testpass for tenant datadog"}`
 	client, _ := timeseriesHandlerServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(echo))
+		w.Write([]byte(body))
 	})
 	_, err := client.GetSLAMetrics("datadog")
 	require.NoError(t, err)
-
-	var warning string
 	for _, line := range strings.Split(logs(), "\n") {
-		if strings.Contains(line, "| WARN |") && strings.Contains(line, "Timeseries query slam") {
-			warning = line
+		if i := strings.Index(line, "| WARN | "); i >= 0 {
+			msg := line[i+len("| WARN | "):]
+			warnings = append(warnings, msg[strings.Index(msg, ") | ")+len(") | "):])
+		} else if strings.Contains(line, "| DEBUG |") {
+			debugs = append(debugs, line)
 		}
 	}
-	require.NotEmpty(t, warning)
-	assert.Contains(t, warning, "Versa rejected the timeseries request with HTTP 400, using tableData for it instead")
-	for _, leaked := range []string{"testpass", "testuser", "https://", "10.0.0.1", "9182", "/tenants/", "datadog", "count=2000", "director.example"} {
-		assert.NotContains(t, warning, leaked)
-	}
+	return warnings, debugs
 }
 
-func TestSanitizeAPIMessage(t *testing.T) {
-	// A message with nothing sensitive keeps its words, minus request like tokens.
-	client := &Client{username: "operator", password: "s3cret-pass", sessionToken: "csrf-abc123"}
-	message := client.sanitizeAPIMessage("Invalid metric: AVAILABILITY at /versa/x?y=1 host:8443\n\n  "+strings.Repeat("x", 200), "tenant-one")
-	assert.True(t, strings.HasPrefix(message, "Invalid metric: AVAILABILITY at x"), message)
-	assert.NotContains(t, message, "/versa")
-	assert.NotContains(t, message, "8443")
-	assert.LessOrEqual(t, len(message), maxLoggedMessageLength)
-
-	filler := strings.Repeat("a", 195) + " "
+// The rejection warning is built only from the query name, HTTP status and Versa's numeric
+// code; Versa's error text never reaches a WARN or DEBUG line, whatever it contains.
+func TestTimeseriesRejectionWarningOmitsVersaText(t *testing.T) {
+	const prefix = "Timeseries query slam: Versa rejected the timeseries request with HTTP 400"
+	const suffix = ", using tableData for it instead"
+	secretTexts := []string{
+		"password testpass for tenant datadog",
+		"https://testuser:testpass@10.0.0.1:9182/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN?q=slam",
+		"dGVzdHBhc3M=", // base64 of the password
+		"dGVzdHBhc3M",  // unpadded base64url of the password
+		"test+pass",    // separators that a character filter would delete
+		"test\npass",
+		"test\u200bpass",
+	}
 	for _, tt := range []struct {
-		name    string
-		client  *Client
-		tenant  string
-		message string
+		name string
+		code string
+		want string
 	}{
-		{"secret straddling the 200 character mark", &Client{password: "Pa55word!"}, "t1", filler + "Pa55word!"},
-		{"one character password", &Client{password: "x"}, "tenant-one", "invalid value x"},
-		{"two character password", &Client{password: "q7"}, "tenant-one", "rejected q7"},
-		{"password containing the username", &Client{username: "admin", password: "admin2024"}, "tenant-one", "bad login admin2024"},
-		{"username containing the password", &Client{username: "ops-admin", password: "admin"}, "tenant-one", "unknown user ops-admin"},
-		{"secret in another letter case", &Client{password: "Secret-Value"}, "tenant-one", "rejected SECRET-VALUE"},
-		{"secret repeated", &Client{password: "hunter22"}, "tenant-one", "hunter22 and hunter22 again"},
-		{"url encoded secret", &Client{password: "p@ss&word"}, "tenant-one", "bad value p%40ss%26word"},
-		{"json escaped secret", &Client{password: "a&b/c"}, "tenant-one", `bad value a\u0026b\/c`},
-		{"session token", &Client{sessionToken: "csrf-abc123"}, "tenant-one", "token csrf-abc123 expired"},
-		{"tenant", &Client{}, "Tenant-One", "no access to tenant-one"},
+		{"known code -3", "-3", prefix + " (Versa error code -3: joined queries are not allowed for this report)" + suffix},
+		{"known code -8", "-8", prefix + " (Versa error code -8: invalid metric)" + suffix},
+		{"unknown code", "-42", prefix + " (Versa error code -42)" + suffix},
+		{"non numeric code", `"-3"`, prefix + suffix},
+		{"no code", "", prefix + suffix},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Empty(t, tt.client.sanitizeAPIMessage(tt.message, tt.tenant))
-		})
+		for _, text := range secretTexts {
+			t.Run(tt.name+"/"+text, func(t *testing.T) {
+				fields := map[string]any{"error": text, "message": text}
+				if tt.code != "" {
+					fields["code"] = json.RawMessage(tt.code)
+				}
+				body, err := json.Marshal(fields)
+				require.NoError(t, err)
+				warnings, debugs := rejectionLines(t, string(body))
+				assert.Equal(t, []string{tt.want}, warnings)
+				for _, line := range debugs {
+					assert.NotContains(t, line, "testpass")
+					assert.NotContains(t, line, "dGVzdHBhc3M")
+					assert.NotContains(t, line, "test+pass")
+				}
+			})
+		}
 	}
 }
 
