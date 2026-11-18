@@ -33,6 +33,13 @@ lint_windows-x64:
   rules:
     - !reference [.on_native_os_linters]
     - !reference [.on_main_or_release_branch]  # lint_cross_windows-x64 missed regressions, leading to #55162 and #55210
+    - changes:
+        paths:
+          - .editorconfig
+          - tools/windows/DatadogAgentInstaller/**/*
+          - tasks/winbuildscripts/Invoke-Linters.ps1
+          - .gitlab/windows/build/lint/windows.yml
+        compare_to: $COMPARE_TO_BRANCH
   variables:
     ARCH: "x64"
   timeout: 1h30m
