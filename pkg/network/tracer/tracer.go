@@ -110,6 +110,9 @@ type Tracer struct {
 
 	// Used for connection_protocol data expiration
 	connectionProtocolMapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
+
+	// set while the connection tracer shares the eBPF conntracker's map
+	closedNATTranslations *deferredTranslationDeletes
 }
 
 // NewTracer creates a Tracer
@@ -188,6 +191,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if natMap != nil {
 		// the tracer registered the shared map under its own module, which is keyed by map ID
 		ddebpf.AddNameMappingsForMap(natMap, probes.ConntrackMap, ebpfConntrackerModule)
+		tr.closedNATTranslations = newDeferredTranslationDeletes(int(cfg.MaxTrackedConnections))
 	}
 	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 
@@ -395,7 +399,7 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(&cs.ConnectionTuple)
 	t.connVia(cs)
-	if cs.IPTranslation != nil {
+	if cs.IPTranslation != nil && !t.closedNATTranslations.add(cs.ConnectionTuple) {
 		t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
 	}
 
@@ -696,6 +700,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	// Remove expired entries
 	t.removeEntries(expired)
+	t.deleteClosedNATTranslations(activeConnections)
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
@@ -734,6 +739,83 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
+}
+
+// deleteClosedNATTranslations deletes the translations of connections that closed before the previous call, except
+// those whose tuple an active connection reuses.
+func (t *Tracer) deleteClosedNATTranslations(active []network.ConnectionStats) {
+	ready := t.closedNATTranslations.rotate()
+	if len(ready) == 0 {
+		return
+	}
+	// whether an active connection reuses the tuple
+	reused := make(map[translationKey]bool, len(ready))
+	for i := range ready {
+		reused[newTranslationKey(&ready[i])] = false
+	}
+	for i := range active {
+		k := newTranslationKey(&active[i].ConnectionTuple)
+		if _, ok := reused[k]; ok {
+			reused[k] = true
+		}
+	}
+	for i := range ready {
+		if !reused[newTranslationKey(&ready[i])] {
+			t.conntracker.DeleteTranslation(&ready[i])
+		}
+	}
+}
+
+// deferredTranslationDeletes holds closed NAT'd connections whose conntrack entries are deleted one getConnections
+// later. The peer of a NAT'd connection with both ends on this host looks the entry up when it closes, which is often
+// after userspace sees the first end's close. A nil deferredTranslationDeletes defers nothing.
+type deferredTranslationDeletes struct {
+	mu      sync.Mutex
+	max     int
+	pending []network.ConnectionTuple
+	ready   []network.ConnectionTuple
+}
+
+func newDeferredTranslationDeletes(maxPending int) *deferredTranslationDeletes {
+	return &deferredTranslationDeletes{max: maxPending}
+}
+
+// add queues t, and returns false when the caller must delete it now.
+func (d *deferredTranslationDeletes) add(t network.ConnectionTuple) bool {
+	if d == nil {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.pending) >= d.max {
+		return false
+	}
+	d.pending = append(d.pending, t)
+	return true
+}
+
+// rotate returns the tuples queued before the previous rotate.
+func (d *deferredTranslationDeletes) rotate() []network.ConnectionTuple {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	ready := d.ready
+	d.ready, d.pending = d.pending, nil
+	return ready
+}
+
+// translationKey identifies the conntrack entry of a connection, which doesn't depend on its pid or direction.
+type translationKey struct {
+	src, dst     util.Address
+	sport, dport uint16
+	netns        uint32
+	typ          network.ConnectionType
+}
+
+func newTranslationKey(c *network.ConnectionTuple) translationKey {
+	return translationKey{src: c.Source, dst: c.Dest, sport: c.SPort, dport: c.DPort, netns: c.NetNS, typ: c.Type}
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
