@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -152,6 +154,14 @@ func SkipIfNotAvailable(t *testing.T) {
 			t.Skip("test not available for ebpf")
 		}
 	}
+}
+
+// checkContainerRuntime returns an error when containers can't be run on this host
+func checkContainerRuntime() error {
+	if kv, err := kernel.NewKernelVersion(); err == nil && kv.IsSuse12Kernel() {
+		return errors.New("broken containerd support on Suse 12")
+	}
+	return nil
 }
 
 // getPIDCGroup returns the path of the first cgroup found for a PID

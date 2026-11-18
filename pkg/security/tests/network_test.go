@@ -206,7 +206,7 @@ func TestRawPacket(t *testing.T) {
 			t.Skip("Skip test where docker is unavailable")
 		}
 
-		wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+		wrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "busybox", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
@@ -627,7 +627,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	containerAID := captureContainerID(cmdWrapperA)
 
 	// 2bis) Create second container for later
-	cmdWrapperB, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
+	cmdWrapperB, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "alpine", "")
 	if err != nil {
 		t.Fatal(err)
 	}

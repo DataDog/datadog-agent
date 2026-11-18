@@ -107,6 +107,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		c.addExtensionToPipeline(conf, extension)
 	}
 
+	// The converter never adds the datadog extension in standalone mode, so any
+	// instance there is user-declared: give it the DDOT hostname.
+	if standalone {
+		c.setDatadogExtensionHostname(ctx, conf)
+	}
+
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
 		if !c.reuseExtension(conf, dogtelName) {

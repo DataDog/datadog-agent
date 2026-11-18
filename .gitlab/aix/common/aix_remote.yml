@@ -59,7 +59,9 @@
     - chmod 644 ~/.ssh/config
 
     # Helpers for connecting to the AIX host.
+    - command -v rsync >/dev/null || (apt-get update -qq && apt-get install -yqq rsync)
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
+    - aix_run_cmd '[ -x /opt/freeware/bin/rsync ] || /opt/freeware/bin/dnf-3 -y install rsync'
 
     # Ensure the agent source is cloned on the AIX host at the commit under test.
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
