@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
@@ -21,6 +20,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/templates/memory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,8 +208,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	logrusLogger := logrus.StandardLogger()
 	ctx := context.Background()
 
-	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
-	require.NoError(b, err, "error with template")
+	templateSystem := memory.New(10000)
 	defer templateSystem.Close(ctx)
 
 	goflowState := utils.NewStateNetFlow()

@@ -822,7 +822,8 @@ properties:
         visibility: public
         description: The maximum number of NetFlow v9 and IPFIX templates retained
           per listener. When the limit is reached, the least recently used template
-          is evicted.
+          is evicted. The limit applies to each listener as a whole, not to each
+          exporter. Values less than or equal to 0 use the default.
       aggregator_buffer_size:
         node_type: setting
         type: integer
