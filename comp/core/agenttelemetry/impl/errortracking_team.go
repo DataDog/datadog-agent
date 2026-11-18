@@ -23,15 +23,13 @@ var plumbingPrefixes = []string{
 	"comp/core/agenttelemetry/",
 }
 
-// Frames under these repository paths are shared helpers that many teams call
+// Frames under this repository path are shared helpers that many teams call,
 // when they are owned by the same team as the prefix itself (the generic
-// helpers); a package under a prefix with its own CODEOWNERS owner, such as
+// helpers); a package under it with its own CODEOWNERS owner, such as
 // pkg/util/kubernetes, keeps that owner. When a generic helper logs an error,
 // the failing caller is the better owner, so the attribution walks down to the
 // first frame outside the helpers.
-var sharedHelperPrefixes = []string{
-	"pkg/util/",
-}
+const sharedHelperPrefix = "pkg/util/"
 
 // stackFrame is the part of a symbolized frame that attribution needs.
 type stackFrame struct {
@@ -83,15 +81,11 @@ func owningTeam(rules []ownerRule, frames []stackFrame) string {
 	return first
 }
 
-// isSharedHelper reports whether path is in a generic helper package: under a
+// isSharedHelper reports whether path is in a generic helper package: under the
 // shared helper prefix and owned by the same team as the prefix itself.
 func isSharedHelper(rules []ownerRule, p, team string) bool {
-	for _, prefix := range sharedHelperPrefixes {
-		if strings.HasPrefix(p, prefix) && team == ownerOfPath(rules, prefix+"x.go") {
-			return true
-		}
-	}
-	return false
+	// The probe file name only selects the directory's rules.
+	return strings.HasPrefix(p, sharedHelperPrefix) && team == ownerOfPath(rules, sharedHelperPrefix+"x.go")
 }
 
 // repoPath returns the repository-relative path of a Go source frame. It reads
