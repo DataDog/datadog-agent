@@ -356,18 +356,6 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read trace chunk samplingMechanism")
 				return
 			}
-		case 8:
-			tc.envRef, o, err = UnmarshalStreamingString(o, tc.Strings)
-			if err != nil {
-				err = msgp.WrapError(err, "Failed to read trace chunk env")
-				return
-			}
-		case 9:
-			tc.appVersionRef, o, err = UnmarshalStreamingString(o, tc.Strings)
-			if err != nil {
-				err = msgp.WrapError(err, "Failed to read trace chunk appVersion")
-				return
-			}
 		default:
 			o, err = harvestUnknownFieldStrings(o, tc.Strings)
 			if err != nil {
@@ -402,12 +390,6 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 		numFields++
 	}
 	if tc.samplingMechanism != 0 {
-		numFields++
-	}
-	if tc.envRef != 0 {
-		numFields++
-	}
-	if tc.appVersionRef != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
@@ -449,14 +431,6 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 	if tc.samplingMechanism != 0 {
 		o = msgp.AppendUint32(o, 7) // samplingMechanism
 		o = msgp.AppendUint32(o, tc.samplingMechanism)
-	}
-	if tc.envRef != 0 {
-		o = msgp.AppendUint32(o, 8) // env
-		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.envRef), tc.envRef, o)
-	}
-	if tc.appVersionRef != 0 {
-		o = msgp.AppendUint32(o, 9) // appVersion
-		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.appVersionRef), tc.appVersionRef, o)
 	}
 	return
 }

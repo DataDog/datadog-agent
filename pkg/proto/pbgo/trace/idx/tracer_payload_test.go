@@ -464,72 +464,47 @@ func TestDecodersRejectCountsAboveLimit(t *testing.T) {
 	})
 }
 
-func TestTraceChunkEnvAppVersionOverride(t *testing.T) {
-	t.Run("decode string and streaming index", func(t *testing.T) {
-		strings := NewStringTable()
-		var bts []byte
-		bts = msgp.AppendMapHeader(bts, 3)
-		bts = msgp.AppendUint32(bts, 8)
-		bts = msgp.AppendString(bts, "staging")
-		bts = msgp.AppendUint32(bts, 2)
-		bts = msgp.AppendUint32(bts, 1) // origin: streaming-string ref to "staging"
-		bts = msgp.AppendUint32(bts, 9)
-		bts = msgp.AppendString(bts, "v2")
-		tc := &InternalTraceChunk{Strings: strings}
-		o, err := tc.UnmarshalMsg(bts)
-		require.NoError(t, err)
-		require.Empty(t, o)
-		assert.Equal(t, "staging", tc.Env())
-		assert.Equal(t, "v2", tc.AppVersion())
+func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
+	t.Run("read from string chunk attributes", func(t *testing.T) {
+		// Duplicate "env" entries in the string table: the attribute key uses the second one.
+		strs := StringTableFromArray([]string{"", "env", "env", "staging", "version", "v2"})
+		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
+			2: {Value: &AnyValue_StringValueRef{StringValueRef: 3}},
+			4: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
+		}}
+		assert.Equal(t, "staging", c.Env())
+		assert.Equal(t, "v2", c.AppVersion())
+		assert.Equal(t, "staging", c.ShallowCopy().Env())
+		back := fromProtoChunk(strs, c.ToProto())
+		assert.Equal(t, "staging", back.Env())
+		assert.Equal(t, "v2", back.AppVersion())
 
-		var bts2 []byte
-		bts2 = msgp.AppendMapHeader(bts2, 2)
-		bts2 = msgp.AppendUint32(bts2, 8)
-		bts2 = msgp.AppendUint32(bts2, 2) // streaming ref to "v2"
-		bts2 = msgp.AppendUint32(bts2, 9)
-		bts2 = msgp.AppendUint32(bts2, 1) // streaming ref to "staging"
-		tc2 := &InternalTraceChunk{Strings: strings}
-		_, err = tc2.UnmarshalMsg(bts2)
-		require.NoError(t, err)
-		assert.Equal(t, "v2", tc2.Env())
-		assert.Equal(t, "staging", tc2.AppVersion())
+		c.SetEnv("prod")
+		assert.Equal(t, "prod", c.Env())
+		assert.Len(t, c.Attributes, 2, "SetEnv replaces the existing env attribute")
 	})
 
-	t.Run("no keys means no override", func(t *testing.T) {
-		tc := &InternalTraceChunk{Strings: NewStringTable()}
-		_, err := tc.UnmarshalMsg(msgp.AppendInt32(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 1), 2))
-		require.NoError(t, err)
-		assert.Empty(t, tc.Env())
-		assert.Empty(t, tc.AppVersion())
+	t.Run("missing or non-string attributes mean no override", func(t *testing.T) {
+		strs := NewStringTable()
+		c := &InternalTraceChunk{Strings: strs}
+		assert.Empty(t, c.Env())
+		assert.Empty(t, c.AppVersion())
+		c.Attributes = map[uint32]*AnyValue{strs.Add("env"): {Value: &AnyValue_IntValue{IntValue: 3}}}
+		assert.Empty(t, c.Env())
 	})
 
-	t.Run("marshal round trip, copies and proto", func(t *testing.T) {
-		strings := NewStringTable()
-		tc := NewInternalTraceChunk(strings, 1, "", nil, nil, false, nil, 0)
-		tc.SetEnv("prod")
-		tc.SetAppVersion("1.2.3")
-		bts, err := tc.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+	t.Run("msgpack round trip", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("prod")
+		c.SetAppVersion("1.2.3")
+		bts, err := c.MarshalMsg(nil, NewSerializedStrings(uint32(strs.Len())))
 		require.NoError(t, err)
 		got := &InternalTraceChunk{Strings: NewStringTable()}
 		_, err = got.UnmarshalMsg(bts)
 		require.NoError(t, err)
 		assert.Equal(t, "prod", got.Env())
 		assert.Equal(t, "1.2.3", got.AppVersion())
-
-		cp := tc.ShallowCopy()
-		assert.Equal(t, "prod", cp.Env())
-		assert.Equal(t, "1.2.3", cp.AppVersion())
-
-		p := tc.ToProto()
-		back := fromProtoChunk(strings, p)
-		assert.Equal(t, "prod", back.Env())
-		assert.Equal(t, "1.2.3", back.AppVersion())
-
-		// CompactStrings must keep chunk refs pointing to the right strings.
-		tp := &TracerPayload{Strings: []string{"", "unused", "prod", "1.2.3"}, Chunks: []*TraceChunk{{EnvRef: 2, AppVersionRef: 3}}}
-		tp.CompactStrings()
-		assert.Equal(t, "prod", tp.Strings[tp.Chunks[0].EnvRef])
-		assert.Equal(t, "1.2.3", tp.Strings[tp.Chunks[0].AppVersionRef])
 	})
 }
 

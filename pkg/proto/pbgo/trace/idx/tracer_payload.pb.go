@@ -38,14 +38,8 @@ type TraceChunk struct {
 	TraceID []byte `protobuf:"bytes,6,opt,name=traceID,proto3" json:"traceID,omitempty"`
 	// samplingMechanism specifies the optional sampling mechanism (previously part of span tag _dd.p.dm)
 	SamplingMechanism uint32 `protobuf:"varint,7,opt,name=samplingMechanism,proto3" json:"samplingMechanism,omitempty"`
-	// envRef specifies the optional string table ref of the `env` of this chunk.
-	// When set, it overrides the payload-level envRef for this chunk only.
-	EnvRef uint32 `protobuf:"varint,8,opt,name=envRef,proto3" json:"envRef,omitempty"`
-	// appVersionRef specifies the optional string table ref of the `version` of this chunk.
-	// When set, it overrides the payload-level appVersionRef for this chunk only.
-	AppVersionRef uint32 `protobuf:"varint,9,opt,name=appVersionRef,proto3" json:"appVersionRef,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *TraceChunk) Reset() {
@@ -123,20 +117,6 @@ func (x *TraceChunk) GetTraceID() []byte {
 func (x *TraceChunk) GetSamplingMechanism() uint32 {
 	if x != nil {
 		return x.SamplingMechanism
-	}
-	return 0
-}
-
-func (x *TraceChunk) GetEnvRef() uint32 {
-	if x != nil {
-		return x.EnvRef
-	}
-	return 0
-}
-
-func (x *TraceChunk) GetAppVersionRef() uint32 {
-	if x != nil {
-		return x.AppVersionRef
 	}
 	return 0
 }
@@ -372,7 +352,7 @@ var File_datadog_trace_idx_tracer_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"\n" +
-	"&datadog/trace/idx/tracer_payload.proto\x12\x11datadog.trace.idx\x1a\x1cdatadog/trace/idx/span.proto\"\xca\x03\n" +
+	"&datadog/trace/idx/tracer_payload.proto\x12\x11datadog.trace.idx\x1a\x1cdatadog/trace/idx/span.proto\"\x8c\x03\n" +
 	"\n" +
 	"TraceChunk\x12\x1a\n" +
 	"\bpriority\x18\x01 \x01(\x05R\bpriority\x12\x1c\n" +
@@ -383,9 +363,7 @@ const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"\x05spans\x18\x04 \x03(\v2\x17.datadog.trace.idx.SpanR\x05spans\x12\"\n" +
 	"\fdroppedTrace\x18\x05 \x01(\bR\fdroppedTrace\x12\x18\n" +
 	"\atraceID\x18\x06 \x01(\fR\atraceID\x12,\n" +
-	"\x11samplingMechanism\x18\a \x01(\rR\x11samplingMechanism\x12\x16\n" +
-	"\x06envRef\x18\b \x01(\rR\x06envRef\x12$\n" +
-	"\rappVersionRef\x18\t \x01(\rR\rappVersionRef\x1aZ\n" +
+	"\x11samplingMechanism\x18\a \x01(\rR\x11samplingMechanism\x1aZ\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x121\n" +
 	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01\"\x8b\x05\n" +

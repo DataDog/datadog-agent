@@ -22,12 +22,6 @@ message TraceChunk {
 	bytes traceID = 6;
 	// samplingMechanism specifies the optional sampling mechanism (previously part of span tag _dd.p.dm)
 	uint32 samplingMechanism = 7;
-	// envRef specifies the optional string table ref of the `env` of this chunk.
-	// When set, it overrides the payload-level envRef for this chunk only.
-	uint32 envRef = 8;
-	// appVersionRef specifies the optional string table ref of the `version` of this chunk.
-	// When set, it overrides the payload-level appVersionRef for this chunk only.
-	uint32 appVersionRef = 9;
 }
 
 // TracerPayload represents a payload the trace agent receives from tracers.

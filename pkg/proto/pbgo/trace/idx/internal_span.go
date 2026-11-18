@@ -225,8 +225,6 @@ func (x *TracerPayload) CompactStrings() {
 			continue
 		}
 		markRef(chunk.OriginRef)
-		markRef(chunk.EnvRef)
-		markRef(chunk.AppVersionRef)
 		markAttributeRefs(chunk.Attributes, markRef)
 		for _, span := range chunk.Spans {
 			if span == nil {
@@ -301,8 +299,6 @@ func (x *TracerPayload) CompactStrings() {
 			continue
 		}
 		chunk.OriginRef = remap(chunk.OriginRef)
-		chunk.EnvRef = remap(chunk.EnvRef)
-		chunk.AppVersionRef = remap(chunk.AppVersionRef)
 		remapAttributes(chunk.Attributes, remap)
 		for _, span := range chunk.Spans {
 			if span == nil {
@@ -479,8 +475,6 @@ func fromProtoChunk(strings *StringTable, chunk *TraceChunk) *InternalTraceChunk
 		Strings:           strings,
 		Priority:          chunk.Priority,
 		originRef:         chunk.OriginRef,
-		envRef:            chunk.EnvRef,
-		appVersionRef:     chunk.AppVersionRef,
 		Attributes:        chunk.Attributes,
 		DroppedTrace:      chunk.DroppedTrace,
 		TraceID:           chunk.TraceID,
@@ -538,15 +532,14 @@ func (tp *InternalTracerPayload) ToProtoByEnvVersion() []*TracerPayload {
 	payloadKey := envVersion{tp.Env(), tp.AppVersion()}
 	keyOf := func(c *InternalTraceChunk) envVersion {
 		k := payloadKey
-		if c.envRef != 0 {
-			if e := c.Env(); e != "" {
-				k.env = e
-			}
+		if len(c.Attributes) == 0 {
+			return k
 		}
-		if c.appVersionRef != 0 {
-			if v := c.AppVersion(); v != "" {
-				k.version = v
-			}
+		if e := c.Env(); e != "" {
+			k.env = e
+		}
+		if v := c.AppVersion(); v != "" {
+			k.version = v
 		}
 		return k
 	}
@@ -742,9 +735,6 @@ type InternalTraceChunk struct {
 	DroppedTrace      bool
 	TraceID           []byte
 	samplingMechanism uint32
-	// envRef and appVersionRef optionally override the payload-level env and app version for this chunk.
-	envRef        uint32
-	appVersionRef uint32
 }
 
 // NewInternalTraceChunk creates a new internal trace chunk.
@@ -773,8 +763,6 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 		DroppedTrace:      c.DroppedTrace,
 		TraceID:           c.TraceID,
 		samplingMechanism: c.samplingMechanism,
-		envRef:            c.envRef,
-		appVersionRef:     c.appVersionRef,
 	}
 }
 
@@ -794,7 +782,6 @@ func (c *InternalTraceChunk) Msgsize() int {
 	size += msgp.BoolSize             // DroppedTrace
 	size += msgp.BytesPrefixSize + 16 // TraceID (128 bits)
 	size += msgp.Uint32Size           // DecisionMakerRef
-	size += 2 * msgp.Uint32Size       // EnvRef, AppVersionRef
 	return size
 }
 
@@ -842,24 +829,61 @@ func (c *InternalTraceChunk) SetOrigin(origin string) {
 	c.originRef = c.Strings.Add(origin)
 }
 
-// Env returns the chunk-level env override, or "" when the chunk uses the payload-level env.
+// Chunk attribute keys that override the payload-level env and app version for a single chunk.
+const (
+	chunkEnvAttributeKey     = "env"
+	chunkVersionAttributeKey = "version"
+)
+
+// stringAttributeByName returns the string value of the chunk attribute named key, or "".
+// It compares key names rather than using the string table lookup because the decoded
+// string table may hold duplicate entries.
+func (c *InternalTraceChunk) stringAttributeByName(key string) (uint32, string) {
+	for k, v := range c.Attributes {
+		if c.Strings.Get(k) != key || v == nil {
+			continue
+		}
+		if s, ok := v.Value.(*AnyValue_StringValueRef); ok {
+			return k, c.Strings.Get(s.StringValueRef)
+		}
+	}
+	return 0, ""
+}
+
+// setStringAttributeByName sets the string chunk attribute named key, replacing any existing entry.
+func (c *InternalTraceChunk) setStringAttributeByName(key, value string) {
+	if c.Attributes == nil {
+		c.Attributes = make(map[uint32]*AnyValue)
+	}
+	k, _ := c.stringAttributeByName(key)
+	if k == 0 {
+		k = c.Strings.Add(key)
+	}
+	c.Attributes[k] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: c.Strings.Add(value)}}
+}
+
+// Env returns the chunk-level env override (the "env" chunk attribute), or "" when the
+// chunk uses the payload-level env.
 func (c *InternalTraceChunk) Env() string {
-	return c.Strings.Get(c.envRef)
+	_, v := c.stringAttributeByName(chunkEnvAttributeKey)
+	return v
 }
 
-// SetEnv sets the chunk-level env override.
+// SetEnv sets the chunk-level env override (the "env" chunk attribute).
 func (c *InternalTraceChunk) SetEnv(env string) {
-	c.envRef = c.Strings.Add(env)
+	c.setStringAttributeByName(chunkEnvAttributeKey, env)
 }
 
-// AppVersion returns the chunk-level app version override, or "" when the chunk uses the payload-level app version.
+// AppVersion returns the chunk-level app version override (the "version" chunk attribute),
+// or "" when the chunk uses the payload-level app version.
 func (c *InternalTraceChunk) AppVersion() string {
-	return c.Strings.Get(c.appVersionRef)
+	_, v := c.stringAttributeByName(chunkVersionAttributeKey)
+	return v
 }
 
-// SetAppVersion sets the chunk-level app version override.
+// SetAppVersion sets the chunk-level app version override (the "version" chunk attribute).
 func (c *InternalTraceChunk) SetAppVersion(version string) {
-	c.appVersionRef = c.Strings.Add(version)
+	c.setStringAttributeByName(chunkVersionAttributeKey, version)
 }
 
 // SamplingMechanism returns the sampling mechanism from the trace chunk.
@@ -899,8 +923,6 @@ func (c *InternalTraceChunk) ToProto() *TraceChunk {
 		DroppedTrace:      c.DroppedTrace,
 		TraceID:           c.TraceID,
 		SamplingMechanism: c.samplingMechanism,
-		EnvRef:            c.envRef,
-		AppVersionRef:     c.appVersionRef,
 	}
 }
 

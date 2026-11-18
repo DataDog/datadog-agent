@@ -782,12 +782,12 @@ func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
 		tp.SetEnv("prod")
 		tp.SetAppVersion("v1")
 		base := tp.Chunks[0]
-		c1 := base.ShallowCopy()
+		c1 := copyChunkV1(base)
 		c1.SetEnv("staging")
 		c1.SetAppVersion("v2")
-		c2 := base.ShallowCopy()
+		c2 := copyChunkV1(base)
 		c2.SetAppVersion("v3")
-		tp.Chunks = append(tp.Chunks, c1, c2, c1.ShallowCopy())
+		tp.Chunks = append(tp.Chunks, c1, c2, copyChunkV1(c1))
 		assert.Equal(t, map[[2]string]int{{"prod", "v1"}: 1, {"staging", "v2"}: 2, {"prod", "v3"}: 1}, collect(pkg))
 	})
 }
@@ -810,7 +810,7 @@ func TestTraceWriterV1ManyEnvGroupsMemory(t *testing.T) {
 	base := tp.Chunks[0]
 	tp.Chunks = tp.Chunks[:0]
 	for i := 0; i < groups; i++ {
-		c := base.ShallowCopy()
+		c := copyChunkV1(base)
 		c.SetEnv(fmt.Sprintf("env-%d", i))
 		tp.Chunks = append(tp.Chunks, c)
 	}
@@ -834,4 +834,15 @@ func TestTraceWriterV1ManyEnvGroupsMemory(t *testing.T) {
 	// A dense remap costs at least 4 bytes per table string per group; require well under 1.
 	allocated := after.TotalAlloc - before.TotalAlloc
 	assert.Less(t, allocated, uint64(groups*tableSize), "allocated %d bytes for %d groups over a %d-string table", allocated, groups, tableSize)
+}
+
+// copyChunkV1 returns a shallow copy of c with its own attributes map, so chunk-level
+// env/version overrides can be set independently on each copy.
+func copyChunkV1(c *idx.InternalTraceChunk) *idx.InternalTraceChunk {
+	cp := c.ShallowCopy()
+	cp.Attributes = make(map[uint32]*idx.AnyValue, len(c.Attributes))
+	for k, v := range c.Attributes {
+		cp.Attributes[k] = v
+	}
+	return cp
 }
