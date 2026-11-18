@@ -790,8 +790,9 @@
         },
         {
           "name": "messaging.kafka.cluster.id",
-          "provider": "datadog",
-          "type": "string"
+          "provider": "otel",
+          "type": "string",
+          "version": "1.44.0"
         }
       ]
     },
