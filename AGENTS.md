@@ -305,7 +305,7 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
-├── pkg/ebpf/AGENTS.md             ← testing system-probe and eBPF changes: hosts, build modes, KMT, evidence
+├── pkg/ebpf/AGENTS.md             ← testing system-probe and eBPF changes: KMT workflow, build modes, evidence
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```

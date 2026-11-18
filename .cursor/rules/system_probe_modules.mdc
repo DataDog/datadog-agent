@@ -12,7 +12,7 @@ These rules provide a quick reference for developing new system-probe modules th
 - **System-Probe Modules guide**: `cmd/system-probe/modules/AGENTS.md` (module registration, router, lifecycle, HTTP endpoints)
 - **eBPF simple checks guide**: `pkg/collector/corechecks/ebpf/AGENTS.md` (probe layout, agent-side checks, build integration)
 - **Agent Core Checks rule**: `.cursor/rules/agent_corecheck.mdc` (agent-side check implementation details)
-- **Testing system-probe and eBPF changes**: `pkg/ebpf/AGENTS.md` (where each check can run, build modes, KMT, honest claims)
+- **Testing system-probe and eBPF changes**: `pkg/ebpf/AGENTS.md` (local KMT workflow, build modes, honest claims)
 - **Project Overview**: Root `AGENTS.md`
 
 Scope: This rule focuses on how the pieces connect and where to put code. For deep dives, follow the links above.

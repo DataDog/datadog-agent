@@ -11,9 +11,10 @@ paths:
 
 # Testing system-probe and eBPF changes
 
-Read `pkg/ebpf/AGENTS.md` before testing a change here or claiming it works.
+Read `pkg/ebpf/AGENTS.md` before testing a change here or claiming it works, and
+`pkg/ebpf/TESTING_GOTCHAS.md` before trusting a CI result.
 
-- Linux and eBPF code needs a Linux kernel; Windows system-probe code is tested on Windows. macOS can
-  only typecheck.
+- Typecheck on any host, develop against local KMT VMs (`kmt.test`), and use KMT in CI as the final
+  matrix. macOS can only typecheck.
 - Report each build mode and kernel as `passed`, `failed`, `blocked`, or `inconclusive`; "compiles" is
   never "tested".

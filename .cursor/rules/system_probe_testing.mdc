@@ -4,4 +4,5 @@ globs: "pkg/ebpf/**,pkg/network/**,pkg/collector/corechecks/ebpf/**,cmd/system-p
 alwaysApply: false
 ---
 
-Read `pkg/ebpf/AGENTS.md` before testing a change here or claiming it works.
+Read `pkg/ebpf/AGENTS.md` before testing a change here or claiming it works, and
+`pkg/ebpf/TESTING_GOTCHAS.md` before trusting a CI result.
