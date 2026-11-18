@@ -12,11 +12,20 @@ if [[ -z "${DD_API_KEY}" ]] && [[ -z "${DD_DELEGATED_AUTH_ORG_UUID}" ]]; then
     exit 1
 fi
 
+# Whether payloads can go to a custom intake, such as fakeintake in tests. A user-provided
+# datadog.yaml is only checked for the top-level keys: when unsure, let the Agent start.
+custom_intake_configured() {
+    [[ -n "${DD_DD_URL}${DD_URL}" ]] && return 0
+    # Additional endpoints are keyed by their URL, so "{}" configures none.
+    [[ "${DD_ADDITIONAL_ENDPOINTS}" == *://* ]] && return 0
+    grep -qE '^(dd_url|additional_endpoints):' /etc/datadog-agent/datadog.yaml 2>/dev/null
+}
+
 # Do not allow starting with the all-zeros placeholder API key (set by dd-auth 2.x unless a
 # real key is requested) when payloads go to Datadog: the Agent would run but every payload
-# would be rejected with a 403. A custom intake, such as fakeintake in tests, still accepts it.
+# would be rejected with a 403. A custom intake still accepts it.
 if [[ "${DD_API_KEY}" == "00000000000000000000000000000000" ]] \
-    && [[ -z "${DD_DELEGATED_AUTH_ORG_UUID}${DD_DD_URL}${DD_URL}${DD_ADDITIONAL_ENDPOINTS}" ]]; then
+    && [[ -z "${DD_DELEGATED_AUTH_ORG_UUID}" ]] && ! custom_intake_configured; then
     echo ""
     echo "=================================================================================="
     echo "DD_API_KEY is the placeholder 00000000000000000000000000000000, which Datadog"
