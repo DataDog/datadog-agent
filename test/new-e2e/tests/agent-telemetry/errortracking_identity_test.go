@@ -131,7 +131,9 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 	require.NotEmpty(s.T(), seeded, "no log with a usable stack")
 
 	// The baseline stands for another release: the same events minus the seeded
-	// error, with offsets and line numbers shifted and one more caller added.
+	// error, with offsets and line numbers shifted. An extra deeper caller is covered by
+	// the newerrors unit tests: real stacks here are too shallow for it to fall outside
+	// the kept frames.
 	var candidate, baseline newerrors.Cohort
 	for _, l := range logs {
 		candidate.Events = append(candidate.Events, newerrors.Event{Host: "candidate", StackTrace: l.StackTrace, Count: l.Count})
@@ -141,7 +143,7 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 		drifted := stackLineRe.ReplaceAllString(stackOffsetRe.ReplaceAllString(l.StackTrace, "+0x1"), ":1 ")
 		baseline.Events = append(baseline.Events, newerrors.Event{
 			Host:       "baseline",
-			StackTrace: drifted + "\nexample.com/extra.Caller\n\t/build/extra.go:1 +0x1",
+			StackTrace: drifted,
 			Count:      l.Count,
 		})
 	}
