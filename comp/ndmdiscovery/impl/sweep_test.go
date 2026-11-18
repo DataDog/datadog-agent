@@ -605,6 +605,34 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 	assert.Len(t, sent[0].Targets, 64)
 }
 
+func TestSweepStopsPingingForTheRestOfTheSweepOnceItCannotBeSent(t *testing.T) {
+	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {
+		results := make([]probe.Result, 0, len(call.Targets))
+		for _, ip := range call.Targets {
+			r := probe.Result{Target: ip, SNMP: &snmpprobe.Reading{FailureReason: "timeout"}}
+			if call.Options.Ping != nil {
+				r.Ping = &pingprobe.Reading{FailureReason: failure.PingUnavailable, Error: "socket: permission denied"}
+			}
+			results = append(results, r)
+		}
+		return results, nil
+	}}
+	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 10)
+
+	req := testSweepRequestWithOptions(t, "10.0.0.0/25", nil, probe.Options{
+		Ping: &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second},
+		SNMP: testSNMPOptions(),
+	})
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	sent := scanner.recorded()
+	require.Len(t, sent, 2)
+	assert.NotNil(t, sent[0].Options.Ping)
+	assert.Nil(t, sent[1].Options.Ping)
+	assert.NotNil(t, sent[1].Options.SNMP)
+	assert.NotNil(t, req.Options.Ping, "the next sweep pings again")
+}
+
 func TestSweepReportsNothingWhenNoAddressAnswers(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, silentAll(), reporter, newMemCursorStore(), 10)

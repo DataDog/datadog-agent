@@ -106,14 +106,14 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	// reported is a lower bound after a restart: a resumed run inherits no count.
 	reported := 0
-	warnedPing := false
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
 		devices, pingErr, err := s.probe(ctx, r, state.RunID, chunk)
-		if pingErr != "" && !warnedPing {
-			s.log.Warnf("ndmdiscovery: range %s: ping is not available on this agent, its ping status is left empty: %s", id, pingErr)
-			warnedPing = true
+		if pingErr != "" {
+			// Retried on the next sweep, so a transient failure heals.
+			s.log.Warnf("ndmdiscovery: range %s: ping is not available on this agent, skipping it for the rest of this sweep: %s", id, pingErr)
+			r.Options.Ping = nil
 		}
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

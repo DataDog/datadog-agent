@@ -6,12 +6,7 @@
 package pingprobe
 
 import (
-	"errors"
-	"net"
-	"net/url"
-	"os"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -60,25 +55,6 @@ func TestFingerprintIsStableAndSensitiveToEveryOption(t *testing.T) {
 
 func TestFingerprintIsPrefixedWithTheProbeKind(t *testing.T) {
 	assert.True(t, strings.HasPrefix(testOptions().Fingerprint(), "ping:"))
-}
-
-func TestPingFailureReportsALocalFailureAsUnavailable(t *testing.T) {
-	for name, err := range map[string]error{
-		"permission":      &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EACCES)},
-		"not permitted":   &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EPERM)},
-		"no protocol":     &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EPROTONOSUPPORT)},
-		"no system-probe": &url.Error{Op: "Get", URL: "http://sysprobe/ping/10.0.0.1", Err: errors.New("dial unix: connect: no such file or directory")},
-	} {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, failure.PingUnavailable, pingFailure(err))
-		})
-	}
-}
-
-func TestPingFailureReportsATargetFailureAsUnreachable(t *testing.T) {
-	err := &net.OpError{Op: "write", Err: os.NewSyscallError("sendto", syscall.EHOSTUNREACH)}
-
-	assert.Equal(t, failure.Unreachable, pingFailure(err))
 }
 
 func TestDefaultRawSocketFollowsTheOS(t *testing.T) {

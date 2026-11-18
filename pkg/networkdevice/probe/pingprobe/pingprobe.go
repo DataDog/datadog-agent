@@ -7,11 +7,7 @@
 package pingprobe
 
 import (
-	"errors"
 	"fmt"
-	"net/url"
-	"os"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
@@ -54,10 +50,11 @@ func Run(target string, opts Options) *Reading {
 		}
 	}
 
+	// Ping errors only when no echo request left this host; a silent target returns no error.
 	res, err := p.Ping(target)
 	if err != nil {
 		return &Reading{
-			FailureReason: pingFailure(err),
+			FailureReason: failure.PingUnavailable,
 			Error:         fmt.Sprintf("Failed to reach host '%s': %s", target, err.Error()),
 		}
 	}
@@ -69,20 +66,6 @@ func Run(target string, opts Options) *Reading {
 	}
 
 	return &Reading{Success: true, RTT: res.AvgRtt, FailureReason: failure.None}
-}
-
-// pingFailure tells a ping this process could not send apart from a host that did not answer.
-func pingFailure(err error) string {
-	var sysprobe *url.Error
-	switch {
-	case errors.As(err, &sysprobe),
-		errors.Is(err, os.ErrPermission),
-		errors.Is(err, syscall.EPROTONOSUPPORT),
-		errors.Is(err, syscall.EAFNOSUPPORT):
-		return failure.PingUnavailable
-	default:
-		return failure.Unreachable
-	}
 }
 
 // DefaultRawSocket is the socket type goos pings with: Windows only has raw ICMP
