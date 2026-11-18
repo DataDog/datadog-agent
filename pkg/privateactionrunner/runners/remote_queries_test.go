@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
@@ -68,53 +67,6 @@ func queryTask() *types.Task {
 	task.Data.Attributes.TraceId = 1001
 	task.Data.Attributes.SpanId = 2002
 	return task
-}
-
-// The runQuery action's timeout input controls the shared executor timeout seam.
-func TestTaskTimeoutInput(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		timeout       interface{}
-		expected      time.Duration
-		wait, invalid bool
-	}{
-		{"omitted uses runner default", nil, 60 * time.Second, false, false},
-		{"longer task overrides default", float64(3000), 3000 * time.Second, false, false},
-		{"shorter task overrides default", float64(2), 2 * time.Second, false, false},
-		{"timeout ends action", float64(1), time.Second, true, false},
-		{"fraction rejected", 1.5, 0, false, true}, {"string rejected", "60", 0, false, true}, {"zero rejected", float64(0), 0, false, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			called := false
-			client := &queryIPC{post: func(ctx context.Context, _ []byte) ([]byte, error) {
-				called = true
-				deadline, ok := ctx.Deadline()
-				require.True(t, ok)
-				require.InDelta(t, tc.expected.Seconds(), time.Until(deadline).Seconds(), 0.2)
-				if tc.wait {
-					<-ctx.Done()
-					return nil, ctx.Err()
-				}
-				return []byte(`{"status":"SUCCEEDED"}`), nil
-			}}
-			executor := queryExecutor(t, client, 60)
-			task := queryTask()
-			if tc.timeout != nil {
-				task.Data.Attributes.Inputs["timeout"] = tc.timeout
-			}
-			_, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
-			if tc.invalid {
-				require.ErrorContains(t, err, "timeout")
-				require.False(t, called)
-			} else if tc.wait {
-				require.ErrorContains(t, err, "exceeded timeout")
-				require.True(t, called)
-			} else {
-				require.NoError(t, err)
-				require.True(t, called)
-			}
-		})
-	}
 }
 
 type traceRoundTripper func(*http.Request) (*http.Response, error)

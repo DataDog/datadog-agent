@@ -12,10 +12,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 	"net"
 	"strconv"
-	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -46,25 +44,6 @@ func (b *IntegrationsBundle) GetAction(name string) types.Action {
 
 // RunQuery resolves or runs a query using the caller's cancellable IPC request.
 type RunQuery struct{ client ipc.HTTPClient }
-
-// TaskTimeout reads the action's top-level timeout, in whole seconds. Omission
-// selects the runner's default. Values that cannot be represented by a Go timer
-// fail rather than overflowing into a short or negative deadline.
-func (*RunQuery) TaskTimeout(task *types.Task) (time.Duration, bool, error) {
-	value, exists := task.Data.Attributes.Inputs["timeout"]
-	if !exists {
-		return 0, false, nil
-	}
-	raw, err := json.Marshal(value)
-	if err != nil {
-		return 0, true, errors.New("timeout must be a positive integer in seconds")
-	}
-	seconds, err := strconv.ParseInt(string(raw), 10, 64)
-	if err != nil || seconds <= 0 || seconds > math.MaxInt64/int64(time.Second) {
-		return 0, true, errors.New("timeout must be a positive whole number of seconds representable by a timer")
-	}
-	return time.Duration(seconds) * time.Second, true, nil
-}
 
 // Run sends only action inputs and valid active action-span context to the core Agent.
 func (h *RunQuery) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {

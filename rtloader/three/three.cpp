@@ -603,25 +603,6 @@ char *Three::remoteQuery(RtLoaderPyObject *check, const char *request)
     return ret;
 }
 
-bool Three::cancelRemoteQuery(RtLoaderPyObject *check, const char *crawl_id)
-{
-    if (check == NULL || crawl_id == NULL) {
-        return false;
-    }
-    PyObject *result = PyObject_CallMethod(reinterpret_cast<PyObject *>(check), "cancel_remote_query", "(s)", crawl_id);
-    if (result == NULL) {
-        PyErr_Clear();
-        setError("cancel_remote_query call failed");
-        return false;
-    }
-    bool valid = result == Py_None;
-    Py_DECREF(result);
-    if (!valid) {
-        setError("cancel_remote_query must return None");
-    }
-    return valid;
-}
-
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
 {
     if (check == NULL) {

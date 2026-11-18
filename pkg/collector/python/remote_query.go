@@ -40,9 +40,7 @@ func (c *PythonCheck) RemoteQuery(ctx context.Context, request string) (string, 
 		return "", errors.New("Python runtime is unavailable")
 	}
 	defer lock.unlock()
-	// Check under the GIL immediately before entering Python. The core repeats
-	// the idempotent cancellation signal until the call ends, since Python can
-	// also switch threads before the integration registers its run.
+	// Check under the GIL immediately before entering Python.
 	if c.cancelled.Load() {
 		return "", check.ErrRemoteQueryCancelled
 	}
@@ -58,23 +56,4 @@ func (c *PythonCheck) RemoteQuery(ctx context.Context, request string) (string, 
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(result))
 	return C.GoString(result), nil
-}
-
-// CancelRemoteQuery signals all of this check's active runs with this crawl ID.
-func (c *PythonCheck) CancelRemoteQuery(crawlID string) error {
-	lock, err := newStickyLock()
-	if err != nil {
-		return errors.New("Python runtime is unavailable")
-	}
-	defer lock.unlock()
-	if c.cancelled.Load() {
-		return nil
-	}
-	id := C.CString(crawlID)
-	defer C.free(unsafe.Pointer(id))
-	if C.cancel_remote_query(rtloader, c.instance, id) == 0 {
-		_ = getRtLoaderError()
-		return errors.New("cancel_remote_query call failed")
-	}
-	return nil
 }

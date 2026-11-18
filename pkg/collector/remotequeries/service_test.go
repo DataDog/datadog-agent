@@ -37,7 +37,6 @@ type queryCheck struct {
 	supported          bool
 	resolve            func(context.Context, string) (string, error)
 	execute            func(context.Context, string) (string, error)
-	cancel             func(string) error
 	resolves, executes atomic.Int32
 }
 
@@ -70,12 +69,6 @@ func (c *queryCheck) RemoteQuery(ctx context.Context, input string) (string, err
 		return c.execute(ctx, input)
 	}
 	return `{"status":"SUCCEEDED"}`, nil
-}
-func (c *queryCheck) CancelRemoteQuery(id string) error {
-	if c.cancel != nil {
-		return c.cancel(id)
-	}
-	return nil
 }
 
 type recordingLog struct {
@@ -450,13 +443,12 @@ func TestRejectUploadOverrideBeforeCallingChecks(t *testing.T) {
 	require.Zero(t, c.executes.Load())
 }
 
-// RUN-01 and RUN-04: the run continues after the caller's context ends, and nothing cancels it.
+// RUN-04: the run continues after the caller's context ends.
 func TestRUN04(t *testing.T) {
 	for _, tc := range []struct{ name, end string }{{"caller cancelled", "cancel"}, {"caller deadline", "deadline"}, {"answer returned", "answered"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			started, finish := make(chan struct{}), make(chan struct{})
 			var runCtx context.Context
-			var cancelled atomic.Int32
 			c := newQueryCheck("candidate")
 			c.execute = func(ctx context.Context, _ string) (string, error) {
 				runCtx = ctx
@@ -464,7 +456,6 @@ func TestRUN04(t *testing.T) {
 				<-finish
 				return `{"status":"SUCCEEDED"}`, nil
 			}
-			c.cancel = func(string) error { cancelled.Add(1); return nil }
 			f := newIPC(t, c)
 			ctx, cancel := context.WithCancel(context.Background())
 			if tc.end == "deadline" {
@@ -483,7 +474,6 @@ func TestRUN04(t *testing.T) {
 			require.NoError(t, runCtx.Err())
 			close(finish)
 			require.Contains(t, f.logs.waitRunLog(t), "outcome=SUCCEEDED")
-			require.Zero(t, cancelled.Load())
 		})
 	}
 }

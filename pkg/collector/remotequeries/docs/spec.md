@@ -245,7 +245,7 @@ Each item is checked at one layer. Performance and resource-use items are checke
 ## Open questions
 
 1. ENABLE-01: one remote queries setting, or separate settings for resolve and execute? Does a change take effect without a restart?
-2. RUN-02: runs are no longer limited by the runner's task concurrency (RUN-04). Should the Agent limit concurrent runs per check or per Agent, to protect the customer database, or leave that to each integration?
+2. RUN-02: the runner's task concurrency does not limit runs (RUN-04). Should the Agent limit concurrent runs per check or per Agent, to protect the customer database, or leave that to each integration?
 3. INPUT-04: an older Agent rejects delivery instructions with a field a newer worker adds. How does the worker learn which Agent and integration versions can run a request?
 4. CHECK-02: does the ClickHouse integration answer its own resolve operation, as CHECK-02 requires of every integration?
 

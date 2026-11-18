@@ -58,10 +58,6 @@ func (c *lifecycleQueryCheck) Cancel() {
 	c.cancelOnce.Do(func() { close(c.cancelled) })
 	c.calls.Wait()
 }
-func (c *lifecycleQueryCheck) CancelRemoteQuery(string) error {
-	c.cancelOnce.Do(func() { close(c.cancelled) })
-	return nil
-}
 func (c *lifecycleQueryCheck) RemoteQuery(ctx context.Context, input string) (string, error) {
 	c.mu.Lock()
 	if c.unscheduled {

@@ -50,10 +50,9 @@ type qualityCheck struct {
 	finished chan struct{}
 }
 
-func (*qualityCheck) String() string                 { return "postgres" }
-func (c *qualityCheck) ID() checkid.ID               { return checkid.ID(fmt.Sprintf("postgres:%d", c.id)) }
-func (*qualityCheck) SupportsRemoteQueries() bool    { return true }
-func (*qualityCheck) CancelRemoteQuery(string) error { return nil }
+func (*qualityCheck) String() string              { return "postgres" }
+func (c *qualityCheck) ID() checkid.ID            { return checkid.ID(fmt.Sprintf("postgres:%d", c.id)) }
+func (*qualityCheck) SupportsRemoteQueries() bool { return true }
 func (c *qualityCheck) RemoteQuery(_ context.Context, input string) (string, error) {
 	var request struct {
 		Operation string `json:"operation"`
