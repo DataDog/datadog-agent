@@ -22,6 +22,11 @@ import (
 // persistentCacheKey stores the last boot time to detect reboots across agent restarts.
 const persistentCacheKey = "logon_duration:last_boot_time"
 
+const (
+	payloadVersion       = 1
+	invalidTimelineTitle = "Device booted up: Boot timeline invalid"
+)
+
 // Provides defines what this component provides
 type Provides struct {
 	Comp logonduration.Component
@@ -58,6 +63,11 @@ func buildEventTitle(complete bool, totalMs int64) string {
 
 func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 	ts := input.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
+	custom := make(map[string]interface{}, len(input.Custom)+1)
+	for key, value := range input.Custom {
+		custom[key] = value
+	}
+	custom["payload_version"] = payloadVersion
 
 	return map[string]interface{}{
 		"data": map[string]interface{}{
@@ -73,7 +83,7 @@ func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 				"attributes": map[string]interface{}{
 					"status":   "ok",
 					"priority": "3",
-					"custom":   input.Custom,
+					"custom":   custom,
 				},
 				"message":   input.Message,
 				"timestamp": ts,
