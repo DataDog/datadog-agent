@@ -1742,7 +1742,7 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", []string{"pod_name:" + container.ID}, nil, nil, nil)
 	}
 	for _, uuid := range []string{gpu0, gpu1} {
-		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai_fraction"}, nil, nil, nil)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai-fraction"}, nil, nil, nil)
 	}
 
 	require.NoError(t, check.Run())
@@ -1766,9 +1766,9 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 
 	perPod := func(value float64) []series {
 		return []series{
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
 		}
 	}
 	assert.ElementsMatch(t, perPod(0.5), emitted["gpu.device.sharing_fraction"])
