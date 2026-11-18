@@ -258,10 +258,16 @@ func (l *loader) loadDirMeta(name string) *K8sDirMeta {
 }
 
 func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
+	// Stat each unit and leave its content out: YAML decodes a systemd unit
+	// to the name of its first section.
 	for _, name := range names {
-		meta, ok := l.loadConfigFileMeta(name)
-		if ok {
-			return meta
+		if _, info, _, ok := l.loadMeta(name, false); ok && !info.IsDir() {
+			return &K8sConfigFileMeta{
+				Path:  name,
+				User:  utils.GetFileUser(info),
+				Group: utils.GetFileGroup(info),
+				Mode:  uint32(info.Mode()),
+			}
 		}
 	}
 	return nil
