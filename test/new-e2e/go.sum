@@ -609,6 +609,8 @@ github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 h1:u1vhOzJ+RyiHhjF+XY3QLDUO9dtU+LH6NT
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3/go.mod h1:4TsIx6Z2fZlhidjfQ1l3P7Hq2Whx5Aqaas6VQb2ykHE=
 github.com/pulumi/pulumi/sdk/v3 v3.274.1 h1:Sy2OifRLCPVmFMDTkp18yRk/YviwhJuGZU6vfLwruPM=
 github.com/pulumi/pulumi/sdk/v3 v3.274.1/go.mod h1:n81QNitoy9C+GpT+Y2jJhDwWDOftXDRbLQOSlmOGgRc=
+github.com/pulumi/pulumi/sdk/v3 v3.275.0 h1:WPQ6zZG5vSRSu7HMMwV3Lk0aFjHnlr3guq3aXc60m9k=
+github.com/pulumi/pulumi/sdk/v3 v3.275.0/go.mod h1:WnPO90tGSd4h5BDTfK4BeDZ/b2Rsq7bhZ2yEcfvScEc=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
