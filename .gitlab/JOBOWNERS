@@ -18,9 +18,6 @@ publish_fakeintake_pinned            @DataDog/agent-devx
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
-# Deps fetch
-fetch_openjdk                        @DataDog/agent-metric-pipelines
-
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 # tests_* defaults to agent-devx, with overrides below
@@ -240,6 +237,7 @@ new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
 new-e2e-ddi                             @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
+new-e2e-orchestrator-ecs                @DataDog/ecs-experiences
 new-e2e-language-detection              @DataDog/container-experiences
 new-e2e-process*                        @DataDog/container-experiences
 new-e2e-ssi*                            @DataDog/injection-platform

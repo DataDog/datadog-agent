@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, Python checks that are reloaded while the Agent is running,
+    for example when Data Observability query actions change a SQL Server
+    check's configuration, no longer fail to load with
+    ``Cannot change thread mode after it is set``. Previously the check
+    stayed unscheduled until the Agent restarted.

@@ -73,6 +73,12 @@ func TestStreamingStorageWithoutDetectorsRemainsBounded(t *testing.T) {
 	require.Positive(t, cfg.MaxSeries)
 }
 
+func TestInteractiveStorageOptsIntoScorerHistory(t *testing.T) {
+	require.True(t, unboundedStorageCfg(false, true).TrackScorerHistory)
+	require.False(t, unboundedStorageCfg(false, false).TrackScorerHistory)
+	require.False(t, observerimpl.DefaultStorageConfig().TrackScorerHistory)
+}
+
 // Embedding the interface makes unexpected preload/reset calls fail this test.
 type orderedReplayRecorder struct {
 	observerimpl.DebugView

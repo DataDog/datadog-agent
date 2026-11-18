@@ -56,7 +56,10 @@ _DESCRIPTION = "Datadog Distribution of OpenTelemetry Collector"
 
 dd_pkg_deb(
     name = "debian",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/ddot/debian:all_files",
+    ],
     out = "debian.deb",
     # datadog-agent version dependency is stamped at build time; the version
     # must match exactly (epoch 1, same version, release 1).
@@ -82,7 +85,10 @@ dd_pkg_deb(
 dd_pkg_rpm(
     name = "rpm",
     package_name = "{product_name}",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/ddot/redhat:all_files",
+    ],
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
