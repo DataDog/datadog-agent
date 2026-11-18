@@ -33,6 +33,10 @@ const (
 	aioContInitMarker90 = "cont-init-marker-90-bash-sh"
 	aioContInitMarker91 = "cont-init-marker-91-no-suffix"
 	aioContInitMarker92 = "cont-init-marker-92-symlink-target"
+
+	// A name the image does not ship, so the entrypoint treats the directory as custom.
+	aioCustomService    = "custom-keepalive"
+	aioCustomServiceCwd = "custom-service-cwd=/etc/services.d/" + aioCustomService
 )
 
 // aioContInitSetupScript creates the injected cont-init files in one remote
@@ -57,6 +61,22 @@ echo ` + aioContInitMarker92 + `
 EOF
 chmod 0644 "$dir/92-target"
 ln -s /mnt/ro/92-target "$dir/92-linked"
+printf '%s\n' "$dir"
+EOS
+`
+
+// aioCustomServiceSetupScript writes a run script that stays up and prints its
+// working directory. The yaml the entrypoint generates sets that directory to
+// the service directory.
+const aioCustomServiceSetupScript = `bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/run" <<'EOF'
+#!/bin/sh
+echo "custom-service-cwd=$(pwd)"
+exec /bin/sleep 3600
+EOF
+chmod 0755 "$dir/run"
 printf '%s\n' "$dir"
 EOS
 `
@@ -265,6 +285,51 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 			"===== STARTING dd-procmgrd =====",
 		)
 	}, 2*time.Minute, 2*time.Second)
+}
+
+// A directory under /etc/services.d that the image does not ship is started by
+// dd-procmgrd. The shipped directories stay in the catalog, so they are not added again.
+func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(aioCustomServiceSetupScript))
+	s.Require().NotEmpty(dir)
+	image := s.agentImage(s.T())
+	name := "aio-custom-" + path.Base(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -v %s:/etc/services.d/%s:ro %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(dir),
+		aioCustomService,
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assertLogLinesInOrder(c, logs,
+			"===== ADDING custom service /etc/services.d/"+aioCustomService+" =====",
+			"===== STARTING dd-procmgrd =====",
+			aioCustomServiceCwd,
+		)
+		assert.Equal(c, 1, strings.Count(logs, "===== ADDING custom service "), "only the custom service should be added")
+	}, 2*time.Minute, 2*time.Second)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", aioCustomService,
+		)
+		require.NoError(c, err, stderr)
+		assertField(c, stdout, "State", "Running")
+	}, time.Minute, 2*time.Second)
 }
 
 // timeout 30: reaching dd-procmgrd would hang docker run.
