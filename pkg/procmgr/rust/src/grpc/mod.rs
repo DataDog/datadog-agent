@@ -1267,6 +1267,15 @@ mod tests {
             .unwrap_err();
         assert_requires_root(&err);
 
+        // The guard runs before the not-found lookup.
+        let err = client
+            .stop(proto::StopRequest {
+                name_or_uuid: "missing".to_string(),
+            })
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
         let err = client
             .reload_config(proto::ReloadConfigRequest {})
             .await
@@ -1314,26 +1323,6 @@ mod tests {
             .into_inner();
         assert_eq!(config.loaded_processes, 1);
         assert_eq!(config.runtime_processes, 0);
-    }
-
-    #[tokio::test]
-    async fn test_enforced_policy_denies_unknown_stop() {
-        if skip_denial_when_root() {
-            return;
-        }
-        let (mut client, _shutdown) = start_test_server_with_catalog(
-            LoadedCatalog::valid(vec![]),
-            CallerPolicy::from_enforce(true),
-        )
-        .await;
-
-        let err = client
-            .stop(proto::StopRequest {
-                name_or_uuid: "missing".to_string(),
-            })
-            .await
-            .unwrap_err();
-        assert_requires_root(&err);
     }
 
     #[tokio::test]
