@@ -30,22 +30,26 @@ import (
 )
 
 type fakePacketInfo struct {
-	pktType uint8
-	length  int
+	pktType        uint8
+	originalLength int
+	capturedLength int
 }
 
 func (f *fakePacketInfo) PacketType() uint8                 { return f.pktType }
 func (f *fakePacketInfo) LinkLayerType() gopacket.LayerType { return layers.LayerTypeEthernet }
-func (f *fakePacketInfo) OriginalLength() int               { return f.length }
-func (f *fakePacketInfo) CapturedLength() int               { return f.length }
+func (f *fakePacketInfo) OriginalLength() int               { return f.originalLength }
+func (f *fakePacketInfo) CapturedLength() int               { return f.capturedLength }
 
 // fakeItem is a packet to visit, or, when err is set, an error for VisitPackets to return,
 // or, when idle is set, a nil return with no packet read, like an idle poll timeout on Linux
 type fakeItem struct {
 	data    []byte
 	pktType uint8
-	err     error
-	idle    bool
+	// originalLength is the packet's length on the wire, when the capture truncated it.
+	// It defaults to len(data).
+	originalLength int
+	err            error
+	idle           bool
 }
 
 // fakePacketSource is a filter.PacketSource that delivers the items written to it.
@@ -78,7 +82,10 @@ func (f *fakePacketSource) VisitPackets(visit func(data []byte, info filter.Pack
 			if item.idle {
 				return nil
 			}
-			info := &fakePacketInfo{pktType: item.pktType, length: len(item.data)}
+			info := &fakePacketInfo{pktType: item.pktType, originalLength: len(item.data), capturedLength: len(item.data)}
+			if item.originalLength != 0 {
+				info.originalLength = item.originalLength
+			}
 			if err := visit(item.data, info, time.Now()); err != nil {
 				f.stopped <- err
 				return err
@@ -156,6 +163,7 @@ func buildTCPFrame(t *testing.T, src, dst net.IP, sport, dport uint16, seq, ack 
 const (
 	ethHeaderLen  = 14
 	ipv4HeaderLen = 20
+	ipv6HeaderLen = 40
 )
 
 // unboundPort returns a port from 40000 up that the tracer's bound-ports lookup does not
@@ -247,9 +255,12 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	payload := []byte("hello")
 
 	sent := 0
-	send := func(data []byte, pktType uint8) {
-		src.items <- fakeItem{data: data, pktType: pktType}
+	sendTruncated := func(data []byte, pktType uint8, originalLength int) {
+		src.items <- fakeItem{data: data, pktType: pktType, originalLength: originalLength}
 		sent++
+	}
+	send := func(data []byte, pktType uint8) {
+		sendTruncated(data, pktType, 0)
 	}
 
 	// A frame whose IPv4 header length is invalid. The Ethernet layer decodes,
@@ -271,18 +282,27 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	// before decoding, so it is not a decode error.
 	send(badDataOffset(), filter.PacketBroadcast)
 
-	// An IPv6 BIG TCP frame: payload length 0 and no Hop-by-Hop jumbo option.
+	// An IPv6 BIG TCP frame: payload length 0 and no Hop-by-Hop jumbo option, in a
+	// packet larger than 64KiB that the capture truncated to its first bytes.
+	const bigTCPLength = ethHeaderLen + ipv6HeaderLen + 0xffff + 1
 	bigTCP := func() []byte {
 		f := buildTCPFrame(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), clientPort, serverPort, 1, 0, tcpFlags{ack: true}, payload)
 		f[ethHeaderLen+4], f[ethHeaderLen+5] = 0, 0
 		return f
 	}
-	send(bigTCP(), filter.PacketOutgoing)
+	sendTruncated(bigTCP(), filter.PacketOutgoing, bigTCPLength)
 
 	// The same bytes behind an IPv4 EtherType are a corrupted IPv4 frame, not BIG TCP.
 	notBigTCP := bigTCP()
 	binary.BigEndian.PutUint16(notBigTCP[12:14], uint16(layers.EthernetTypeIPv4))
-	send(notBigTCP, filter.PacketOutgoing)
+	sendTruncated(notBigTCP, filter.PacketOutgoing, bigTCPLength)
+
+	// A frame that holds only an IPv6 header with payload length 0, and is no larger on
+	// the wire, is a truncated frame, not BIG TCP. So is the same header in a packet one
+	// byte too short to need BIG TCP.
+	headerOnly := bigTCP()[:ethHeaderLen+ipv6HeaderLen]
+	send(headerOnly, filter.PacketOutgoing)
+	sendTruncated(headerOnly, filter.PacketOutgoing, bigTCPLength-1)
 
 	// a valid handshake followed by a data segment, then another undecodable frame
 	sent += sendHandshake(t, src, clientIP, serverIP, clientPort, serverPort, payload)
@@ -292,7 +312,7 @@ func TestEbpfLessTracerSkipsUndecodableFrames(t *testing.T) {
 	// for every packet, the counters and the connection state are final
 	src.waitVisited(t, sent)
 	after := skippedCounts()
-	assert.Equal(t, float64(4), after[skipReasonDecodeError]-before[skipReasonDecodeError], "undecodable frames were not counted as decode errors")
+	assert.Equal(t, float64(6), after[skipReasonDecodeError]-before[skipReasonDecodeError], "undecodable frames were not counted as decode errors")
 	assert.Equal(t, float64(1), after[skipReasonIPv6BigTCP]-before[skipReasonIPv6BigTCP], "IPv6 BIG TCP frame was not counted")
 	assert.Equal(t, float64(1), after["unsupported_packet_type"]-before["unsupported_packet_type"], "broadcast frame was not filtered by packet type")
 	// A reader that processed the skipped frames anyway would count them here,

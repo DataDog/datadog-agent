@@ -198,12 +198,17 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 					// not_tcp_udp, and it belongs in the decode_error count.
 					// decoded holds only the layers decoded before the failure, so
 					// the link layer is valid only when it is the one decoded.
-					if len(decoded) == 1 && isIPv6BigTCP(link.NextLayerType(), link.LayerPayload()) {
-						ebpfLessTracerTelemetry.skippedPackets.Inc(skipReasonIPv6BigTCP)
-						if bigTCPLimiter.ShouldLog() {
-							log.Warnf("skipping IPv6 BIG TCP packet (payload length 0 and no jumbo option) of %d bytes, which cannot be decoded; its bytes are not counted", info.OriginalLength())
+					if len(decoded) == 1 {
+						// the link layer's payload is the end of the captured frame,
+						// so the bytes before it are the link-layer header
+						netLen := info.OriginalLength() - (len(b) - len(link.LayerPayload()))
+						if isIPv6BigTCP(link.NextLayerType(), link.LayerPayload(), netLen) {
+							ebpfLessTracerTelemetry.skippedPackets.Inc(skipReasonIPv6BigTCP)
+							if bigTCPLimiter.ShouldLog() {
+								log.Warnf("skipping IPv6 BIG TCP packet (payload length 0 and no jumbo option) of %d bytes, which cannot be decoded; its bytes are not counted", info.OriginalLength())
+							}
+							return nil
 						}
-						return nil
 					}
 					ebpfLessTracerTelemetry.skippedPackets.Inc(skipReasonDecodeError)
 					if decodeErrorLimiter.ShouldLog() {
@@ -270,12 +275,18 @@ func isFatalPacketSourceError(err error) bool {
 }
 
 // isIPv6BigTCP reports whether netLayer starts with an IPv6 header whose payload length is 0
-// and that has no Hop-by-Hop header. Linux hands IPv6 BIG TCP packets (GSO/GRO packets larger
-// than 64KiB) to packet sockets this way, and gopacket refuses to decode them. nextLayer is
-// the network layer type the link layer announced, which must be IPv6.
-func isIPv6BigTCP(nextLayer gopacket.LayerType, netLayer []byte) bool {
+// and that has no Hop-by-Hop header, in a packet larger than an IPv6 payload length can
+// express. Linux hands IPv6 BIG TCP packets (GSO/GRO packets larger than 64KiB) to packet
+// sockets this way, and gopacket refuses to decode them. nextLayer is the network layer type
+// the link layer announced, which must be IPv6. netLen is the length of the packet on the
+// wire from the network header on, which is larger than netLayer when the capture is
+// truncated. Checking it keeps a truncated frame that holds only a header with payload
+// length 0 from being counted as BIG TCP.
+func isIPv6BigTCP(nextLayer gopacket.LayerType, netLayer []byte, netLen int) bool {
 	const ipv6HeaderLen = 40
+	const maxIPv6PayloadLen = 0xffff
 	return nextLayer == layers.LayerTypeIPv6 &&
+		netLen > ipv6HeaderLen+maxIPv6PayloadLen &&
 		len(netLayer) >= ipv6HeaderLen &&
 		netLayer[0]>>4 == 6 &&
 		binary.BigEndian.Uint16(netLayer[4:6]) == 0 &&
