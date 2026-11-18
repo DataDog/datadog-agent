@@ -260,7 +260,7 @@ The action input and output are shown in the [its-agent annex](https://dd-quick.
 | `resolution_error` | A candidate check could not answer, or a match check was invalid or arrived while remote queries were off |
 | `invalid_request` | The query request failed INPUT-01 to INPUT-05 |
 | `disabled` | Remote queries are off on this Agent |
-| `cancelled` | The check was being unscheduled when the core Agent would have started the run (RUN-03) |
+| `cancelled` | The query request ended before the core Agent started the run |
 | `integration_unavailable` | The matched check does not support remote queries, or the call into it failed |
 
 ## Annex: calls into the integration
