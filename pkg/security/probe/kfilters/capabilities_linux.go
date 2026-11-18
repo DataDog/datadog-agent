@@ -17,6 +17,7 @@ import (
 
 const (
 	patternPrefixSize = 3 // has to be in sync with the kernel side of the approvers
+	patternSuffixSize = 3 // has to be in sync with the kernel side of the approvers
 	// minParentBasenameSize avoids registering a parent-basename approver on a very short directory name
 	// (e.g. "a"), which would match files in any same-named directory across the filesystem and make the
 	// kernel approver too coarse to filter anything useful.
@@ -33,7 +34,14 @@ func validateBasenameFilter(pattern string) bool {
 	// length without bounds-checking, and shorter prefixes would be too
 	// coarse to be useful as kernel approvers anyway.
 	els := strings.Split(pattern, "*")
-	return len(els[0]) >= patternPrefixSize
+	return len(els[0]) >= patternPrefixSize || isSuffixPattern(pattern)
+}
+
+// isSuffixPattern reports whether the literal text after the last '*' of pattern, which every
+// match ends with, is long enough for the kernel suffix approver (`*.php`, `ab*.php`, `*foo*.php`).
+func isSuffixPattern(pattern string) bool {
+	i := strings.LastIndex(pattern, "*")
+	return i >= 0 && len(pattern)-i-1 >= patternSuffixSize
 }
 
 func validateParentBasenameFilter(pattern string) bool {
@@ -105,7 +113,7 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 			},
 			{
 				Field:        event + "." + field + ".name",
-				TypeBitmask:  eval.ScalarValueType,
+				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
 				ValidateFnc:  validateNameFilter,
 				FilterWeight: 300,
 			},

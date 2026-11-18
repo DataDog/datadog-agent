@@ -8,6 +8,9 @@
 
 // has to be in sync with the userspace definition
 #define PATTERN_PREFIX_SIZE 3
+// has to be in sync with the userspace definition
+#define PATTERN_SUFFIX_SIZE 3
+_Static_assert(PATTERN_SUFFIX_SIZE == PATTERN_PREFIX_SIZE, "the suffix lookup overwrites exactly the bytes written by the prefix lookup");
 
 static struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
@@ -311,6 +314,22 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
     if (is_basename_in_map(&prefix, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
+    }
+
+    // suffix fallback: same idea for rules whose basename starts with '*' ("*.php" -> key
+    // {LEAF_BASENAME_SUFFIX, "php"}). The tail is read from the dentry name itself, not from
+    // basename.value, which truncates names longer than BASENAME_FILTER_SIZE - 1 and would lose it.
+    u32 len = get_dentry_name_len(dentry);
+    if (len >= PATTERN_SUFFIX_SIZE) {
+        // reuse the prefix key: only its first PATTERN_PREFIX_SIZE bytes were written, all overwritten below
+        prefix.type = LEAF_BASENAME_SUFFIX;
+        const char *name = get_dentry_name_ptr(dentry);
+        bpf_probe_read(prefix.value, PATTERN_SUFFIX_SIZE, (void *)name + len - PATTERN_SUFFIX_SIZE);
+
+        if (is_basename_in_map(&prefix, event_type)) {
+            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+            return APPROVED;
+        }
     }
 
     return DISCARDED;
