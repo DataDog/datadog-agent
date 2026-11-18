@@ -15,7 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
