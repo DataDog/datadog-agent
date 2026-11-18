@@ -185,7 +185,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
 		compression := logscompression.NewComponent()
-		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity, ipcComp)
 		if err != nil {
 			return nil, err
 		}

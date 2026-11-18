@@ -28,7 +28,7 @@ jobs:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.check-issue-status.label-issue
 
       - name: Classify the comment author
@@ -86,7 +86,7 @@ jobs:
 
             try {
               const membership = await github.rest.orgs.checkMembershipForUser({
-                org: 'datadog',
+                org: context.repo.owner,
                 username: commenter.login
               });
               if (membership.status === 204) {
