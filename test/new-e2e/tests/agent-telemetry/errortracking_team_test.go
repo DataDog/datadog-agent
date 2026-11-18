@@ -7,6 +7,7 @@ package agenttelemetry
 
 import (
 	_ "embed"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -109,13 +110,18 @@ func (s *errorTrackingTeamSuite) TestTeamTagFollowsOwner() {
 		}
 	}, 3*time.Minute, 5*time.Second, "timed out waiting for an error log from every fault")
 
-	seen := map[string]bool{}
+	var observed, want []string
 	for _, f := range teamFaults {
+		want = append(want, f.team)
 		for _, l := range byFault[f.name] {
-			assert.Equal(t, []string{f.team}, ownerTeamTagValues(l.Tags),
+			values := ownerTeamTagValues(l.Tags)
+			assert.Equal(t, []string{f.team}, values,
 				"%s fault must carry exactly owner_team:%s; tags: %q", f.name, f.team, l.Tags)
+			observed = append(observed, values...)
 		}
-		seen[f.team] = true
 	}
-	assert.Len(t, seen, len(teamFaults), "faults must be owned by distinct teams")
+	slices.Sort(want)
+	slices.Sort(observed)
+	// The observed values, not the table constants, must be three distinct teams.
+	assert.Equal(t, want, slices.Compact(observed), "faults must be owned by distinct teams")
 }
