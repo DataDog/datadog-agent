@@ -201,6 +201,13 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 - `release.json` - Release version information
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
 
+## Performance and SMP
+
+For performance questions or SMP CI regressions, read the
+[SMP entry skill](.agents/skills/smp/SKILL.md) before choosing tools.
+It retrieves shared guidance from the SMP-owned marketplace collection.
+The CLI installs only when a workflow needs it.
+
 ## CI/CD Pipeline
 
 ### DDCI
