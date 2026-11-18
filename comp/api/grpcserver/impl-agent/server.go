@@ -7,10 +7,7 @@ package agentimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"strconv"
-	"strings"
 	"time"
 
 	googleGrpc "google.golang.org/grpc"
@@ -39,7 +36,6 @@ import (
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	remotequeriesimpl "github.com/DataDog/datadog-agent/comp/remotequeries/impl"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -398,11 +394,12 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
-// RemoteQueryExecuteStream executes an Agent-local Remote Queries request through a
-// matched integration check. The Agent is a control-plane forwarder: the integration
-// uploads bounded JSON page files directly to its-agent-intake, so the stream carries
-// only progress metadata, final status, and errors — never bulk
-// result bytes.
+// RemoteQueryExecuteStream starts an Agent-local Remote Queries run through a matched
+// integration check and answers once the run has started: a final SUCCEEDED event, or
+// a terminal error event when the request is rejected before the run starts. The run
+// itself continues after the stream closes; the integration uploads bounded JSON page
+// files directly to its-agent-intake and reports the outcome through its upload
+// session, so the stream never carries progress or result bytes.
 func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteRequest, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
 	if s.remoteQueries == nil {
 		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusExecutorUnavailable, "remote query executor is unavailable", stream)
@@ -413,12 +410,16 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 		return remoteQueryExecuteStreamError(remotequeriesimpl.RemoteQueryStatusInvalidRequest, err.Error(), stream)
 	}
 
-	forwarder := newRemoteQueryIPCStreamForwarder(stream, req.GetIntegration())
-	result := s.remoteQueries.ExecuteStream(stream.Context(), execReq, forwarder.Send)
+	result := s.remoteQueries.ExecuteStream(stream.Context(), execReq)
 	if result.Error != nil {
-		return remoteQueryExecuteStreamErrorAt(result.Error.Code, result.Error.Message, stream, forwarder.NextChunkIndex())
+		return remoteQueryExecuteStreamError(result.Error.Code, result.Error.Message, stream)
 	}
-	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: forwarder.NextChunkIndex(), Final: true})
+	if err := stream.Send(&pb.RemoteQueryExecuteChunk{
+		Event: &pb.RemoteQueryExecuteStreamEvent{Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{Status: result.Status}}},
+	}); err != nil {
+		return err
+	}
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: 1, Final: true})
 }
 
 // RemoteQueryResolve resolves an Agent-local Remote Queries target through the
@@ -472,80 +473,6 @@ func remoteQueryResolveErrorResponse(status string, message string) *pb.RemoteQu
 		ErrorCode:    status,
 		ErrorMessage: message,
 	}
-}
-
-// remoteQueryIPCStreamForwarder streams metadata-only events over the secure IPC
-// boundary. It owns chunk indexing and appends agent-side timing attributes to the
-// final event; there is no data buffering because no bulk bytes ever flow.
-type remoteQueryIPCStreamForwarder struct {
-	stream      pb.AgentSecure_RemoteQueryExecuteStreamServer
-	integration string
-	chunkIndex  int32
-
-	start           time.Time
-	firstEventAt    time.Time
-	sendCalls       uint64
-	sendDuration    time.Duration
-	maxSendDuration time.Duration
-}
-
-func newRemoteQueryIPCStreamForwarder(stream pb.AgentSecure_RemoteQueryExecuteStreamServer, integration string) *remoteQueryIPCStreamForwarder {
-	return &remoteQueryIPCStreamForwarder{stream: stream, integration: integration, start: time.Now()}
-}
-
-func (f *remoteQueryIPCStreamForwarder) NextChunkIndex() int32 {
-	return f.chunkIndex
-}
-
-// Send converts one check stream event into a typed proto event and sends it as one chunk.
-func (f *remoteQueryIPCStreamForwarder) Send(event check.RemoteQueryStreamEvent) error {
-	if f.firstEventAt.IsZero() {
-		f.firstEventAt = time.Now()
-	}
-	protoEvent, err := remoteQueryStreamEventFromCheckEvent(event, f.integration)
-	if err != nil {
-		return err
-	}
-	f.addTimingAttributes(protoEvent)
-	return f.sendProtoEvent(protoEvent)
-}
-
-func (f *remoteQueryIPCStreamForwarder) sendProtoEvent(event *pb.RemoteQueryExecuteStreamEvent) error {
-	start := time.Now()
-	if err := f.stream.Send(&pb.RemoteQueryExecuteChunk{Event: event, ChunkIndex: f.chunkIndex}); err != nil {
-		return err
-	}
-	duration := time.Since(start)
-	f.sendCalls++
-	f.sendDuration += duration
-	if duration > f.maxSendDuration {
-		f.maxSendDuration = duration
-	}
-	f.chunkIndex++
-	return nil
-}
-
-func (f *remoteQueryIPCStreamForwarder) addTimingAttributes(event *pb.RemoteQueryExecuteStreamEvent) {
-	final := event.GetFinal()
-	if final == nil {
-		return
-	}
-	if final.Attributes == nil {
-		final.Attributes = map[string]string{}
-	}
-	elapsed := time.Since(f.start)
-	final.Attributes["agent_ipc_send_calls"] = strconv.FormatUint(f.sendCalls+1, 10)
-	final.Attributes["agent_first_event_latency_ms"] = formatDurationMillis(f.firstEventAt.Sub(f.start))
-	final.Attributes["agent_total_stream_ms"] = formatDurationMillis(elapsed)
-	final.Attributes["agent_ipc_send_total_ms"] = formatDurationMillis(f.sendDuration)
-	final.Attributes["agent_ipc_send_max_ms"] = formatDurationMillis(f.maxSendDuration)
-}
-
-func formatDurationMillis(duration time.Duration) string {
-	if duration <= 0 {
-		return "0"
-	}
-	return strconv.FormatFloat(duration.Seconds()*1000, 'f', 3, 64)
 }
 
 func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remotequeriesimpl.RemoteQueryExecuteRequest, error) {
@@ -602,163 +529,8 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 	return out
 }
 
-// remoteQueryStreamEventFromCheckEvent converts a metadata-only check event into the
-// typed proto stream event. The integration name is attached by the Agent from the
-// dispatch request. Unknown event types — including any legacy inline data event — fail
-// closed so a stale integration cannot smuggle bulk bytes through AgentSecure.
-func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, integration string) (*pb.RemoteQueryExecuteStreamEvent, error) {
-	metadata := map[string]interface{}{}
-	if strings.TrimSpace(event.MetadataJSON) != "" {
-		if err := json.Unmarshal([]byte(event.MetadataJSON), &metadata); err != nil {
-			return nil, err
-		}
-	}
-	sequence := uint64FromMetadata(metadata, "sequence")
-	out := &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence}
-	switch event.Type {
-	case "metadata":
-		out.Event = &pb.RemoteQueryExecuteStreamEvent_Metadata{Metadata: &pb.RemoteQueryStreamMetadata{
-			Operation:   stringFromMetadata(metadata, "operation"),
-			Integration: integration,
-			Attributes:  stringAttributes(metadata, "operation", "sequence"),
-		}}
-	case "final":
-		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
-			Status: stringFromMetadata(metadata, "status"),
-			// executionDiagnostics stays excluded so an older integration's legacy
-			// top-level diagnostics metadata never leaks into the flattened attributes.
-			Attributes: progressAttributes(metadata, "status", "sequence", "executionDiagnostics"),
-		}}
-	case "error":
-		errorMetadata := mapFromMetadata(metadata, "error")
-		code := stringFromMetadata(errorMetadata, "code")
-		if code == "" {
-			code = stringFromMetadata(metadata, "code")
-		}
-		message := stringFromMetadata(errorMetadata, "message")
-		if message == "" {
-			message = stringFromMetadata(metadata, "message")
-		}
-		retryable, hasRetryable := boolValueFromMetadata(errorMetadata, "retryable")
-		if !hasRetryable {
-			retryable = boolFromMetadata(metadata, "retryable")
-		}
-		out.Event = &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
-			Code:      code,
-			Message:   message,
-			Retryable: retryable,
-			// executionDiagnostics stays excluded so an older integration's legacy
-			// top-level diagnostics metadata never leaks into the flattened attributes.
-			Attributes: progressAttributes(metadata, "code", "message", "retryable", "error", "sequence", "executionDiagnostics"),
-		}}
-	default:
-		return nil, errors.New("unknown remote query stream event type")
-	}
-	return out, nil
-}
-
-func stringFromMetadata(metadata map[string]interface{}, key string) string {
-	if v, ok := metadata[key].(string); ok {
-		return v
-	}
-	return ""
-}
-
-func boolFromMetadata(metadata map[string]interface{}, key string) bool {
-	v, _ := boolValueFromMetadata(metadata, key)
-	return v
-}
-
-func boolValueFromMetadata(metadata map[string]interface{}, key string) (bool, bool) {
-	if v, ok := metadata[key].(bool); ok {
-		return v, true
-	}
-	return false, false
-}
-
-func mapFromMetadata(metadata map[string]interface{}, key string) map[string]interface{} {
-	if v, ok := metadata[key].(map[string]interface{}); ok {
-		return v
-	}
-	return nil
-}
-
-func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 {
-	for _, key := range keys {
-		switch v := metadata[key].(type) {
-		case float64:
-			if v > 0 {
-				return uint64(v)
-			}
-		case int:
-			if v > 0 {
-				return uint64(v)
-			}
-		case json.Number:
-			if n, err := strconv.ParseUint(string(v), 10, 64); err == nil {
-				return n
-			}
-		case string:
-			if n, err := strconv.ParseUint(v, 10, 64); err == nil {
-				return n
-			}
-		}
-	}
-	return 0
-}
-
-// stringAttributes maps scalar metadata values into string attributes, skipping the
-// excluded keys and any nested objects (the resultDelivery echo never surfaces).
-func stringAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
-	excluded := make(map[string]struct{}, len(exclude))
-	for _, key := range exclude {
-		excluded[key] = struct{}{}
-	}
-	attrs := make(map[string]string)
-	for key, value := range metadata {
-		if _, ok := excluded[key]; ok {
-			continue
-		}
-		switch v := value.(type) {
-		case string:
-			attrs[key] = v
-		case float64:
-			attrs[key] = strconv.FormatFloat(v, 'f', -1, 64)
-		case bool:
-			attrs[key] = strconv.FormatBool(v)
-		}
-	}
-	return attrs
-}
-
-// progressAttributes extends stringAttributes with the flattened run progress stats the
-// integration reports (rowsEmitted, pagesEmitted, bytesEmitted, elapsedMs). The stats
-// are compact counters, never bulk result bytes, and any other optional stats keys the
-// integration reports flatten through the same generic path.
-func progressAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
-	attrs := stringAttributes(metadata, exclude...)
-	if stats, ok := metadata["stats"].(map[string]interface{}); ok {
-		for key, value := range stats {
-			switch v := value.(type) {
-			case string:
-				attrs["stats."+key] = v
-			case float64:
-				attrs["stats."+key] = strconv.FormatFloat(v, 'f', -1, 64)
-			case bool:
-				attrs["stats."+key] = strconv.FormatBool(v)
-			}
-		}
-	}
-	return attrs
-}
-
 func remoteQueryExecuteStreamError(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
-	return remoteQueryExecuteStreamErrorAt(code, message, stream, 0)
-}
-
-func remoteQueryExecuteStreamErrorAt(code string, message string, stream pb.AgentSecure_RemoteQueryExecuteStreamServer, chunkIndex int32) error {
 	if err := stream.Send(&pb.RemoteQueryExecuteChunk{
-		ChunkIndex: chunkIndex,
 		Event: &pb.RemoteQueryExecuteStreamEvent{Event: &pb.RemoteQueryExecuteStreamEvent_Error{Error: &pb.RemoteQueryStreamError{
 			Code:    code,
 			Message: message,
@@ -766,7 +538,7 @@ func remoteQueryExecuteStreamErrorAt(code string, message string, stream pb.Agen
 	}); err != nil {
 		return err
 	}
-	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: chunkIndex + 1, Final: true})
+	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: 1, Final: true})
 }
 
 // ListCommands returns all commands exposed by registered remote agents that advertise the command provider service.

@@ -6,7 +6,6 @@
 package remotequeriesimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,8 +27,7 @@ import (
 // accounting from intake's completion record, not from the AgentSecure answer.
 //
 // These tests drive ExecuteStream with a fake stream runner that captures the
-// requestJSON the integration receives and replays deterministic events through emit.
-// They prove:
+// requestJSON the integration receives. They prove:
 //
 //  1. The requestJSON forwarded to the integration emits the fixed operation
 //     produce_json_pages and carries the target, the query, the explicit includeSchema
@@ -38,8 +36,6 @@ import (
 //     the upload session no longer has one.
 //  2. The requestJSON does NOT carry the org API key or POC application key and carries
 //     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
-//  3. The Agent passes emit straight through: the events the integration emits surface
-//     downstream byte-for-byte, including the final status.
 //
 // The 243021 reference (task contract id) is carried through the run/task/upload ids
 // so the forwarded handle is stable end-to-end.
@@ -92,11 +88,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	var seen []check.RemoteQueryStreamEvent
-	result := service.ExecuteStream(context.Background(), req, func(event check.RemoteQueryStreamEvent) error {
-		seen = append(seen, event)
-		return nil
-	})
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	// The resolve sweep and the execute dispatch both reached the integration:
@@ -146,12 +138,6 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	// The per-session upload token is gone from the contract: no token key appears
 	// anywhere in the forwarded request.
 	assert.NotContains(t, runner.streamSeen, "token")
-
-	// The integration's metadata and final status surface downstream unmodified.
-	require.Len(t, seen, 2)
-	assert.Equal(t, "metadata", seen[0].Type)
-	assert.Equal(t, "final", seen[1].Type)
-	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, seen[1].MetadataJSON)
 }
 
 // TestExecuteStreamForwardsOmittedSchemaExplicitly proves the includeSchema flag is
@@ -171,7 +157,7 @@ func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	assert.Contains(t, runner.streamSeen, `"includeSchema":false`)
@@ -195,11 +181,11 @@ func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
 
 	// A hand-assembled request without a delivery fails the same way and never runs
 	// the matched check.
-	result := service.ExecuteStream(context.Background(), RemoteQueryExecuteRequest{
+	result := executeAndWait(service, RemoteQueryExecuteRequest{
 		Integration: "postgres",
 		Target:      RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		Query:       "SELECT 1 AS value",
-	}, func(check.RemoteQueryStreamEvent) error { return nil })
+	})
 
 	require.NotNil(t, result.Error)
 	assert.Equal(t, statusInvalidRequest, result.Error.Code)
@@ -228,7 +214,7 @@ func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
 	require.NoError(t, err)
 	req.TraceContext = NewRemoteQueryTraceContext(1234567890123456789, 9876543210987654321, 2)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	assert.Contains(t, runner.streamSeen,
@@ -271,7 +257,7 @@ func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
 			require.NoError(t, err)
 			req.TraceContext = tc.traceContext
 
-			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+			result := executeAndWait(service, req)
 
 			require.Nil(t, result.Error, "invalid trace context must never fail the run")
 			assert.NotContains(t, runner.streamSeen, "traceContext")
@@ -297,7 +283,7 @@ func TestExecuteStreamForwardsNoTraceContextWhenAbsent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+	result := executeAndWait(service, req)
 
 	require.Nil(t, result.Error)
 	assert.NotContains(t, runner.streamSeen, "traceContext")

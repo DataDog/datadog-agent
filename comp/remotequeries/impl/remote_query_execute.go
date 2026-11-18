@@ -16,10 +16,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -163,6 +166,8 @@ type RemoteQueryExecuteService struct {
 	collector RemoteQueryCollector
 	enabled   bool
 	cfg       config.Component
+	// runs counts the started detached runs.
+	runs sync.WaitGroup
 }
 
 // NewRemoteQueryExecuteService creates the shared executor used by the HTTP POC endpoint and AgentSecure RPC.
@@ -621,15 +626,12 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries execute only over the AgentSecure streaming RPC")
 }
 
-// ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
-// Agent carries the backend-owned identity and limits, adds the upload destination from
-// local configuration, and passes the emit callback straight through.
-// The integration uploads bounded JSON page files itself; only progress metadata, the
-// final status, and errors come back through the stream.
-func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
-	if emit == nil {
-		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
-	}
+// ExecuteStream starts a paged-JSON run and answers SUCCEEDED once the matched check's
+// run is started. The run continues in the background, detached from ctx; the
+// integration uploads bounded JSON page files itself and reports the outcome through
+// its upload session. The Agent adds the upload destination from local configuration
+// and only logs the run's events and final outcome.
+func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest) RemoteQueryExecuteResult {
 	if s == nil || !s.enabled {
 		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusBridgeDisabled, "remote queries bridge is disabled")
 	}
@@ -666,11 +668,64 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 		return remoteQueryExecuteErrorResult(http.StatusRequestTimeout, statusExecutorUnavailable, "remote query request was cancelled")
 	}
 
-	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
-	if runErr != nil {
-		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query stream executor failed")
-	}
+	s.runs.Add(1)
+	go func() {
+		defer s.runs.Done()
+		runDetachedRemoteQuery(runner, internal.Integration, requestJSON, internal.ResultDelivery)
+	}()
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
+}
+
+// runDetachedRemoteQuery runs the check's remote query to completion. Its emit callback
+// logs and drops every event and never fails, so a finished request never cancels the
+// run. The final log line carries identifiers, status, code and duration only.
+func runDetachedRemoteQuery(runner remoteQueryStreamRunner, integration string, requestJSON string, delivery *RemoteQueryResultDelivery) {
+	start := time.Now()
+	var outcome remoteQueryRunOutcome
+	err := runner.RunRemoteQueryStream(integration, requestJSON, func(event check.RemoteQueryStreamEvent) error {
+		log.Debugf("remote query run %s (task %s) emitted a %s event", delivery.RunID, delivery.TaskID, event.Type)
+		outcome.observe(event)
+		return nil
+	})
+	if err != nil {
+		outcome = remoteQueryRunOutcome{status: "FAILED", code: statusExecutorUnavailable}
+	}
+	duration := time.Since(start).Round(time.Millisecond)
+	if outcome.status == "FAILED" {
+		log.Warnf("remote query run %s (task %s, integration %s) finished: status=%s code=%s duration=%s", delivery.RunID, delivery.TaskID, integration, outcome.status, outcome.code, duration)
+		return
+	}
+	log.Infof("remote query run %s (task %s, integration %s) finished: status=%s duration=%s", delivery.RunID, delivery.TaskID, integration, outcome.status, duration)
+}
+
+// remoteQueryRunOutcome is the status and error code of the last terminal event.
+type remoteQueryRunOutcome struct {
+	status string
+	code   string
+}
+
+func (o *remoteQueryRunOutcome) observe(event check.RemoteQueryStreamEvent) {
+	if event.Type != "final" && event.Type != "error" {
+		return
+	}
+	var metadata struct {
+		Status string `json:"status"`
+		Code   string `json:"code"`
+		Error  struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(event.MetadataJSON), &metadata); err != nil {
+		return
+	}
+	o.status = metadata.Status
+	o.code = metadata.Error.Code
+	if o.code == "" {
+		o.code = metadata.Code
+	}
+	if event.Type == "error" && o.status == "" {
+		o.status = "FAILED"
+	}
 }
 
 // resolveExecutionTarget resolves the execution target: one complete integration-owned candidate sweep, then the plain
