@@ -19,6 +19,8 @@ import (
 // namespaces, and a key can be present in both. Implementations must preserve that model for
 // every read made during the conversion, since the conversion decides what to write from what is
 // already there (set-if-absent, set-if-empty, and so on).
+//
+// This interface is temporary and will be removed with the legacy pb.Span pipeline.
 type spanSink interface {
 	service() string
 	setService(string)
@@ -56,8 +58,8 @@ func (a metaAccessor) GetString(key string) string {
 	return v
 }
 
-func (a metaAccessor) GetInt64(string) (int64, bool) { return 0, false }
-
+// These always return not-found: Meta holds only strings, as in semantics.StringMapAccessor.
+func (a metaAccessor) GetInt64(string) (int64, bool)     { return 0, false }
 func (a metaAccessor) GetFloat64(string) (float64, bool) { return 0, false }
 
 // pbSpanSink writes the conversion directly into a pb.Span. Its methods are the plain map and
