@@ -127,8 +127,8 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 To install it, run:
 
 ```sh
-python3 -m pip install pre-commit
-GOFLAGS=-buildvcs=false pre-commit install  # buildvcs avoids errors when getting go dependencies
+dda self pip install pre-commit
+dda inv setup.pre-commit
 ```
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:
@@ -137,7 +137,11 @@ The `shellcheck` pre-commit hook requires having the `shellcheck` binary install
 dda inv install-shellcheck --destination <path>
 ```
 
-(by default, the shellcheck binary is installed in `/usr/local/bin`).
+(by default, the shellcheck binary is installed in `/usr/local/bin`). On Windows, install the native ShellCheck executable and add it to `PATH`.
+
+Use the Go version in `.go-version`. DDA supplies Ruff, and pre-commit installs the pinned actionlint environment.
+
+The default checks validate staged contents without applying fixes. Re-run setup to remove an old pre-push hook when migrating; the new profile installs only pre-commit. See [the default profile and explicit validation commands](optional.md#pre-commit-hooks).
 
 ### Skipping `pre-commit`
 
@@ -147,10 +151,10 @@ If you want to skip `pre-commit` for a specific commit you can add `--no-verify`
 
 If you want to run one of the checks manually, you can run `pre-commit run <check name>`.
 
-You can run it on all files with the `--all-files` flag.
+The default adapters always select staged files and their staged configuration. The `--all-files` flag does not expand their scope. Use the explicit validation commands linked above for broader checks.
 
 ```sh
-pre-commit run flake8 --all-files  # run flake8 on all files
+pre-commit run python-ruff
 ```
 
 See `pre-commit run --help` for further options.

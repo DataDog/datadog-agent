@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import datetime
+import os
 import re
 import subprocess
-import sys
 from pathlib import Path, PurePosixPath
 
 GLOB_PATTERN = "**/*.go"
@@ -105,16 +105,14 @@ class CopyrightLinter:
 
     @staticmethod
     def _get_repo_dir():
-        script_dir = PurePosixPath(__file__).parent
+        script_dir = Path(__file__).parent
 
-        repo_dir = (
+        repo_dir = os.fsdecode(
             subprocess.check_output(
                 ['git', 'rev-parse', '--show-toplevel'],
                 cwd=script_dir,
             )
-            .decode(sys.stdout.encoding)
-            .strip()
-        )
+        ).strip()
 
         return PurePosixPath(repo_dir)
 
@@ -167,7 +165,7 @@ class CopyrightLinter:
             print("[WARN] Mismatch found! File too small for header stanza!")
             return False
 
-        is_secret_generic_connector = '/cmd/secret-generic-connector/' in str(filepath)
+        is_secret_generic_connector = '/cmd/secret-generic-connector/' in Path(filepath).as_posix()
         copyright_patterns = COMPILED_BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COMPILED_COPYRIGHT_REGEX
         copyright_regex_src = BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COPYRIGHT_REGEX
 
