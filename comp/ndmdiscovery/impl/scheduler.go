@@ -42,6 +42,8 @@ type scheduler struct {
 	ranges map[string]*scheduledRange
 	// cycles holds, per range id, the completion channel a replacement waits on.
 	cycles map[string]chan struct{}
+	// issues holds, per range id, what kept its latest cycle from probing as configured.
+	issues map[string]rangeIssues
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -61,6 +63,7 @@ func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *sch
 		opts:    opts,
 		ranges:  map[string]*scheduledRange{},
 		cycles:  map[string]chan struct{}{},
+		issues:  map[string]rangeIssues{},
 		newTimer: func(d time.Duration) (<-chan time.Time, func()) {
 			t := time.NewTimer(d)
 			return t.C, func() { t.Stop() }
@@ -85,6 +88,7 @@ func (s *scheduler) stop() {
 	s.cancel = nil
 	s.ctx = nil
 	s.ranges = map[string]*scheduledRange{}
+	s.issues = map[string]rangeIssues{}
 	s.mu.Unlock()
 
 	if cancel != nil {
@@ -113,9 +117,12 @@ func (s *scheduler) count() int {
 // workerShare is this dispatch's slice of the global budget, recomputed per dispatch.
 func (s *scheduler) workerShare() int64 {
 	s.mu.Lock()
-	active := int64(len(s.ranges))
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	return s.workerShareLocked()
+}
 
+func (s *scheduler) workerShareLocked() int64 {
+	active := int64(len(s.ranges))
 	if active < 1 {
 		active = 1
 	}
@@ -143,6 +150,8 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)
 	s.ranges[cfg.AutodiscoveryID] = &scheduledRange{cfg: cfg, cancel: rangeCancel}
+	// A replaced range reports only what its new configuration runs into.
+	delete(s.issues, cfg.AutodiscoveryID)
 	previous := s.cycles[cfg.AutodiscoveryID]
 	done := make(chan struct{})
 	s.cycles[cfg.AutodiscoveryID] = done
@@ -185,6 +194,7 @@ func (s *scheduler) remove(autodiscoveryID string) {
 	s.mu.Lock()
 	r, ok := s.ranges[autodiscoveryID]
 	delete(s.ranges, autodiscoveryID)
+	delete(s.issues, autodiscoveryID)
 	done := s.cycles[autodiscoveryID]
 	if ok {
 		s.wg.Add(1)
@@ -240,21 +250,26 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time
 		return 0
 	}
 
+	id := cfg.AutodiscoveryID
+
 	plan, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
 	if err != nil {
-		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
+		s.log.Warnf("ndmdiscovery: skipping range %s: %v", id, err)
+		s.setPrepared(id, []string{"skipped: " + err.Error()})
 		return 0
 	}
 
 	// Resolved per cycle, so a credential rotation lands without a restart.
 	opts, dropped := cfg.Probes.resolve(s.opts.Credentials)
 	for _, reason := range dropped {
-		s.log.Warnf("ndmdiscovery: range %s: %s", cfg.AutodiscoveryID, reason)
+		s.log.Warnf("ndmdiscovery: range %s: %s", id, reason)
 	}
 	if opts.Empty() {
-		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", cfg.AutodiscoveryID)
+		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", id)
+		s.setPrepared(id, append(dropped, "skipped: it has no usable probe"))
 		return 0
 	}
+	s.setPrepared(id, dropped)
 
 	req := sweepRequest{
 		Config:   cfg,
@@ -270,8 +285,68 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time
 		return wait
 	}
 
-	if err := s.sweeper.sweep(ctx, req); err != nil && ctx.Err() == nil {
-		s.log.Warnf("ndmdiscovery: sweep of range %s failed: %v", cfg.AutodiscoveryID, err)
+	err = s.sweeper.sweep(ctx, req)
+	if err != nil && ctx.Err() == nil {
+		s.log.Warnf("ndmdiscovery: sweep of range %s failed: %v", id, err)
+		s.setSweepError(id, err.Error())
+	} else if err == nil {
+		s.setSweepError(id, "")
 	}
 	return 0
+}
+
+// rangeIssues is what kept one range's latest cycle from probing as configured.
+type rangeIssues struct {
+	// prepared is refreshed every time the range wakes, so it tracks credential rotations.
+	prepared []string
+	// sweepErr is the failure of the last sweep that ran, kept while the range waits.
+	sweepErr string
+}
+
+func (s *scheduler) setPrepared(id string, reasons []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ranges[id]; !ok {
+		return
+	}
+	issues := s.issues[id]
+	issues.prepared = append([]string(nil), reasons...)
+	s.issues[id] = issues
+}
+
+func (s *scheduler) setSweepError(id, msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ranges[id]; !ok {
+		return
+	}
+	issues := s.issues[id]
+	issues.sweepErr = msg
+	s.issues[id] = issues
+}
+
+// rangeSnapshot is one scheduled range as the status page shows it.
+type rangeSnapshot struct {
+	cfg     rangeConfig
+	workers int64
+	issues  []string
+}
+
+// snapshot returns every scheduled range, with its worker share and latest issues.
+func (s *scheduler) snapshot() []rangeSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	share := s.workerShareLocked()
+	out := make([]rangeSnapshot, 0, len(s.ranges))
+	for id, r := range s.ranges {
+		issues := append([]string(nil), r.cfg.Probes.Dropped...)
+		recorded := s.issues[id]
+		issues = append(issues, recorded.prepared...)
+		if recorded.sweepErr != "" {
+			issues = append(issues, "last sweep failed: "+recorded.sweepErr)
+		}
+		out = append(out, rangeSnapshot{cfg: r.cfg, workers: share, issues: issues})
+	}
+	return out
 }

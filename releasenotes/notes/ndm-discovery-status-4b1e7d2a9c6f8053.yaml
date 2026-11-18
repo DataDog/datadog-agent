@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``agent status`` output has an NDM Discovery section when network
+    device discovery is enabled. It lists every range being swept with its
+    progress, the time of its next sweep, and any probe or credential that
+    could not be used, as well as the ranges the Agent refused and why. A
+    refused range is also logged as a warning.
