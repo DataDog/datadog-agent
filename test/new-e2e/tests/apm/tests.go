@@ -122,15 +122,15 @@ func testTPS(c *assert.CollectT, intake *components.FakeIntake, service string, 
 	assert.True(c, found, "no trace payload found for service %s", service)
 }
 
-func testStatsForService(t *testing.T, c *assert.CollectT, service string, expectedPeerTag string, intake *components.FakeIntake) {
+func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake, expectedPeerTags ...string) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
 	assert.NotEmpty(c, stats)
 	t.Logf("Got %d apm stats", len(stats))
 	assert.True(c, hasStatsForService(stats, service), "got stats: %v", stats)
-	if expectedPeerTag != "" {
-		assert.True(c, hasPeerTagsStats(stats, expectedPeerTag), "got stats: %v", stats)
+	for _, tag := range expectedPeerTags {
+		assert.True(c, hasPeerTagsStats(stats, tag), "missing peer tag %q, got stats: %v", tag, stats)
 	}
 }
 

@@ -195,8 +195,9 @@ func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
-	addSpanTags := "peer.hostname:foo,span.kind:producer"
-	expectPeerTag := "peer.hostname:foo"
+	// gcp.pubsub.topic.name identifies the called resource: the stats payload must carry it as a peer tag.
+	addSpanTags := "peer.hostname:foo,gcp.pubsub.topic.name:projects/e2e/topics/orders,span.kind:producer"
+	expectPeerTags := []string{"peer.hostname:foo", "gcp.pubsub.topic.name:projects/e2e/topics/orders"}
 
 	// Wait for agent to be live
 	s.T().Log("Waiting for Trace Agent to be live.")
@@ -214,7 +215,7 @@ func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake, expectPeerTags...)
 		s.logJournal(false)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 

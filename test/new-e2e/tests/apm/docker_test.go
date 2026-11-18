@@ -165,8 +165,9 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
-	addSpanTags := "peer.hostname:foo,span.kind:client"
-	expectPeerTag := "peer.hostname:foo"
+	// gcp.pubsub.topic.name identifies the called resource: the stats payload must carry it as a peer tag.
+	addSpanTags := "peer.hostname:foo,gcp.pubsub.topic.name:projects/e2e/topics/orders,span.kind:client"
+	expectPeerTags := []string{"peer.hostname:foo", "gcp.pubsub.topic.name:projects/e2e/topics/orders"}
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
 		transport:             s.transport,
@@ -175,7 +176,7 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 	})()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
+		testStatsForService(s.T(), c, service, s.Env().FakeIntake, expectPeerTags...)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
