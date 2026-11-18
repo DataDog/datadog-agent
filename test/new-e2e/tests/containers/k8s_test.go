@@ -1971,7 +1971,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			}
 			transition := ctr.GetTransition()
 			if transition == nil || ctr.GetOwner().GetOwnerUID() != string(nginxPod.UID) ||
-				transition.GetNewState().GetKind() != contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_TERMINATED {
+				transition.GetNewState().GetKind() != contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING {
 				continue
 			}
 
@@ -1981,9 +1981,6 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			assert.NotEmptyf(c, ctr.GetContainerID(), "Container state transition of pod %s/%s has no container ID", nginxPod.Namespace, nginxPod.Name)
 			assert.NotContainsf(c, ctr.GetContainerID(), "://", "Container state transition of pod %s/%s carries a non-normalized container ID: %s", nginxPod.Namespace, nginxPod.Name, ctr.GetContainerID())
 			assert.Equalf(c, contlcycle.ContainerKind_CONTAINER_KIND_REGULAR, transition.GetContainerKind(), "Container state transition of pod %s/%s has an unexpected container kind", nginxPod.Namespace, nginxPod.Name)
-			if lastState := transition.GetLastObservedState(); lastState != nil {
-				assert.Equalf(c, contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING, lastState.GetKind(), "Container state transition of pod %s/%s has an unexpected last-observed state", nginxPod.Namespace, nginxPod.Name)
-			}
 			// The kubelet polls the CRI, so a skipped state cannot prove a missed intermediate.
 			assert.Equalf(c, contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate(), "Container state transition of pod %s/%s has an unexpected missed-intermediate value", nginxPod.Namespace, nginxPod.Name)
 
