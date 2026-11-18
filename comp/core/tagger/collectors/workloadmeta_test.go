@@ -2459,7 +2459,7 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 	podGroupTags := func(queue string) []string {
 		return []string{
 			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_workload:" + podGroupName, "kai_team:ml",
+			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 

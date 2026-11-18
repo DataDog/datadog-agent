@@ -1687,9 +1687,30 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg := testConfig()
 	skipEbpflessTodo(t, cfg)
 	testutil.IptablesSave(t)
-	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	// Setup a NAT rule to translate 2.2.2.2 to 2.2.2.4 and issue a DNS request to 2.2.2.2
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 2.2.2.4"}
 	testutil.RunCommands(t, cmds, false)
+
+	dnsNs, err := vnetns.GetFromName(netlinktestutil.SetupVethPair(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dnsNs.Close() })
+	var conn net.PacketConn
+	require.NoError(t, netns.WithNS(dnsNs, func() (err error) {
+		conn, err = net.ListenPacket("udp", "2.2.2.4:53")
+		return err
+	}))
+	t.Cleanup(func() { _ = conn.Close() })
+	go func() {
+		srv := &dns.Server{
+			PacketConn: conn,
+			Handler: dns.HandlerFunc(func(w dns.ResponseWriter, m *dns.Msg) {
+				_ = w.WriteMsg(new(dns.Msg).SetReply(m))
+			}),
+		}
+		if err := srv.ActivateAndServe(); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("DNS server: %v", err)
+		}
+	}()
 
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
