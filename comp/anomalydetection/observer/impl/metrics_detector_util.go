@@ -14,10 +14,10 @@ import (
 
 const scanMaxPoints = 120
 
-// scanDetectorWorkspace is bounded detector-local scratch space for scan
-// statistics. Detectors are single-writer, so a workspace can be reused across
-// series and aggregations instead of allocating proportional to every scan.
-type scanDetectorWorkspace struct {
+// stableDetectorWorkspace is bounded detector-local scratch space for
+// stable-series statistics. Detectors are single-writer, so a workspace can be
+// reused across series and aggregations instead of allocating per scan.
+type stableDetectorWorkspace struct {
 	values      []float64
 	ranks       []float64
 	indexed     []scanIndexedValue
@@ -30,7 +30,7 @@ type scanIndexedValue struct {
 	index int
 }
 
-func (w *scanDetectorWorkspace) valuesFromPoints(points []observer.Point) []float64 {
+func (w *stableDetectorWorkspace) valuesFromPoints(points []observer.Point) []float64 {
 	w.values = reuseFloat64(w.values, len(points))
 	for i, point := range points {
 		w.values[i] = point.Value
@@ -38,7 +38,7 @@ func (w *scanDetectorWorkspace) valuesFromPoints(points []observer.Point) []floa
 	return w.values
 }
 
-func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float64) {
+func (w *stableDetectorWorkspace) assignRanks(values []float64) ([]float64, float64) {
 	n := len(values)
 	w.indexed = reuseScanIndexedValues(w.indexed, n)
 	for i, value := range values {
@@ -66,7 +66,7 @@ func (w *scanDetectorWorkspace) assignRanks(values []float64) ([]float64, float6
 	return w.ranks, tieCorrection
 }
 
-func (w *scanDetectorWorkspace) median(values []float64) float64 {
+func (w *stableDetectorWorkspace) median(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -80,7 +80,7 @@ func (w *scanDetectorWorkspace) median(values []float64) float64 {
 	return w.sortScratch[n/2]
 }
 
-func (w *scanDetectorWorkspace) mad(values []float64, median float64) float64 {
+func (w *stableDetectorWorkspace) mad(values []float64, median float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
@@ -96,7 +96,7 @@ func (w *scanDetectorWorkspace) mad(values []float64, median float64) float64 {
 	return w.sortScratch[n/2]
 }
 
-func (w *scanDetectorWorkspace) medianPointInterval(points []observer.Point) int64 {
+func (w *stableDetectorWorkspace) medianPointInterval(points []observer.Point) int64 {
 	if len(points) < 2 {
 		return 0
 	}

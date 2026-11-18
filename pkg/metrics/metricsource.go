@@ -356,6 +356,9 @@ const (
 	MetricSourcePanFirewall
 	MetricSourceKaiScheduler
 	MetricSourceKurrentdb
+	MetricSourceCrossplane
+	MetricSourceLlmD
+	MetricSourceDynamo
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1191,6 +1194,12 @@ func (ms MetricSource) String() string {
 		return "kai_scheduler"
 	case MetricSourceKurrentdb:
 		return "kurrentdb"
+	case MetricSourceCrossplane:
+		return "crossplane"
+	case MetricSourceLlmD:
+		return "llm_d"
+	case MetricSourceDynamo:
+		return "dynamo"
 	default:
 		return "<unknown>"
 	}
@@ -1353,7 +1362,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceGlusterfs
 	case "go_expvar":
 		return MetricSourceGoExpvar
-	case "gpu", "amd_gpu":
+	case "gpu", "amd_gpu", "tpu":
 		return MetricSourceGPU
 	case "gunicorn":
 		return MetricSourceGunicorn
@@ -1913,6 +1922,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKaiScheduler
 	case "kurrentdb":
 		return MetricSourceKurrentdb
+	case "crossplane":
+		return MetricSourceCrossplane
+	case "llm_d":
+		return MetricSourceLlmD
+	case "dynamo":
+		return MetricSourceDynamo
 	default:
 		return MetricSourceUnknown
 	}

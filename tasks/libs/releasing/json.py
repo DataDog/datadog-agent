@@ -59,21 +59,6 @@ def _save_release_json(release_json):
         release_json_stream.write('\n')
 
 
-def _get_jmxfetch_release_json_info(release_json):
-    """
-    Gets the JMXFetch version info from the previous entries in the release.json file.
-    """
-
-    release_json_version_data = release_json[RELEASE_JSON_DEPENDENCIES]
-
-    jmxfetch_version = release_json_version_data['JMXFETCH_VERSION']
-    jmxfetch_shasum = release_json_version_data['JMXFETCH_HASH']
-
-    print(f"The JMXFetch version is {jmxfetch_version}")
-
-    return jmxfetch_version, jmxfetch_shasum
-
-
 def _get_windows_release_json_info(release_json):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
@@ -124,8 +109,6 @@ def _update_release_json_entry(
     release_json,
     integrations_version,
     omnibus_ruby_version,
-    jmxfetch_version,
-    jmxfetch_shasum,
     security_agent_policies_version,
     windows_ddnpm_driver,
     windows_ddnpm_version,
@@ -138,15 +121,12 @@ def _update_release_json_entry(
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
     """
 
-    print(f"Jmxfetch's SHA256 is {jmxfetch_shasum}")
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
     print(f"Windows DDPROCMON's SHA256 is {windows_ddprocmon_shasum}")
 
     new_version_config = {}
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
     new_version_config["OMNIBUS_RUBY_VERSION"] = omnibus_ruby_version
-    new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
-    new_version_config["JMXFETCH_HASH"] = jmxfetch_shasum
     new_version_config["SECURITY_AGENT_POLICIES_VERSION"] = security_agent_policies_version
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
     new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
@@ -219,9 +199,6 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
 
     # Part 2: repositories which have their own version scheme
 
-    # jmxfetch version is updated directly by the AML team
-    jmxfetch_version, jmxfetch_shasum = _get_jmxfetch_release_json_info(release_json)
-
     # security agent policies are updated directly by the CWS team
     security_agent_policies_version = _get_release_version_from_release_json(
         release_json, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
@@ -242,8 +219,6 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
         release_json,
         integrations_version,
         omnibus_ruby_version,
-        jmxfetch_version,
-        jmxfetch_shasum,
         security_agent_policies_version,
         windows_ddnpm_driver,
         windows_ddnpm_version,

@@ -41,10 +41,12 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 	if err != nil {
 		return nil, false, fmt.Errorf("unable to process rules for %s config for device %s: %s", mode, deviceID, err)
 	}
-	configID, configHash, stored := "", "", false
+	// Hash the unredacted config so that changes to redacted values are still
+	// detectable when no local store is in use.
+	configID, configHash, stored := "", ncmstore.HashConfig(string(result.Raw)), false
 	if configStore != nil {
 		var err error
-		configID, configHash, stored, err = configStore.StoreConfig(deviceID, confType, string(result.Raw))
+		configID, stored, err = configStore.StoreConfig(deviceID, confType, string(result.Raw), configHash)
 		if err != nil {
 			logger.Warnf("unable to store %s config: %v", mode, err)
 		}

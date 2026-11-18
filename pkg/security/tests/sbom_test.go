@@ -66,7 +66,7 @@ func TestSBOM(t *testing.T) {
 		t.Skip("not supported")
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}

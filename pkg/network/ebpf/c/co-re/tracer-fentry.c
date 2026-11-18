@@ -1,3 +1,6 @@
+// Enables the *_btf helpers in tracer/stats.h. Only the fentry/fexit handlers call them, with BTF sock pointers
+// (arguments or return values). The kprobe and raw tracepoint programs in this file do not call them.
+#define SOCK_PTR_IS_BTF
 #include "ktypes.h"
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
@@ -126,11 +129,12 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
         return 0;
     }
 
-    handle_tcp_stats(&t, sk, 0);
+    struct tcp_sock *tp = tcp_sk_btf(sk);
+    handle_tcp_stats_btf(&t, sk, tp, 0);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
-    get_tcp_segment_counts(sk, &packets_in, &packets_out);
+    get_tcp_segment_counts_btf(sk, tp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
@@ -150,11 +154,12 @@ int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         return 0;
     }
 
-    handle_tcp_stats(&t, sk, 0);
+    struct tcp_sock *tp = tcp_sk_btf(sk);
+    handle_tcp_stats_btf(&t, sk, tp, 0);
 
     __u32 packets_in = 0;
     __u32 packets_out = 0;
-    get_tcp_segment_counts(sk, &packets_in, &packets_out);
+    get_tcp_segment_counts_btf(sk, tp, &packets_in, &packets_out);
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
@@ -184,7 +189,7 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, copied);
+    return handle_tcp_recv_btf(pid_tgid, sk, copied);
 }
 
 // The addr_len argument was removed upstream after 7.0 and backported to some
@@ -197,7 +202,7 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, copied);
+    return handle_tcp_recv_btf(pid_tgid, sk, copied);
 }
 
 SEC("fexit/tcp_recvmsg")
@@ -207,7 +212,7 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, copied);
+    return handle_tcp_recv_btf(pid_tgid, sk, copied);
 }
 
 SEC("fentry/tcp_close")
@@ -234,6 +239,30 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     handle_tcp_failure(sk, &t);
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
+    return 0;
+}
+
+// tcp_disconnect zeroes the destination port and source address, so tcp_close
+// can no longer read the tuple. Flush the connection here instead. When called
+// from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+// A still-present tcp_ongoing_connect_pid entry means tcp_close hasn't reported
+// a failure yet, e.g. shutdown() cancelling a SYN_SENT connect.
+SEC("fentry/tcp_disconnect")
+int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
+        handle_tcp_failure(sk, &t);
+    }
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);
@@ -270,12 +299,15 @@ int BPF_PROG(tcp_done, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // resets can also have kernel pids as they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the peer
+    // get the pid from tcp_ongoing_connect_pid instead, which tcp_connect (client side) or
+    // inet_csk_accept (server side) set. else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // read the pid before deleting: preallocated elements are reused without an RCU grace
+        // period, so this narrows (but doesn't close) the race with a concurrent delete
         t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
@@ -489,7 +521,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     t.pid = GET_USER_MODE_PID(pid_tgid);
     log_debug("fentry/tcp_finish_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
-    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
+    handle_tcp_stats_btf(&t, sk, tcp_sk_btf(sk), TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
 
     log_debug("fentry/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -509,7 +541,7 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
+    handle_tcp_stats_btf(&t, sk, tcp_sk_btf(sk), TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
 
     port_binding_t pb = {};
@@ -517,7 +549,10 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
 
+    // tcp_close and tcp_done look this entry up with a zero pid, as in the kprobe
+    // tracer (tcp_done can run without process context), so key it with one too
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -622,7 +657,7 @@ int BPF_PROG(tcp_read_sock_exit, struct sock *sk, read_descriptor_t *desc, sk_re
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, recv);
+    return handle_tcp_recv_btf(pid_tgid, sk, recv);
 }
 
 // Protocol classification socket filters
@@ -668,15 +703,20 @@ static __always_inline struct sock *fentry_sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
-    struct sock *sk = fentry_sk_buff_sk(skb);
+static __always_inline struct sock *fentry_sk_buff_sk_btf(struct sk_buff *skb) {
+    return skb->sk;
+}
+
+// With btf set, skb must be a BTF-typed pointer (tp_btf argument).
+static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb, const bool btf) {
+    struct sock *sk = BTF_OR_PROBE_READ(btf, fentry_sk_buff_sk, skb);
     if (!sk) {
         return 0;
     }
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
+    if (BTF_OR_PROBE_READ(btf, sk_buff_to_tcp_tuple, skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -686,7 +726,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     // netns and pid stay zero: the map is keyed without them.
-    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple_no_netns, &sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -699,6 +739,15 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     return 0;
 }
 
+// Preferred over the raw tracepoint when the kernel can load it.
+SEC("tp_btf/net_dev_queue")
+int BPF_PROG(tp_btf__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+    return fentry_handle_net_dev_queue(skb, true);
+}
+
 // fentry requires 5.8+ which always supports raw tracepoints (4.17+),
 // so no tracepoint or kprobe fallbacks are needed.
 SEC("raw_tracepoint/net/net_dev_queue")
@@ -706,7 +755,7 @@ int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
     }
-    return fentry_handle_net_dev_queue(skb);
+    return fentry_handle_net_dev_queue(skb, false);
 }
 
 // tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 are static kernel

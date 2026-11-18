@@ -52,9 +52,9 @@ def build(
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
-        build_binary_with_bazel("//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")))
+        build_binary_with_bazel(
+            "//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")), fips_backend=fips_backend
+        )
         return
 
     # This generates the manifest resource. The manifest resource is necessary for

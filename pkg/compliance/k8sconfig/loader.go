@@ -31,7 +31,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const version = "202608"
+const version = "202611"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -113,6 +113,11 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
+	}
+
+	// azure.json holds the cluster credentials: stat it, do not read it.
+	if env := node.ManagedEnvironment; env != nil && env.Name == "aks" {
+		node.AzureJSON = l.loadFileMeta("/etc/kubernetes/azure.json")
 	}
 
 	if len(l.errs) > 0 {
@@ -257,11 +262,32 @@ func (l *loader) loadDirMeta(name string) *K8sDirMeta {
 	}
 }
 
+// loadFileMeta stats name and returns its ownership and permissions, or nil
+// when the stat fails.
+func (l *loader) loadFileMeta(name string) *K8sFileMeta {
+	_, info, _, ok := l.loadMeta(name, false)
+	if !ok {
+		return nil
+	}
+	return &K8sFileMeta{
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
+	}
+}
+
 func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
+	// Stat each unit and leave its content out: YAML decodes a systemd unit
+	// to the name of its first section.
 	for _, name := range names {
-		meta, ok := l.loadConfigFileMeta(name)
-		if ok {
-			return meta
+		if _, info, _, ok := l.loadMeta(name, false); ok && !info.IsDir() {
+			return &K8sConfigFileMeta{
+				Path:  name,
+				User:  utils.GetFileUser(info),
+				Group: utils.GetFileGroup(info),
+				Mode:  uint32(info.Mode()),
+			}
 		}
 	}
 	return nil
@@ -756,7 +782,7 @@ func (l *loader) parseDuration(v string) *time.Duration {
 func buildProc(name string, cmdline []string) proc {
 	p := proc{name: name}
 	if len(cmdline) > 1 {
-		cmdline = cmdline[1:]
+		cmdline = normalizeFlagNames(cmdline[1:])
 		p.flags = make(map[string]string)
 		pendingFlagValue := false
 		for i, arg := range cmdline {
@@ -775,6 +801,7 @@ func buildProc(name string, cmdline []string) proc {
 			} else {
 				if pendingFlagValue {
 					p.flags[cmdline[i-1]] = arg
+					pendingFlagValue = false
 				} else {
 					p.flags[arg] = ""
 				}
@@ -785,4 +812,21 @@ func buildProc(name string, cmdline []string) proc {
 		}
 	}
 	return p
+}
+
+// normalizeFlagNames spells the name of every --flag argument with dashes, as
+// Kubernetes components read them: --read_only_port is --read-only-port.
+func normalizeFlagNames(args []string) []string {
+	normalized := make([]string, len(args))
+	for i, arg := range args {
+		if strings.HasPrefix(arg, "--") {
+			name, value, found := strings.Cut(arg, "=")
+			arg = strings.ReplaceAll(name, "_", "-")
+			if found {
+				arg += "=" + value
+			}
+		}
+		normalized[i] = arg
+	}
+	return normalized
 }

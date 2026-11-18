@@ -9,6 +9,7 @@ package storeimpl
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,14 +28,12 @@ import (
 
 const testSelfPodName = "dd-agent-abc12"
 
-// TestReportIssueEnrichesWithClusterIdentity verifies that enrichWithClusterIdentity
-// actually stamps a resolved deployment_id into Extra/Tags on ReportIssue, since every
-// other test in this file resolves selfIdent against a nil workloadmeta (always empty), which
-// left this enrichment path itself untested.
+// TestReportIssueEnrichesWithClusterIdentity verifies that later reports use identities resolved in the background.
 func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	// selfident reads the pod name from DD_POD_NAME directly; there's no exported
 	// constant to reference from this package.
 	t.Setenv("DD_POD_NAME", testSelfPodName)
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "11111111-1111-1111-1111-111111111111")
 	env.SetFeatures(t, env.Kubernetes)
 	mockStore := workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
 		Lc:     compdef.NewTestLifecycle(t),
@@ -59,15 +58,25 @@ func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	h := newTestStore(t)
 	h.selfIdent = selfident.New(mockStore)
 
-	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+	synctest.Test(t, func(t *testing.T) {
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+		_, issues := h.GetAllIssues()
+		issue := issues["t:id"]
+		require.NotNil(t, issue)
+		assert.Nil(t, issue.Extra)
+		assert.Empty(t, issue.Tags)
 
-	_, issues := h.GetAllIssues()
-	issue := issues["t:id"]
-	require.NotNil(t, issue)
-
-	require.NotNil(t, issue.Extra)
-	assert.Equal(t, "daemonset-uid-123", issue.Extra.Fields["deployment_id"].GetStringValue())
-	assert.Contains(t, issue.Tags, "deployment_id:daemonset-uid-123")
+		synctest.Wait()
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+		_, issues = h.GetAllIssues()
+		issue = issues["t:id"]
+		require.NotNil(t, issue)
+		require.NotNil(t, issue.Extra)
+		assert.Equal(t, "daemonset-uid-123", issue.Extra.Fields["deployment_id"].GetStringValue())
+		assert.Contains(t, issue.Tags, "deployment_id:daemonset-uid-123")
+		assert.Equal(t, "11111111-1111-1111-1111-111111111111", issue.Extra.Fields["cluster_id"].GetStringValue())
+		assert.Contains(t, issue.Tags, "cluster_id:11111111-1111-1111-1111-111111111111")
+	})
 }
 
 // TestResourceIdentityDeployment verifies that a node agent running under a
