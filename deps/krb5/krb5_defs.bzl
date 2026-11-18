@@ -1,6 +1,7 @@
 """Compiler flags shared by the krb5 overlay packages."""
 
 KRB5_COPTS = [
+    "-O2",
     "-std=gnu11",
     "-Wno-deprecated-declarations",
     "-fmacro-prefix-map=$(BINDIR)/=",

@@ -82,6 +82,7 @@ var (
 		"--client-cert-auth",
 		"--cluster-signing-cert-file",
 		"--cluster-signing-key-file",
+		"--config-dir",
 		"--data-dir",
 		"--disable-admission-plugins",
 		"--enable-admission-plugins",
@@ -309,6 +310,8 @@ func defaultedType(_ string, conf *conf) *conf {
 			conf.flagType = "admission_config_file"
 		case conf.flagName == "config", conf.flagName == "audit-policy-file", conf.flagName == "image-credential-provider-config":
 			conf.flagType = "config_file"
+		case conf.flagName == "config-dir":
+			conf.flagType = "config_dir"
 		case strings.Contains(conf.flagName, "dir"):
 			conf.flagType = "dir"
 		}
@@ -376,6 +379,9 @@ func defaultedType(_ string, conf *conf) *conf {
 	case "dir":
 		conf.flagDefault = parseTypeString(conf.flagDefault)
 		conf.goType = "*K8sDirMeta"
+	case "config_dir":
+		conf.flagDefault = parseTypeString(conf.flagDefault)
+		conf.goType = "*K8sConfigDirMeta"
 	case "strings", "moduleSpec":
 		conf.flagDefault = parseTypeStringsArray(conf.flagDefault)
 		conf.goType = "[]string"
@@ -476,6 +482,8 @@ func printKomponentCode(komp *komponent) string {
 			return fmt.Sprintf("res.%s = l.loadEncryptionProviderConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sDirMeta":
 			return fmt.Sprintf("res.%s = l.loadDirMeta(%s)", toGoField(c.flagName), v)
+		case "*K8sConfigDirMeta":
+			return fmt.Sprintf("res.%s = l.loadConfigDirMeta(%s)", toGoField(c.flagName), v)
 		default:
 			panic(fmt.Errorf("non supported type %s %s %s %q for with default %s", komp.name, komp.version, c.flagName, c.goType, c.flagDefault))
 		}
