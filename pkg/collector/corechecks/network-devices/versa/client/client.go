@@ -885,7 +885,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		[]string{
 			"availability",
 		},
-		nil,
+		timeseriesLayouts[EndpointLinkStatusMetrics],
 		parseLinkStatusMetrics,
 	)
 }
@@ -930,7 +930,7 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 			"bw-rx",
 			"availability",
 		},
-		nil,
+		timeseriesLayouts[EndpointSiteMetrics],
 		parseSiteMetrics,
 	)
 }
@@ -955,7 +955,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 			"bw-rx",
 			"bandwidth",
 		},
-		nil,
+		timeseriesLayouts[EndpointApplicationsByApplianceMetrics],
 		parseApplicationsByApplianceMetrics,
 	)
 }
@@ -980,7 +980,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 			"bw-rx",
 			"bandwidth",
 		},
-		nil,
+		timeseriesLayouts[EndpointTopUserMetrics],
 		parseTopUserMetrics,
 	)
 }
@@ -1004,11 +1004,11 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
-		// No timeseries layout yet: the lab returned no tunnel data in either mode, so
-		// the series names are not known. parseTunnelMetrics reads VolumeRx before
-		// VolumeTx while volume-tx is requested first; that column order is still to be
-		// confirmed against a response with data.
-		nil,
+		// Tunnel has no entry in timeseriesLayouts yet: the lab returned no tunnel data
+		// in either mode, so the series names are not known. parseTunnelMetrics reads
+		// VolumeRx before VolumeTx while volume-tx is requested first; that column order
+		// is still to be confirmed against a response with data.
+		timeseriesLayouts[EndpointTunnelMetrics],
 		parseTunnelMetrics,
 	)
 }
