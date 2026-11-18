@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/gobwas/glob"
@@ -23,6 +24,7 @@ import (
 type Config struct {
 	ActionsAllowlist                   ActionsAllowlist
 	Allowlist                          []string
+	DomainAllowlist                    []string
 	AllowIMDSEndpoint                  bool
 	KubernetesAllowedCustomResources   []string
 	RShellAllowedPaths                 []string
@@ -140,6 +142,16 @@ func (c *Config) IsURLInAllowlist(urlStr string) bool {
 	}
 
 	return false
+}
+
+// IsDomainAllowed reports whether hostname equals an entry of DomainAllowlist or
+// is a subdomain of a *.domain entry, comparing the ASCII form net/http dials.
+// A nil DomainAllowlist allows every domain.
+func (c *Config) IsDomainAllowed(hostname string) bool {
+	if c.DomainAllowlist == nil {
+		return true
+	}
+	return httpdomain.AllowsHost(c.DomainAllowlist, hostname)
 }
 
 func (c *Config) IdentityIsIncomplete() bool {
