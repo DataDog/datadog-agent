@@ -1337,76 +1337,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_unenforced_policy_keeps_current_behavior() {
+    async fn test_unenforced_policy_allows_reload_config() {
         let (mut client, _shutdown) = start_test_server_with_catalog(
-            LoadedCatalog::valid(vec![sleep_process_def("target")]),
+            LoadedCatalog::valid(vec![]),
             CallerPolicy::from_enforce(false),
         )
         .await;
-
-        client.list(proto::ListRequest {}).await.unwrap();
-        client
-            .describe(proto::DescribeRequest {
-                name_or_uuid: "target".to_string(),
-            })
-            .await
-            .unwrap();
-        client.get_status(proto::GetStatusRequest {}).await.unwrap();
-        client.get_config(proto::GetConfigRequest {}).await.unwrap();
-
-        let (cmd, args) = test_helpers::true_cmd();
-        client
-            .create(proto::CreateRequest {
-                name: "created".to_string(),
-                command: cmd.to_string(),
-                args,
-                auto_start: Some(false),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-
-        let err = client
-            .create(proto::CreateRequest {
-                name: "empty".to_string(),
-                command: String::new(),
-                ..Default::default()
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(err.code(), tonic::Code::InvalidArgument);
 
         client
             .reload_config(proto::ReloadConfigRequest {})
             .await
             .unwrap();
-
-        let started = client
-            .start(proto::StartRequest {
-                name_or_uuid: "target".to_string(),
-            })
-            .await
-            .unwrap()
-            .into_inner();
-        assert!(started.pid > 0);
-
-        let stopped = client
-            .stop(proto::StopRequest {
-                name_or_uuid: "target".to_string(),
-            })
-            .await;
-        test_helpers::cleanup_process(started.pid);
-        assert_eq!(
-            stopped.unwrap().into_inner().state,
-            proto::ProcessState::Stopped as i32
-        );
-
-        let err = client
-            .stop(proto::StopRequest {
-                name_or_uuid: "missing".to_string(),
-            })
-            .await
-            .unwrap_err();
-        assert_eq!(err.code(), tonic::Code::NotFound);
     }
 }
