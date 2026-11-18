@@ -62,7 +62,7 @@ type ScanWelchDetector struct {
 	// scanBuf is shared by this single-writer detector instead of being retained
 	// once per live series and aggregation.
 	scanBuf   []observer.Point
-	workspace scanDetectorWorkspace
+	workspace stableDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef

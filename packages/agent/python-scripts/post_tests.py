@@ -1,10 +1,12 @@
-import unittest
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import patch
+
 from post import post
-import packages
-from packages import IntegrationsRestoreError, IntegrationInstallError
+
+from packages import IntegrationInstallError, IntegrationsRestoreError
+
 
 class TestPost(unittest.TestCase):
     def test_post(self):
@@ -19,7 +21,7 @@ class TestPost(unittest.TestCase):
         # confirm it made .post_python_installed_packages.txt
         post_file = os.path.join(storage_location, ".post_python_installed_packages.txt")
         self.assertTrue(os.path.exists(post_file))
-        with open(post_file, 'r', encoding='utf-8') as f:
+        with open(post_file, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
             self.assertIn("invoke", content)
@@ -58,7 +60,7 @@ class TestPost(unittest.TestCase):
 
         # confirm it made .post_python_installed_packages.txt
         self.assertTrue(os.path.exists(post_file))
-        with open(post_file, 'r', encoding='utf-8') as f:
+        with open(post_file, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
 
@@ -120,13 +122,11 @@ class TestPost(unittest.TestCase):
         # Mock diff file with packages to install
         diff_requirements = {
             'requests': ('requests==2.25.1', '2.25.1'),
-            'datadog-custom': ('datadog-custom==1.0.0', '1.0.0')
+            'datadog-custom': ('datadog-custom==1.0.0', '1.0.0'),
         }
 
         # Mock exclude file with one package to exclude
-        exclude_requirements = {
-            'requests': ('requests==2.25.0', '2.25.0')
-        }
+        exclude_requirements = {'requests': ('requests==2.25.0', '2.25.0')}
 
         # Setup mock return values
         mock_load_requirements.side_effect = [diff_requirements, exclude_requirements]

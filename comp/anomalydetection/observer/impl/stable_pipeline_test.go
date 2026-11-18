@@ -209,3 +209,40 @@ func TestStablePipeline_WarnsOnceForMissingEvidence(t *testing.T) {
 	assert.True(t, p.warnedMissingEvidence)
 	assert.Equal(t, uint64(4), p.drainGatedRejections())
 }
+
+func TestNewStableDetector_Selection(t *testing.T) {
+	detector, err := newStableDetector(DefaultStablePipelineConfig())
+	require.NoError(t, err)
+	scanmw, ok := detector.(*ScanMWDetector)
+	require.True(t, ok)
+	require.Equal(t, DefaultScanMWConfig(), scanmw.config)
+
+	detector, err = newStableDetector(StablePipelineConfig{ScanMW: &StableScanMWConfig{MinPoints: 42, MaxPoints: 84}})
+	require.NoError(t, err)
+	scanmw, ok = detector.(*ScanMWDetector)
+	require.True(t, ok)
+	require.Equal(t, 42, scanmw.config.MinPoints)
+	require.Equal(t, 84, scanmw.config.MaxPoints)
+
+	detector, err = newStableDetector(StablePipelineConfig{ScanWelch: &StableScanWelchConfig{}})
+	require.NoError(t, err)
+	scanwelch, ok := detector.(*ScanWelchDetector)
+	require.True(t, ok)
+	require.Equal(t, DefaultScanWelchConfig(), scanwelch.config)
+
+	detector, err = newStableDetector(StablePipelineConfig{BOCPD: &StableBOCPDConfig{WarmupPoints: 42, MaxRunLength: 84}})
+	require.NoError(t, err)
+	bocpd, ok := detector.(*BOCPDDetector)
+	require.True(t, ok)
+	require.Equal(t, 42, bocpd.config.WarmupPoints)
+	require.Equal(t, 84, bocpd.config.MaxRunLength)
+	require.True(t, bocpd.stablePipelineEnabled)
+}
+
+func TestNewStableDetector_RejectsMultipleBlocks(t *testing.T) {
+	_, err := newStableDetector(StablePipelineConfig{
+		ScanMW: &StableScanMWConfig{},
+		BOCPD:  &StableBOCPDConfig{},
+	})
+	require.EqualError(t, err, "stable pipeline accepts at most one detector block")
+}
