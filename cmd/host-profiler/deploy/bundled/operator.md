@@ -106,36 +106,16 @@ The provided profile limits what the Host Profiler container can execute. It all
 
 ## Selective deployment (optional)
 
-`spec.features.hostProfiler` applies to every node. To enable or disable the Host Profiler on selected nodes, set `spec.config.features.hostProfiler` in a [`DatadogAgentProfile`](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md) (DAP) instead. On matching nodes, the profile's fields override the `DatadogAgent` Custom Resource.
+Follow the [Datadog Agent Profiles guide](https://docs.datadoghq.com/containers/datadog_operator/datadog_agent_profiles/) to enable profiles. Create a `DatadogAgentProfile` in the same namespace as the `DatadogAgent` and select nodes with `spec.profileAffinity.profileNodeAffinity`.
 
-DAP is disabled by default. To enable it, see [Enabling DatadogAgentProfiles](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md#enabling-datadogagentprofiles) and its [prerequisites](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md#prerequisites).
+| Where to run the Host Profiler | `DatadogAgent` | `DatadogAgentProfile` |
+| --- | --- | --- |
+| Matching nodes only | Leave `spec.features.hostProfiler` unset | Set `spec.config.features.hostProfiler.enabled: true` |
+| All nodes except matching nodes | Set `spec.features.hostProfiler.enabled: true` | Set `spec.config.features.hostProfiler.enabled: false` |
 
-To enable the Host Profiler only on selected nodes, remove `spec.features.hostProfiler` from the `DatadogAgent` Custom Resource and create a profile in the same namespace:
+After rollout, verify that Agent pods still run on both matching and non-matching nodes, and that only the pods you intend to profile contain the `host-profiler` container.
 
-```yaml
-apiVersion: datadoghq.com/v1alpha1
-kind: DatadogAgentProfile
-metadata:
-  name: host-profiler
-  namespace: <NAMESPACE>
-spec:
-  profileAffinity:
-    profileNodeAffinity:
-      - key: eks.amazonaws.com/nodegroup
-        operator: In
-        values:
-          - ng1
-  config:
-    features:
-      hostProfiler:
-        enabled: true
-```
-
-To disable it on selected nodes instead, keep `spec.features.hostProfiler.enabled: true` on the `DatadogAgent` Custom Resource and set `enabled: false` in the profile.
-
-The Operator deploys a separate Agent DaemonSet, `<PROFILE_NAME>-agent`, on the matching nodes.
-
-Keep the image override annotation and the `host-profiler` container override on the `DatadogAgent` Custom Resource. They have no effect on nodes without the Host Profiler. To set different `resources` on matching nodes, add them under `spec.config.override.nodeAgent.containers.host-profiler` in the profile.
+Keep the Host Profiler image override annotation and shared container overrides on the `DatadogAgent`. For different resource requests or limits on matching nodes, set `spec.config.override.nodeAgent.containers.host-profiler.resources` in the profile.
 
 ## Migrating from annotations
 
@@ -143,7 +123,7 @@ Earlier Operator versions configured the Host Profiler with `agent.datadoghq.com
 
 If both are present, the Custom Resource takes precedence for each field it defines; annotations only fill in fields left unset in the spec. The Operator reports leftover annotations as deprecated in the `DatadogAgent` status, visible with `kubectl describe datadogagent`, and in its logs.
 
-Move each annotation to its replacement, then remove the annotation. For a `DatadogAgentProfile`, the replacements live under `spec.config.features.hostProfiler` instead of `spec.features.hostProfiler`:
+Move each annotation to its replacement and remove the annotation. For a `DatadogAgentProfile`, use `spec.config.features.hostProfiler` in place of `spec.features.hostProfiler` in the table:
 
 | Annotation | Replacement |
 |:------------|:-------------|
