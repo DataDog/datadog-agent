@@ -881,6 +881,15 @@ local regeneration only: tag the Wine target, the alias and its
 `write_source_file` `manual`, and check the committed output with a `diff_test`
 against the native target, which only runs on Windows.
 
+`cgo_godefs` with `platform = "windows"` needs no Wine: it only runs the C
+compiler on headers. On a Windows exec platform it uses winlibs gcc; elsewhere
+hermetic clang targets `x86_64-w64-mingw32` with the winlibs headers as sysroot,
+and the output is the same. `bazel run //pkg/network/driver:types_godefs`
+regenerates `types_windows.go` from Linux or macOS; the `_test` diff stays
+Windows-only. Include Windows headers in lowercase (`<windef.h>`, not
+`<WinDef.h>`): Linux filesystems are case-sensitive and MinGW names them in
+lowercase.
+
 ## Depsets and rule performance
 
 Accumulating deps with plain lists is O(n²). Use depsets.

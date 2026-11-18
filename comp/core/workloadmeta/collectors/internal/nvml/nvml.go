@@ -62,6 +62,12 @@ type collector struct {
 	kaiAssignmentFailed                telemetry.Counter
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
+	// nodeGPULabels caches the labels of this node, as read for the GPU
+	// sharing strategy resolution, and nodeGPULabelsAt is when they were last
+	// read, successfully or not. fetchNodeLabels reads them.
+	nodeGPULabels   map[string]string
+	nodeGPULabelsAt time.Time
+	fetchNodeLabels func(context.Context) (map[string]string, error)
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
 	// lost GPUs keep the attributes that can no longer be queried from NVML.
 	lastPublishedGPUs map[string]*workloadmeta.GPU
@@ -342,6 +348,7 @@ func newCollector(store workloadmeta.Component, config config.Component, tm tele
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
 		kaiAssignmentFailed:     newKAIAssignmentFailedCounter(tm),
+		fetchNodeLabels:         fetchNodeLabels,
 		// The host sysfs is often only partly mounted in containers, but the PCI
 		// devices tree isn't namespaced, so the container's own /sys works too.
 		pciDevicesRoots: []string{kernel.HostSys("bus", "pci", "devices"), "/sys/bus/pci/devices"},
@@ -428,6 +435,10 @@ func (c *collector) Pull(ctx context.Context) error {
 		// them KAI shares.
 		kai := c.resolveKAIFractions(c.deviceCache)
 
+		// Resolved before the devices are published too: it says which of
+		// them are shared by replication (time-slicing, MPS).
+		timeSlices := c.resolveTimeSlices(ctx)
+
 		// add/update current devices
 		currentUUIDs := map[string]struct{}{}
 		pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
@@ -447,6 +458,12 @@ func (c *collector) Pull(ctx context.Context) error {
 			uuid := dev.GetDeviceInfo().UUID
 			if _, shared := kai.sharedGPUs[uuid]; shared {
 				gpu.SharingMode = workloadmeta.GPUSharingModeKAIFraction
+			} else if sharing, shared := timeSlices.shared[uuid]; shared {
+				// KAI does not support the device plugin's replicas setting,
+				// so a GPU is never both:
+				// https://github.com/kai-scheduler/KAI-Scheduler/blob/main/docs/gpu-sharing/README.md#device-plugin-replicas-setting
+				gpu.SharingMode = sharing.mode
+				gpu.SharingReplicas = sharing.replicas
 			}
 			currentUUIDs[uuid] = struct{}{}
 			c.lastPublishedGPUs[uuid] = gpu
@@ -488,7 +505,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache, kai, timeSlices)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -584,15 +601,18 @@ var migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 
 // createContainerGPUEvents publishes the Container<->GPU edge for the
 // allocations the kubelet PodResources API does not describe: DRA-allocated
-// devices, resolved from each container's CDI device nodes to NVML UUIDs, and
-// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods. It
-// repairs the container->device edge that the regex guess in
+// devices, resolved from each container's CDI device nodes to NVML UUIDs,
+// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods,
+// and shared device replicas (time-slicing, MPS), whose base device UUID is
+// the allocation ID stripped of its replica suffix. It repairs the
+// container->device edge that the regex guess in
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
 // is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
 // and that it cannot make at all for a KAI fraction, which never appears as an
 // allocation. kai holds the KAI fractions resolved for this pull, see
-// resolveKAIFractions.
-func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions) []workloadmeta.CollectorEvent {
+// resolveKAIFractions; timeSlices holds the shared replicas, see
+// resolveTimeSlices.
+func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai kaiFractions, timeSlices timeSlices) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
 	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
@@ -606,6 +626,11 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 	// and merged into each container's UUIDs below, rather than inside the
 	// loop.
 	maps.Copy(claiming, kai.claiming)
+	// Every container holding a shared-replica allocation claims too, for
+	// the same retraction as the DRA and KAI claims.
+	for id := range timeSlices.byContainer {
+		claiming[id] = struct{}{}
+	}
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -665,7 +690,12 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 			allResolved = false
 		}
 
-		if len(uuids) == 0 {
+		// Shared replicas are not merged into the UUIDs: GPU attribution
+		// resolves them from the kubelet allocation, and counts the UUIDs as
+		// resolved DRA devices, so a replica would hide an unresolved DRA
+		// allocation of the same container.
+		replicas := timeSlices.byContainer[container.ID]
+		if len(uuids) == 0 && len(replicas) == 0 {
 			continue
 		}
 		if !allResolved {
@@ -704,8 +734,10 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache, kai
 				},
 				GPUDeviceIDs: uuids,
 				// Only KAI fractions carry a share; DRA devices are allocated
-				// to the container whole.
-				GPUShares: kai.sharesByContainer[container.ID],
+				// to the container whole. Shared replicas carry their own
+				// allocation info, from the kubelet-allocated IDs.
+				GPUShares:         kai.sharesByContainer[container.ID],
+				GPUDeviceReplicas: replicas,
 			},
 		})
 		published[container.ID] = uuids
