@@ -31,7 +31,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const version = "202608"
+const version = "202611"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -113,6 +113,11 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
+	}
+
+	// azure.json holds the cluster credentials: stat it, do not read it.
+	if env := node.ManagedEnvironment; env != nil && env.Name == "aks" {
+		node.AzureJSON = l.loadFileMeta("/etc/kubernetes/azure.json")
 	}
 
 	if len(l.errs) > 0 {
@@ -250,6 +255,21 @@ func (l *loader) loadDirMeta(name string) *K8sDirMeta {
 		return &K8sDirMeta{Path: name}
 	}
 	return &K8sDirMeta{
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
+	}
+}
+
+// loadFileMeta stats name and returns its ownership and permissions, or nil
+// when the stat fails.
+func (l *loader) loadFileMeta(name string) *K8sFileMeta {
+	_, info, _, ok := l.loadMeta(name, false)
+	if !ok {
+		return nil
+	}
+	return &K8sFileMeta{
 		Path:  name,
 		User:  utils.GetFileUser(info),
 		Group: utils.GetFileGroup(info),
