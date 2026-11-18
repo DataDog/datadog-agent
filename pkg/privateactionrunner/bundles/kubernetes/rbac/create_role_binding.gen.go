@@ -1,0 +1,62 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package com_datadoghq_kubernetes_rbac
+
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+
+	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	v1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+type CreateRoleBindingHandler struct{}
+
+func NewCreateRoleBindingHandler() *CreateRoleBindingHandler {
+	return &CreateRoleBindingHandler{}
+}
+
+type CreateRoleBindingInputs struct {
+	*support.CreateFields
+	Namespace string          `json:"namespace,omitempty"`
+	Body      *v1.RoleBinding `json:"body,omitempty"`
+}
+
+type CreateRoleBindingOutputs struct {
+	ObjectMeta metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Subjects   []v1.Subject      `json:"subjects,omitempty" protobuf:"bytes,2,rep,name=subjects"`
+	RoleRef    v1.RoleRef        `json:"roleRef" protobuf:"bytes,3,opt,name=roleRef"`
+}
+
+func (h *CreateRoleBindingHandler) Run(
+	ctx context.Context,
+	task *types.Task,
+	credential *privateconnection.PrivateCredentials,
+) (outputs interface{}, err error) {
+	inputs, err := types.ExtractInputs[CreateRoleBindingInputs](task)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := support.KubeClient(credential)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := client.RbacV1().RoleBindings(inputs.Namespace).Create(ctx, inputs.Body, support.MetaCreate(inputs.CreateFields))
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateRoleBindingOutputs{
+		ObjectMeta: response.ObjectMeta,
+		Subjects:   response.Subjects,
+		RoleRef:    response.RoleRef,
+	}, nil
+}
