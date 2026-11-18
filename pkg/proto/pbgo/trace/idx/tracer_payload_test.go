@@ -463,3 +463,132 @@ func TestDecodersRejectCountsAboveLimit(t *testing.T) {
 		assert.ErrorContains(t, err, "too long payload")
 	})
 }
+
+func TestTraceChunkEnvAppVersionOverride(t *testing.T) {
+	t.Run("decode string and streaming index", func(t *testing.T) {
+		strings := NewStringTable()
+		var bts []byte
+		bts = msgp.AppendMapHeader(bts, 3)
+		bts = msgp.AppendUint32(bts, 8)
+		bts = msgp.AppendString(bts, "staging")
+		bts = msgp.AppendUint32(bts, 2)
+		bts = msgp.AppendUint32(bts, 1) // origin: streaming-string ref to "staging"
+		bts = msgp.AppendUint32(bts, 9)
+		bts = msgp.AppendString(bts, "v2")
+		tc := &InternalTraceChunk{Strings: strings}
+		o, err := tc.UnmarshalMsg(bts)
+		require.NoError(t, err)
+		require.Empty(t, o)
+		assert.Equal(t, "staging", tc.Env())
+		assert.Equal(t, "v2", tc.AppVersion())
+
+		var bts2 []byte
+		bts2 = msgp.AppendMapHeader(bts2, 2)
+		bts2 = msgp.AppendUint32(bts2, 8)
+		bts2 = msgp.AppendUint32(bts2, 2) // streaming ref to "v2"
+		bts2 = msgp.AppendUint32(bts2, 9)
+		bts2 = msgp.AppendUint32(bts2, 1) // streaming ref to "staging"
+		tc2 := &InternalTraceChunk{Strings: strings}
+		_, err = tc2.UnmarshalMsg(bts2)
+		require.NoError(t, err)
+		assert.Equal(t, "v2", tc2.Env())
+		assert.Equal(t, "staging", tc2.AppVersion())
+	})
+
+	t.Run("no keys means no override", func(t *testing.T) {
+		tc := &InternalTraceChunk{Strings: NewStringTable()}
+		_, err := tc.UnmarshalMsg(msgp.AppendInt32(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 1), 2))
+		require.NoError(t, err)
+		assert.Empty(t, tc.Env())
+		assert.Empty(t, tc.AppVersion())
+	})
+
+	t.Run("marshal round trip, copies and proto", func(t *testing.T) {
+		strings := NewStringTable()
+		tc := NewInternalTraceChunk(strings, 1, "", nil, nil, false, nil, 0)
+		tc.SetEnv("prod")
+		tc.SetAppVersion("1.2.3")
+		bts, err := tc.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+		require.NoError(t, err)
+		got := &InternalTraceChunk{Strings: NewStringTable()}
+		_, err = got.UnmarshalMsg(bts)
+		require.NoError(t, err)
+		assert.Equal(t, "prod", got.Env())
+		assert.Equal(t, "1.2.3", got.AppVersion())
+
+		cp := tc.ShallowCopy()
+		assert.Equal(t, "prod", cp.Env())
+		assert.Equal(t, "1.2.3", cp.AppVersion())
+
+		p := tc.ToProto()
+		back := fromProtoChunk(strings, p)
+		assert.Equal(t, "prod", back.Env())
+		assert.Equal(t, "1.2.3", back.AppVersion())
+
+		// CompactStrings must keep chunk refs pointing to the right strings.
+		tp := &TracerPayload{Strings: []string{"", "unused", "prod", "1.2.3"}, Chunks: []*TraceChunk{{EnvRef: 2, AppVersionRef: 3}}}
+		tp.CompactStrings()
+		assert.Equal(t, "prod", tp.Strings[tp.Chunks[0].EnvRef])
+		assert.Equal(t, "1.2.3", tp.Strings[tp.Chunks[0].AppVersionRef])
+	})
+}
+
+func TestToProtoByEnvVersion(t *testing.T) {
+	newPayload := func() *InternalTracerPayload {
+		strings := NewStringTable()
+		tp := &InternalTracerPayload{Strings: strings}
+		tp.SetEnv("prod")
+		tp.SetAppVersion("v1")
+		return tp
+	}
+	addChunk := func(tp *InternalTracerPayload, env, version string) *InternalTraceChunk {
+		c := NewInternalTraceChunk(tp.Strings, int32(len(tp.Chunks)), "", nil, nil, false, nil, 0)
+		if env != "" {
+			c.SetEnv(env)
+		}
+		if version != "" {
+			c.SetAppVersion(version)
+		}
+		tp.Chunks = append(tp.Chunks, c)
+		return c
+	}
+	envVersion := func(p *TracerPayload) [2]string { return [2]string{p.Strings[p.EnvRef], p.Strings[p.AppVersionRef]} }
+
+	t.Run("no overrides", func(t *testing.T) {
+		tp := newPayload()
+		addChunk(tp, "", "")
+		addChunk(tp, "", "")
+		out := tp.ToProtoByEnvVersion()
+		require.Len(t, out, 1)
+		assert.Equal(t, tp.ToProto(), out[0])
+	})
+
+	t.Run("override equal to payload values", func(t *testing.T) {
+		tp := newPayload()
+		addChunk(tp, "prod", "v1")
+		addChunk(tp, "", "")
+		out := tp.ToProtoByEnvVersion()
+		require.Len(t, out, 1)
+		assert.Len(t, out[0].Chunks, 2)
+	})
+
+	t.Run("mixed overrides", func(t *testing.T) {
+		tp := newPayload()
+		addChunk(tp, "staging", "v2") // 0
+		addChunk(tp, "", "")          // 1
+		addChunk(tp, "dev", "")       // 2: env-only override keeps payload version
+		addChunk(tp, "staging", "v2") // 3
+		out := tp.ToProtoByEnvVersion()
+		require.Len(t, out, 3)
+		assert.Equal(t, [2]string{"staging", "v2"}, envVersion(out[0]))
+		assert.Equal(t, [2]string{"prod", "v1"}, envVersion(out[1]))
+		assert.Equal(t, [2]string{"dev", "v1"}, envVersion(out[2]))
+		require.Len(t, out[0].Chunks, 2)
+		assert.Equal(t, int32(0), out[0].Chunks[0].Priority)
+		assert.Equal(t, int32(3), out[0].Chunks[1].Priority)
+		require.Len(t, out[1].Chunks, 1)
+		assert.Equal(t, int32(1), out[1].Chunks[0].Priority)
+		require.Len(t, out[2].Chunks, 1)
+		assert.Equal(t, int32(2), out[2].Chunks[0].Priority)
+	})
+}
