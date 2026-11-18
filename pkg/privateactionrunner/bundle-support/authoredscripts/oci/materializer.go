@@ -48,17 +48,12 @@ func NewMaterializer(environment *installerenv.Env, client *http.Client) (*Mater
 	environmentCopy.RegistryAuthOverrideByImage = maps.Clone(environment.RegistryAuthOverrideByImage)
 	environmentCopy.RegistryUsernameByImage = maps.Clone(environment.RegistryUsernameByImage)
 	environmentCopy.RegistryPasswordByImage = maps.Clone(environment.RegistryPasswordByImage)
-	flavor := "base"
-	if environmentCopy.FIPSMode {
-		flavor = fleetoci.VariantFIPS
-	}
 	return &Materializer{
 		downloader: fleetoci.NewDownloader(&environmentCopy, client),
 		materializationID: strings.Join([]string{
 			materializationLayoutVersion,
 			runtime.GOOS,
 			runtime.GOARCH,
-			flavor,
 		}, "-"),
 	}, nil
 }

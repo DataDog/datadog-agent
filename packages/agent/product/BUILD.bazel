@@ -42,7 +42,6 @@ pkg_filegroup(
         # TODO: sysprobe - windows
         ":trace_agent_binary",
         ":process_agent_binary",
-        ":privateactionrunner_binary",
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
@@ -76,6 +75,14 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }) + select({
+        # Private action runner is not supported in FIPS.
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":privateactionrunner_binary"],
+    }) + select({
+        "//packages/agent:windows_x86_64_fips": [],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
+        "//conditions:default": [],
+    }) + select({
         "@platforms//os:linux": [
             "//cmd/loader:trace_loader_all_files",
         ],
@@ -89,7 +96,6 @@ pkg_filegroup(
             ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files",
             "//rtloader:all_files",
         ],
