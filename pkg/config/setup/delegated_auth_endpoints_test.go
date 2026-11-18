@@ -636,3 +636,20 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
 }
+
+func TestDefaultProviderConfigForOIDC(t *testing.T) {
+	config := confFromYAML(t, `
+delegated_auth:
+  provider: oidc
+  oidc:
+    token_file: /var/run/secrets/datadog/token
+`)
+	assert.Equal(t, &cloudauthconfig.OIDCProviderConfig{TokenFile: "/var/run/secrets/datadog/token"}, defaultProviderConfigForConfig(config))
+}
+
+func TestDefaultProviderConfigForOIDCFromEnv(t *testing.T) {
+	t.Setenv("DD_DELEGATED_AUTH_PROVIDER", "oidc")
+	t.Setenv("DD_DELEGATED_AUTH_OIDC_TOKEN_FILE", "/var/run/secrets/datadog/token")
+	config := confFromYAML(t, "")
+	assert.Equal(t, &cloudauthconfig.OIDCProviderConfig{TokenFile: "/var/run/secrets/datadog/token"}, defaultProviderConfigForConfig(config))
+}

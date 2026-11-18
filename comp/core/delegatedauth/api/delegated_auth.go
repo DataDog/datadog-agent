@@ -27,6 +27,7 @@ import (
 
 const (
 	authorizationType = "Delegated"
+	oidcProofPrefix   = "oidc-"
 
 	contentTypeHeader   = "Content-Type"
 	authorizationHeader = "Authorization"
@@ -165,6 +166,13 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	}
 	if targetSite != "" {
 		client.CheckRedirect = checkDelegatedAuthRedirect
+	}
+	if strings.HasPrefix(delegatedAuthProof, oidcProofPrefix) {
+		// The workload JWT is a bearer credential, so never send it in plaintext or follow a redirect with it.
+		if !strings.HasPrefix(url, "https://") {
+			return nil, errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
+		}
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {

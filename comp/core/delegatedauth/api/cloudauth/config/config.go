@@ -20,3 +20,18 @@ type AWSProviderConfig struct {
 func (c *AWSProviderConfig) ProviderName() string {
 	return ProviderAWS
 }
+
+// ProviderOIDC is the specifier for the custom OIDC provider type
+const ProviderOIDC = "oidc"
+
+// OIDCProviderConfig contains custom OIDC configuration for delegated auth.
+// Implements common.ProviderConfig interface.
+type OIDCProviderConfig struct {
+	// TokenFile is the absolute path to a Datadog-scoped workload JWT, re-read on every exchange.
+	TokenFile string
+}
+
+// ProviderName returns the provider name for custom OIDC.
+func (c *OIDCProviderConfig) ProviderName() string {
+	return ProviderOIDC
+}

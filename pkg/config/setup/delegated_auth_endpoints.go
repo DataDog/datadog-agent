@@ -317,9 +317,13 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 // one keeps nil so the component auto-detects.
 func defaultProviderConfigForConfig(config pkgconfigmodel.Reader) common.ProviderConfig {
 	switch config.GetString("delegated_auth.provider") {
-	case "aws":
+	case cloudauthconfig.ProviderAWS:
 		return &cloudauthconfig.AWSProviderConfig{
 			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	case cloudauthconfig.ProviderOIDC:
+		return &cloudauthconfig.OIDCProviderConfig{
+			TokenFile: config.GetString("delegated_auth.oidc.token_file"),
 		}
 	default:
 		// Empty provider means auto-detect, so ProviderConfig stays nil even when
