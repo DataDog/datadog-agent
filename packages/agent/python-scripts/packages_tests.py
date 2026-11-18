@@ -1,21 +1,29 @@
-import unittest
-from packages import extract_version, create_python_installed_packages_file, create_diff_installed_packages_file, check_file_owner_system_windows
-from packages import run_command, install_datadog_package, install_dependency_package, install_diff_packages_file
-from packages import IntegrationInstallError, IntegrationsRestoreError
-import packages
-import packaging.requirements
 import os
 import tempfile
-from unittest.mock import patch, call, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+
+import packaging.requirements
+
+from packages import (
+    IntegrationInstallError,
+    IntegrationsRestoreError,
+    create_diff_installed_packages_file,
+    create_python_installed_packages_file,
+    extract_version,
+    install_datadog_package,
+    install_diff_packages_file,
+    run_command,
+)
+
 
 class TestPackages(unittest.TestCase):
-
     def test_extract_version(self):
         req = packaging.requirements.Requirement("package==1.0.0")
         expected_version = "1.0.0"
-        
+
         result = extract_version(req)
-        
+
         self.assertEqual(result, expected_version)
 
     def test_create_python_installed_packages_file(self):
@@ -23,20 +31,19 @@ class TestPackages(unittest.TestCase):
         test_directory = tempfile.mkdtemp()
         test_filename = os.path.join(test_directory, "test_installed_packages.txt")
         os.makedirs(test_directory, exist_ok=True)
-        
+
         create_python_installed_packages_file(test_filename)
-        
+
         self.assertTrue(os.path.exists(test_filename))
-        
-        with open(test_filename, 'r', encoding='utf-8') as f:
+
+        with open(test_filename, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
             self.assertIn("invoke", content)
 
-        
         # Cleanup
         os.remove(test_filename)
-        
+
         # running rmdir verifies that the directory is empty
         os.rmdir(test_directory)
 
@@ -58,8 +65,8 @@ class TestPackages(unittest.TestCase):
         create_diff_installed_packages_file(test_directory, old_file, new_file)
 
         self.assertTrue(os.path.exists(diff_file))
-        
-        with open(diff_file, 'r', encoding='utf-8') as f:
+
+        with open(diff_file, encoding='utf-8') as f:
             content = f.read()
             self.assertIn("# DO NOT REMOVE/MODIFY", content)
             self.assertIn("newpackage==2.0.0", content)
@@ -68,7 +75,7 @@ class TestPackages(unittest.TestCase):
         os.remove(old_file)
         os.remove(new_file)
         os.remove(diff_file)
-        
+
         # running rmdir verifies that the directory is empty
         # asserts no extra files are created
         os.rmdir(test_directory)
@@ -86,6 +93,7 @@ class TestPackages(unittest.TestCase):
 
     def test_run_command_failure_returns_nonzero_rc(self):
         import subprocess
+
         with patch('subprocess.run') as mock_run:
             exc = subprocess.CalledProcessError(1, ['false'], output='', stderr='something went wrong')
             mock_run.side_effect = exc
@@ -141,7 +149,9 @@ class TestPackages(unittest.TestCase):
             f.write('')
 
         # install_datadog_package always raises
-        with patch('packages.install_datadog_package', side_effect=IntegrationInstallError('pkg', 1, 'err')) as mock_install:
+        with patch(
+            'packages.install_datadog_package', side_effect=IntegrationInstallError('pkg', 1, 'err')
+        ) as mock_install:
             with self.assertRaises(IntegrationsRestoreError) as ctx:
                 install_diff_packages_file(install_dir, diff_file, req_file)
 

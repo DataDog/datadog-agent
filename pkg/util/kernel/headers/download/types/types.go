@@ -29,6 +29,7 @@ type Backend interface {
 type Utsname struct {
 	Kernel  string
 	Machine string
+	Version string
 }
 
 // Distro is information about the host Linux distro
@@ -79,6 +80,12 @@ func NewTarget() (Target, error) {
 		return target, fmt.Errorf("kernel machine: %w", err)
 	}
 	target.Uname.Machine = m
+
+	v, err := kernel.UnameVersion()
+	if err != nil {
+		return target, fmt.Errorf("kernel version: %w", err)
+	}
+	target.Uname.Version = v
 	target.OSRelease = getOSRelease()
 
 	if isWSL(target.Uname.Kernel) {

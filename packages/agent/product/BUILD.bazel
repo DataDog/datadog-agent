@@ -36,6 +36,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
         ":agent_binary",
 
         # TODO: sysprobe - windows
@@ -107,6 +108,7 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -202,6 +204,10 @@ agent_binary_for_package(
 
 agent_binary_for_package(
     name = "secret_generic_connector_binary",
+    attributes = select({
+        "@platforms//os:linux": pkg_attributes(mode = "0500"),
+        "//conditions:default": pkg_attributes(mode = "0755"),
+    }),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
