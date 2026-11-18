@@ -32,8 +32,8 @@ const (
 )
 
 // DD_PM_SOCKET_PATH stays unset so the entrypoint default applies.
-func aioDockerOptions(split bool, urn, privateKey string) []func(*dockeragentparams.Params) error {
-	options := []func(*dockeragentparams.Params) error{
+func aioDockerOptions(urn, privateKey string) []func(*dockeragentparams.Params) error {
+	return []func(*dockeragentparams.Params) error{
 		dockeragentparams.WithAgentServiceEnvVariable("ENTRYPOINT", pulumi.String("procmgr-all-in-one")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_ENABLED", pulumi.String("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL", pulumi.String("false")),
@@ -44,29 +44,6 @@ func aioDockerOptions(split bool, urn, privateKey string) []func(*dockeragentpar
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", pulumi.String(`["rshell:echo"]`)),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", pulumi.String("true")),
 	}
-	if split {
-		options = append(options, dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", pulumi.String("true")))
-	}
-	return options
-}
-
-type aioDockerMonolithSuite struct {
-	e2e.BaseSuite[environments.DockerHost]
-
-	signingKey testSigningKey
-}
-
-func TestProcmgrAIOMonolithPARSuite(t *testing.T) {
-	t.Parallel()
-	urn, privateKey := GenerateTestRunnerIdentity(t)
-	suite := &aioDockerMonolithSuite{signingKey: generateTestSigningKey(t, "aio-monolith-key-"+uuid.NewString())}
-	e2e.Run(t, suite, e2e.WithProvisioner(awsdocker.Provisioner(
-		awsdocker.WithRunOptions(scendocker.WithAgentOptions(aioDockerOptions(false, urn, privateKey)...)),
-	)))
-}
-
-func (s *aioDockerMonolithSuite) TestExecutesTask() {
-	s.runAIOTask(aioMonolithProcess, false)
 }
 
 type aioDockerSplitSuite struct {
@@ -80,83 +57,31 @@ func TestProcmgrAIOSplitPARSuite(t *testing.T) {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	suite := &aioDockerSplitSuite{signingKey: generateTestSigningKey(t, "aio-split-key-"+uuid.NewString())}
 	e2e.Run(t, suite, e2e.WithProvisioner(awsdocker.Provisioner(
-		awsdocker.WithRunOptions(scendocker.WithAgentOptions(aioDockerOptions(true, urn, privateKey)...)),
+		awsdocker.WithRunOptions(scendocker.WithAgentOptions(aioDockerOptions(urn, privateKey)...)),
 	)))
 }
 
 func (s *aioDockerSplitSuite) TestExecutesTask() {
-	s.runAIOTask(parControlProcess, true)
-}
+	client := s.Env().FakeIntake.Client()
+	s.Require().NoError(client.FlushPAR())
+	s.waitForAIOProcess(parControlProcess, "Running", 3*time.Minute)
+	// describe keeps the unexpanded YAML; the live command line has the resolved path.
+	s.assertLiveIPCCert(parControlProcess)
+	s.waitForAIOProcess(aioMonolithProcess, "Exited", time.Minute)
 
-type aioDockerTaskSuite interface {
-	e2eEnv() *environments.DockerHost
-	require() *require.Assertions
-	eventually(fn func(*assert.CollectT), timeout, interval time.Duration)
-	signing() testSigningKey
-	testingT() *testing.T
-}
-
-func (s *aioDockerMonolithSuite) e2eEnv() *environments.DockerHost { return s.Env() }
-func (s *aioDockerMonolithSuite) require() *require.Assertions     { return s.Require() }
-func (s *aioDockerMonolithSuite) eventually(fn func(*assert.CollectT), timeout, interval time.Duration) {
-	s.EventuallyWithT(fn, timeout, interval)
-}
-func (s *aioDockerMonolithSuite) signing() testSigningKey { return s.signingKey }
-func (s *aioDockerMonolithSuite) testingT() *testing.T    { return s.T() }
-
-func (s *aioDockerSplitSuite) e2eEnv() *environments.DockerHost { return s.Env() }
-func (s *aioDockerSplitSuite) require() *require.Assertions     { return s.Require() }
-func (s *aioDockerSplitSuite) eventually(fn func(*assert.CollectT), timeout, interval time.Duration) {
-	s.EventuallyWithT(fn, timeout, interval)
-}
-func (s *aioDockerSplitSuite) signing() testSigningKey { return s.signingKey }
-func (s *aioDockerSplitSuite) testingT() *testing.T    { return s.T() }
-
-func (s *aioDockerMonolithSuite) runAIOTask(process string, split bool) {
-	runAIODockerTask(s, process, split)
-}
-
-func (s *aioDockerSplitSuite) runAIOTask(process string, split bool) {
-	runAIODockerTask(s, process, split)
-}
-
-func runAIODockerTask(s aioDockerTaskSuite, process string, split bool) {
-	client := s.e2eEnv().FakeIntake.Client()
-	s.require().NoError(client.FlushPAR())
-	waitForAIOProcess(s, process, "Running", 3*time.Minute)
-	if split {
-		// describe keeps the unexpanded YAML. The spawned command line is the resolved path.
-		assertLiveIPCCert(s, process)
-		// Split stands the monolith down: it starts, then exits 0.
-		waitForAIOProcess(s, aioMonolithProcess, "Exited", time.Minute)
-	} else {
-		waitForAIOProcess(s, parControlProcess, "Skipped", 30*time.Second)
-	}
-
-	key := s.signing()
-	publishKey := func() {
-		s.require().NoError(client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))
-		setPARTaskSigningKey(s.testingT(), client, key)
-	}
-	// privateactionrunner run does not dequeue until the first AP_RUNNER_KEYS
-	// callback. par-control polls with no key, so split publishes after that poll.
-	if !split {
-		publishKey()
-	}
-
-	s.eventually(func(c *assert.CollectT) {
+	key := s.signingKey
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPARDequeueCount()
 		require.NoError(c, err)
 		require.Greater(c, count, 0, "PAR should poll fakeintake")
 	}, 2*time.Minute, 2*time.Second)
 
-	if split {
-		publishKey()
-	}
+	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))
+	setPARTaskSigningKey(s.T(), client, key)
 	// The runner can hold a key from an earlier attempt. Each tick signs a fresh task,
 	// so one early rejection does not fail the wait.
-	marker := "par-aio-" + process
-	s.eventually(func(c *assert.CollectT) {
+	const marker = "par-aio-" + parControlProcess
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))
 		taskID := uuid.New().String()
 		require.NoError(c, client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
@@ -166,20 +91,18 @@ func runAIODockerTask(s aioDockerTaskSuite, process string, split bool) {
 		result, err := client.GetPARTaskResult(taskID, 20*time.Second)
 		require.NoError(c, err)
 		require.True(c, result.Success, "PAR action failed: %+v", result)
-		require.Equal(c, 0, rshellExitCode(s.testingT(), result), "unexpected rshell result: %+v", result)
+		require.Equal(c, 0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
 		require.Contains(c, result.Outputs["stdout"], marker)
 	}, 2*time.Minute, 2*time.Second)
 
-	if split {
-		// The on-demand executor idles out after a minute, so check it right after the task.
-		waitForAIOProcess(s, parExecutorProcess, "Running", 30*time.Second)
-		assertLiveIPCCert(s, parExecutorProcess)
-	}
+	// The on-demand executor idles out after a minute, so check it right after the task.
+	s.waitForAIOProcess(parExecutorProcess, "Running", 30*time.Second)
+	s.assertLiveIPCCert(parExecutorProcess)
 }
 
-func waitForAIOProcess(s aioDockerTaskSuite, process, state string, timeout time.Duration) {
-	s.eventually(func(c *assert.CollectT) {
-		out, stderr, err := s.e2eEnv().Docker.Client.ExecuteCommandStdoutStdErr(
+func (s *aioDockerSplitSuite) waitForAIOProcess(process, state string, timeout time.Duration) {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			aioDockerContainer,
 			"env", "DD_PM_SOCKET_PATH="+aioDockerSocket, aioDockerCLI, "describe", process,
 		)
@@ -191,9 +114,9 @@ func waitForAIOProcess(s aioDockerTaskSuite, process, state string, timeout time
 // The default config has no ipc_cert_file_path, so resolution lands beside datadog.yaml.
 const aioIPCCertPath = "/etc/datadog-agent/ipc_cert.pem"
 
-func assertLiveIPCCert(s aioDockerTaskSuite, process string) {
-	s.eventually(func(c *assert.CollectT) {
-		out, stderr, err := s.e2eEnv().Docker.Client.ExecuteCommandStdoutStdErr(
+func (s *aioDockerSplitSuite) assertLiveIPCCert(process string) {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			aioDockerContainer,
 			"env", "DD_PM_SOCKET_PATH="+aioDockerSocket, aioDockerCLI, "describe", "--json", process,
 		)
@@ -205,7 +128,7 @@ func assertLiveIPCCert(s aioDockerTaskSuite, process string) {
 		require.NoError(c, json.Unmarshal([]byte(out), &detail))
 		require.Equal(c, "Running", detail.State)
 		require.NotZero(c, detail.PID)
-		cmdline, stderr, err := s.e2eEnv().Docker.Client.ExecuteCommandStdoutStdErr(
+		cmdline, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			aioDockerContainer,
 			"sh", "-c", fmt.Sprintf("tr '\\000' ' ' < /proc/%d/cmdline", detail.PID),
 		)

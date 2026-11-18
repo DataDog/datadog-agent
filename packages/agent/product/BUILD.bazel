@@ -42,7 +42,7 @@ pkg_filegroup(
         # TODO: sysprobe - windows
         ":trace_agent_binary",
         ":process_agent_binary",
-        ":privateactionrunner_binary",
+        ":private_action_runner_files",
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
@@ -61,7 +61,6 @@ pkg_filegroup(
             "//deps/agent_integrations:integrations_runtime_files",
             "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
@@ -89,10 +88,24 @@ pkg_filegroup(
             ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
             "//rtloader:all_files",
         ],
+        "//conditions:default": [],
+    }),
+)
+
+# FIPS packages do not ship either PAR binary, matching Omnibus.
+pkg_filegroup(
+    name = "private_action_runner_files",
+    srcs = select({
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":privateactionrunner_binary"],
+    }) + select({
+        "//packages/agent:linux_fips": [],
+        "//packages/agent:windows_x86_64_fips": [],
+        "@platforms//os:linux": ["//pkg/privateactionrunner/par-control:all_files"],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
         "//conditions:default": [],
     }),
 )

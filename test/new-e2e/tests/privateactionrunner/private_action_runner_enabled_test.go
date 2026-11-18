@@ -57,7 +57,6 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
-  split_enabled: false
   self_enroll: false
   urn: %s
   private_key: %s
@@ -88,7 +87,8 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 				scenec2.WithPreAgentInstallHook(stagePrivateActionRunnerConfig(config)),
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig(config),
-					agentparams.WithFile("/etc/datadog-agent/environment", "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true\n", true),
+					// This suite exercises the standalone service on a deployment without a PAR supervisor.
+					agentparams.WithFile("/etc/datadog-agent/environment", "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true\nDD_INTERNAL_PAR_NO_PROCMGR=true\n", true),
 				),
 			),
 		),

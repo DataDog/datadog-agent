@@ -346,12 +346,9 @@ properties:
   split_enabled:
     node_type: setting
     type: boolean
-    platform_default:
-      container: false
-      linux: true
-      windows: true
-      other: false
-    comment: Enables split runner mode by default on supported host deployments. Split mode requires the process manager; disable this setting to retain monolithic execution.
+    default: true
+    deprecated: true
+    comment: Deprecated and ignored. Private Action Runner uses split mode wherever the deployment supports it.
   urn:
     node_type: setting
     type: string

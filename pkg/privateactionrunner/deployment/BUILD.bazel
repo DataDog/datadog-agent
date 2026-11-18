@@ -9,8 +9,7 @@ go_library(
     deps = [
         "//pkg/config/env",
         "//pkg/config/model",
-        "//pkg/fips",
-        "//pkg/privateactionrunner",
+        "//pkg/util/defaultpaths",
     ],
 )
 
@@ -20,7 +19,6 @@ dd_agent_go_test(
     embed = [":deployment"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/privateactionrunner",
         "@com_github_stretchr_testify//require",
     ],
 )

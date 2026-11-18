@@ -13,7 +13,7 @@ under `dd-procmgrd`, polls OPMS, and starts the on-demand Go executor to run act
    action-signing keys.
 
 Go resolves the snapshot once per process and never re-enrolls on repeated RPCs.
-When PAR or split mode is disabled, Go returns a disabled response with no identity
+When PAR is disabled, Go returns a disabled response with no identity
 resolution or action init, and Rust exits cleanly. An idle executor exits on its own
 timeout even before signing keys arrive.
 

@@ -126,11 +126,11 @@ start_and_wait()
 {
 	if procmgr_par_definitions && { procmgr_enabled || procmgr_listening; }; then
 		# The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
-		log_daemon_msg "Starting $DESC (split mode from config)" "$NAME"
+		log_daemon_msg "Starting $DESC (split mode)" "$NAME"
 	else
 		log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"
 		# Without dd-procmgrd and both definitions, split mode cannot run par-control, so use the monolithic runner.
-		export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+		export DD_INTERNAL_PAR_NO_PROCMGR=true
 	fi
 	do_start
 	case "$?" in

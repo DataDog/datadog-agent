@@ -9,13 +9,13 @@ bootstrap. Running children and potential credential holders are left alone.
 The worker is enabled by `private_action_runner.enabled` on non-Windows platforms;
 there is no separate phone-home opt-in. Linux process-manager packages register both PAR children
 without auto-start. Core starts the Rust control plane after its prerequisites pass;
-Rust's existing bootstrap starts the Go executor. Monolithic startup, Windows and
-container registrations are unchanged. Unsupported configurations report a blocked
-state; they do not cause core to launch or stop a monolithic runner.
+Rust's existing bootstrap starts the Go executor. This worker does not manage
+Windows or container registrations or the standalone fallback. Unsupported
+configurations report a blocked state. FIPS packages do not ship either runner.
 
 ## Configuration
 
-- Core: PAR enabled, split mode enabled, local RC enabled.
+- Core: PAR enabled, local RC enabled.
 - Non-containerized, non-FIPS Linux core Agent; matching core/executor config, API key,
   site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
   and extra PAR config files are not supported. Live credential/endpoint changes need
@@ -100,7 +100,7 @@ and fresh supervisor lifecycle detection before re-authorization. A handoff is n
 or action readiness; reconnecting to unchanged registrations does not log another Start or handoff.
 WARN identifies actionable configuration/policy blocks, retained legacy attempts and ambiguous
 Start outcomes requiring reconciliation. DEBUG covers intentional ungated modes (including
-split mode disabled), transient supervisor/discovery retries and cancellation. Disabled PAR is quiet.
+no split-capable supervisor), transient supervisor/discovery retries and cancellation. Disabled PAR is quiet.
 
 Unchanged state/reason pairs, including next-check-only changes, produce no repeated logs.
 Logs contain only fixed messages, allowlisted reasons and the fixed control-plane process name,

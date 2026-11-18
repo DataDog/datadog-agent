@@ -1564,7 +1564,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script": ["test"],
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
-    "github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment": ["clusterchecks", "test"],
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/tempfile": ["test"],

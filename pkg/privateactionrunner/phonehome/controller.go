@@ -84,15 +84,14 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	if !Enabled(cfg) {
 		return
 	}
-	mode, err := deployment.Resolve(cfg)
 	// Intentional ungated modes take precedence over gate-specific configuration warnings.
 	bypass := runtime.GOOS != "linux" || configenv.IsContainerized() || flavor.GetFlavor() != flavor.DefaultAgent ||
-		(err == nil && mode != deployment.Split)
+		deployment.Resolve(cfg) != deployment.Split
 	emit := newStateEmitter(report, newStateLogger(bypass))
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+	if bypass || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}

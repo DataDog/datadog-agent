@@ -39,7 +39,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -135,17 +134,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	mode, err := deployment.Resolve(reqs.Config)
-	if err != nil {
-		return Provides{}, err
-	}
-	if mode == deployment.Split {
+	if deployment.Resolve(reqs.Config) == deployment.Split {
 		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrSplitDeployment
-	}
-	if deployment.Requested(reqs.Config) {
-		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
@@ -380,16 +372,9 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
+	if !p.coreConfig.GetBool(par.Enabled) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
-	}
-	buildFIPS, err := fips.Enabled()
-	if err != nil {
-		return runCtx, nil, err
-	}
-	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
-		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {

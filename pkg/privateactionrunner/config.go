@@ -30,7 +30,6 @@ const (
 	ActionsAllowlist      = "private_action_runner.actions_allowlist"
 	DefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 	ExecutorSocketPath    = "private_action_runner.executor.socket_path"
-	SplitEnabled          = "private_action_runner.split_enabled"
 	CredentialsValues     = "private_action_runner.credentials.values"
 
 	// HTTP Action related

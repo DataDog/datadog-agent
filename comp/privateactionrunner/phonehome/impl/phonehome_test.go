@@ -38,7 +38,8 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 }
 
 func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true, "private_action_runner.split_enabled": false})
+	t.Setenv("DD_INTERNAL_PAR_NO_PROCMGR", "true")
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.enabled": true})
 	output := captureLogs(t)
 	lc := &lifecycle{}
 	tel := telemetrymock.New(t)

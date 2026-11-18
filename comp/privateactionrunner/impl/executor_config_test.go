@@ -29,24 +29,20 @@ import (
 )
 
 func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"private_action_runner.enabled":       enabled,
-			"private_action_runner.split_enabled": false,
-			"private_action_runner.self_enroll":   true,
-			"private_action_runner.private_key":   "invalid-key",
-			"delegated_auth.org_uuid":             "test-org",
-		})
-		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
-		// Dependencies are deliberately absent: disabled startup must not use them.
-		runner := &PrivateActionRunner{coreConfig: cfg}
-		_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
-		require.NoError(t, err)
-		require.Nil(t, resolved)
-		require.NotNil(t, runner.executorServer)
-		require.Nil(t, runner.encryptionStore)
-		require.Nil(t, runner.keysManager)
-	}
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.enabled":     false,
+		"private_action_runner.self_enroll": true,
+		"private_action_runner.private_key": "invalid-key",
+		"delegated_auth.org_uuid":           "test-org",
+	})
+	// Dependencies are deliberately absent: disabled startup must not use them.
+	runner := &PrivateActionRunner{coreConfig: cfg}
+	_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
+	require.NoError(t, err)
+	require.Nil(t, resolved)
+	require.NotNil(t, runner.executorServer)
+	require.Nil(t, runner.encryptionStore)
+	require.Nil(t, runner.keysManager)
 }
 
 func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
@@ -60,12 +56,11 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			defer srv.Close()
 			t.Setenv(parconstants.InternalUseDDURLForOPMSEnvVar, "true")
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-				"dd_url":                                   srv.URL,
-				"api_key":                                  "test-api-key",
-				"app_key":                                  "test-app-key",
-				"private_action_runner.enabled":            true,
-				"private_action_runner.split_enabled":      true,
-				"private_action_runner.self_enroll":        true,
+				"dd_url":                            srv.URL,
+				"api_key":                           "test-api-key",
+				"app_key":                           "test-app-key",
+				"private_action_runner.enabled":     true,
+				"private_action_runner.self_enroll": true,
 				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
 			})
 			hostname, _ := hostnamemock.NewMock("test-host")

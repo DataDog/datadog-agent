@@ -83,9 +83,13 @@ func (s *linuxPARSplitSuite) TestMonolithToSplitMigration() {
 	host := s.Env().RemoteHost
 	client := s.Env().FakeIntake.Client()
 	backup := privateActionRunnerConfigPath + ".migration-backup"
+	fallbackDir := "/run/systemd/system/" + privateActionRunnerServiceName + ".service.d"
+	fallbackFile := fallbackDir + "/par-no-procmgr.conf"
+	clearFallback := func() { host.MustExecute("sudo rm -f " + fallbackFile + " && sudo systemctl daemon-reload") }
 	host.MustExecute("sudo cp -p " + privateActionRunnerConfigPath + " " + backup)
 	s.T().Cleanup(func() {
 		_, _ = host.Execute("sudo systemctl stop " + privateActionRunnerServiceName)
+		clearFallback()
 		_ = s.runProcmgr("stop", parExecutorProcess)
 		_ = s.runProcmgr("stop", parControlProcess)
 		host.MustExecute("sudo mv " + backup + " " + privateActionRunnerConfigPath)
@@ -102,8 +106,11 @@ func (s *linuxPARSplitSuite) TestMonolithToSplitMigration() {
 	s.Require().NoError(client.FlushPAR())
 	s.resetSigningKeyState()
 	s.T().Cleanup(s.resetSigningKeyState)
-	s.Require().NoError(s.writeConfig(selfEnrollConfig(client.URL(), false)))
-	host.MustExecute("sudo systemctl restart " + privateActionRunnerServiceName)
+	s.Require().NoError(s.writeConfig(selfEnrollConfig(client.URL())))
+	// Simulate the standalone service on a host where the launcher has no usable supervisor.
+	host.MustExecute("sudo mkdir -p " + fallbackDir +
+		" && printf '[Service]\\nEnvironment=DD_INTERNAL_PAR_NO_PROCMGR=true\\n' | sudo tee " + fallbackFile +
+		" && sudo systemctl daemon-reload && sudo systemctl restart " + privateActionRunnerServiceName)
 	s.waitForSystemdState(privateActionRunnerServiceName, "active", 2*time.Minute)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPAREnrollmentCount()
@@ -115,7 +122,7 @@ func (s *linuxPARSplitSuite) TestMonolithToSplitMigration() {
 
 	host.MustExecute("sudo systemctl stop " + privateActionRunnerServiceName)
 	identityHash := host.MustExecute("sudo sha256sum " + parIdentityPath)
-	s.Require().NoError(s.writeConfig(selfEnrollConfig(client.URL(), true)))
+	clearFallback()
 	s.startControl()
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 
@@ -321,7 +328,7 @@ func (s *linuxPARSplitSuite) testBootstrapIdentityScenarios() {
 	s.T().Cleanup(s.restoreBaseline)
 
 	client := s.Env().FakeIntake.Client()
-	selfEnrollConfig := selfEnrollConfig(client.URL(), true)
+	selfEnrollConfig := selfEnrollConfig(client.URL())
 	_, _ = host.Execute("sudo rm -f " + parIdentityPath)
 	s.restartControl(selfEnrollConfig, "Running")
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
@@ -391,8 +398,8 @@ func (s *linuxPARSplitSuite) restoreBaseline() {
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
 }
 
-func selfEnrollConfig(fakeintakeURL string, splitEnabled bool) string {
-	return fmt.Sprintf(selfEnrollConfigTemplate, fakeintakeURL, splitEnabled, runCommandAction)
+func selfEnrollConfig(fakeintakeURL string) string {
+	return fmt.Sprintf(selfEnrollConfigTemplate, fakeintakeURL, runCommandAction)
 }
 
 func splitConfig(urn, privateKey string) string {
@@ -405,7 +412,6 @@ func splitConfig(urn, privateKey string) string {
 	}
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
-  split_enabled: true
   self_enroll: false
 %s  idle_timeout_seconds: 120
   actions_allowlist:

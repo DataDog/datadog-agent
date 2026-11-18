@@ -79,7 +79,6 @@ func TestWindowsPARSplitLifecycleSuite(t *testing.T) {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	config := fmt.Sprintf(`private_action_runner:
   enabled: true
-  split_enabled: true
   self_enroll: false
   urn: %s
   private_key: %s

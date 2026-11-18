@@ -47,10 +47,10 @@ script
   }
   if procmgr_par_definitions && { procmgr_enabled || procmgr_listening; }; then
     # The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
-    echo "Starting Datadog Private Action Runner (split mode from config)"
+    echo "Starting Datadog Private Action Runner (split mode)"
   else
     # Without dd-procmgrd and both definitions, split mode cannot run par-control, so use the monolithic runner.
-    export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
+    export DD_INTERNAL_PAR_NO_PROCMGR=true
     echo "Starting Datadog Private Action Runner in monolithic mode"
   fi
   # No --background: the runner keeps the pid Upstart tracks.

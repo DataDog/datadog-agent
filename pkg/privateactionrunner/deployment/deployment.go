@@ -8,55 +8,77 @@ package deployment
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/fips"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // Mode identifies the selected PAR deployment architecture.
 type Mode string
 
 const (
-	// Monolithic runs PAR in the Go process, including unsupported split configurations.
+	// Monolithic runs PAR in the Go process when split deployment is unavailable.
 	Monolithic Mode = "monolithic"
 	// Split runs the Rust control plane with an on-demand Go executor.
 	Split Mode = "split"
 )
 
-// Requested reports whether split deployment was explicitly selected.
-func Requested(cfg model.Reader) bool {
-	return requested(cfg.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"))
+// Resolve applies the same deployment policy to standalone startup and the core startup gate.
+func Resolve(cfg model.Reader) Mode {
+	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), supervisorAvailable)
 }
 
-func requested(configEnabled, containerized bool, envValue string) bool {
+func resolve(cfg model.Reader, goos string, containerized bool, available func(string, bool) bool) Mode {
+	if !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) ||
+		!available(goos, containerized) {
+		return Monolithic
+	}
+	return Split
+}
+
+func supervisorAvailable(goos string, containerized bool) bool {
+	// Legacy launchers set this only after checking that they cannot start the supervisor.
+	if os.Getenv("DD_INTERNAL_PAR_NO_PROCMGR") == "true" {
+		return false
+	}
 	if containerized {
-		return envValue == "true"
+		// Both supported container launchers pass the supervisor socket to children.
+		// Older charts run the standalone binary directly, without the shared IPC setup.
+		return os.Getenv("DD_PM_SOCKET_PATH") != ""
 	}
-	return configEnabled
+	// Check what is installed and configured, not whether the daemon is already
+	// listening. A slow or restarting supervisor must not create a second runner.
+	return hasHostSupervisor(defaultpaths.GetInstallPath(), goos)
 }
 
-// Resolve applies the same deployment policy to monolithic startup and the core startup gate.
-// Callers must not start either architecture when resolution fails.
-func Resolve(cfg model.Reader) (Mode, error) {
-	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"), fips.Enabled)
+func hasHostSupervisor(installDir, goos string) bool {
+	var binaries []string
+	switch goos {
+	case "windows":
+		binaries = []string{"bin/agent/dd-procmgrd.exe", "bin/agent/par-control.exe"}
+	case "linux":
+		binaries = []string{"embedded/bin/dd-procmgrd", "embedded/bin/par-control"}
+	default:
+		return false
+	}
+	for _, name := range binaries {
+		if !regularFile(filepath.Join(installDir, name)) {
+			return false
+		}
+	}
+	for _, name := range []string{"datadog-agent-par-control", "datadog-agent-action-executor"} {
+		path := filepath.Join(installDir, "processes.d", name)
+		if !regularFile(path+".yaml") && !regularFile(path+".yml") {
+			return false
+		}
+	}
+	return true
 }
 
-func resolve(cfg model.Reader, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
-	if !requested(cfg.GetBool(par.SplitEnabled), containerized, envValue) {
-		return Monolithic, nil
-	}
-	if cfg.GetBool("fips.enabled") || !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) {
-		return Monolithic, nil
-	}
-	buildFIPS, err := fipsEnabled()
-	if err != nil {
-		return Monolithic, err
-	}
-	if buildFIPS {
-		return Monolithic, nil
-	}
-	return Split, nil
+func regularFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }

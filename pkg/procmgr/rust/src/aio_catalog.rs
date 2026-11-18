@@ -237,27 +237,12 @@ fn aio_par_control_skips_when_the_binary_is_absent() {
             .iter()
             .flat_map(|file| file.keys.iter().map(String::as_str))
             .collect::<Vec<_>>(),
-        ["private_action_runner.split_enabled"]
-    );
-    assert_eq!(
-        par_control
-            .condition_config_none
-            .iter()
-            .flat_map(|file| file.keys.iter().map(String::as_str))
-            .collect::<Vec<_>>(),
-        ["fips.enabled"]
-    );
-    assert_eq!(
-        par_control
-            .env
-            .get("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
-            .map(String::as_str),
-        Some("true")
+        ["private_action_runner.enabled"]
     );
 }
 
 #[test]
-fn aio_private_action_runner_monolith_is_gated_on_enabled() {
+fn aio_private_action_runner_fallback_is_gated_on_enabled() {
     let configs = load_shipped_catalog();
     let monolith = configs.get("datadog-agent-par").expect("par monolith");
 
@@ -278,10 +263,7 @@ fn aio_private_action_runner_monolith_is_gated_on_enabled() {
             .collect::<Vec<_>>(),
         ["private_action_runner.enabled"]
     );
-    assert!(
-        monolith.condition_config_none.is_empty(),
-        "the monolith starts whenever PAR is enabled and stands down itself in split mode"
-    );
+
     assert!(!monolith.exit_with_supervisor);
     let enabled_gated = monolith.condition_config_any.iter().any(|file| {
         file.keys
@@ -552,7 +534,7 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
     top_names.sort_unstable();
     assert_eq!(
         top_names,
-        ["datadog-agent-action-executor", "datadog-agent-par-control",]
+        ["datadog-agent-action-executor", "datadog-agent-par-control"]
     );
     let par_control = top
         .processes
@@ -776,6 +758,7 @@ fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
     );
     assert!(script.contains(r#"export DD_PM_CONFIG_DIR="${processes_dir}""#));
     assert!(script.contains(r#"exec "${procmgrd}""#));
+    assert!(!script.contains("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"));
 }
 
 #[test]

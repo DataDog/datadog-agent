@@ -8,57 +8,63 @@
 package deployment
 
 import (
-	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 )
 
 func TestResolve(t *testing.T) {
-	detectionErr := errors.New("FIPS detection failed")
 	for _, tc := range []struct {
-		name, goos, envValue                                           string
-		disabled, containerized, buildFIPS, configFIPS, processManager bool
-		fipsErr                                                        error
-		want                                                           Mode
-		probe                                                          bool
+		name, goos                                       string
+		containerized, processManager, missingSupervisor bool
+		want                                             Mode
 	}{
-		{name: "disabled", goos: "linux", disabled: true, fipsErr: detectionErr, want: Monolithic},
-		{name: "linux host", goos: "linux", want: Split, probe: true},
-		{name: "host ignores direct environment override", goos: "linux", envValue: "false", want: Split, probe: true},
-		{name: "linux container explicit env", goos: "linux", containerized: true, envValue: "true", disabled: true, want: Split, probe: true},
-		{name: "container config alone is insufficient", goos: "linux", containerized: true, fipsErr: detectionErr, want: Monolithic},
-		{name: "container explicit off", goos: "linux", containerized: true, envValue: "false", want: Monolithic},
-		{name: "container env is case sensitive", goos: "linux", containerized: true, envValue: "TRUE", want: Monolithic},
-		{name: "windows host", goos: "windows", processManager: true, want: Split, probe: true},
+		{name: "linux host", goos: "linux", want: Split},
+		{name: "linux container", goos: "linux", containerized: true, want: Split},
+		{name: "linux host without supervisor", goos: "linux", missingSupervisor: true, want: Monolithic},
+		{name: "legacy container without supervisor", goos: "linux", containerized: true, missingSupervisor: true, want: Monolithic},
+		{name: "windows host", goos: "windows", processManager: true, want: Split},
 		{name: "windows requires process manager", goos: "windows", want: Monolithic},
-		{name: "windows container", goos: "windows", processManager: true, containerized: true, envValue: "true", want: Monolithic},
+		{name: "windows container", goos: "windows", processManager: true, containerized: true, want: Monolithic},
 		{name: "unsupported host platform", goos: "darwin", want: Monolithic},
-		{name: "build FIPS", goos: "linux", buildFIPS: true, want: Monolithic, probe: true},
-		{name: "configured FIPS", goos: "linux", configFIPS: true, fipsErr: detectionErr, want: Monolithic},
-		{name: "FIPS detection error", goos: "linux", fipsErr: detectionErr, want: Monolithic, probe: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := mock.New(t)
-			cfg.SetInTest(par.SplitEnabled, !tc.disabled)
-			cfg.SetInTest("fips.enabled", tc.configFIPS)
+			cfg.SetInTest("private_action_runner.split_enabled", false)
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 			cfg.SetInTest("process_manager.enabled", tc.processManager)
-			calls := 0
-			mode, err := resolve(cfg, tc.goos, tc.containerized, tc.envValue, func() (bool, error) {
-				calls++
-				return tc.buildFIPS, tc.fipsErr
-			})
+			mode := resolve(cfg, tc.goos, tc.containerized, func(string, bool) bool { return !tc.missingSupervisor })
 			require.Equal(t, tc.want, mode)
-			if tc.probe {
-				require.Equal(t, 1, calls)
-				require.ErrorIs(t, err, tc.fipsErr)
-			} else {
-				require.Zero(t, calls, "unused split mode must not probe FIPS")
-				require.NoError(t, err)
-			}
 		})
 	}
+}
+
+func TestContainerSupervisorUsesSocketWiring(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_NO_PROCMGR", "")
+	t.Setenv("DD_PM_SOCKET_PATH", "")
+	require.False(t, supervisorAvailable("linux", true))
+
+	// The launcher provides the path even before the supervisor starts listening.
+	t.Setenv("DD_PM_SOCKET_PATH", filepath.Join(t.TempDir(), "dd-procmgrd.sock"))
+	require.True(t, supervisorAvailable("linux", true))
+}
+
+func TestHasHostSupervisorRequiresBothPARDefinitions(t *testing.T) {
+	installDir := t.TempDir()
+	for _, file := range []string{
+		"embedded/bin/dd-procmgrd",
+		"embedded/bin/par-control",
+		"processes.d/datadog-agent-par-control.yaml",
+		"processes.d/datadog-agent-action-executor.yml",
+	} {
+		require.False(t, hasHostSupervisor(installDir, "linux"))
+		path := filepath.Join(installDir, file)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, nil, 0o700))
+	}
+	require.True(t, hasHostSupervisor(installDir, "linux"))
 }

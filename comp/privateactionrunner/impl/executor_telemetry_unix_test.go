@@ -55,7 +55,6 @@ func TestExecutorTelemetryLifecycle(t *testing.T) {
 				// GovCloud suppresses HTTP sends; these tests exercise ownership, not delivery.
 				"site":                                       "ddog-gov.com",
 				"private_action_runner.enabled":              tt.enabled,
-				"private_action_runner.split_enabled":        true,
 				"private_action_runner.self_enroll":          false,
 				"private_action_runner.urn":                  util.MakeRunnerURN("us1", 42, "test-runner"),
 				"private_action_runner.private_key":          base64.RawURLEncoding.EncodeToString(encoded),
@@ -63,7 +62,6 @@ func TestExecutorTelemetryLifecycle(t *testing.T) {
 				"private_action_runner.executor.socket_path": socket,
 				"private_action_runner.idle_timeout_seconds": 1,
 			})
-			t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true")
 			hostname, _ := hostnamemock.NewMock("test-host")
 			idle := make(chan struct{}, 1)
 			runner := &PrivateActionRunner{
