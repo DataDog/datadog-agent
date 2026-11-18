@@ -632,6 +632,8 @@ func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options 
 // Authentication, transport, timeout and server errors are not answers to the timeseries
 // request itself, so they surface as errors as before and are not counted as fallbacks.
 func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
+	testDone := make(chan struct{})
+	defer close(testDone)
 	jsonError := func(status int) http.HandlerFunc {
 		return func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -656,10 +658,13 @@ func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
 			require.NoError(t, err)
 			conn.Close()
 		}, nil},
-		{"timeout", func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(300 * time.Millisecond)
-			w.Write([]byte(`{"data":[]}`))
-		}, []ClientOptions{WithTimeout(50 * time.Millisecond)}},
+		{"timeout", func(_ http.ResponseWriter, r *http.Request) {
+			// Block until the client gives up, or the test ends.
+			select {
+			case <-r.Context().Done():
+			case <-testDone:
+			}
+		}, []ClientOptions{WithTimeout(20 * time.Millisecond)}},
 		// A 4xx without a Versa JSON error body is not a Versa answer either.
 		{"400 without a Versa error body", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -754,18 +759,78 @@ func TestTimeseriesRejectionWarningIsSanitized(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, warning)
-	assert.Contains(t, warning, "Versa rejected the timeseries request with HTTP 400: Invalid request")
+	assert.Contains(t, warning, "Versa rejected the timeseries request with HTTP 400, using tableData for it instead")
 	for _, leaked := range []string{"testpass", "testuser", "https://", "10.0.0.1", "9182", "/tenants/", "datadog", "count=2000", "director.example"} {
 		assert.NotContains(t, warning, leaked)
 	}
 }
 
 func TestSanitizeAPIMessage(t *testing.T) {
+	// A message with nothing sensitive keeps its words, minus request like tokens.
 	client := &Client{username: "operator", password: "s3cret-pass", sessionToken: "csrf-abc123"}
-	message := client.sanitizeAPIMessage("bad token csrf-abc123 or s3cret-pass at /versa/x?y=1 host:8443 for tenant-one\n\n  "+strings.Repeat("x", 200), "tenant-one")
-	for _, leaked := range []string{"csrf-abc123", "s3cret-pass", "/versa", "8443", "tenant-one", "\n"} {
-		assert.NotContains(t, message, leaked)
-	}
-	assert.True(t, strings.HasPrefix(message, "bad token <redacted> or <redacted> at for <redacted>"), message)
+	message := client.sanitizeAPIMessage("Invalid metric: AVAILABILITY at /versa/x?y=1 host:8443\n\n  "+strings.Repeat("x", 200), "tenant-one")
+	assert.True(t, strings.HasPrefix(message, "Invalid metric: AVAILABILITY at x"), message)
+	assert.NotContains(t, message, "/versa")
+	assert.NotContains(t, message, "8443")
 	assert.LessOrEqual(t, len(message), maxLoggedMessageLength)
+
+	filler := strings.Repeat("a", 195) + " "
+	for _, tt := range []struct {
+		name    string
+		client  Client
+		tenant  string
+		message string
+	}{
+		{"secret straddling the 200 character mark", Client{password: "Pa55word!"}, "t1", filler + "Pa55word!"},
+		{"one character password", Client{password: "x"}, "tenant-one", "invalid value x"},
+		{"two character password", Client{password: "q7"}, "tenant-one", "rejected q7"},
+		{"password containing the username", Client{username: "admin", password: "admin2024"}, "tenant-one", "bad login admin2024"},
+		{"username containing the password", Client{username: "ops-admin", password: "admin"}, "tenant-one", "unknown user ops-admin"},
+		{"secret in another letter case", Client{password: "Secret-Value"}, "tenant-one", "rejected SECRET-VALUE"},
+		{"secret repeated", Client{password: "hunter22"}, "tenant-one", "hunter22 and hunter22 again"},
+		{"url encoded secret", Client{password: "p@ss&word"}, "tenant-one", "bad value p%40ss%26word"},
+		{"json escaped secret", Client{password: "a&b/c"}, "tenant-one", `bad value a\u0026b\/c`},
+		{"session token", Client{sessionToken: "csrf-abc123"}, "tenant-one", "token csrf-abc123 expired"},
+		{"tenant", Client{}, "Tenant-One", "no access to tenant-one"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Empty(t, tt.client.sanitizeAPIMessage(tt.message, tt.tenant))
+		})
+	}
+}
+
+// With zero volume, the pathcos and cos fallbacks keep Versa's percentdrop as tableData
+// mode reports it, rather than marking it unset as a timeseries bucket would be.
+func TestQoSFallbackMatchesTableDataWithZeroVolume(t *testing.T) {
+	row := func(key, a, b string) []any {
+		r := []any{key, a, b}
+		for i := 0; i < 12; i++ {
+			r = append(r, 1.0)
+		}
+		// volume-tx, totaldrop, percentdrop, bandwidth
+		return append(r, 0.0, 0.0, 0.25, 0.0)
+	}
+	for _, tt := range []struct {
+		prefix string
+		table  string
+		get    func(*Client) (any, error)
+	}{
+		{"pathcos(", tableBody(t, [][]any{row("site-001,site-002", "site-001", "site-002")}), func(c *Client) (any, error) { return c.GetPathQoSMetrics("datadog") }},
+		{"cos(", tableBody(t, [][]any{row("site-001,circuit-a", "site-001", "circuit-a")}), func(c *Client) (any, error) { return c.GetCircuitQoSMetrics("datadog") }},
+	} {
+		t.Run(tt.prefix, func(t *testing.T) {
+			fallbackClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			fallback, err := tt.get(fallbackClient)
+			require.NoError(t, err)
+			require.Len(t, fallbackClient.TakeFallbacks(), 1)
+
+			tableClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			WithAnalyticsQueryType(QueryTypeTableData)(tableClient)
+			table, err := tt.get(tableClient)
+			require.NoError(t, err)
+
+			assert.Equal(t, table, fallback)
+			assert.Contains(t, fmt.Sprintf("%+v", fallback), "PercentDrop:0.25 Bandwidth:0 PercentDropUnset:false")
+		})
+	}
 }
