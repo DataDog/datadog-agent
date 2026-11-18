@@ -38,6 +38,11 @@ Run `uname -sm` first. Results only hold for the OS, kernel, and architecture th
      remote KMT VMs (EC2 metal instances, so ask first) or CI.
    - `kmt.build` and `kmt.test` compile inside a Docker container (`tasks/kernel_matrix_testing/compiler.py`),
      so Docker must be running and responsive; if `docker ps` hangs, the KMT run is `blocked`.
+   - Run KMT from a regular clone, not a git worktree: the compiler container refuses to start when
+     `.git` isn't a directory.
+   - On macOS, `kmt.init` and `kmt.selfcheck` need `sudo` (libvirt and virtlogd services, bootpd, NFS,
+     IP forwarding), so a person must run `kmt.init` in a terminal first; until then, local VMs are
+     `blocked`.
    - The compiler image comes from Datadog's internal registry. Outside contributors can use any Linux
      VM with `dda inv system-probe.object-files` and `dda inv system-probe.test`.
    - Never load eBPF programs on macOS or Windows, and don't use a dev container as the test kernel:
