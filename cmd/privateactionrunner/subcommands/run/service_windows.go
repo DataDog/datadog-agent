@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -43,7 +44,7 @@ func (s *windowsService) Init() error {
 
 func (s *windowsService) Run(ctx context.Context) error {
 	err := runPrivateActionRunner(ctx, defaultConfPath, nil)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) || errors.Is(err, deployment.ErrFIPSUnsupported) {
 		return servicemain.ErrCleanStopAfterInit
 	}
 	return err

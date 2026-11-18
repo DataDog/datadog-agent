@@ -136,6 +136,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	mode, err := deployment.Resolve(reqs.Config)
 	if err != nil {
+		if errors.Is(err, deployment.ErrFIPSUnsupported) {
+			reqs.Log.Error("private-action-runner is enabled but not supported in FIPS mode; it will not start. Set private_action_runner.enabled: false to disable this message.")
+			reqs.Log.Flush()
+		}
 		return Provides{}, err
 	}
 	if mode == deployment.Split {

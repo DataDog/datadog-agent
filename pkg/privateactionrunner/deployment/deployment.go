@@ -43,7 +43,7 @@ func requested(configEnabled, containerized bool, envValue string) bool {
 var ErrFIPSUnsupported = errors.New("private action runner is not supported in FIPS mode")
 
 // EnsureSupported returns ErrFIPSUnsupported when the Agent runs in FIPS mode,
-// either through a FIPS build or through fips.enabled.
+// through a FIPS build, runtime FIPS mode or fips.enabled.
 func EnsureSupported(cfg model.Reader) error {
 	return ensureSupported(cfg, fips.Enabled)
 }
@@ -52,11 +52,14 @@ func ensureSupported(cfg model.Reader, fipsEnabled func() (bool, error)) error {
 	if cfg.GetBool("fips.enabled") {
 		return ErrFIPSUnsupported
 	}
-	buildFIPS, err := fipsEnabled()
+	if fips.BuiltForFIPS() {
+		return ErrFIPSUnsupported
+	}
+	enabled, err := fipsEnabled()
 	if err != nil {
 		return err
 	}
-	if buildFIPS {
+	if enabled {
 		return ErrFIPSUnsupported
 	}
 	return nil
