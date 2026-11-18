@@ -40,8 +40,9 @@ type timeseriesLayout struct {
 }
 
 // Layouts for the endpoints whose timeseries responses have been checked against real
-// Versa responses: SLA, circuit QoS, interface, link usage and DIA in a lab with traffic
-// and at a customer, path QoS at a customer.
+// Versa responses: SLA, circuit QoS and interface against our lab and a customer
+// environment, path QoS against a customer environment, and link usage and DIA against
+// our lab only, with customer validation pending.
 //
 // linkstatus(site,accckt), the site query and tunnelstats have no timeseries layout and
 // use tableData. A linkstatus timeseries response holds one series per link status value
@@ -67,6 +68,18 @@ var (
 	// first two.
 	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, drillKeyParts: 2, strictKeyParts: true}
 )
+
+// timeseriesLayouts maps each endpoint collected per bucket in timeseries mode to its
+// layout. The getters read their layout from here, so it is the one place that decides
+// which endpoints support timeseries.
+var timeseriesLayouts = map[Endpoint]*timeseriesLayout{
+	EndpointSLAMetrics:        slaTimeseriesLayout,
+	EndpointQoSMetrics:        pathQoSTimeseriesLayout,
+	EndpointCircuitQoSMetrics: circuitQoSTimeseriesLayout,
+	EndpointInterfaceMetrics:  interfaceTimeseriesLayout,
+	EndpointLinkUsageMetrics:  linkUsageTimeseriesLayout,
+	EndpointDIAMetrics:        diaTimeseriesLayout,
+}
 
 // keyPartsMismatch returns the first series name that does not split into the layout's
 // drill key part count, if any.
