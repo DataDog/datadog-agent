@@ -82,9 +82,10 @@ The registered converters are `IsMatch`, `HasPrefix`, `HasSuffix`, `IsString`,
 `IsInt`, `IsDouble`, `IsBool`, `IsMap`, `IsList`, `Len`, `Int`, `Double`, and
 `String`. Masking adds the three editors below. Other functions are unregistered.
 
-`String()` uses Go's standard JSON encoding for objects, arrays, and numbers. For example,
-`String(0.000000001)` returns `"1e-9"`; upstream OTTL v1.3.1 returns `"1e-09"`.
-String and byte conversions otherwise follow OTTL semantics.
+`String()` uses Go's standard JSON encoding for objects, arrays, and numbers; for
+example, `String(0.000000001)` returns `"1e-9"`. This matches upstream OTTL with
+`goccy/go-json` v0.12.0 or later. String and byte conversions otherwise follow
+OTTL semantics.
 
 ## Masking
 

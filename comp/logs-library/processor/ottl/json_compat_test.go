@@ -19,8 +19,8 @@ import (
 )
 
 // The pinned OTTL fork reuses encoding/json in all build paths. Compare its
-// observable result with the encoder used by unmodified OTTL. Small negative
-// exponents use the stdlib spelling (1e-9 instead of goccy's 1e-09).
+// observable result with the encoder used by unmodified OTTL. Since
+// goccy/go-json v0.12.0 both spell small negative exponents the same way (1e-9).
 func TestOTTLStringJSONCompatibility(t *testing.T) {
 	object := map[string]any{
 		"z":       nil,
@@ -66,10 +66,6 @@ func TestOTTLStringJSONCompatibility(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			expected, expectedErr := goccyjson.Marshal(test.raw)
-			if test.name == "small exponent" {
-				require.Equal(t, "1e-09", string(expected))
-				expected = []byte("1e-9")
-			}
 			getter := upstreamottl.StandardStringLikeGetter[*OTTLContext]{
 				Getter: func(context.Context, *OTTLContext) (any, error) { return test.value, nil },
 			}
