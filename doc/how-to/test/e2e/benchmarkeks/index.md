@@ -32,7 +32,7 @@ The benchmark keeps an EKS cluster for about two and a half hours, so it only ru
 | Pull request changing | Benchmark | Pull request comment |
 |---|---|---|
 | The benchmark itself: its test, scenario, workload, CI jobs or baseline lookup | Runs automatically | Shows that it runs, then its results |
-| The code it measures: the container checks, KSM, workloadmeta, the tagger, Autodiscovery, the check runner and the Kubernetes utilities | Manual | A button to run it, then that it runs and its results |
+| The code it measures: the container checks, KSM, workloadmeta, the tagger, Autodiscovery, cluster checks and the container, Kubernetes and Prometheus utilities | Manual | A button to run it, then that it runs and its results |
 | Anything else | Manual | None, unless the benchmark is run |
 
 The paths of the first two rows are in <<<repo(".gitlab/test/e2e/e2e_containers_benchmarkeks.yml", "the CI jobs", match="^\\.benchmarkeks_test_changes:")>>>. The benchmark only runs automatically, and the button is only posted, in push pipelines, not in the pipelines started from the GitLab UI or API, which would run the benchmark again, or replace its results with the button, for a commit whose push pipeline ran it. The benchmark runs automatically even before the pull request is opened, as the first push of a branch usually comes before its pull request: the comment then appears with the results, if the pull request exists by then.
