@@ -13,4 +13,7 @@ enhancements:
     instead of recording them on every egress packet, which lowers per-packet
     overhead on hosts where the eBPF conntracker loads. Sharing is turned off
     automatically when Cilium or Calico eBPF maps are found, and can be turned
-    off with ``network_config.share_conntrack_nat_map: false``.
+    off with ``network_config.share_conntrack_nat_map: false``. The
+    conntracker's map holds every NAT'd flow on the host, so under heavy NAT
+    churn a connection's entry can be evicted, and that connection is then no
+    longer classified under its NAT'd tuple until it closes.
