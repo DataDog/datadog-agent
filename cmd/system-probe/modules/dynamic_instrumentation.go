@@ -82,10 +82,8 @@ var DynamicInstrumentation = &module.Factory{
 	},
 }
 
-// newMetricProbeStatsdClient creates the DogStatsD client that metric probes
-// report to. It is configured like system-probe's own client, except that it
-// doesn't attach system-probe's container ID to the metrics: they describe
-// other processes.
+// newMetricProbeStatsdClient reports metrics about other processes without
+// inheriting system-probe's container, pod, or service identity.
 func newMetricProbeStatsdClient(cfg coreconfig.Component) (ddgostatsd.ClientInterface, error) {
 	provides, err := statsdimpl.NewComponent()
 	if err != nil {
@@ -95,8 +93,7 @@ func newMetricProbeStatsdClient(cfg coreconfig.Component) (ddgostatsd.ClientInte
 		configutils.GetBindHost(cfg),
 		cfg.GetInt("dogstatsd_port"),
 		ddgostatsd.WithoutOriginDetection(),
-		// TODO: enable after upgrading datadog-go, then remove the entity-tag override.
-		// ddgostatsd.WithoutEntityIDFromEnv(),
-		// ddgostatsd.WithoutEnvTags(),
+		ddgostatsd.WithoutEntityID(),
+		ddgostatsd.WithoutEnvTags(),
 	)
 }

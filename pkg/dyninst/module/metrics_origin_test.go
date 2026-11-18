@@ -61,6 +61,9 @@ func (s *metricContainerStore) GetContainer(string) (*workloadmeta.Container, er
 }
 
 func TestMetricProbeOriginPackets(t *testing.T) {
+	t.Setenv("DD_ENV", "agent-env")
+	t.Setenv("DD_SERVICE", "agent-service")
+	t.Setenv("DD_VERSION", "agent-version")
 	for _, entityID := range []string{"", "agent-pod"} {
 		t.Run("DD_ENTITY_ID="+entityID, func(t *testing.T) {
 			t.Setenv("DD_ENTITY_ID", entityID)
@@ -72,6 +75,8 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 						ddgostatsd.WithClientSideAggregation(),
 						ddgostatsd.WithExtendedClientSideAggregation(),
 						ddgostatsd.WithoutOriginDetection(),
+						ddgostatsd.WithoutEntityID(),
+						ddgostatsd.WithoutEnvTags(),
 						ddgostatsd.WithoutTelemetry(),
 					)
 					require.NoError(t, err)
@@ -89,11 +94,13 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 					}
 					r := newMetricsReporter(client, time.Hour, nil, podLookup(store))
 					t.Cleanup(r.close)
-					runtimeID := procRuntimeID{}
+					runtimeID := procRuntimeID{service: "checkout", environment: "prod", version: "1.2.3"}
 					if target != "host" {
 						runtimeID.containerInfo = &process.ContainerInfo{ContainerID: "target-container"}
 					}
-					probe := metricProbe("probe", "COUNT", "calls", []string{"team:test"}, reflect.Invalid)
+					probe := metricProbe("probe", "COUNT", "calls", []string{
+						"team:test", "dd.internal.entity_id:none", "dd.internal.entity_id:other-pod",
+					}, reflect.Invalid)
 					var state loader.MetricState
 					r.register(1, &ir.Program{Probes: []*ir.Probe{probe}}, func() []loader.MetricState {
 						return []loader.MetricState{state}
@@ -109,22 +116,20 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 						_, tags, ok := strings.Cut(packet, "|#")
 						require.True(t, ok, packet)
 						tags, _, _ = strings.Cut(tags, "|")
-						var lastEntityID string
-						for _, tag := range strings.Split(tags, ",") {
-							if id, ok := strings.CutPrefix(tag, "dd.internal.entity_id:"); ok {
-								lastEntityID = id
-							}
+						wantTags := []string{"team:test", "debugger.probeid:probe", "service:checkout", "env:prod", "version:1.2.3"}
+						if wantEntityID != "" {
+							wantTags = append(wantTags, "dd.internal.entity_id:"+wantEntityID)
 						}
-						require.Equal(t, wantEntityID, lastEntityID, packet)
+						require.ElementsMatch(t, wantTags, strings.Split(tags, ","), packet)
 					}
 					if target == "pod" {
 						report("target-pod")
 					} else {
-						report("none")
+						report("")
 					}
 					if target == "unknown" || target == "pending-pod" {
 						store.container = &workloadmeta.Container{}
-						report("none")
+						report("")
 						store.container.Owner = &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "target-pod"}
 						report("target-pod")
 						require.Equal(t, 3, store.lookups)
@@ -133,7 +138,7 @@ func TestMetricProbeOriginPackets(t *testing.T) {
 					if target == "pod" || target == "unknown" || target == "pending-pod" {
 						report("target-pod")
 					} else {
-						report("none")
+						report("")
 					}
 					require.Equal(t, lookups, store.lookups, "resolved identities must not be looked up again")
 				})

@@ -300,7 +300,7 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 	}, 30*time.Second, 100*time.Millisecond, "metrics should be reported")
 
 	statsd.mu.Lock()
-	assert.Equal(t, []string{"debugger.probeid:calls", "service:simple", "env:test", "dd.internal.entity_id:none"},
+	assert.Equal(t, []string{"debugger.probeid:calls", "service:simple", "env:test"},
 		statsd.tags[metricPrefix+"calls"])
 	statsd.mu.Unlock()
 

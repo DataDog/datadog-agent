@@ -195,26 +195,14 @@ DogStatsD datagram (`|`, `,`, `#`, `:` in names, newlines) are replaced with
 `_`.
 
 Metrics go through a dedicated datadog-go client created with
-`WithoutOriginDetection()` to disable client-side origin detection. Each report
-also supplies `dd.internal.entity_id:none`, overriding the client's inherited
-`DD_ENTITY_ID`. When the target pod is known, its UID is appended last;
-DogStatsD uses the last entity tag. This does not disable server-side Unix socket
-origin detection.
-
-Datadog-go also adds `DD_ENV`, `DD_SERVICE` and `DD_VERSION` from system-probe's
-environment as tags; if a deployment sets those on system-probe (for example
-through Helm's `datadog.env`), metric probe metrics carry a second
-`env`/`service`/`version` value.
-
-Pending a datadog-go dependency update, the client factory stubs out two
-independent options: `WithoutEntityIDFromEnv()` to stop inheriting
-`DD_ENTITY_ID`, and `WithoutEnvTags()` to stop inheriting `DD_ENV`, `DD_SERVICE`,
-and `DD_VERSION`. Once available, enable both, remove the unconditional
-`dd.internal.entity_id:none` override and the DogStatsD last-tag-wins test, and
-send only the target pod's entity tag when known. Update the reporter's tag
-tests accordingly. Probe-supplied `dd.internal.entity_id` tags must also be
-filtered so they cannot introduce competing identities. Until then, the
-current behavior above is unchanged.
+`WithoutOriginDetection()`, `WithoutEntityID()`, and `WithoutEnvTags()`.
+These disable client-side container discovery and inheritance of system-probe's
+`DD_ENTITY_ID`, `DD_ENV`, `DD_SERVICE`, and `DD_VERSION`. The reporter supplies
+the target's service/env/version explicitly and sends exactly one
+`dd.internal.entity_id` tag when the target pod is known, or none otherwise.
+Probe-supplied entity tags are filtered to prevent competing identities; tag
+ordering has no effect. This does not disable server-side Unix socket origin
+detection.
 
 ### Probe status
 
@@ -361,8 +349,8 @@ A module-level `metricsReporter` with a single goroutine:
 - **Statsd client.** The `cmd/system-probe` module factory creates the
   dedicated client with the statsd component's `CreateForHostPort` (same
   address and options as system-probe's shared client, plus
-  `WithoutOriginDetection()`) and passes it to the module along with
-  workloadmeta.
+  `WithoutOriginDetection()`, `WithoutEntityID()`, and `WithoutEnvTags()`)
+  and passes it to the module along with workloadmeta.
 
 ### Reloads
 

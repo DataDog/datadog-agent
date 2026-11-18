@@ -345,13 +345,6 @@ func metricEvaluationError(probe *reportedMetricProbe) decode.EvaluationError {
 // Missing container or owner metadata is retried on every report without
 // delaying metrics.
 //
-// Until then, and always for targets that aren't in a pod, the probes have no
-// dd.internal.entity_id tag of their own. If system-probe's environment sets
-// DD_ENTITY_ID, datadog-go adds it to every metric as dd.internal.entity_id,
-// and DogStatsD then gives these metrics the tags of system-probe's pod. A tag
-// added here takes precedence over that one: datadog-go puts its own tags
-// first, and DogStatsD keeps the last dd.internal.entity_id it finds.
-//
 // TODO(andrei): this is the extent of container tagging for metric probes.
 // DogStatsD turns dd.internal.entity_id into the pod's tags, at the core
 // agent's dogstatsd_tag_cardinality. Per-container tags (kube_container_name,
@@ -397,9 +390,13 @@ func (r *metricsReporter) notifyEmitting(programID ir.ProgramID, probes []*repor
 // probe's own tags, the probe ID, and the service, environment and version of
 // the target process.
 func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
-	tags := make([]string, 0, len(def.GetTags())+5)
+	tags := make([]string, 0, len(def.GetTags())+4)
 	for _, tag := range def.GetTags() {
-		tags = append(tags, sanitizeMetricTag(tag))
+		tag = sanitizeMetricTag(tag)
+		if strings.HasPrefix(tag, "dd.internal.entity_id:") {
+			continue
+		}
+		tags = append(tags, tag)
 	}
 	tags = append(tags, "debugger.probeid:"+sanitizeMetricTag(def.GetID()))
 	for _, t := range []struct{ key, value string }{
@@ -411,8 +408,7 @@ func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
 			tags = append(tags, t.key+":"+sanitizeMetricTag(t.value))
 		}
 	}
-	// Override the client's DD_ENTITY_ID until the target pod is known.
-	return append(tags, "dd.internal.entity_id:none")
+	return tags
 }
 
 // sanitizeMetricName replaces the characters that don't belong in metric
