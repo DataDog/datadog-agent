@@ -1291,6 +1291,7 @@ func (s *TracerSuite) TestSelfConnect() {
 	// for the child across fetches, keyed by PID only: other tuple fields such as Direction can differ
 	// between fetches, and keying on them would let one side show up twice.
 	seen := make(map[uint32]network.ConnectionStats)
+	var duplicate string
 	// SK reports a single connection carrying both sides' bytes; keep the latest non-empty fetch, since
 	// an idle connection is reported in only one fetch.
 	var skLatest []network.ConnectionStats
@@ -1312,6 +1313,26 @@ func (s *TracerSuite) TestSelfConnect() {
 			return
 		}
 
+		// Each side must appear at most once per fetch; a duplicate would otherwise overwrite the
+		// first record in seen and hide it. Later fetches may still refresh a side's counters. The
+		// failure is sticky: a later fetch must not let the test pass on the stale seen map.
+		if duplicate == "" {
+			perFetch := make(map[uint32]int)
+			for _, c := range polled {
+				if c.Pid == parentPID || c.Pid == childPID {
+					perFetch[c.Pid]++
+				}
+			}
+			for pid, n := range perFetch {
+				if n > 1 {
+					duplicate = fmt.Sprintf("PID %d appears %d times in one fetch: %v", pid, n, polled)
+				}
+			}
+		}
+		if duplicate != "" {
+			assert.Fail(collect, "duplicate connection in one fetch", duplicate)
+			return
+		}
 		for _, c := range polled {
 			if c.Pid == parentPID || c.Pid == childPID {
 				seen[c.Pid] = c
