@@ -47,10 +47,6 @@ func (b *IntegrationsBundle) GetAction(name string) types.Action {
 // RunQuery resolves or runs a query using the caller's cancellable IPC request.
 type RunQuery struct{ client ipc.HTTPClient }
 
-// CancelOnRunnerStop ends the IPC call when the runner stops so the core Agent
-// can cancel the integration run, including during graceful runner shutdown.
-func (*RunQuery) CancelOnRunnerStop() bool { return true }
-
 // TaskTimeout reads the action's top-level timeout, in whole seconds. Omission
 // selects the runner's default. Values that cannot be represented by a Go timer
 // fail rather than overflowing into a short or negative deadline.

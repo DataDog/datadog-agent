@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	com_datadoghq_remoteaction_integrations "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/integrations"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -58,10 +57,7 @@ func (c *queryIPC) Post(address, _ string, body io.Reader, options ...ipc.Reques
 func queryExecutor(t *testing.T, client ipc.HTTPClient, defaultTimeout int32) *WorkflowTaskExecutor {
 	t.Helper()
 	coreconfig.NewMock(t)
-	stopContext, stopCancel := context.WithCancel(context.Background())
-	t.Cleanup(stopCancel)
 	return &WorkflowTaskExecutor{
-		stopContext: stopContext, stopCancel: stopCancel,
 		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{integrationsBundle: com_datadoghq_remoteaction_integrations.NewIntegrations(client)}},
 		config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{integrationsBundle: sets.New("runQuery")}, MetricsClient: &statsd.NoOpClient{}, TaskTimeoutSeconds: &defaultTimeout},
 	}
@@ -74,8 +70,8 @@ func queryTask() *types.Task {
 	return task
 }
 
-// RUN-05: the actual runQuery action controls the shared executor timeout seam.
-func TestRUN05(t *testing.T) {
+// The runQuery action's timeout input controls the shared executor timeout seam.
+func TestTaskTimeoutInput(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		timeout       interface{}
@@ -116,77 +112,6 @@ func TestRUN05(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.True(t, called)
-			}
-		})
-	}
-}
-
-// RUN-04 runner-lifecycle wiring: the new action's IPC caller ends on Stop,
-// while existing actions still drain. Core IPC tests own integration cancellation.
-func TestRunnerStopCancellationWiring(t *testing.T) {
-	for _, remote := range []bool{true, false} {
-		t.Run(strconv.FormatBool(remote), func(t *testing.T) {
-			entered, release := make(chan struct{}), make(chan struct{}, 1)
-			defer close(release)
-			var runContext context.Context
-			client := &queryIPC{post: func(ctx context.Context, _ []byte) ([]byte, error) {
-				runContext = ctx
-				close(entered)
-				<-ctx.Done()
-				return nil, ctx.Err()
-			}}
-			executor := queryExecutor(t, client, 60)
-			task := queryTask()
-			if !remote {
-				const bundle = "test-bundle"
-				executor.registry = &privatebundles.Registry{Bundles: map[string]types.Bundle{bundle: &fakeBundle{action: &recordingAction{report: func(ctx context.Context) { runContext = ctx; close(entered); <-release }}}}}
-				executor.config.ActionsAllowlist = map[string]sets.Set[string]{bundle: sets.New("test")}
-				task = newWorkflowTask("task", bundle, "test", "job")
-			}
-			runner := &WorkflowRunner{taskExecutor: executor, shutdownChannel: make(chan struct{}), encryptionStore: encryptioncontext.NewStore()}
-			result := make(chan error, 1)
-			runner.wg.Add(1)
-			go func() {
-				defer runner.wg.Done()
-				_, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
-				result <- err
-			}()
-			select {
-			case <-entered:
-			case <-time.After(3 * time.Second):
-				t.Fatal("action did not start")
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			stopped := make(chan error, 1)
-			go func() { stopped <- runner.Stop(ctx) }()
-			select {
-			case <-executor.stopContext.Done():
-			case <-ctx.Done():
-				t.Fatal("executor was not signaled")
-			}
-			if !remote {
-				require.NoError(t, runContext.Err())
-				select {
-				case <-stopped:
-					t.Fatal("ordinary action did not drain")
-				default:
-				}
-				release <- struct{}{}
-			}
-			select {
-			case err := <-stopped:
-				require.NoError(t, err)
-			case <-ctx.Done():
-				t.Fatal("runner did not stop")
-			}
-			if remote {
-				require.Error(t, <-result)
-				require.ErrorIs(t, runContext.Err(), context.Canceled)
-				_, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
-				require.ErrorIs(t, err, context.Canceled)
-			} else {
-				require.NoError(t, <-result)
 			}
 		})
 	}

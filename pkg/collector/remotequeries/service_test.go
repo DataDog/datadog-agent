@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -93,6 +92,22 @@ func (l *recordingLog) snapshot() []string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return append([]string(nil), l.lines...)
+}
+
+// waitRunLog returns the line logged when a run's execute call returns.
+func (l *recordingLog) waitRunLog(t *testing.T) string {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, line := range l.snapshot() {
+			if strings.Contains(line, "kind=run ") {
+				return line
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("run's final answer was not logged")
+	return ""
 }
 
 type ipcFixture struct {
@@ -325,9 +340,9 @@ func TestCHECK06(t *testing.T) {
 // RUN-01: the execute call receives exactly the annex payload, with no wrapper fields.
 func TestRUN01(t *testing.T) {
 	c := newQueryCheck("candidate")
-	var got string
+	received := make(chan string, 1)
 	c.execute = func(_ context.Context, input string) (string, error) {
-		got = input
+		received <- input
 		return `{"status":"SUCCEEDED"}`, nil
 	}
 	f := newIPC(t, c)
@@ -347,7 +362,12 @@ func TestRUN01(t *testing.T) {
 	expected["traceContext"] = trace
 	raw, err := json.Marshal(expected)
 	require.NoError(t, err)
-	require.JSONEq(t, string(raw), got)
+	select {
+	case got := <-received:
+		require.JSONEq(t, string(raw), got)
+	case <-time.After(3 * time.Second):
+		t.Fatal("execute did not start")
+	}
 }
 
 func TestAgentOwnedUploadEndpoint(t *testing.T) {
@@ -370,9 +390,9 @@ func TestAgentOwnedUploadEndpoint(t *testing.T) {
 	} {
 		t.Run(tc.site, func(t *testing.T) {
 			c := newQueryCheck("candidate")
-			var got string
+			received := make(chan string, 1)
 			c.execute = func(_ context.Context, input string) (string, error) {
-				got = input
+				received <- input
 				return `{"status":"SUCCEEDED"}`, nil
 			}
 			f := newIPC(t, c)
@@ -384,7 +404,12 @@ func TestAgentOwnedUploadEndpoint(t *testing.T) {
 					BaseURL string `json:"baseUrl"`
 				} `json:"resultDelivery"`
 			}
-			require.NoError(t, json.Unmarshal([]byte(got), &payload))
+			select {
+			case got := <-received:
+				require.NoError(t, json.Unmarshal([]byte(got), &payload))
+			case <-time.After(3 * time.Second):
+				t.Fatal("execute did not start")
+			}
 			require.Equal(t, tc.baseURL+"/api/unstable/its-agent-intake", payload.Delivery.BaseURL)
 		})
 	}
@@ -425,62 +450,40 @@ func TestRejectUploadOverrideBeforeCallingChecks(t *testing.T) {
 	require.Zero(t, c.executes.Load())
 }
 
-// RUN-04: deadline/caller cancellation discards the answer and signals the crawl ID.
+// RUN-01 and RUN-04: the run continues after the caller's context ends, and nothing cancels it.
 func TestRUN04(t *testing.T) {
-	for _, tc := range []struct{ deadline, lateRegistration bool }{{false, false}, {true, false}, {false, true}} {
-		t.Run(strconv.FormatBool(tc.deadline)+"/late="+strconv.FormatBool(tc.lateRegistration), func(t *testing.T) {
-			started, finish, cancelled := make(chan struct{}), make(chan struct{}), make(chan string, 1)
-			var finishOnce sync.Once
-			defer finishOnce.Do(func() { close(finish) })
-			var signals atomic.Int32
+	for _, tc := range []struct{ name, end string }{{"caller cancelled", "cancel"}, {"caller deadline", "deadline"}, {"answer returned", "answered"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			started, finish := make(chan struct{}), make(chan struct{})
+			var runCtx context.Context
+			var cancelled atomic.Int32
 			c := newQueryCheck("candidate")
 			c.execute = func(ctx context.Context, _ string) (string, error) {
-				if ctx.Err() != nil {
-					return "", ctx.Err()
-				}
+				runCtx = ctx
 				close(started)
 				<-finish
 				return `{"status":"SUCCEEDED"}`, nil
 			}
-			c.cancel = func(id string) error {
-				if signals.Add(1) == 1 && tc.lateRegistration {
-					return nil
-				}
-				cancelled <- id
-				finishOnce.Do(func() { close(finish) })
-				return nil
-			}
+			c.cancel = func(string) error { cancelled.Add(1); return nil }
 			f := newIPC(t, c)
 			ctx, cancel := context.WithCancel(context.Background())
-			if tc.deadline {
-				ctx, cancel = context.WithTimeout(context.Background(), 150*time.Millisecond)
+			if tc.end == "deadline" {
+				ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 			}
 			defer cancel()
-			done := make(chan error, 1)
-			go func() { _, err := f.call(ctx, executeInput, nil); done <- err }()
-			select {
-			case <-started:
-			case <-time.After(3 * time.Second):
-				t.Fatal("execute did not start")
-			}
-			if !tc.deadline {
+			answer, err := f.call(ctx, executeInput, nil)
+			require.NoError(t, err)
+			require.Equal(t, "SUCCEEDED", answer.Status)
+			<-started
+			if tc.end == "cancel" {
 				cancel()
 			}
-			select {
-			case err := <-done:
-				require.Error(t, err)
-			case <-time.After(3 * time.Second):
-				t.Fatal("caller not released")
-			}
-			select {
-			case id := <-cancelled:
-				require.Equal(t, "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c", id)
-				if tc.lateRegistration {
-					require.GreaterOrEqual(t, signals.Load(), int32(2))
-				}
-			case <-time.After(3 * time.Second):
-				t.Fatal("run not cancelled")
-			}
+			// Let the caller's end reach the core Agent before the run returns.
+			time.Sleep(100 * time.Millisecond)
+			require.NoError(t, runCtx.Err())
+			close(finish)
+			require.Contains(t, f.logs.waitRunLog(t), "outcome=SUCCEEDED")
+			require.Zero(t, cancelled.Load())
 		})
 	}
 }
@@ -496,27 +499,65 @@ func TestOUT01(t *testing.T) {
 	require.Contains(t, answer.Error.Message, "not supported")
 }
 
-// OUT-02 and OUT-03: final execute outcomes, including unchanged integration codes.
-func TestOUT02OUT03(t *testing.T) {
-	for _, reply := range []string{`{"status":"SUCCEEDED"}`, `{"status":"FAILED","error":{"code":"unsupported_column","message":"expand the column"}}`} {
-		c := newQueryCheck("candidate")
-		c.execute = func(context.Context, string) (string, error) { return reply, nil }
-		answer := callIPC(t, newIPC(t, c), executeInput)
-		raw, err := json.Marshal(answer)
-		require.NoError(t, err)
-		require.JSONEq(t, reply, string(raw))
+// OUT-02: the answer is succeeded before the execute call returns, and carries nothing else.
+func TestOUT02(t *testing.T) {
+	started, finish := make(chan struct{}), make(chan struct{})
+	c := newQueryCheck("candidate")
+	c.execute = func(context.Context, string) (string, error) {
+		close(started)
+		<-finish
+		return `{"status":"SUCCEEDED"}`, nil
 	}
+	f := newIPC(t, c)
+	answer := callIPC(t, f, executeInput)
+	raw, err := json.Marshal(answer)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"status":"SUCCEEDED"}`, string(raw))
+	<-started
+	close(finish)
+	f.logs.waitRunLog(t)
 }
 
-// OUT-04 and OUT-05: malformed final answers and attempts to return data fail closed.
-func TestOUT04OUT05(t *testing.T) {
-	for _, reply := range []string{"", `[]`, `{"status":"SUCCEEDED"} {"status":"FAILED"}`, `{"status":"SUCCEEDED","error":{"code":"x","message":"failure"}}`, `{"status":"SUCCEEDED","rows":["secret result"]}`, `{"status":"SUCCEEDED","schema":{}}`, `{"status":"SUCCEEDED","pageContents":"secret result"}`} {
-		c := newQueryCheck("candidate")
-		c.execute = func(context.Context, string) (string, error) { return reply, nil }
-		answer := callIPC(t, newIPC(t, c), executeInput)
-		require.Equal(t, "FAILED", answer.Status)
-		require.Equal(t, "integration_unavailable", answer.Error.Code)
-		require.NotContains(t, answer.Error.Message, "secret result")
+// OUT-03: a failure before the run starts carries its code and message.
+func TestOUT03(t *testing.T) {
+	c := newQueryCheck("candidate")
+	f := newIPC(t, c)
+	f.svc.Checks = func() []check.Check { return nil }
+	answer := callIPC(t, f, executeInput)
+	require.Equal(t, "FAILED", answer.Status)
+	require.Equal(t, "target_not_found", answer.Error.Code)
+	require.NotEmpty(t, answer.Error.Message)
+	require.Zero(t, c.executes.Load())
+}
+
+// OUT-04, OUT-05 and OBS-03: the final answer is logged and never returned. A malformed answer, or one that
+// tries to return data, is logged as a failure without its content.
+func TestFinalAnswerLogged(t *testing.T) {
+	for _, tc := range []struct {
+		name, reply, outcome, code string
+		err                        error
+	}{
+		{"succeeded", `{"status":"SUCCEEDED"}`, "SUCCEEDED", "", nil},
+		{"failed", `{"status":"FAILED","error":{"code":"unsupported_column","message":"secret result"}}`, "FAILED", "unsupported_column", nil},
+		{"unscheduled", "", "FAILED", "cancelled", check.ErrRemoteQueryCancelled},
+		{"no answer", "", "FAILED", "integration_unavailable", nil},
+		{"not an object", `[]`, "FAILED", "integration_unavailable", nil},
+		{"two answers", `{"status":"SUCCEEDED"} {"status":"FAILED"}`, "FAILED", "integration_unavailable", nil},
+		{"success and failure", `{"status":"SUCCEEDED","error":{"code":"x","message":"failure"}}`, "FAILED", "integration_unavailable", nil},
+		{"rows", `{"status":"SUCCEEDED","rows":["secret result"]}`, "FAILED", "integration_unavailable", nil},
+		{"schema", `{"status":"SUCCEEDED","schema":{}}`, "FAILED", "integration_unavailable", nil},
+		{"page contents", `{"status":"SUCCEEDED","pageContents":"secret result"}`, "FAILED", "integration_unavailable", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newQueryCheck("candidate")
+			c.execute = func(context.Context, string) (string, error) { return tc.reply, tc.err }
+			f := newIPC(t, c)
+			require.Equal(t, Answer{Status: "SUCCEEDED"}, callIPC(t, f, executeInput))
+			line := f.logs.waitRunLog(t)
+			require.Contains(t, line, "outcome="+tc.outcome+" ")
+			require.Contains(t, line, "code="+tc.code+" ")
+			require.NotContains(t, line, "secret result")
+		})
 	}
 }
 
@@ -525,13 +566,26 @@ func TestOBS02OBS03(t *testing.T) {
 	c := newQueryCheck("candidate")
 	f := newIPC(t, c)
 	callIPC(t, f, executeInput)
-	lines := f.logs.snapshot()
-	require.Len(t, lines, 1)
+	run := f.logs.waitRunLog(t)
+	var request string
+	require.Eventually(t, func() bool {
+		for _, line := range f.logs.snapshot() {
+			if strings.Contains(line, "kind=execute ") {
+				request = line
+			}
+		}
+		return request != ""
+	}, 3*time.Second, 5*time.Millisecond)
 	for _, field := range []string{`integration="postgres"`, `crawl_id="7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c"`, `task_id="d25e7f9f-6883-4462-b31e-b449f70c0894"`, `upload_id="upload-1"`, `kind=execute`, `outcome=SUCCEEDED`, `code=`, `duration=`, `candidates=1`, `matched_check="candidate"`} {
-		require.Contains(t, lines[0], field)
+		require.Contains(t, request, field)
 	}
-	require.NotContains(t, lines[0], "secret_value")
-	require.NotContains(t, lines[0], "resultDelivery")
+	for _, field := range []string{`integration="postgres"`, `crawl_id="7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c"`, `task_id="d25e7f9f-6883-4462-b31e-b449f70c0894"`, `upload_id="upload-1"`, `kind=run`, `outcome=SUCCEEDED`, `code=`, `duration=`} {
+		require.Contains(t, run, field)
+	}
+	for _, line := range f.logs.snapshot() {
+		require.NotContains(t, line, "secret_value")
+		require.NotContains(t, line, "resultDelivery")
+	}
 }
 
 // SCALE-01: a stuck run does not delay another request's resolve or execute.
