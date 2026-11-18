@@ -109,8 +109,9 @@ instances:
     ## collection. A window of exactly one bucket therefore publishes nothing at all, and
     ## a window that only sometimes contains two publishes intermittently. On a tenant
     ## rendering 15 minute buckets, use 45 or more: it always holds two complete buckets
-    ## wherever the window starts, and the check logs a warning below 45 when an enabled
-    ## query uses timeseries.
+    ## wherever the window starts. The check logs a warning when an enabled query uses
+    ## timeseries and the window is below 45, including when this setting is left at its
+    ## default of 30.
     #
     # lookback_time_window_minutes: 30
 

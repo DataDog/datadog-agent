@@ -37,7 +37,9 @@ func TestConfigureWarnsOnShortTimeseriesLookback(t *testing.T) {
 		{"timeseries at 44", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 44\n", true},
 		{"timeseries at 45", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 45\n", false},
 		{"timeseries above 45", "analytics_query_type: timeseries\ncollect_sla_metrics: true\nlookback_time_window_minutes: 60\n", false},
-		{"timeseries lookback unset", "analytics_query_type: timeseries\n", false},
+		// Unset uses the 30 minute default, which is below 45.
+		{"timeseries lookback unset", "analytics_query_type: timeseries\ncollect_sla_metrics: true\n", true},
+		{"tableData lookback unset", "analytics_query_type: tableData\ncollect_sla_metrics: true\n", false},
 		{"tableData below 45", "analytics_query_type: tableData\ncollect_sla_metrics: true\nlookback_time_window_minutes: 15\n", false},
 		{"default query type below 45", "lookback_time_window_minutes: 15\n", false},
 	}
