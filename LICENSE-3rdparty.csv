@@ -1442,8 +1442,6 @@ core,github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus,Apache-2.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
-core,github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors | Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
@@ -3267,8 +3265,10 @@ core,go.temporal.io/api/workflowservicemock/v1,MIT,Copyright (c) 2025 Temporal T
 core,go.temporal.io/sdk/client,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/converter,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/codecerror,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/backoff,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/cache,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
+core,go.temporal.io/sdk/internal/common/converter,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/metrics,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/retry,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
 core,go.temporal.io/sdk/internal/common/serializer,MIT,"Copyright (c) 2020 Temporal Technologies Inc.  All rights reserved | Copyright (c) 2020 Uber Technologies, Inc"
