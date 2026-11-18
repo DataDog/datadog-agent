@@ -580,7 +580,7 @@ func (_e *SecurityModuleCmdClientWrapper_Expecter) ListSecurityProfiles() *Secur
 }
 
 func (_c *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call) Run(run func()) *SecurityModuleCmdClientWrapper_ListSecurityProfiles_Call {
-	_c.Call.Run(func(_ mock.Arguments) {
+	_c.Call.Run(func(args mock.Arguments) {
 		run()
 	})
 	return _c

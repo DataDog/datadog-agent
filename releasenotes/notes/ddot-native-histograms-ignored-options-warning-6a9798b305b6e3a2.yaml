@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    With the ``datadog.serializerexporter.NativeOTelHistograms`` feature gate on, DDOT
+    logs a warning at startup when ``metrics::histograms::mode`` is ``counters`` or
+    ``nobuckets``, or when ``metrics::histograms::send_aggregation_metrics`` is enabled.
+    With the gate on, OpenTelemetry histograms are sent as native histograms, so these
+    settings have no effect and no ``.bucket``, ``.count``, ``.sum``, ``.min`` or ``.max``
+    metrics are sent for histograms. Query the count, sum, min and max of the histogram
+    metric instead.

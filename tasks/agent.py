@@ -105,7 +105,7 @@ def build(
                 rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
                 rtloader_install(ctx)
             else:
-                bazel_embedded = rtloader_install_with_bazel(ctx)
+                bazel_embedded = rtloader_install_with_bazel(ctx, fips_backend=flavor.fips_backend())
                 embedded_path = bazel_embedded
                 python_home_3 = bazel_embedded
 
@@ -179,7 +179,7 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=flavor.fips_backend())
         # Do not call build_rc when cross-compiling on Linux as the intend is more
         # to streamline the development process that producing a working executable / installer
         if sys.platform == 'win32':
@@ -189,6 +189,7 @@ def build(
                 "cmd/agent/windows_resources/agent.rc",
                 vars=vars,
                 out="cmd/agent/rsrc.syso",
+                fips_backend=flavor.fips_backend(),
             )
 
     if not agent_bin:
@@ -196,11 +197,16 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    schema_compress(ctx)
+    schema_compress(ctx, fips_backend=flavor.fips_backend())
 
     with gitlab_section("Build agent", collapsed=True):
         if enable_bazel:
-            build_binary_with_bazel(f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
+            build_binary_with_bazel(
+                f"//cmd/{flavor_cmd}",
+                bin_path=agent_bin,
+                embedded_path=embedded_path,
+                fips_backend=flavor.fips_backend(),
+            )
         else:
             go_build(
                 ctx,
@@ -568,9 +574,6 @@ def hacky_dev_image_build(
             # TODO: this is the last usage of this flag, we should remove it once this
             # task has been deprecated long enough
             legacy_rtloader_cmake=True,
-        )
-        ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
     copy_checks_d = ""

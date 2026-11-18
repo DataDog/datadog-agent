@@ -17,14 +17,15 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/mdlayher/vsock"
 	empty "google.golang.org/protobuf/types/known/emptypb"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
@@ -187,8 +188,9 @@ func (c *RuntimeSecurityEventClient) GetActivityDumpStream() (api.SecurityModule
 	return stream, nil
 }
 
-// NewRuntimeSecurityCmdClient instantiates a new RuntimeSecurityCmdClient
-func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
+// NewRuntimeSecurityCmdClient instantiates a new RuntimeSecurityCmdClient. ipcComp is required when the
+// command socket is a TCP address, to authenticate against system-probe.
+func NewRuntimeSecurityCmdClient(ipcComp ipc.Component) (*RuntimeSecurityCmdClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	cmdSocketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
 
@@ -206,9 +208,12 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 		cmdSocketPath = "unix://" + cmdSocketPath
 	}
 
-	conn, err := grpc.NewClient(
-		cmdSocketPath,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	opts, err := grpcutils.ClientOptions(family, ipcComp)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts,
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -216,6 +221,8 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 				MaxDelay:  time.Second,
 			},
 		}))
+
+	conn, err := grpc.NewClient(cmdSocketPath, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -231,8 +238,9 @@ func (c *RuntimeSecurityEventClient) Close() {
 	c.conn.Close()
 }
 
-// NewRuntimeSecurityEventClient instantiates a new RuntimeSecurityEventClient
-func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
+// NewRuntimeSecurityEventClient instantiates a new RuntimeSecurityEventClient. ipcComp is required when
+// the event socket is a TCP address, to authenticate against system-probe.
+func NewRuntimeSecurityEventClient(ipcComp ipc.Component) (*RuntimeSecurityEventClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 
 	family, addr := socket.GetSocketAddress(socketPath)
@@ -244,8 +252,12 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 		socketPath = "unix://" + addr
 	}
 
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	opts, err := grpcutils.ClientOptions(family, ipcComp)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts,
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -253,7 +265,7 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 				MaxDelay:  time.Second,
 			},
 		}),
-	}
+	)
 
 	if family == "vsock" {
 		_, sPort, err := net.SplitHostPort(socketPath)

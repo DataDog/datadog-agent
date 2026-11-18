@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -112,6 +114,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -119,8 +122,8 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	return []*cobra.Command{securityProfileListCmd}
 }
 
-func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, _ *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, _ *securityProfileCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -218,6 +221,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -240,8 +244,8 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	return []*cobra.Command{securityProfileSaveCmd}
 }
 
-func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityCmdClient()
+func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, args *securityProfileCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}

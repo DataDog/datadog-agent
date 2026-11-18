@@ -501,35 +501,39 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 
 	rawConfigFiles := make(map[string]agentmetadata.RawFile)
 	for _, file := range possibleFiles {
-		if scrubbedConfig, ok := ia.readAndScrubConfig(file); ok {
+		if scrubbedConfig, secrets, ok := ia.readAndScrubConfig(file); ok {
 			hash := sha256.Sum256(scrubbedConfig)
 			rawConfigFiles[file] = agentmetadata.RawFile{
 				RawConfig: string(scrubbedConfig),
 				Hash:      hex.EncodeToString(hash[:]),
+				Secrets:   secrets,
 			}
 		}
 	}
 	return rawConfigFiles
 }
 
-func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
+func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.ConfigSecret, bool) {
 	if path == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	rawContent, err := os.ReadFile(path)
 	if err != nil {
 		ia.log.Debugf("could not read configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawContent)
+	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
 	if err != nil {
 		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
-	return scrubbedConfig, true
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		secrets = nil
+	}
+	return scrubbedConfig, secrets, true
 }
 
 func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {

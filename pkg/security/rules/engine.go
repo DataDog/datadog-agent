@@ -429,6 +429,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
+	// set the rate limiters on sending events to the backend before storing the ruleset: events matching its
+	// rules are sent as soon as it is stored, and are dropped if their rule has no rate limiter yet
+	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
+
 	e.currentRuleSet.Store(rs)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
@@ -437,9 +441,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	// reset the probe process killer state once the new ruleset is loaded
 	e.probe.OnNewRuleSetLoaded(rs)
-
-	// set the rate limiters on sending events to the backend
-	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
 	if replayEvents {
 		e.probe.ReplayEvents()

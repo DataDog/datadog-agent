@@ -55,6 +55,12 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR())
 	s.waitForContainerProcessState("datadog-agent", parControlProcess, "Running", 2*time.Minute)
+	// par-control is Running only after s6 stage 2, so the main process is s6-svscan.
+	// pid: host makes a PID 1 check meaningless. .State.Pid is the host PID.
+	pid := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.Pid}}' datadog-agent"))
+	comm := strings.TrimSpace(s.Env().RemoteHost.MustExecute("cat /proc/" + pid + "/comm"))
+	s.Equal("s6-svscan", comm, "the default entrypoint's main process should be s6-svscan")
 	_, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr("datadog-agent", "/par-probe.sh")
 	s.Require().NoError(err, stderr)
 

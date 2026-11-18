@@ -268,7 +268,8 @@ func TestLogPatternLimitFromAgentConfig(t *testing.T) {
 	} {
 		t.Run(test.value, func(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_pattern_extractor:\n      max_patterns: "+test.value+"\n")
-			settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
 			actual := settings.configs[LogPatternExtractorName].(LogPatternExtractorConfig)
 			require.Equal(t, test.want, actual.MaxPatterns)
 			require.Equal(t, test.want, NewLogPatternExtractor(actual).taggedClusterer.MaxPatterns)
