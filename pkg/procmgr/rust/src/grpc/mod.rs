@@ -1325,6 +1325,53 @@ mod tests {
         assert_eq!(config.runtime_processes, 0);
     }
 
+    /// A request with no peer credential is denied while enforcing, whatever
+    /// uid runs the test. This keeps every handler's guard covered under root,
+    /// where the socket test above skips.
+    #[tokio::test]
+    async fn test_enforced_policy_denies_requests_without_peer_credential() {
+        use super::proto::process_manager_server::ProcessManager as _;
+
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(LoadedCatalog::valid(
+                vec![],
+            ))),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
+        // No event loop: a handler missing its guard fails fast instead of
+        // waiting for a reply.
+        let (cmd_tx, _) = mpsc::channel::<Command>(1);
+        let svc = ProcessManagerService::with_caller_policy(
+            mgr,
+            cmd_tx,
+            CallerPolicy::from_enforce(true),
+        );
+
+        let err = svc
+            .create(tonic::Request::new(proto::CreateRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .start(tonic::Request::new(proto::StartRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .stop(tonic::Request::new(proto::StopRequest::default()))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+
+        let err = svc
+            .reload_config(tonic::Request::new(proto::ReloadConfigRequest {}))
+            .await
+            .unwrap_err();
+        assert_requires_root(&err);
+    }
+
     #[tokio::test]
     async fn test_unenforced_policy_allows_reload_config() {
         let (mut client, _shutdown) = start_test_server_with_catalog(
