@@ -2709,26 +2709,32 @@ func TestDeviceCountTelemetrySharingModes(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
 	tm := check.telemetry.component.(telemetry.Mock)
-	assertCounts := func(want map[string]float64) {
+	assertCounts := func(want map[workloadmeta.GPUSharingMode]float64) {
 		t.Helper()
 		metrics, err := tm.GetGaugeMetric(CheckName, "device_total")
 		require.NoError(t, err)
-		got := map[string]float64{}
+		got := map[workloadmeta.GPUSharingMode]float64{}
 		var total float64
 		for _, metric := range metrics {
 			require.Positive(t, metric.Value(), "stale label sets must be removed")
 			require.Len(t, metric.Tags(), len(nvidia.DeviceTelemetryTagNames)+1)
-			got[metric.Tags()["gpu_sharing_mode"]] += metric.Value()
+			got[workloadmeta.GPUSharingMode(metric.Tags()["gpu_sharing_mode"])] += metric.Value()
 			total += metric.Value()
 		}
-		for _, mode := range []string{"none", "kai_fraction", "time-slicing", "mps", "unknown"} {
+		for _, mode := range []workloadmeta.GPUSharingMode{
+			workloadmeta.GPUSharingModeNone,
+			workloadmeta.GPUSharingModeKAIFraction,
+			workloadmeta.GPUSharingModeTimeSlicing,
+			workloadmeta.GPUSharingModeMPS,
+			workloadmeta.GPUSharingModeUnknown,
+		} {
 			assert.Equal(t, want[mode], got[mode], mode)
 		}
 		assert.Equal(t, float64(len(devices)), total)
 	}
 	for _, mode := range []workloadmeta.GPUSharingMode{
-		"time-slicing", "mps",
-		workloadmeta.GPUSharingModeKAIFraction, "unknown", "",
+		workloadmeta.GPUSharingModeTimeSlicing, workloadmeta.GPUSharingModeMPS,
+		workloadmeta.GPUSharingModeKAIFraction, workloadmeta.GPUSharingModeUnknown, "",
 	} {
 		store.Set(&workloadmeta.GPU{
 			EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: devices[0].GetDeviceInfo().UUID},
@@ -2737,25 +2743,25 @@ func TestDeviceCountTelemetrySharingModes(t *testing.T) {
 		store.Set(&workloadmeta.GPU{
 			EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "MIG-child"},
 			ParentGPUUUID: devices[0].GetDeviceInfo().UUID,
-			SharingMode:   "time-slicing",
+			SharingMode:   workloadmeta.GPUSharingModeTimeSlicing,
 		})
 		check.updateDeviceCountTelemetry(devices)
-		want := map[string]float64{"none": float64(len(devices) - 1)}
+		want := map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices) - 1)}
 		if mode == "" {
-			want["none"]++
+			want[workloadmeta.GPUSharingModeNone]++
 		} else {
-			want[string(mode)]++
+			want[mode]++
 		}
 		assertCounts(want)
 	}
 	store.Unset(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: devices[0].GetDeviceInfo().UUID}})
 	check.updateDeviceCountTelemetry(devices)
-	assertCounts(map[string]float64{"none": float64(len(devices))})
+	assertCounts(map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices))})
 	// Device attributes are part of the grouping key too: changing them must
 	// replace the old label set without inflating the sum.
 	devices[0].GetDeviceInfo().Name = "NVIDIA H200"
 	check.updateDeviceCountTelemetry(devices)
-	assertCounts(map[string]float64{"none": float64(len(devices))})
+	assertCounts(map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices))})
 	check.updateDeviceCountTelemetry(nil)
 	_, err = tm.GetGaugeMetric(CheckName, "device_total")
 	require.ErrorContains(t, err, "not found")
