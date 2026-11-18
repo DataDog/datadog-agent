@@ -54,3 +54,23 @@ func CompressBound(srcSize int) int {
 func Compress(dst, src []byte) ([]byte, error) {
 	return CompressLevel(dst, src, DefaultCompression)
 }
+
+// WriterOption tunes the pure-Go encoder. The CGO backend logs a warning and ignores options.
+type WriterOption func(*writerOptions)
+
+type writerOptions struct {
+	windowLogSize   *int
+	lowerEncoderMem bool
+}
+
+// WithWindowLogSize sets the pure-Go history window to 1 << logSize bytes,
+// overriding ZSTD_NOCGO_WINDOW. The encoder validates the resulting window size.
+func WithWindowLogSize(logSize int) WriterOption {
+	return func(o *writerOptions) { o.windowLogSize = &logSize }
+}
+
+// WithDisableLowerEncoderMem disables the pure-Go encoder's memory-saving mode.
+// It can improve throughput at the cost of memory.
+func WithDisableLowerEncoderMem() WriterOption {
+	return func(o *writerOptions) { o.lowerEncoderMem = false }
+}

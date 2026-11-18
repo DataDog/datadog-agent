@@ -19,6 +19,7 @@ go_library(
 dd_agent_go_test(
     name = "zstd_test",
     srcs = [
+        "writer_options_nocgo_test.go",
         "zstd_compressor_test.go",
         "zstd_cross_test.go",
     ],
@@ -26,4 +27,14 @@ dd_agent_go_test(
     deps = [
         "@com_github_klauspost_compress//zstd",
     ],
+)
+
+# Exercise the public API without CGO even in race-enabled CI jobs.
+dd_agent_go_test(
+    name = "zstd_nocgo_test",
+    srcs = ["writer_options_nocgo_test.go"],
+    embed = [":zstd"],
+    pure = "on",
+    race = "off",
+    deps = ["@com_github_klauspost_compress//zstd"],
 )

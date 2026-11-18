@@ -130,6 +130,7 @@ pkg_filegroup(
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/product:dirs",
         "//packages/agent/product:privateactionrunner_binary",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 
@@ -237,6 +238,7 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/product:dirs",
+        "//packages/agent/python-scripts:all_files",
     ],
 )
 

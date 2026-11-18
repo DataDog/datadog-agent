@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
+func formatTags(c *network.ConnectionStats, connStaticTags uint64, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
 	var checksum uint32
 
-	staticTags := tls.GetStaticTags(c.StaticTags)
+	staticTags := tls.GetStaticTags(connStaticTags)
 	tagsIdx := make([]int32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
 
 	for _, tag := range staticTags {
@@ -135,7 +135,7 @@ func (d *directSender) containerTagsIndex(sourceContainerID *intern.Value, tagsE
 	return -1
 }
 
-func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, resolver *serviceResolver, tagsEncoder model.TagEncoder) {
+func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc *network.ConnectionStats, resolver *serviceResolver, tagsEncoder model.TagEncoder) {
 	srcContainerID := getInternedString(nc.ContainerID.Source)
 	// USM supports TCP only; skip UDP connections.
 	if nc.IntraHost && srcContainerID == "" && nc.Type == network.TCP {
@@ -147,7 +147,7 @@ func (d *directSender) addRemoteServiceTags(builder *model.ConnectionBuilder, nc
 	builder.SetRemoteServiceTagsIdx(-1)
 }
 
-func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder, cache *chunkTagCache) {
+func (d *directSender) addTags(builder *model.ConnectionBuilder, nc *network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder, cache *chunkTagCache) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {
@@ -159,8 +159,8 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
-	nc.StaticTags |= staticTags
-	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
+	// nc points into the shared connections buffer, so the encoder tags are merged locally
+	tagIndexes, tagChecksum := formatTags(nc, nc.StaticTags|staticTags, tagsSet, dynamicTags)
 	builder.SetTagsChecksum(tagChecksum)
 
 	reattributed := nc.NetNSOriginalContainerID != nil
