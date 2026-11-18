@@ -511,7 +511,7 @@ func TestGetQoSMetrics(t *testing.T) {
 func TestGetDIAMetrics(t *testing.T) {
 	expectedDIAMetrics := []DIAMetrics{
 		{
-			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
+			DrillKey:      "test-branch-2B,DIA-1",
 			Site:          "test-branch-2B",
 			AccessCircuit: "DIA-1",
 			IP:            "192.168.1.1",

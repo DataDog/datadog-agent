@@ -165,10 +165,6 @@ const (
 	FallbackHTTPError FallbackReason = "http_error"
 	// FallbackKeyParts: an entity key did not have the layout's part count.
 	FallbackKeyParts FallbackReason = "key_parts"
-	// FallbackJoinAmbiguous: a join key matched tableData rows with differing attributes.
-	FallbackJoinAmbiguous FallbackReason = "join_ambiguous"
-	// FallbackJoinUnmatched: no entity matched a tableData row, or unmatched entities outnumber matched ones.
-	FallbackJoinUnmatched FallbackReason = "join_unmatched"
 )
 
 // Fallback is one timeseries call answered from tableData.
@@ -999,7 +995,11 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
-		tunnelTimeseriesLayout,
+		// No timeseries layout yet: the lab returned no tunnel data in either mode, so
+		// the series names are not known. parseTunnelMetrics reads VolumeRx before
+		// VolumeTx while volume-tx is requested first; that column order is still to be
+		// confirmed against a response with data.
+		nil,
 		parseTunnelMetrics,
 	)
 }

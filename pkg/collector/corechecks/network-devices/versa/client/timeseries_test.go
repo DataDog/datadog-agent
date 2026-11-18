@@ -17,16 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTimeseriesLayoutsMatchTableData pins the contract that makes the whole flatten
-// approach work: for an endpoint that supports timeseries, the drill key must split into
-// exactly drillKeyFields parts, and the parser's expected row width must be the drill key
-// plus those parts (or, for a layout that takes attribute columns from tableData, those
-// columns) plus one column per requested metric.
-//
-// The drill key is not always the group by arguments joined: linkusage and tunnelstats
-// take attribute arguments that key on a subset, and site metrics have no drill key column
-// at all. linkusage, DIA and tunnelstats therefore take their attribute columns from
-// tableData.
+// TestTimeseriesLayoutsMatchTableData pins the contract that makes the flatten approach
+// work: for an endpoint that supports timeseries, the tableData drill key must split into
+// drillKeyParts parts (or drillKeyFields when that is zero), and the parser's expected row
+// width must be the drill key plus drillKeyFields name parts plus one column per
+// requested metric.
 func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -40,7 +35,6 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 		{name: "interface", fixture: fixtures.GetAnalyticsInterfaceMetrics, layout: interfaceTimeseriesLayout, metricCount: 8, parserWidth: 12},
 		{name: "link usage", fixture: fixtures.GetLinkUsageMetrics, layout: linkUsageTimeseriesLayout, metricCount: 4, parserWidth: 13},
-		{name: "tunnel", fixture: fixtures.GetTunnelMetrics, layout: tunnelTimeseriesLayout, metricCount: 2, parserWidth: 7},
 		{name: "dia", fixture: fixtures.GetDIAMetrics, layout: diaTimeseriesLayout, metricCount: 4, parserWidth: 8},
 	}
 
@@ -52,14 +46,14 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 
 			drillKey, ok := resp.AaData[0][0].(string)
 			require.True(t, ok, "column zero must be the drill key")
-			assert.Len(t, strings.Split(drillKey, ","), tt.layout.drillKeyFields)
+			keyParts := tt.layout.drillKeyFields
+			if tt.layout.drillKeyParts > 0 {
+				keyParts = tt.layout.drillKeyParts
+			}
+			assert.Len(t, strings.Split(drillKey, ","), keyParts)
 
 			assert.Equal(t, tt.parserWidth, len(resp.AaData[0]), "tableData row width")
-			leading := tt.layout.drillKeyFields
-			if tt.layout.attributeColumns > 0 {
-				leading = tt.layout.attributeColumns
-			}
-			assert.Equal(t, tt.parserWidth, 1+leading+tt.metricCount,
+			assert.Equal(t, tt.parserWidth, 1+tt.layout.drillKeyFields+tt.metricCount,
 				"flattened row width must match what the parser expects")
 		})
 	}
