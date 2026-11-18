@@ -1,13 +1,14 @@
 """Check that session evaluation preserves the source cache."""
 
 import hashlib
+import io
 import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 
-from evaluate_smp import copy_session
+from evaluate_smp import copy_session, list_sessions
 
 SCHEMA = (
     "CREATE TABLE sessions (session_id TEXT PRIMARY KEY, is_complete INTEGER, total_turns INTEGER);"
@@ -71,6 +72,41 @@ class CopySessionTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "No completed turns"):
                     copy_session(target, source_path, "selected")
                 self.assertEqual(target.execute("SELECT COUNT(*) FROM sessions").fetchone()[0], 0)
+
+    def test_missing_session_points_to_captured_id_lookup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source_path = Path(temporary) / "source.db"
+            with closing(sqlite3.connect(source_path)) as source:
+                source.executescript(SCHEMA)
+            with closing(sqlite3.connect(":memory:")) as target:
+                target.executescript(SCHEMA)
+                with self.assertRaisesRegex(ValueError, "--list-sessions"):
+                    copy_session(target, source_path, "native-id-not-captured")
+
+
+class ListSessionsTest(unittest.TestCase):
+    def test_list_filters_clients_uses_latest_turn_and_excludes_content(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source_path = Path(temporary) / "source.db"
+            with closing(sqlite3.connect(source_path)) as source:
+                source.executescript(
+                    "CREATE TABLE sessions (session_id TEXT, client_source TEXT, started_at TEXT, project_dir TEXT);"
+                    "CREATE TABLE turns (session_id TEXT, turn_id INTEGER, started_at TEXT, input_prompt TEXT);"
+                    "INSERT INTO sessions VALUES ('claude-older', 'claude-code', '2026-01-01', '/repo'),"
+                    "('claude-newer', 'claude-code', '2026-01-02', '/repo'),"
+                    "('codex', 'codex', '2026-01-05', '/other');"
+                    "INSERT INTO turns VALUES ('claude-older', 1, '2026-01-04', 'private conversation');"
+                )
+            before = source_path.read_bytes()
+            output = io.StringIO()
+            with redirect_stdout(output):
+                list_sessions(source_path, "claude-code")
+            text = output.getvalue()
+            self.assertIn("claude-older | claude-code | 2026-01-04 | 1 | /repo", text)
+            self.assertLess(text.index("claude-older"), text.index("claude-newer"))
+            self.assertNotIn("codex", text)
+            self.assertNotIn("private conversation", text)
+            self.assertEqual(before, source_path.read_bytes())
 
 
 if __name__ == "__main__":

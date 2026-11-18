@@ -86,15 +86,42 @@ def load_demo(connection):
     return cases
 
 
+def open_cache(path):
+    path = path.expanduser().resolve()
+    if not path.is_file():
+        raise ValueError(f"Trajectory cache not found: {path}. Check the path and use straight shell quotes.")
+    return sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+
+
+def list_sessions(source_path, client=None):
+    with closing(open_cache(source_path)) as source:
+        rows = source.execute(
+            "SELECT s.session_id, s.client_source, COALESCE(MAX(t.started_at), s.started_at, '') AS last_turn, "
+            "COUNT(t.turn_id), s.project_dir FROM sessions s "
+            "LEFT JOIN turns t ON t.session_id = s.session_id "
+            "WHERE (? IS NULL OR s.client_source = ?) GROUP BY s.session_id "
+            "ORDER BY last_turn DESC, s.session_id LIMIT 20",
+            (client, client),
+        ).fetchall()
+    print("TRAJECTORY SESSION ID | CLIENT | LAST CAPTURED TURN | TURNS | PROJECT")
+    for row in rows:
+        print(" | ".join(str(value) if value is not None else "" for value in row))
+    if not rows:
+        print("No captured sessions match. Check the cache path, client filter, and capture setup.")
+
+
 def copy_session(connection, source_path, session_id):
     # Copy only the selected session. The source connection cannot write.
-    uri = source_path.expanduser().resolve().as_uri() + "?mode=ro"
-    with closing(sqlite3.connect(uri, uri=True)) as source:
+    with closing(open_cache(source_path)) as source:
         source.row_factory = sqlite3.Row
         source.execute("BEGIN")
         session = source.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
         if session is None:
-            raise ValueError(f"Session not found: {session_id}")
+            raise ValueError(
+                f"Session not found in this Trajectory cache: {session_id}. "
+                "Use --list-sessions with the same --cache-db to see captured IDs. "
+                "A native client session can exist before Trajectory captures it."
+            )
         turns = source.execute("SELECT * FROM turns WHERE session_id = ?", (session_id,)).fetchall()
         # Older captured turns can have an end timestamp without a lifecycle status.
         completed = {row["turn_id"] for row in turns if row["ended_at"] and row["lifecycle_status"] in (None, "", "ok")}
@@ -156,11 +183,22 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--demo", action="store_true", help="Evaluate synthetic examples and check expected signals.")
     mode.add_argument("--session", help="Evaluate completed turns from an open or closed local session.")
-    parser.add_argument("--cache-db", type=Path, help="Source cache for --session. Opened read-only.")
+    mode.add_argument(
+        "--list-sessions", action="store_true", help="List captured session IDs without conversation text."
+    )
+    parser.add_argument("--client", help="Exact client filter for --list-sessions, such as claude-code.")
+    parser.add_argument(
+        "--cache-db", type=Path, help="Source cache for --session or --list-sessions. Opened read-only."
+    )
     parser.add_argument("--trajectory", default="trajectory", help="Trajectory executable (tested with 0.6.2).")
     args = parser.parse_args()
-    if bool(args.session) != bool(args.cache_db):
-        parser.error("Use --session and --cache-db together.")
+    if bool(args.session or args.list_sessions) != bool(args.cache_db):
+        parser.error("Use --cache-db with --session or --list-sessions.")
+    if args.client and not args.list_sessions:
+        parser.error("Use --client only with --list-sessions.")
+    if args.list_sessions:
+        list_sessions(args.cache_db, args.client)
+        return
     binary = shutil.which(args.trajectory)
     if not binary:
         parser.error("Trajectory is missing. Use --trajectory with its executable path.")

@@ -71,18 +71,41 @@ Two cases show detection limits:
    ```
 
 4. Let the agent finish its answer. You can keep the session open.
-5. In a separate terminal, find the session ID:
+5. In a separate terminal, list the Claude sessions in your Trajectory cache:
 
    ```sh
-   trajectory status
+   python3 .trajectory/evaluate_smp.py \
+     --list-sessions \
+     --client claude-code \
+     --cache-db "$HOME/.trajectory/trajectories/cache/trajectory.db"
    ```
 
-   The command shows the latest captured session.
-   If you have several active sessions, select the one that contains your test prompts.
+   Select the row with your test checkout and a recent captured turn.
+   Copy the full value from the `TRAJECTORY SESSION ID` column.
+   The listing shows metadata, not prompts or responses. It does not need the Trajectory executable or Datadog credentials.
+
+   Remove `--client claude-code` to see other clients.
+   The listing shows the 20 most recent matches, ordered by their latest captured turn.
+   This also finds resumed sessions that started earlier.
+
+## Use a captured session ID
+
+The evaluator needs the exact `session_id` stored in the selected Trajectory cache.
+A Claude session ID can match that value, but its presence in Claude does not prove that Trajectory captured it.
+Do not guess a prefix or substitute another UUID.
+
+`trajectory status` shows a summary of recent captured work.
+Its normal display in Trajectory 0.6.2 does not show the full ID needed here and can show another client's session.
+Use the listing above to select by client, checkout, and capture time.
+
+If your new Claude session is absent, there is no matching cached record to evaluate yet.
+Check capture setup, cache location, and capture delay before you select another ID.
+For client-specific checks, read `trajectory user-guide clients/claude-code`.
+A Datadog keychain publishing warning is separate from this local lookup.
 
 ## Evaluate the selected session
 
-Replace `SESSION_ID` with the ID from the previous step:
+Replace `SESSION_ID` with the full ID from the listing:
 
 ```sh
 python3 .trajectory/evaluate_smp.py \
@@ -133,7 +156,9 @@ The helper shows turn context, not an automatic summary of the workaround or cau
 ## If evaluation fails
 
 - Missing binary: use `--trajectory` with the installed executable path.
-- Missing session: check the selected ID and source cache path.
+- Missing cache: check the path and use straight shell quotes, as shown in the code blocks.
+- Missing session: run `--list-sessions` with the same cache. Confirm the client, project, and latest captured turn.
+- Only old Claude sessions appear: check Claude capture or cache ingestion. A native Claude transcript alone is not a Trajectory cache record.
 - No completed turns: wait for an answer to finish and for Trajectory to update the local cache, then try again.
 - No findings: inspect the wording and confirm that the cache contains the prompts and responses.
 - SQLite schema error: the helper uses Trajectory's internal cache schema. Check the installed version against the tested version.
