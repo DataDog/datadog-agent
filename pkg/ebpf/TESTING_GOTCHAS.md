@@ -50,6 +50,40 @@ Outside contributors can't see KMT jobs or logs; ask a maintainer for the result
 - **Retrying a single KMT job fails once its VMs are gone.** Trigger a new pipeline instead
   (maintainers can use `dda inv kmt.retry-failed-pipeline`).
 
+## Local KMT VMs on macOS
+
+Verified on Apple Silicon with Homebrew QEMU 11 and libvirt 12. The first `kmt.launch-stack` took
+about 17 minutes, mostly Bazel building the Pulumi program, and later ones under a minute. Once the
+test binaries were built, `kmt.test` of one `pkg/ebpf` test took about 90 seconds.
+
+- **`kmt.selfcheck` reports the macOS services as failed without cached `sudo`:** its checks run
+  `sudo -n`. Run `sudo -v` first, or check directly (`nfsd status`, `sysctl net.inet.ip.forwarding`,
+  `launchctl print system/com.apple.bootpd`).
+- **`kmt.gen-config` prompts for confirmation;** pass `--yes` in a non-interactive shell. A run that
+  stopped at the prompt has already created the stack, so rerun with `--no-init-stack`.
+- **`no resource plugin 'pulumi-resource-command' found`** from `kmt.launch-stack` means the Pulumi
+  plugins are older than the repo pins; `kmt.selfcheck` passes as long as any are installed. Install
+  the pinned set with `bazel run @pulumi_plugins//:install -- --destdir=$HOME/.pulumi/plugins`.
+- **`HVF does not support GICv2 emulation`** from `kmt.launch-stack`: recent QEMU on Apple Silicon
+  needs GICv3, and the arm64 distro template
+  (`test/e2e-framework/scenarios/aws/microVMs/microvms/resources/distro/domain-arm64.xsl`) doesn't
+  set it, so libvirt defaults to GICv2. Adding `<gic version='3' />` inside the `features` element
+  fixes it. A failed launch leaves the domain defined; `virsh undefine` it before retrying.
+- **The compiler container keeps the checkout it was started from.** It's named per architecture and
+  reused, so after switching clones run `kmt.start-compiler` from the new one, or `kmt.test` builds
+  the old tree.
+- **Don't clone with `--reference` or `--shared`:** the container can't see the alternate object
+  directory, so `go build` fails with `error obtaining VCS status`. Use a plain clone, or run
+  `git repack -a -d` and delete `.git/objects/info/alternates`.
+- **The first `kmt.test` in a fresh clone runs `sudo mkdir`** for `kmt-deps/<arch>/tools`, because
+  `setup_runtime_clang` treats a missing directory as unwritable. Create it first with
+  `mkdir -p kmt-deps/arm64/tools`.
+- **`too many open files in system`** while the compiler unpacks Go toolchains means the Docker VM's
+  shared filesystem holds a host file descriptor per cached file and hit macOS's per-process limit.
+  Drop the Docker VM's page cache, or restart it, and rerun.
+- **VM networking worked without Internet Sharing:** the VM was reachable from the host on the KMT
+  bridge as soon as the stack was up.
+
 ## Manual runs outside KMT
 
 These apply when running `dda inv system-probe.test` directly on a Linux VM.

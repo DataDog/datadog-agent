@@ -40,9 +40,12 @@ Run `uname -sm` first. Results only hold for the OS, kernel, and architecture th
      so Docker must be running and responsive; if `docker ps` hangs, the KMT run is `blocked`.
    - Run KMT from a regular clone, not a git worktree: the compiler container refuses to start when
      `.git` isn't a directory.
-   - On macOS, `kmt.init` and `kmt.selfcheck` need `sudo` (libvirt and virtlogd services, bootpd, NFS,
-     IP forwarding), so a person must run `kmt.init` in a terminal first; until then, local VMs are
-     `blocked`.
+   - On macOS, `kmt.init` needs `sudo` (libvirt and virtlogd services, bootpd, NFS, IP forwarding), so
+     a person must run it in a terminal first; until then, local VMs are `blocked`. Pass
+     `--skip-ssh-setup` when only local VMs are needed: until DataDog/datadog-agent#60814 merges,
+     `kmt.init`'s SSH key discovery crashes on key names that contain dots. After `kmt.init`, the loop
+     above runs on an Apple Silicon Mac without `sudo`, given the workarounds in
+     [`TESTING_GOTCHAS.md`](TESTING_GOTCHAS.md).
    - The compiler image comes from Datadog's internal registry. Outside contributors can use any Linux
      VM with `dda inv system-probe.object-files` and `dda inv system-probe.test`.
    - Never load eBPF programs on macOS or Windows, and don't use a dev container as the test kernel:
