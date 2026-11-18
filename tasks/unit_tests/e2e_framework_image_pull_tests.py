@@ -4,7 +4,7 @@ from unittest import mock
 from invoke.runners import Result
 
 from tasks.e2e_framework.aws.deploy import _image_pull_flags
-from tasks.e2e_framework.image_pull import AGENT_QA_ECR, SANDBOX_ECR
+from tasks.e2e_framework.image_pull import AGENT_QA_ECR, AGENT_SANDBOX_ECR
 
 
 def _ctx(*results: Result):
@@ -29,21 +29,21 @@ class TestImagePullFlags(unittest.TestCase):
 
     def test_sandbox_image_adds_sandbox_credentials(self):
         ctx = _ctx(Result(stdout="qa-token"), Result(stdout="sandbox-token"))
-        flags = _image_pull_flags(ctx, f"{SANDBOX_ECR}/agent-e2e-tests:me", None)
-        self.assertEqual(flags["ddagent:imagePullRegistry"], f"{AGENT_QA_ECR},{SANDBOX_ECR}")
+        flags = _image_pull_flags(ctx, f"{AGENT_SANDBOX_ECR}/agent-e2e-tests:me", None)
+        self.assertEqual(flags["ddagent:imagePullRegistry"], f"{AGENT_QA_ECR},{AGENT_SANDBOX_ECR}")
         self.assertEqual(flags["ddagent:imagePullUsername"], "AWS,AWS")
         self.assertEqual(flags["ddagent:imagePullPassword"], "qa-token,sandbox-token")
 
     def test_sandbox_cluster_agent_image_adds_sandbox_credentials(self):
         ctx = _ctx(Result(stdout="qa-token"), Result(stdout="sandbox-token"))
-        flags = _image_pull_flags(ctx, None, f"{SANDBOX_ECR}/cluster-agent:me")
-        self.assertEqual(flags["ddagent:imagePullRegistry"], f"{AGENT_QA_ECR},{SANDBOX_ECR}")
+        flags = _image_pull_flags(ctx, None, f"{AGENT_SANDBOX_ECR}/cluster-agent:me")
+        self.assertEqual(flags["ddagent:imagePullRegistry"], f"{AGENT_QA_ECR},{AGENT_SANDBOX_ECR}")
 
     def test_missing_agent_qa_access_still_returns_sandbox_credentials(self):
         ctx = _ctx(Result(stdout="", exited=1), Result(stdout="sandbox-token"))
         with mock.patch("builtins.print"):
-            flags = _image_pull_flags(ctx, f"{SANDBOX_ECR}/agent-e2e-tests:me", None)
-        self.assertEqual(flags["ddagent:imagePullRegistry"], SANDBOX_ECR)
+            flags = _image_pull_flags(ctx, f"{AGENT_SANDBOX_ECR}/agent-e2e-tests:me", None)
+        self.assertEqual(flags["ddagent:imagePullRegistry"], AGENT_SANDBOX_ECR)
         self.assertEqual(flags["ddagent:imagePullPassword"], "sandbox-token")
 
     def test_no_credentials_returns_no_flags(self):

@@ -10,8 +10,8 @@ agent-sandbox ECR needs a second one. The framework takes them as comma-separate
 from invoke.context import Context
 
 AGENT_QA_ECR = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
-SANDBOX_ECR = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
-SANDBOX_ECR_PROFILE = "sso-agent-sandbox-account-admin-8h"
+AGENT_SANDBOX_ECR = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+AGENT_SANDBOX_ECR_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
 # (registry, username, password)
 Credential = tuple[str, str, str]
@@ -35,12 +35,12 @@ def agent_qa_ecr_credential(ctx: Context) -> Credential | None:
     return AGENT_QA_ECR, "AWS", res.stdout.strip()
 
 
-def sandbox_ecr_credential(ctx: Context, *images: str | None) -> Credential | None:
+def agent_sandbox_ecr_credential(ctx: Context, *images: str | None) -> Credential | None:
     """Mint an agent-sandbox ECR token when one of the images lives there."""
-    if not any(image and image.startswith(f"{SANDBOX_ECR}/") for image in images):
+    if not any(image and image.startswith(f"{AGENT_SANDBOX_ECR}/") for image in images):
         return None
     password = ctx.run(
-        f"aws-vault exec {SANDBOX_ECR_PROFILE} -- aws ecr get-login-password --region us-east-1",
+        f"aws-vault exec {AGENT_SANDBOX_ECR_PROFILE} -- aws ecr get-login-password --region us-east-1",
         hide=True,
     ).stdout.strip()
-    return SANDBOX_ECR, "AWS", password
+    return AGENT_SANDBOX_ECR, "AWS", password

@@ -25,7 +25,7 @@ from invoke.tasks import task
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
-from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, sandbox_ecr_credential
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
@@ -488,7 +488,7 @@ def run(
 
     if not running_in_ci():
         # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
-        local_creds = [sandbox_ecr_credential(ctx, agent_image, cluster_agent_image)]
+        local_creds = [agent_sandbox_ecr_credential(ctx, agent_image, cluster_agent_image)]
         if not passwords:
             local_creds.insert(0, agent_qa_ecr_credential(ctx))
         for registry, username, password in filter(None, local_creds):

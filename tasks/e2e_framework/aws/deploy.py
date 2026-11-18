@@ -7,7 +7,7 @@ from invoke.exceptions import Exit
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
-from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, sandbox_ecr_credential
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 
 
 def deploy(
@@ -113,7 +113,7 @@ def deploy(
 
 def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
     """Pull secret flags for the cluster: agent-qa always, plus agent-sandbox when an image lives there."""
-    creds = [c for c in (agent_qa_ecr_credential(ctx), sandbox_ecr_credential(ctx, *images)) if c is not None]
+    creds = [c for c in (agent_qa_ecr_credential(ctx), agent_sandbox_ecr_credential(ctx, *images)) if c is not None]
     if not creds:
         return {}
     registries, usernames, passwords = zip(*creds, strict=True)
