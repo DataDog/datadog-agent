@@ -133,8 +133,7 @@ enum CredentialsType {
   UNSPECIFIED = 0;
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
-  OAUTH2_AUTHORIZATION_CODE = 3;
-  OAUTH2_CLIENT_CREDENTIALS = 4;
+  OAUTH2 = 3;
   CONNECTION_TOKENS_V2 = 5;
   // No credentials on the runner: the user's access token arrives sealed with
   // the task, as a secret Authorization header.

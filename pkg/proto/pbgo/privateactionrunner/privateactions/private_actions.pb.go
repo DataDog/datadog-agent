@@ -122,12 +122,11 @@ func (HashType) EnumDescriptor() ([]byte, []int) {
 type CredentialsType int32
 
 const (
-	CredentialsType_UNSPECIFIED               CredentialsType = 0
-	CredentialsType_TOKEN_AUTH                CredentialsType = 1
-	CredentialsType_BASIC_AUTH                CredentialsType = 2
-	CredentialsType_OAUTH2_AUTHORIZATION_CODE CredentialsType = 3
-	CredentialsType_OAUTH2_CLIENT_CREDENTIALS CredentialsType = 4
-	CredentialsType_CONNECTION_TOKENS_V2      CredentialsType = 5
+	CredentialsType_UNSPECIFIED          CredentialsType = 0
+	CredentialsType_TOKEN_AUTH           CredentialsType = 1
+	CredentialsType_BASIC_AUTH           CredentialsType = 2
+	CredentialsType_OAUTH2               CredentialsType = 3
+	CredentialsType_CONNECTION_TOKENS_V2 CredentialsType = 5
 	// No credentials on the runner: the user's access token arrives sealed with
 	// the task, as a secret Authorization header.
 	CredentialsType_OAUTH2_USER_TOKEN CredentialsType = 6
@@ -139,19 +138,17 @@ var (
 		0: "UNSPECIFIED",
 		1: "TOKEN_AUTH",
 		2: "BASIC_AUTH",
-		3: "OAUTH2_AUTHORIZATION_CODE",
-		4: "OAUTH2_CLIENT_CREDENTIALS",
+		3: "OAUTH2",
 		5: "CONNECTION_TOKENS_V2",
 		6: "OAUTH2_USER_TOKEN",
 	}
 	CredentialsType_value = map[string]int32{
-		"UNSPECIFIED":               0,
-		"TOKEN_AUTH":                1,
-		"BASIC_AUTH":                2,
-		"OAUTH2_AUTHORIZATION_CODE": 3,
-		"OAUTH2_CLIENT_CREDENTIALS": 4,
-		"CONNECTION_TOKENS_V2":      5,
-		"OAUTH2_USER_TOKEN":         6,
+		"UNSPECIFIED":          0,
+		"TOKEN_AUTH":           1,
+		"BASIC_AUTH":           2,
+		"OAUTH2":               3,
+		"CONNECTION_TOKENS_V2": 5,
+		"OAUTH2_USER_TOKEN":    6,
 	}
 )
 
@@ -1146,15 +1143,15 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\bHashType\x12\x15\n" +
 	"\x11HASH_TYPE_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
-	"\x06SHA256\x10\x01*\xb1\x01\n" +
+	"\x06SHA256\x10\x01*\x7f\n" +
 	"\x0fCredentialsType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"TOKEN_AUTH\x10\x01\x12\x0e\n" +
 	"\n" +
-	"BASIC_AUTH\x10\x02\x12\x1d\n" +
-	"\x19OAUTH2_AUTHORIZATION_CODE\x10\x03\x12\x1d\n" +
-	"\x19OAUTH2_CLIENT_CREDENTIALS\x10\x04\x12\x18\n" +
+	"BASIC_AUTH\x10\x02\x12\n" +
+	"\n" +
+	"\x06OAUTH2\x10\x03\x12\x18\n" +
 	"\x14CONNECTION_TOKENS_V2\x10\x05\x12\x15\n" +
 	"\x11OAUTH2_USER_TOKEN\x10\x06BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
 
