@@ -60,6 +60,7 @@ dd_agent_go_test(
         "//comp/netflow/server/def",
         "//comp/netflow/testutil",
         "//comp/rdnsquerier/fx-mock",
+        "//pkg/logs/message",
         "//pkg/networkdevice/testutils",
         "//pkg/util/fxutil",
         "@com_github_netsampler_goflow2//utils",
