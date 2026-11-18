@@ -35,7 +35,7 @@ func TestAKSCSPM(t *testing.T) {
 // permissions stat(1) sees, and keeps its content, the cluster credentials,
 // out of the payload.
 func (s *aksTestSuite) TestAzureJSON() {
-	pod := nodeAgentPod(s.T(), s.Env())
+	pod := nodeAgentPod(s.T(), s.Env(), "")
 	typ, out := loadNodeConfig(s.T(), s.Env(), pod)
 	assert.Equal(s.T(), "azure_aks_worker_node", typ)
 	assert.NotContains(s.T(), out, "aadClientSecret")

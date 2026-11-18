@@ -35,6 +35,7 @@ dd_agent_go_test(
         "//comp/core/schema/impl",
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/mock",
+        "//comp/core/telemetry/impl/noops",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
