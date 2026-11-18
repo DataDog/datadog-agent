@@ -4564,9 +4564,7 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 	// reorders or drops as a unit is counted by TCP in MSS units
 	// (tcp_skb_pcount), so the dupack threshold is still reached.
 	lowerLoopbackMTU := func(t *testing.T, env *netemTestEnv) {
-		testutil.RunCommands(t, []string{
-			fmt.Sprintf("ip -n %s link set lo mtu 1500", env.Netns),
-		}, false)
+		env.setLoopbackMTU(t, 1500)
 	}
 
 	for i, netemArgs := range netemConfigs {
