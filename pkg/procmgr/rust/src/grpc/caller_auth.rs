@@ -61,7 +61,7 @@ fn peer_may_mutate(enforce: bool, peer_uid: Option<u32>) -> bool {
 }
 
 #[cfg(windows)]
-pub(crate) fn require_mutating_pipe_client<T>(
+pub(crate) fn require_mutating_caller<T>(
     request: &Request<T>,
     rpc: MutatingRpc,
     policy: &CallerPolicy,
@@ -82,7 +82,7 @@ pub(crate) fn require_mutating_pipe_client<T>(
 }
 
 #[cfg(unix)]
-pub(crate) fn require_mutating_pipe_client<T>(
+pub(crate) fn require_mutating_caller<T>(
     request: &Request<T>,
     rpc: MutatingRpc,
     policy: &CallerPolicy,
@@ -97,7 +97,7 @@ pub(crate) fn require_mutating_pipe_client<T>(
 
 // No shipped target is neither Windows nor Unix.
 #[cfg(not(any(windows, unix)))]
-pub(crate) fn require_mutating_pipe_client<T>(
+pub(crate) fn require_mutating_caller<T>(
     _request: &Request<T>,
     _rpc: MutatingRpc,
     _policy: &CallerPolicy,

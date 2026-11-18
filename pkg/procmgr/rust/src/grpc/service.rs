@@ -7,7 +7,7 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
-use crate::grpc::caller_auth::{CallerPolicy, MutatingRpc, require_mutating_pipe_client};
+use crate::grpc::caller_auth::{CallerPolicy, MutatingRpc, require_mutating_caller};
 use crate::grpc::proto;
 use crate::manager::{InvalidProcess, ProcessManager};
 use crate::platform;
@@ -127,7 +127,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
-        require_mutating_pipe_client(&request, MutatingRpc::Create, &self.caller_policy)?;
+        require_mutating_caller(&request, MutatingRpc::Create, &self.caller_policy)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -154,7 +154,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
-        require_mutating_pipe_client(&request, MutatingRpc::Start, &self.caller_policy)?;
+        require_mutating_caller(&request, MutatingRpc::Start, &self.caller_policy)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -180,7 +180,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
-        require_mutating_pipe_client(&request, MutatingRpc::Stop, &self.caller_policy)?;
+        require_mutating_caller(&request, MutatingRpc::Stop, &self.caller_policy)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -205,7 +205,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
-        require_mutating_pipe_client(&request, MutatingRpc::ReloadConfig, &self.caller_policy)?;
+        require_mutating_caller(&request, MutatingRpc::ReloadConfig, &self.caller_policy)?;
         let _ = request.into_inner();
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
