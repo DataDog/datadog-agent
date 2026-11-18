@@ -444,6 +444,7 @@ copy_to_directory(
 pkg_files(
     name = "_openssl_files",
     srcs = [":_openssl_extra_files"],
+    attributes = pkg_attributes(rpm_own_tree_dirs = True),
     prefix = _EMBEDDED_ROOT,
     strip_prefix = "openssl_extra",
 )

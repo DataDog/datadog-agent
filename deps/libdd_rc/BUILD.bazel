@@ -1,0 +1,23 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+
+exports_files(
+    [
+        "Cargo.lock",
+        "Cargo.toml",
+        "lib.rs",
+        "libdd_rc.BUILD.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# rc-x509-proto's build script imports protobuf's well-known types (e.g.
+# google/protobuf/timestamp.proto). prost-build passes PROTOC_INCLUDE to protoc
+# as an include directory, so collect those files into one, laid out as
+# google/protobuf/*.proto.
+copy_to_directory(
+    name = "protobuf_include",
+    srcs = ["@protobuf//:well_known_type_protos"],
+    include_external_repositories = ["protobuf*"],
+    root_paths = ["src"],
+    visibility = ["//visibility:public"],
+)

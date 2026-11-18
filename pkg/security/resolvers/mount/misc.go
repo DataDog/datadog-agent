@@ -59,8 +59,8 @@ func relativizeSnapshotMountPoints(mnts []*model.Mount) {
 	}
 }
 
-// trimMountRoot makes a path relative to the file system root, relative to a mount root instead
-func trimMountRoot(p string, root string) string {
+// TrimMountRoot makes a path relative to the file system root, relative to a mount root instead
+func TrimMountRoot(p string, root string) string {
 	if root == "" || root == "/" {
 		return p
 	}

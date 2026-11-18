@@ -7,9 +7,6 @@ import (
 )
 
 func IntEquals(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -35,9 +32,8 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -48,8 +44,7 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, 
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea == eb,
-			isDeterministic: isDc,
+			Value: ea == eb,
 		}, nil
 	}
 
@@ -66,9 +61,8 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -84,16 +78,12 @@ func IntEquals(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, 
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntAnd(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: BitmaskValueType}); err != nil {
 			return nil, err
@@ -117,8 +107,7 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:           ea & eb,
-			isDeterministic: isDc,
+			Value: ea & eb,
 		}, nil
 	}
 
@@ -130,10 +119,9 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
-			originField:     a.OriginField(),
+			EvalFnc:     evalFnc,
+			Weight:      a.Weight,
+			originField: a.OriginField(),
 		}, nil
 	}
 
@@ -144,17 +132,13 @@ func IntAnd(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 	}
 
 	return &IntEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
-		originField:     b.OriginField(),
+		EvalFnc:     evalFnc,
+		Weight:      b.Weight,
+		originField: b.OriginField(),
 	}, nil
 }
 
 func IntOr(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: BitmaskValueType}); err != nil {
 			return nil, err
@@ -178,8 +162,7 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:           ea | eb,
-			isDeterministic: isDc,
+			Value: ea | eb,
 		}, nil
 	}
 
@@ -191,10 +174,9 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
-			originField:     a.OriginField(),
+			EvalFnc:     evalFnc,
+			Weight:      a.Weight,
+			originField: a.OriginField(),
 		}, nil
 	}
 
@@ -205,17 +187,13 @@ func IntOr(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error
 	}
 
 	return &IntEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
-		originField:     b.OriginField(),
+		EvalFnc:     evalFnc,
+		Weight:      b.Weight,
+		originField: b.OriginField(),
 	}, nil
 }
 
 func IntXor(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: BitmaskValueType}); err != nil {
 			return nil, err
@@ -239,8 +217,7 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:           ea ^ eb,
-			isDeterministic: isDc,
+			Value: ea ^ eb,
 		}, nil
 	}
 
@@ -252,10 +229,9 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
-			originField:     a.OriginField(),
+			EvalFnc:     evalFnc,
+			Weight:      a.Weight,
+			originField: a.OriginField(),
 		}, nil
 	}
 
@@ -266,17 +242,13 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 	}
 
 	return &IntEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
-		originField:     b.OriginField(),
+		EvalFnc:     evalFnc,
+		Weight:      b.Weight,
+		originField: b.OriginField(),
 	}, nil
 }
 
 func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -297,9 +269,8 @@ func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, err
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -310,8 +281,7 @@ func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, err
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:           ea + eb,
-			isDeterministic: isDc,
+			Value: ea + eb,
 		}, nil
 	}
 
@@ -323,10 +293,9 @@ func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, err
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
-			originField:     a.OriginField(),
+			EvalFnc:     evalFnc,
+			Weight:      a.Weight,
+			originField: a.OriginField(),
 		}, nil
 	}
 
@@ -337,17 +306,13 @@ func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, err
 	}
 
 	return &IntEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
-		originField:     b.OriginField(),
+		EvalFnc:     evalFnc,
+		Weight:      b.Weight,
+		originField: b.OriginField(),
 	}, nil
 }
 
 func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -368,9 +333,8 @@ func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, er
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -381,8 +345,7 @@ func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, er
 		_ = ctx
 
 		return &IntEvaluator{
-			Value:           ea - eb,
-			isDeterministic: isDc,
+			Value: ea - eb,
 		}, nil
 	}
 
@@ -394,10 +357,9 @@ func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, er
 		}
 
 		return &IntEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
-			originField:     a.OriginField(),
+			EvalFnc:     evalFnc,
+			Weight:      a.Weight,
+			originField: a.OriginField(),
 		}, nil
 	}
 
@@ -408,17 +370,13 @@ func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, er
 	}
 
 	return &IntEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
-		originField:     b.OriginField(),
+		EvalFnc:     evalFnc,
+		Weight:      b.Weight,
+		originField: b.OriginField(),
 	}, nil
 }
 
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -444,9 +402,8 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluato
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -457,8 +414,7 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluato
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea == eb,
-			isDeterministic: isDc,
+			Value: ea == eb,
 		}, nil
 	}
 
@@ -475,9 +431,8 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluato
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -493,16 +448,12 @@ func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluato
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func GreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -528,9 +479,8 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -541,8 +491,7 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea > eb,
-			isDeterministic: isDc,
+			Value: ea > eb,
 		}, nil
 	}
 
@@ -559,9 +508,8 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -577,16 +525,12 @@ func GreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -612,9 +556,8 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -625,8 +568,7 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea >= eb,
-			isDeterministic: isDc,
+			Value: ea >= eb,
 		}, nil
 	}
 
@@ -643,9 +585,8 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -661,16 +602,12 @@ func GreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func LesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -696,9 +633,8 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator,
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -709,8 +645,7 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator,
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea < eb,
-			isDeterministic: isDc,
+			Value: ea < eb,
 		}, nil
 	}
 
@@ -727,9 +662,8 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator,
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -745,16 +679,12 @@ func LesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator,
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -780,9 +710,8 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEva
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -793,8 +722,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEva
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ea <= eb,
-			isDeterministic: isDc,
+			Value: ea <= eb,
 		}, nil
 	}
 
@@ -811,9 +739,8 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEva
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -829,16 +756,12 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEva
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -864,9 +787,8 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -877,8 +799,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ctx.Now().UnixNano()-int64(ea) < int64(eb),
-			isDeterministic: isDc,
+			Value: ctx.Now().UnixNano()-int64(ea) < int64(eb),
 		}, nil
 	}
 
@@ -895,9 +816,8 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -913,16 +833,12 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEv
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -948,9 +864,8 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -961,8 +876,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ctx.Now().UnixNano()-int64(ea) <= int64(eb),
-			isDeterministic: isDc,
+			Value: ctx.Now().UnixNano()-int64(ea) <= int64(eb),
 		}, nil
 	}
 
@@ -979,9 +893,8 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -997,16 +910,12 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1032,9 +941,8 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolE
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1045,8 +953,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolE
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ctx.Now().UnixNano()-int64(ea) > int64(eb),
-			isDeterministic: isDc,
+			Value: ctx.Now().UnixNano()-int64(ea) > int64(eb),
 		}, nil
 	}
 
@@ -1063,9 +970,8 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolE
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1081,16 +987,12 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolE
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1116,9 +1018,8 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1129,8 +1030,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) 
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ctx.Now().UnixNano()-int64(ea) >= int64(eb),
-			isDeterministic: isDc,
+			Value: ctx.Now().UnixNano()-int64(ea) >= int64(eb),
 		}, nil
 	}
 
@@ -1147,9 +1047,8 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) 
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1165,16 +1064,12 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) 
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -1200,9 +1095,8 @@ func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1213,8 +1107,7 @@ func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluat
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           ctx.Now().UnixNano()-int64(ea) == int64(eb),
-			isDeterministic: isDc,
+			Value: ctx.Now().UnixNano()-int64(ea) == int64(eb),
 		}, nil
 	}
 
@@ -1231,9 +1124,8 @@ func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1249,16 +1141,12 @@ func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1284,9 +1172,8 @@ func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1297,8 +1184,7 @@ func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           int64(ea) < int64(eb),
-			isDeterministic: isDc,
+			Value: int64(ea) < int64(eb),
 		}, nil
 	}
 
@@ -1315,9 +1201,8 @@ func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1333,16 +1218,12 @@ func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, sta
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1368,9 +1249,8 @@ func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1381,8 +1261,7 @@ func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluat
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           int64(ea) <= int64(eb),
-			isDeterministic: isDc,
+			Value: int64(ea) <= int64(eb),
 		}, nil
 	}
 
@@ -1399,9 +1278,8 @@ func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1417,16 +1295,12 @@ func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1452,9 +1326,8 @@ func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, st
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1465,8 +1338,7 @@ func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, st
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           int64(ea) > int64(eb),
-			isDeterministic: isDc,
+			Value: int64(ea) > int64(eb),
 		}, nil
 	}
 
@@ -1483,9 +1355,8 @@ func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, st
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1501,16 +1372,12 @@ func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, st
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: RangeValueType}); err != nil {
 			return nil, err
@@ -1536,9 +1403,8 @@ func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvalua
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1549,8 +1415,7 @@ func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvalua
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           int64(ea) >= int64(eb),
-			isDeterministic: isDc,
+			Value: int64(ea) >= int64(eb),
 		}, nil
 	}
 
@@ -1567,9 +1432,8 @@ func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvalua
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1585,16 +1449,12 @@ func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvalua
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
@@ -1620,9 +1480,8 @@ func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *S
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1633,8 +1492,7 @@ func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *S
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:           int64(ea) == int64(eb),
-			isDeterministic: isDc,
+			Value: int64(ea) == int64(eb),
 		}, nil
 	}
 
@@ -1651,9 +1509,8 @@ func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *S
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight,
 		}, nil
 	}
 
@@ -1669,16 +1526,12 @@ func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *S
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -1715,9 +1568,8 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolE
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1726,9 +1578,8 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolE
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1745,9 +1596,8 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolE
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1763,16 +1613,12 @@ func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolE
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -1809,9 +1655,8 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*Bo
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1820,9 +1665,8 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*Bo
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1839,9 +1683,8 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*Bo
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1857,16 +1700,12 @@ func BoolArrayEquals(a *BoolEvaluator, b *BoolArrayEvaluator, state *State) (*Bo
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -1903,9 +1742,8 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -1914,9 +1752,8 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1933,9 +1770,8 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -1951,16 +1787,12 @@ func IntArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -1997,9 +1829,8 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *St
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2008,9 +1839,8 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *St
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2027,9 +1857,8 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *St
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2045,16 +1874,12 @@ func IntArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *St
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2091,9 +1916,8 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*B
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2102,9 +1926,8 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*B
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2121,9 +1944,8 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*B
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2139,16 +1961,12 @@ func IntArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*B
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2185,9 +2003,8 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *Sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2196,9 +2013,8 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *Sta
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2215,9 +2031,8 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *Sta
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2233,16 +2048,12 @@ func IntArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *Sta
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2279,9 +2090,8 @@ func DurationArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2290,9 +2100,8 @@ func DurationArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2309,9 +2118,8 @@ func DurationArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2327,16 +2135,12 @@ func DurationArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, state *State
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2373,9 +2177,8 @@ func DurationArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2384,9 +2187,8 @@ func DurationArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2403,9 +2205,8 @@ func DurationArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2421,16 +2222,12 @@ func DurationArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2467,9 +2264,8 @@ func DurationArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *Stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2478,9 +2274,8 @@ func DurationArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *Stat
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2497,9 +2292,8 @@ func DurationArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *Stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2515,16 +2309,12 @@ func DurationArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, state *Stat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }
 
 func DurationArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
-
-	isDc := isArithmDeterministic(a, b, state)
-
 	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
 			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
@@ -2561,9 +2351,8 @@ func DurationArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + b.Weight,
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + b.Weight,
 		}, nil
 	}
 
@@ -2572,9 +2361,8 @@ func DurationArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, stat
 		res, _ := arrayOp(nil, ea, eb)
 
 		return &BoolEvaluator{
-			Value:           res,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			Value:  res,
+			Weight: a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2591,9 +2379,8 @@ func DurationArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, stat
 		}
 
 		return &BoolEvaluator{
-			EvalFnc:         evalFnc,
-			Weight:          a.Weight + InArrayWeight*len(eb),
-			isDeterministic: isDc,
+			EvalFnc: evalFnc,
+			Weight:  a.Weight + InArrayWeight*len(eb),
 		}, nil
 	}
 
@@ -2609,8 +2396,7 @@ func DurationArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, stat
 	}
 
 	return &BoolEvaluator{
-		EvalFnc:         evalFnc,
-		Weight:          b.Weight,
-		isDeterministic: isDc,
+		EvalFnc: evalFnc,
+		Weight:  b.Weight,
 	}, nil
 }

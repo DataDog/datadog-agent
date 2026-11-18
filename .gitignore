@@ -42,6 +42,8 @@ target
 /.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
+# Bazel invocation diagnostics (see .bazelrc); also written to the working directory when Bazel is run from a subdirectory
+bazel-invocation.*
 # User specific bazelrc file
 /user.bazelrc
 

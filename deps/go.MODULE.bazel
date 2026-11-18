@@ -16,7 +16,7 @@ msgo.from_file(
     go_work = "//:go.work",
     msgo_revision = 1,
 )
-use_repo(msgo, "msgo", "msgo_toolchains")
+use_repo(msgo, "msgo_toolchains")
 
 inject_repo(
     msgo,
@@ -35,6 +35,15 @@ inject_repo(
 )
 
 go_deps.from_file(go_work = "//:go.work")
+
+# The libdd-rc source overlay's injected BUILD file references this apparent
+# repository name directly. Keep it root-visible even though the pinned
+# libdd-rc Go module also declares websocket transitively.
+go_deps.module(
+    path = "github.com/coder/websocket",
+    sum = "h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=",
+    version = "v1.8.15",
+)
 go_deps.gazelle_default_attributes(
     # Using default attributes causes build_file_generation to change to `on`,
     # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
@@ -115,6 +124,7 @@ use_repo(
     "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_go_cfclient_v3",
+    "com_github_coder_websocket",
     "com_github_containerd_cgroups_v3",
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",
@@ -142,6 +152,7 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
+    "com_github_datadog_libdd_rc_ffi_hosts_go",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
@@ -273,20 +284,29 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_tailsamplingprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_transformprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_apachereceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_apachesparkreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_dockerstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_haproxyreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_httpcheckreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_iisreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sclusterreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8seventsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kafkametricsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kafkareceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_mysqlreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_nginxreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_postgresqlreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_receivercreator",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_sqlserverreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_zipkinreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
