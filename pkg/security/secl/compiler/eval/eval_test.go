@@ -437,9 +437,16 @@ func TestVariables(t *testing.T) {
 	}{
 		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
 		{Expr: `process.name == "/proc/${pid}/maps/${str}3"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
 		{Expr: `process.pid == ${pid}`, Expected: true},
+	}
+
+	// a `${` left open in a string is a syntax error
+	for _, expr := range []string{
+		`process.name == "/proc/${pid}/maps/${str"`,
+		`process.name == "/proc/${pid/maps/${str"`,
+	} {
+		_, _, err := eval(NewContext(event), expr)
+		assert.ErrorContains(t, err, "invalid variable", expr)
 	}
 
 	for _, test := range tests {
@@ -1580,7 +1587,7 @@ func TestFieldValues(t *testing.T) {
 		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
 		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
 		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
-		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "", Type: VariableValueType}},
 		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
 	}
 
@@ -1601,6 +1608,22 @@ func TestFieldValues(t *testing.T) {
 			t.Errorf("field values differ %+v != %+v", test.Expected, values[0])
 		}
 	}
+}
+
+// A field written `%{process.name}` is the same field as written bare.
+func TestFieldReferenceFields(t *testing.T) {
+	rule, err := parseRule(`%{process.name} == "test" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
+
+	// so is a field interpolated in a string
+	rule, err = parseRule(`"pid:%{process.pid}" != "" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.pid", "process.uid"}, rule.GetFields())
 }
 
 func TestFieldReferenceSyntax(t *testing.T) {

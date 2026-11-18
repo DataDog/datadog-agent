@@ -46,7 +46,7 @@ func GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
 		return 0, 0, errors.New("Cache entry is not a valid handler")
 	}
 
-	clcRunnerCount, nodeAgentCount = handler.dispatcher.store.CountNodeTypes()
+	clcRunnerCount, nodeAgentCount = handler.dispatcher.store.countNodeTypes()
 	return clcRunnerCount, nodeAgentCount, nil
 }
 

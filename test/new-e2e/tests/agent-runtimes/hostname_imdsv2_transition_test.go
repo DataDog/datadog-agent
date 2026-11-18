@@ -81,7 +81,7 @@ func runHostnameTest(v *baseHostnameSuite, instanceOpts []awshost.ProvisionerOpt
 }) {
 	v.T().Run(tt.name, func(t *testing.T) {
 		v.UpdateEnv(awshost.ProvisionerNoFakeIntake(instanceOpts...))
-		ec2Client := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
+		ec2Client := client.NewEC2Metadata(t, v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 
 		v.hostnameMetadata = requestAgentHostnameMetadataPayload(v)
 		assert.NotEmpty(t, v.hostnameMetadata.Hostname)

@@ -34,7 +34,7 @@ single_machine_performance-experiments-resolve:
         : > pr_labels.txt
         : > involved_teams.txt
       else
-        SMP_GH_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.smp-pr-context || true)
+        SMP_GH_TOKEN=$(dd-octo-sts token --scope "${CI_PROJECT_PATH}" --policy self.gitlab.smp-pr-context || true)
         if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out pr_labels.txt --involved-teams-out involved_teams.txt </dev/null; then
           echo "WARNING: pull request context is unavailable; validating the always bucket only."
           : > pr_labels.txt
@@ -225,7 +225,7 @@ single_machine_performance-regression_detector-merge_base_check:
                       # "curl: (43) bad argument".
                       echo "To start that pipeline yourself -- if the trigger above failed, or if the"
                       echo "pipeline is cancelled, e.g. by CI runner maintenance -- either open"
-                      echo "    https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/new?ref=${SMP_BASE_BRANCH}"
+                      echo "    ${CI_PROJECT_URL}/-/pipelines/new?ref=${SMP_BASE_BRANCH}"
                       echo "and click the blue \"New pipeline\" button, or run this command from a"
                       echo "datadog-agent checkout:"
                       echo "    curl --silent --show-error --fail \\"
