@@ -778,7 +778,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
-	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
@@ -966,7 +966,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
-	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 
 	providers := c.Get("metadata_providers")
