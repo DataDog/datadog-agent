@@ -168,7 +168,7 @@ const (
 	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUSharingMode is the tag for the mechanism through which the GPU is
-	// shared between workloads (none, kai_fraction)
+	// shared between workloads (none, kai-fraction)
 	GPUSharingMode = "gpu_sharing_mode"
 	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
 	// Only set on MIG devices.
