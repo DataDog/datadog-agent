@@ -57,6 +57,12 @@ lint_go_format:
   script:
     - python tasks/hooks.py go-fmt --base "$CHANGED_FILES_BASE"
 
+lint_cpp_format:
+  extends: .lint_changed_files
+  script:
+    - clang-format --version
+    - python tasks/hooks.py clang-format --base "$CHANGED_FILES_BASE"
+
 lint_release_json_newline:
   extends: .lint
   script:

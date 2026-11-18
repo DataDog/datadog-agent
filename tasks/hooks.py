@@ -28,6 +28,7 @@ CHECKS = (
     "buildifier",
     "rustfmt",
     "release-json-newline",
+    "clang-format",
 )
 
 
@@ -55,6 +56,7 @@ def settings_changed(check, paths):
         or (check == "shellcheck" and path.endswith("/.shellcheckrc"))
         or (check == "python-ruff" and Path(path).name in {"pyproject.toml", "ruff.toml", ".ruff.toml"})
         or (check == "rustfmt" and Path(path).name in {"Cargo.toml", "rustfmt.toml", ".rustfmt.toml"})
+        or (check == "clang-format" and Path(path).name in {".clang-format", "_clang-format", ".clang-format-ignore"})
         for path in paths
     )
 
@@ -103,6 +105,22 @@ def eligible(check, path):
         return path.endswith(".rs")
     if check == "release-json-newline":
         return path == "release.json"
+    if check == "clang-format":
+        if not path.endswith((".c", ".h", ".cc", ".hh", ".cpp", ".hpp", ".cxx", ".hxx")):
+            return False
+        if path.startswith(("third_party/", "vendor/", "deps/")):
+            return False
+        target = ROOT / path
+        if not target.is_file() or target.is_symlink():
+            return False
+        with target.open("rb") as source:
+            header = source.read(1024)
+        # Kernel BTF snapshots and marked generator output retain their
+        # generator's formatting rather than acquiring a manual cleanup step.
+        return not re.match(rb"\A#ifndef __VMLINUX_H__\r?\n#define __VMLINUX_H__(?:\r?\n|$)", header) and not re.search(
+            rb"(?im)^(?://|/\*|\s*\*)\s*(?:Warning,\s*)?(?:this (?:file is|is) auto[- ]?generated|Code generated)",
+            header,
+        )
     return False
 
 
@@ -598,6 +616,27 @@ def check_files(check, files):
             print("release.json: add a final newline.")
             return 1
         return 0
+    if check == "clang-format":
+        regular, crlf = split_line_endings(files)
+        command = ["clang-format", "--dry-run", "--Werror", "--ferror-limit=20", "--style=file"]
+        status = run_files(command, regular)
+        selected = []
+        for path in crlf:
+            # clang-format 18 only applies ignore rules to positional files.
+            # With formatting disabled, each nonempty, nonignored input emits
+            # an XML envelope with no replacements. Ignored files emit nothing.
+            probe = subprocess.run(
+                ["clang-format", "--style=none", "--output-replacements-xml", "./" + path],
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+            )
+            if probe.returncode:
+                status = 1
+            elif probe.stdout:
+                selected.append(path)
+        return status | stdin_format_files(
+            lambda path: [*command, f"--assume-filename={ROOT / path}"], selected, output_is_failure=False
+        )
     raise ValueError(f"Unknown check: {check}")
 
 
