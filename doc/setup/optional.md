@@ -44,7 +44,7 @@ Use the existing explicit commands for broader validation or repairs, and review
 | Developer documentation links | `dda inv linter.docs-links` |
 | GitLab configuration | `dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast` |
 | Protocol buffers and CWS generation | `dda inv protobuf.generate`, `dda inv security-agent.cws-go-generate` |
-| C/C++ formatting | `dda inv pre-commit.check-winclang-format` |
+| C/C++ formatting | `dda inv pre-commit.check-clang-format --all-files` |
 | Windows installer formatting | `dotnet format ./tools/windows/DatadogAgentInstaller` |
 | Go maintenance and systemd generation | `dda inv linter.update-go`, `dda inv installer.generate-experiment-units --check` |
 | E2E scenario imports and internet-access declarations | `go run ./tools/generate-scenario-imports/main.go -check`, `dda inv linter.e2e-internet-access` |

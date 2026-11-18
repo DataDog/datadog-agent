@@ -2,6 +2,7 @@ import ast
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from fnmatch import fnmatchcase
@@ -13,7 +14,6 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_staged_files
 
 DEFAULT_PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
 DDA_PRE_COMMIT_CONFIG = ".pre-commit-config-dda.yaml"
@@ -31,24 +31,15 @@ def update_pyapp_file() -> str:
 
 @task
 def check_winclang_format(ctx):
-    if os.name != 'nt':  # Don't run on Linux
+    if os.name != 'nt':
         return
-
-    def find_clang_format(search_dirs):
-        for search_dir in search_dirs:
-            for root, _, files in os.walk(search_dir):
-                for basename in files:
-                    if basename == 'clang-format.exe':
-                        return os.path.join(root, basename)
-
-    clang_format_path = os.environ.get('CLANG_FORMAT_PATH')
-    if clang_format_path is None:
-        search_dirs = ['C:/Program Files/Microsoft Visual Studio', 'C:/Program Files (x86)/Microsoft Visual Studio']
-        clang_format_path = find_clang_format(search_dirs)
-
-    print(clang_format_path)
-
-    ctx.run(f'"{clang_format_path}" --dry-run --Werror {",".join(get_staged_files(ctx))}')
+    executable = os.environ.get("CLANG_FORMAT_PATH") or shutil.which("clang-format")
+    if not executable:
+        for directory in ("C:/Program Files/Microsoft Visual Studio", "C:/Program Files (x86)/Microsoft Visual Studio"):
+            executable = next(Path(directory).rglob("clang-format.exe"), None)
+            if executable:
+                break
+    _check_clang_format(ctx, executable, False, "")
 
 
 def _git_paths(*args):
@@ -376,3 +367,44 @@ def check_rustfmt(ctx):
             files,
             directory,
         )
+
+
+@task(help={"base": "In CI, select paths changed between this commit and HEAD."})
+def check_clang_format(ctx, all_files=False, base=""):
+    """Check selected C and C++ files with their staged clang-format configuration and ignore rules."""
+    _check_clang_format(ctx, "clang-format", all_files, base)
+
+
+def _check_clang_format(ctx, executable, all_files, base):
+    settings = {".clang-format", "_clang-format", ".clang-format-ignore"}
+    tracked = _tracked_paths(ctx)
+    changed = set(_changed_paths(ctx, base))
+    expand = any(Path(p).name in settings for p in changed)
+    extensions = {".c", ".h", ".cc", ".hh", ".cpp", ".hpp", ".cxx", ".hxx"}
+    files = sorted(
+        p
+        for p in (tracked if all_files or expand else tracked & changed)
+        if Path(p).suffix.lower() in extensions and not p.startswith(("third_party/", "vendor/", "deps/"))
+    )
+    if not files:
+        return
+    with TemporaryDirectory() as directory:
+        selected = []
+        for path, contents in _staged_blobs(files):
+            # Kernel BTF snapshots and generated headers keep their generator's formatting.
+            header = contents[:1024]
+            if re.match(rb"#ifndef __VMLINUX_H__\r?\n#define __VMLINUX_H__(?:\r?\n|$)", header) or re.search(
+                rb"(?im)^(?://|/\*|\s*\*)\s*(?:Warning,\s*)?(?:this (?:file is|is) auto[- ]?generated|Code generated)",
+                header,
+            ):
+                continue
+            _write_blob(directory, path, contents)
+            selected.append(path)
+        if not selected:
+            return
+        if not executable:
+            raise Exit("Install clang-format or set CLANG_FORMAT_PATH to clang-format.exe.")
+        for path, data in _staged_blobs(p for p in tracked if Path(p).name in settings):
+            _write_blob(directory, path, data)
+        # Passing real paths lets clang-format resolve native ignore files and inherited styles.
+        _run_files([str(executable), "--dry-run", "--Werror", "--ferror-limit=20", "--style=file"], selected, directory)
