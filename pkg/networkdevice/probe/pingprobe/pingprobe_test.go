@@ -6,7 +6,12 @@
 package pingprobe
 
 import (
+	"errors"
+	"net"
+	"net/url"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -57,12 +62,37 @@ func TestFingerprintIsPrefixedWithTheProbeKind(t *testing.T) {
 	assert.True(t, strings.HasPrefix(testOptions().Fingerprint(), "ping:"))
 }
 
-func TestDetectReportsAReasonWhenItIsNotAvailable(t *testing.T) {
-	c := Detect()
-
-	if c.Available {
-		assert.Empty(t, c.Reason)
-		return
+func TestPingFailureReportsALocalFailureAsUnavailable(t *testing.T) {
+	for name, err := range map[string]error{
+		"permission":      &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EACCES)},
+		"not permitted":   &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EPERM)},
+		"no protocol":     &net.OpError{Op: "listen", Err: os.NewSyscallError("socket", syscall.EPROTONOSUPPORT)},
+		"no system-probe": &url.Error{Op: "Get", URL: "http://sysprobe/ping/10.0.0.1", Err: errors.New("dial unix: connect: no such file or directory")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, failure.PingUnavailable, pingFailure(err))
+		})
 	}
-	assert.NotEmpty(t, c.Reason)
+}
+
+func TestPingFailureReportsATargetFailureAsUnreachable(t *testing.T) {
+	err := &net.OpError{Op: "write", Err: os.NewSyscallError("sendto", syscall.EHOSTUNREACH)}
+
+	assert.Equal(t, failure.Unreachable, pingFailure(err))
+}
+
+func TestDefaultRawSocketFollowsTheOS(t *testing.T) {
+	assert.True(t, DefaultRawSocket("windows"), "windows has no unprivileged pinger")
+	assert.False(t, DefaultRawSocket("darwin"), "macOS has no raw pinger")
+	assert.False(t, DefaultRawSocket("linux"))
+}
+
+func TestResolveRawSocketHonorsTheOverrideOnlyOnLinux(t *testing.T) {
+	raw, udp := true, false
+
+	assert.True(t, ResolveRawSocket("linux", &raw))
+	assert.False(t, ResolveRawSocket("linux", &udp))
+	assert.False(t, ResolveRawSocket("linux", nil))
+	assert.True(t, ResolveRawSocket("windows", &udp))
+	assert.False(t, ResolveRawSocket("darwin", &raw))
 }

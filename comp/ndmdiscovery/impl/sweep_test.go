@@ -21,6 +21,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/snmpprobe"
 )
@@ -701,6 +702,19 @@ func TestToDiscoveredDevicesSkipsAProbeThatDidNotRun(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, []metadata.ProbeResult{{Kind: kindPing, Status: statusOK, RttMs: ms(0)}}, got[0].ProbeResults,
 		"a probe that did not run contributes no result entry")
+}
+
+func TestToDiscoveredDevicesLeavesOutAPingThisAgentCouldNotSend(t *testing.T) {
+	results := []probe.Result{{
+		Target: "10.0.0.1",
+		Ping:   &pingprobe.Reading{FailureReason: failure.PingUnavailable, Error: "socket: permission denied"},
+		SNMP:   &snmpprobe.Reading{Success: true, CredID: "cred-a"},
+	}}
+
+	got := toDiscoveredDevices("ad-1", "run-1", results)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].ProbeResults, 1, "the backend reports an absent ping as unknown, not unreachable")
+	assert.Equal(t, kindSNMP, got[0].ProbeResults[0].Kind)
 }
 
 func TestToDiscoveredDevicesReportsTheKindsInProbeOrder(t *testing.T) {

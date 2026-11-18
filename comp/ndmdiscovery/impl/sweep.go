@@ -19,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 )
 
 // Probe statuses reported per address.
@@ -105,10 +106,15 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	// reported is a lower bound after a restart: a resumed run inherits no count.
 	reported := 0
+	warnedPing := false
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
-		devices, err := s.probe(ctx, r, state.RunID, chunk)
+		devices, pingErr, err := s.probe(ctx, r, state.RunID, chunk)
+		if pingErr != "" && !warnedPing {
+			s.log.Warnf("ndmdiscovery: range %s: ping is not available on this agent, its ping status is left empty: %s", id, pingErr)
+			warnedPing = true
+		}
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				s.saveCursor(id, state)
@@ -224,24 +230,28 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 	}
 }
 
-func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {
+// probe sweeps one chunk. pingErr is set when this agent could not send a ping at all.
+func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) (devices []metadata.DiscoveredDeviceMetadata, pingErr string, err error) {
 	if len(chunk.Targets) == 0 {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		return nil, nil
+		return nil, "", ctx.Err()
 	}
 
 	if err := s.sem.Acquire(ctx, r.Workers); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer s.sem.Release(r.Workers)
 
 	res, err := s.scan(ctx, int(r.Workers), chunk.Targets, r.Options)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), nil
+	for _, result := range res {
+		if p := result.Ping; p != nil && p.FailureReason == failure.PingUnavailable {
+			pingErr = p.Error
+			break
+		}
+	}
+	return toDiscoveredDevices(r.Config.AutodiscoveryID, runID, res), pingErr, nil
 }
 
 // clampWorkers keeps a range's worker share inside [1, budget].
@@ -330,7 +340,8 @@ func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) 
 		}
 		answered := false
 
-		if p := r.Ping; p != nil {
+		// A ping this agent could not send says nothing about the device, so it is left out.
+		if p := r.Ping; p != nil && p.FailureReason != failure.PingUnavailable {
 			result := metadata.ProbeResult{
 				Kind:   kindPing,
 				Status: statusString(p.Success),

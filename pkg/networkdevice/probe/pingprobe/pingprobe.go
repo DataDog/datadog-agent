@@ -7,16 +7,16 @@
 package pingprobe
 
 import (
+	"errors"
 	"fmt"
-	"runtime"
+	"net/url"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/failure"
 )
-
-// detectTarget is always reachable, so a failed ping means this process cannot send ICMP.
-const detectTarget = "127.0.0.1"
 
 // Options is one ping probe's configuration.
 type Options struct {
@@ -34,13 +34,6 @@ type Reading struct {
 	Error         string
 }
 
-// Capability is whether this process can send ICMP echo requests, and how.
-type Capability struct {
-	Available    bool
-	UseRawSocket bool
-	Reason       string
-}
-
 // Fingerprint is a stable digest of these options.
 func (o Options) Fingerprint() string {
 	return fmt.Sprintf("ping:count=%d interval=%s timeout=%s raw=%t", o.Count, o.Interval, o.Timeout, o.UseRawSocket)
@@ -56,7 +49,7 @@ func Run(target string, opts Options) *Reading {
 	})
 	if err != nil {
 		return &Reading{
-			FailureReason: failure.Unknown,
+			FailureReason: failure.PingUnavailable,
 			Error:         fmt.Sprintf("Failed to create a pinger for host '%s': %s", target, err.Error()),
 		}
 	}
@@ -64,7 +57,7 @@ func Run(target string, opts Options) *Reading {
 	res, err := p.Ping(target)
 	if err != nil {
 		return &Reading{
-			FailureReason: failure.Unreachable,
+			FailureReason: pingFailure(err),
 			Error:         fmt.Sprintf("Failed to reach host '%s': %s", target, err.Error()),
 		}
 	}
@@ -78,26 +71,30 @@ func Run(target string, opts Options) *Reading {
 	return &Reading{Success: true, RTT: res.AvgRtt, FailureReason: failure.None}
 }
 
-// Detect reports whether this process can ping, and the socket type it must use.
-func Detect() Capability {
-	var useRawSocket bool
-	switch runtime.GOOS {
-	case "windows":
-		useRawSocket = true
-	case "darwin", "linux":
-		useRawSocket = false
+// pingFailure tells a ping this process could not send apart from a host that did not answer.
+func pingFailure(err error) string {
+	var sysprobe *url.Error
+	switch {
+	case errors.As(err, &sysprobe),
+		errors.Is(err, os.ErrPermission),
+		errors.Is(err, syscall.EPROTONOSUPPORT),
+		errors.Is(err, syscall.EAFNOSUPPORT):
+		return failure.PingUnavailable
 	default:
-		return Capability{Reason: "ping is not supported on " + runtime.GOOS}
+		return failure.Unreachable
 	}
+}
 
-	r := Run(detectTarget, Options{
-		Count:        1,
-		Interval:     time.Second,
-		Timeout:      time.Second,
-		UseRawSocket: useRawSocket,
-	})
-	if !r.Success {
-		return Capability{Reason: r.Error}
+// DefaultRawSocket is the socket type goos pings with: Windows only has raw ICMP
+// sockets and macOS only unprivileged ones, and Linux defaults to unprivileged.
+func DefaultRawSocket(goos string) bool {
+	return goos == "windows"
+}
+
+// ResolveRawSocket applies a socket-type override on Linux, the only platform that offers a choice.
+func ResolveRawSocket(goos string, override *bool) bool {
+	if goos == "linux" && override != nil {
+		return *override
 	}
-	return Capability{Available: true, UseRawSocket: useRawSocket}
+	return DefaultRawSocket(goos)
 }

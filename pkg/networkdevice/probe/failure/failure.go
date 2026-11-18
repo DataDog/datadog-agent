@@ -19,5 +19,6 @@ const (
 	UnknownUser              = "unknown_user"
 	UnsupportedSecurityLevel = "unsupported_security_level"
 	UnknownEngineID          = "unknown_engine_id"
+	PingUnavailable          = "ping_unavailable"
 	Unknown                  = "unknown"
 )
