@@ -74,7 +74,79 @@ done
 # exec does not fire the EXIT trap, so remove the fallback here.
 if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi
 
+# Shipped directories are already in the all-in-one catalog. Starting them again
+# would run each process twice. Any other directory with a run file is a custom
+# service, which s6 supervised. finish is not run: it calls s6-svc.
+shipped_s6_services=" agent data-plane otel privateactionrunner process security sysprobe trace "
+custom_services=()
+if [[ -d /etc/services.d ]]; then
+    for service_dir in /etc/services.d/*; do
+        [[ -d "$service_dir" && -f "$service_dir/run" ]] || continue
+        service_name=${service_dir##*/}
+        [[ "$shipped_s6_services" == *" $service_name "* ]] && continue
+        if [[ ! "$service_name" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+            echo "skipping /etc/services.d/$service_name: the name cannot be a process name" >&2
+            continue
+        fi
+        custom_services+=("$service_name")
+    done
+fi
+
 export DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio
+if [[ ${#custom_services[@]} -gt 0 ]]; then
+    processes_dir=
+    processes_primary=/var/run/s6/procmgr-processes.d
+    if rm -rf "$processes_primary" 2>/dev/null && mkdir "$processes_primary" 2>/dev/null && stage_executes "$processes_primary"; then
+        processes_dir=$processes_primary
+    else
+        rm -rf "$processes_primary" 2>/dev/null || true
+        for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do
+            if candidate=$(mktemp -d "$parent/procmgr-processes.d.XXXXXX" 2>/dev/null) && stage_executes "$candidate"; then
+                processes_dir=$candidate
+                break
+            fi
+            rm -rf "$candidate" 2>/dev/null || true
+        done
+    fi
+    if [[ -z "$processes_dir" ]]; then
+        echo "cannot stage custom /etc/services.d services: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2
+        exit 1
+    fi
+    for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml; do
+        cp -L -- "$catalog_yaml" "$processes_dir/${catalog_yaml##*/}"
+    done
+    mkdir "$processes_dir/runs"
+    for service_name in "${custom_services[@]}"; do
+        service_dir=/etc/services.d/$service_name
+        if [[ -e "$processes_dir/$service_name.yaml" ]]; then
+            echo "skipping /etc/services.d/$service_name: $service_name is already a catalog process" >&2
+            continue
+        fi
+        cp -L -- "$service_dir/run" "$processes_dir/runs/$service_name"
+        chmod 0755 "$processes_dir/runs/$service_name"
+        auto_start=true
+        if [[ -e "$service_dir/down" ]]; then
+            auto_start=false
+        fi
+        if [[ -f "$service_dir/finish" ]]; then
+            echo "/etc/services.d/$service_name/finish is not run. ENTRYPOINT=s6-all-in-one runs it." >&2
+        fi
+        printf '===== ADDING custom service /etc/services.d/%s =====\n' "$service_name"
+        cat >"$processes_dir/$service_name.yaml" <<EOF
+description: Custom service /etc/services.d/$service_name
+command: $processes_dir/runs/$service_name
+working_dir: $service_dir
+auto_start: $auto_start
+restart: always
+restart_sec: 1
+restart_max_delay_sec: 1
+start_limit_interval_sec: 0
+stdout: inherit
+stderr: inherit
+EOF
+    done
+    export DD_PM_CONFIG_DIR=$processes_dir
+fi
 # The image VOLUME keeps this directory writable under Docker --read-only.
 export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
 printf '===== STARTING dd-procmgrd =====\n'

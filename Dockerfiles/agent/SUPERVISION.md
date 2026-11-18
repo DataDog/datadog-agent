@@ -8,7 +8,8 @@ When the `ENTRYPOINT` environment variable is not set, `/opt/entrypoints/_defaul
 `/opt/entrypoints/procmgr-all-in-one`. That script runs the cont-init scripts, then execs
 `dd-procmgrd`. `dd-procmgrd` is PID 1, or the container's main process when the container
 shares the host PID namespace (`pid: host`). It reads its process catalog from
-`/opt/datadog-agent/processes.d/aio/`.
+`/opt/datadog-agent/processes.d/aio/`. When a custom service is added, the entrypoint copies
+that catalog and the custom service into a staging directory and reads that instead.
 
 ## Processes
 
@@ -66,8 +67,16 @@ You can use custom scripts to:
 - append content at the end of `/etc/datadog-agent/datadog.yaml`
 - disable standard checks by editing the files in `/etc/datadog-agent/conf.d/`
 
-Files under `/etc/services.d/` are not started. To keep them for one release, use the s6
-rollback below, and plan to move them.
+A custom service is a directory under `/etc/services.d/` other than the ones the image ships
+(`agent`, `data-plane`, `otel`, `privateactionrunner`, `process`, `security`, `sysprobe`,
+`trace`). Each custom directory that contains a `run` file is started, except when its name
+is not a process name or it matches a catalog process such as `datadog-agent`. The working
+directory is the service directory, and the service is restarted one second after it exits,
+with no limit. A `down` file leaves it stopped until `dd-procmgr start <name>`. The shipped
+directories are already in the catalog, so their `run` files are not started again.
+
+A `finish` script is not run, and editing the `run` file of a shipped service has no effect.
+`ENTRYPOINT=s6-all-in-one` keeps both.
 
 ## Useful commands
 
@@ -99,7 +108,8 @@ container with exit code 0, so restart the container instead.
 
 These differences from the s6 image are accepted:
 
-- Files under `/etc/services.d/` are not started. Custom s6 services need the s6 rollback below.
+- A custom `/etc/services.d/<name>/finish` script is not run, and a replacement `run` file in a
+  shipped service directory is ignored. `ENTRYPOINT=s6-all-in-one` keeps both.
 - `DD_PM_*` variables are not passed to the processes, except `DD_PM_SOCKET_PATH`.
 - Start, exit and restart messages come from `dd-procmgrd`, are written to the container output,
   and are worded differently from the s6 messages in `/var/log/datadog/init.log`.

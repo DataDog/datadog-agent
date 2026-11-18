@@ -785,6 +785,16 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "a glob would delete another container's live staging directory on a shared mount"
     );
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
+    assert!(
+        script.contains(
+            "shipped_s6_services=\" agent data-plane otel privateactionrunner process security sysprobe trace \""
+        ),
+        "custom /etc/services.d directories are started, and these shipped ones are already in the catalog"
+    );
+    assert!(
+        script.contains("restart: always") && script.contains("restart_sec: 1"),
+        "a custom service restarts one second after it exits, so a failing run cannot spin"
+    );
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
     ));

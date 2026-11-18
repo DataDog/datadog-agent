@@ -10,8 +10,11 @@ upgrade:
   - |
     The Linux Agent container now runs its processes under ``dd-procmgrd``
     instead of s6. If the core Agent exits, the container now exits with the
-    Agent's exit code instead of 0. Only enabled processes start, and services
-    under ``/etc/services.d/`` are ignored. Scripts in ``/etc/cont-init.d/``
+    Agent's exit code instead of 0. Only enabled processes start. A custom
+    service added under ``/etc/services.d/`` still starts. It is not started
+    when its name is not a process name or matches a catalog process. Its
+    ``finish`` script does not run, and editing a shipped service's ``run``
+    file has no effect. Scripts in ``/etc/cont-init.d/``
     still run but need a shebang. A ``PATH`` set on the container no longer
     reaches the Agent processes, except ``otel-agent``. ``DD_PM_*`` variables are
     not passed to the processes, except ``DD_PM_SOCKET_PATH``. Start, exit and
