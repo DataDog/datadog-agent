@@ -16,30 +16,25 @@ features:
     companion ``analytics_gap`` option sets the requested bucket size, defaulting to
     ``1MINUTE``, which Versa renders at whatever resolution the tenant is configured for.
 
-    SLA, path QoS, circuit QoS and interface utilization metrics collected this way are
-    submitted with the timestamp of their own bucket and deduplicated per tenant and
-    entity, so a lookback window longer than the check interval does not double report;
-    these four are validated against customer Versa responses. The newest bucket of each
-    entity is held back for one collection, because Versa's buckets are wall-clock aligned
-    and the current one is still accumulating.
-
-    SDWAN link usage (``collect_link_metrics``), tunnel (``collect_tunnel_metrics``) and
-    DIA (``collect_dia_metrics``) metrics are also collected per bucket when
-    ``timeseries`` is set. They take their attribute tags (such as type, media, IP, ISP,
-    peer IP and VPN profile) from the same query run as ``tableData``, paging up to
-    ``max_pages``, joined on the entity key. They are validated with synthetic Versa
-    responses; validation against a Versa environment with traffic is pending, including
-    the tunnel ``tableData`` column order for ``volume-tx`` and ``volume-rx``. Link
-    status, site, application and top user metrics stay on ``tableData``.
+    SLA, path QoS, circuit QoS, interface utilization, SDWAN link usage
+    (``collect_link_metrics``) and DIA (``collect_dia_metrics``) metrics collected this
+    way are submitted with the timestamp of their own bucket and deduplicated per tenant
+    and entity, so a lookback window longer than the check interval does not double
+    report. The newest bucket of each entity is held back for one collection, because
+    Versa's buckets are wall-clock aligned and the current one is still accumulating. SLA,
+    circuit QoS, interface, link usage and DIA are validated against real Versa
+    responses, from a lab with traffic and from a customer environment; path QoS is
+    validated against customer Versa responses. Link status, site, tunnel, application
+    and top user metrics use ``tableData``; tunnel timeseries is pending validation
+    against a response with tunnel data, as is the tunnel ``tableData`` column order for
+    ``volume-tx`` and ``volume-rx``.
 
     A timeseries query falls back to its ``tableData`` result for that collection, with a
     warning giving the reason, when Versa rejects the timeseries request with an error
     response or returns a body that cannot be parsed (the warning includes the HTTP
-    status and, when Versa returns one, its numeric error code), when its entity keys do not match the expected
-    layout, when ``tableData`` rows sharing a key differ in their tags, or when no entity
-    matches a ``tableData`` row or unmatched entities outnumber matched ones.
-    Authentication, connection and server errors are reported as errors, as in
-    ``tableData`` mode. Each fallback is counted as
+    status and, when Versa returns one, its numeric error code), or when its entity names
+    do not have the expected number of fields. Authentication, connection and server
+    errors are reported as errors, as in ``tableData`` mode. Each fallback is counted as
     ``versa.timeseries.fallback``, tagged by ``tenant``, ``query`` and ``reason``, so it can
     be monitored. With debug logging, a fallback also logs sample series names and
     ``tableData`` keys, which contain site, circuit and IP names.

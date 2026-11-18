@@ -124,32 +124,26 @@ instances:
     ## timestamp of its own bucket, so as-polled detail is preserved. Metrics become more
     ## volatile than with tableData, so review monitor thresholds before switching.
     ##
-    ## timeseries applies to SLA, QoS, circuit QoS and interface utilization metrics,
-    ## which are validated against customer Versa responses, and to SDWAN link usage,
-    ## tunnel and DIA metrics, which are validated with synthetic Versa responses only;
-    ## validation against a Versa environment with traffic is pending for those three.
-    ## Link status, site, application and top user metrics stay on tableData regardless
-    ## of this setting: Versa returns link status timeseries per status value rather than
-    ## per link, and rejects the site query as timeseries.
-    ##
-    ## Link usage, tunnel and DIA also run the same query as tableData on each
-    ## collection, paging up to max_pages, to take their attribute tags (type, media, IP,
-    ## ISP, peer IP, VPN profile) from it. An entity with no matching tableData row is
-    ## skipped with a warning.
+    ## timeseries applies to SLA, path QoS, circuit QoS, interface utilization, SDWAN
+    ## link usage and DIA metrics. SLA, circuit QoS, interface, link usage and DIA are
+    ## validated against real Versa responses, from a lab with traffic and from a
+    ## customer environment; path QoS is validated against customer Versa responses.
+    ## Link status, site, tunnel, application and top user metrics use tableData
+    ## regardless of this setting: Versa returns link status timeseries per status value
+    ## rather than per link, rejects the site query as timeseries, and tunnel timeseries is
+    ## pending validation against a response with tunnel data.
     ##
     ## A timeseries query falls back to its tableData result for that collection, with a
     ## warning giving the reason, when Versa rejects the timeseries request with an error
     ## response or returns a body that cannot be parsed (the warning includes the HTTP
-    ## status and, when Versa returns one, its numeric error code), when its entity keys do not match the expected
-    ## layout, when tableData rows sharing a key differ in their tags (for example tunnels
-    ## with different peers on one appliance and local IP), or when no entity matches a
-    ## tableData row or unmatched entities outnumber matched ones. Authentication,
-    ## connection and server errors are reported as errors, as in tableData mode. Each
-    ## fallback is counted as versa.timeseries.fallback, tagged by tenant, query and
-    ## reason (http_error, key_parts, join_ambiguous, join_unmatched), so it can be
-    ## monitored. With debug logging, a fallback also logs up to three timeseries series
-    ## names and tableData keys, and every timeseries query logs how many series it
-    ## received; these debug lines contain site, circuit and IP names.
+    ## status and, when Versa returns one, its numeric error code), or when its entity
+    ## names do not have the expected number of fields. Authentication, connection and
+    ## server errors are reported as errors, as in tableData mode. Each fallback is
+    ## counted as versa.timeseries.fallback, tagged by tenant, query and reason
+    ## (http_error, key_parts), so it can be monitored. With debug logging, a fallback
+    ## also logs up to three timeseries series names and tableData keys, and every
+    ## timeseries query logs how many series it received; these debug lines contain site,
+    ## circuit and IP names.
     ##
     ## DIA always queries a 1 day window, so its timeseries response is large; raise
     ## max_count if the warning below is logged for it.

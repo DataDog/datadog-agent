@@ -6,7 +6,6 @@
 package client
 
 import (
-	"reflect"
 	"sort"
 	"strings"
 )
@@ -20,73 +19,53 @@ type timeseriesRow struct {
 
 // timeseriesLayout describes how to rebuild tableData shaped rows from a timeseries
 // response for one endpoint. Only endpoints that have a layout support timeseries; the
-// rest fall back to tableData, deliberately.
+// rest use tableData, deliberately.
 //
-// Two things make this per endpoint rather than derivable from the query. The drill key is
-// not always the group by arguments joined together: linkusage and tunnelstats take
-// attribute arguments such as accckt.ip that key on a subset, so counting the arguments
-// over-counts the parts. And not every parser expects a leading drill key column at all:
-// parseSiteMetrics reads the site name from column zero.
+// A timeseries series is named by the query's group by fields joined with commas. The
+// tableData drill key is not always that name: for linkusage and usage it is only the
+// leading site and circuit fields, while the attribute fields (accckt.ip and so on) follow
+// it as columns. drillKeyParts rebuilds the tableData drill key from the name for those.
 type timeseriesLayout struct {
-	// drillKeyFields is the number of comma separated parts the drill key splits into,
-	// which is also the number of columns the parser expects between the drill key and
-	// the first metric value.
+	// drillKeyFields is the number of comma separated parts of a series name, which is
+	// also the number of columns the parser expects between the drill key and the first
+	// metric value.
 	drillKeyFields int
-	// attributeColumns, when non zero, is the number of string columns the parser expects
-	// between the drill key and the first metric value that a timeseries response cannot
-	// supply. Attribute arguments such as accckt.ip key on a subset of the query, so they
-	// are not in the series name; these columns are copied from the tableData row with the
-	// same drill key instead, and a bucket whose entity has no such row is skipped.
-	attributeColumns int
+	// drillKeyParts, when non zero, is how many leading name parts make the tableData
+	// drill key. Zero means the whole name is the drill key.
+	drillKeyParts int
 	// strictKeyParts checks every series name splits into drillKeyFields parts before
 	// using the timeseries response, and falls back to tableData for the call when one
-	// does not. It is set for layouts not yet checked against a real timeseries response.
+	// does not.
 	strictKeyParts bool
-	// valueOrder, when set, lists the requested metrics in the order the parser reads
-	// their values, for a parser whose positions differ from the request order.
-	valueOrder []string
 }
 
-// Layouts for the endpoints verified against real timeseries responses. Adding one for a
-// further endpoint means checking its drill key against its parser's column count first,
-// ideally against a captured response.
-var (
-	slaTimeseriesLayout        = &timeseriesLayout{drillKeyFields: 5}
-	pathQoSTimeseriesLayout    = &timeseriesLayout{drillKeyFields: 2}
-	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
-)
-
-// Layouts for the bandwidth endpoints. Each follows the query's group by fields and its
-// tableData drill key; they are validated with synthetic responses, and confirmation
-// against customer provided Versa responses is pending. Until then each checks its key
-// part count and falls back to tableData when a response does not match the expected
-// layout, and the two with attribute arguments take those columns from tableData.
+// Layouts for the endpoints whose timeseries responses have been checked against real
+// Versa responses: SLA, circuit QoS, interface, link usage and DIA in a lab with traffic
+// and at a customer, path QoS at a customer.
 //
-// linkstatus(site,accckt) and the site query have no timeseries layout. A linkstatus
-// timeseries response holds one series per link status value (Up, Down, Degraded,
-// Indeterminable) for the tenant, not one per link, so it cannot give per link
-// availability. Versa rejects the site query as timeseries: with jq=siteStatus it answers
-// that joined queries are not allowed for the report, and without it that availability
-// is an invalid metric. Both stay on tableData.
+// linkstatus(site,accckt), the site query and tunnelstats have no timeseries layout and
+// use tableData. A linkstatus timeseries response holds one series per link status value
+// (Up, Down, Degraded, Indeterminable) for the tenant, with range points, not one per
+// link, so it cannot give per link availability. Versa rejects the site query as
+// timeseries with jq=siteStatus (code -3, joined queries are not allowed for this report)
+// and with the availability metric (code -8, invalid metric); only the query without both
+// is accepted, which is not the query the check runs. tunnelstats returned no data in
+// either mode in the lab, so its series names are not yet known.
 var (
-	// intfUtil(site,accCkt,intf): plain arguments, so the series name holds every column.
+	// slam(localsite,remotesite,localaccckt,remoteaccckt,fc)
+	slaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 5}
+	// pathcos(localsitename,remotesitename)
+	pathQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
+	// cos(site,accckt)
+	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
+	// intfUtil(site,accCkt,intf): the name is the tableData drill key.
 	interfaceTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, strictKeyParts: true}
-	// linkusage(site,accckt,accckt.uplinkBW,...): keyed on site,accckt; the parser also
-	// needs site, accckt, uplink and downlink BW, type, media, ip and isp.
-	linkUsageTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 8, strictKeyParts: true}
-	// usage(site,accckt,accckt.ip): keyed on site,accckt,ip in tableData; site, accckt and
-	// ip are still taken from tableData so a differently ordered key cannot mislabel them.
-	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, attributeColumns: 3, strictKeyParts: true}
-	// tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName): keyed on
-	// appliance,ipsecLocalIp in tableData, so the peer IP and VPN profile come from
-	// tableData. When tunnels share an appliance and local IP but differ in peer or
-	// profile, the key is ambiguous and the call uses tableData.
-	//
-	// parseTunnelMetrics reads VolumeRx before VolumeTx while the query requests volume-tx
-	// first. The tableData column order is to be confirmed against a customer response, so
-	// tableData is left as is; timeseries series are named, so valueOrder places each one
-	// in the field of the same name.
-	tunnelTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2, attributeColumns: 4, strictKeyParts: true, valueOrder: []string{"volume-rx", "volume-tx"}}
+	// linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,
+	// accckt.ip,accckt.isp): the name holds all eight fields, the drill key the first two.
+	linkUsageTimeseriesLayout = &timeseriesLayout{drillKeyFields: 8, drillKeyParts: 2, strictKeyParts: true}
+	// usage(site,accckt,accckt.ip): the name holds all three fields, the drill key the
+	// first two.
+	diaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 3, drillKeyParts: 2, strictKeyParts: true}
 )
 
 // keyPartsMismatch returns the first series name that does not split into the layout's
@@ -100,49 +79,20 @@ func keyPartsMismatch(series []AnalyticsTimeseries, layout *timeseriesLayout) (s
 	return "", false
 }
 
-// joinAttributes replaces the drill key fields of each flattened row with the leading
-// columns of the tableData row for the same entity: the drill key and attributeColumns
-// attribute values, so attribute tags always come from Versa's own response. Buckets of
-// an entity with no tableData row are dropped and counted in missing. A key whose
-// tableData rows disagree on those columns is ambiguous, since the timeseries response
-// cannot tell its entities apart; the number of such keys is returned and the caller
-// uses tableData instead. Identical duplicate rows are not ambiguous.
-func joinAttributes(rows []timeseriesRow, tableRows [][]interface{}, layout *timeseriesLayout) (joined []timeseriesRow, missing int, ambiguousKeys int) {
-	prefix := 1 + layout.attributeColumns
-	byKey := make(map[string][]interface{}, len(tableRows))
-	conflicts := make(map[string]bool)
-	for _, row := range tableRows {
-		if len(row) < prefix {
-			continue
-		}
-		key, ok := row[0].(string)
-		if !ok {
-			continue
-		}
-		if existing, seen := byKey[key]; seen && !reflect.DeepEqual(existing, row[:prefix]) {
-			conflicts[key] = true
-			continue
-		}
-		byKey[key] = row[:prefix]
+// rebuildDrillKeys sets each row's drill key to its first drillKeyParts name parts joined
+// with commas, as tableData reports it, for a layout whose names carry more fields.
+func rebuildDrillKeys(rows []timeseriesRow, layout *timeseriesLayout) {
+	if layout.drillKeyParts == 0 {
+		return
 	}
-	if len(conflicts) > 0 {
-		return nil, 0, len(conflicts)
-	}
-	joined = rows[:0]
 	for _, r := range rows {
-		key, _ := r.row[0].(string)
-		attrs, ok := byKey[key]
-		if !ok {
-			missing++
-			continue
+		parts := r.row[1 : 1+layout.drillKeyParts]
+		key := make([]string, len(parts))
+		for i, p := range parts {
+			key[i], _ = p.(string)
 		}
-		values := r.row[1+layout.drillKeyFields:]
-		row := make([]interface{}, 0, prefix+len(values))
-		row = append(row, attrs...)
-		row = append(row, values...)
-		joined = append(joined, timeseriesRow{timestamp: r.timestamp, row: row})
+		r.row[0] = strings.Join(key, ",")
 	}
-	return joined, missing, 0
 }
 
 // flattenTimeseries converts the per metric series of a timeseries response into

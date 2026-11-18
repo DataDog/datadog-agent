@@ -369,7 +369,7 @@ func getTableDataAnalytics[T any](
 }
 
 // fetchTableDataRows returns the raw rows of a tableData query, paging through the
-// results, for joining attribute columns onto a timeseries response.
+// results, for answering a timeseries call from tableData.
 func fetchTableDataRows(
 	client *Client,
 	cfg EndpointConfig,
@@ -463,14 +463,7 @@ func getTimeseriesAnalytics[T any](
 		log.Warnf("Timeseries query %q returned %d entities, at or above max_count %d: raise max_count, results may be truncated", query, entities, cfg.MaxCount)
 	}
 
-	// The parser reads metric values by position; a layout may list them in the parser's
-	// order when that differs from the requested order, so each named series lands in the
-	// field of the same name.
-	valueOrder := metrics
-	if layout.valueOrder != nil {
-		valueOrder = layout.valueOrder
-	}
-	rows, dropped := flattenTimeseries(resp.Data, valueOrder, layout.drillKeyFields)
+	rows, dropped := flattenTimeseries(resp.Data, metrics, layout.drillKeyFields)
 	if dropped > 0 {
 		if len(rows) == 0 {
 			// Every bucket was unusable. Most likely a requested metric is not returned
@@ -481,29 +474,7 @@ func getTimeseriesAnalytics[T any](
 		}
 	}
 
-	if layout.attributeColumns > 0 && len(rows) > 0 {
-		tableRows, err := fetchTableDataRows(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get analytics tableData for timeseries attributes: %v", err)
-		}
-		entities := distinctRowKeys(rows)
-		var missing, ambiguousKeys int
-		rows, missing, ambiguousKeys = joinAttributes(rows, tableRows, layout)
-		if ambiguousKeys > 0 {
-			// The timeseries response cannot tell apart the entities behind an ambiguous
-			// key, so report exactly what tableData reports for this call.
-			return fallBackFromJoin(client, tenant, query, FallbackJoinAmbiguous, fmt.Sprintf("%d entity keys match tableData rows with differing attributes", ambiguousKeys), resp.Data, tableRows, parser)
-		}
-		matched := distinctRowKeys(rows)
-		if unmatched := entities - matched; matched == 0 || unmatched > matched {
-			// The timeseries and tableData keys mostly disagree, so joining would drop
-			// most of the family. Report what tableData reports instead.
-			return fallBackFromJoin(client, tenant, query, FallbackJoinUnmatched, fmt.Sprintf("only %d of %d timeseries entities match a tableData row", matched, entities), resp.Data, tableRows, parser)
-		}
-		if missing > 0 {
-			client.warnRateLimited("join:"+query, "Skipped %d timeseries buckets for query %q whose entity has no tableData row to take its attributes from", missing, query)
-		}
-	}
+	rebuildDrillKeys(rows, layout)
 
 	rawRows := make([][]interface{}, 0, len(rows))
 	for _, row := range rows {
@@ -525,19 +496,6 @@ func getTimeseriesAnalytics[T any](
 		}
 	}
 
-	return parsed, nil
-}
-
-// fallBackFromJoin answers a join endpoint's call from the tableData rows already fetched
-// for the join, and logs why.
-func fallBackFromJoin[T any](client *Client, tenant, query string, code FallbackReason, reason string, series []AnalyticsTimeseries, tableRows [][]interface{}, parser func([][]interface{}) ([]T, error)) ([]T, error) {
-	client.recordFallback(tenant, query, code)
-	client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %s: %s, using tableData for it instead", shortQueryName(query), reason)
-	client.debugSamples(query, series, tableRows)
-	parsed, err := parser(tableRows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse analytics tableData: %v", err)
-	}
 	return parsed, nil
 }
 
@@ -572,15 +530,6 @@ func (client *Client) debugSamples(query string, series []AnalyticsTimeseries, t
 		}
 	}
 	client.limiter().Debugf("samples:"+query, "Timeseries query %q fell back to tableData; timeseries series names: [%s]; tableData keys: [%s]", query, strings.Join(names, ", "), strings.Join(keys, ", "))
-}
-
-// distinctRowKeys returns the number of distinct entity keys (column zero) across rows.
-func distinctRowKeys(rows []timeseriesRow) int {
-	keys := make(map[interface{}]struct{}, len(rows))
-	for _, r := range rows {
-		keys[r.row[0]] = struct{}{}
-	}
-	return len(keys)
 }
 
 // countEntities returns the number of distinct entities across the series of a timeseries

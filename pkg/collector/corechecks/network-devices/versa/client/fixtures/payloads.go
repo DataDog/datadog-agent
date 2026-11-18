@@ -645,7 +645,7 @@ const GetDIAMetrics = `
     "iTotalRecords": 1,
     "aaData": [
         [
-            "test-branch-2B,DIA-1,192.168.1.1",
+            "test-branch-2B,DIA-1",
             "test-branch-2B",
             "DIA-1",
             "192.168.1.1",
