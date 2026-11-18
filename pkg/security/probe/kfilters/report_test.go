@@ -9,6 +9,7 @@
 package kfilters
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -22,7 +23,8 @@ func TestDiscarderReport(t *testing.T) {
 
 	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 	ruleOpts.WithSupportedDiscarders(map[eval.Field][]eval.Field{
-		"open.file.path": {"open.file.path", "open.file.name"},
+		"open.file.path":  {"open.file.path", "open.file.name"},
+		"chmod.file.path": {"chmod.file.path", "chmod.file.name"},
 	})
 
 	cfg := &config.Config{
@@ -93,6 +95,34 @@ func TestDiscarderReport(t *testing.T) {
 
 		if len(report.ApproverReports["open"].ApproversOnly) != 1 {
 			t.Errorf("expected 1 approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
+		}
+	})
+
+	t.Run("no-discarder-auid", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+
+		// The second rule can't generate a discarder, but its auid approver
+		// bypasses the discarders. The chmod rule has no approver, its
+		// discarder is invalid
+		rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd"`)
+		rules.AddTestRuleExpr(t, rs, `open.retval == EACCES && process.auid >= 1000`)
+		rules.AddTestRuleExpr(t, rs, `chmod.file.destination.mode & S_IXUSR > 0`)
+
+		report, err := ComputeFilters(cfg, rs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !slices.Equal(report.DiscardersReport.Supported, []eval.Field{"open.file.path"}) {
+			t.Errorf("expected open.file.path supported discarder, got %+v", report.DiscardersReport.Supported)
+		}
+
+		if len(report.DiscardersReport.Invalid) != 1 {
+			t.Errorf("expected 1 invalid discarder, got %d", len(report.DiscardersReport.Invalid))
+		}
+
+		if !slices.Equal(report.ApproverReports["open"].ApproversOnly, []eval.Field{"process.auid"}) {
+			t.Errorf("expected process.auid approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
 		}
 	})
 

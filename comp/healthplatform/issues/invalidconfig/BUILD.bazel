@@ -35,6 +35,7 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/schema/impl",
+        "//comp/core/telemetry/impl/noops",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//pkg/config/model",
         "//pkg/config/schema",

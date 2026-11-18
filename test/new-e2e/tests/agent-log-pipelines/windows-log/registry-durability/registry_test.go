@@ -55,10 +55,10 @@ type registryState struct {
 	RegistryLength int64 `json:"RegistryLength"`
 }
 
-// TestRegistryDurability verifies that an acknowledged registry update survives an abrupt
+// TestWindowsRegistryDurability verifies that an acknowledged registry update survives an abrupt
 // machine stop. The Agent service is configured for manual startup so the test can inspect the
 // registry after boot, before the Agent has a chance to recover or rewrite it.
-func TestRegistryDurability(t *testing.T) {
+func TestWindowsRegistryDurability(t *testing.T) {
 	e2e.Run(t, &registryDurabilitySuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(

@@ -68,7 +68,7 @@ const kubeletConfigSchema = `{
 			"type": "integer"
 		},
 		"streamingConnectionIdleTimeout": {
-			"type": "integer"
+			"type": "string"
 		},
 		"protectKernelDefaults": {
 			"type": "boolean"

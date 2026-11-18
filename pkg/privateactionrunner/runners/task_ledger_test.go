@@ -43,24 +43,47 @@ func TestTaskLedgerPersistsAcrossInstances(t *testing.T) {
 }
 
 func TestTaskLedgerAcceptsTaskOnceAcrossConcurrentInstances(t *testing.T) {
-	dir := t.TempDir()
-	expiresAt := time.Now().Add(time.Hour)
-	ledgers := []*taskLedger{newTaskLedger(dir, nil), newTaskLedger(dir, nil)}
+	// Each instance prunes on its first accept, racing the other instances' writes;
+	// repeat with fresh instances to hit that window.
+	for round := 0; round < 50; round++ {
+		dir := t.TempDir()
+		expiresAt := time.Now().Add(time.Hour)
+		ledgers := make([]*taskLedger, 4)
+		for i := range ledgers {
+			ledgers[i] = newTaskLedger(dir, nil)
+		}
 
-	var accepted atomic.Int32
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func(ledger *taskLedger) {
-			defer wg.Done()
-			if ledger.accept("task-1", expiresAt) == nil {
-				accepted.Add(1)
-			}
-		}(ledgers[i%len(ledgers)])
+		var accepted atomic.Int32
+		var wg sync.WaitGroup
+		for i := 0; i < 16; i++ {
+			wg.Add(1)
+			go func(ledger *taskLedger) {
+				defer wg.Done()
+				if ledger.accept("task-1", expiresAt) == nil {
+					accepted.Add(1)
+				}
+			}(ledgers[i%len(ledgers)])
+		}
+		wg.Wait()
+
+		require.Equal(t, int32(1), accepted.Load(), "round %d", round)
 	}
-	wg.Wait()
+}
 
-	assert.Equal(t, int32(1), accepted.Load())
+func TestTaskLedgerPrunesOnlyStalePendingMarkers(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	clk := func() time.Time { return now }
+	pending := filepath.Join(dir, pendingMarkerPrefix+"1")
+	require.NoError(t, os.WriteFile(pending, nil, 0o600))
+	require.NoError(t, os.Chtimes(pending, now, now))
+
+	require.NoError(t, newTaskLedger(dir, clk).accept("task-1", now.Add(time.Hour)))
+	assert.FileExists(t, pending)
+
+	now = now.Add(taskLedgerPruneInterval)
+	require.NoError(t, newTaskLedger(dir, clk).accept("task-2", now.Add(time.Hour)))
+	assert.NoFileExists(t, pending)
 }
 
 func TestTaskLedgerPrunesExpiredEntries(t *testing.T) {

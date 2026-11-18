@@ -42,7 +42,7 @@ aix_refresh_github_token() {
     now=$(date +%s)
     if [ -z "${AIX_GITHUB_TOKEN_MINTED_AT:-}" ] \
         || [ $((now - AIX_GITHUB_TOKEN_MINTED_AT)) -ge "$AIX_GITHUB_TOKEN_MAX_AGE" ]; then
-        if new_token=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read 2>/dev/null) \
+        if new_token=$(dd-octo-sts token --scope "${CI_PROJECT_PATH}" --policy self.gitlab.read 2>/dev/null) \
             && [ -n "$new_token" ]; then
             export GITHUB_TOKEN="$new_token"
             export AIX_GITHUB_TOKEN_MINTED_AT="$now"
@@ -87,11 +87,31 @@ $script"
         "echo $encoded | openssl enc -base64 -d -A > '$script_file' && bash '$script_file'; rc=\$?; [ \$rc -eq 0 ] && rm -f '$script_file' || echo \"script kept at $script_file for debugging\"; exit \$rc"
 }
 
+# Copy files to/from the AIX host with rsync. Transfers to the AIX cloud LPAR
+# occasionally stall with the connection kept alive, so abort after 3 minutes
+# of inactivity and retry (up to 3 times) instead of burning the job timeout.
+# Future: --partial-dir=.rsync-partial would let retries resume an interrupted
+# transfer instead of restarting from scratch.
+_aix_transfer() {
+    local attempt
+    for attempt in 1 2 3; do
+        rsync -avz --timeout=180 \
+            --rsync-path=/opt/freeware/bin/rsync \
+            -e "ssh $AIX_SSH_COMMON_OPTS" \
+            "$@" \
+        && return 0
+        echo "=== AIX: transfer attempt $attempt/3 failed" >&2
+        # Back off before retrying: immediate retries tend to land in the same
+        # incident window.
+        if [ "$attempt" -lt 3 ]; then sleep $((attempt * 15)); fi
+    done
+    echo "=== AIX: transfer failed after 3 attempts" >&2
+    return 1
+}
+
 copy_file_from_aix() {
-    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple scp options
-    scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2"
+    _aix_transfer "$AIX_SSH_DEST:$1" "$2"
 }
 copy_file_to_aix() {
-    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple scp options
-    scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2"
+    _aix_transfer "$1" "$AIX_SSH_DEST:$2"
 }
