@@ -1,4 +1,6 @@
 #!/bin/sh
+# This macOS-only installer script intentionally uses the local builtin.
+# shellcheck disable=SC3043
 #
 # Perform necessary datadog-agent setup steps before package is installed.
 #
