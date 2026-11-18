@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/churn"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	scenbenchmarkeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/benchmarkeks"
@@ -128,9 +129,12 @@ type benchmarkComponent struct {
 	role string
 	// container is the measured container of the pods of the workload.
 	container string
-	// scope are the tags selecting the measured containers in dddev, besides the cluster
-	// and the namespace of the variant.
-	scope  []string
+	// scope are the tags selecting the measured containers in dddev, and their profiles,
+	// besides those of the cluster and of the namespace of the variant, or of the image of
+	// the version for the profiles.
+	scope []string
+	// image returns the image of the measured container among images.
+	image  func(images scenbenchmarkeks.Images) string
 	checks []benchmark.CheckRequirement
 }
 
@@ -147,6 +151,7 @@ var benchmarkComponents = []benchmarkComponent{
 		role:      scenbenchmarkeks.RoleNodeAgent,
 		container: "agent",
 		scope:     []string{"kube_container_name:agent", "kube_app_component:agent", scenbenchmarkeks.RoleTag + ":" + scenbenchmarkeks.RoleNodeAgent},
+		image:     agentImage,
 		checks: []benchmark.CheckRequirement{
 			{Name: "kubelet", MinRuns: 2},
 			{Name: "container", MinRuns: 2},
@@ -162,6 +167,7 @@ var benchmarkComponents = []benchmarkComponent{
 		},
 		container: "cluster-agent",
 		scope:     []string{"kube_container_name:cluster-agent"},
+		image:     clusterAgentImage,
 	},
 	{
 		name: clusterChecksComponent,
@@ -170,10 +176,23 @@ var benchmarkComponents = []benchmarkComponent{
 		},
 		container: "agent",
 		scope:     []string{"kube_container_name:agent", "kube_app_component:clusterchecks-agent"},
+		// The cluster checks runner runs the image of the node Agent (see the Helm values of
+		// components/datadog/agent/kubernetes_helm.go): the swaps can't set it apart.
+		image: agentImage,
 		checks: []benchmark.CheckRequirement{
 			{Name: "kubernetes_state_core", MinRuns: 2},
 		},
 	},
+}
+
+// agentImage returns the image of the node Agent among images.
+func agentImage(images scenbenchmarkeks.Images) string {
+	return images.AgentFullImagePath
+}
+
+// clusterAgentImage returns the image of the Cluster Agent among images.
+func clusterAgentImage(images scenbenchmarkeks.Images) string {
+	return images.ClusterAgentFullImagePath
 }
 
 // benchmarkMetrics are the compared metrics of every component.
@@ -227,9 +246,13 @@ type benchmarkEKSSuite struct {
 	readyRestarts map[string]int32
 	// failedTest is the first test that failed.
 	failedTest string
-	// firstPhase is the window of the first measurement phase, once Test10Performance has
-	// computed it.
-	firstPhase benchmark.Window
+	// baselineImages and comparisonImages are the images of the two versions, once
+	// Test10Performance has read them.
+	baselineImages, comparisonImages scenbenchmarkeks.Images
+	// profiles is the window over which the dashboard linked when the suite ends compares the
+	// profiles of the versions: from the start of the first measurement phase to the end of the
+	// last one computed, once Test10Performance has computed one.
+	profiles benchmark.Window
 }
 
 func TestBenchmarkEKSSuite(t *testing.T) {
@@ -474,6 +497,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().NoError(err)
 	comparisonImages, err := s.installationImages(ctx, s.variantB())
 	s.Require().NoError(err)
+	s.baselineImages, s.comparisonImages = baselineImages, comparisonImages
 	// The commit of the pipeline images, which the comparison runs by default, e.g. in CI.
 	comparisonCommit, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CommitSHA, "")
 	s.Require().NoError(err)
@@ -498,9 +522,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		window := measurementWindow(readyAt, warmup, duration, block)
 		report.Phases[phase] = window
 		baselineVariant, comparisonVariant := benchmark.SwapInPhase(phase, s.variantA(), s.variantB())
-		if phase == 0 {
-			s.firstPhase = window
-		}
+		s.profiles = benchmark.Window{From: report.Phases[0].From, To: window.To}
 		s.T().Logf("Phase %d of %d: measuring the baseline images on installation %s and the comparison images on installation %s from %s to %s",
 			phase+1, phases, baselineVariant.name, comparisonVariant.name, window.From.UTC().Format(time.RFC3339), window.To.UTC().Format(time.RFC3339))
 		event := benchmark.PhaseEvent{
@@ -523,16 +545,18 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		s.Require().NoErrorf(s.waitForWorkload(time.Minute), "the workload stopped during phase %d", phase+1)
 		// After the measurement, not to delay its first snapshot when the window starts right away.
 		if phase == 0 {
-			report.Baseline, err = s.reportVersion(ctx, "baseline", baselineVariant, os.Getenv(benchmarkBaselineCommitEnvVar), window)
+			report.Baseline, err = s.reportVersion(ctx, "baseline", baselineVariant, os.Getenv(benchmarkBaselineCommitEnvVar))
 			s.Require().NoError(err)
-			report.Comparison, err = s.reportVersion(ctx, "comparison", comparisonVariant, comparisonCommit, window)
+			report.Comparison, err = s.reportVersion(ctx, "comparison", comparisonVariant, comparisonCommit)
 			s.Require().NoError(err)
 		}
 	}
 	s.Require().True(s.measurementIngested(report.Phases))
 
 	first, last := report.Phases[0], report.Phases[len(report.Phases)-1]
-	report.DashboardURL = s.dashboardURL(s.readyAt, last.To, first)
+	profiles := benchmark.Window{From: first.From, To: last.To}
+	report.DashboardURL = s.dashboardURL(s.readyAt, last.To, profiles)
+	report.ProfileComparisons = s.profileComparisons(baselineImages, comparisonImages, profiles)
 	timedChecks := slices.DeleteFunc(stableChecks(), func(stable stableCheck) bool {
 		return slices.Contains(untimedChecks, stable.check)
 	})
@@ -666,19 +690,41 @@ func compareResult(result benchmark.Result, windows []benchmark.Window, points f
 	return result
 }
 
-// reportVersion describes, as version name, the images the installation of variant runs in
-// the first phase, window, with a link to their profiles over it.
-func (s *benchmarkEKSSuite) reportVersion(ctx context.Context, name string, variant benchmarkVariant, commit string, window benchmark.Window) (benchmark.Version, error) {
+// reportVersion describes, as version name, the images the installation of variant runs.
+func (s *benchmarkEKSSuite) reportVersion(ctx context.Context, name string, variant benchmarkVariant, commit string) (benchmark.Version, error) {
 	images, err := s.images(ctx, variant)
 	if err != nil {
 		return benchmark.Version{}, err
 	}
-	return benchmark.Version{
-		Name:        name,
-		Commit:      commit,
-		Images:      images,
-		ProfilesURL: benchmark.ProfilesURL(dddevAppURL, strings.Join(s.variantScope(variant.name), " "), window.From, window.To),
-	}, nil
+	return benchmark.Version{Name: name, Commit: commit, Images: images}, nil
+}
+
+// profileComparisons returns the links comparing the CPU profiles of each component of the
+// baseline, running baselineImages, with those of the comparison, running comparisonImages,
+// over window.
+func (s *benchmarkEKSSuite) profileComparisons(baselineImages, comparisonImages scenbenchmarkeks.Images, window benchmark.Window) []benchmark.ProfileComparison {
+	return lo.Map(benchmarkComponents, func(component benchmarkComponent, _ int) benchmark.ProfileComparison {
+		return benchmark.ProfileComparison{
+			Component: component.name,
+			URL:       benchmark.ProfileComparisonURL(dddevAppURL, s.profileQuery(component, baselineImages), s.profileQuery(component, comparisonImages), window.From, window.To),
+		}
+	})
+}
+
+// profileQuery returns the query of the profiles of the measured containers of component
+// running the images of a version. They are selected by image rather than by installation,
+// since each version runs on both installations over the phases.
+func (s *benchmarkEKSSuite) profileQuery(component benchmarkComponent, images scenbenchmarkeks.Images) string {
+	return strings.Join(slices.Concat([]string{s.clusterTag()}, component.scope, []string{"image_tag:" + imageTag(component.image(images))}), " ")
+}
+
+// imageTag returns the tag the Agents tag the metrics and the profiles of the containers of
+// image with: that of the image path once split into repository and tag, as the scenario does
+// for the Helm values, but for a digest, which the Agents leave out.
+func imageTag(image string) string {
+	image, _, _ = strings.Cut(image, "@")
+	_, tag := utils.ParseImageReference(image)
+	return tag
 }
 
 // postPhaseEvent posts event to dddev, where the dashboard of the benchmark overlays the
@@ -787,15 +833,18 @@ func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benc
 		images[component.name] = componentImages[0]
 	}
 
-	// The cluster checks runner runs the image of the node Agent (see the Helm values of
-	// components/datadog/agent/kubernetes_helm.go): the swaps can't set it apart.
-	if images[clusterChecksComponent] != images[nodeAgentComponent] {
-		return scenbenchmarkeks.Images{}, fmt.Errorf("the cluster checks runner of installation %s runs %s, but its node Agent %s", variant.name, images[clusterChecksComponent], images[nodeAgentComponent])
-	}
-	return scenbenchmarkeks.Images{
+	installation := scenbenchmarkeks.Images{
 		AgentFullImagePath:        images[nodeAgentComponent],
 		ClusterAgentFullImagePath: images[clusterAgentComponent],
-	}, nil
+	}
+	// The swaps set the images of an installation as a whole: each component must run the one
+	// of them it is meant to, e.g. the cluster checks runner that of the node Agent.
+	for _, component := range benchmarkComponents {
+		if expected := component.image(installation); images[component.name] != expected {
+			return scenbenchmarkeks.Images{}, fmt.Errorf("the %s of installation %s runs %s instead of %s", component.name, variant.name, images[component.name], expected)
+		}
+	}
+	return installation, nil
 }
 
 // waitForAgents waits for the node Agents, Cluster Agent and cluster checks runner of both
@@ -985,19 +1034,29 @@ func (s *benchmarkEKSSuite) logDashboardURL(t *testing.T) {
 	// TearDownSuite sets the end time. When SetupSuite fails, the cleanup of BaseSuite calls it
 	// after this one, registered later.
 	from, to := s.StartTime(), cmp.Or(s.EndTime(), time.Now())
-	// The profiles of the whole run if the first phase wasn't computed
-	profiles := cmp.Or(s.firstPhase, benchmark.Window{From: from, To: to})
+	// The profiles of the whole run if no phase was computed
+	profiles := cmp.Or(s.profiles, benchmark.Window{From: from, To: to})
 	t.Log(c("%s", s.dashboardURL(from, to, profiles)))
 }
 
 // dashboardURL returns the URL of the dashboard of the benchmark over [from, to], showing the
-// cluster of the suite and linking to its profiles over the window profiles.
+// cluster of the suite and linking to the comparison of the profiles of the versions over the
+// window profiles, selected by the tags of their images once known.
 func (s *benchmarkEKSSuite) dashboardURL(from, to time.Time, profiles benchmark.Window) string {
-	return benchmark.DashboardURL(dddevAppURL, benchmarkDashboardID, map[string]string{
+	templateVariables := map[string]string{
 		"kube_cluster_name": s.kubeClusterName(),
 		"profiles_from":     strconv.FormatInt(profiles.From.UnixMilli(), 10),
 		"profiles_to":       strconv.FormatInt(profiles.To.UnixMilli(), 10),
-	}, from, to)
+	}
+	for version, images := range map[string]scenbenchmarkeks.Images{"baseline": s.baselineImages, "comparison": s.comparisonImages} {
+		if images.AgentFullImagePath != "" {
+			templateVariables[version+"_agent_image_tag"] = imageTag(images.AgentFullImagePath)
+		}
+		if images.ClusterAgentFullImagePath != "" {
+			templateVariables[version+"_cluster_agent_image_tag"] = imageTag(images.ClusterAgentFullImagePath)
+		}
+	}
+	return benchmark.DashboardURL(dddevAppURL, benchmarkDashboardID, templateVariables, from, to)
 }
 
 // kubeClusterName is the value of the kube_cluster_name tag of the cluster of the suite.

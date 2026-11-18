@@ -536,3 +536,22 @@ func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	_, ok := comp.findMatchingProfile(t.Context(), conn)
 	assert.False(t, ok)
 }
+
+func TestRetrieveConfig_HashWithoutStore(t *testing.T) {
+	retrieve := func(secret string) *report.NetworkDeviceConfig {
+		conn := newMockConnection()
+		conn.Profile = profile.TestProfiles["p2"]
+		conn.OutputMap["show running-config"] = ok("Building configuration...\nusername admin secret 5 " + secret)
+		dc := NewDeviceContext(createTestDevice(), conn.Profile)
+		conf, stored, err := retrieveAndStoreConfig(t.Context(), dc, conn, nil, types.RUNNING, nil)
+		require.NoError(t, err)
+		assert.False(t, stored)
+		return conf
+	}
+
+	a := retrieve("hunter2")
+	b := retrieve("BETTERhunter2!")
+	assert.Equal(t, a.Content, b.Content, "redacted content should be identical")
+	assert.NotEmpty(t, a.ConfigHash)
+	assert.NotEqual(t, a.ConfigHash, b.ConfigHash, "hash must reflect redacted values")
+}

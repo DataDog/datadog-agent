@@ -234,7 +234,7 @@ func TestReplay(t *testing.T) {
 			return kv.IsSuse12Kernel()
 		})
 
-		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
+		dockerWrapper, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "ubuntu", "")
 		if err != nil {
 			t.Fatalf("failed to create docker wrapper: %v", err)
 		}
@@ -297,7 +297,7 @@ func TestReplay(t *testing.T) {
 			return kv.IsSuse12Kernel()
 		})
 
-		dockerWrapper, err := newDockerCmdWrapper("/tmp", "/tmp", "ubuntu", "")
+		dockerWrapper, err := newDockerCmdWrapper(t, "/tmp", "/tmp", "ubuntu", "")
 		if err != nil {
 			t.Fatalf("failed to create docker wrapper: %v", err)
 		}

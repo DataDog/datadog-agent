@@ -26,7 +26,7 @@ const thirdPartyIntegration = "datadog-ping==1.0.2"
 
 // secondaryThirdPartyIntegration is a second third-party integration used alongside
 // datadog-ping in TestIntegrationPreservationMixedCustomization to exercise the
-// multi-package branch of omnibus/python-scripts/packages.py:create_diff_installed_packages_file.
+// multi-package branch of packages/agent/python-scripts/packages.py:create_diff_installed_packages_file.
 // Must be an extras-only integration (i.e., not in requirements-agent-release.txt) so
 // `agent integration install` does not refuse it via the min-version guard at
 // cmd/agent/subcommands/integrations/command.go:453.

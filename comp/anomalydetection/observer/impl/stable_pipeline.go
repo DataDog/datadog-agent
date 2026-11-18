@@ -6,6 +6,8 @@
 package observerimpl
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -19,17 +21,98 @@ const relativeChangeGateName = "relative_change"
 
 const defaultStableMinRelativeChange = 0.05
 
+// StableScanMWConfig exposes the stable ScanMW tuning surface.
+type StableScanMWConfig struct {
+	MinPoints int `json:"min_points"`
+	MaxPoints int `json:"max_points"`
+}
+
+// StableScanWelchConfig exposes the stable ScanWelch tuning surface.
+type StableScanWelchConfig struct {
+	MinPoints int `json:"min_points"`
+	MaxPoints int `json:"max_points"`
+}
+
+// StableBOCPDConfig exposes the stable BOCPD tuning surface.
+type StableBOCPDConfig struct {
+	WarmupPoints int `json:"warmup_points"`
+	MaxRunLength int `json:"max_run_length"`
+}
+
 // StablePipelineConfig holds construction-time stable pipeline parameters.
 type StablePipelineConfig struct {
 	// MinRelativeChange is the minimum relative change between the before and
 	// after medians required to emit an anomaly. Zero disables the gate.
 	MinRelativeChange float64 `json:"min_relative_change"`
+	// ScanMW selects ScanMW when non-nil. An empty block uses defaults.
+	ScanMW *StableScanMWConfig `json:"scanmw,omitempty"`
+	// ScanWelch selects ScanWelch when non-nil. An empty block uses defaults.
+	ScanWelch *StableScanWelchConfig `json:"scanwelch,omitempty"`
+	// BOCPD selects BOCPD when non-nil. An empty block uses defaults.
+	BOCPD *StableBOCPDConfig `json:"bocpd,omitempty"`
 }
 
 // DefaultStablePipelineConfig gates stable detection at a 5% minimum change.
 func DefaultStablePipelineConfig() StablePipelineConfig {
 	return StablePipelineConfig{
 		MinRelativeChange: defaultStableMinRelativeChange,
+	}
+}
+
+// validateStableDetectorSelection enforces the single-detector rule.
+func validateStableDetectorSelection(cfg StablePipelineConfig) error {
+	selected := 0
+	for _, present := range []bool{cfg.ScanMW != nil, cfg.ScanWelch != nil, cfg.BOCPD != nil} {
+		if present {
+			selected++
+		}
+	}
+	if selected > 1 {
+		return errors.New("stable pipeline accepts at most one detector block")
+	}
+	return nil
+}
+
+// ParseStablePipelineConfigJSON decodes stable pipeline JSON configuration.
+func ParseStablePipelineConfigJSON(raw []byte) (*StablePipelineConfig, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	stable := DefaultStablePipelineConfig()
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&stable); err != nil {
+		return nil, fmt.Errorf("parse stable pipeline config: %w", err)
+	}
+	if err := validateStableDetectorSelection(stable); err != nil {
+		return nil, err
+	}
+	return &stable, nil
+}
+
+// newStableDetector selects the detector configured by stable-pipeline blocks.
+func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
+	if err := validateStableDetectorSelection(cfg); err != nil {
+		return nil, err
+	}
+	switch {
+	case cfg.ScanMW != nil:
+		return NewScanMWDetector(ScanMWConfig{
+			MinPoints: cfg.ScanMW.MinPoints,
+			MaxPoints: cfg.ScanMW.MaxPoints,
+		}), nil
+	case cfg.ScanWelch != nil:
+		return NewScanWelchDetector(ScanWelchConfig{
+			MinPoints: cfg.ScanWelch.MinPoints,
+			MaxPoints: cfg.ScanWelch.MaxPoints,
+		}), nil
+	case cfg.BOCPD != nil:
+		return newBOCPDDetector(BOCPDConfig{
+			WarmupPoints: cfg.BOCPD.WarmupPoints,
+			MaxRunLength: cfg.BOCPD.MaxRunLength,
+		}, true), nil
+	default:
+		return NewScanMWDetector(DefaultScanMWConfig()), nil
 	}
 }
 
