@@ -133,6 +133,9 @@ class TestHooks(unittest.TestCase):
             ("shellcheck", "scripts/.shellcheckrc"),
             ("actionlint", ".github/actions/local/action.yml"),
             ("python-ruff", "nested/pyproject.toml"),
+            ("buildifier", "bazel/prebuilt_buildtools.json"),
+            ("rustfmt", "nested/Cargo.toml"),
+            ("rustfmt", "nested/.rustfmt.toml"),
         ]:
             with self.subTest(check=check, path=path):
                 self.assertTrue(hooks.settings_changed(check, [path]))
@@ -271,6 +274,8 @@ class TestHooks(unittest.TestCase):
             "copyright",
             "shell-check-no-set-x",
             "python-ruff",
+            "buildifier",
+            "rustfmt",
         ]
         self.assertEqual([hook["id"] for hook in configured], expected)
         self.assertEqual(config["default_install_hook_types"], ["pre-commit"])
@@ -821,6 +826,113 @@ class TestHooks(unittest.TestCase):
         with patch.object(Path, "read_bytes", read_bytes):
             self.assertEqual(hooks.check_files("python-ruff", ["excluded/blocked.py"]), 0)
         self.assertEqual(self.git("write-tree"), tree)
+
+    def test_buildifier_uses_ci_exclusions(self):
+        source = REPO / "bazel/buildifier/BUILD.bazel"
+        self.write("bazel/buildifier/BUILD.bazel", source.read_text("utf-8"))
+        paths = ["BUILD.bazel", "third_party/x/BUILD", ".cache/BUILD", "deps/x/overlay/x.bzl", "vendor/BUILD"]
+        self.assertEqual(hooks.buildifier_files(paths), ["BUILD.bazel"])
+        with patch.object(hooks, "buildifier_path", return_value=self.root / "missing-buildifier"):
+            self.assertEqual(hooks.check_files("buildifier", paths[1:]), 0)
+
+    def test_buildifier_selects_ci_filename_variants(self):
+        names = [
+            "rules.bzl",
+            "rules.sky",
+            "rules.star",
+            "BUILD.bazel",
+            "MODULE.bazel",
+            "REPO.bazel",
+            "VENDOR.bazel",
+            "BUILD",
+            "overlay.BUILD",
+            "BUILD.oss",
+            "BUILD.linux.oss",
+            "WORKSPACE",
+            "WORKSPACE.oss",
+            "WORKSPACE.bzlmod",
+            "WORKSPACE.linux.oss",
+        ]
+        for name in names:
+            with self.subTest(name=name):
+                self.assertTrue(hooks.eligible("buildifier", "nested/" + name))
+        for name in ["README", "README.oss", "BUILDING.md", "WORKSPACE.lock"]:
+            with self.subTest(name=name):
+                self.assertFalse(hooks.eligible("buildifier", "nested/" + name))
+
+    @unittest.skipUnless(shutil.which("rustup"), "rustup is required")
+    def test_rustfmt_does_not_follow_modules(self):
+        self.write(".gitattributes", "* text eol=lf\n")
+        self.write("MODULE.bazel", (REPO / "MODULE.bazel").read_text("utf-8"))
+        version, _ = hooks.rust_settings()
+        result = subprocess.run(["rustup", "which", "--toolchain", version, "rustfmt"], capture_output=True)
+        if result.returncode:
+            self.skipTest(f"Rust {version} is required")
+        self.write("lib.rs", "mod child;\n")
+        child = self.write("child.rs", "this is invalid Rust\n")
+        self.assertEqual(hooks.check_files("rustfmt", ["lib.rs"]), 0)
+        self.assertEqual(child.read_text("utf-8"), "this is invalid Rust\n")
+        with patch.object(sys, "stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(hooks.check_files("rustfmt", ["child.rs"]), 1)
+        self.assertIn("child.rs:1:6", output.getvalue())
+        self.assertNotIn("\\\\?\\", output.getvalue())
+        unformatted = self.write("unformatted.rs", 'pub fn f(){println!("ready");}\n')
+        before = unformatted.read_bytes()
+        with patch.object(sys, "stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(hooks.check_files("rustfmt", ["unformatted.rs"]), 1)
+        self.assertIn("unformatted.rs:1:", output.getvalue())
+        self.assertNotIn("\\\\?\\", output.getvalue())
+        self.assertEqual(unformatted.read_bytes(), before)
+        self.write("rustfmt.toml", "hard_tabs = true\n")
+        self.write("formatted.rs", "pub fn f() {\n    println!(\"ready\");\n}\n")
+        self.assertEqual(hooks.check_files("rustfmt", ["formatted.rs"]), 0)
+        formatted = self.root / "formatted.rs"
+        formatted.write_bytes(formatted.read_bytes().replace(b"\n", b"\r\n"))
+        contents = formatted.read_bytes()
+        self.assertEqual(hooks.check_files("rustfmt", ["formatted.rs"]), 0)
+        self.assertEqual(formatted.read_bytes(), contents)
+        skipped = self.write("skipped.rs", "#![rustfmt::skip]\npub fn f(){println!(\"ready\");}\n")
+        skipped_contents = skipped.read_bytes()
+        self.assertEqual(hooks.check_files("rustfmt", ["skipped.rs"]), 0)
+        self.assertEqual(skipped.read_bytes(), skipped_contents)
+        self.write(".gitattributes", "* text eol=lf\nskipped.rs -text\n")
+        for contents in [
+            b"\xef\xbb\xbf" + skipped_contents,
+            skipped_contents.replace(b"\n", b"\r\n"),
+            b"\xef\xbb\xbf" + skipped_contents.replace(b"\n", b"\r\n"),
+        ]:
+            skipped.write_bytes(contents)
+            self.assertEqual(hooks.check_files("rustfmt", ["skipped.rs"]), 0)
+            self.assertEqual(skipped.read_bytes(), contents)
+        self.write("unicode.rs", 'pub fn f(){println!("\u65e5");}\n')
+        output = io.BytesIO()
+        stream = io.TextIOWrapper(output, encoding="cp1252", write_through=True)
+        with patch.object(sys, "stdout", stream):
+            self.assertEqual(hooks.check_files("rustfmt", ["unicode.rs"]), 1)
+        self.assertIn(b"unicode.rs: rustfmt failed", output.getvalue())
+        self.assertIn(b"\\u65e5", output.getvalue())
+
+    def test_buildifier_normalizes_crlf_without_rewriting(self):
+        self.write(".gitattributes", "* text eol=lf\n")
+        with patch.object(hooks, "ROOT", REPO):
+            executable = hooks.buildifier_path()
+        if not executable.is_file():
+            self.skipTest("Install the pinned Buildifier with tasks/hooks.py setup-buildifier")
+        self.write(".buildifier.json", (REPO / ".buildifier.json").read_text("utf-8"))
+        self.write("bazel/buildifier/BUILD.bazel", (REPO / "bazel/buildifier/BUILD.bazel").read_text("utf-8"))
+        target = self.write("example.bzl", '"""Fixture."""\n\nVALUE = 1\n')
+        target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
+        contents = target.read_bytes()
+        with patch.object(hooks, "buildifier_path", return_value=executable):
+            self.assertEqual(hooks.check_files("buildifier", ["example.bzl"]), 0)
+            self.assertEqual(target.read_bytes(), contents)
+            (self.root / ".buildifier.json").unlink()
+            self.assertEqual(hooks.check_files("buildifier", ["example.bzl"]), 0)
+            self.assertEqual(target.read_bytes(), contents)
+            target.write_bytes(b'"""Fixture."""\r\n\r\nVALUE=1\r\n')
+            invalid = target.read_bytes()
+            self.assertEqual(hooks.check_files("buildifier", ["example.bzl"]), 1)
+            self.assertEqual(target.read_bytes(), invalid)
 
 
 if __name__ == "__main__":

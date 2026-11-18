@@ -25,6 +25,8 @@ CHECKS = (
     "copyright",
     "shell-check-no-set-x",
     "python-ruff",
+    "buildifier",
+    "rustfmt",
     "release-json-newline",
 )
 
@@ -44,12 +46,15 @@ def settings_changed(check, paths):
         "actionlint": {".github/actionlint.yaml", ".github/actionlint.yml"},
         "copyright": {"tasks/libs/types/copyright.py"},
         "python-ruff": {"pyproject.toml", "ruff.toml", ".ruff.toml", ".python-version"},
+        "buildifier": {".buildifier.json", "bazel/prebuilt_buildtools.json", "bazel/buildifier/BUILD.bazel"},
+        "rustfmt": {"rust-toolchain.toml", "MODULE.bazel", ".bazelrc"},
     }
     return any(
         path in settings.get(check, set())
         or (check == "actionlint" and path.startswith(".github/actions/"))
         or (check == "shellcheck" and path.endswith("/.shellcheckrc"))
         or (check == "python-ruff" and Path(path).name in {"pyproject.toml", "ruff.toml", ".ruff.toml"})
+        or (check == "rustfmt" and Path(path).name in {"Cargo.toml", "rustfmt.toml", ".rustfmt.toml"})
         for path in paths
     )
 
@@ -72,6 +77,30 @@ def eligible(check, path):
         return path.endswith((".sh", ".yaml", ".yml", "Dockerfile")) and ".pre-commit-config" not in path
     if check == "python-ruff":
         return path.endswith((".py", ".pyi"))
+    if check == "buildifier":
+        from fnmatch import fnmatchcase
+
+        name = Path(path).name
+        # Match the pinned buildtools buildifier/runner.bash.template.
+        return any(
+            fnmatchcase(name, pattern)
+            for pattern in (
+                "*.bzl",
+                "*.sky",
+                "*.star",
+                "*.bazel",
+                "BUILD",
+                "*.BUILD",
+                "BUILD.oss",
+                "BUILD.*.oss",
+                "WORKSPACE",
+                "WORKSPACE.oss",
+                "WORKSPACE.bzlmod",
+                "WORKSPACE.*.oss",
+            )
+        )
+    if check == "rustfmt":
+        return path.endswith(".rs")
     if check == "release-json-newline":
         return path == "release.json"
     return False
@@ -368,6 +397,107 @@ def shellcheck_files(files):
         return int(bool(status))
 
 
+def buildifier_info():
+    import json
+
+    return json.loads((ROOT / "bazel/prebuilt_buildtools.json").read_text("utf-8"))["buildifier"]
+
+
+def buildifier_path():
+    suffix = ".exe" if os.name == "nt" else ""
+    return ROOT / ".cache" / "hooks" / buildifier_info()["version"] / ("buildifier" + suffix)
+
+
+def buildifier_files(files):
+    import ast
+
+    # Derive exclusions from the same literal list used by both Bazel targets.
+    source = (ROOT / "bazel/buildifier/BUILD.bazel").read_text("utf-8")
+    patterns = ast.literal_eval(re.search(r"exclude_patterns = (\[.*?\])", source, re.S)[1])
+    from fnmatch import fnmatchcase
+
+    return [path for path in files if not any(fnmatchcase("./" + path, pattern) for pattern in patterns)]
+
+
+def rust_settings():
+    source = (ROOT / "MODULE.bazel").read_text("utf-8")
+    settings = re.search(r"^toolchains\.toolchain\((.*?)\n\)", source, re.S | re.M)[1]
+    return re.search(r'version = "([^"]+)"', settings)[1], re.search(r'edition = "([^"]+)"', settings)[1]
+
+
+def rustfmt_files(files):
+    import tempfile
+    from concurrent.futures import ThreadPoolExecutor
+
+    version, edition = rust_settings()
+    executable = subprocess.check_output(
+        ["rustup", "which", "--toolchain", version, "rustfmt"], encoding="utf-8"
+    ).strip()
+
+    def check(item):
+        number, path = item
+        target = Path(directory) / f"{number}.rs"
+        target.write_bytes(canonical_bytes(path))
+        target = target.resolve()
+        result = subprocess.run(
+            [
+                executable,
+                "--check",
+                "--edition",
+                edition,
+                "--config-path",
+                str(config),
+                "--config",
+                "skip_children=true",
+                str(target),
+            ],
+            capture_output=True,
+            cwd=ROOT,
+        )
+        if result.returncode:
+            output = (result.stdout + result.stderr).decode("utf-8")
+            if os.name == "nt":
+                native = str(target)
+                extended = "\\\\?\\UNC\\" + native[2:] if native.startswith("\\\\") else "\\\\?\\" + native
+                output = output.replace(extended, path)
+            return f"{path}: rustfmt failed\n" + output.replace(str(target), path).replace(target.as_posix(), path)
+        return ""
+
+    # The Bazel rustfmt aspect explicitly selects rules_rust's empty default
+    # configuration. It does not discover repository or user rustfmt files.
+    with tempfile.TemporaryDirectory(prefix="agent-hooks-rustfmt-") as directory:
+        config = Path(directory) / "rustfmt.toml"
+        config.write_text("", encoding="utf-8")
+        # Match CI's file-mode check and skip_children setting. Unlike stdin
+        # comparisons, this also honors skipped BOM and preserved-CRLF files.
+        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
+            errors = list(filter(None, pool.map(check, enumerate(files))))
+    if errors:
+        message = "\n".join(errors)
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        print(message.encode(encoding, errors="backslashreplace").decode(encoding))
+    return int(bool(errors))
+
+
+def setup_buildifier():
+    import hashlib
+    import platform
+    import urllib.request
+
+    system = {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}[platform.system()]
+    cpu = {"AMD64": "x86_64", "x86_64": "x86_64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine()]
+    binary = next(item for item in buildifier_info()["binaries"] if item["os"] == system and item["cpu"] == cpu)
+    destination = buildifier_path()
+    with urllib.request.urlopen(binary["url"], timeout=60) as response:
+        data = response.read()
+    if hashlib.sha256(data).hexdigest() != binary["sha256"]:
+        raise ValueError("Buildifier download does not match bazel/prebuilt_buildtools.json.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+    destination.chmod(0o755)
+    print(f"Installed {destination}")
+
+
 def stdin_format_files(command, files, output_is_failure=True):
     from concurrent.futures import ThreadPoolExecutor
 
@@ -449,6 +579,20 @@ def check_files(check, files):
                 output_is_failure=False,
             )
         return status
+    if check == "buildifier":
+        files = buildifier_files(files)
+        if not files:
+            return 0
+        executable = buildifier_path()
+        if not executable.is_file():
+            raise ValueError("Run `python tasks/hooks.py setup-buildifier` to install CI's Buildifier version.")
+        regular, crlf = split_line_endings(files)
+        command = [str(executable), "-mode=check", "-lint=warn"]
+        return parallel_files(command, regular, max_files=256) | stdin_format_files(
+            lambda path: [*command, f"-path={path}"], crlf, output_is_failure=False
+        )
+    if check == "rustfmt":
+        return rustfmt_files(files)
     if check == "release-json-newline":
         if not (ROOT / "release.json").read_bytes().endswith(b"\n"):
             print("release.json: add a final newline.")
@@ -474,7 +618,7 @@ def protected_branch():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("check", choices=(*CHECKS, "setup-actionlint"))
+    parser.add_argument("check", choices=(*CHECKS, "setup-buildifier", "setup-actionlint"))
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument("--staged", action="store_true")
     scope.add_argument(
@@ -485,6 +629,9 @@ def main():
     parser.add_argument("paths", nargs="*")
     args = parser.parse_intermixed_args()
     os.chdir(ROOT)
+    if args.check == "setup-buildifier":
+        setup_buildifier()
+        return 0
     if args.check == "setup-actionlint":
         return subprocess.run(
             ["go", "install", f"github.com/rhysd/actionlint/cmd/actionlint@v{ACTIONLINT_VERSION}"]

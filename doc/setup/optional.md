@@ -16,12 +16,15 @@ echo "source <(dda inv --print-completion-script zsh)" >> ~/.zshrc
 
 ## Pre-commit hooks
 
-The default [pre-commit](https://pre-commit.com) hook checks protected branches, Go formatting, ShellCheck, GitHub Actions workflows, Go copyright headers, prohibited shell tracing, and Ruff. Each check has its own hook ID, so it can be run or skipped independently. It checks staged contents without applying fixes. When an editor leaves CRLF that Git stores as LF, validators check the LF form without rewriting the working file. Pre-commit temporarily hides unstaged tracked changes and restores them after validation, including when a check fails. Pre-push and other events have no default checks.
+The default [pre-commit](https://pre-commit.com) hook checks protected branches, Go formatting, ShellCheck, GitHub Actions workflows, Go copyright headers, prohibited shell tracing, Ruff, Buildifier, and Rust formatting. Each check has its own hook ID, so it can be run or skipped independently. It checks staged contents without applying fixes. When an editor leaves CRLF that Git stores as LF, validators check the LF form without rewriting the working file. Pre-commit temporarily hides unstaged tracked changes and restores them after validation, including when a check fails. Pre-push and other events have no default checks.
 
-Use Python 3.12 or newer, the Go version in `.go-version`, and `shellcheck` and `actionlint` on `PATH`. Setup installs a shared Python environment with PyYAML and the Ruff version pinned by [DDA's CI dependency group](https://github.com/DataDog/datadog-agent-dev/blob/main/pyproject.toml). Keep the Ruff pin in `.pre-commit-config.yaml` aligned with that group when updating CI tooling.
+Use Python 3.12 or newer, the Go version in `.go-version`, and `shellcheck` and `actionlint` on `PATH`. Setup installs a shared Python environment with PyYAML and the Ruff version pinned by [DDA's CI dependency group](https://github.com/DataDog/datadog-agent-dev/blob/main/pyproject.toml). Keep the Ruff pin in `.pre-commit-config.yaml` aligned with that group when updating CI tooling. Install the Rust toolchain and its rustfmt component using the version in the `toolchains.toolchain` declaration in `MODULE.bazel`. Buildifier uses the version and verified download in `bazel/prebuilt_buildtools.json`.
+
+Rustfmt uses the explicit default configuration selected by Bazel's formatting aspect. Repository and user `rustfmt.toml` files do not override that CI configuration.
 
 ```sh
 python tasks/hooks.py setup-actionlint
+python tasks/hooks.py setup-buildifier
 ```
 
 1. Install `pre-commit` by running the following command.

@@ -71,3 +71,21 @@ repos:
         always_run: true
         pass_filenames: true
         require_serial: true
+      - id: buildifier
+        name: buildifier
+        entry: python tasks/hooks.py buildifier --hook --
+        language: python
+        # Match DDA's legacy-build Ruff pin in datadog-agent-dev/pyproject.toml.
+        additional_dependencies: [PyYAML==6.0.3, ruff==0.3.5]
+        always_run: true
+        pass_filenames: true
+        require_serial: true
+      - id: rustfmt
+        name: rustfmt
+        entry: python tasks/hooks.py rustfmt --hook --
+        language: python
+        # Match DDA's legacy-build Ruff pin in datadog-agent-dev/pyproject.toml.
+        additional_dependencies: [PyYAML==6.0.3, ruff==0.3.5]
+        always_run: true
+        pass_filenames: true
+        require_serial: true
