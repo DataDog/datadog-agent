@@ -62,6 +62,20 @@ func TestRepoPath(t *testing.T) {
 			wantOK: true,
 		},
 		{
+			name:   "package main with a workspace-relative path",
+			frame:  stackFrame{"main.main", "cmd/agent/main.go"},
+			want:   "cmd/agent/main.go",
+			wantOK: true,
+		},
+		{
+			name:  "workspace-relative path outside cmd for package main",
+			frame: stackFrame{"main.main", "external/some_dep/main.go"},
+		},
+		{
+			name:  "workspace-relative cmd path for a third party function",
+			frame: stackFrame{"github.com/spf13/cobra.(*Command).Execute", "cmd/agent/main.go"},
+		},
+		{
 			name:  "package main without a cmd directory",
 			frame: stackFrame{"main.run", "/tmp/other/main.go"},
 		},

@@ -93,8 +93,9 @@ func isSharedHelper(rules []ownerRule, p, team string) bool {
 // paths) or a GOPATH-style checkout. Otherwise it joins the package directory
 // from the function name with the file name, which holds for any checkout
 // location. Package main has no module path in its function name, so a
-// non-trimmed absolute path is cut at its last "/cmd/" directory; release
-// builds are not guaranteed to use -trimpath.
+// non-trimmed absolute path is cut at its last "/cmd/" directory, and a
+// workspace-relative path (as recorded by Bazel builds) that already starts with
+// "cmd/" is used as is; release builds are not guaranteed to use -trimpath.
 func repoPath(f stackFrame) (string, bool) {
 	if !strings.HasSuffix(f.file, ".go") {
 		return "", false
@@ -104,7 +105,13 @@ func repoPath(f stackFrame) (string, bool) {
 	}
 	rest, ok := strings.CutPrefix(f.function, repoModulePrefix)
 	if !ok {
-		if i := strings.LastIndex(f.file, "/cmd/"); i >= 0 && strings.HasPrefix(f.function, "main.") {
+		if !strings.HasPrefix(f.function, "main.") {
+			return "", false
+		}
+		if strings.HasPrefix(f.file, "cmd/") {
+			return f.file, true
+		}
+		if i := strings.LastIndex(f.file, "/cmd/"); i >= 0 {
 			return f.file[i+1:], true
 		}
 		return "", false
