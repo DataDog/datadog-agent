@@ -733,9 +733,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
 		if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
-			if env := chunk.Env(); env != "" {
-				chunk.SetEnv(normalize.NormalizeTagValue(env))
-			}
+			// Keep a single, normalized "env"/"version" attribute per chunk so the forwarded
+			// chunk carries exactly the values used for sampling and stats.
+			chunk.CanonicalizeEnvVersion(normalize.NormalizeTagValue)
 		}
 		err := a.normalizeTraceChunkV1(ts, chunk)
 		if err != nil {

@@ -856,6 +856,35 @@ func (c *InternalTraceChunk) SetAppVersion(version string) {
 	c.setStringAttributeByName(chunkVersionAttributeKey, version)
 }
 
+// CanonicalizeEnvVersion rewrites the chunk "env" and "version" attributes so that each name
+// has at most one entry, holding exactly the value Env()/AppVersion() return. For each name,
+// the getter's winner (the lowest-key-ref string-valued alias) is kept and every other alias
+// is removed. A winning value that is empty, or a name with no string-valued alias, means
+// "no override", and all aliases of that name are removed. normalizeEnv, when non-nil, is
+// applied to a non-empty env before it is written back.
+func (c *InternalTraceChunk) CanonicalizeEnvVersion(normalizeEnv func(string) string) {
+	if len(c.Attributes) == 0 {
+		return
+	}
+	canonicalize := func(key string, normalize func(string) string) {
+		_, value := c.stringAttributeByName(key)
+		if value != "" && normalize != nil {
+			value = normalize(value)
+		}
+		if value != "" {
+			c.setStringAttributeByName(key, value)
+			return
+		}
+		for k := range c.Attributes {
+			if c.Strings.Get(k) == key {
+				delete(c.Attributes, k)
+			}
+		}
+	}
+	canonicalize(chunkEnvAttributeKey, normalizeEnv)
+	canonicalize(chunkVersionAttributeKey, nil)
+}
+
 // SamplingMechanism returns the sampling mechanism from the trace chunk.
 func (c *InternalTraceChunk) SamplingMechanism() uint32 {
 	return c.samplingMechanism

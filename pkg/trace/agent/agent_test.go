@@ -5467,3 +5467,51 @@ func TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags(t *testing.T) {
 	assert.Equal(t, "v1", payloads[0].TracerPayload.AppVersion())
 	assert.Equal(t, "staging", payloads[0].TracerPayload.Chunks[0].Env(), "chunk env tag is not normalized or rewritten")
 }
+
+// TestProcessV1CanonicalizesChunkEnvVersionAliases checks that a forwarded native v1 chunk
+// carries at most one "env" and one "version" attribute, equal to the values used in stats.
+func TestProcessV1CanonicalizesChunkEnvVersionAliases(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	// env aliases: ref 1 -> "" (lowest, wins: no override), ref 3 -> "staging".
+	// version aliases: ref 2 -> "v2" (lowest, wins), ref 4 -> "v3".
+	strs := idx.StringTableFromArray([]string{"", "env", "version", "env", "version", "staging", "v2", "v3"})
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.Attributes = map[uint32]*idx.AnyValue{
+		1: {Value: &idx.AnyValue_StringValueRef{StringValueRef: 0}},
+		3: {Value: &idx.AnyValue_StringValueRef{StringValueRef: 5}},
+		2: {Value: &idx.AnyValue_StringValueRef{StringValueRef: 6}},
+		4: {Value: &idx.AnyValue_StringValueRef{StringValueRef: 7}},
+	}
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "payload-env", pt.TracerEnv, "an empty winning env alias is no override")
+	assert.Equal(t, "v2", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+	values := map[string][]string{}
+	for k, v := range out.Chunks[0].Attributes {
+		if name := out.Strings.Get(k); name == "env" || name == "version" {
+			values[name] = append(values[name], out.Strings.Get(v.GetStringValueRef()))
+		}
+	}
+	assert.Equal(t, map[string][]string{"version": {pt.AppVersion}}, values)
+}
