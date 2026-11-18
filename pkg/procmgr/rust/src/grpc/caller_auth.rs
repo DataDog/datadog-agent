@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use std::fmt;
-
 use tonic::{Request, Status};
 
 #[cfg(windows)]
@@ -19,17 +17,6 @@ pub(crate) enum MutatingRpc {
     Start,
     Stop,
     ReloadConfig,
-}
-
-impl fmt::Display for MutatingRpc {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Create => "Create",
-            Self::Start => "Start",
-            Self::Stop => "Stop",
-            Self::ReloadConfig => "ReloadConfig",
-        })
-    }
 }
 
 pub(crate) struct CallerPolicy {
@@ -104,7 +91,7 @@ pub(crate) fn require_mutating_pipe_client<T>(
     if peer_may_mutate(policy.enforce, uid) {
         return Ok(());
     }
-    info!("denied {rpc}: peer uid {uid:?} is not root");
+    info!("denied {rpc:?}: peer uid {uid:?} is not root");
     Err(Status::permission_denied("operation requires root"))
 }
 
