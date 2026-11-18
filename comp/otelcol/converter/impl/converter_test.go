@@ -506,6 +506,29 @@ func TestConvert(t *testing.T) {
 			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
 			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
 		},
+		// A user-declared datadog extension gets the resolved hostname in standalone
+		// mode, unless it sets one itself (OTAGENT-1445).
+		{
+			name:           "extensions/standalone/dd-hostname",
+			provided:       "extensions/standalone/dd-hostname/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dd-hostname-err",
+			provided:       "extensions/standalone/dd-hostname-err/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-err/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-err/acfg.yaml",
+			hostnameErr:    true,
+		},
+		{
+			// An empty body still gets the hostname, and no API key from the
+			// exporter.
+			name:           "extensions/standalone/dd-hostname-empty",
+			provided:       "extensions/standalone/dd-hostname-empty/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-empty/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-empty/acfg.yaml",
+		},
 		// cumulativetodelta auto-injection (OTAGENT-1128).
 		{
 			name:           "cumulativetodelta/injected",

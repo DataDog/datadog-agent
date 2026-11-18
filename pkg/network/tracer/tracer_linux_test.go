@@ -207,34 +207,71 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	r := bufio.NewReader(c)
 	r.ReadBytes(byte('\n'))
 
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	// outq returns the bytes written to the client socket but not yet acknowledged, both the
+	// unacked in-flight ones and those still queued unsent (SIOCOUTQ: write_seq - snd_una)
+	outq := func() (int, error) {
+		var n int
+		var ioctlErr error
+		if err := rawConn.Control(func(fd uintptr) {
+			n, ioctlErr = unix.IoctlGetInt(int(fd), unix.SIOCOUTQ)
+		}); err != nil {
+			return 0, err
+		}
+		return n, ioctlErr
+	}
+
 	iptablesWrapper(t, func() {
 		for i := 0; i < 99; i++ {
 			// Send a bunch of messages
 			c.Write(genPayload(clientMessageSize))
 		}
-		time.Sleep(time.Second)
+		// Keep dropping until the retransmission timer has fired and retransmitted, instead of
+		// for a fixed time: the first RTO is at least 200ms and depends on the measured RTT, so a
+		// fixed window can end before any retransmission on a slow VM. tcpi_retransmits counts the
+		// RTOs of the current loss episode, and tcpi_total_retrans the segments actually resent.
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			info, err := offsetguess.TCPGetInfo(c)
+			require.NoError(ct, err)
+			assert.Positive(ct, info.Retransmits, "tcpi_retransmits")
+			assert.Positive(ct, info.Total_retrans, "tcpi_total_retrans")
+		}, 10*time.Second, 10*time.Millisecond, "no retransmission while packets were dropped")
 	})
 
+	// Once the rule is gone, the data is only delivered at the next RTO, which is backed off by
+	// then. Wait until the kernel has sent everything written and seen it acknowledged, so that
+	// the eBPF-less tracer, which counts bytes from the packets it captures, can count them all.
+	// tcpi_unacked alone isn't enough: after the losses the congestion window is small, so part
+	// of the data can still be queued unsent while nothing is in flight.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		n, err := outq()
+		require.NoError(ct, err)
+		assert.Zero(ct, n, "bytes not yet acknowledged")
+	}, 15*time.Second, 50*time.Millisecond, "data not acknowledged after packets stopped being dropped")
+
+	// A client only gets an active connection whose stats changed since its last fetch, so keep the
+	// latest copy: once the connection is idle, it is in one fetch only.
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
-
-		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.NotNil(ct, conn)
+		// findConnection returns a copy, which stays valid after cleanup
+		if found, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections); ok {
+			conn = found
+		}
+		cleanup()
+		require.NotNil(ct, conn, "connection not found")
 
 		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentBytes), 100*clientMessageSize)
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
+		// confirm at least one retransmission
+		assert.Positive(ct, conn.Monotonic.Retransmits)
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
 		}
 
 		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
 	}, 3*time.Second, 100*time.Millisecond)
-
-	// confirm at least one retransmission
-	require.True(t, int(conn.Monotonic.Retransmits) > 0)
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
@@ -1692,9 +1729,30 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg := testConfig()
 	skipEbpflessTodo(t, cfg)
 	testutil.IptablesSave(t)
-	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	// Setup a NAT rule to translate 2.2.2.2 to 2.2.2.4 and issue a DNS request to 2.2.2.2
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 2.2.2.4"}
 	testutil.RunCommands(t, cmds, false)
+
+	dnsNs, err := vnetns.GetFromName(netlinktestutil.SetupVethPair(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dnsNs.Close() })
+	var conn net.PacketConn
+	require.NoError(t, netns.WithNS(dnsNs, func() (err error) {
+		conn, err = net.ListenPacket("udp", "2.2.2.4:53")
+		return err
+	}))
+	t.Cleanup(func() { _ = conn.Close() })
+	go func() {
+		srv := &dns.Server{
+			PacketConn: conn,
+			Handler: dns.HandlerFunc(func(w dns.ResponseWriter, m *dns.Msg) {
+				_ = w.WriteMsg(new(dns.Msg).SetReply(m))
+			}),
+		}
+		if err := srv.ActivateAndServe(); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("DNS server: %v", err)
+		}
+	}()
 
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
@@ -1789,34 +1847,32 @@ func (s *TracerSuite) TestSendfileRegression() {
 
 		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
+		// Keep polling until the bytes are accounted for, not just until both
+		// connections exist. In eBPFless mode the tracer builds connections from
+		// captured packets, which reach userspace one TPACKET_V3 block at a time
+		// (64ms block retire timeout). The handshake can arrive in one block and the
+		// payload in a later one, so for a short time both connections exist with
+		// zero bytes.
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns, cleanup := getConnections(ct, tr)
 			defer cleanup()
-			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
-			if newOutConn != nil {
+			if newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr())); newOutConn != nil {
 				outConn = newOutConn
 			}
-			newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
-			if newInConn != nil {
+			if newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr())); newInConn != nil {
 				inConn = newInConn
 			}
-			require.NotNil(ct, outConn)
-			require.NotNil(ct, inConn)
-		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
+			require.NotNil(ct, outConn, "couldn't find outgoing connection used by sendfile(2)")
+			require.NotNil(ct, inConn, "couldn't find incoming connection used by sendfile(2)")
+			assert.Equal(ct, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
+			assert.InDelta(ct, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2) with all bytes traced")
 
-		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
-			if connType == network.UDP {
-				assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
-				assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
-			}
-		}
-		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.InDeltaf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), 1, "sendfile recv bytes wasn't properly traced")
-			if connType == network.UDP {
-				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
-				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
-			}
+		if connType == network.UDP && outConn != nil && inConn != nil {
+			assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
+			assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
+			assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
+			assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
 		}
 	}
 
@@ -4291,6 +4347,17 @@ func (env *netemTestEnv) addNetem(t *testing.T, args ...string) {
 	})
 }
 
+// setLoopbackMTU sets the MTU of the loopback device inside the namespace.
+// A fresh netns loopback has a 64KiB MTU, so each segment can be as large as
+// a whole receive window. Tests that need several segments in flight for
+// netem reordering or loss to have an effect should lower it before dialing.
+func (env *netemTestEnv) setLoopbackMTU(t *testing.T, mtu int) {
+	t.Helper()
+	testutil.RunCommands(t, []string{
+		fmt.Sprintf("ip -n %s link set lo mtu %d", env.Netns, mtu),
+	}, false)
+}
+
 // changeNetem modifies an existing netem qdisc on the loopback device inside
 // the namespace. The qdisc must have been added with addNetem first.
 func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
@@ -4588,14 +4655,28 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	})
 	t.Cleanup(func() { close(doneCh) })
 
+	// A fresh netns loopback has a 64KiB MTU, so a segment is about as large
+	// as the initial 64KiB receive window. On 6.17 and 7.0 the receiver
+	// sometimes doesn't grow its window for many seconds. Only one segment
+	// is in flight then, and reordering can't produce out-of-order arrivals.
+	// An Ethernet-sized MTU puts ~45 segments in that window.
+	env.setLoopbackMTU(t, 1500)
+
 	c := env.dialInNs(t)
 	defer c.Close()
 
 	// Apply reordering on loopback inside the namespace.
-	// "delay 50ms reorder 75%" delays 75% of packets by 50ms, sending the
-	// rest immediately, causing reliable out-of-order delivery.
+	// "delay 50ms reorder 75%" sends 75% of packets immediately and delays
+	// the rest by 50ms, causing out-of-order delivery.
 	env.addNetem(t, "delay", "50ms", "reorder", "75%")
 
+	// Assert on Last, the per-fetch delta that is shipped in the payload.
+	// The connection is dropped from fetches where its stats didn't change,
+	// so keep the highest delta seen across fetches instead of requiring a
+	// non-zero delta in the latest one. rcv_ooopack is 0 before netem is
+	// applied, so the fetch where it first grows has a non-zero delta.
+	var rcvOOOPack uint32
+	var connSeen bool
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Drain available data to trigger tcp_recvmsg snapshots.
 		c.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -4603,11 +4684,14 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
+		if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+			connSeen = true
+			rcvOOOPack = max(rcvOOOPack, conn.Last.TCPRcvOOOPack)
+		}
+		if !assert.True(ct, connSeen, "connection not found") {
 			return
 		}
-		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
+		assert.Greater(ct, rcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
 	}, 30*time.Second, 200*time.Millisecond)
 }
 

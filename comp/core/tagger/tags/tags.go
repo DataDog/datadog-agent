@@ -165,10 +165,11 @@ const (
 	GPUArchitecture = "gpu_architecture"
 	// GPUType is the tag for the normalized GPU model type (e.g., a100, t4)
 	GPUType = "gpu_type"
-	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
+	// GPUSlicingMode is the tag for the GPU slicing mode (mig, mig-parent, none)
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUSharingMode is the tag for the mechanism through which the GPU is
-	// shared between workloads (none, kai_fraction)
+	// shared between workloads (none, kai_fraction, time-slicing, mps,
+	// unknown)
 	GPUSharingMode = "gpu_sharing_mode"
 	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
 	// Only set on MIG devices.
