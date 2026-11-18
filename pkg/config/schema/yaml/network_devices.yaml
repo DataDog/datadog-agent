@@ -815,6 +815,14 @@ properties:
         visibility: public
         description: Set to true to enable reverse DNS enrichment of private source
           and destination IP addresses in NetFlow records.
+      template_cache_max_size:
+        node_type: setting
+        type: integer
+        default: 10000
+        visibility: public
+        description: The maximum number of NetFlow v9 and IPFIX templates retained
+          per listener. When the limit is reached, the least recently used template
+          is evicted.
       aggregator_buffer_size:
         node_type: setting
         type: integer
