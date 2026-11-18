@@ -65,6 +65,8 @@ const (
 	fieldTCDroppedTrace      = 5 // bool
 	fieldTCTraceID           = 6 // bytes
 	fieldTCSamplingMechanism = 7 // uint32
+	fieldTCEnvRef            = 8 // uint32
+	fieldTCAppVersionRef     = 9 // uint32
 )
 
 // Field numbers for idx.Span (from idx/span.proto)
@@ -216,6 +218,8 @@ func newStringCompactorMode(tp *idx.TracerPayload, sparse bool) *stringCompactor
 			continue
 		}
 		markRef(chunk.OriginRef)
+		markRef(chunk.EnvRef)
+		markRef(chunk.AppVersionRef)
 		c.collectAttributeRefs(chunk.Attributes, markRef)
 		for _, span := range chunk.Spans {
 			if span == nil {
@@ -833,6 +837,14 @@ func sizeTraceChunkCompacting(chunk *idx.TraceChunk, c *stringCompactor) int {
 		size += sizeTag(fieldTCSamplingMechanism, wireVarint)
 		size += sizeVarint(uint64(chunk.SamplingMechanism))
 	}
+	if ref := c.remap(chunk.EnvRef); ref != 0 {
+		size += sizeTag(fieldTCEnvRef, wireVarint)
+		size += sizeVarint(uint64(ref))
+	}
+	if ref := c.remap(chunk.AppVersionRef); ref != 0 {
+		size += sizeTag(fieldTCAppVersionRef, wireVarint)
+		size += sizeVarint(uint64(ref))
+	}
 
 	return size
 }
@@ -1157,6 +1169,14 @@ func appendTraceChunkCompacting(buf []byte, chunk *idx.TraceChunk, c *stringComp
 	if chunk.SamplingMechanism != 0 {
 		buf = appendTag(buf, fieldTCSamplingMechanism, wireVarint)
 		buf = appendVarint(buf, uint64(chunk.SamplingMechanism))
+	}
+	if ref := c.remap(chunk.EnvRef); ref != 0 {
+		buf = appendTag(buf, fieldTCEnvRef, wireVarint)
+		buf = appendVarint(buf, uint64(ref))
+	}
+	if ref := c.remap(chunk.AppVersionRef); ref != 0 {
+		buf = appendTag(buf, fieldTCAppVersionRef, wireVarint)
+		buf = appendVarint(buf, uint64(ref))
 	}
 
 	return buf

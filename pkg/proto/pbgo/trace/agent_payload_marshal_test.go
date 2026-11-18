@@ -1842,3 +1842,42 @@ func TestPrepareTracerPayloadSparseMatchesDense(t *testing.T) {
 	sub := PrepareTracerPayloadWithChunksSparse(tp, tp.Chunks)
 	assert.Equal(t, dense.Size, sub.Size)
 }
+
+func TestMarshalAgentPayloadChunkEnvAppVersion(t *testing.T) {
+	tp := &idx.TracerPayload{
+		Strings: []string{"", "unused", "payload-env", "chunk-env", "chunk-ver", "svc"},
+		EnvRef:  2,
+		Chunks: []*idx.TraceChunk{
+			{Priority: 1, EnvRef: 3, AppVersionRef: 4, Spans: []*idx.Span{{ServiceRef: 5}}},
+			{Priority: 2, Spans: []*idx.Span{{ServiceRef: 5}}},
+		},
+	}
+	ap := &AgentPayload{HostName: "h", IdxTracerPayloads: []*idx.TracerPayload{tp}}
+	check := func(t *testing.T, bts []byte) {
+		var got AgentPayload
+		require.NoError(t, proto.Unmarshal(bts, &got))
+		require.Len(t, got.IdxTracerPayloads, 1)
+		g := got.IdxTracerPayloads[0]
+		require.Len(t, g.Chunks, 2)
+		assert.Equal(t, "chunk-env", g.Strings[g.Chunks[0].EnvRef])
+		assert.Equal(t, "chunk-ver", g.Strings[g.Chunks[0].AppVersionRef])
+		assert.Zero(t, g.Chunks[1].EnvRef)
+		assert.Zero(t, g.Chunks[1].AppVersionRef)
+		assert.Equal(t, "payload-env", g.Strings[g.EnvRef])
+	}
+	t.Run("unprepared", func(t *testing.T) {
+		bts, err := MarshalAgentPayload(ap)
+		require.NoError(t, err)
+		check(t, bts)
+	})
+	for name, prepare := range map[string]func(*idx.TracerPayload) *PreparedTracerPayload{"dense": PrepareTracerPayload, "sparse": PrepareTracerPayloadSparse} {
+		t.Run(name, func(t *testing.T) {
+			p := prepare(tp)
+			bts, err := MarshalAgentPayloadPrepared(&AgentPayload{HostName: "h"}, []*PreparedTracerPayload{p})
+			require.NoError(t, err)
+			// The prepared size is the length prefix, so a size that ignores the
+			// chunk override fields would make the payload fail to decode.
+			check(t, bts)
+		})
+	}
+}
