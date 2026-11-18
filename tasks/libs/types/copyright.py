@@ -120,8 +120,9 @@ class CopyrightLinter:
 
     @staticmethod
     def _is_excluded_path(filepath, exclude_matchers):
+        path = filepath.as_posix()
         for matcher in exclude_matchers:
-            if re.search(matcher, filepath.as_posix()):
+            if matcher.search(path):
                 return True
 
         return False
@@ -147,7 +148,7 @@ class CopyrightLinter:
             exclude = []
 
         for matcher in exclude:
-            if re.search(matcher, header[0]) or re.search(matcher, header[2]):
+            if matcher.search(header[0]) or matcher.search(header[2]):
                 return True
 
         return False
@@ -167,12 +168,12 @@ class CopyrightLinter:
             print("[WARN] Mismatch found! File too small for header stanza!")
             return False
 
-        is_secret_generic_connector = '/cmd/secret-generic-connector/' in str(filepath)
+        is_secret_generic_connector = '/cmd/secret-generic-connector/' in Path(filepath).as_posix()
         copyright_patterns = COMPILED_BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COMPILED_COPYRIGHT_REGEX
         copyright_regex_src = BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COPYRIGHT_REGEX
 
         for line_idx, matcher in enumerate(copyright_patterns):
-            if not re.match(matcher, header[line_idx]):
+            if not matcher.match(header[line_idx]):
                 print(
                     f"[WARN] Mismatch found! Expected '{copyright_regex_src[line_idx]}' pattern but got '{header[line_idx]}'"
                 )

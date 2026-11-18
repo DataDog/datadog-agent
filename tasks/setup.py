@@ -17,7 +17,7 @@ from tasks import vscode
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
-from tasks.libs.common.utils import is_linux, is_windows, running_in_pyapp
+from tasks.libs.common.utils import is_linux, is_windows, join_command
 
 
 @dataclass
@@ -182,30 +182,15 @@ def pre_commit(ctx, interactive=True):
     except Exception:
         hooks_path = ""
 
-    if running_in_pyapp():
-        import shutil
-
-        # We use a custom version that use deva instead of dda inv directly, that requires the venv to be loaded
-        from pre_commit import update_pyapp_file
-
-        config_file = update_pyapp_file()
-        if not shutil.which("dda"):
-            status = Status.WARN
-            if shutil.which("devagent"):
-                message = "`devagent` has been renamed `dda`. Please, rename your binary, no need to download the new version."
-            else:
-                message = "`dda` is not in your PATH"
-    else:
-        config_file = ".pre-commit-config.yaml"
-
-    # Uninstall in case someone switch from one config to the other
-    ctx.run("pre-commit uninstall", hide=True)
-    ctx.run("pre-commit clean", hide=True)
-    # build-vcs avoids errors when getting go dependencies
-    ctx.run(f"GOFLAGS=-buildvcs=false pre-commit install --config {config_file}", hide=True)
-
-    if hooks_path:
-        ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
+    try:
+        # Uninstall in case someone switches from one config to the other.
+        ctx.run("pre-commit uninstall", hide=True)
+        # Remove the previously installed push gate when upgrading existing setups.
+        ctx.run("pre-commit uninstall --hook-type pre-push", hide=True)
+        ctx.run("pre-commit install --install-hooks --config .pre-commit-config.yaml", hide=True)
+    finally:
+        if hooks_path:
+            ctx.run(join_command(["git", "config", "--global", "core.hooksPath", hooks_path]), hide=True)
 
     if interactive:
         if message:

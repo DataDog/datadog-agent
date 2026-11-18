@@ -124,20 +124,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 ### Installation
 
-To install it, run:
-
-```sh
-python3 -m pip install pre-commit
-GOFLAGS=-buildvcs=false pre-commit install  # buildvcs avoids errors when getting go dependencies
-```
-
-The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:
-
-```sh
-dda inv install-shellcheck --destination <path>
-```
-
-(by default, the shellcheck binary is installed in `/usr/local/bin`).
+Follow the [optional development setup](optional.md#pre-commit-hooks) to install the tools and run `dda inv setup.pre-commit`. That procedure installs the managed hook environment, includes the actionlint prerequisite, and removes the legacy pre-push hook when upgrading an existing installation.
 
 ### Skipping `pre-commit`
 
