@@ -121,11 +121,14 @@ func isLoggingPlumbing(fn string) bool {
 // Fingerprint returns a stable short hash of the normalized stack, or "" when
 // the stack has no frames.
 func Fingerprint(stack string) string {
-	n := Normalize(stack)
-	if n == "" {
+	return fingerprintOf(Normalize(stack))
+}
+
+func fingerprintOf(normalized string) string {
+	if normalized == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(n))
+	sum := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(sum[:8])
 }
 
@@ -143,7 +146,8 @@ func FindNew(baseline, candidate Cohort) []NewError {
 
 	byFP := make(map[string]*NewError)
 	for _, e := range candidate.Events {
-		fp := Fingerprint(e.StackTrace)
+		norm := Normalize(e.StackTrace)
+		fp := fingerprintOf(norm)
 		if fp == "" {
 			continue
 		}
@@ -152,7 +156,7 @@ func FindNew(baseline, candidate Cohort) []NewError {
 		}
 		n, ok := byFP[fp]
 		if !ok {
-			n = &NewError{Fingerprint: fp, Stack: Normalize(e.StackTrace)}
+			n = &NewError{Fingerprint: fp, Stack: norm}
 			byFP[fp] = n
 		}
 		n.Occurrences += max(e.Count, 1)

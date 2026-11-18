@@ -116,14 +116,12 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 	}, 2*time.Minute, 5*time.Second, "timed out waiting for two distinct error fingerprints")
 
 	// Seed the lowest fingerprint so the choice is deterministic for a given set of payloads.
-	distinct := map[string]struct{}{}
 	seeded := ""
 	for _, l := range logs {
 		fp := newerrors.Fingerprint(l.StackTrace)
 		if fp == "" {
 			continue
 		}
-		distinct[fp] = struct{}{}
 		if seeded == "" || fp < seeded {
 			seeded = fp
 		}
@@ -152,12 +150,6 @@ func (s *errorTrackingIdentitySuite) TestNewErrorDetection() {
 	require.Len(s.T(), found, 1, "only the seeded error may be reported as new")
 	assert.Equal(s.T(), seeded, found[0].Fingerprint)
 	assert.Positive(s.T(), found[0].RatePerHost)
-	// Every other fingerprint is shared by both cohorts and so is not new.
-	for fp := range distinct {
-		if fp != seeded {
-			assert.NotEqual(s.T(), fp, found[0].Fingerprint)
-		}
-	}
 
 	// The reverse comparison finds nothing: every baseline error is in the candidate.
 	assert.Empty(s.T(), newerrors.FindNew(candidate, baseline))
