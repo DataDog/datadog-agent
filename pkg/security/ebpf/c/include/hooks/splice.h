@@ -21,6 +21,8 @@ static __always_inline int sys_splice(void *ctx, u64 pid_tgid) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SPLICE,
         .policy = policy,
+        // approvers run at return, after the path resolution, and the zero value ACCEPTED would skip the discarders
+        .state = APPROVED,
         .async = pid_tgid ? ASYNC_SYSCALL : SYNC_SYSCALL,
         .splice = {
             .pid_tgid = pid_tgid,

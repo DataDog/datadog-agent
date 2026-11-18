@@ -849,6 +849,145 @@ func TestFilterOpenGrandParentDiscarder(t *testing.T) {
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
+func testFilterDiscarderApplied(t *testing.T, test *testModule, eventType model.EventType, testFile string, action func() error) {
+	pathField := eventType.String() + ".file.path"
+
+	if err := test.GetEventDiscarder(t, action, func(event eval.Event, _ eval.Field, discarderEventType eval.EventType) bool {
+		if event == nil || discarderEventType != eventType.String() {
+			return false
+		}
+		v, _ := event.GetFieldValue(pathField)
+		return v == testFile
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := waitForProbeEvent(test, action, eventType, eventKeyValueFilter{key: pathField, value: testFile}); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
+// TestFilterDiscarderBeforeApproval checks that the kernel applies the discarders of the event types whose path is
+// resolved before their approvers run, or that have no approver.
+func TestFilterDiscarderBeforeApproval(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_setxattr",
+			Expression: `setxattr.file.path == "{{.Root}}/test-dba-match"`,
+		},
+		{
+			ID:         "test_rule_removexattr",
+			Expression: `removexattr.file.path == "{{.Root}}/test-dba-match"`,
+		},
+		{
+			// neither a basename nor a parent basename approver, so that the events below reach user space through the flags approvers
+			ID:         "test_rule_mmap",
+			Expression: `mmap.file.path =~ "/**/*-no-approver-*" && mmap.flags & MAP_POPULATE > 0`,
+		},
+		{
+			ID:         "test_rule_splice",
+			Expression: `splice.file.path =~ "/**/*-no-approver-*" && splice.pipe_entry_flag & PIPE_BUF_FLAG_CAN_MERGE > 0`,
+		},
+	}
+
+	// tmpfs only supports user xattrs on recent kernels
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root(), disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	// let the retention of discarders on reused inodes expire, see TestFilterOpenLeafDiscarder
+	time.Sleep(probe.DiscardRetention)
+
+	// files are kept until the drive is released, so that no inode gets reused, and retained, during the test
+	createTestFile := func(t *testing.T, name string, content []byte) string {
+		testFile, _, err := test.Path(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(testFile, content, 0600); err != nil {
+			t.Fatal(err)
+		}
+		return testFile
+	}
+
+	t.Run("setxattr", func(t *testing.T) {
+		testFile := createTestFile(t, "test-dba-setxattr", nil)
+
+		testFilterDiscarderApplied(t, test, model.FileSetXAttrEventType, testFile, func() error {
+			return unix.Setxattr(testFile, "user.test_xattr", []byte("value"), 0)
+		})
+	})
+
+	t.Run("removexattr", func(t *testing.T) {
+		testFile := createTestFile(t, "test-dba-removexattr", nil)
+
+		testFilterDiscarderApplied(t, test, model.FileRemoveXAttrEventType, testFile, func() error {
+			if err := unix.Setxattr(testFile, "user.test_xattr", []byte("value"), 0); err != nil {
+				return err
+			}
+			return unix.Removexattr(testFile, "user.test_xattr")
+		})
+	})
+
+	t.Run("mmap", func(t *testing.T) {
+		testFile := createTestFile(t, "test-dba-mmap", make([]byte, os.Getpagesize()))
+
+		testFilterDiscarderApplied(t, test, model.MMapEventType, testFile, func() error {
+			f, err := os.Open(testFile)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			data, err := unix.Mmap(int(f.Fd()), 0, os.Getpagesize(), unix.PROT_READ, unix.MAP_SHARED|unix.MAP_POPULATE)
+			if err != nil {
+				return err
+			}
+			return unix.Munmap(data)
+		})
+	})
+
+	t.Run("splice", func(t *testing.T) {
+		checkKernelCompatibility(t, "PIPE_BUF_FLAG_CAN_MERGE needs Linux 5.8", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel5_8
+		})
+
+		testFile := createTestFile(t, "test-dba-splice", []byte("splice me\n"))
+
+		testFilterDiscarderApplied(t, test, model.SpliceEventType, testFile, func() error {
+			fd, err := unix.Open(testFile, unix.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+			defer unix.Close(fd)
+
+			var p [2]int
+			if err := unix.Pipe(p[:]); err != nil {
+				return err
+			}
+			defer unix.Close(p[0])
+			defer unix.Close(p[1])
+
+			// the buffer of a pipe write can merge, which is what the entry flag approver matches
+			if _, err := unix.Write(p[1], []byte{0}); err != nil {
+				return err
+			}
+			_, err = unix.Splice(fd, nil, p[1], nil, 10, 0)
+			return err
+		})
+	})
+}
+
 func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventType model.EventType, field eval.Field, path string, auidOK, auidKO string) {
 	var cmdWrapper *dockerCmdWrapper
 	cmdWrapper, err := test.StartADocker()

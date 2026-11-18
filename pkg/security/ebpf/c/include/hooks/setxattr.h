@@ -16,6 +16,8 @@ static __always_inline int trace__sys_setxattr(void *ctx, const char *xattr_name
     struct syscall_cache_t syscall = {
         .type = EVENT_SETXATTR,
         .policy = policy,
+        // no approver runs for xattr events, and the zero value ACCEPTED would skip the discarders
+        .state = APPROVED,
         .async = async,
         .xattr = {
             .name = xattr_name,
@@ -47,6 +49,8 @@ static __always_inline int trace__sys_removexattr(void *ctx, const char *xattr_n
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
         .policy = policy,
+        // no approver runs for xattr events, and the zero value ACCEPTED would skip the discarders
+        .state = APPROVED,
         .xattr = {
             .name = xattr_name,
         }
@@ -119,13 +123,13 @@ TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
         goto pop_and_exit;
     }
 
-    apply_dentry_resolution_outcome(syscall, EVENT_SETXATTR);
+    apply_dentry_resolution_outcome(syscall, syscall->type);
     if (syscall->state != DISCARDED) {
         return 0;
     }
 
 pop_and_exit:
-    pop_syscall(EVENT_SETXATTR);
+    pop_syscall_with(xattr_predicate);
     return 0;
 }
 
