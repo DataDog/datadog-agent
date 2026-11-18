@@ -35,6 +35,7 @@ dd_agent_go_test(
         "oauth2_test.go",
         "raw_request_test.go",
         "redirect_test.go",
+        "request_test.go",
     ],
     embed = [":http"],
     deps = [

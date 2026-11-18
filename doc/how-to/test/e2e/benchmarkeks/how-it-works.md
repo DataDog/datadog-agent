@@ -152,7 +152,7 @@ The sleeper DaemonSets tolerate the taints of the node-agent pools of both insta
     compare the versions, write the report
 ```
 
-A phase starts on a whole minute, once its warm-up is over and the checks are verified: see [the guards](#the-guards).
+A phase starts on a whole minute, once its warm-up is over and the checks are verified: see [the guards](#the-guards). The suite posts an event to dddev at the start and at the end of each phase, tagged with `benchmark_phase` and `benchmark_phase_boundary`, which the dashboard of the benchmark overlays on its graphs: see [Read the result](index.md#read-the-result).
 
 Each swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once, and its Cluster Agent and cluster checks runner too, as long as both versions have different images: each phase then runs new Agent processes. The suite reads the images to swap from the specs of the pods, so the swaps work with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.
 

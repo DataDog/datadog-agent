@@ -27,6 +27,51 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
+// nodesRunningCheck returns the Kubernetes nodes whose node Agent runs a check
+// dispatched as an endpoints check. It returns false when they are unknown:
+// while the dispatcher is not running, when the check is not dispatched (it
+// may run as a node Agent check), or when it is dispatched as a cluster check
+// to a node Agent, which is identified by its hostname rather than its node
+// name. Cluster checks dispatched to cluster check runners are not returned.
+func (d *dispatcher) nodesRunningCheck(checkName string) (map[string]struct{}, bool) {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	if !d.store.active {
+		return nil, false
+	}
+	dispatched := false
+	for digest, config := range d.store.digestToConfig {
+		if config.Name != checkName {
+			continue
+		}
+		node, found := d.store.getNodeStore(d.store.digestToNode[digest])
+		if !found {
+			continue
+		}
+		node.RLock()
+		nodeType := node.nodetype
+		node.RUnlock()
+		if nodeType != types.NodeTypeCLCRunner {
+			return nil, false
+		}
+		dispatched = true
+	}
+	nodes := make(map[string]struct{})
+	for nodeName, configs := range d.store.endpointsConfigs {
+		for _, config := range configs {
+			if config.Name == checkName {
+				nodes[nodeName] = struct{}{}
+				break
+			}
+		}
+	}
+	if !dispatched && len(nodes) == 0 {
+		return nil, false
+	}
+	return nodes, true
+}
+
 // nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
 // copied out of the store so scrubbing can happen without holding d.store's lock.
 type nodeConfigsSnapshot struct {
@@ -158,7 +203,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 // each runner that reports its workers.
 func (d *dispatcher) runnerUtilization() map[string]float64 {
 	utilization := make(map[string]float64)
-	for name, runner := range d.currentDistribution().Runners {
+	for name, runner := range d.currentDistribution().runners {
 		if runner.Workers > 0 {
 			utilization[name] = runner.utilization()
 		}
@@ -307,15 +352,6 @@ func (d *dispatcher) shouldDispatchDangling() bool {
 	defer d.store.RUnlock()
 
 	return len(d.store.danglingConfigs) > 0 && len(d.store.nodes) > 0
-}
-
-// retrieveDangling extracts dangling configs from the store
-func (d *dispatcher) retrieveDangling() []integration.Config {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	configs := makeConfigArrayFromDangling(d.store.danglingConfigs)
-	return configs
 }
 
 // deleteDangling clears the dangling configs from the store

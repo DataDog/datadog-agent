@@ -57,6 +57,18 @@ func TestExitDetection(t *testing.T) {
 			regexps:    defaultRegexps,
 			shouldExit: true,
 		},
+		{
+			name: "procmgr supervisor and idle trace loader",
+			processes: processes{
+				1:   "dd-procmgrd",
+				42:  "agent",
+				43:  "trace-loader",
+				44:  "par-control",
+				101: "pause",
+			},
+			regexps:    defaultRegexps,
+			shouldExit: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -37,6 +37,7 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	tpudevice "github.com/DataDog/datadog-agent/pkg/gpu/tpu"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -95,7 +96,7 @@ type Check struct {
 	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
 	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
-	skipNVML            bool                             // skipNVML is set in Configure when the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
+	skipNVML            bool                             // skipNVML is set in Configure when the host has AMD GPUs but no NVIDIA GPU, or Cloud TPUs: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
@@ -227,6 +228,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		log.Warn("All GPUs on this host are AMD and gpu.amd.enabled is false: set it to true (DD_GPU_AMD_ENABLED) to monitor them with the AMD GPU check")
 	} else if c.skipNVML {
 		log.Info("All GPUs on this host are AMD: the AMD GPU check collects them, the NVIDIA GPU check stays idle")
+	} else if tpudevice.HasTPU(c.sysRoot) {
+		// TPU hosts have no NVIDIA GPU.
+		c.skipNVML = true
+		if !pkgconfigsetup.Datadog().GetBool("gpu.tpu.enabled") {
+			log.Warn("This host has Cloud TPUs and gpu.tpu.enabled is false: set it to true (DD_GPU_TPU_ENABLED) to monitor them with the TPU check")
+		} else {
+			log.Info("This host has Cloud TPUs: the TPU check collects them, the NVIDIA GPU check stays idle")
+		}
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
 	if c.parallelCollectors {
@@ -381,8 +390,8 @@ func (c *Check) Interval() time.Duration {
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
-	// On hosts whose GPUs are all AMD, collected by the AMD GPU check, NVML is
-	// not expected: skip it entirely. The check stays loaded rather than
+	// On hosts whose GPUs are all AMD, or that have Cloud TPUs, collected by the
+	// AMD GPU and TPU checks, NVML is not expected: skip it entirely. The check stays loaded rather than
 	// refusing in Configure, so it resolves an NVML issue raised before (the
 	// issue reporter is only set before runs) and does not show as a loading
 	// error in the agent status.

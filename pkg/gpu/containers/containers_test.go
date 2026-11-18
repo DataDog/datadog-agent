@@ -51,6 +51,52 @@ func TestMatchContainerDevices(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
+	t.Run("ContainerWithTimeSlicedGPU", func(t *testing.T) {
+		// A time-sliced replica allocation carries the replica suffix on its
+		// device ID; the container sees the whole base GPU.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-timesliced",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[1] + "::2",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("ContainerWithRenamedSharedResource", func(t *testing.T) {
+		// A shared GPU may be exposed under a renamed resource
+		// (renameByDefault: nvidia.com/gpu.shared); the device ID keeps its
+		// NVIDIA shape, so the allocation is still recognized.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-renamed",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: "nvidia.com/gpu.shared",
+					ID:   testutil.GPUUUIDs[1] + "::0",
+				},
+			},
+		}
+
+		require.True(t, HasGPUs(container))
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
 	t.Run("ContainerWithNvidiaDRAGPU", func(t *testing.T) {
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
@@ -753,6 +799,29 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
 		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("KubernetesReplicaAndUnresolvedDRAKeepBothGPUs", func(t *testing.T) {
+		// What the NVML collector publishes for a container holding a replica
+		// and a DRA GPU whose CDI resolution failed: no mapping, as replicas
+		// are not part of it. The replica resolves from its allocation, and
+		// the DRA allocation falls back to the index guess instead of being
+		// counted as mapped and dropped.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-replica-and-dra-container",
+			},
+			Runtime: workloadmeta.ContainerRuntimeContainerd,
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{Name: string(gpuutil.GpuNvidiaGeneric), ID: testutil.GPUUUIDs[0] + "::1"},
+				{Name: string(gpuutil.GpuNvidiaDRA), ID: "gpu-1"},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []ddnvml.Device{devices[0], devices[1]}, filteredDevices)
 	})
 
 	t.Run("KubernetesReportsAnUnresolvableResourceEvenWhenTheMappingIsPresent", func(t *testing.T) {
