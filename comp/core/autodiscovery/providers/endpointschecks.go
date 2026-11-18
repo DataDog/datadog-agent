@@ -54,7 +54,7 @@ func NewEndpointsChecksConfigProvider(providerConfig *constants.ConfigurationPro
 	}
 	err = c.initClient()
 	if err != nil {
-		log.Warnf("Cannot get dca client: %v", err)
+		log.Infof("Cannot get dca client: %v", err)
 	}
 	return c, nil
 }

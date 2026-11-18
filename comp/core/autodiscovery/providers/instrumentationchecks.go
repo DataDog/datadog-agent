@@ -44,7 +44,7 @@ func NewInstrumentationChecksConfigProvider(providerConfig *constants.Configurat
 	}
 
 	if err := c.initClient(); err != nil {
-		log.Warnf("Cannot get dca client: %v", err)
+		log.Infof("Cannot get dca client: %v", err)
 	}
 	return c, nil
 }

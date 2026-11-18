@@ -167,7 +167,7 @@ func (ms *Controller) processNextWorkItem() bool {
 	}
 	desiredConfigState, found := ms.configStateStore.GetConfigState(configDigest)
 	if !found {
-		log.Warnf("config %d not found in configStateStore", configDigest)
+		log.Debugf("config %d not found in configStateStore", configDigest)
 		ms.queue.Done(configDigest)
 		return true
 	}
