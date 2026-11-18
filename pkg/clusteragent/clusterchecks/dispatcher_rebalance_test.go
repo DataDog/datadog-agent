@@ -318,16 +318,16 @@ func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testi
 
 	// Verify currentDistribution groups each config's instances into one entry.
 	dist := testDispatcher.currentDistribution()
-	require.Len(t, dist.Configs, 3)
-	require.Contains(t, dist.Configs, "digestMultiA")
-	require.Contains(t, dist.Configs, "digestMultiB")
-	require.Contains(t, dist.Configs, "digestLight")
-	assert.Equal(t, "node1", dist.Configs["digestMultiA"].Runner)
-	assert.Equal(t, "node1", dist.Configs["digestMultiB"].Runner)
-	assert.Equal(t, "node2", dist.Configs["digestLight"].Runner)
+	require.Len(t, dist.configs, 3)
+	require.Contains(t, dist.configs, "digestMultiA")
+	require.Contains(t, dist.configs, "digestMultiB")
+	require.Contains(t, dist.configs, "digestLight")
+	assert.Equal(t, "node1", dist.configs["digestMultiA"].Runner)
+	assert.Equal(t, "node1", dist.configs["digestMultiB"].Runner)
+	assert.Equal(t, "node2", dist.configs["digestLight"].Runner)
 	// This ensures that the tracking of workersNeeded is accurate relative to 1 instance configs.
-	assert.InDelta(t, dist.Configs["digestMultiA"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*8, 0.001)
-	assert.InDelta(t, dist.Configs["digestMultiB"].WorkersNeeded, dist.Configs["digestLight"].WorkersNeeded*8, 0.001)
+	assert.InDelta(t, dist.configs["digestMultiA"].WorkersNeeded, dist.configs["digestLight"].WorkersNeeded*8, 0.001)
+	assert.InDelta(t, dist.configs["digestMultiB"].WorkersNeeded, dist.configs["digestLight"].WorkersNeeded*8, 0.001)
 
 	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
 	requireNotLocked(t, testDispatcher.store)
@@ -435,12 +435,12 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 	// currentDistribution should mark the two zero-execution-time checks as
 	// pinned and leave the movable one unpinned.
 	dist := testDispatcher.currentDistribution()
-	require.Contains(t, dist.Configs, "digestPinned1")
-	require.Contains(t, dist.Configs, "digestPinned2")
-	require.Contains(t, dist.Configs, "digestMovable")
-	assert.True(t, dist.Configs["digestPinned1"].Pinned, "pinned1 should be pinned (AverageExecutionTime == 0)")
-	assert.True(t, dist.Configs["digestPinned2"].Pinned, "pinned2 should be pinned (AverageExecutionTime == 0)")
-	assert.False(t, dist.Configs["digestMovable"].Pinned, "movable should not be pinned")
+	require.Contains(t, dist.configs, "digestPinned1")
+	require.Contains(t, dist.configs, "digestPinned2")
+	require.Contains(t, dist.configs, "digestMovable")
+	assert.True(t, dist.configs["digestPinned1"].Pinned, "pinned1 should be pinned (AverageExecutionTime == 0)")
+	assert.True(t, dist.configs["digestPinned2"].Pinned, "pinned2 should be pinned (AverageExecutionTime == 0)")
+	assert.False(t, dist.configs["digestMovable"].Pinned, "movable should not be pinned")
 
 	// Force the rebalance and verify pinned checks are never relocated.
 	checksMoved := testDispatcher.rebalanceUsingUtilization(true)
@@ -558,11 +558,11 @@ func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
 	}
 
 	dist := testDispatcher.currentDistribution()
-	require.Len(t, dist.Configs, 2)
-	require.Contains(t, dist.Configs, "digestPgA")
-	require.Contains(t, dist.Configs, "digestPgB")
-	assert.Equal(t, "postgres", dist.Configs["digestPgA"].CheckName)
-	assert.Equal(t, "postgres", dist.Configs["digestPgB"].CheckName)
+	require.Len(t, dist.configs, 2)
+	require.Contains(t, dist.configs, "digestPgA")
+	require.Contains(t, dist.configs, "digestPgB")
+	assert.Equal(t, "postgres", dist.configs["digestPgA"].CheckName)
+	assert.Equal(t, "postgres", dist.configs["digestPgB"].CheckName)
 }
 
 func TestRebalanceIsWorthIt(t *testing.T) {
@@ -574,23 +574,23 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	// The proposed solution is worth it if it leaves less unused runners
 
-	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	currentDistribution := newConfigsDistribution(workersPerRunner, stickinessConfig{})
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 
-	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	proposedDistribution := newConfigsDistribution(workersPerRunner, stickinessConfig{})
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
-	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	currentDistribution = newConfigsDistribution(workersPerRunner, stickinessConfig{})
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 	currentDistribution.addConfig("check3", "check3", 1, "runner1", false)
 
-	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
+	proposedDistribution = newConfigsDistribution(workersPerRunner, stickinessConfig{})
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 	proposedDistribution.addConfig("check3", "check3", 1, "runner3", false)

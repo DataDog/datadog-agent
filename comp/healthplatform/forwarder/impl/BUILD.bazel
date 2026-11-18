@@ -9,10 +9,12 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/telemetry/def",
         "//comp/healthplatform/forwarder/def",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/util/http",
+        "//pkg/util/telemetry",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
@@ -25,6 +27,9 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/mock",
+        "//pkg/util/telemetry",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

@@ -111,6 +111,10 @@ anomaly_detection:
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
 Observer replay enables the scorer's internal transition watcher so configured
 correlation episodes are emitted through the normal correlator event path.
+The interactive testbench also sets `StorageConfig.TrackScorerHistory` to retain
+full buckets, emitted severity transitions, episode contributors, and each
+input's effective scoring second. Production leaves it off; `GET /api/scores`
+exposes the history and `/api/scores/replay` remains the retrospective view.
 
 ### Severity event subscriptions
 
@@ -150,6 +154,18 @@ can make baseline qualification remove data before the actual replay.
 Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
+
+With log time buckets enabled, completed log-count intervals are logical points:
+storage keeps nonzero counts and compact interval spans, generating zeros during
+reads. Point counts, bounded tail reads, range reads, and write generations must
+all describe those same logical points. Each completed zero advances the revision
+even after retention stops the point count growing. Keep discovery, bucket
+alignment, idle-TTL gaps, and reactivation boundaries; never fill arbitrary gaps.
+Trim spans and numeric values together under the logical point and time limits.
+This representation uses existing data-time advances; it does not add idle ticks.
+`ComponentSettings.LogCountBuckets` optionally overrides buckets on replay reset;
+nil preserves the current bucket setting. The testbench JSON exposes this as
+the top-level `log_time_buckets` object, outside component hyperparameters.
 
 ### Bounded series admission
 
@@ -202,17 +218,30 @@ Baseline and scorer settings apply in both workflows.
 post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.
-Matching uses the matcher window; detector history
-requirements stay independent. Transitions clean the previous detector state,
-commit the successor kind, and reuse retained history.
+`UNSET` and kinds without a detector use ordinary matching. Assigned kinds
+match once per accepted, post-gate anomaly, using the first `MinPoints` visible
+points from the change point, inclusive, without confirmations. A newer anomaly
+replaces the pending boundary; retention eviction cancels it. Same-kind results
+clear the request without resetting the detector. Transitions clean the previous
+detector state, commit the successor kind, and reuse retained history.
 
 After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
+The stable registration runs a `StablePipeline` plus a relative-change
+gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
+5%, `0` disables it). Select the detector with `stable.scanmw` (default),
+`stable.scanwelch`, or `stable.bocpd`; at most one block is allowed, and empty
+blocks use that detector's defaults. Stable BOCPD derives pre/post medians from
+retained history at alert onset. The gate mutes candidates whose medians differ
+by less than the threshold without touching detector state. `detections.gated` counts
+these mutes; kind emission counters stay downstream of dedup.
+Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
+bands) and gain one level when detector confidence is High or XHigh.
 The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
-mean detector call durations every second. Timings identify inner detectors and
-registration kinds, excluding pipeline overhead; legacy calls use `unset`.
+mean detector call durations every second. Timings cover registered detectors or
+composed pipelines, excluding outer `MetricPipeline` overhead; legacy calls use `unset`.
 `detections.kind_emissions` adds kind attribution after baseline/muting/dedup;
 existing `detections.detector_emissions` tags stay unchanged. Pending transition
 and timing counts clear on analysis reset.

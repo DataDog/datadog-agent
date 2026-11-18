@@ -97,19 +97,21 @@ The KSM checks rebuild all their stores at their first run after any event of a 
 
 ```text
 ┌─ node-agent node of a ───────────┐  ┌─ node-agent node of b ───────────┐
-│ 15 sleeper pods · 70 containers  │  │ 15 sleeper pods · 70 containers  │
+│ 15 sleeper pods · 190 containers │  │ 15 sleeper pods · 190 containers │
 │        ▲                         │  │        ▲                         │
 │        │ containerd, kubelet     │  │        │ containerd, kubelet     │
 │ node Agent a                     │  │ node Agent b                     │
 └──────────────────────────────────┘  └──────────────────────────────────┘
 ```
 
-The sleeper pods run `sleep infinity` in `busybox` containers, so they cost nothing themselves: what they make work is the node Agent monitoring them, through containerd events, workloadmeta, the tagger, and the `kubelet`, `container` and `containerd` checks.
+The sleeper pods run `sleep infinity` in `busybox` containers, so they cost nothing themselves: what they make work is the node Agent monitoring them, through containerd events, workloadmeta, the tagger, and the `kubelet`, `container`, `containerd` and `cri` checks.
 
 | DaemonSets | Copies | Lifetime | Pods and containers per node |
 |---|---|---|---|
 | `sleeper-*`, 3 containers per pod | 10 | 1 minute | 10 pods, 30 containers |
-| `steady-sleeper-*`, 8 containers per pod | 5 | Steady | 5 pods, 40 containers |
+| `steady-sleeper-*`, 32 containers per pod | 5 | Steady | 5 pods, 160 containers |
+
+The steady pods have many containers so that these four checks take a larger share of the CPU usage of the node Agent: in the CPU profiles of the Agent 7.85.2, they take 21% with these 190 containers per node, against 16% with 70, and a run of the `kubelet` check takes about a second, three times as long as with 70. With 270 containers, the node Agent uses 45 MiB more memory than with 190, but the share of the checks only reaches 23%: process collection, log tailing and the cgroup scans of the tagger grow with the containers too. More pods would add sandboxes to the nodes, and more containers in the churning pods would load containerd and the kubelet without raising the share of the checks.
 
 The pods of `sleeper-*` carry an Autodiscovery annotation scheduling the `simple_check` Python check, so that Autodiscovery schedules and unschedules check instances all the time too.
 
@@ -150,7 +152,7 @@ The sleeper DaemonSets tolerate the taints of the node-agent pools of both insta
     compare the versions, write the report
 ```
 
-A phase starts on a whole minute, once its warm-up is over and the checks are verified: see [the guards](#the-guards).
+A phase starts on a whole minute, once its warm-up is over and the checks are verified: see [the guards](#the-guards). The suite posts an event to dddev at the start and at the end of each phase, tagged with `benchmark_phase` and `benchmark_phase_boundary`, which the dashboard of the benchmark overlays on its graphs: see [Read the result](index.md#read-the-result).
 
 Each swap is a Helm upgrade of both releases, which replaces all the node Agents of an installation at once, and its Cluster Agent and cluster checks runner too, as long as both versions have different images: each phase then runs new Agent processes. The suite reads the images to swap from the specs of the pods, so the swaps work with any images, including those of a CI pipeline. It then verifies the checks again: an image that only works on the node pools of one installation must not slip through.
 

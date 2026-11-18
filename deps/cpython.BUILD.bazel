@@ -246,6 +246,7 @@ BIN_SYMLINKS = {
 pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
+    attributes = pkg_attributes(rpm_own_tree_dirs = True),
     prefix = "embedded",
 )
 

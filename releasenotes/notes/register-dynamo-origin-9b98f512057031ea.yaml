@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the dynamo metric origin for Agent-side serialization.

@@ -369,10 +369,7 @@ SEC("uprobe/SSL_shutdown")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%p", pid_tgid, ssl_ctx);
-    ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid,
-        .ctx = ssl_ctx,
-    };
+    ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(pid_tgid, ssl_ctx);
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &key);
     if (ssl_sock == NULL) {
         return 0;
@@ -538,10 +535,7 @@ cleanup:
 static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
-    ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid,
-        .ctx = ssl_session,
-    };
+    ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(pid_tgid, ssl_session);
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &key);
     if (ssl_sock == NULL) {
         return;

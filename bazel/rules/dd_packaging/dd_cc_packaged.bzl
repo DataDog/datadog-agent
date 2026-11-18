@@ -9,7 +9,7 @@ load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo"
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "EMBEDDED_LIB_DIR", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
     install_dir = ctx.attr._install_dir[BuildSettingInfo].value
@@ -46,7 +46,7 @@ _dd_packaged_files_rule = rule(
             allow_files = True,
         ),
         "rpath": attr.string(
-            default = "{install_dir}/embedded/lib",
+            default = EMBEDDED_LIB_DIR,
         ),
         "_install_dir": attr.label(default = "@@//:install_dir"),
         "use_relative_rpaths": attr.bool(mandatory = True),

@@ -87,7 +87,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	if len(params.agentOptions) > 0 {
 		newOpts := []kubernetesagentparams.Option{
 			kubernetesagentparams.WithClusterName(cluster.ClusterName),
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+			// Use the cluster name for the stackid tag instead of ctx.Stack(): the cluster name is
+			// truncated when the stack name is long, and the tests match the tag against it.
+			kubernetesagentparams.WithStackIDTag(cluster.ClusterName),
 		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, params.Name, kubeProvider, params.agentOptions...)

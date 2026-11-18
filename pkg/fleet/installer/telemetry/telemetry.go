@@ -26,6 +26,11 @@ const (
 	envService          = "DATADOG_SERVICE"
 	envSamplingPriority = "DATADOG_SAMPLING_PRIORITY"
 	telemetrySubdomain  = "instrumentation-telemetry-intake"
+
+	// stopFlushTimeout bounds how long Stop waits on sends, both a periodic send already in
+	// flight and the final flush, so an unreachable intake cannot hold up process shutdown for
+	// the full send timeout.
+	stopFlushTimeout = 2 * time.Second
 )
 
 // reGovCloudSite matches GovCloud sites (e.g. "ddog-gov.com", "xxxx99.ddog-gov.com").
@@ -45,6 +50,8 @@ type Telemetry struct {
 	telemetryClient *client
 	done            chan struct{}
 	flushed         chan struct{}
+	sendCtx         context.Context
+	cancelSends     context.CancelFunc
 
 	env     string
 	service string
@@ -75,10 +82,13 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 		log.Debugf("telemetry disabled: no instrumentation telemetry intake exists for GovCloud site %q", site)
 	}
 
+	sendCtx, cancelSends := context.WithCancel(context.Background())
 	return &Telemetry{
 		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
+		sendCtx:         sendCtx,
+		cancelSends:     cancelSends,
 		env:             env,
 		service:         service,
 	}
@@ -91,9 +101,9 @@ func (t *Telemetry) Start() {
 		for {
 			select {
 			case <-ticker:
-				t.sendCompletedSpans()
+				t.sendCompletedSpans(t.sendCtx)
 			case <-t.done:
-				t.sendCompletedSpans()
+				t.sendCompletedSpans(t.sendCtx)
 				close(t.flushed)
 				return
 			}
@@ -103,8 +113,11 @@ func (t *Telemetry) Start() {
 
 // Stop stops the telemetry
 func (t *Telemetry) Stop() {
+	deadline := time.AfterFunc(stopFlushTimeout, t.cancelSends)
+	defer deadline.Stop()
 	close(t.done)
 	<-t.flushed
+	t.cancelSends()
 }
 
 func (t *Telemetry) extractCompletedSpans() traces {
@@ -131,12 +144,12 @@ func (t *Telemetry) extractCompletedSpans() traces {
 	return traces(tracesArray)
 }
 
-func (t *Telemetry) sendCompletedSpans() {
+func (t *Telemetry) sendCompletedSpans(ctx context.Context) {
 	tracesArray := t.extractCompletedSpans()
 	if len(tracesArray) == 0 {
 		return
 	}
-	t.telemetryClient.SendTraces(tracesArray)
+	t.telemetryClient.sendTraces(ctx, tracesArray)
 }
 
 // SpanFromContext returns the span from the context if available.
