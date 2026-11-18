@@ -7,6 +7,7 @@
 package deployment
 
 import (
+	"errors"
 	"os"
 	"runtime"
 
@@ -38,6 +39,29 @@ func requested(configEnabled, containerized bool, envValue string) bool {
 	return configEnabled
 }
 
+// ErrFIPSUnsupported is returned when PAR is started in a FIPS environment.
+var ErrFIPSUnsupported = errors.New("private action runner is not supported in FIPS mode")
+
+// EnsureSupported returns ErrFIPSUnsupported when the Agent runs in FIPS mode,
+// either through a FIPS build or through fips.enabled.
+func EnsureSupported(cfg model.Reader) error {
+	return ensureSupported(cfg, fips.Enabled)
+}
+
+func ensureSupported(cfg model.Reader, fipsEnabled func() (bool, error)) error {
+	if cfg.GetBool("fips.enabled") {
+		return ErrFIPSUnsupported
+	}
+	buildFIPS, err := fipsEnabled()
+	if err != nil {
+		return err
+	}
+	if buildFIPS {
+		return ErrFIPSUnsupported
+	}
+	return nil
+}
+
 // Resolve applies the same deployment policy to monolithic startup and the core startup gate.
 // Callers must not start either architecture when resolution fails.
 func Resolve(cfg model.Reader) (Mode, error) {
@@ -45,17 +69,13 @@ func Resolve(cfg model.Reader) (Mode, error) {
 }
 
 func resolve(cfg model.Reader, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
+	if err := ensureSupported(cfg, fipsEnabled); err != nil {
+		return Monolithic, err
+	}
 	if !requested(cfg.GetBool(par.SplitEnabled), containerized, envValue) {
 		return Monolithic, nil
 	}
-	if cfg.GetBool("fips.enabled") || !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) {
-		return Monolithic, nil
-	}
-	buildFIPS, err := fipsEnabled()
-	if err != nil {
-		return Monolithic, err
-	}
-	if buildFIPS {
+	if !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) {
 		return Monolithic, nil
 	}
 	return Split, nil

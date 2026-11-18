@@ -39,7 +39,6 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -387,12 +386,8 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
-	buildFIPS, err := fips.Enabled()
-	if err != nil {
+	if err := deployment.EnsureSupported(p.coreConfig); err != nil {
 		return runCtx, nil, err
-	}
-	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
-		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {
