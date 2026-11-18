@@ -6,9 +6,8 @@ correctness, FIPS mode, domain/AD-joined hosts, and Windows-specific
 components (NPM, APM, certificates). Shared Windows utilities (services,
 registry, ACL, event logs, crash dumps, etc.) live in `common/`.
 
-Tests run on AWS-provisioned Windows VMs. Installer suites start without an
-Agent; check suites can provision an Agent and fakeintake to validate payloads.
-The VM is created fresh per test run unless DevMode is active.
+Tests run on AWS-provisioned Windows VMs (no pre-installed agent, no
+fakeintake). The VM is created fresh per test run unless DevMode is active.
 
 ## Subdirectories
 

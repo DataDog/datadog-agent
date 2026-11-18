@@ -34,8 +34,6 @@ Write assertions on the assumption that `FilterMetrics` returns your test's payl
 
 ## Working in this tree
 
-After adding, removing, or renaming an E2E `go_test` target and generating its BUILD metadata, run `dda inv new-e2e-tests.write-test-binaries-bzl` and commit the resulting `tests/test_binaries.bzl` update. This registry supplies the E2E binary build targets; `bazel:write-test-binaries-bzl` checks that it stays synchronized.
-
 Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e` and `run-windows-e2e` cover running tests that already exist.
 
 Several areas add local rules that override the defaults above, either in their own `AGENTS.md` (`tests/windows/`, `tests/gpu/`, `tests/installer/windows/`, and others) or in a directory-scoped skill under `tests/<area>/.claude/skills/`. Check for both before writing in an area.
