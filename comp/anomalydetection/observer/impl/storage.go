@@ -73,6 +73,11 @@ type StorageConfig struct {
 	// It is intended for finite replay comparisons and is disabled in live
 	// production because its size is unbounded.
 	TrackDetectorOutputHistory bool
+
+	// TrackScorerHistory retains the scorer's full bucket history, emitted
+	// severity transitions, episode contributor snapshots, and input timing for
+	// the interactive testbench. It is disabled in live production.
+	TrackScorerHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -1703,6 +1708,29 @@ func (s *timeSeriesStorage) snapshotRange(
 		Host:      stats.Host,
 		Tags:      stats.Tags,
 	}, buf, true
+}
+
+// snapshotFirstPointsFrom copies the first n points in [start, end] into buf.
+// An empty result means not ready; expired means the start is no longer retained.
+func (s *timeSeriesStorage) snapshotFirstPointsFrom(
+	ref observer.SeriesRef, start, end int64, n int, agg Aggregate,
+	buf []observer.Point,
+) (points []observer.Point, expired bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(ref)
+	if stats == nil || len(stats.buckets) == 0 || stats.buckets[0].timestamp > start {
+		return buf[:0], true
+	}
+	lo := sort.Search(len(stats.buckets), func(i int) bool {
+		return stats.buckets[i].timestamp >= start
+	})
+	hi := searchAfter(stats.buckets, end)
+	if n <= 0 || hi-lo < n {
+		return buf[:0], false
+	}
+	return snapshotPoints(stats, lo, lo+n, agg, buf), false
 }
 
 // snapshotPoints copies [lo, hi) from stats into buf. The caller must hold

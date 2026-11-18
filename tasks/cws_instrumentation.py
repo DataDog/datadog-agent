@@ -46,14 +46,12 @@ def build(
     if enable_bazel:
         if arch_suffix:
             raise NotImplementedError("--enable-bazel does not support --arch-suffix.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
         target = (
             "//cmd/cws-instrumentation:cws-instrumentation-injector_only"
             if injector_only
             else "//cmd/cws-instrumentation:cws-instrumentation"
         )
-        build_binary_with_bazel(target, bin_path=BIN_PATH)
+        build_binary_with_bazel(target, bin_path=BIN_PATH, fips_backend=fips_backend)
         return
 
     if build_tags is None:

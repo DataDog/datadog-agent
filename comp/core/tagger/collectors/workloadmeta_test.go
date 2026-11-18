@@ -2562,7 +2562,7 @@ func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {
 	podGroupTags := func(queue string) []string {
 		return []string{
 			"kube_scheduler:kai", "kube_scheduler_queue:" + queue, "kai_queue:" + queue,
-			"kube_scheduler_workload:" + podGroupName, "kai_workload:" + podGroupName, "kai_team:ml",
+			"kube_scheduler_workload:" + podGroupName, "kai_pod_group:" + podGroupName, "kai_team:ml",
 		}
 	}
 
@@ -5334,6 +5334,54 @@ func TestHandleGPU(t *testing.T) {
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
 				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+				PCIBusID:           "0000:00:1e.0",
+				NVLinkVersion:      "not_nvlink_capable",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_sharing_mode:none",
+						"gpu_mig_profile:none",
+						"gpu_type:a100",
+						"gpu_uuid:gpu-1234",
+						"gpu_pci_bus_id:0000:00:1e.0",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG mode enabled without MIG devices",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				GPUType:            "a100",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				MIGModeEnabled:     true,
 				PCIBusID:           "0000:00:1e.0",
 				NVLinkVersion:      "not_nvlink_capable",
 			},

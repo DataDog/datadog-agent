@@ -310,7 +310,7 @@ func TestSetNS(t *testing.T) {
 
 		// fails when the docker binary is missing or its daemon doesn't answer `docker version`,
 		// as on the suse_12.5 KMT image where containerd times out
-		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+		dockerWrapper, err := newDockerCmdWrapper(t, test.Root(), test.Root(), "ubuntu", "")
 		if err != nil {
 			t.Skipf("Skip test where docker is unavailable: %v", err)
 		}
