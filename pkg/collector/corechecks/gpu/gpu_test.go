@@ -760,9 +760,9 @@ func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
-	// eBPF and KAI Scheduler support are disabled by default, and PLR
-	// requires the system-probe endpoint.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 3
+	// eBPF is disabled by default, and PLR requires the system-probe
+	// endpoint.
+	numSupportedCollectorTypes := nvidia.NumCollectors() - 2
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	curDeviceCount := atomic.Int32{}
@@ -874,9 +874,9 @@ func TestCollectorsRetriedAfterCreationFailure(t *testing.T) {
 }
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
-	// eBPF and KAI Scheduler support are disabled by default, and PLR
-	// requires the system-probe endpoint.
-	parentCollectorTypes := nvidia.NumCollectors() - 3
+	// eBPF is disabled by default, and PLR requires the system-probe
+	// endpoint.
+	parentCollectorTypes := nvidia.NumCollectors() - 2
 	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
 	migCollectorTypes := parentCollectorTypes - 4
 
@@ -1776,7 +1776,7 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 }
 
 // sharingMetricNames are the metrics of the sharing collector, by spec name.
-var sharingMetricNames = []string{"device.sharing_fraction", "device.sharing_memory"}
+var sharingMetricNames = []string{"device.sharing_fraction", "device.sharing_memory", "device.sharing_replicas", "device.sharing_replicas_used"}
 
 func TestSharingFractionFollowsSpec(t *testing.T) {
 	// The sharing collector's metrics need a container on the device, which
@@ -1806,6 +1806,21 @@ func TestSharingFractionFollowsSpec(t *testing.T) {
 			})
 			setup.fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "fractional"), "spec-test", []string{"kube_container_name:fractional"}, nil, nil, nil)
 
+			// The device's sharing factor, and a container holding two of
+			// its replicas, for the sharing_replicas metrics.
+			setup.wmeta.Set(&workloadmeta.GPU{
+				EntityID:        workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: testutil.DefaultGpuUUID},
+				SharingMode:     workloadmeta.GPUSharingModeTimeSlicing,
+				SharingReplicas: 4,
+			})
+			setup.wmeta.Set(&workloadmeta.Container{
+				EntityID:          workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "timesliced"},
+				Runtime:           workloadmeta.ContainerRuntimeContainerd,
+				GPUDeviceIDs:      []string{testutil.DefaultGpuUUID},
+				GPUDeviceReplicas: map[string]int{testutil.DefaultGpuUUID: 2},
+			})
+			setup.fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "timesliced"), "spec-test", []string{"kube_container_name:timesliced"}, nil, nil, nil)
+
 			setup.runCollection()
 
 			emitted := GetEmittedGPUMetrics(setup.mockSender)
@@ -1832,6 +1847,85 @@ func TestSharingFractionFollowsSpec(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEmitSharingReplicasPerContainer(t *testing.T) {
+	// Two time-sliced GPUs: one shared by two pods -- one holding a single
+	// replica, one holding two -- and one shared by the second pod with two
+	// replicas. Each replica count must carry the tags of its own pod and of
+	// its own device only, and each device's sharing factor is reported once,
+	// on the device's tags alone.
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, map[int]string{}, nil)
+	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	gpu0, gpu1 := testutil.GPUUUIDs[0], testutil.GPUUUIDs[1]
+	// The devices' sharing factors, as the NVML workloadmeta collector
+	// publishes them on the GPU entities.
+	for _, uuid := range []string{gpu0, gpu1} {
+		wmetaMock.Set(&workloadmeta.GPU{
+			EntityID:        workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: uuid},
+			SharingMode:     workloadmeta.GPUSharingModeTimeSlicing,
+			SharingReplicas: 4,
+		})
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:time-slicing"}, nil, nil, nil)
+	}
+
+	single := &workloadmeta.Container{
+		EntityID:          workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "burner-one"},
+		Runtime:           workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs:      []string{gpu0},
+		GPUDeviceReplicas: map[string]int{gpu0: 1},
+	}
+	multi := &workloadmeta.Container{
+		EntityID:          workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "burner-two"},
+		Runtime:           workloadmeta.ContainerRuntimeContainerd,
+		GPUDeviceIDs:      []string{gpu0, gpu1},
+		GPUDeviceReplicas: map[string]int{gpu0: 2, gpu1: 2},
+	}
+	for _, container := range []*workloadmeta.Container{single, multi} {
+		wmetaMock.Set(container)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", nil, []string{"pod_name:" + container.ID}, nil, nil)
+	}
+
+	require.NoError(t, check.Run())
+
+	type series struct {
+		value float64
+		tags  []string
+	}
+	var factor, held []series
+	for _, call := range mockSender.Mock.Calls {
+		if call.Method != "GaugeWithTimestamp" {
+			continue
+		}
+		name := call.Arguments.Get(0).(string)
+		s := series{call.Arguments.Get(1).(float64), slices.Sorted(slices.Values(call.Arguments.Get(3).([]string)))}
+		switch name {
+		case "gpu.device.sharing_replicas":
+			factor = append(factor, s)
+		case "gpu.device.sharing_replicas_used":
+			held = append(held, s)
+		}
+	}
+
+	// The sharing factor is one device-level series per shared device, on
+	// the device's tags alone.
+	assert.ElementsMatch(t, []series{
+		{4, []string{"gpu_sharing_mode:time-slicing", "gpu_uuid:" + gpu0}},
+		{4, []string{"gpu_sharing_mode:time-slicing", "gpu_uuid:" + gpu1}},
+	}, factor)
+
+	// Each replica count is attributable to its own pod and device.
+	assert.ElementsMatch(t, []series{
+		{1, []string{"gpu_sharing_mode:time-slicing", "gpu_uuid:" + gpu0, "pod_name:burner-one"}},
+		{2, []string{"gpu_sharing_mode:time-slicing", "gpu_uuid:" + gpu0, "pod_name:burner-two"}},
+		{2, []string{"gpu_sharing_mode:time-slicing", "gpu_uuid:" + gpu1, "pod_name:burner-two"}},
+	}, held)
 }
 
 func TestGetGPUToProcessesMap(t *testing.T) {
@@ -2012,7 +2106,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 	require.NoError(t, err)
 
 	disabled := []string{
-		"stateless", "sampling", "fields", "gpm", "device_events",
+		"stateless", "sampling", "fields", "gpm", "device_events", "sharing",
 		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
 	}
 	deps := &nvidia.CollectorDependencies{
