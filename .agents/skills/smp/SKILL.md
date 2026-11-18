@@ -1,9 +1,9 @@
 ---
 name: smp
 description: >-
-  Loads the shared Single Machine Performance (SMP) skills for datadog-agent.
+  Load the shared Single Machine Performance (SMP) skills for datadog-agent.
   Use for SMP questions, performance CI failures, CPU or memory regressions,
-  throughput changes, profiles, experiment design, and build or configuration comparisons.
+  throughput, profiles, experiments, and build or configuration comparisons.
 metadata:
   owner: single-machine-performance
 ---
@@ -12,45 +12,26 @@ metadata:
 
 Owner: `@DataDog/single-machine-performance`.
 
-SMP owns the workflow instructions in `ddoghq/claude-marketplace`.
-This entry skill retrieves them for the current session, across agent harnesses.
-It needs Git, Python 3, and SSH access to that repository in the environment that runs the agent.
+SMP maintains the shared workflows in `ddoghq/claude-marketplace`.
+Use the repository's existing `dotagents` setup to install and refresh them.
+This needs [Mise](https://mise.jdx.dev/getting-started.html), Git, and SSH access to the marketplace on the laptop or Workspace.
 
-## Load the shared skills
-
-From the `datadog-agent` checkout root, run:
+From the `datadog-agent` checkout root, run this once before the first SMP workflow in each session:
 
 ```sh
-python3 .agents/skills/smp/scripts/fetch_skills.py
+mise run dotagents install
 ```
 
-Run this once at the start of an SMP workflow, then reuse the returned paths for the session.
-The helper fetches `main` into the ignored `.cache/smp-skills/` directory.
-It retrieves skill definitions, not the SMP CLI, and does not change harness configuration.
+This installs the skills declared in `agents.toml` and refreshes them from the configured marketplace reference.
+It also reconciles the repository's declared MCP servers. It does not install the SMP CLI.
+If Mise reports an untrusted configuration, inspect `mise.toml`, then run `mise trust` for this checkout.
+If setup fails, explain the error and stop the SMP workflow.
 
-Read these files from the returned plugin paths:
+After setup succeeds, read these installed files directly so the current session can continue without a skill index reload:
 
-1. Under `common`, read `skills/using-smp/SKILL.md` to check capability fit and select a workflow.
-2. Under `datadog_agent`, read `skills/investigating-datadog-agent-performance/SKILL.md` for Agent CI context.
-3. Load the shared skill that matches the task.
+1. `.agents/skills/using-smp/SKILL.md` for capability fit and workflow selection.
+2. `.agents/skills/investigating-datadog-agent-performance/SKILL.md` for Agent CI context.
 
-When a shared skill names another skill, find its `SKILL.md` under either returned plugin's `skills/` directory.
-Resolve each skill's relative reference links from that skill's directory.
-Read only the instructions and references needed for the request.
-Use the printed revision when identifying which guidance the session loaded.
-
-If retrieval fails, explain the access or source error and stop the SMP workflow.
-Do not claim that the shared skills loaded, install unrelated tools, or invent missing SMP capabilities.
-Follow the shared skills for CLI setup and run limits.
-Loading this entry skill does not authorize a job submission.
-
-## Preview a marketplace change
-
-If the user asks to test a specific marketplace branch or tag, pass it with `--ref`:
-
-```sh
-python3 .agents/skills/smp/scripts/fetch_skills.py --ref <marketplace-ref>
-```
-
-Use the paths from that invocation for the session.
-Do not select an unmerged branch without the user's request.
+Read the selected workflow under `.agents/skills/<skill-name>/SKILL.md` and resolve its references relative to that file.
+Follow the shared guidance for CLI setup and run limits.
+Install the SMP CLI only when the selected workflow needs it.

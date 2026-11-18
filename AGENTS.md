@@ -205,7 +205,7 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 For performance questions or SMP CI regressions, read the
 [SMP entry skill](.agents/skills/smp/SKILL.md) before choosing tools.
-It retrieves shared guidance from the SMP-owned marketplace collection.
+It loads shared marketplace skills through the repository's `dotagents` setup.
 The CLI installs only when a workflow needs it.
 
 ## CI/CD Pipeline

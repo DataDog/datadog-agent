@@ -13,8 +13,8 @@ The Regression Detector finds Agent performance changes with controlled experime
 
 Ask your coding agent to investigate an SMP result, compare builds, or find an experiment for a performance question.
 Include the CI job link or SMP job ID when available.
-The repository's [SMP entry skill](../../.agents/skills/smp/SKILL.md) retrieves the shared SMP guidance for that session.
-It needs Git, Python 3, and SSH access to `ddoghq/claude-marketplace` on the laptop or Workspace that runs the agent.
+The repository's [SMP entry skill](../../.agents/skills/smp/SKILL.md) uses `mise run dotagents install` to load shared guidance.
+It needs Mise, Git, and SSH access to `ddoghq/claude-marketplace` on the laptop or Workspace that runs the agent.
 It installs the SMP CLI only when the selected workflow needs it.
 
 ## How Agent CI selects experiments
