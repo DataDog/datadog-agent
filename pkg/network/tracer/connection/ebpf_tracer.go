@@ -248,15 +248,21 @@ func shareConntrackNATMap(o *manager.Options, m *ebpf.Map) {
 }
 
 // loadUnsharingOnFailure runs load, and if that fails while the eBPF conntracker's map is shared, unshares it and
-// runs load again. Unsharing persists in o, so a later fallback to another tracer doesn't share the map either.
+// runs load again. If the retry succeeds, unsharing persists in o, so a later fallback to another tracer doesn't
+// share the map either; if it fails too, the map wasn't the cause, so o shares it again.
 func loadUnsharingOnFailure(config *config.Config, o *manager.Options, name string, load func(manager.Options) (*ddebpf.Manager, func(), error)) (*ddebpf.Manager, func(), error) {
+	shared := o.MapEditors[probes.ConntrackMap]
 	m, closeFn, err := load(*o)
-	if err == nil || o.MapEditors[probes.ConntrackMap] == nil || errors.Is(err, fentry.ErrorDisabled) || errors.Is(err, fentry.ErrorUnsupported) {
+	if err == nil || shared == nil || errors.Is(err, fentry.ErrorDisabled) || errors.Is(err, fentry.ErrorUnsupported) {
 		return m, closeFn, err
 	}
-	log.Warnf("%s tracer failed to load with the eBPF conntracker's map, retrying with net_dev_queue: %s", name, err)
+	log.Warnf("%s tracer failed to load with the eBPF conntracker's map, retrying without it: %s", name, err)
 	unshareConntrackNATMap(o, config)
-	return load(*o)
+	m, closeFn, err = load(*o)
+	if err != nil {
+		shareConntrackNATMap(o, shared)
+	}
+	return m, closeFn, err
 }
 
 // unshareConntrackNATMap undoes shareConntrackNATMap.
