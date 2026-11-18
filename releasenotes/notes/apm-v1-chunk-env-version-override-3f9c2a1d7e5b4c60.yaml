@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    APM: v1 trace payloads can now set `env` and `app_version` per trace chunk
-    (chunk fields 8 and 9). When set, they override the payload-level values for
-    that chunk in sampling, stats, and forwarding. Chunks without an override keep
-    using the payload-level values.
+    APM : v1 trace payloads can now set ``env`` and ``app_version`` per trace
+    chunk (chunk fields 8 and 9). When set, they override the payload-level
+    values for that chunk in sampling, stats, and forwarding. Chunks without an
+    override keep using the payload-level values.

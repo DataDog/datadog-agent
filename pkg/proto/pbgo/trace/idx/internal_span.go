@@ -505,7 +505,13 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	for i, chunk := range tp.Chunks {
 		chunks[i] = chunk.ToProto()
 	}
+	p := tp.headerProto()
+	p.Chunks = chunks
+	return p
+}
 
+// headerProto returns a proto TracerPayload with the payload-level fields and no chunks.
+func (tp *InternalTracerPayload) headerProto() *TracerPayload {
 	return &TracerPayload{
 		Strings:            tp.Strings.strings,
 		ContainerIDRef:     tp.containerIDRef,
@@ -517,7 +523,6 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 		HostnameRef:        tp.hostnameRef,
 		AppVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
-		Chunks:             chunks,
 		ContainerDebug:     tp.ContainerDebug,
 	}
 }
@@ -561,8 +566,7 @@ func (tp *InternalTracerPayload) ToProtoByEnvVersion() []*TracerPayload {
 		k := keyOf(c)
 		g, ok := groups[k]
 		if !ok {
-			g = tp.ToProto()
-			g.Chunks = nil
+			g = tp.headerProto()
 			g.EnvRef = tp.Strings.Add(k.env)
 			g.AppVersionRef = tp.Strings.Add(k.version)
 			groups[k] = g
