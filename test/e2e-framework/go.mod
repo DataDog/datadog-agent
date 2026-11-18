@@ -31,7 +31,7 @@ require (
 	github.com/moby/moby/client v0.6.2
 	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.54.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.13.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.30.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.30.0
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.30.0
@@ -46,7 +46,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.6
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3
-	github.com/pulumi/pulumi/sdk/v3 v3.274.1
+	github.com/pulumi/pulumi/sdk/v3 v3.275.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -68,7 +68,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
@@ -148,6 +148,7 @@ require (
 	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
+	github.com/docker/go-events v0.1.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/dylibso/observe-sdk/go v0.0.0-20240819160327-2d926c5d788a // indirect
@@ -197,7 +198,7 @@ require (
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-tpm v0.9.9-0.20260124013517-8f8f42cba0de // indirect
 	github.com/google/go-tpm-tools v0.4.9 // indirect
-	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b // indirect
+	github.com/google/pprof v0.0.0-20261110164715-8bb1ee682bd8 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
@@ -218,7 +219,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
+	github.com/klauspost/compress v1.20.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -291,7 +292,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/tetratelabs/wabin v0.0.0-20230304001439-f6f874872834 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect

@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

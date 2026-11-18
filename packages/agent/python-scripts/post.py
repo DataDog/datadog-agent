@@ -8,7 +8,9 @@ Usage:
 
 import os
 import sys
+
 import packages
+
 
 def post(install_directory, storage_location):
     print(f"post: install_directory='{install_directory}', storage_location='{storage_location}'")
@@ -27,7 +29,9 @@ def post(install_directory, storage_location):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
                     # don't delete the diff file. This handles install failure cases on windows
                     # on uninstall/install if install fails we need the diff file to retry the install
-                    packages.install_diff_packages_file(install_directory, diff_python_installed_packages_file, requirements_agent_release_file)
+                    packages.install_diff_packages_file(
+                        install_directory, diff_python_installed_packages_file, requirements_agent_release_file
+                    )
                 else:
                     print(f"File '{diff_python_installed_packages_file}' not found.")
                     return 0
@@ -46,7 +50,9 @@ def post(install_directory, storage_location):
     print("post: completed successfully")
     return 0
 
+
 if os.name == 'nt':
+
     def main():
         if len(sys.argv) != 3:
             print("Usage: post.py <INSTALL_DIR> <WINDOWS_DATADOG_DATA_DIR>")
@@ -65,6 +71,7 @@ if os.name == 'nt':
         # so we skip/ignore the file-based flag used by other platforms.
         return post(install_directory, data_dog_data_dir)
 else:
+
     def main():
         if len(sys.argv) == 2:
             install_directory = sys.argv[1]
@@ -75,6 +82,7 @@ else:
             return post(install_directory, storage_location)
         print("Usage: post.py <INSTALL_DIR> [STORAGE_LOCATION]")
         return 1
+
 
 if __name__ == '__main__':
     sys.exit(main())
