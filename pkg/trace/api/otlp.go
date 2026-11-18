@@ -133,6 +133,7 @@ func NewOTLPReceiverWithLegacyOut(out chan<- *PayloadV1, legacyOut chan<- *Paylo
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	enableReceiveResourceSpansV2Val := 1.0
 	if cfg.HasFeature("disable_receive_resource_spans_v2") {
+		log.Warn("disable_receive_resource_spans_v2 has been deprecated and will be removed in a future release")
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
