@@ -14,7 +14,10 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+const maxErrorLength = 512
 
 type checker struct {
 	tracker  *connectivity.Tracker
@@ -41,11 +44,19 @@ func (c *checker) Check() ([]runnerdef.IssueReport, error) {
 		IssueID:   hostIssueID(hostname),
 		IssueName: IssueName,
 		Context: map[string]string{
-			contextKeyError:        failure.LastError,
+			contextKeyError:        scrubError(failure.LastError),
 			contextKeyFailingSince: failure.Since.UTC().Format(time.RFC3339),
 			contextKeyHostname:     hostname,
 		},
 	}}, nil
+}
+
+func scrubError(msg string) string {
+	msg = scrubber.ScrubLine(msg)
+	if len(msg) > maxErrorLength {
+		msg = msg[:maxErrorLength] + "..."
+	}
+	return msg
 }
 
 // hostIssueID scopes the id per host: the backend dedups on id alone, and a

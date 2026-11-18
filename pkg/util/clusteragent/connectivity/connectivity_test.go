@@ -7,7 +7,6 @@ package connectivity
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -49,13 +48,9 @@ func TestFailingFor(t *testing.T) {
 	assert.Equal(t, clock.t, f.Since, "a failure after a success restarts the clock")
 }
 
-func TestReportFailure_ErrorText(t *testing.T) {
+func TestReportFailure_NilError(t *testing.T) {
 	tr := NewTracker(time.Now)
 	tr.ReportFailure(nil)
 	f, _ := tr.FailingFor(0)
 	assert.Equal(t, "unknown error", f.LastError)
-
-	tr.ReportFailure(errors.New(strings.Repeat("x", 2*maxErrorLength)))
-	f, _ = tr.FailingFor(0)
-	assert.Len(t, f.LastError, maxErrorLength+len("..."))
 }

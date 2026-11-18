@@ -13,13 +13,10 @@ package connectivity
 import (
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-const maxErrorLength = 512
-
-// Failure describes an ongoing Cluster Agent connectivity failure.
+// Failure describes an ongoing Cluster Agent connectivity failure. LastError
+// is the raw error text: readers must scrub it before exposing it.
 type Failure struct {
 	Since     time.Time
 	LastError string
@@ -29,7 +26,9 @@ type Failure struct {
 type Tracker struct {
 	mu      sync.Mutex
 	now     func() time.Time
-	failure *Failure
+	failing bool
+	since   time.Time
+	lastErr error
 }
 
 // NewTracker returns a Tracker that reads the time from now.
@@ -52,20 +51,13 @@ func ReportSuccess() {
 
 // ReportFailure records a network-level failure to reach the Cluster Agent.
 func (t *Tracker) ReportFailure(err error) {
-	msg := "unknown error"
-	if err != nil {
-		msg = scrubber.ScrubLine(err.Error())
-	}
-	if len(msg) > maxErrorLength {
-		msg = msg[:maxErrorLength] + "..."
-	}
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.failure == nil {
-		t.failure = &Failure{Since: t.now()}
+	if !t.failing {
+		t.failing = true
+		t.since = t.now()
 	}
-	t.failure.LastError = msg
+	t.lastErr = err
 }
 
 // ReportSuccess records that the Cluster Agent answered a request, whatever
@@ -73,16 +65,24 @@ func (t *Tracker) ReportFailure(err error) {
 func (t *Tracker) ReportSuccess() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.failure = nil
+	t.failing = false
+	t.lastErr = nil
 }
 
 // FailingFor returns the current failure if the Cluster Agent has been
 // unreachable for at least threshold.
 func (t *Tracker) FailingFor(threshold time.Duration) (Failure, bool) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.failure == nil || t.now().Sub(t.failure.Since) < threshold {
+	failing, since, lastErr := t.failing, t.since, t.lastErr
+	now := t.now()
+	t.mu.Unlock()
+
+	if !failing || now.Sub(since) < threshold {
 		return Failure{}, false
 	}
-	return *t.failure, true
+	msg := "unknown error"
+	if lastErr != nil {
+		msg = lastErr.Error()
+	}
+	return Failure{Since: since, LastError: msg}, true
 }
