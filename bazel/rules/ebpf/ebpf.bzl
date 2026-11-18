@@ -207,7 +207,9 @@ def _stripped_ebpf_impl(ctx):
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    out = ctx.actions.declare_file(ctx.label.name + ".o")
+
+    # Original basename so the object can be shipped without renaming.
+    out = ctx.actions.declare_file("stripped/" + src.basename)
 
     ctx.actions.run(
         inputs = [src],

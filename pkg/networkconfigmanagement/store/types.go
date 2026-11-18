@@ -18,7 +18,7 @@ type ConfigNotFoundError struct {
 	UUID string
 }
 
-// Type implements [types.RollbackError].
+// Type implements [types.TypedError].
 func (u *ConfigNotFoundError) Type() types.ErrorType {
 	return types.ErrConfigNotPresent
 }
@@ -27,14 +27,14 @@ func (u *ConfigNotFoundError) Error() string {
 	return "raw config not found for UUID: " + u.UUID
 }
 
-var _ types.RollbackError = (*ConfigNotFoundError)(nil)
+var _ types.TypedError = (*ConfigNotFoundError)(nil)
 
 // ConfigStore implements persistent KV store for configurations for rollbacks
 // whenever a config is retrieved, we will store agent-side along with the payload sent
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
-	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (configUUID string, configHash string, stored bool, err error)
+	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string, rawHash string) (configUUID string, stored bool, err error)
 	// GetConfig fetches data for a given UUID. It should return an
 	// UnknownUUIDError if the UUID isn't present in the store (any other error
 	// type indicates a problem with the store itself, such as data corruption)

@@ -694,9 +694,9 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 7 jobs with different schedules:
+	// Default configuration has 8 jobs with different schedules:
 	fmt.Println(r.(*runnerMock).jobs)
-	assert.Equal(t, 7, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 8, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
 	totalProfiles := 0
@@ -704,10 +704,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 23 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, troubleshooting).
+	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 23, totalProfiles)
+	assert.Equal(t, 25, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -2936,6 +2936,8 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		}
 	}
 
+	deviceTotal := tel.NewGauge("gpu", "device_total", append([]string{"gpu_sharing_mode"}, collectorTags[1:]...), "")
+	deviceTotal.Set(2, append([]string{"time-slicing"}, withDevice()...)...)
 	created := tel.NewCounter("gpu__collectors", "created", append([]string{"status"}, collectorTags...), "")
 	created.Add(2, withDevice("error", "device_events")...)
 	created.Add(3, withDevice("success", "stateless")...)
@@ -2968,6 +2970,16 @@ func TestDefaultProfilesExportGPUMetrics(t *testing.T) {
 		delete(labels, emitterTagName)
 		return labels
 	}
+
+	deviceMetrics := sent["gpu.device_total"]
+	require.Len(t, deviceMetrics, 1)
+	deviceLabels := expectedCollectorLabels("")
+	delete(deviceLabels, "collector")
+	deviceLabels["gpu_nvlink_capable"] = "true"
+	deviceLabels["gpu_nvlink_version"] = "4"
+	deviceLabels["gpu_sharing_mode"] = "time-slicing"
+	assert.Equal(t, deviceLabels, labelsWithoutEmitter(deviceMetrics[0]))
+	assert.Equal(t, 2.0, deviceMetrics[0].GetGauge().GetValue())
 
 	createdMetrics := sent["gpu.collectors__created"]
 	require.Len(t, createdMetrics, 2, "unsupported and disabled statuses must be excluded")
@@ -3023,6 +3035,7 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		preserveTags   []string
 		aggregateTotal bool
 	}{
+		{name: "gpu.device_total", preserveTags: []string{"gpu_device", "gpu_virtualization_mode", "gpu_architecture", "gpu_slicing_mode", "gpu_nvlink_capable", "gpu_nvlink_version", "gpu_driver_version", "gpu_sharing_mode"}},
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
 		{name: "dogstatsd_client.bytes_sent", preserveTags: []string{"client", "client_transport"}},

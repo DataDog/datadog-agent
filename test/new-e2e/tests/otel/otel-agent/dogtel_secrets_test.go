@@ -100,7 +100,7 @@ func dogtelSecretsStandaloneProvisioner() provisioners.TypedProvisioner[environm
 		)
 	}
 
-	if isKindLocal() {
+	if provlocal.IsKindLocal() {
 		return provlocal.Provisioner(
 			provlocal.WithStandaloneOTelAgent(deployFn),
 		)

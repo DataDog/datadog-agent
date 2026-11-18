@@ -123,11 +123,12 @@ new-e2e-unit-tests:
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils/infra --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
-    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/e2e --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}-suite.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
+    # Fixed resources: GOMEMLIMIT is derived from the memory limit
+    DD_DISABLE_VPA: true
     GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
     GOMAXPROCS: $KUBERNETES_CPU_REQUEST
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache

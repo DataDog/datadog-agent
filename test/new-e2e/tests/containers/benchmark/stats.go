@@ -16,33 +16,30 @@ func sampleVariance(values []float64, m float64) float64 {
 	return lo.SumBy(values, func(v float64) float64 { return (v - m) * (v - m) }) / float64(len(values)-1)
 }
 
-// welchTTest returns the two-sided p-value of Welch's t-test of the hypothesis that the
-// samples a and b, of at least 2 values each, come from distributions of equal means.
-func welchTTest(a, b []float64) float64 {
-	meanA, meanB := lo.Mean(a), lo.Mean(b)
-	// Squared standard errors of the means
-	seA := sampleVariance(a, meanA) / float64(len(a))
-	seB := sampleVariance(b, meanB) / float64(len(b))
-	se := seA + seB
-	if se == 0 {
-		if meanA == meanB {
+// meanOfMeansTTest returns the two-sided p-value of the t-test of the hypothesis that the
+// mean e of the means mₖ of K independent samples, of at least 2 values each, is 0.
+//
+// The variance of e is Σ vₖ / K², vₖ = sₖ² / nₖ being the squared standard error of mₖ, so
+// t = e / SE(e) = Σ mₖ / √(Σ vₖ), with the Welch–Satterthwaite degrees of freedom
+// (Σ vₖ)² / Σ (vₖ² / (nₖ − 1)). For two samples x and y, these are the statistic and the degrees
+// of freedom of Welch's t-test comparing -x to y.
+func meanOfMeansTTest(samples ...[]float64) float64 {
+	// Σ mₖ, Σ vₖ and Σ (vₖ² / (nₖ − 1))
+	var sum, sumV, dfDenominator float64
+	for _, sample := range samples {
+		mean := lo.Mean(sample)
+		v := sampleVariance(sample, mean) / float64(len(sample))
+		sum += mean
+		sumV += v
+		dfDenominator += v * v / float64(len(sample)-1)
+	}
+	if sumV == 0 {
+		if sum == 0 {
 			return 1
 		}
 		return 0
 	}
-
-	t := (meanB - meanA) / math.Sqrt(se)
-	// Welch–Satterthwaite degrees of freedom
-	df := se * se / (seA*seA/float64(len(a)-1) + seB*seB/float64(len(b)-1))
-	return studentTwoSidedPValue(t, df)
-}
-
-// meanOfMeansTTest returns the two-sided p-value of the t-test of the hypothesis that
-// (mean(x) + mean(y)) / 2 = 0, x and y being independent samples of at least 2 values each.
-// Its variance being (var(x)/nx + var(y)/ny) / 4, the statistic and the Welch–Satterthwaite
-// degrees of freedom are those of Welch's t-test comparing -x to y.
-func meanOfMeansTTest(x, y []float64) float64 {
-	return welchTTest(lo.Map(x, func(v float64, _ int) float64 { return -v }), y)
+	return studentTwoSidedPValue(sum/math.Sqrt(sumV), sumV*sumV/dfDenominator)
 }
 
 // studentTwoSidedPValue returns P(|T| >= |t|) for T following Student's t-distribution with

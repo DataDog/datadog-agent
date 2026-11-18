@@ -96,7 +96,7 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 		classifies = fentry.ClassificationSupported(cfg)
 	}
 	if classifies {
-		assert.True(t, programLoaded(t, mgr, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't loaded")
+		assert.True(t, programLoaded(t, mgr, probes.NetDevQueueTPBTF, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't loaded")
 	}
 
 	// and the programs were loaded to look up NAT'd tuples in its map, not the conntracker's

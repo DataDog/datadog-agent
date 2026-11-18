@@ -150,18 +150,18 @@ func TestAddWithNoGroupWorkerDangles(t *testing.T) {
 
 	// The kube group has no live worker: the claimed config dangles instead
 	// of falling back to the general worker.
-	assert.False(t, d.add(generateIntegration("kubernetes_state_core")))
+	config := generateIntegration("kubernetes_state_core")
+	assert.False(t, d.add(config))
 	d.store.RLock()
 	assert.Len(t, d.store.danglingConfigs, 1)
 	d.store.RUnlock()
 
 	// Once a kube worker registers, the dangling config is dispatched to it.
 	registerWorker(t, d, "kube-1", "10.0.0.2", types.NodeTypeCLCRunner, "kube")
-	dangling := d.retrieveDangling()
-	require.Len(t, dangling, 1)
-	assert.True(t, d.add(dangling[0]))
+	d.dispatchDangling()
 	d.store.RLock()
-	assert.Equal(t, "kube-1", d.store.digestToNode[dangling[0].Digest()])
+	assert.Empty(t, d.store.danglingConfigs)
+	assert.Equal(t, "kube-1", d.store.digestToNode[config.Digest()])
 	d.store.RUnlock()
 
 	requireNotLocked(t, d.store)

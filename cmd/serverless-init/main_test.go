@@ -8,6 +8,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
@@ -33,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // TestMetricAgentNoOpWithoutDemux verifies that the methods called by the
@@ -252,4 +255,43 @@ func TestRun_LocalService_SidecarMode(t *testing.T) {
 		t.Fatal("RunSidecar did not return after SIGTERM")
 	}
 	<-guard // drain our own copy so it doesn't leak into later tests
+}
+
+// TestLoadEarlyConfigAppliesEnvProxy is a regression test for the metrics
+// forwarder ignoring DD_PROXY_HTTP / DD_PROXY_HTTPS: the forwarder's HTTP
+// transport is built by Fx (before setup() runs) and only gets a proxy function
+// if the proxy settings are already in the config at that point. With an
+// environment-only configuration (no datadog.yaml) the proxy settings must
+// therefore be loaded by the early config load in main().
+func TestLoadEarlyConfigAppliesEnvProxy(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_PROXY_HTTP", "http://proxy.example:8080")
+	t.Setenv("DD_PROXY_HTTPS", "http://proxy.example:8443")
+	t.Setenv("DD_PROXY_NO_PROXY", "no-proxy.example")
+
+	loadEarlyConfig()
+
+	cfg := pkgconfigsetup.Datadog()
+	proxies := cfg.GetProxies()
+	require.NotNil(t, proxies, "proxy settings must be in the config right after the early config load")
+	assert.Equal(t, "http://proxy.example:8080", proxies.HTTP)
+	assert.Equal(t, "http://proxy.example:8443", proxies.HTTPS)
+	assert.Contains(t, proxies.NoProxy, "no-proxy.example")
+
+	// A transport built now (as the Fx-constructed forwarder does) must use the proxy.
+	transport := httputils.CreateHTTPTransport(cfg)
+	require.NotNil(t, transport.Proxy, "transport built after the early config load must have a proxy function")
+
+	metricsReq, err := http.NewRequest(http.MethodPost, "https://app.agent.datadoghq.com/api/intake/metrics/v3/series", nil)
+	require.NoError(t, err)
+	proxyURL, err := transport.Proxy(metricsReq)
+	require.NoError(t, err)
+	require.NotNil(t, proxyURL)
+	assert.Equal(t, "http://proxy.example:8443", proxyURL.String())
+
+	noProxyReq, err := http.NewRequest(http.MethodPost, "https://no-proxy.example/", nil)
+	require.NoError(t, err)
+	proxyURL, err = transport.Proxy(noProxyReq)
+	require.NoError(t, err)
+	assert.Nil(t, proxyURL, "hosts in DD_PROXY_NO_PROXY must bypass the proxy")
 }

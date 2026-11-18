@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/httpclient",
         "//pkg/privateactionrunner/util",
@@ -19,7 +20,10 @@ go_library(
 
 dd_agent_go_test(
     name = "httpclient_test",
-    srcs = ["http_helper_test.go"],
+    srcs = [
+        "http_helper_test.go",
+        "httpclient_test.go",
+    ],
     embed = [":httpclient"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",

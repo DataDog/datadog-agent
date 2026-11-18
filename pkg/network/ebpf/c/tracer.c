@@ -213,12 +213,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the peer
+    // get the pid from tcp_ongoing_connect_pid instead, which tcp_connect (client side) or
+    // inet_csk_accept (server side) set. else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // read the pid before deleting: preallocated elements are reused without an RCU grace
+        // period, so this narrows (but doesn't close) the race with a concurrent delete
         t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
@@ -265,6 +268,30 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         increment_telemetry_count(tcp_close_connection_flush);
     }
 
+    return 0;
+}
+
+// tcp_disconnect zeroes the destination port and source address, so tcp_close
+// can no longer read the tuple. Flush the connection here instead. When called
+// from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+// A still-present tcp_ongoing_connect_pid entry means tcp_close hasn't reported
+// a failure yet, e.g. shutdown() cancelling a SYN_SENT connect.
+SEC("kprobe/tcp_disconnect")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_disconnect, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
+        handle_tcp_failure(sk, &t);
+    }
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
     return 0;
 }
 
@@ -343,6 +370,9 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // The failed read may have set CONN_V6 from the socket's family, and
+        // CONN_V4 is 0 so OR-ing it in below can't clear that bit. Reset it.
+        t.metadata = CONN_TYPE_UDP;
 #ifdef COMPILE_PREBUILT
         if (!are_fl6_offsets_known()) {
             log_debug("ERR: src/dst addr not set, fl6 offsets are not known");
@@ -534,6 +564,12 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // An AF_INET6 socket sending to an IPv4-mapped address goes through
+        // udp_sendmsg, so the failed read may have set CONN_V6 and the high
+        // address bits. The flow is IPv4: reset them.
+        t.metadata = CONN_TYPE_UDP | CONN_V4;
+        t.saddr_h = 0;
+        t.daddr_h = 0;
 #ifdef COMPILE_PREBUILT
         if (!are_fl4_offsets_known()) {
             log_debug("ERR: src/dst addr not set src:%llu,dst:%llu. fl4 offsets are not known", t.saddr_l, t.daddr_l);
@@ -1093,15 +1129,22 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
-    struct sock *sk = sk_buff_sk(skb);
+#ifdef COMPILE_CORE
+static __always_inline struct sock *sk_buff_sk_btf(struct sk_buff *skb) {
+    return skb->sk;
+}
+#endif
+
+// With btf set, skb must be a BTF-typed pointer (tp_btf argument).
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb, const bool btf) {
+    struct sock *sk = BTF_OR_PROBE_READ(btf, sk_buff_sk, skb);
     if (!sk) {
         return 0;
     }
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
+    if (BTF_OR_PROBE_READ(btf, sk_buff_to_tcp_tuple, skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -1111,7 +1154,7 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     // netns and pid stay zero: the map is keyed without them.
-    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple_no_netns, &sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -1126,14 +1169,27 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
     return 0;
 }
 
-SEC("raw_tracepoint/net/net_dev_queue")
-int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+#ifdef COMPILE_CORE
+// Typed arguments let the verifier turn the skb and sock field reads into BPF_PROBE_MEM loads.
+SEC("tp_btf/net_dev_queue")
+int BPF_BYPASSABLE_PROG(tp_btf__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, true);
+}
+#endif
+
+// BPF_BYPASSABLE_PROG runs the bypass check before skb is loaded from ctx,
+// so the injected bypass instructions cannot clobber it.
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_BYPASSABLE_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb, false);
 }
 
 SEC("tracepoint/net/net_dev_queue")
@@ -1144,7 +1200,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 // Kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
@@ -1170,7 +1226,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__dev_queue_xmit_nit, struct sk_buff *skb) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 char _license[] SEC("license") = "GPL";

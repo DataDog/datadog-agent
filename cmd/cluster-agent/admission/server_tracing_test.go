@@ -50,7 +50,7 @@ func TestAdmissionRequestTracing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mt := mocktracer.Start()
 			defer mt.Stop()
-			s := newTestServer(t)
+			s := NewServer(nil)
 			called := false
 			s.Register("/test", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
 				called = true
@@ -120,7 +120,7 @@ func TestAdmissionRequestTracing(t *testing.T) {
 func TestAdmissionTracingPreservesPanic(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
-	s := newTestServer(t)
+	s := NewServer(nil)
 	s.Register("/test", "test", admicommon.MutatingWebhook, func(req *Request) *admiv1.AdmissionResponse {
 		return admicommon.MutationResponse(mutatecommon.Mutate(req.Context, []byte(`{"spec":{"containers":[]}}`), "", "test",
 			func(*corev1.Pod, string, dynamic.Interface) (bool, error) {
@@ -169,7 +169,7 @@ func TestAdmissionTracingResponseOutcomes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mt := mocktracer.Start()
 			defer mt.Stop()
-			s := newTestServer(t)
+			s := NewServer(nil)
 			s.Register("/test", "test", tt.webhookType, func(req *Request) *admiv1.AdmissionResponse {
 				if tt.processingFailed {
 					req.ProcessingFailed = true

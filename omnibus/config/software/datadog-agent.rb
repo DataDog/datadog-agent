@@ -112,13 +112,7 @@ build do
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
-  if osx_target?
-    conf_dir = "#{install_dir}/etc"
-  else
-    conf_dir = "#{install_dir}/etc/datadog-agent"
-  end
-
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{install_dir}\"", env: env,
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
@@ -240,7 +234,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{install_dir}\"", env: env
   end
 
   # System-probe eBPF files
@@ -301,8 +295,11 @@ build do
     else
       copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
-    mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    # On Linux, //packages/agent/linux:license_files_install ships this license.
+    unless linux_target?
+      mkdir "#{install_dir}/LICENSES"
+      copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
   end
 
   if osx_target?
@@ -343,16 +340,6 @@ build do
 
       LINUX_BINARIES.each do |bin|
         fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
-      end
-    end
-  end
-
-  block do
-    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-    mkdir "#{install_dir}/python-scripts"
-    Dir.glob("#{python_scripts_dir}/*").each do |file|
-      unless File.basename(file).end_with?('_tests.py')
-        copy file, "#{install_dir}/python-scripts"
       end
     end
   end
