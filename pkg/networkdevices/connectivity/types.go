@@ -82,13 +82,23 @@ type DeviceResult struct {
 	SNMPResult *SNMPResult `json:"snmpResult,omitempty"`
 }
 
+// TargetGroup is a set of targets tried only with the SNMP credentials whose id
+// is listed in CredentialIDs.
+type TargetGroup struct {
+	CredentialIDs []string `json:"credentialIDs"`
+	TargetIPs     []string `json:"targetIPs"`
+}
+
+// Request is one connectivity check. When TargetGroups is set, it replaces
+// Targets and each group's targets are tried only with that group's credentials.
 type Request struct {
-	Targets     []string         `json:"targets"`
-	Checks      []string         `json:"checks"`
-	PingOptions *PingOptions     `json:"pingOptions,omitempty"`
-	SNMPOptions *SNMPOptions     `json:"snmpOptions,omitempty"`
-	Workers     int              `json:"workers,omitempty"`
-	Credentials []SNMPCredential `json:"credentials,omitempty"`
+	Targets      []string         `json:"targets"`
+	Checks       []string         `json:"checks"`
+	PingOptions  *PingOptions     `json:"pingOptions,omitempty"`
+	SNMPOptions  *SNMPOptions     `json:"snmpOptions,omitempty"`
+	Workers      int              `json:"workers,omitempty"`
+	Credentials  []SNMPCredential `json:"credentials,omitempty"`
+	TargetGroups []TargetGroup    `json:"targetGroups,omitempty"`
 }
 
 type Result struct {

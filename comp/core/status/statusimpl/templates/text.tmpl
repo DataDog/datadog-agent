@@ -15,6 +15,15 @@
   {{- end }}
   Log Level: {{.config.log_level}}
 
+  {{- if .conf_file_errors }}
+
+  Config File Error
+  =================
+  {{- range $_, $configError := .conf_file_errors }}
+{{ bullet 4 $configError }}
+  {{- end }}
+  {{- end }}
+
   Paths
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
