@@ -68,12 +68,22 @@ def _gcflags_goflag(flag: str) -> str | None:
     return f"\"-gcflags=all='{flag}'\""
 
 
-def _discard_linkobj_goflags(linkobj: str) -> str | None:
-    """Returns GOFLAGS making the compiler write its linker object to `linkobj`, or None, with a warning, if it can't."""
-    goflags = os.environ.get("GOFLAGS", "")
+def _effective_goflags(ctx) -> str:
+    """Returns the GOFLAGS cmd/go uses, which may come from `go env -w`, unlike the environment variable."""
+    result = ctx.run("go env GOFLAGS", hide=True, warn=True)
+    return result.stdout.strip() if result and result.ok else os.environ.get("GOFLAGS", "")
+
+
+def _discard_linkobj_goflags(goflags: str, linkobj: str) -> str | None:
+    """Returns `goflags` making the compiler write its linker object to `linkobj`, or None, with a warning, if it can't.
+
+    Setting GOFLAGS in the environment replaces the value saved with `go env -w`, so `goflags` must be the effective one.
+    """
     # For each package, cmd/go only keeps the last -gcflags that matches it, which would silently drop the user's own.
     if re.search(r"(?:^|\s)[\"']?--?gcflags=", goflags):
         reason = "GOFLAGS already sets -gcflags"
+    elif not os.path.isabs(linkobj):  # The compiler would resolve it from each package's directory.
+        reason = f"{linkobj!r} is relative"
     elif not (goflag := _gcflags_goflag(f"-linkobj={linkobj}")):
         reason = f"{linkobj!r} can't be passed in GOFLAGS"
     else:
@@ -145,7 +155,7 @@ def run_golangci_lint(
     # cache key, and must not be writable by other users. It can't be os.devnull: the compiler seeks back in it to write
     # the archive headers, which fails in NUL on Windows.
     linkobj = os.path.join(_user_cache_dir(), "golangci-lint-linkobj.o")
-    if goflags := _discard_linkobj_goflags(linkobj):
+    if goflags := _discard_linkobj_goflags(_effective_goflags(ctx), linkobj):
         env["GOFLAGS"] = goflags
     try:
         result, time_result = TimedOperationResult.run(
