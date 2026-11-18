@@ -288,11 +288,13 @@ def find_ssh_key_files(ssh_dir: PathOrStr = "~/.ssh") -> list[SSHKey]:
     keys: list[SSHKey] = []
     for pubkey in sorted(glob.glob(os.path.join(os.path.expanduser(os.fspath(ssh_dir)), "*.pub"))):
         pubkey_path = Path(pubkey)
-        privkey = pubkey_path.with_name(pubkey_path.name[: -len(".pub")])
-        pem = privkey.with_name(f"{privkey.name}.pem")
+        base_name = pubkey_path.name[: -len(".pub")]
+        privkey = pubkey_path.with_name(base_name)
+        pem = privkey.with_name(f"{base_name}.pem")
         if not privkey.is_file() and pem.is_file():
             privkey = pem
-        key_name = get_ssh_key_name(pubkey_path) or privkey.name
+        # The .pem fallback only changes the private key path; the key pair name stays the basename.
+        key_name = get_ssh_key_name(pubkey_path) or base_name
         keys.append({'path': os.fspath(privkey), 'name': key_name, 'aws_key_name': ''})
     return keys
 
