@@ -114,14 +114,15 @@ func TestReadResolvConfProcessExitsDuringRead(t *testing.T) {
 	}
 }
 
-func TestReadResolvConfLeaderExitedThreadAlive(t *testing.T) {
+func TestReadResolvConfLeaderExitedSiblingThreadNotRead(t *testing.T) {
 	fakeProc := t.TempDir()
 	oldProcFSRoot := kernel.ProcFSRoot
 	kernel.ProcFSRoot = func() string { return fakeProc }
 	t.Cleanup(func() { kernel.ProcFSRoot = oldProcFSRoot })
 
 	// pid 44: the thread-group leader called pthread_exit, so /proc/44/root and
-	// /proc/44/task/44/root are gone, but thread 45 is still running
+	// /proc/44/task/44/root are gone, but thread 45 is still running. Its root
+	// may belong to another filesystem, so it must not be read.
 	require.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "44", "task", "44"), 0755))
 	threadRoot := filepath.Join(fakeProc, "44", "task", "45", "root")
 	require.NoError(t, os.MkdirAll(filepath.Join(threadRoot, "etc"), 0755))
@@ -133,8 +134,8 @@ func TestReadResolvConfLeaderExitedThreadAlive(t *testing.T) {
 		Pid:         44,
 		ContainerID: intern.GetByString("test-container"),
 	})
-	require.NoError(t, err)
-	require.Equal(t, "nameserver 1.1.1.1", result)
+	require.ErrorIs(t, err, errProcessRootGone)
+	require.Empty(t, result)
 }
 
 func TestReadResolvConfInRootMissingRoot(t *testing.T) {

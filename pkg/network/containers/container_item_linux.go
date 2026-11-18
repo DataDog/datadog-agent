@@ -159,7 +159,7 @@ var processRootGone = func(rootPath string) bool {
 // readResolvConf reads and strips a process's resolv.conf.
 // If the resolv.conf is missing, it returns "<missing>" instead of an error.
 // If the process is in a container and its root is gone (the process is exiting,
-// or is a zombie), it returns errProcessRootGone.
+// is a zombie, or its thread-group leader has exited), it returns errProcessRootGone.
 // It can return various OS errors when the PID stopped running, so it needs to be
 // followed up by a call to isProcessStillRunning
 func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
@@ -177,41 +177,15 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	// releases the fs_struct before the namespaces, so if the root still resolves
 	// after the read, the namespace was intact during it, and the result, whether
 	// contents or error, is genuine.
-	if !processRootGone(rootPath) {
-		return contents, err
-	}
-
-	// /proc/<pid>/root is the thread-group leader's root. If the leader called
-	// pthread_exit while other threads keep running, it is gone although the
-	// process is alive, so read through one of the live threads instead.
-	threadRoot, ok := liveThreadRoot(pid)
-	if !ok {
-		return "", errProcessRootGone
-	}
-	contents, err = r.readResolvConfInRoot(threadRoot)
-	if processRootGone(threadRoot) {
+	//
+	// /proc/<pid>/root is the thread-group leader's root, so it is also gone once the
+	// leader has called pthread_exit, even while other threads run; that case is not
+	// cached either, and a later process event retries. A sibling thread's root isn't
+	// used instead, since that thread may have unshared its fs_struct and changed root.
+	if processRootGone(rootPath) {
 		return "", errProcessRootGone
 	}
 	return contents, err
-}
-
-// liveThreadRoot returns /proc/<pid>/task/<tid>/root for the first thread other
-// than the thread-group leader whose root still resolves.
-func liveThreadRoot(pid string) (string, bool) {
-	tasks, err := os.ReadDir(kernel.HostProc(pid, "task"))
-	if err != nil {
-		return "", false
-	}
-	for _, task := range tasks {
-		if task.Name() == pid {
-			continue
-		}
-		threadRoot := kernel.HostProc(pid, "task", task.Name(), "root")
-		if !processRootGone(threadRoot) {
-			return threadRoot, true
-		}
-	}
-	return "", false
 }
 
 func (r *resolvStripper) readResolvConfInRoot(rootPath string) (string, error) {
