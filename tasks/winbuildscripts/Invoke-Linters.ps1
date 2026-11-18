@@ -42,6 +42,13 @@ Invoke-BuildScript `
 
     & .\tasks\winbuildscripts\pre-go-build.ps1
 
+    # TEMPORARY: test #60141 with a user cache directory containing a space, revert before merge.
+    # The junction keeps every tool that uses LOCALAPPDATA on the same files.
+    $spacedLocalAppData = "C:\Local App Data"
+    New-Item -ItemType Junction -Path $spacedLocalAppData -Target $Env:LOCALAPPDATA | Out-Null
+    $Env:LOCALAPPDATA = $spacedLocalAppData
+    Write-Host "LOCALAPPDATA is now $Env:LOCALAPPDATA"
+
     # Lint Go
     & dda inv -- -e linter.go --debug
     $err = $LASTEXITCODE
