@@ -2309,3 +2309,17 @@ func TestSendSiteMetricsBucketsAndDedupe(t *testing.T) {
 	s.SendSiteMetrics("tenant-1", sites, nil)
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*5)
 }
+
+func TestSendTimeseriesFallbacks(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+
+	s.SendTimeseriesFallbacks([]client.Fallback{
+		{Tenant: "tenant-1", Query: "linkusage", Reason: client.FallbackKeyParts},
+		{Tenant: "tenant-1", Query: "slam", Reason: client.FallbackHTTPError},
+	})
+	mockSender.AssertMetric(t, "Count", versaMetricPrefix+"timeseries.fallback", 1, "", []string{"tenant:tenant-1", "query:linkusage", "reason:key_parts"})
+	mockSender.AssertMetric(t, "Count", versaMetricPrefix+"timeseries.fallback", 1, "", []string{"tenant:tenant-1", "query:slam", "reason:http_error"})
+	mockSender.AssertNumberOfCalls(t, "Count", 2)
+}

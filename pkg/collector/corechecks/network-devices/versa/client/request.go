@@ -8,6 +8,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -151,7 +152,62 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 	}
 
 	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
+	return nil, &requestError{
+		endpoint:   endpoint,
+		statusCode: statusCode,
+		cause:      lastErr,
+		apiMessage: apiErrorMessage(bytes),
+	}
+}
+
+// requestError is a request that did not get a valid response after every attempt. Its
+// message is unchanged from before it carried the status and Versa's error message.
+type requestError struct {
+	endpoint   string
+	statusCode int
+	cause      error
+	// apiMessage is the "error" field of a JSON error body, truncated, or empty.
+	apiMessage string
+}
+
+func (e *requestError) Error() string {
+	return fmt.Sprintf("%s http responded with %d code and error %v", e.endpoint, e.statusCode, e.cause)
+}
+
+// maxAPIMessageLength bounds the Versa error message carried into log lines.
+const maxAPIMessageLength = 200
+
+// apiErrorMessage returns the "error" field of a Versa JSON error body, truncated, or an
+// empty string when the body is not such an object.
+func apiErrorMessage(body []byte) string {
+	var parsed struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &parsed) != nil {
+		return ""
+	}
+	if len(parsed.Error) > maxAPIMessageLength {
+		return parsed.Error[:maxAPIMessageLength] + "..."
+	}
+	return parsed.Error
+}
+
+// describeRequestFailure renders a failed request for a log line: the HTTP status and
+// Versa's error message when there are any, never the request itself.
+func describeRequestFailure(err error) string {
+	var reqErr *requestError
+	if errors.As(err, &reqErr) {
+		if reqErr.apiMessage != "" {
+			return fmt.Sprintf("HTTP %d: %s", reqErr.statusCode, reqErr.apiMessage)
+		}
+		if reqErr.statusCode != 0 {
+			return fmt.Sprintf("HTTP %d", reqErr.statusCode)
+		}
+		if reqErr.cause != nil {
+			return reqErr.cause.Error()
+		}
+	}
+	return err.Error()
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -317,15 +373,32 @@ func getTimeseriesAnalytics[T any](
 		fromCount:   0,
 	})
 
+	// useTableData answers the call from the tableData request for the same query, as
+	// it would be answered with analytics_query_type set to tableData, and logs why.
+	useTableData := func(code FallbackReason, reason string, series []AnalyticsTimeseries) ([]T, error) {
+		client.recordFallback(tenant, query, code)
+		client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %q: %s, using tableData for it instead", query, reason)
+		tableRows, err := fetchTableDataRows(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics metrics: %v", err)
+		}
+		client.debugSamples(query, series, tableRows)
+		parsed, err := parser(tableRows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics metrics: %v", err)
+		}
+		return parsed, nil
+	}
+
 	resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get analytics timeseries: %v", err)
+		return useTableData(FallbackHTTPError, "the timeseries request failed ("+describeRequestFailure(err)+")", nil)
 	}
+	log.Debugf("Timeseries query %q returned %d series for %d entities", query, len(resp.Data), countEntities(resp.Data))
 
 	if layout.strictKeyParts {
 		if name, mismatch := keyPartsMismatch(resp.Data, layout); mismatch {
-			client.warnRateLimited("keyparts:"+query, "Timeseries query %q returned an entity key with %d parts where %d were expected, using tableData for it instead", query, len(strings.Split(name, ",")), layout.drillKeyFields)
-			return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+			return useTableData(FallbackKeyParts, fmt.Sprintf("an entity key has %d parts where %d were expected", len(strings.Split(name, ",")), layout.drillKeyFields), resp.Data)
 		}
 	}
 
@@ -344,8 +417,7 @@ func getTimeseriesAnalytics[T any](
 	if dropped > 0 {
 		if len(rows) == 0 {
 			// Every bucket was unusable. Most likely a requested metric is not returned
-			// as a series on this tenant, or the drill key does not split the way the
-			// layout expects, and either way the endpoint reports nothing at all.
+			// as a series on this tenant, and the endpoint reports nothing at all.
 			log.Warnf("Dropped all %d timeseries buckets for query %q, no metrics will be reported for it", dropped, query)
 		} else {
 			log.Debugf("Dropped %d incomplete timeseries buckets for query %q", dropped, query)
@@ -357,17 +429,19 @@ func getTimeseriesAnalytics[T any](
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics tableData for timeseries attributes: %v", err)
 		}
+		entities := distinctRowKeys(rows)
 		var missing, ambiguousKeys int
 		rows, missing, ambiguousKeys = joinAttributes(rows, tableRows, layout)
 		if ambiguousKeys > 0 {
 			// The timeseries response cannot tell apart the entities behind an ambiguous
 			// key, so report exactly what tableData reports for this call.
-			client.warnRateLimited("joinambiguous:"+query, "Timeseries query %q has %d entity keys matching tableData rows with differing attributes, using tableData for it instead", query, ambiguousKeys)
-			parsed, err := parser(tableRows)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse analytics tableData: %v", err)
-			}
-			return parsed, nil
+			return fallBackFromJoin(client, tenant, query, FallbackJoinAmbiguous, fmt.Sprintf("%d entity keys match tableData rows with differing attributes", ambiguousKeys), resp.Data, tableRows, parser)
+		}
+		matched := distinctRowKeys(rows)
+		if unmatched := entities - matched; matched == 0 || unmatched > matched {
+			// The timeseries and tableData keys mostly disagree, so joining would drop
+			// most of the family. Report what tableData reports instead.
+			return fallBackFromJoin(client, tenant, query, FallbackJoinUnmatched, fmt.Sprintf("only %d of %d timeseries entities match a tableData row", matched, entities), resp.Data, tableRows, parser)
 		}
 		if missing > 0 {
 			client.warnRateLimited("join:"+query, "Skipped %d timeseries buckets for query %q whose entity has no tableData row to take its attributes from", missing, query)
@@ -381,7 +455,7 @@ func getTimeseriesAnalytics[T any](
 
 	parsed, err := parser(rawRows)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse analytics timeseries: %v", err)
+		return useTableData(FallbackHTTPError, fmt.Sprintf("the timeseries response could not be parsed (%v)", err), resp.Data)
 	}
 	// flattenTimeseries and the parsers are both order preserving and all or nothing, so
 	// parsed[i] is the entry built from rows[i].
@@ -395,6 +469,61 @@ func getTimeseriesAnalytics[T any](
 	}
 
 	return parsed, nil
+}
+
+// fallBackFromJoin answers a join endpoint's call from the tableData rows already fetched
+// for the join, and logs why.
+func fallBackFromJoin[T any](client *Client, tenant, query string, code FallbackReason, reason string, series []AnalyticsTimeseries, tableRows [][]interface{}, parser func([][]interface{}) ([]T, error)) ([]T, error) {
+	client.recordFallback(tenant, query, code)
+	client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %q: %s, using tableData for it instead", query, reason)
+	client.debugSamples(query, series, tableRows)
+	parsed, err := parser(tableRows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse analytics tableData: %v", err)
+	}
+	return parsed, nil
+}
+
+// maxNameSamples is how many timeseries series names and tableData keys a fallback logs.
+const maxNameSamples = 3
+
+// debugSamples logs, at debug level and at most once an hour per query, up to
+// maxNameSamples distinct timeseries series names and tableData row keys with their part
+// counts, so a debug log shows how the two responses name entities. These are Versa
+// entity names (sites, circuits, IPs), never request details or credentials.
+func (client *Client) debugSamples(query string, series []AnalyticsTimeseries, tableRows [][]interface{}) {
+	var names, keys []string
+	seen := make(map[string]bool)
+	for _, s := range series {
+		if len(names) == maxNameSamples {
+			break
+		}
+		if !seen[s.Name] {
+			seen[s.Name] = true
+			names = append(names, fmt.Sprintf("%q (%d parts)", s.Name, len(strings.Split(s.Name, ","))))
+		}
+	}
+	for _, row := range tableRows {
+		if len(keys) == maxNameSamples {
+			break
+		}
+		if len(row) == 0 {
+			continue
+		}
+		if key, ok := row[0].(string); ok {
+			keys = append(keys, fmt.Sprintf("%q (%d parts)", key, len(strings.Split(key, ","))))
+		}
+	}
+	client.limiter().Debugf("samples:"+query, "Timeseries query %q fell back to tableData; timeseries series names: [%s]; tableData keys: [%s]", query, strings.Join(names, ", "), strings.Join(keys, ", "))
+}
+
+// distinctRowKeys returns the number of distinct entity keys (column zero) across rows.
+func distinctRowKeys(rows []timeseriesRow) int {
+	keys := make(map[interface{}]struct{}, len(rows))
+	for _, r := range rows {
+		keys[r.row[0]] = struct{}{}
+	}
+	return len(keys)
 }
 
 // countEntities returns the number of distinct entities across the series of a timeseries

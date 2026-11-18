@@ -493,6 +493,9 @@ func (v *VersaCheck) Run() error {
 		}
 	}
 
+	// Report the timeseries calls that were answered from tableData this run.
+	v.metricsSender.SendTimeseriesFallbacks(c.TakeFallbacks())
+
 	// Commit
 	v.metricsSender.Commit()
 
@@ -599,7 +602,7 @@ func (v *VersaCheck) collectsLookbackTimeseries() bool {
 	for _, enabled := range []*bool{
 		v.config.CollectSLAMetrics, v.config.CollectQoSMetrics, v.config.CollectCircuitQoSMetrics,
 		v.config.CollectInterfaceMetrics, v.config.CollectLinkMetrics,
-		v.config.CollectTunnelMetrics, v.config.CollectSiteMetrics,
+		v.config.CollectTunnelMetrics,
 	} {
 		if enabled != nil && *enabled {
 			return true
