@@ -77,7 +77,10 @@ type Launcher struct {
 	fingerprinter    tailer.Fingerprinter
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
-	stopOnce                  sync.Once
+	// Sources left out of a file another source owns, with the status message they carry, by scan key.
+	// See resolveDuplicateSources.
+	duplicateSources map[string]map[*sources.LogSource]string
+	stopOnce         sync.Once
 }
 
 const (
@@ -212,6 +215,7 @@ func (s *Launcher) resolveScan(files []*tailer.File) {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
+	s.clearDuplicateSources()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
@@ -257,6 +261,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
+	files = s.resolveDuplicateSources(files)
 	filesTailed := make(map[string]bool)
 
 	// Every file we are expected to tail during this scan, used to expire skip state for files that
