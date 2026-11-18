@@ -8,6 +8,11 @@ bazel:package:linux-amd64:
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
+    - echo "HOME=$HOME"; env | grep -oE '^[A-Z_]*BAZEL[A-Z_]*' || true
+    - >
+      bazel info release --announce_rc 2>&1
+      | grep -E "^(INFO: (Reading|Found applicable|Options provided)|WARNING: Option)"
+      | sed -E 's/^(INFO: (Reading|Found applicable).* (from|in file) [^:]+):.*/\1/'
     - bazel build //packages/agent/linux:debian //packages/agent/linux:rpm
     - mkdir -p bazel-packages
     - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
