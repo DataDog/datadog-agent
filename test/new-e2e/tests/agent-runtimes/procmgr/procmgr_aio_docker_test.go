@@ -357,9 +357,10 @@ func (s *procmgrAIODockerSuite) TestOptInEntrypointRunsProcmgrd() {
 
 	t := s.T()
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s %s",
+		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
 		shSingleQuote(image),
 	))
 	t.Cleanup(func() {
