@@ -201,6 +201,9 @@ func (c *hostCapabilities) ExpectedWorkloadTags() []string {
 type kubernetesCapabilities struct {
 	suite          *e2e.BaseSuite[environments.Kubernetes]
 	containerToJob map[string]string // maps container ID to job name
+	// runtimeClassName is the RuntimeClass of the GPU workloads. It is empty when the cluster
+	// has no NVIDIA runtime, e.g. with Mokka, where GPUs are injected by an NRI plugin instead.
+	runtimeClassName string
 }
 
 var _ suiteCapabilities = &kubernetesCapabilities{}
@@ -252,7 +255,10 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	}
 
 	jobName := strings.ToLower("workload-" + common.RandString(5))
-	runtimeClassName := nvidiaRuntimeClassName
+	var runtimeClassName *string
+	if c.runtimeClassName != "" {
+		runtimeClassName = &c.runtimeClassName
+	}
 
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -275,7 +281,7 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 						},
 					},
 					RestartPolicy:    corev1.RestartPolicyNever,
-					RuntimeClassName: &runtimeClassName,
+					RuntimeClassName: runtimeClassName,
 				},
 			},
 		},

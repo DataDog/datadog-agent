@@ -220,8 +220,9 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 func (s *gpuK8sSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
 	s.caps = &kubernetesCapabilities{
-		suite:          &s.BaseSuite,
-		containerToJob: make(map[string]string),
+		suite:            &s.BaseSuite,
+		containerToJob:   make(map[string]string),
+		runtimeClassName: nvidiaRuntimeClassName,
 	}
 	s.gpuBaseSuite.SetupSuite()
 }
@@ -563,15 +564,22 @@ type coatMessage struct {
 // parseCOATMetrics returns the metrics in an agent telemetry payload, grouped by name. A metric
 // with several tag sets is spread across several messages, one tag set per message.
 func parseCOATMetrics(output string) (map[string][]coatMetric, error) {
-	// The command output can contain log lines around the JSON payload
-	start := strings.Index(output, "{")
-	end := strings.LastIndex(output, "}")
-	if start < 0 || end < start {
+	// The command output can contain log lines around the JSON payload, and those lines can
+	// contain braces themselves (e.g. "converting value from []interface {} to []string" at
+	// debug level). The payload starts at the beginning of a line: decode the first JSON value
+	// from there and ignore whatever follows it.
+	start := -1
+	if strings.HasPrefix(output, "{") {
+		start = 0
+	} else if i := strings.Index(output, "\n{"); i >= 0 {
+		start = i + 1
+	}
+	if start < 0 {
 		return nil, fmt.Errorf("no JSON payload in output: %s", output)
 	}
 
 	var top coatMessage
-	if err := json.Unmarshal([]byte(output[start:end+1]), &top); err != nil {
+	if err := json.NewDecoder(strings.NewReader(output[start:])).Decode(&top); err != nil {
 		return nil, fmt.Errorf("failed to parse agent telemetry payload: %w", err)
 	}
 

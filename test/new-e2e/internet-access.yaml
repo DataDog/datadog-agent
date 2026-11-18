@@ -232,6 +232,10 @@ entries:
   function: packageInUseProvisioner
   status: debt
   reason: Both package-in-use and usage-only suites bootstrap kubeadm using public containerd and Kubernetes packages, Flannel, and container images; prebake or mirror these dependencies internally.
+- file: test/new-e2e/tests/gpu/mokka_provisioner.go
+  function: gpuMokkaK8sProvisioner
+  status: debt
+  reason: Installs the Mokka chart and images (ghcr.io) and the NVIDIA device plugin (nvcr.io) on the Kind cluster; mirror them internally before removing this exception.
 - file: test/new-e2e/tests/containers/kindvm_test.go
   function: TestKindSuite
   status: debt
