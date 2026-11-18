@@ -359,7 +359,11 @@ func (cr *Resolver) AddPID(pid uint32, cgroupContext model.CGroupContext) *cgrou
 }
 
 func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
-	slices.ContainsFunc(cr.cacheEntriesByPathKey.Values(), cb)
+	for _, cacheEntry := range cr.cacheEntriesByPathKey.Values() {
+		if cb(cacheEntry) {
+			return
+		}
+	}
 }
 
 // IterateCacheEntries iterates over the cache entries
