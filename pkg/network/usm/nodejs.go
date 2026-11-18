@@ -301,3 +301,5 @@ func (*nodeJSMonitor) GetStats() (*protocols.ProtocolStats, func()) {
 func (*nodeJSMonitor) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
+
+func (p *nodeJSMonitor) getUprobeAttacher() *uprobes.UprobeAttacher { return p.attacher }

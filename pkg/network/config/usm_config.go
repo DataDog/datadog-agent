@@ -46,6 +46,9 @@ type USMConfig struct {
 	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on supported kernels
 	EnableUSMRingBuffers bool
 
+	// EnableUprobeMulti enables grouped USM TLS attachments on supported kernels.
+	EnableUprobeMulti bool
+
 	// EnableUSMEventStream enables USM to use the event stream instead of netlink for receiving process events
 	EnableUSMEventStream bool
 
@@ -235,6 +238,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 
 		// TLS Configuration
 		EnableNativeTLSMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
+		EnableUprobeMulti:         cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_uprobe_multi")),
 		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
 		EnableNodeJSMonitoring:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "nodejs", "enabled")),

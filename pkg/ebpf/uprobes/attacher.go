@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -380,6 +382,10 @@ type UprobeAttacher struct {
 	// Used to detach them once the path is no longer used.
 	fileIDToAttachedProbes map[utils.PathIdentifier][]manager.ProbeIdentificationPair
 
+	multiPrograms      map[string]*cebpf.Program
+	fileIDToMultiLinks map[utils.PathIdentifier]map[multiProbeKey]multiAttachment
+	attachMulti        func(string, *cebpf.Program, []uint64, bool) (io.Closer, error)
+
 	// onAttachCallback is a callback that is called whenever a probe is attached
 	onAttachCallback AttachCallback
 
@@ -436,6 +442,8 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		manager:                mgr,
 		onAttachCallback:       onAttachCallback,
 		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
+		fileIDToMultiLinks:     make(map[utils.PathIdentifier]map[multiProbeKey]multiAttachment),
+		attachMulti:            attachUprobeMulti,
 		done:                   make(chan struct{}),
 		inspector:              deps.Inspector,
 		processMonitor:         deps.ProcessMonitor,
@@ -971,6 +979,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 }
 
 func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
+	if ua.multiPrograms != nil {
+		return ua.attachMultiProbeSelector(selector, fpath, rule, inspectResult)
+	}
 	_, isBestEffort := selector.(*manager.BestEffort)
 
 	for _, probeID := range selector.GetProbesIdentificationPairList() {
@@ -1090,17 +1101,19 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int]
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
+	var errs error
+	errs = errors.Join(errs, ua.detachMultiProbes(fpath))
 	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
 		err := ua.manager.DetachHook(probeID)
 		if err != nil {
-			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
+			errs = errors.Join(errs, fmt.Errorf("error detaching probe %+v: %w", probeID, err))
 		}
 	}
 
 	delete(ua.fileIDToAttachedProbes, fpath.ID)
 	ua.inspector.Cleanup(fpath)
 
-	return nil
+	return errs
 }
 
 func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
