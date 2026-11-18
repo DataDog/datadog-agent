@@ -29,9 +29,12 @@ const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = 2000
-	defaultLookback    = "30minutesAgo"
 	defaultHTTPTimeout = 10 * time.Second
 	defaultHTTPScheme  = "https"
+
+	// DefaultLookbackMinutes is the analytics lookback window used when
+	// lookback_time_window_minutes is not set.
+	DefaultLookbackMinutes = 30
 
 	// QueryTypeTableData returns one aggregate row per entity covering the whole lookback
 	// window. This is the default, and historically it was the only behavior.
@@ -333,7 +336,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		maxCount:            defaultMaxCount,
 		timeout:             defaultHTTPTimeout,
 		endpointOverrides:   make(map[Endpoint]EndpointConfig),
-		lookback:            defaultLookback,
+		lookback:            createLookbackString(DefaultLookbackMinutes),
 		analyticsQueryType:  QueryTypeTableData,
 		analyticsGap:        defaultAnalyticsGap,
 	}

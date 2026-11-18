@@ -23,7 +23,8 @@ features:
     report. The newest bucket of each entity is held back for one collection, because
     Versa's buckets are wall-clock aligned and the current one is still accumulating, so
     set ``lookback_time_window_minutes`` to 45 or more on a tenant with 15 minute buckets;
-    the check logs a warning below 45 when an enabled query uses timeseries. SLA,
+    the check logs a warning below 45, including the default of 30, when an enabled query
+    uses timeseries. SLA,
     circuit QoS, interface, link usage and DIA are validated against real Versa
     responses, from a lab with traffic and from a customer environment; path QoS is
     validated against customer Versa responses. Link status, site, tunnel, application
