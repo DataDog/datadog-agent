@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -157,6 +158,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		statusCode: statusCode,
 		cause:      lastErr,
 		apiMessage: apiErrorMessage(bytes),
+		apiError:   isAPIErrorBody(bytes),
 	}
 }
 
@@ -168,6 +170,8 @@ type requestError struct {
 	cause      error
 	// apiMessage is the "error" field of a JSON error body, truncated, or empty.
 	apiMessage string
+	// apiError is true when the body is a Versa JSON error object with a code or error field.
+	apiError bool
 }
 
 func (e *requestError) Error() string {
@@ -192,22 +196,68 @@ func apiErrorMessage(body []byte) string {
 	return parsed.Error
 }
 
-// describeRequestFailure renders a failed request for a log line: the HTTP status and
-// Versa's error message when there are any, never the request itself.
-func describeRequestFailure(err error) string {
+// isAPIErrorBody reports whether body is a Versa JSON error object, carrying a code or
+// an error field.
+func isAPIErrorBody(body []byte) bool {
+	var parsed map[string]json.RawMessage
+	if json.Unmarshal(body, &parsed) != nil {
+		return false
+	}
+	_, hasCode := parsed["code"]
+	_, hasError := parsed["error"]
+	return hasCode || hasError
+}
+
+// timeseriesRejection returns the HTTP status and Versa error message when err is Versa
+// rejecting the request itself: a 4xx other than 401 and 403, with a Versa JSON error
+// body. Authentication failures, HTML responses (reported as 401), transport errors,
+// timeouts and 5xx responses are not rejections and keep their usual error handling.
+func timeseriesRejection(err error) (int, string, bool) {
 	var reqErr *requestError
-	if errors.As(err, &reqErr) {
-		if reqErr.apiMessage != "" {
-			return fmt.Sprintf("HTTP %d: %s", reqErr.statusCode, reqErr.apiMessage)
-		}
-		if reqErr.statusCode != 0 {
-			return fmt.Sprintf("HTTP %d", reqErr.statusCode)
-		}
-		if reqErr.cause != nil {
-			return reqErr.cause.Error()
+	if !errors.As(err, &reqErr) {
+		return 0, "", false
+	}
+	status := reqErr.statusCode
+	if status < 400 || status >= 500 || status == 401 || status == 403 || !reqErr.apiError {
+		return 0, "", false
+	}
+	return status, reqErr.apiMessage, true
+}
+
+// isBodyParseError reports whether err is a response body that is not valid JSON for the
+// expected type.
+func isBodyParseError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
+}
+
+// maxLoggedMessageLength caps a sanitized Versa error message in a log line.
+const maxLoggedMessageLength = 120
+
+var (
+	// loggedMessageDrop matches tokens that could carry request details: URLs, paths,
+	// query strings and host:port pairs.
+	loggedMessageDrop = regexp.MustCompile(`\S*(://|/|\?|&|=)\S*|\S*[A-Za-z0-9.-]+:\d+\S*`)
+	whitespace        = regexp.MustCompile(`\s+`)
+)
+
+// sanitizeAPIMessage makes a Versa error message safe for a log line: tokens that look
+// like a URL, path, query string or host:port are removed, values the client sent
+// (credentials, session tokens, tenant) are redacted, whitespace is collapsed and the
+// result is capped at maxLoggedMessageLength characters.
+func (client *Client) sanitizeAPIMessage(message string, tenant string) string {
+	message = loggedMessageDrop.ReplaceAllString(message, "")
+	for _, secret := range []string{client.password, client.username, client.clientSecret, client.sessionToken, client.directorToken, tenant} {
+		if len(secret) >= 3 {
+			message = strings.ReplaceAll(message, secret, "<redacted>")
 		}
 	}
-	return err.Error()
+	message = strings.TrimSpace(whitespace.ReplaceAllString(message, " "))
+	if len(message) > maxLoggedMessageLength {
+		message = message[:maxLoggedMessageLength]
+	}
+	return message
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -377,7 +427,7 @@ func getTimeseriesAnalytics[T any](
 	// it would be answered with analytics_query_type set to tableData, and logs why.
 	useTableData := func(code FallbackReason, reason string, series []AnalyticsTimeseries) ([]T, error) {
 		client.recordFallback(tenant, query, code)
-		client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %q: %s, using tableData for it instead", query, reason)
+		client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %s: %s, using tableData for it instead", shortQueryName(query), reason)
 		tableRows, err := fetchTableDataRows(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get analytics metrics: %v", err)
@@ -392,7 +442,17 @@ func getTimeseriesAnalytics[T any](
 
 	resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
 	if err != nil {
-		return useTableData(FallbackHTTPError, "the timeseries request failed ("+describeRequestFailure(err)+")", nil)
+		if status, message, ok := timeseriesRejection(err); ok {
+			reason := fmt.Sprintf("Versa rejected the timeseries request with HTTP %d", status)
+			if message = client.sanitizeAPIMessage(message, tenant); message != "" {
+				reason += ": " + message
+			}
+			return useTableData(FallbackHTTPError, reason, nil)
+		}
+		if isBodyParseError(err) {
+			return useTableData(FallbackHTTPError, "the timeseries response could not be parsed", nil)
+		}
+		return nil, fmt.Errorf("failed to get analytics timeseries: %v", err)
 	}
 	log.Debugf("Timeseries query %q returned %d series for %d entities", query, len(resp.Data), countEntities(resp.Data))
 
@@ -455,7 +515,7 @@ func getTimeseriesAnalytics[T any](
 
 	parsed, err := parser(rawRows)
 	if err != nil {
-		return useTableData(FallbackHTTPError, fmt.Sprintf("the timeseries response could not be parsed (%v)", err), resp.Data)
+		return useTableData(FallbackHTTPError, "the timeseries response could not be parsed", resp.Data)
 	}
 	// flattenTimeseries and the parsers are both order preserving and all or nothing, so
 	// parsed[i] is the entry built from rows[i].
@@ -475,7 +535,7 @@ func getTimeseriesAnalytics[T any](
 // for the join, and logs why.
 func fallBackFromJoin[T any](client *Client, tenant, query string, code FallbackReason, reason string, series []AnalyticsTimeseries, tableRows [][]interface{}, parser func([][]interface{}) ([]T, error)) ([]T, error) {
 	client.recordFallback(tenant, query, code)
-	client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %q: %s, using tableData for it instead", query, reason)
+	client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %s: %s, using tableData for it instead", shortQueryName(query), reason)
 	client.debugSamples(query, series, tableRows)
 	parsed, err := parser(tableRows)
 	if err != nil {
