@@ -49,8 +49,9 @@ func initManager(mgr *ddebpf.Manager) {
 		mgr.Probes = append(mgr.Probes, p)
 	}
 
-	// Add the raw tracepoint probe with its special TracepointName/Category
+	// Add the net_dev_queue probes; the raw tracepoint needs its special TracepointName/Category
 	mgr.Probes = append(mgr.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netDevQueueTPBTF, UID: probeUID}},
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: netDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
 	)
 }

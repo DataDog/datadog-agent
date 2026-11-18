@@ -37,7 +37,9 @@ from tasks.libs.common.utils import (
     color_message,
     environ,
     get_repo_root,
+    gitlab_project_url,
     gitlab_section,
+    is_windows,
     running_in_ci,
     running_in_gitlab_ci,
 )
@@ -464,6 +466,9 @@ def run(
     # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
     # already carry one, so developers don't have to put the passphrase in their rc file.
     env_vars.update(tool.pulumi_env(skip_update_check=False))
+
+    if not running_in_ci():
+        env_vars.update(_docker_host_env(ctx))
 
     parsed_params = {}
 
@@ -1204,7 +1209,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     except TooManyLogsError:
         print(
             color_message("WARNING", "yellow")
-            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: {gitlab_project_url()}/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
         )
 
 
@@ -1411,6 +1416,26 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
+
+
+def _docker_host_env(ctx: Context) -> dict[str, str]:
+    """
+    Set DOCKER_HOST to the local socket of the active Docker context (e.g. Colima's), unless it's
+    already set: the Pulumi Docker provider ignores contexts and only reads DOCKER_HOST. Not done
+    on Windows, which uses the default named pipe.
+    """
+    if "DOCKER_HOST" in os.environ or is_windows():
+        return {}
+    res = ctx.run("docker context inspect --format '{{.Endpoints.docker.Host}}'", hide=True, warn=True)
+    if res.exited != 0:
+        return {}
+    host = res.stdout.strip()
+    if not host.startswith("unix://") or host == DEFAULT_DOCKER_HOST:
+        return {}
+    return {"DOCKER_HOST": host}
 
 
 def _get_agent_qa_ecr_password(ctx: Context) -> str:
