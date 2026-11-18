@@ -149,6 +149,10 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 	// ContainerDebug holds debug information about the container tags resolution.
 	ContainerDebug *ContainerDebug
+	// chunkEnvVersionOverrides reports whether chunk "env"/"version" attributes override the
+	// payload-level env/app version. Only native v1 payloads opt in: payloads converted from
+	// legacy formats carry legacy chunk tags as attributes, which must keep today's behavior.
+	chunkEnvVersionOverrides bool
 }
 
 // Msgsize returns the size of the message when serialized to messagepack.
@@ -529,6 +533,9 @@ func (tp *InternalTracerPayload) headerProto() *TracerPayload {
 // When all chunks resolve to the payload-level values, this returns exactly []*TracerPayload{tp.ToProto()}.
 func (tp *InternalTracerPayload) ToProtoByEnvVersion() []*TracerPayload {
 	type envVersion struct{ env, version string }
+	if !tp.chunkEnvVersionOverrides {
+		return []*TracerPayload{tp.ToProto()}
+	}
 	payloadKey := envVersion{tp.Env(), tp.AppVersion()}
 	keyOf := func(c *InternalTraceChunk) envVersion {
 		k := payloadKey
@@ -835,31 +842,57 @@ const (
 	chunkVersionAttributeKey = "version"
 )
 
-// stringAttributeByName returns the string value of the chunk attribute named key, or "".
-// It compares key names rather than using the string table lookup because the decoded
-// string table may hold duplicate entries.
+// stringAttributeByName returns the attribute key ref and string value of the chunk
+// attribute named key, or (0, ""). It compares key names rather than using the string
+// table lookup because a decoded string table may hold duplicate entries, so several
+// attribute keys can alias the same name. Among string-valued aliases, the one with the
+// lowest key ref wins, which keeps the result independent of map iteration order.
 func (c *InternalTraceChunk) stringAttributeByName(key string) (uint32, string) {
+	var bestKey uint32
+	var bestVal string
+	found := false
 	for k, v := range c.Attributes {
-		if c.Strings.Get(k) != key || v == nil {
+		if v == nil || (found && k >= bestKey) || c.Strings.Get(k) != key {
 			continue
 		}
 		if s, ok := v.Value.(*AnyValue_StringValueRef); ok {
-			return k, c.Strings.Get(s.StringValueRef)
+			bestKey, bestVal, found = k, c.Strings.Get(s.StringValueRef), true
 		}
 	}
-	return 0, ""
+	return bestKey, bestVal
 }
 
-// setStringAttributeByName sets the string chunk attribute named key, replacing any existing entry.
+// setStringAttributeByName sets the string chunk attribute named key. Every existing alias
+// of key is removed first, so exactly one entry remains, at the lowest aliased key ref.
 func (c *InternalTraceChunk) setStringAttributeByName(key, value string) {
 	if c.Attributes == nil {
 		c.Attributes = make(map[uint32]*AnyValue)
 	}
-	k, _ := c.stringAttributeByName(key)
-	if k == 0 {
-		k = c.Strings.Add(key)
+	var target uint32
+	for k := range c.Attributes {
+		if c.Strings.Get(k) == key {
+			if target == 0 || k < target {
+				target = k
+			}
+			delete(c.Attributes, k)
+		}
 	}
-	c.Attributes[k] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: c.Strings.Add(value)}}
+	if target == 0 {
+		target = c.Strings.Add(key)
+	}
+	c.Attributes[target] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: c.Strings.Add(value)}}
+}
+
+// ChunkEnvVersionOverridesEnabled reports whether chunk "env"/"version" attributes override
+// the payload-level env and app version. It is true for payloads decoded from native v1 msgpack.
+func (tp *InternalTracerPayload) ChunkEnvVersionOverridesEnabled() bool {
+	return tp.chunkEnvVersionOverrides
+}
+
+// SetChunkEnvVersionOverridesEnabled sets whether chunk "env"/"version" attributes override
+// the payload-level env and app version.
+func (tp *InternalTracerPayload) SetChunkEnvVersionOverridesEnabled(enabled bool) {
+	tp.chunkEnvVersionOverrides = enabled
 }
 
 // Env returns the chunk-level env override (the "env" chunk attribute), or "" when the

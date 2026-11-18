@@ -1,7 +1,8 @@
 ---
 features:
   - |
-    APM : v1 trace chunks can now override the payload-level ``env`` and
+    APM : native v1 trace chunks can now override the payload-level ``env`` and
     ``app_version`` through the string chunk attributes ``env`` and ``version``.
     When set, they apply to that chunk only in sampling, stats, and forwarding.
-    Chunks without these attributes keep using the payload-level values.
+    Chunks without these attributes, and payloads converted from older formats,
+    keep using the payload-level values.

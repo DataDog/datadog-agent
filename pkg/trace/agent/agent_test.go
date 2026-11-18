@@ -5404,6 +5404,7 @@ func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
 	}}
 	payload.TracerPayload.SetEnv("payload-env")
 	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
 
 	agent.ProcessV1(payload)
 	mco := agent.Concentrator.(*mockConcentrator)
@@ -5415,4 +5416,43 @@ func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
 		got = append(got, [2]string{pt.TracerEnv, pt.AppVersion})
 	}
 	assert.ElementsMatch(t, [][2]string{{"prod", "v2"}, {"staging", "v1"}, {"payload-env", "v1"}}, got)
+}
+
+// TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags checks that legacy chunk tags
+// carried as attributes on a converted payload do not override the payload env/version.
+func TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	legacy := &pb.TracerPayload{
+		Env:        "prod",
+		AppVersion: "v1",
+		Chunks: []*pb.TraceChunk{{
+			Priority: 2,
+			Tags:     map[string]string{"env": "staging", "version": "v2"},
+			Spans:    []*pb.Span{{TraceID: 1, SpanID: 1, Service: "svc", Name: "op", Resource: "res", Duration: 1}},
+		}},
+	}
+	tp := api.ConvertToIdx(legacy, "v07-pb")
+	require.False(t, tp.ChunkEnvVersionOverridesEnabled())
+	require.Equal(t, "staging", tp.Chunks[0].Env(), "legacy chunk tags are kept as attributes")
+
+	agent.ProcessV1(&api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: tp})
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "prod", pt.TracerEnv)
+	assert.Equal(t, "v1", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.NotEmpty(t, payloads)
+	out := payloads[0].TracerPayload.ToProtoByEnvVersion()
+	require.Len(t, out, 1)
+	assert.Equal(t, "prod", out[0].Strings[out[0].EnvRef])
+	assert.Equal(t, "v1", out[0].Strings[out[0].AppVersionRef])
+	assert.Equal(t, "staging", payloads[0].TracerPayload.Chunks[0].Env(), "chunk env tag is not normalized or rewritten")
 }

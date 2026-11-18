@@ -755,14 +755,25 @@ func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
 	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 	defer tw.Stop()
 
+	// envAttrChunks counts flushed chunks that still carry an "env" attribute.
+	var envAttrChunks int
 	collect := func(pkg *SampledChunksV1) map[[2]string]int {
 		srv.payloads = nil
+		envAttrChunks = 0
 		tw.WriteChunksV1(pkg)
 		require.NoError(t, tw.FlushSync())
 		groups := map[[2]string]int{}
 		mapPayloads(t, srv.payloads, tw.compressor, func(ap *pb.AgentPayload) {
 			for _, tp := range ap.IdxTracerPayloads {
 				groups[[2]string{tp.Strings[tp.EnvRef], tp.Strings[tp.AppVersionRef]}] += len(tp.Chunks)
+				for _, c := range tp.Chunks {
+					for k, v := range c.Attributes {
+						if tp.Strings[k] == "env" {
+							envAttrChunks++
+							assert.Equal(t, tp.Strings[tp.EnvRef], tp.Strings[v.GetStringValueRef()], "outbound env attribute matches its payload env")
+						}
+					}
+				}
 			}
 		})
 		return groups
@@ -779,6 +790,7 @@ func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
 	t.Run("mixed overrides split by env and version", func(t *testing.T) {
 		pkg := randomSampledSpansV1(4, 0)
 		tp := pkg.TracerPayload
+		tp.SetChunkEnvVersionOverridesEnabled(true)
 		tp.SetEnv("prod")
 		tp.SetAppVersion("v1")
 		base := tp.Chunks[0]
@@ -789,6 +801,7 @@ func TestTraceWriterV1ChunkEnvAppVersionOverride(t *testing.T) {
 		c2.SetAppVersion("v3")
 		tp.Chunks = append(tp.Chunks, c1, c2, copyChunkV1(c1))
 		assert.Equal(t, map[[2]string]int{{"prod", "v1"}: 1, {"staging", "v2"}: 2, {"prod", "v3"}: 1}, collect(pkg))
+		assert.Equal(t, 2, envAttrChunks, "outbound chunks keep their env attributes")
 	})
 }
 
@@ -807,6 +820,7 @@ func TestTraceWriterV1ManyEnvGroupsMemory(t *testing.T) {
 	const groups = 2000
 	pkg := randomSampledSpansV1(1, 0)
 	tp := pkg.TracerPayload
+	tp.SetChunkEnvVersionOverridesEnabled(true)
 	base := tp.Chunks[0]
 	tp.Chunks = tp.Chunks[:0]
 	for i := 0; i < groups; i++ {

@@ -51,15 +51,16 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		expectedStrings := []string{"", "cidcid", "go", "1.24", "v11.24", "runtime-id", "env", "hostname", "appver"}
 
 		expectedTP := &InternalTracerPayload{
-			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			containerIDRef:     1,
-			languageNameRef:    2,
-			languageVersionRef: 3,
-			tracerVersionRef:   4,
-			runtimeIDRef:       5,
-			envRef:             6,
-			hostnameRef:        7,
-			appVersionRef:      8,
+			Strings:                  tp.Strings, // We will assert on this separately for improved readability here
+			chunkEnvVersionOverrides: true,
+			containerIDRef:           1,
+			languageNameRef:          2,
+			languageVersionRef:       3,
+			tracerVersionRef:         4,
+			runtimeIDRef:             5,
+			envRef:                   6,
+			hostnameRef:              7,
+			appVersionRef:            8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -90,15 +91,16 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		assert.Len(t, o, 0)
 
 		expectedTP := &InternalTracerPayload{
-			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			containerIDRef:     1,
-			languageNameRef:    2,
-			languageVersionRef: 3,
-			tracerVersionRef:   4,
-			runtimeIDRef:       5,
-			envRef:             6,
-			hostnameRef:        7,
-			appVersionRef:      8,
+			Strings:                  tp.Strings, // We will assert on this separately for improved readability here
+			chunkEnvVersionOverrides: true,
+			containerIDRef:           1,
+			languageNameRef:          2,
+			languageVersionRef:       3,
+			tracerVersionRef:         4,
+			runtimeIDRef:             5,
+			envRef:                   6,
+			hostnameRef:              7,
+			appVersionRef:            8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -484,6 +486,29 @@ func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
 		assert.Len(t, c.Attributes, 2, "SetEnv replaces the existing env attribute")
 	})
 
+	t.Run("conflicting aliases resolve to the lowest key ref", func(t *testing.T) {
+		// "env" at refs 1 and 3; ref 3 is not the canonical lookup index.
+		strs := StringTableFromArray([]string{"", "env", "x", "env", "a", "b", "env"})
+		for i := 0; i < 50; i++ {
+			c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
+				6: {Value: &AnyValue_StringValueRef{StringValueRef: 4}},
+				3: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
+			}}
+			require.Equal(t, "b", c.Env())
+		}
+		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
+			1: {Value: &AnyValue_IntValue{IntValue: 7}},
+			3: {Value: &AnyValue_StringValueRef{StringValueRef: 4}},
+			6: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
+		}}
+		assert.Equal(t, "a", c.Env(), "non-string aliases are skipped")
+		c.SetEnv("z")
+		assert.Len(t, c.Attributes, 1, "SetEnv replaces every alias")
+		assert.Equal(t, "z", c.Env())
+		_, ok := c.Attributes[1]
+		assert.True(t, ok, "the remaining entry uses the lowest aliased key ref")
+	})
+
 	t.Run("missing or non-string attributes mean no override", func(t *testing.T) {
 		strs := NewStringTable()
 		c := &InternalTraceChunk{Strings: strs}
@@ -511,7 +536,7 @@ func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
 func TestToProtoByEnvVersion(t *testing.T) {
 	newPayload := func() *InternalTracerPayload {
 		strings := NewStringTable()
-		tp := &InternalTracerPayload{Strings: strings}
+		tp := &InternalTracerPayload{Strings: strings, chunkEnvVersionOverrides: true}
 		tp.SetEnv("prod")
 		tp.SetAppVersion("v1")
 		return tp
@@ -528,6 +553,23 @@ func TestToProtoByEnvVersion(t *testing.T) {
 		return c
 	}
 	envVersion := func(p *TracerPayload) [2]string { return [2]string{p.Strings[p.EnvRef], p.Strings[p.AppVersionRef]} }
+
+	t.Run("overrides disabled for converted payloads", func(t *testing.T) {
+		tp := newPayload()
+		tp.SetChunkEnvVersionOverridesEnabled(false)
+		addChunk(tp, "staging", "v2")
+		addChunk(tp, "", "")
+		out := tp.ToProtoByEnvVersion()
+		require.Len(t, out, 1)
+		assert.Equal(t, [2]string{"prod", "v1"}, envVersion(out[0]))
+	})
+
+	t.Run("native msgpack decode enables overrides", func(t *testing.T) {
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(msgp.AppendMapHeader(nil, 0))
+		require.NoError(t, err)
+		assert.True(t, tp.ChunkEnvVersionOverridesEnabled())
+	})
 
 	t.Run("no overrides", func(t *testing.T) {
 		tp := newPayload()
