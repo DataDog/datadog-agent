@@ -40,6 +40,10 @@ func FromWindowsInventory(windows model.WindowsInventory) model.ProviderInventor
 		// Keep the logged-on desktop independently of its vanished connection.
 		if session.State == "disconnected" {
 			if session.User == "" && session.LogonAt == nil && session.Protocol != model.ProtocolRDP {
+				if session.Protocol == "" {
+					result.Status = model.StatusPartial
+					result.Error = "RDP eligibility could not be determined for one or more disconnected Windows sessions"
+				}
 				continue
 			}
 		} else if session.Protocol == "" {

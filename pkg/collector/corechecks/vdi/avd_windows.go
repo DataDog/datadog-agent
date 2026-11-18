@@ -20,8 +20,8 @@ import (
 )
 
 func (c *checkImpl) runAVD(s sender.Sender) error {
-	now := c.now().UTC()
 	inventory, err := c.inventoryClient.Get()
+	now := c.now().UTC()
 	provider, present := inventory.Providers[model.ProviderAzureVirtualDesktop]
 	validStatus := provider.Status == model.StatusOK || provider.Status == model.StatusPartial
 	// Never attach identities from a stale response or interpret a failed

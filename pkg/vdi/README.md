@@ -57,11 +57,11 @@ vdi:
   enabled: true
 ```
 
-For this development deployment, use the Windows SCM services by disabling
-process-manager supervision. The baseline MSI's process-manager definition does
-not recognize `vdi.enabled`, so it can suppress the SCM system-probe service
-without starting its own child. Process-manager support needs a matching
-configuration gate and shipped definition before removing this override.
+When overlaying only the Agent and system-probe binaries onto an existing MSI,
+use Windows SCM services by disabling process-manager supervision. The baseline
+MSI's process manager and definition predate `vdi.enabled`; they can suppress the
+SCM service without starting their own child. Process-manager supervision needs
+both the matching process-manager binary and Windows definition from this branch.
 
 Create `C:\ProgramData\Datadog\conf.d\vdi.d\conf.yaml`:
 

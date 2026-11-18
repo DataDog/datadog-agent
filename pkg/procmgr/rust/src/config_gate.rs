@@ -110,6 +110,7 @@ enum GatedKey {
     WindowsCrashDetection,
     RuntimeSecurity,
     SoftwareInventory,
+    VdiEnabled,
     SystemProbeExternal,
     ApmEnabled,
     ApmErrorTrackingStandalone,
@@ -141,6 +142,7 @@ const SYSTEM_PROBE_CONFIG_KEY: &str = "system_probe_config.enabled";
 const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
 const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
 const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
+const VDI_ENABLED_KEY: &str = "vdi.enabled";
 const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
 const APM_ENABLED_KEY: &str = "apm_config.enabled";
 const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
@@ -190,9 +192,9 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: SYSPROBE_POLICY,
     },
-    // The three keys below are named by the system-probe processes.d entry, which
-    // transcribes a five-key Servicedef. On Windows the derived
-    // `system_probe_config.enabled` above already subsumes all three, so they never
+    // The four keys below are named by the system-probe processes.d entry, which
+    // transcribes a six-key Servicedef. On Windows the derived
+    // `system_probe_config.enabled` above already subsumes all four, so they never
     // change the result of that gate. They are evaluated rather than reported as unknown
     // keys so the transcription is real: a reviewer can diff the template against the
     // Servicedef line by line, and a future drift in the derived mirror does not silently
@@ -212,6 +214,12 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::SoftwareInventory,
         key: SOFTWARE_INVENTORY_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::VdiEnabled,
+        key: VDI_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -1835,7 +1843,8 @@ process_config:
     }
 
     /// `logon_duration` and `notable_events` are macOS-only modules read from the core
-    /// `datadog.yaml`, and `software_inventory` is Windows and macOS only.
+    /// `datadog.yaml`, `software_inventory` is Windows and macOS only, and VDI is
+    /// Windows only.
     #[test]
     fn core_agent_modules_follow_the_go_os_gates() {
         for (body, enabled_on) in [
@@ -1845,6 +1854,7 @@ process_config:
                 "software_inventory:\n  enabled: true\n",
                 &[HostOs::MacOs, HostOs::Windows][..],
             ),
+            ("vdi:\n  enabled: true\n", &[HostOs::Windows][..]),
         ] {
             for os in EVERY_OS {
                 let fx = Gate::on(os);
@@ -1962,6 +1972,7 @@ process_config:
                 SOFTWARE_INVENTORY_KEY,
                 false,
             ),
+            ("vdi:\n  enabled: true\n", VDI_ENABLED_KEY, false),
         ] {
             let fx = Gate::new();
             let path = if in_sysprobe {
@@ -1981,6 +1992,7 @@ process_config:
         fx.assert_key(&sysprobe, WINDOWS_CRASH_DETECTION_KEY, false);
         fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, false);
         fx.assert_key(&agent, SOFTWARE_INVENTORY_KEY, false);
+        fx.assert_key(&agent, VDI_ENABLED_KEY, false);
     }
 
     /// `software_inventory.enabled` is one of the settings

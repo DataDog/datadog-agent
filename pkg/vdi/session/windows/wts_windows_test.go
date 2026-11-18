@@ -14,6 +14,9 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/vdi/model"
+	"github.com/DataDog/datadog-agent/pkg/vdi/provider/avd"
 )
 
 type fakeWTS struct {
@@ -80,6 +83,21 @@ func TestEnumerateSessions(t *testing.T) {
 func TestEnumerateSessionsReturnsEnumerationError(t *testing.T) {
 	_, err := enumerateSessions(fakeWTS{enumerateErr: errors.New("enumeration failed")})
 	require.EqualError(t, err, "enumeration failed")
+}
+
+func TestDisconnectedSessionQueryFailuresMakeInventoryPartial(t *testing.T) {
+	sessions, err := enumerateSessions(fakeWTS{
+		sessions: []wtsSessionInfo{{SessionID: 3, State: 4}},
+	})
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+
+	inventory := avd.FromWindowsInventory(model.WindowsInventory{
+		SourceStatus: model.SourceStatus{Status: model.StatusOK},
+		Sessions:     sessions,
+	})
+	require.Equal(t, model.StatusPartial, inventory.Status)
+	require.Empty(t, inventory.Sessions)
 }
 
 func TestStateName(t *testing.T) {
