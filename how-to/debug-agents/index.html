@@ -4275,7 +4275,7 @@ See <a href="https://docs.python.org/3/howto/gdb_helpers.html">https://docs.pyth
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>thread<span class="w"> </span>&lt;number&gt;<span class="w"> </span><span class="c1"># switch to thread</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>pystack<span class="w"> </span><span class="c1"># python stacktrace of current thread</span>
 </span></code></pre></div></p>
-<p>To debug a core dump generated with the <code>c_core_dump</code> Agent option, refer to the <a href="https://github.com/DataDog/datadog-agent/tree/main/tools/gdb">GDB docker image that includes the Agent symbols</a>.</p>
+<p>To debug a core dump generated with the <code>go_core_dump</code> Agent option, refer to the <a href="https://github.com/DataDog/datadog-agent/tree/main/tools/gdb">GDB docker image that includes the Agent symbols</a>.</p>
 <p>For simple debugging cases, you can simply use the python-provided <code>pdb</code> to jump into
 a debugging shell by adding to the python code that's run:
 <div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pdb</span>
