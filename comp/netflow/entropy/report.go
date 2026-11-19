@@ -9,33 +9,35 @@ import (
 	"math"
 	"strconv"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const metricPrefix = "datadog.netflow.entropy."
 
-// Submit logs valid windows and sends counts. Drops are tagged by exporter like the aggregator's
-// sequence metrics; no metric has interface or peer tags.
-func (r Report) Submit(s sender.Sender, logger log.Component) {
+// ndmDeviceResourcePrefix makes the backend resolve the exporter to its NDM device and add the device's tags.
+const ndmDeviceResourcePrefix = "dd.internal.resource:ndm_device:"
+
+// Submit sends the entropy of valid windows, tagged by interface, and counts.
+// Drops are tagged by exporter like the aggregator's sequence metrics. No metric has peer tags.
+func (r Report) Submit(s sender.Sender) {
 	windowsByStatus := make(map[qualityStatus]int)
 	for _, w := range r.Windows {
 		windowsByStatus[w.Status]++
 		if w.Status != statusValid {
 			continue
 		}
-		normalized := "none"
+		tags := []string{
+			"device_namespace:" + w.Namespace,
+			"exporter_ip:" + w.Exporter.String(),
+			"interface_index:" + strconv.FormatUint(uint64(w.InterfaceIndex), 10),
+			"observation_point:" + string(w.observationPoint),
+			ndmDeviceResourcePrefix + w.Namespace + ":" + w.Exporter.String(),
+		}
+		s.Gauge(metricPrefix+"bytes", w.ByteEntropy, "", tags)
 		// ByteEntropy / log2(DistinctCount), undefined below 2 peers
 		if w.DistinctCount >= 2 {
-			normalized = strconv.FormatFloat(w.ByteEntropy/math.Log2(float64(w.DistinctCount)), 'f', 4, 64)
+			s.Gauge(metricPrefix+"normalized_bytes", w.ByteEntropy/math.Log2(float64(w.DistinctCount)), "", tags)
 		}
-		logger.Infof("NetFlow interface entropy (shadow): namespace=%s exporter_ip=%s interface_index=%d observation_point=%s "+
-			"window_start=%d window_end=%d entropy_bytes=%.4f normalized_entropy_bytes=%s entropy_packets=%.4f entropy_records=%.4f "+
-			"total_weight=%d total_packets=%d record_count=%d distinct_count=%d agent_version=%s",
-			w.Namespace, w.Exporter, w.InterfaceIndex, w.observationPoint,
-			w.Start.Unix(), w.End.Unix(), w.ByteEntropy, normalized, w.PacketEntropy, w.RecordEntropy,
-			w.TotalWeight, w.TotalPackets, w.RecordCount, w.DistinctCount, version.AgentVersion)
 	}
 	for status, n := range windowsByStatus {
 		s.Count(metricPrefix+"windows", float64(n), "", []string{"quality_status:" + string(status)})
