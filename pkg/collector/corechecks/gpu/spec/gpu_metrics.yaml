@@ -566,14 +566,10 @@ metrics:
       description: >-
         Corrected ECC (Error Correcting Code) errors indicate GPU memory
         corruption that was detected and successfully corrected by the hardware.
-        While these errors do not immediately impact application correctness,
-        recurring corrected errors can be an early sign of degrading memory or
-        underlying hardware issues. The counter reports errors seen for the entire
-        lifetime of the device.
-        On AMD GPUs, the sum of the amdgpu RAS error counts of the blocks amd-smi
-        counts, without a memory_location tag: the errors counted since the
-        driver loaded (on a virtual function, the counts the host reports), not
-        over the lifetime of the device.
+        Recurring corrected errors can be an early sign of degrading memory or
+        underlying hardware issues. The counter reports errors seen for the
+        entire lifetime of the device. On AMD GPUs, the amdgpu RAS counts summed
+        as amd-smi does, since the driver loaded.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -612,11 +608,9 @@ metrics:
         Uncorrectable ECC (Error Correcting Code) errors indicate GPU memory
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
-        results. The counter reports errors seen for the entire lifetime of the device.
-        On AMD GPUs, the sum of the amdgpu RAS error counts of the blocks amd-smi
-        counts, without a memory_location tag: the errors counted since the
-        driver loaded (on a virtual function, the counts the host reports), not
-        over the lifetime of the device.
+        results. The counter reports errors seen for the entire lifetime of the
+        device. On AMD GPUs, the amdgpu RAS counts summed as amd-smi does, since
+        the driver loaded.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -652,13 +646,11 @@ metrics:
       metric_type: gauge
       description: >-
         Deferred ECC (Error Correcting Code) errors of AMD GPUs: uncorrectable
-        errors whose handling the hardware deferred, marking the affected data
-        as poisoned. The sum of the amdgpu RAS error counts of the blocks amd-smi
-        counts: the errors counted since the driver loaded (on a virtual
-        function, the counts the host reports). In practice only the UMC (HBM)
-        block reports deferred errors, and it reads 0 where the driver does not
-        count them, such as on MI200 or in the non-unified RAS path of newer
-        kernels.
+        errors the hardware deferred, poisoning the affected data. The amdgpu
+        RAS counts summed as amd-smi does, since the driver loaded (on a virtual
+        function, as the host reports). In practice only the UMC (HBM) block
+        counts them; 0 where the driver does not (such as MI200). Not
+        reported without a deferred count.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -771,14 +763,12 @@ metrics:
       metric_type: gauge
       unit: error
       description: >-
-        AMD GPU RAS events by type, counted by the amdgpu driver since it loaded
-        (ras/event_state): fatal errors (ras_fatal), and creations and
+        AMD GPU RAS events counted by the amdgpu driver since it loaded
+        (ras/event_state), by type: fatal errors (ras_fatal), and creations and
         consumptions of poisoned data (ras_poison_creation,
-        ras_poison_consumption). Not reported on a virtual function, whose
-        guest driver does not see the host's fatal and poison events, for a GPU
-        in an XGMI hive with other GPUs, which share one set of counts, when the
-        driver does not count these events (unified RAS), or with a driver
-        without ras/event_state (before Linux 6.11).
+        ras_poison_consumption). Not reported on a virtual function, for a GPU
+        in an XGMI hive with other GPUs (which share the counts), with unified
+        RAS, or without ras/event_state (before Linux 6.11).
       aggregation: lifetime_error
     tagsets:
       - device
