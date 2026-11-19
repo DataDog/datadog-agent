@@ -774,50 +774,27 @@ func (c *InternalTraceChunk) SetOrigin(origin string) {
 }
 
 // Chunk attribute keys that override the payload-level env and app version for a single chunk.
+// No shared constant exists for these keys in this module, so they are defined locally.
 const (
 	chunkEnvAttributeKey     = "env"
 	chunkVersionAttributeKey = "version"
 )
 
-// stringAttributeByName returns the attribute key ref and string value of the chunk
-// attribute named key, or (0, ""). It compares key names rather than using the string
-// table lookup because a decoded string table may hold duplicate entries, so several
-// attribute keys can alias the same name. Among string-valued aliases, the one with the
-// lowest key ref wins, which keeps the result independent of map iteration order.
-func (c *InternalTraceChunk) stringAttributeByName(key string) (uint32, string) {
-	var bestKey uint32
-	var bestVal string
-	found := false
-	for k, v := range c.Attributes {
-		if v == nil || (found && k >= bestKey) || c.Strings.Get(k) != key {
-			continue
-		}
-		if s, ok := v.Value.(*AnyValue_StringValueRef); ok {
-			bestKey, bestVal, found = k, c.Strings.Get(s.StringValueRef), true
-		}
+// stringAttributeRef returns the string-table ref of the chunk attribute key and its string
+// value. The value is "" when the attribute is missing or not string-valued.
+func (c *InternalTraceChunk) stringAttributeRef(key string) (uint32, string) {
+	ref := c.Strings.Lookup(key)
+	if ref == 0 {
+		return 0, ""
 	}
-	return bestKey, bestVal
-}
-
-// setStringAttributeByName sets the string chunk attribute named key. Every existing alias
-// of key is removed first, so exactly one entry remains, at the lowest aliased key ref.
-func (c *InternalTraceChunk) setStringAttributeByName(key, value string) {
-	if c.Attributes == nil {
-		c.Attributes = make(map[uint32]*AnyValue)
+	v, ok := c.Attributes[ref]
+	if !ok {
+		return 0, ""
 	}
-	var target uint32
-	for k := range c.Attributes {
-		if c.Strings.Get(k) == key {
-			if target == 0 || k < target {
-				target = k
-			}
-			delete(c.Attributes, k)
-		}
+	if s, isString := v.GetValue().(*AnyValue_StringValueRef); isString {
+		return ref, c.Strings.Get(s.StringValueRef)
 	}
-	if target == 0 {
-		target = c.Strings.Add(key)
-	}
-	c.Attributes[target] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: c.Strings.Add(value)}}
+	return ref, ""
 }
 
 // ChunkEnvVersionOverridesEnabled reports whether chunk "env"/"version" attributes override
@@ -832,57 +809,47 @@ func (tp *InternalTracerPayload) SetChunkEnvVersionOverridesEnabled(enabled bool
 	tp.chunkEnvVersionOverrides = enabled
 }
 
-// Env returns the chunk-level env override (the "env" chunk attribute), or "" when the
-// chunk uses the payload-level env.
+// Env returns the chunk-level env override (the string "env" chunk attribute), or "" when
+// the chunk uses the payload-level env.
 func (c *InternalTraceChunk) Env() string {
-	_, v := c.stringAttributeByName(chunkEnvAttributeKey)
+	_, v := c.stringAttributeRef(chunkEnvAttributeKey)
 	return v
 }
 
 // SetEnv sets the chunk-level env override (the "env" chunk attribute).
 func (c *InternalTraceChunk) SetEnv(env string) {
-	c.setStringAttributeByName(chunkEnvAttributeKey, env)
+	c.SetStringAttribute(chunkEnvAttributeKey, env)
 }
 
-// AppVersion returns the chunk-level app version override (the "version" chunk attribute),
-// or "" when the chunk uses the payload-level app version.
+// AppVersion returns the chunk-level app version override (the string "version" chunk
+// attribute), or "" when the chunk uses the payload-level app version.
 func (c *InternalTraceChunk) AppVersion() string {
-	_, v := c.stringAttributeByName(chunkVersionAttributeKey)
+	_, v := c.stringAttributeRef(chunkVersionAttributeKey)
 	return v
 }
 
 // SetAppVersion sets the chunk-level app version override (the "version" chunk attribute).
 func (c *InternalTraceChunk) SetAppVersion(version string) {
-	c.setStringAttributeByName(chunkVersionAttributeKey, version)
+	c.SetStringAttribute(chunkVersionAttributeKey, version)
 }
 
-// CanonicalizeEnvVersion rewrites the chunk "env" and "version" attributes so that each name
-// has at most one entry, holding exactly the value Env()/AppVersion() return. For each name,
-// the getter's winner (the lowest-key-ref string-valued alias) is kept and every other alias
-// is removed. A winning value that is empty, or a name with no string-valued alias, means
-// "no override", and all aliases of that name are removed. normalizeEnv, when non-nil, is
-// applied to a non-empty env before it is written back.
+// CanonicalizeEnvVersion makes the chunk "env" and "version" attributes match Env() and
+// AppVersion(): a non-empty string value is kept (env passed through normalizeEnv when
+// non-nil), and an empty or non-string value, which means "no override", is removed.
 func (c *InternalTraceChunk) CanonicalizeEnvVersion(normalizeEnv func(string) string) {
 	if len(c.Attributes) == 0 {
 		return
 	}
-	canonicalize := func(key string, normalize func(string) string) {
-		_, value := c.stringAttributeByName(key)
-		if value != "" && normalize != nil {
-			value = normalize(value)
-		}
-		if value != "" {
-			c.setStringAttributeByName(key, value)
-			return
-		}
-		for k := range c.Attributes {
-			if c.Strings.Get(k) == key {
-				delete(c.Attributes, k)
-			}
+	if ref, env := c.stringAttributeRef(chunkEnvAttributeKey); ref != 0 {
+		if env == "" {
+			delete(c.Attributes, ref)
+		} else if normalizeEnv != nil {
+			c.SetEnv(normalizeEnv(env))
 		}
 	}
-	canonicalize(chunkEnvAttributeKey, normalizeEnv)
-	canonicalize(chunkVersionAttributeKey, nil)
+	if ref, version := c.stringAttributeRef(chunkVersionAttributeKey); ref != 0 && version == "" {
+		delete(c.Attributes, ref)
+	}
 }
 
 // SamplingMechanism returns the sampling mechanism from the trace chunk.

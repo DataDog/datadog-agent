@@ -467,90 +467,45 @@ func TestDecodersRejectCountsAboveLimit(t *testing.T) {
 }
 
 func TestTraceChunkEnvAppVersionAttributes(t *testing.T) {
-	t.Run("read from string chunk attributes", func(t *testing.T) {
-		// Duplicate "env" entries in the string table: the attribute key uses the second one.
-		strs := StringTableFromArray([]string{"", "env", "env", "staging", "version", "v2"})
-		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
-			2: {Value: &AnyValue_StringValueRef{StringValueRef: 3}},
-			4: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
-		}}
+	t.Run("read and set string chunk attributes", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		assert.Empty(t, c.Env())
+		assert.Empty(t, c.AppVersion())
+		c.SetEnv("staging")
+		c.SetAppVersion("v2")
 		assert.Equal(t, "staging", c.Env())
 		assert.Equal(t, "v2", c.AppVersion())
-		assert.Equal(t, "staging", c.ShallowCopy().Env())
-		back := fromProtoChunk(strs, c.ToProto())
-		assert.Equal(t, "staging", back.Env())
-		assert.Equal(t, "v2", back.AppVersion())
-
 		c.SetEnv("prod")
 		assert.Equal(t, "prod", c.Env())
 		assert.Len(t, c.Attributes, 2, "SetEnv replaces the existing env attribute")
+		back := fromProtoChunk(strs, c.ToProto())
+		assert.Equal(t, "prod", back.Env())
+		assert.Equal(t, "v2", back.AppVersion())
 	})
 
-	t.Run("conflicting aliases resolve to the lowest key ref", func(t *testing.T) {
-		// "env" at refs 1 and 3; ref 3 is not the canonical lookup index.
-		strs := StringTableFromArray([]string{"", "env", "x", "env", "a", "b", "env"})
-		for i := 0; i < 50; i++ {
-			c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
-				6: {Value: &AnyValue_StringValueRef{StringValueRef: 4}},
-				3: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
-			}}
-			require.Equal(t, "b", c.Env())
-		}
-		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
-			1: {Value: &AnyValue_IntValue{IntValue: 7}},
-			3: {Value: &AnyValue_StringValueRef{StringValueRef: 4}},
-			6: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
-		}}
-		assert.Equal(t, "a", c.Env(), "non-string aliases are skipped")
-		c.SetEnv("z")
-		assert.Len(t, c.Attributes, 1, "SetEnv replaces every alias")
-		assert.Equal(t, "z", c.Env())
-		_, ok := c.Attributes[1]
-		assert.True(t, ok, "the remaining entry uses the lowest aliased key ref")
-	})
-
-	t.Run("missing or non-string attributes mean no override", func(t *testing.T) {
+	t.Run("non-string attributes mean no override", func(t *testing.T) {
 		strs := NewStringTable()
-		c := &InternalTraceChunk{Strings: strs}
-		assert.Empty(t, c.Env())
-		assert.Empty(t, c.AppVersion())
-		c.Attributes = map[uint32]*AnyValue{strs.Add("env"): {Value: &AnyValue_IntValue{IntValue: 3}}}
+		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
+			strs.Add("env"): {Value: &AnyValue_IntValue{IntValue: 3}},
+		}}
 		assert.Empty(t, c.Env())
 	})
 
-	t.Run("canonicalize keeps one entry per name matching the getters", func(t *testing.T) {
-		// env aliases: ref 1 -> "" (lowest, wins, so no override), ref 3 -> "staging".
-		// version aliases: ref 2 -> "v1" (lowest, wins), ref 4 -> "v2", ref 6 -> int.
-		strs := StringTableFromArray([]string{"", "env", "version", "env", "version", "v1", "version", "v2", "staging", "PROD"})
-		c := &InternalTraceChunk{Strings: strs, Attributes: map[uint32]*AnyValue{
-			1: {Value: &AnyValue_StringValueRef{StringValueRef: 0}},
-			3: {Value: &AnyValue_StringValueRef{StringValueRef: 8}},
-			4: {Value: &AnyValue_StringValueRef{StringValueRef: 7}},
-			2: {Value: &AnyValue_StringValueRef{StringValueRef: 5}},
-			6: {Value: &AnyValue_IntValue{IntValue: 1}},
-		}}
-		lower := func(s string) string { return string(bytes.ToLower([]byte(s))) }
-		wantEnv, wantVersion := c.Env(), c.AppVersion()
-		require.Equal(t, "", wantEnv)
-		require.Equal(t, "v1", wantVersion)
-		c.CanonicalizeEnvVersion(lower)
-		require.Len(t, c.Attributes, 1)
-		assert.Equal(t, "v1", strs.Get(c.Attributes[2].GetStringValueRef()))
-		assert.Equal(t, wantEnv, c.Env())
-		assert.Equal(t, wantVersion, c.AppVersion())
+	t.Run("canonicalize normalizes env and drops empty or non-string overrides", func(t *testing.T) {
+		strs := NewStringTable()
+		c := NewInternalTraceChunk(strs, 1, "", nil, nil, false, nil, 0)
+		c.SetEnv("PROD")
+		c.Attributes[strs.Add("version")] = &AnyValue{Value: &AnyValue_IntValue{IntValue: 2}}
+		c.SetStringAttribute("other", "kept")
+		c.CanonicalizeEnvVersion(func(s string) string { return string(bytes.ToLower([]byte(s))) })
+		assert.Equal(t, "prod", c.Env())
+		assert.Len(t, c.Attributes, 2, "the non-string version attribute is removed")
 
-		// A non-empty winning env is normalized and written back as the only env entry.
-		c.Attributes[3] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: 9}}
-		c.Attributes[1] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: 8}}
-		c.CanonicalizeEnvVersion(lower)
-		assert.Equal(t, "staging", c.Env())
-		envEntries := 0
-		for k := range c.Attributes {
-			if strs.Get(k) == "env" {
-				envEntries++
-			}
-		}
-		assert.Equal(t, 1, envEntries)
+		c.SetEnv("")
+		c.CanonicalizeEnvVersion(nil)
+		assert.Len(t, c.Attributes, 1, "the empty env attribute is removed")
+		assert.Equal(t, "kept", strs.Get(c.Attributes[strs.Lookup("other")].GetStringValueRef()))
 	})
 
 	t.Run("only native msgpack decode enables overrides", func(t *testing.T) {
