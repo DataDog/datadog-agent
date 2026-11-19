@@ -299,6 +299,9 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 		// segs is the most the call may resend; it sends fewer when the skb holds fewer segments
 		t.Skip("prebuilt counts tcp_retransmit_skb's segs argument, which can exceed the segments resent")
 	}
+	if kv < kv470 {
+		t.Skip("before 4.7 the kernel's total_retrans counts tcp_retransmit_skb calls, not segments")
+	}
 	tr := setupTracer(t, cfg)
 
 	env := setupNetemTestEnv(t, func(c net.Conn) {
