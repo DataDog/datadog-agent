@@ -381,13 +381,13 @@ func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 func TestApplyTestbenchDefaults(t *testing.T) {
 	settings := ApplyTestbenchDefaults(ComponentSettings{})
 
-	require.Equal(t, 40, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
+	require.Equal(t, 20, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
 	holt := settings.configs["holt_residual"].(HoltResidualConfig)
 	require.Equal(t, 15, holt.WarmupPoints)
 	require.Equal(t, 25, holt.ResidualWindow)
 	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
 	require.Equal(t, 40, tukey.WindowSize)
-	require.Equal(t, 40, tukey.MinPoints)
+	require.Equal(t, 20, tukey.MinPoints)
 	require.True(t, settings.Enabled["anomaly_scorer"])
 	require.NotContains(t, settings.Enabled, "time_cluster")
 	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
@@ -445,14 +445,14 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	settings, err := ParseTestbenchSettingsFromJSON(overrides)
 	require.NoError(t, err)
 	bocpd := settings.configs["bocpd"].(BOCPDConfig)
-	require.Equal(t, 40, bocpd.WarmupPoints)
+	require.Equal(t, 20, bocpd.WarmupPoints)
 	require.Equal(t, 0.08, bocpd.Hazard)
 	holt := settings.configs["holt_residual"].(HoltResidualConfig)
 	require.Equal(t, 15, holt.WarmupPoints)
 	require.Equal(t, 25, holt.ResidualWindow)
 	require.Equal(t, 0.4, holt.Alpha)
 	tukey := settings.configs["tukey_biweight"].(TukeyBiweightConfig)
-	require.Equal(t, 40, tukey.MinPoints)
+	require.Equal(t, 20, tukey.MinPoints)
 	require.Equal(t, 40, tukey.WindowSize)
 	require.Equal(t, 6.0, tukey.ZThreshold)
 	require.Equal(t, 30, settings.configs["scanmw"].(ScanMWConfig).MinPoints)
@@ -501,4 +501,14 @@ func instantiateForTest(t testing.TB, catalog *componentCatalog, settings Compon
 	detectors, correlators, scorer, extractors, components, err := catalog.Instantiate(settings)
 	require.NoError(t, err)
 	return detectors, correlators, scorer, extractors, components
+}
+
+func TestDefaultCatalogPreservesBothLogExtractors(t *testing.T) {
+	_, _, _, extractors, components := instantiateForTest(t, defaultCatalog(), ComponentSettings{})
+	require.Len(t, extractors, 2)
+	require.Equal(t, LogMetricsExtractorName, extractors[0].Name())
+	require.Equal(t, LogPatternExtractorName, extractors[1].Name())
+	require.Contains(t, components, LogPatternExtractorName)
+	require.Equal(t, 0.6, extractors[0].(*LogMetricsExtractor).config.MinTokenMatchRatio)
+	require.Equal(t, DefaultLogPatternExtractorConfig(), extractors[1].(*LogPatternExtractor).config)
 }

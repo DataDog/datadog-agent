@@ -8,6 +8,7 @@ package ndmdiscoveryimpl
 import (
 	"encoding/json"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -51,10 +52,6 @@ func v2cStore() *stubCredentialStore {
 	}}
 }
 
-func available() pingprobe.Capability {
-	return pingprobe.Capability{Available: true}
-}
-
 func raw(t *testing.T, kinds map[string]string) map[string]json.RawMessage {
 	t.Helper()
 	out := map[string]json.RawMessage{}
@@ -68,7 +65,7 @@ func TestParseProbesReadsBothKinds(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{"count":3,"interval_ms":200,"timeout_ms":1500}`,
 		"snmp": `{"cred_ids":["cred-1"],"port":1161,"timeout_sec":3,"retries":0}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
 	assert.Equal(t, 3, params.Ping.Count)
@@ -86,7 +83,7 @@ func TestParseProbesAppliesTheDefaults(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
 		"snmp": `{"cred_ids":["cred-1"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
 	assert.Equal(t, defaultPingCount, params.Ping.Count)
@@ -103,7 +100,7 @@ func TestParseProbesFallsBackOnAnOutOfBoundsKnob(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{"count":9000,"interval_ms":-1,"timeout_ms":4000000}`,
 		"snmp": `{"cred_ids":["cred-1"],"port":70000,"timeout_sec":4000,"retries":999}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
 	assert.Equal(t, defaultPingCount, params.Ping.Count)
@@ -116,22 +113,11 @@ func TestParseProbesFallsBackOnAnOutOfBoundsKnob(t *testing.T) {
 	assert.Equal(t, defaultSNMPRetries, params.SNMP.Retries)
 }
 
-func TestParseProbesCarriesTheDetectedSocketType(t *testing.T) {
-	params := parseProbes("r1", raw(t, map[string]string{"ping": `{}`}),
-		pingprobe.Capability{Available: true, UseRawSocket: true}, logmock.New(t))
+func TestParseProbesUsesThePlatformSocketType(t *testing.T) {
+	params := parseProbes("r1", raw(t, map[string]string{"ping": `{}`}), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
-	assert.True(t, params.Ping.UseRawSocket)
-}
-
-func TestParseProbesDropsPingWhenItIsNotAvailable(t *testing.T) {
-	params := parseProbes("r1", raw(t, map[string]string{
-		"ping": `{}`,
-		"snmp": `{"cred_ids":["cred-1"]}`,
-	}), pingprobe.Capability{Reason: "ping is not supported on plan9"}, logmock.New(t))
-
-	assert.Nil(t, params.Ping)
-	assert.NotNil(t, params.SNMP)
+	assert.Equal(t, pingprobe.DefaultRawSocket(runtime.GOOS), params.Ping.UseRawSocket)
 }
 
 func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
@@ -145,7 +131,7 @@ func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
 
 	for name, kinds := range tests {
 		t.Run(name, func(t *testing.T) {
-			params := parseProbes("r1", raw(t, kinds), available(), logmock.New(t))
+			params := parseProbes("r1", raw(t, kinds), logmock.New(t))
 
 			assert.Nil(t, params.Ping)
 			assert.Nil(t, params.SNMP)
@@ -157,7 +143,7 @@ func TestResolveBuildsTheProbeOptionsInProbeOrder(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
 		"snmp": `{"cred_ids":["cred-2","cred-1"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
 
@@ -178,7 +164,7 @@ func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
 		"snmp": `{"cred_ids":["cred-9"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
 
@@ -191,7 +177,7 @@ func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 func TestResolveProbesWithTheCredentialsThatResolve(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"snmp": `{"cred_ids":["cred-9","cred-1"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
 
@@ -205,7 +191,7 @@ func TestResolveProbesWithTheCredentialsThatResolve(t *testing.T) {
 func TestResolveCarriesTheContextEngineID(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"snmp": `{"cred_ids":["cred-v3"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	store := &stubCredentialStore{creds: map[string]credentials.Credential{
 		"cred-v3": {
@@ -225,7 +211,7 @@ func TestResolveCarriesTheContextEngineID(t *testing.T) {
 func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"snmp": `{"cred_ids":["cred-1"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	opts, dropped := params.resolve(&stubCredentialStore{err: errors.New("the secret backend is down")})
 
@@ -238,7 +224,7 @@ func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"snmp": `{"cred_ids":["cred-bad"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 
 	store := &stubCredentialStore{creds: map[string]credentials.Credential{
 		"cred-bad": {ID: "cred-bad", Name: "cred-bad", SNMPVersion: "9", CommunityString: "s3cret-community"},
@@ -255,7 +241,7 @@ func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 func TestResolveReadsTheStoreOnEveryCall(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"snmp": `{"cred_ids":["cred-1"]}`,
-	}), available(), logmock.New(t))
+	}), logmock.New(t))
 	store := v2cStore()
 
 	params.resolve(store)
@@ -264,25 +250,23 @@ func TestResolveReadsTheStoreOnEveryCall(t *testing.T) {
 	assert.Equal(t, 2, store.loadCount())
 }
 
-func TestParseProbesLetsTheDocumentTurnTheRawSocketOffButNotOn(t *testing.T) {
+func TestParseProbesPassesTheLinuxSocketOverride(t *testing.T) {
+	raw2 := func(on bool) *bool { return &on }
 	tests := map[string]struct {
-		body    string
-		capable bool
-		want    bool
+		body     string
+		override *bool
 	}{
-		"off over a capable agent":   {body: `{"linux":{"use_raw_socket":false}}`, capable: true},
-		"on over a capable agent":    {body: `{"linux":{"use_raw_socket":true}}`, capable: true, want: true},
-		"on over an incapable agent": {body: `{"linux":{"use_raw_socket":true}}`},
-		"unset over a capable agent": {body: `{}`, capable: true, want: true},
+		"raw on":  {body: `{"linux":{"use_raw_socket":true}}`, override: raw2(true)},
+		"raw off": {body: `{"linux":{"use_raw_socket":false}}`, override: raw2(false)},
+		"unset":   {body: `{}`},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			params := parseProbes("r1", raw(t, map[string]string{"ping": tc.body}),
-				pingprobe.Capability{Available: true, UseRawSocket: tc.capable}, logmock.New(t))
+			params := parseProbes("r1", raw(t, map[string]string{"ping": tc.body}), logmock.New(t))
 
 			require.NotNil(t, params.Ping)
-			assert.Equal(t, tc.want, params.Ping.UseRawSocket)
+			assert.Equal(t, pingprobe.ResolveRawSocket(runtime.GOOS, tc.override), params.Ping.UseRawSocket)
 		})
 	}
 }

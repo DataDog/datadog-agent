@@ -176,14 +176,13 @@ func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
 
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetMaxClockInfo"))
 
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(symbols),
 	)
 
-	// Use WithMockNVML to set the mock
 	WithPartialMockNVML(t, mockNvml, symbols)
 
 	// Create device
@@ -210,7 +209,7 @@ func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
 	// Simulate an NVML library that does not contain nvmlDeviceGetRetiredPages_v2.
 	// The wrapper must return a function-not-found error without invoking the
 	// underlying NVIDIA API.
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetRetiredPages_v2"))
 
 	mockNvml := testutil.NewMockNVML(
@@ -242,7 +241,7 @@ func TestGetGridLicensableFeaturesRequiresVersionedAPISymbol(t *testing.T) {
 	// Simulate an NVML library that does not contain nvmlDeviceGetGridLicensableFeatures_v4.
 	// The wrapper must return a function-not-found error without invoking the
 	// underlying NVIDIA API.
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetGridLicensableFeatures_v4"))
 
 	mockNvml := testutil.NewMockNVML(
@@ -583,4 +582,37 @@ func int8s(s string) []int8 {
 		out[i] = int8(c)
 	}
 	return out
+}
+
+func TestDeviceCachesStaticAttributes(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetMemoryBusWidthFunc = func() (uint32, nvml.Return) { return 512, nvml.SUCCESS }
+		d.GetSerialFunc = func() (string, nvml.Return) { return " BOARD ", nvml.SUCCESS }
+		d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
+			info := nvml.PlatformInfo{SlotNumber: 2, TrayIndex: 3, ModuleId: 4}
+			copy(info.ChassisSerialNumber[:], "CHASSIS")
+			info.IbGuid[0] = 0xab
+			return info, nvml.SUCCESS
+		}
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Equal(t, uint32(512), device.MemoryBusWidth)
+	require.Equal(t, "BOARD", device.BoardSerial)
+	require.Equal(t, "CHASSIS", device.ChassisSerial)
+	require.Equal(t, "0x00000000000000ab", device.FabricGUID)
+	require.Equal(t, uint8(2), device.SlotNumber)
+	require.Equal(t, "none", device.VirtualizationModeName)
+	require.Equal(t, testutil.DefaultNvidiaDriverVersion, device.DriverVersion)
+}
+
+func TestDeviceFailedVirtualizationQueryStaysUnknown(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) { return 0, nvml.ERROR_UNKNOWN }
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Empty(t, device.VirtualizationModeName)
 }

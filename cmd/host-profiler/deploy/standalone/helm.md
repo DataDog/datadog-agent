@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.152.1** or later.
+- [OpenTelemetry Collector Helm chart](https://opentelemetry.io/docs/platforms/kubernetes/helm/collector/) version **0.159.2** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 

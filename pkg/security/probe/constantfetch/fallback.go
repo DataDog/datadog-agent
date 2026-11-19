@@ -281,11 +281,17 @@ func getNoHzOffset() uint64 {
 	return 8
 }
 
+// 4.19 added the `multiprocess` hlist_head before group_exit_code. Debian PREEMPT_RT kernels
+// have group_exit_code 40 bytes further (4.9, 4.19 and 5.10 in BTFHub).
 func getSignalGroupExitCodeOffset(kv *kernel.Version) uint64 {
-	if kv.Code != 0 && kv.Code < kernel.Kernel5_1 {
-		return 88
+	var offset uint64 = 96
+	if kv.Code != 0 && kv.Code < kernel.Kernel4_19 {
+		offset = 88
 	}
-	return 96
+	if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+		offset += 40
+	}
+	return offset
 }
 
 func getSignalFlagsOffset(kv *kernel.Version) uint64 {

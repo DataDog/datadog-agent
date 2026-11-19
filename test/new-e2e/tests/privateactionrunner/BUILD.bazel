@@ -37,6 +37,7 @@ dd_agent_go_test(
     srcs = [
         "aio_docker_test.go",
         "helpers_test.go",
+        "inventory_metadata_nix_test.go",
         "private_action_runner_enabled_test.go",
         "private_action_runner_executor_nix_test.go",
         "private_action_runner_nix_test.go",
