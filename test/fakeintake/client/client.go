@@ -140,9 +140,12 @@ func WithHTTPTransport(transport http.RoundTripper) Option {
 	}
 }
 
-// controlHTTPClient returns the HTTP client of the Remote Config and Private Action Runner control requests: like
-// http.DefaultClient they have no timeout, and they use the transport set with WithHTTPTransport, if any.
+// controlHTTPClient returns the HTTP client of the Remote Config and Private Action Runner control requests:
+// http.DefaultClient, or a client using the transport set with WithHTTPTransport, with no timeout either.
 func (c *Client) controlHTTPClient() *http.Client {
+	if c.httpClient.Transport == nil {
+		return http.DefaultClient
+	}
 	return &http.Client{Transport: c.httpClient.Transport}
 }
 
