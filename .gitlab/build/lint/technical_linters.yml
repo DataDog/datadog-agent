@@ -57,6 +57,12 @@ lint_go_format:
   script:
     - dda inv -- -e pre-commit.check-go-fmt --base "$CHANGED_FILES_BASE"
 
+lint_cpp_format:
+  extends: .lint_changed_files
+  script:
+    - clang-format --version
+    - dda inv -- -e pre-commit.check-clang-format --base "$CHANGED_FILES_BASE"
+
 lint_release_json_newline:
   extends: .lint
   script:
