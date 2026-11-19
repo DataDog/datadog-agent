@@ -362,6 +362,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Unevictable, &cs.Unevictable)
 	convertField(cgs.PageTables, &cs.PageTables)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
+	convertFieldAndUnit(cgs.PSIFull.Total, &cs.FullStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
 	if cgs.UsageTotal != nil && cgs.InactiveFile != nil && *cgs.InactiveFile < *cgs.UsageTotal {

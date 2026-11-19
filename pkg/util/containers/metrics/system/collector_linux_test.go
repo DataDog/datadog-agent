@@ -80,6 +80,9 @@ func TestBuildContainerMetrics(t *testing.T) {
 					PSISome: cgroups.PSIStats{
 						Total: pointer.Ptr(uint64(97)),
 					},
+					PSIFull: cgroups.PSIStats{
+						Total: pointer.Ptr(uint64(99)),
+					},
 				},
 				IOStats: &cgroups.IOStats{
 					ReadBytes:       pointer.Ptr(uint64(100)),
@@ -88,6 +91,9 @@ func TestBuildContainerMetrics(t *testing.T) {
 					WriteOperations: pointer.Ptr(uint64(20)),
 					PSISome: cgroups.PSIStats{
 						Total: pointer.Ptr(uint64(98)),
+					},
+					PSIFull: cgroups.PSIStats{
+						Total: pointer.Ptr(uint64(100)),
 					},
 					// Device will be ignored as no matching device name
 					Devices: map[string]cgroups.DeviceIOStats{
@@ -129,6 +135,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					SwapLimit:        pointer.Ptr(500.0),
 					OOMEvents:        pointer.Ptr(10.0),
 					PartialStallTime: pointer.Ptr(97000.0),
+					FullStallTime:    pointer.Ptr(99000.0),
 					Peak:             pointer.Ptr(1024.0),
 					Shmem:            pointer.Ptr(1001.0),
 					FileMapped:       pointer.Ptr(1002.0),
@@ -147,6 +154,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					ReadOperations:   pointer.Ptr(10.0),
 					WriteOperations:  pointer.Ptr(20.0),
 					PartialStallTime: pointer.Ptr(98000.0),
+					FullStallTime:    pointer.Ptr(100000.0),
 				},
 				PID: &provider.ContainerPIDStats{
 					ThreadCount: pointer.Ptr(10.0),
