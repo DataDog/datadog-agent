@@ -77,6 +77,15 @@ func (d *duplicateSourcesTest) scan(inputSources []*sources.LogSource) {
 	d.launcher.resolveActiveTailers(d.launcher.fileProvider.FilesToTail(context.Background(), d.launcher.validatePodContainerID, inputSources, d.launcher.registry))
 }
 
+// stopTailers stops the tailers addSource started, so that the next scan starts them, as it does
+// for a file that appears after its sources were added.
+func (d *duplicateSourcesTest) stopTailers() {
+	d.launcher.cleanup()
+	// addSource also queued its files for the next scan, and they still point at the stopped tailer's
+	// source, which has since been handed to config2.
+	d.launcher.filesTailedBetweenScans = d.launcher.filesTailedBetweenScans[:0]
+}
+
 func (d *duplicateSourcesTest) tailedSource(t *testing.T) *sources.LogSource {
 	tailer, isTailed := d.launcher.tailers.Get(d.scanKey)
 	require.True(t, isTailed)
@@ -129,7 +138,7 @@ func TestDuplicateSourcesKeepLastAddedAcrossRotation(t *testing.T) {
 func TestDuplicateSourcesScanStartsTailerWithLastAdded(t *testing.T) {
 	d := newDuplicateSourcesTest(t, launcherTestOptions{})
 	// Let the scan, rather than addSource, start the tailer.
-	d.launcher.cleanup()
+	d.stopTailers()
 
 	d.scan(d.launcher.activeSources)
 	assert.Same(t, d.config2, d.tailedSource(t))
@@ -145,6 +154,30 @@ func TestDuplicateSourcesStaleScanKeepsNewerSource(t *testing.T) {
 	d.rotate(t)
 	d.scan([]*sources.LogSource{d.config1})
 	assert.Same(t, d.config2, d.tailedSource(t))
+}
+
+func TestDuplicateSourcesAtFileLimitKeepLastAdded(t *testing.T) {
+	// With a single slot, the tailer config1 opened takes it, and the scans only list config1's
+	// copy of the file.
+	d := newDuplicateSourcesTest(t, launcherTestOptions{openFilesLimit: 1})
+	assert.Same(t, d.config2, d.tailedSource(t))
+
+	d.scan(d.launcher.activeSources)
+	assert.Same(t, d.config2, d.tailedSource(t))
+
+	d.rotate(t)
+	d.scan(d.launcher.activeSources)
+	assert.Same(t, d.config2, d.tailedSource(t))
+}
+
+func TestDuplicateSourcesAtFileLimitBeforeFileExists(t *testing.T) {
+	d := newDuplicateSourcesTest(t, launcherTestOptions{openFilesLimit: 1})
+	// Both sources are added before the file appears, so the first scan starts the tailer.
+	d.stopTailers()
+
+	d.scan(d.launcher.activeSources)
+	assert.Same(t, d.config2, d.tailedSource(t))
+	assert.Len(t, duplicateSourceMessages(d.config1), 1)
 }
 
 func TestDuplicateSourcesRemovingOwnerHandsFileToRemainingSource(t *testing.T) {
@@ -184,4 +217,15 @@ func TestDuplicateSourcesNotReportedForSingleSource(t *testing.T) {
 
 	assert.Empty(t, duplicateSourceMessages(d.config1))
 	assert.Empty(t, duplicateSourceMessages(d.config2))
+}
+
+func TestDescribeSourceTellsApartProcessingRules(t *testing.T) {
+	newSource := func(rules ...*config.ProcessingRule) *sources.LogSource {
+		return sources.NewLogSource("container", &config.LogsConfig{Source: "app", Service: "web", ProcessingRules: rules})
+	}
+	keepAll := newSource()
+	dropDebug := newSource(&config.ProcessingRule{Type: config.ExcludeAtMatch, Name: "drop_debug"})
+
+	assert.Equal(t, "source: app, service: web", describeSource(keepAll))
+	assert.Equal(t, "source: app, service: web, log_processing_rules: exclude_at_match drop_debug", describeSource(dropDebug))
 }

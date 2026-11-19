@@ -136,7 +136,9 @@ func (s *Launcher) clearDuplicateSources() {
 }
 
 // describeSource names a source by the fields users set in a log config. Several sources of the
-// same container share their name, so it is not enough to tell them apart.
+// same container share their name, so it is not enough to tell them apart. The processing rules
+// are included because they can be the only difference between two configs, and they are what
+// decides whether a file's logs are kept.
 func describeSource(source *sources.LogSource) string {
 	var parts []string
 	if source.Config.Source != "" {
@@ -147,6 +149,17 @@ func describeSource(source *sources.LogSource) string {
 	}
 	if len(source.Config.Tags) > 0 {
 		parts = append(parts, "tags: "+strings.Join(source.Config.Tags, ","))
+	}
+	if len(source.Config.ProcessingRules) > 0 {
+		rules := make([]string, 0, len(source.Config.ProcessingRules))
+		for _, rule := range source.Config.ProcessingRules {
+			if rule.Name != "" {
+				rules = append(rules, rule.Type+" "+rule.Name)
+			} else {
+				rules = append(rules, rule.Type)
+			}
+		}
+		parts = append(parts, "log_processing_rules: "+strings.Join(rules, ","))
 	}
 	if len(parts) == 0 {
 		return source.Name
