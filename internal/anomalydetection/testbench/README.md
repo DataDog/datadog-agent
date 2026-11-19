@@ -36,7 +36,11 @@ dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --confi
 
 The workflows are mutually exclusive. The pipeline owns its detector defaults;
 legacy detector toggles and parameters do not configure it. Baseline and scorer
-settings apply in both modes. The UI does not switch workflows.
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). Select the stable detector with a top-level
+`stable` object: `scanmw` (default), `scanwelch`, or `bocpd`. At most one
+detector block is allowed, and omitted fields use the production stable
+defaults. The UI does not switch workflows.
 
 Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
 `eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
@@ -186,7 +190,7 @@ Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
 JSON eval configs inherit the same replay profile as CLI toggles, including
-BOCPD's 40-point warmup. Only fields explicitly supplied in JSON override that
+BOCPD's 20-point warmup. Only fields explicitly supplied in JSON override that
 profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
@@ -196,6 +200,12 @@ profile; an enabled-only entry preserves the replay defaults.
 | `anomaly_scorer` | enabled | Produces anomaly periods from the EWMA anomaly-severity score |
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
+
+The Scorer tab defaults to **Detection time**, which shows the original replay
+with the scorer's effective input seconds and cooldown-filtered transitions.
+**Change-point time** recomputes the same anomaly set at detector change-point
+timestamps, including scan-detector lookback, so the two views intentionally
+differ when detection is delayed.
 
 ### Extractors
 
@@ -336,6 +346,12 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 ```json
 {
+  "stable": {
+    "bocpd": {
+      "warmup_points": 60,
+      "max_run_length": 120
+    }
+  },
   "components": {
     "<component-name>": {
       "enabled": true,
@@ -348,6 +364,19 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 - `"enabled"` is optional — omit to use the catalog default.
 - Hyperparameter fields are optional — omitted fields keep their default values.
+
+An optional top-level `log_time_buckets` object enables regular log-count inputs
+for replay. For example, add `"log_time_buckets": {"enabled": true}` beside
+`components` to use five-second buckets, a 300-second idle TTL, and 600-second
+retention. Override those values with `bucket_seconds`, `idle_ttl_seconds`, and
+`retention_seconds`; an explicit zero idle TTL is supported. When omitted, replay
+preserves the current bucket setting, initially configured by the Agent and
+disabled by default.
+This setting changes detector inputs; keep it identical across binary comparisons.
+
+An optional top-level `stable` object configures the metric pipeline detector.
+Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
+`components.*` settings do not configure this pipeline.
 
 ### Example
 
@@ -377,7 +406,7 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 40 | Points used to build the initial baseline (testbench replay profile) |
+| `warmup_points` | 20 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |

@@ -254,6 +254,85 @@ func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
 	assert.Equal(t, []int64{10, 20}, got)
 }
 
+func TestTimeSeriesStorage_SnapshotFirstPointsFrom(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for _, timestamp := range []int64{10, 20, 40, 70, 90} {
+		ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+	}
+	s.Add("test", "metric", 60, 20, nil)
+
+	for _, tc := range []struct {
+		name string
+		end  int64
+		n    int
+		agg  Aggregate
+		want []observer.Point
+	}{
+		{name: "before boundary", end: 10, n: 2},
+		{name: "future points excluded", end: 39, n: 2},
+		{name: "inclusive bounds", end: 40, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "first not latest", end: 90, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "sparse points", end: 70, n: 3, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}, {Timestamp: 70, Value: 70}}},
+		{name: "sum", end: 90, n: 2, agg: AggregateSum, want: []observer.Point{{Timestamp: 20, Value: 80}, {Timestamp: 40, Value: 40}}},
+		{name: "count", end: 90, n: 2, agg: AggregateCount, want: []observer.Point{{Timestamp: 20, Value: 2}, {Timestamp: 40, Value: 1}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := make([]observer.Point, 3)
+			buf[0] = observer.Point{Timestamp: -1, Value: -1}
+			if tc.agg == observer.AggregateNone {
+				tc.agg = AggregateAverage
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 20, tc.end, tc.n, tc.agg, buf)
+			require.False(t, expired)
+			if tc.want == nil {
+				require.Empty(t, points)
+				require.Equal(t, observer.Point{Timestamp: -1, Value: -1}, buf[0], "waiting must not copy points")
+				return
+			}
+			require.Equal(t, tc.want, points)
+			require.Same(t, &buf[0], &points[0], "reuse caller scratch")
+			points[0].Value = -1
+			require.Equal(t, float64(40), s.GetSeries("test", "metric", nil, AggregateAverage).Points[1].Value,
+				"the snapshot must not alias storage")
+		})
+	}
+}
+
+func TestTimeSeriesStorage_SnapshotFirstPointsFromExpired(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  StorageConfig
+	}{
+		{name: "point retention", cfg: StorageConfig{MaxPointsPerSeries: 3}},
+		{name: "duration retention", cfg: StorageConfig{PointRetentionSecs: 25}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTimeSeriesStorageWith(tc.cfg)
+			var ref observer.SeriesRef
+			for timestamp := int64(10); timestamp <= 30; timestamp += 10 {
+				ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 10, 30, 3, AggregateAverage, nil)
+			require.False(t, expired)
+			require.Len(t, points, 3)
+			for timestamp := int64(40); timestamp <= 60; timestamp += 10 {
+				s.Add("test", "metric", float64(timestamp), timestamp, nil)
+			}
+			points, expired = s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, points)
+			require.True(t, expired)
+			require.Empty(t, points, "must not substitute a later window")
+		})
+	}
+
+	s := newTimeSeriesStorage()
+	ref := s.Add("test", "metric", 10, 10, nil).Ref
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref})
+	points, expired := s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, nil)
+	require.True(t, expired)
+	require.Empty(t, points)
+}
+
 func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
 	cfg := DefaultStorageConfig()
 	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)

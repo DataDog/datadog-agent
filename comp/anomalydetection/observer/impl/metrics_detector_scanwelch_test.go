@@ -61,6 +61,9 @@ func TestScanWelch_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.AfterMedian, 1)
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanWelch changepoint: metric:avg", title)
 	assert.Contains(t, description, "increased")

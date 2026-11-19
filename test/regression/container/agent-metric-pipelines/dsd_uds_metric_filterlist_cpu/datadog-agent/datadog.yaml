@@ -1,0 +1,106 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+# Disable cloud detection. This stops the Agent from probing the execution
+# environment and network, which is especially important if the target has
+# network access.
+cloud_provider_metadata: []
+
+dd_url: http://127.0.0.1:9091
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+dogstatsd_socket: '/tmp/dsd.socket'
+
+# Keep the Agent Data Plane pre-flight process resident for the entire SMP run.
+# Its default 90-second shutdown otherwise creates a step change during a
+# replicate and adds noise to CPU measurements.
+data_plane.preflight_mode_duration: 30m
+
+# Tag stripping is only applied when ADP is enabled unless this is turned off.
+metric_tag_filterlist_adp_only: false
+
+# Even-numbered metrics drop two tags, odd-numbered metrics keep only two tags.
+metric_tag_filterlist:
+  - metric_name: smp.filter.tagged.0
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.1
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.2
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.3
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.4
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.5
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.6
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.7
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.8
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.9
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.10
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.11
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.12
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.13
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.14
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.15
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.16
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.17
+    action: include
+    tags: [env, service]
+  - metric_name: smp.filter.tagged.18
+    action: exclude
+    tags: [request_id, pod_name]
+  - metric_name: smp.filter.tagged.19
+    action: include
+    tags: [env, service]
+
+metric_filterlist:
+  - smp.filter.blocked.0
+  - smp.filter.blocked.1
+  - smp.filter.blocked.2
+  - smp.filter.blocked.3
+  - smp.filter.blocked.4
+  - smp.filter.blocked.5
+  - smp.filter.blocked.6
+  - smp.filter.blocked.7
+  - smp.filter.blocked.8
+  - smp.filter.blocked.9
+  - smp.filter.blocked.10
+  - smp.filter.blocked.11
+  - smp.filter.blocked.12
+  - smp.filter.blocked.13
+  - smp.filter.blocked.14
+  - smp.filter.blocked.15
+  - smp.filter.blocked.16
+  - smp.filter.blocked.17
+  - smp.filter.blocked.18
+  - smp.filter.blocked.19
