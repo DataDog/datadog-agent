@@ -11,6 +11,10 @@ import (
 
 type transport int
 
+// tracegenImageTag pins the tracegen image: the floating "main" tag picks up every
+// dd-trace-go bump, which can change the stats these tests assert on.
+const tracegenImageTag = "v0.0.10"
+
 const (
 	undefined transport = iota
 	uds
@@ -53,7 +57,7 @@ func tracegenUDSCommands(service string) (string, string) {
 		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:" + tracegenImageTag
 	rm := "docker rm -f " + service
 	return run, rm
 }
@@ -63,7 +67,7 @@ func tracegenTCPCommands(service string) (string, string) {
 	run := "docker run -d --network host --rm --name " + service +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
-		" ghcr.io/datadog/apps-tracegen:main"
+		" ghcr.io/datadog/apps-tracegen:" + tracegenImageTag
 	rm := "docker rm -f " + service
 	return run, rm
 }
