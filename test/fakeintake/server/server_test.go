@@ -627,25 +627,37 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
 
 	})
-	t.Run("should expose generic resources as JSON and keep them local", func(t *testing.T) {
-		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			t.Error("generic resources were forwarded to dddev")
-			w.WriteHeader(http.StatusAccepted)
-		}))
-		defer upstream.Close()
-
-		fi, _ := InitialiseForTests(t, withForwardEndpoint(upstream.URL), withDDDevAPIKey("test"), WithDDDevForward())
-		defer fi.Stop()
+	t.Run("should forward generic resources and expose them as JSON even when forwarding fails", func(t *testing.T) {
 		event := &genresources.GenericResourceEvent{
 			Source:   "integrations-core",
 			Resource: &genresources.GenericResource{Type: "gpu_device", Key: "gpu-test"},
 		}
 		payload, err := proto.Marshal(event)
 		require.NoError(t, err)
+
+		forwarded := make(chan []byte, 1)
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v2/genresources", r.URL.Path)
+			assert.Equal(t, "test", r.Header.Get("DD-API-KEY"))
+			body, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			forwarded <- body
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer upstream.Close()
+
+		fi, _ := InitialiseForTests(t, withForwardEndpoint(upstream.URL), withDDDevAPIKey("test"), WithDDDevForward())
+		defer fi.Stop()
 		resp, err := http.Post(fi.URL()+"/api/v2/genresources", "application/x-protobuf", bytes.NewReader(payload))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+		select {
+		case body := <-forwarded:
+			assert.Equal(t, payload, body)
+		default:
+			t.Fatal("generic resources were not forwarded")
+		}
 
 		resp, err = http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/genresources&format=json")
 		require.NoError(t, err)
