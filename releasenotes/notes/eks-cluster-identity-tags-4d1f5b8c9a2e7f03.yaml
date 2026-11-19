@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    On Amazon EKS, including Windows nodes, EKS Hybrid nodes and EKS Fargate, container data
+    (including APM traces) and host metadata now carry the ``eks_cluster_arn``,
+    ``eks_cluster_account``, and ``eks_cluster_region`` tags. The node Agent gets them from the
+    Cluster Agent, so they require the Cluster Agent and its ``eks:DescribeCluster``
+    permission. The tags are omitted when the identity is not available. If the Cluster Agent
+    is not reachable when a node Agent starts, the node Agent waits for it up to 10 seconds,
+    only when local data shows the node is on EKS: an EKS Fargate sidecar, or a pod service
+    account token issued by EKS. Other nodes do not wait. An EKS node without that evidence,
+    for example when the Agent pod does not mount a service account token, gets the tags in
+    its host metadata only.

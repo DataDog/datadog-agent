@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	eksidentity "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -46,6 +47,9 @@ const (
 )
 
 var globalClusterAgentClient *DCAClient
+
+// globalClusterAgentClientMu guards the creation of globalClusterAgentClient.
+var globalClusterAgentClientMu sync.Mutex
 
 type metadataNames []string
 
@@ -101,6 +105,7 @@ type DCAClientInterface interface {
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
+	GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
 	SupportsNamespaceMetadataCollection() bool
@@ -115,9 +120,11 @@ type DCAClient struct {
 	clusterAgentAPIRequestHeaders http.Header
 
 	clusterAgentClientLock sync.RWMutex
-	clusterAgentVersion    version.Version // Version of the cluster-agent we're connected to
-	clusterAgentAPIClient  *http.Client
-	leaderClient           *leaderClient
+	// initMu serializes GetClusterAgentClient's calls to the init retrier.
+	initMu                sync.Mutex
+	clusterAgentVersion   version.Version // Version of the cluster-agent we're connected to
+	clusterAgentAPIClient *http.Client
+	leaderClient          *leaderClient
 
 	// reconnectHandlerOnce ensures startReconnectHandler is only ever started once for
 	// this DCAClient, even if init() runs concurrently (e.g. via overlapping retries).
@@ -127,26 +134,45 @@ type DCAClient struct {
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
 // It is ONLY to be used for tests
 func resetGlobalClusterAgentClient() {
+	globalClusterAgentClientMu.Lock()
+	defer globalClusterAgentClientMu.Unlock()
 	globalClusterAgentClient = nil
 }
 
-// GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (*DCAClient, error) {
+// getGlobalClusterAgentClient returns the global DCAClient, creating it on first use. Startup
+// components (the tagger, DogStatsD, OTLP) can make their first call concurrently, so creation is
+// guarded. A mutex rather than sync.Once, since tests reset the global.
+func getGlobalClusterAgentClient() *DCAClient {
+	globalClusterAgentClientMu.Lock()
+	defer globalClusterAgentClientMu.Unlock()
 	if globalClusterAgentClient == nil {
-		globalClusterAgentClient = &DCAClient{}
-		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+		client := &DCAClient{}
+		client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "clusterAgentClient",
-			AttemptMethod:     globalClusterAgentClient.init,
+			AttemptMethod:     client.init,
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 1 * time.Second,
 			MaxRetryDelay:     5 * time.Minute,
 		})
+		globalClusterAgentClient = client
 	}
-	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
+	return globalClusterAgentClient
+}
+
+// GetClusterAgentClient returns or init the DCAClient
+func GetClusterAgentClient() (*DCAClient, error) {
+	client := getGlobalClusterAgentClient()
+	// Concurrent first callers (the cluster ID call and the identity fetch of a Fargate sidecar,
+	// the tagger, DogStatsD) would each run init(), which writes the client's fields. One runs it
+	// and the others wait for its result.
+	client.initMu.Lock()
+	err := client.initRetry.TriggerRetry()
+	client.initMu.Unlock()
+	if err != nil {
 		log.Debugf("Cluster Agent init error: %v", err)
 		return nil, err
 	}
-	return globalClusterAgentClient, nil
+	return client, nil
 }
 
 func (c *DCAClient) init() error {
@@ -329,8 +355,39 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 	return c.clusterAgentAPIClient
 }
 
+// StatusError is returned when the Cluster Agent answered a query with a non-200 HTTP status,
+// as opposed to the query failing before any answer was received. It unwraps to the
+// remote-service error, so errors.IsRemoteService still matches it.
+type StatusError struct {
+	StatusCode int
+	// RetryLater is set by GetEKSClusterIdentity when the answer can change within a node's
+	// startup budget (see identityAnswerCanChange).
+	RetryLater bool
+	Err        error
+	// header is the answer's headers, for the query method to read what belongs to it.
+	header http.Header
+}
+
+func (e *StatusError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *StatusError) Unwrap() error {
+	return e.Err
+}
+
 // TODO: remove the client parameter when we drop compatibility with older Agents, see end of `init()`
 func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Reader, readResponseBody, useLeaderClient bool) ([]byte, error) {
+	respBody, err := c.doQueryWithStatus(ctx, path, method, body, readResponseBody, useLeaderClient)
+	var statusErr *StatusError
+	if nativeerrors.As(err, &statusErr) {
+		return nil, statusErr.Err
+	}
+	return respBody, err
+}
+
+// doQueryWithStatus is doQuery, except that a non-200 answer is returned as a *StatusError.
+func (c *DCAClient) doQueryWithStatus(ctx context.Context, path, method string, body io.Reader, readResponseBody, useLeaderClient bool) ([]byte, error) {
 	url := c.buildURL(useLeaderClient, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -361,7 +418,11 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 	// Make sure we read always body, required to re-use HTTP Connections
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.NewRemoteServiceError(url, resp.Status)
+		return nil, &StatusError{
+			StatusCode: resp.StatusCode,
+			Err:        errors.NewRemoteServiceError(url, resp.Status),
+			header:     resp.Header,
+		}
 	}
 	return nil, nil
 }
@@ -536,6 +597,44 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 		return "", err
 	}
 	return clusterID, nil
+}
+
+// identityAnswerCanChange reports whether an identity answer with this status and
+// eksidentity.RetryLaterHeader value can change within a node's startup budget. The Cluster
+// Agent marks every answer it produces. An unmarked answer comes from something in front of it
+// (a proxy, a mesh sidecar, a crash), and is worth retrying when it is a 408, a 429 or a 5xx.
+// A 404 is final, marked or not, and so are 401 and 403. A Cluster Agent built before the
+// identity endpoint answers 403: its token middleware does not list the path as external and
+// rejects the node's token as an intra-pod token before routing.
+func identityAnswerCanChange(status int, mark string) bool {
+	switch {
+	case status == http.StatusNotFound || status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return false
+	case mark != "":
+		return mark == "true"
+	default:
+		return status == http.StatusRequestTimeout || status == http.StatusTooManyRequests || status >= http.StatusInternalServerError
+	}
+}
+
+// GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity. When the Cluster
+// Agent answers with a non-200 status, the error is a *StatusError, with RetryLater set by
+// identityAnswerCanChange.
+func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error) {
+	path := "api/v1/cluster/eks-identity"
+	respBody, err := c.doQueryWithStatus(ctx, path, "GET", nil, true, false)
+	if err != nil {
+		var statusErr *StatusError
+		if nativeerrors.As(err, &statusErr) {
+			statusErr.RetryLater = identityAnswerCanChange(statusErr.StatusCode, statusErr.header.Get(eksidentity.RetryLaterHeader))
+		}
+		return nil, err
+	}
+	identity := &eksidentity.ClusterIdentity{}
+	if err := json.Unmarshal(respBody, identity); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON from URL: %s, err: %w, raw message: %q", path, err, respBody)
+	}
+	return identity, nil
 }
 
 // PostLanguageMetadata is called by the core-agent's language detection client

@@ -9,6 +9,7 @@ package tags
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -21,6 +22,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Injectable for deterministic tests. Node Agents fetch identity from the Cluster Agent;
+// the Cluster Agent resolves it directly.
+//
+// The static-tags paths are computed once at Agent startup, so they use the retrying fetch:
+// a node Agent routinely starts before the Cluster Agent is reachable, and without a retry a
+// single cold-start miss leaves the EKS identity permanently absent from container tags and
+// APM spans. The retry has its own bounded budget and stops early when ctx is done.
+var (
+	getClusterAgentStaticTags      = clusterinfo.GetClusterAgentStaticTagsWithRetry
+	getClusterAgentEKSIdentityTags = clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry
+	getClusterAgentEKSIdentity     = func(context.Context) []string { return nil }
+	hasEKSEvidence                 = clusterinfo.HasEKSEvidence
+)
+
+// SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
+// tags. The resolver links the AWS configuration and the DescribeCluster call, so only the Cluster
+// Agent registers it, before it starts; node-side binaries that use this package must not link it.
+func SetClusterAgentEKSIdentityResolver(resolve func(context.Context) []string) {
+	getClusterAgentEKSIdentity = resolve
+}
 
 // getFargateStaticTags return the list of static tags when running on fargate instance
 func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []string {
@@ -59,11 +81,27 @@ func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []st
 		}
 
 		if datadogConfig.GetBool("cluster_agent.enabled") {
-			clusterAgentStaticTags, err := clusterinfo.GetClusterAgentStaticTagsWithRetry()
-			if err == nil {
+			// The cluster ID call and the identity call run at the same time and each is bounded
+			// to the startup budget, so an unreachable Cluster Agent delays sidecar startup
+			// once, and a Cluster Agent that hangs on the cluster ID cannot starve the identity
+			// call. With DD_ORCHESTRATOR_CLUSTER_ID set the static tags call does not contact
+			// the Cluster Agent.
+			var clusterAgentStaticTags, eksIdentityTags []string
+			var staticErr, identityErr error
+			var wg sync.WaitGroup
+			wg.Go(func() { clusterAgentStaticTags, staticErr = getClusterAgentStaticTags(ctx) })
+			wg.Go(func() { eksIdentityTags, identityErr = getClusterAgentEKSIdentityTags(ctx) })
+			wg.Wait()
+
+			if staticErr == nil {
 				tags = append(tags, clusterAgentStaticTags...)
 			} else {
-				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", err)
+				log.Debugf("Could not fetch cluster agent static tags, cluster id tag will be missing, err: %v", staticErr)
+			}
+			if identityErr == nil {
+				tags = append(tags, eksIdentityTags...)
+			} else {
+				log.Debugf("Could not fetch EKS cluster identity tags from the Cluster Agent: %v", identityErr)
 			}
 		}
 
@@ -89,6 +127,20 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) (tags 
 	// add static tags to each container manually
 	if fargate.IsSidecar() {
 		tags = append(tags, getFargateStaticTags(ctx, datadogConfig)...)
+	}
+
+	// Regular Kubernetes node Agents receive authoritative EKS identity from the Cluster Agent.
+	// Sidecars use getFargateStaticTags above. Only nodes with local EKS evidence (no network
+	// call) ask, so other clusters make no Cluster Agent call here, as before this feature. EKS
+	// nodes without that evidence get the identity in host tags later, once a host-tags refresh
+	// has cached the kube distribution as eks.
+	if env.IsFeaturePresent(env.Kubernetes) && !fargate.IsSidecar() && flavor.GetFlavor() != flavor.ClusterAgent && datadogConfig.GetBool("cluster_agent.enabled") && hasEKSEvidence() {
+		eksIdentityTags, err := getClusterAgentEKSIdentityTags(ctx)
+		if err == nil {
+			tags = append(tags, eksIdentityTags...)
+		} else {
+			log.Debugf("Could not fetch EKS cluster identity tags from the Cluster Agent: %v", err)
+		}
 	}
 
 	return
@@ -128,6 +180,11 @@ func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[st
 	clusterIDValue, _ := clustername.GetClusterID()
 	if clusterIDValue != "" {
 		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+	}
+
+	// Authoritative EKS identity (eks:DescribeCluster); absent when not EKS or unresolvable.
+	if kubeDistro == "eks" {
+		tags = append(tags, getClusterAgentEKSIdentity(ctx)...)
 	}
 
 	if tags == nil {

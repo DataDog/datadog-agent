@@ -9,6 +9,8 @@ package cloudprovider
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -20,20 +22,32 @@ import (
 
 // DCAGetName returns the name of the kube distribution for the current node.
 func DCAGetName(ctx context.Context) string {
+	name, err := DCAGetDistribution(ctx)
+	if err != nil {
+		log.Warnf("Unable to get %v", err)
+	}
+	return name
+}
+
+// DCAGetDistribution is DCAGetName, and also returns why the distribution is not known: the API
+// server could not be reached (for example before WaitForAPIClient returns), the self node
+// could not be read (an RBAC Forbidden or a NotFound, which the error wraps), or ctx was done.
+// Nothing is cached then, and a later call can still find the distribution. A nil error is a
+// final answer. It does not log; DCAGetName does.
+func DCAGetDistribution(ctx context.Context) (string, error) {
 	cacheKey := cache.BuildAgentKey(constants.NodeKubeDistributionKey)
 	if cloudProvider, found := cache.Cache.Get(cacheKey); found {
-		return cloudProvider.(string)
+		return cloudProvider.(string), nil
 	}
 
 	nodeName, err := apiserver.HostNodeName(ctx)
 	if err != nil {
-		log.Warnf("Unable to get node name from apiserver: %v", err)
-		return ""
+		return "", fmt.Errorf("node name from apiserver: %w", err)
 	}
 
-	nl, sysInfo := getNodeMeta(ctx, nodeName)
-	if nl == nil && sysInfo == nil {
-		return ""
+	nl, sysInfo, err := getNodeMeta(ctx, nodeName)
+	if err != nil {
+		return "", err
 	}
 	kubeletVersion := ""
 	kernelVersion := ""
@@ -46,25 +60,23 @@ func DCAGetName(ctx context.Context) string {
 	// It is fine to save empty tag to avoid querying API server over and over again.
 	// Empty tag are ignored.
 	cache.Cache.Set(cacheKey, providerName, cache.NoExpiration)
-	return providerName
+	return providerName, nil
 }
 
 // getNodeMeta retrieves node labels and system info for provided nodeName in cluster agent.
-func getNodeMeta(ctx context.Context, nodeName string) (map[string]string, *corev1.NodeSystemInfo) {
+func getNodeMeta(ctx context.Context, nodeName string) (map[string]string, *corev1.NodeSystemInfo, error) {
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Warnf("Unable to get apiserver: %v", err)
-		return nil, nil
+		return nil, nil, fmt.Errorf("apiserver: %w", err)
 	}
 	nodeCl := cl.Cl.CoreV1().Nodes()
 
 	node, err := nodeCl.Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		log.Warnf("Unable to get self node: %v", err)
-		return nil, nil
+		return nil, nil, fmt.Errorf("self node: %w", err)
 	}
 	if node == nil {
-		return nil, nil
+		return nil, nil, errors.New("self node: the API server returned no node")
 	}
-	return node.Labels, &node.Status.NodeInfo
+	return node.Labels, &node.Status.NodeInfo, nil
 }

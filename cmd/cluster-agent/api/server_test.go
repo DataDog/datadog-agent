@@ -55,6 +55,11 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusOK,
 		},
 		{
+			"/api/v1/cluster/eks-identity",
+			"abc123",
+			http.StatusOK,
+		},
+		{
 			// node agents read the conditions and cordon state of their node with the cluster agent token
 			"/api/v1/info/node/node-1/status",
 			"abc123",

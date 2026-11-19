@@ -73,6 +73,15 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 			providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 		}
 		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
+		// Authoritative EKS identity (cluster ARN) resolved once by the Cluster Agent. It is
+		// only reachable through the DCA, so register it only when the DCA is enabled;
+		// otherwise it is a provider that can never succeed. A single attempt is enough. A
+		// node without local EKS evidence makes no identity call, and a final answer (a 404 for
+		// not EKS, a 403 from a DCA too old to serve identity, a 503 without the retry mark)
+		// is an empty success, so most Kubernetes installs see no latency or log noise.
+		if conf.GetBool("cluster_agent.enabled") {
+			providers["kubernetes_cluster_agent_eks_identity"] = &providerDef{1, clusterinfo.GetClusterAgentEKSIdentityHostTags}
+		}
 	}
 
 	if env.IsFeaturePresent(env.Docker) {

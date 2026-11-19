@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "eks",
+    srcs = [
+        "cluster_identity.go",
+        "describe_cluster.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/eks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/cache",
+        "//pkg/util/ec2",
+        "//pkg/util/eks/identity",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/retry",
+        "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@org_golang_x_sync//singleflight",
+    ],
+)
+
+dd_agent_go_test(
+    name = "eks_test",
+    srcs = [
+        "cluster_identity_test.go",
+        "describe_cluster_test.go",
+    ],
+    embed = [":eks"],
+    deps = [
+        "//pkg/util/cache",
+        "//pkg/util/eks/identity",
+        "//pkg/util/log",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

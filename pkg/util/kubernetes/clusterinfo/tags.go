@@ -31,14 +31,20 @@ func GetClusterAgentStaticTags(context.Context) ([]string, error) {
 	return nil, nil
 }
 
-// GetClusterAgentStaticTagsWithRetry gets the tags from the cluster-agent with a constant backoff policy
-func GetClusterAgentStaticTagsWithRetry() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// clusterIDCall is the one Cluster Agent cluster ID call in flight for the process.
+var clusterIDCall sharedCall[[]string]
+
+// GetClusterAgentStaticTagsWithRetry gets the tags from the cluster-agent with a constant backoff
+// policy, for at most StartupRetryBudget and never past ctx's deadline. The cluster ID query does
+// not take a ctx, so each attempt runs as a shared call and the budget still holds when the
+// Cluster Agent hangs.
+func GetClusterAgentStaticTagsWithRetry(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, startupRetryBudget)
 	defer cancel()
 
 	backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
 	res, err := backoff.Retry(ctx, func() ([]string, error) {
-		return GetClusterAgentStaticTags(ctx)
+		return clusterIDCall.Do(ctx, GetClusterAgentStaticTags)
 	}, backoff.WithBackOff(backoffPolicy))
 
 	return res, err

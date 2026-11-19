@@ -33,6 +33,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	eksidentity "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +44,7 @@ type dummyClusterAgent struct {
 	responses       map[string][]string
 	responsesByNode apiv1.MetadataResponse
 	rawResponses    map[string]string
+	handlers        map[string]http.HandlerFunc
 	requests        chan *http.Request
 	sync.RWMutex
 	token       string
@@ -103,8 +105,9 @@ func newDummyClusterAgent(conf model.Config) (*dummyClusterAgent, error) {
 			},
 		},
 		rawResponses: map[string]string{
-			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
-			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
+			"/version":                     `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
+			"/api/v1/cluster/id":           `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
+			"/api/v1/cluster/eks-identity": `{"cluster_name":"orders","cluster_arn":"arn:aws:eks:us-west-2:123456789012:cluster/orders","aws_account_id":"123456789012","region":"us-west-2"}`,
 		},
 		token:    conf.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
@@ -164,7 +167,12 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Handle raw responses if listed
 	d.RLock()
 	response, found := d.rawResponses[r.URL.Path]
+	handler := d.handlers[r.URL.Path]
 	d.RUnlock()
+	if handler != nil {
+		handler(w, r)
+		return
+	}
 	if found {
 		w.Write([]byte(response))
 		return
@@ -736,6 +744,149 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	require.Equal(suite.T(), "94e43011-177b-11ea-a4fe-42010a8401d2", clusterID)
 }
 
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentity() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+	identity, err := client.GetEKSClusterIdentity(suite.T().Context())
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), identity)
+	assert.Equal(suite.T(), "orders", identity.ClusterName)
+	assert.Equal(suite.T(), "arn:aws:eks:us-west-2:123456789012:cluster/orders", identity.ClusterARN)
+	assert.Equal(suite.T(), "123456789012", identity.AccountID)
+	assert.Equal(suite.T(), "us-west-2", identity.Region)
+}
+
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentityDistinguishesAnswersFromTransportFailures() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	delete(dca.rawResponses, "/api/v1/cluster/eks-identity")
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	var statusErr *StatusError
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.Equal(suite.T(), http.StatusInternalServerError, statusErr.StatusCode)
+	assert.True(suite.T(), errors.IsRemoteService(err))
+
+	ts.Close()
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	require.Error(suite.T(), err)
+	assert.NotErrorAs(suite.T(), err, &statusErr)
+	assert.True(suite.T(), errors.IsRemoteService(err))
+}
+
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentityRetryLaterAnswer() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	status, mark := http.StatusServiceUnavailable, ""
+	dca.handlers = map[string]http.HandlerFunc{
+		"/api/v1/cluster/eks-identity": func(w http.ResponseWriter, _ *http.Request) {
+			if mark != "" {
+				w.Header().Set(eksidentity.RetryLaterHeader, mark)
+			}
+			http.Error(w, "EKS cluster identity unavailable", status)
+		},
+	}
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	for _, tc := range []struct {
+		status     int
+		mark       string
+		retryLater bool
+	}{
+		// The Cluster Agent's own answers say whether they are final.
+		{http.StatusServiceUnavailable, "true", true},
+		{http.StatusServiceUnavailable, "false", false},
+		{http.StatusNotFound, "false", false},
+		// Unmarked answers come from a proxy or a mesh sidecar in front of it.
+		{http.StatusBadGateway, "", true},
+		{http.StatusServiceUnavailable, "", true},
+		{http.StatusGatewayTimeout, "", true},
+		{http.StatusInternalServerError, "", true},
+		{http.StatusTooManyRequests, "", true},
+		{http.StatusRequestTimeout, "", true},
+		// 404, 401 and 403 are final whatever mark an answer carries. A Cluster Agent built
+		// before the endpoint answers 403.
+		{http.StatusNotFound, "", false},
+		{http.StatusNotFound, "true", false},
+		{http.StatusUnauthorized, "", false},
+		{http.StatusUnauthorized, "true", false},
+		{http.StatusForbidden, "", false},
+		{http.StatusForbidden, "true", false},
+		{http.StatusBadRequest, "", false},
+	} {
+		status, mark = tc.status, tc.mark
+		_, err = client.GetEKSClusterIdentity(suite.T().Context())
+		var statusErr *StatusError
+		require.ErrorAs(suite.T(), err, &statusErr)
+		assert.Equal(suite.T(), tc.status, statusErr.StatusCode)
+		assert.Equal(suite.T(), tc.retryLater, statusErr.RetryLater, "status %d, mark %q", tc.status, tc.mark)
+	}
+	var statusErr *StatusError
+	// The mark belongs to the identity endpoint. The shared query does not read it.
+	dca.handlers["/api/v1/other"] = func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(eksidentity.RetryLaterHeader, "true")
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}
+	_, err = client.doQueryWithStatus(suite.T().Context(), "api/v1/other", "GET", nil, true, false)
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.False(suite.T(), statusErr.RetryLater)
+}
+
+func (suite *clusterAgentSuite) TestGetClusterAgentClientConcurrentInit() {
+	// The cluster ID call and the identity fetch of a Fargate sidecar run concurrently, so two
+	// goroutines can trigger the client's initialization at the same moment. It must run once,
+	// and with -race the initialization of one must not overlap the other's.
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	const callers = 8
+	clients := make([]*DCAClient, callers)
+	errs := make([]error, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() { clients[i], errs[i] = GetClusterAgentClient() })
+	}
+	wg.Wait()
+	for i := range callers {
+		require.NoError(suite.T(), errs[i])
+		assert.Same(suite.T(), clients[0], clients[i])
+	}
+}
+
 func TestClusterAgentSuite(t *testing.T) {
 	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 
@@ -943,4 +1094,27 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 		})
 	}
 	wg.Wait()
+}
+
+func TestGetClusterAgentClientConcurrentFirstUse(t *testing.T) {
+	// Startup components (the tagger, DogStatsD, OTLP) can all call GetClusterAgentClient for the
+	// first time at once. With -race this catches an unlocked lazy init, and every caller must
+	// get the same client.
+	configmock.New(t)
+	resetGlobalClusterAgentClient()
+	defer resetGlobalClusterAgentClient()
+
+	const callers = 8
+	clients := make([]*DCAClient, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() {
+			_, _ = GetClusterAgentClient() // fails without an endpoint; the client is still shared
+			clients[i] = getGlobalClusterAgentClient()
+		})
+	}
+	wg.Wait()
+	for _, c := range clients {
+		assert.Same(t, clients[0], c)
+	}
 }

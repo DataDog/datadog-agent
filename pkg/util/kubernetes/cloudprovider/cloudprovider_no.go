@@ -13,3 +13,8 @@ import "context"
 func DCAGetName(_ context.Context) string {
 	return ""
 }
+
+// DCAGetDistribution returns an empty, final answer in this build.
+func DCAGetDistribution(_ context.Context) (string, error) {
+	return "", nil
+}

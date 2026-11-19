@@ -45,7 +45,10 @@ go_library(
 
 dd_agent_go_test(
     name = "api_test",
-    srcs = ["server_test.go"],
+    srcs = [
+        "eks_identity_older_dca_test.go",
+        "server_test.go",
+    ],
     embed = [":api"],
     gotags_sets = [[
         "cel",
@@ -57,6 +60,9 @@ dd_agent_go_test(
         "//comp/core/ipc/mock",
         "//pkg/api/util",
         "//pkg/config/mock",
+        "//pkg/util/clusteragent",
+        "//pkg/util/kubernetes/clusterinfo",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
