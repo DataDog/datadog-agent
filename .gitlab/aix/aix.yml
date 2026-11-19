@@ -9,15 +9,7 @@ tests_aix-ppc64:
   allow_failure: true
   rules:
     - !reference [.except_light_pipeline]
-    # [.on_scheduled_main] plus a needs edge on the host cleanup job so tests
-    # run on a freshly cleaned host. Rule-scoped only: elsewhere the cleanup
-    # job is an un-played manual job, which must never suppress automatic runs.
-    - if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
-      when: always
-      needs:
-        - job: setup_agent_version
-        - job: cleanup_aix-ppc64
-          optional: true
+    - !reference [.on_scheduled_main]
     - changes:
         paths:
           - .gitlab/aix/common/**/*
@@ -45,16 +37,7 @@ package_aix-ppc64:
   rules:
     - !reference [.except_light_pipeline]
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
-    # [.on_scheduled_main] plus a needs edge on the host cleanup job so the
-    # build runs on a freshly cleaned host. Rule-scoped only: elsewhere the
-    # cleanup job is an un-played manual job, which must never suppress
-    # automatic runs.
-    - if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
-      when: always
-      needs:
-        - job: setup_agent_version
-        - job: cleanup_aix-ppc64
-          optional: true
+    - !reference [.on_scheduled_main]
     - changes:
         paths:
           - .gitlab/aix/common/**/*
@@ -117,12 +100,19 @@ deploy_packages_aix-ppc64:
 #
 # Deep cleanup runs at most once every AIX_CLEANUP_INTERVAL_DAYS days, gated
 # by a marker file on the host; nightly runs outside the window succeed
-# early, manual runs on main force it. In scheduled pipelines the other AIX
-# jobs declare a needs edge on this job (scheduled rule only) so they run
-# after it.
+# early, manual runs on main force it.
+#
+# Ordering: no needs, so the job starts at pipeline start and takes the
+# aix_ci_host resource group before the other AIX jobs are even eligible
+# (they wait on setup_agent_version). Not a hard guarantee, but near-certain
+# in practice.
 cleanup_aix-ppc64:
-  stage: maintenance_jobs
+  stage: setup
   extends: .aix_remote
+  # Don't wait for setup_agent_version: see the ordering comment above. Its
+  # agent-version.cache upload is skipped in before_script (see
+  # AIX_SKIP_VERSION_CACHE) and fetched later, once setup has completed.
+  needs: []
   # maintenance job, never block the pipeline on it
   allow_failure: true
   # wipe + full re-clone + cache warm-up + reboot can exceed the template's 2h
@@ -140,6 +130,8 @@ cleanup_aix-ppc64:
     AIX_CLEANUP_INTERVAL_DAYS: "14"
     # Reboot the host once the cleanup is done, and wait for it to come back
     AIX_CLEANUP_RESTART: "1"
+    # Skip the before_script's version-cache download; fetched in script
+    AIX_SKIP_VERSION_CACHE: "1"
   script:
     - 'echo "=== AIX: host cleanup ==="'
     # Marker lives outside /opt/dd-build. Keep only a standalone numeric line:
@@ -171,8 +163,15 @@ cleanup_aix-ppc64:
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
     - 'echo "=== AIX: re-provisioning host (setup-host.sh) ==="'
     - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
-    # Re-ship the version cache wiped above; env.sh needs it locally.
-    - copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache"
+    # The before_script skipped the version-cache download (needs: []);
+    # setup_agent_version has completed by now, so fetch it. Best effort:
+    # only the warm-up below needs it.
+    - |
+      for i in $(seq 1 10); do
+        $S3_CP_CMD "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID/agent-version.cache" "$CI_PROJECT_DIR/agent-version.cache" && break
+        echo "agent-version.cache not on S3 yet (attempt $i/10), retrying in 60s"; sleep 60
+      done
+    - 'copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache" || echo "WARNING: no agent-version.cache — the warm-up may fail"'
     # Best-effort warm-up for the next AIX job (invoke deps, packaging stages
     # 00-checkout and 05-agent-data-plane). Failures are perf-only — never
     # fail the cleanup on them.
