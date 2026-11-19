@@ -13,55 +13,26 @@ import (
 // looked up in the store, so that a change to any of them can re-tag it.
 type dependencyIndex struct {
 	readers map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}
-	tagged  map[workloadmeta.EntityID]taggedEntity
-}
-
-type taggedEntity struct {
-	reads      map[workloadmeta.EntityID]struct{}
-	isComplete bool
+	reads   map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}
 }
 
 func newDependencyIndex() *dependencyIndex {
 	return &dependencyIndex{
 		readers: make(map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}),
-		tagged:  make(map[workloadmeta.EntityID]taggedEntity),
+		reads:   make(map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}),
 	}
 }
 
 // replace sets the entities that reader depends on, dropping the previous
-// ones. isComplete is the completeness of the event reader was tagged from,
-// reused when a dependency re-tags it. The index takes ownership of reads.
-func (d *dependencyIndex) replace(reader workloadmeta.EntityID, reads map[workloadmeta.EntityID]struct{}, isComplete bool) {
+// ones. The index takes ownership of reads.
+func (d *dependencyIndex) replace(reader workloadmeta.EntityID, reads map[workloadmeta.EntityID]struct{}) {
 	d.forget(reader)
 	if len(reads) == 0 {
 		return
 	}
 
-	d.tagged[reader] = taggedEntity{reads: reads, isComplete: isComplete}
+	d.reads[reader] = reads
 	for read := range reads {
-		readers, ok := d.readers[read]
-		if !ok {
-			readers = make(map[workloadmeta.EntityID]struct{})
-			d.readers[read] = readers
-		}
-		readers[reader] = struct{}{}
-	}
-}
-
-// add adds to the entities that reader depends on. isComplete is used if
-// reader had no dependencies yet.
-func (d *dependencyIndex) add(reader workloadmeta.EntityID, reads map[workloadmeta.EntityID]struct{}, isComplete bool) {
-	if len(reads) == 0 {
-		return
-	}
-
-	tagged, ok := d.tagged[reader]
-	if !ok {
-		tagged = taggedEntity{reads: make(map[workloadmeta.EntityID]struct{}), isComplete: isComplete}
-		d.tagged[reader] = tagged
-	}
-	for read := range reads {
-		tagged.reads[read] = struct{}{}
 		readers, ok := d.readers[read]
 		if !ok {
 			readers = make(map[workloadmeta.EntityID]struct{})
@@ -72,13 +43,13 @@ func (d *dependencyIndex) add(reader workloadmeta.EntityID, reads map[workloadme
 }
 
 func (d *dependencyIndex) forget(reader workloadmeta.EntityID) {
-	for read := range d.tagged[reader].reads {
+	for read := range d.reads[reader] {
 		delete(d.readers[read], reader)
 		if len(d.readers[read]) == 0 {
 			delete(d.readers, read)
 		}
 	}
-	delete(d.tagged, reader)
+	delete(d.reads, reader)
 }
 
 func (d *dependencyIndex) readersOf(read workloadmeta.EntityID) []workloadmeta.EntityID {
@@ -87,10 +58,6 @@ func (d *dependencyIndex) readersOf(read workloadmeta.EntityID) []workloadmeta.E
 		readers = append(readers, reader)
 	}
 	return readers
-}
-
-func (d *dependencyIndex) isComplete(reader workloadmeta.EntityID) bool {
-	return d.tagged[reader].isComplete
 }
 
 // trackingStore records the lookups made while tracking is on. Only the

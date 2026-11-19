@@ -61,8 +61,10 @@ type WorkloadMetaCollector struct {
 	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	dependencies *dependencyIndex
-	// dryRun is set while a handler runs only to find what it looks up
-	dryRun       bool
+	// lastEvents has the last set event of the entities that can be re-tagged
+	// without an event of their own. They're re-tagged from what that event
+	// had: for a partial unset, the entity as it was before the removal.
+	lastEvents   map[workloadmeta.EntityID]workloadmeta.Event
 	tagProcessor taggerdef.Processor
 
 	containerEnvAsTags              map[string]string
@@ -260,6 +262,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
 		dependencies:                      newDependencyIndex(),
+		lastEvents:                        make(map[workloadmeta.EntityID]workloadmeta.Event),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),

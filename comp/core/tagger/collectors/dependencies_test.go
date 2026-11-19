@@ -34,20 +34,18 @@ func TestDependencyIndex(t *testing.T) {
 
 	d := newDependencyIndex()
 
-	d.replace(pod, map[workloadmeta.EntityID]struct{}{workload: {}, flavor: {}}, true)
+	d.replace(pod, map[workloadmeta.EntityID]struct{}{workload: {}, flavor: {}})
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(workload))
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(flavor))
-	assert.True(t, d.isComplete(pod))
 
-	d.replace(pod, map[workloadmeta.EntityID]struct{}{flavor: {}}, false)
+	d.replace(pod, map[workloadmeta.EntityID]struct{}{flavor: {}})
 	assert.Empty(t, d.readersOf(workload))
 	assert.ElementsMatch(t, []workloadmeta.EntityID{pod}, d.readersOf(flavor))
-	assert.False(t, d.isComplete(pod))
 
 	d.forget(pod)
 	assert.Empty(t, d.readersOf(flavor))
 	assert.Empty(t, d.readers)
-	assert.Empty(t, d.tagged)
+	assert.Empty(t, d.reads)
 }
 
 func TestTrackingStoreRecordsLookupsOnlyWhileTracking(t *testing.T) {
@@ -194,9 +192,9 @@ func TestReaderRetagUsesStateUpdatedLaterInTheBundle(t *testing.T) {
 // When one source of a pod is removed while another remains, workloadmeta
 // sends a set event with the pod as it was before the removal, while the
 // store already dropped that source's data. A pod tagged from that event is
-// re-tagged from the store when a dependency changes in the same bundle, like
-// pods re-tagged in later bundles.
-func TestReaderTaggedFromPreRemovalEventIsRetaggedFromStore(t *testing.T) {
+// re-tagged from that event when a dependency changes, so it keeps the tags
+// that workloadmeta preserves.
+func TestReaderTaggedFromPreRemovalEventIsRetaggedFromIt(t *testing.T) {
 	h := newDependencyTestHarness(t)
 	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
 	// The PodGroup annotation only comes from the kubelet.
@@ -235,49 +233,130 @@ func TestReaderTaggedFromPreRemovalEventIsRetaggedFromStore(t *testing.T) {
 
 	podTags := tagInfoFor(got, podTaggerID("pod-a"))
 	require.NotNil(t, podTags)
-	assert.Empty(t, kaiTags(podTags), "the pod is tagged from the store, which lost the annotation")
+	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-b")
 }
 
-// A set event sent for a partial unset has the entity as it was before the
-// removal, which can reference other entities than the one now in the store.
-// The pod must also be re-tagged when the entities the store's pod references
-// change.
-func TestPreRemovalEventAlsoRecordsCurrentDependencies(t *testing.T) {
+// A pod tagged from its pre-removal event keeps being re-tagged from it in
+// later bundles, by its dependencies and by autoscaler changes, which match
+// the pod's owner as the event had it.
+func TestPodTaggedFromPreRemovalEventIsRetaggedFromItLater(t *testing.T) {
 	h := newDependencyTestHarness(t)
 	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
-	newSourcePod := func(podGroup string) *workloadmeta.KubernetesPod {
-		return &workloadmeta.KubernetesPod{
-			EntityID: podID,
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:        "pod-a",
-				Namespace:   "default",
-				Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: podGroup},
-			},
+	// The PodGroup annotation and the owner only come from the kubelet.
+	fromKubelet := &workloadmeta.KubernetesPod{
+		EntityID: podID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod-a",
+			Namespace:   "default",
+			Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: "pg"},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.DeploymentKind, Name: "web"}},
+	}
+	fromCluster := &workloadmeta.KubernetesPod{
+		EntityID:   podID,
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+	}
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+	})
+	h.add(newKAIPodGroup("pg", "queue-a"))
+	beforeRemoval, err := h.store.GetKubernetesPod(podID.ID)
+	require.NoError(t, err)
+	h.process(setEvent(beforeRemoval))
+
+	h.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	h.process(setEvent(beforeRemoval.DeepCopy()))
+
+	podTags := mustTagInfo(t, h.add(newKAIPodGroup("pg", "queue-b")), podTaggerID("pod-a"))
+	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-b")
+
+	hpa := newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "default", "hpa", workloadmeta.AutoscalerTargetDeployment, "web")
+	podTags = mustTagInfo(t, h.add(hpa), podTaggerID("pod-a"))
+	assert.Contains(t, append(podTags.LowCardTags, podTags.OrchestratorCardTags...), "kube_autoscaler_kind:horizontalpodautoscaler")
+	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-b")
+
+	h.store.Unset(hpa)
+	podTags = mustTagInfo(t, h.process(unsetEvent(hpa)), podTaggerID("pod-a"))
+	assert.NotContains(t, append(podTags.LowCardTags, podTags.OrchestratorCardTags...), "kube_autoscaler_kind:horizontalpodautoscaler")
+}
+
+// An autoscaler change re-tags a pod through the same tracked path as its
+// dependencies, so a container missing at that point re-tags the pod when it
+// arrives, and gets the autoscaler's tags.
+func TestContainerMissingOnAutoscalerRetagRetagsThePodOnArrival(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+		Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.DeploymentKind, Name: "web"}},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: "ctr-a", Name: "ctr-a"}},
+	}
+	container := newContainer("ctr-a")
+	h.add(container, pod)
+
+	h.store.Unset(container)
+	h.process(unsetEvent(container))
+	h.add(newTestAutoscaler(workloadmeta.AutoscalerKindHPA, "default", "hpa", workloadmeta.AutoscalerTargetDeployment, "web"))
+
+	got := h.add(container)
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
 		}
 	}
-	// Sources are merged in alphabetical order, so the merged pod has the
-	// cluster orchestrator's PodGroup.
-	fromCluster, fromKubelet := newSourcePod("pg-a"), newSourcePod("pg-b")
+	require.NotNil(t, fromPod, "the container's arrival didn't re-tag the pod")
+	assert.Contains(t, append(fromPod.LowCardTags, fromPod.OrchestratorCardTags...), "kube_autoscaler_kind:horizontalpodautoscaler")
+}
+
+// A container's first event in the bundle of a partial unset of its pod
+// re-tags the pod from the pod's event, not from the store, which lost the
+// removed source's data.
+func TestContainerArrivalKeepsPreRemovalPodTags(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-a"}
+	// The PodGroup annotation only comes from the kubelet.
+	fromKubelet := &workloadmeta.KubernetesPod{
+		EntityID: podID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        "pod-a",
+			Namespace:   "default",
+			Annotations: map[string]string{kubernetes.KAIPodGroupAnnotationKey: "pg"},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: "ctr-a", Name: "ctr-a"}},
+	}
+	fromCluster := &workloadmeta.KubernetesPod{
+		EntityID:   podID,
+		EntityMeta: workloadmeta.EntityMeta{Name: "pod-a", Namespace: "default"},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: "ctr-a", Name: "ctr-a"}},
+	}
 	h.store.Notify([]workloadmeta.CollectorEvent{
-		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
 		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
 	})
-	h.add(newKAIPodGroup("pg-a", "queue-a"), newKAIPodGroup("pg-b", "queue-b"))
-	merged, err := h.store.GetKubernetesPod(podID.ID)
+	h.add(newKAIPodGroup("pg", "queue-a"))
+	beforeRemoval, err := h.store.GetKubernetesPod(podID.ID)
 	require.NoError(t, err)
-	require.Contains(t, kaiTags(tagInfoFor(h.process(setEvent(merged)), podTaggerID("pod-a"))), "kai_pod_group:pg-a")
 
-	// The cluster orchestrator's source is removed: the tagger gets the pod as
-	// it was before, with pg-a, while the store's pod has pg-b.
 	h.store.Notify([]workloadmeta.CollectorEvent{
-		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceClusterOrchestrator, Entity: fromCluster},
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceNodeOrchestrator, Entity: fromKubelet},
 	})
-	h.process(setEvent(merged.DeepCopy()))
+	container := newContainer("ctr-a")
+	h.store.Set(container)
+	got := h.process(setEvent(beforeRemoval), setEvent(container))
 
-	got := h.add(newKAIPodGroup("pg-b", "queue-c"))
-	podTags := tagInfoFor(got, podTaggerID("pod-a"))
-	require.NotNil(t, podTags, "pod-a was not re-tagged when the PodGroup of the store's pod changed")
-	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-c")
+	assert.Contains(t, kaiTags(mustTagInfo(t, got, podTaggerID("pod-a"))), "kai_queue:queue-a")
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
+		}
+	}
+	require.NotNil(t, fromPod)
+	assert.True(t, fromPod.IsComplete)
 }
 
 // A pod tagged before its container is in workloadmeta can't tag it. The
