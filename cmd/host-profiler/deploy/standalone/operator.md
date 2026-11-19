@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) installed.
+- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) version **0.142.0** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
