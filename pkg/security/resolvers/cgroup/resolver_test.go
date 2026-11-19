@@ -9,6 +9,7 @@ package cgroup
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -387,17 +388,51 @@ func TestMultiCGroupContainer(t *testing.T) {
 	mockFS.On("GetCGroupPids", string(childCGroup.CGroupID)).Return([]uint32{}, nil).Once()
 	resolver.DelPID(20)
 	resolver.DelPID(21)
-	assert.Empty(t, deleted)
+	require.Len(t, deleted, 1)
+	assert.Same(t, childEntry, deleted[0])
 	assert.True(t, childEntry.IsDeleted())
 	assert.False(t, rootEntry.IsDeleted())
 	assert.Same(t, rootEntry, resolver.GetCacheEntryContainerID(cid))
+	assert.Nil(t, resolver.GetCacheEntryByInode(childCGroup.CGroupPathKey.Inode))
 
 	mockFS.On("GetCGroupPids", string(rootCGroup.CGroupID)).Return([]uint32{}, nil).Once()
 	resolver.DelPID(10)
 	resolver.DelPID(11)
-	require.Len(t, deleted, 1)
-	assert.Same(t, rootEntry, deleted[0])
+	require.Len(t, deleted, 2)
+	assert.Same(t, rootEntry, deleted[1])
 	assert.Nil(t, resolver.GetCacheEntryContainerID(cid))
 
 	mockFS.AssertExpectations(t)
+}
+
+func TestEvictionSyncsInodeIndex(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	firstHost := model.CGroupContext{
+		CGroupID:      "/system.slice/host-0.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 1000},
+		CGroupSource:  model.CGroupSourceEvent,
+	}
+	firstEntry := resolver.AddPID(10, firstHost)
+	require.NotNil(t, firstEntry)
+
+	for i := 1; i <= maxhostWorkloadEntries; i++ {
+		cg := model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/system.slice/host-" + strconv.Itoa(i) + ".service"),
+			CGroupPathKey: model.PathKey{MountID: 42, Inode: uint64(1000 + i)},
+			CGroupSource:  model.CGroupSourceEvent,
+		}
+		require.NotNil(t, resolver.AddPID(uint32(10+i), cg))
+	}
+
+	assert.True(t, firstEntry.IsDeleted())
+	assert.Nil(t, resolver.GetCacheEntryByCgroupID(firstHost.CGroupID))
+	assert.Nil(t, resolver.GetCacheEntryByInode(firstHost.CGroupPathKey.Inode))
+
+	recreated := resolver.AddPID(9999, firstHost)
+	require.NotNil(t, recreated)
+	assert.NotSame(t, firstEntry, recreated)
+	assert.False(t, recreated.IsDeleted())
+	assert.Same(t, recreated, resolver.GetCacheEntryByCgroupID(firstHost.CGroupID))
+	assert.Same(t, recreated, resolver.GetCacheEntryByInode(firstHost.CGroupPathKey.Inode))
 }
