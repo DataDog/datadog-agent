@@ -132,6 +132,14 @@ func WithGetTimeout(timeout time.Duration) Option {
 	}
 }
 
+// WithHTTPTransport sets the transport of the requests to fakeintake, for instance one dialing an in-memory listener
+// given to the server with server.WithListener.
+func WithHTTPTransport(transport http.RoundTripper) Option {
+	return func(c *Client) {
+		c.httpClient.Transport = transport
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string

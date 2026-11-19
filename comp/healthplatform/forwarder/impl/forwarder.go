@@ -125,9 +125,15 @@ func buildIntakeDomain(cfg pkgconfigmodel.Reader) string {
 	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, intakeURLOverrideKey)
 }
 
+// newTransport builds the transport of the reports. Tests replace it with SetTransport, for instance to send the
+// reports over an in-memory connection in a testing/synctest bubble.
+var newTransport = func(cfg pkgconfigmodel.Reader) http.RoundTripper {
+	return httputils.CreateHTTPTransport(cfg)
+}
+
 func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
 	return &http.Client{
 		Timeout:   httpTimeout,
-		Transport: httputils.CreateHTTPTransport(cfg),
+		Transport: newTransport(cfg),
 	}
 }

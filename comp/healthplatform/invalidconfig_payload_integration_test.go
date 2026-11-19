@@ -9,7 +9,7 @@ package healthplatform
 
 import (
 	"bufio"
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,10 +17,12 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"text/template"
 	"time"
 
@@ -45,11 +47,13 @@ import (
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
@@ -75,6 +79,16 @@ const scenarioDescriptionPrefix = "# description: "
 //
 //go:embed testdata/invalidconfig/base.yaml
 var baseConfigTemplate string
+
+// scenarioFiles holds the scenario files. They are embedded rather than read from the runfiles, which Windows exposes
+// as directory junctions that can't be opened as files.
+//
+//go:embed testdata/invalidconfig
+var scenarioFiles embed.FS
+
+// reportsWait is the bubble time the reports are given to be sent once the startup checks finished: several egress
+// intervals of base.yaml
+const reportsWait = time.Second
 
 // invalidConfigSecrets are the values the secrets resolver returns for the ENC[] handles of the scenarios
 const invalidConfigSecrets = "secrets.json"
@@ -158,22 +172,32 @@ var configIssueKinds = []configIssueKind{
 
 func TestInvalidConfigPayload(t *testing.T) {
 	requireSchema(t)
+	initProcessGlobals()
 
-	scenarios, err := filepath.Glob(filepath.Join(invalidConfigScenarioDir, "*.yaml"))
+	scenarios, err := fs.Glob(scenarioFiles, invalidConfigScenarioDir+"/*.yaml")
 	require.NoError(t, err)
 	found := 0
-	for _, path := range scenarios {
-		name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+	for _, scenarioPath := range scenarios {
+		name := strings.TrimSuffix(path.Base(scenarioPath), ".yaml")
 		if name == "base" || strings.HasSuffix(name, ".system-probe") {
 			continue
 		}
 		found++
 		t.Run(name, func(t *testing.T) {
 			t.Log(scenarioDescription(t, name))
-			runInvalidConfigScenario(t, name)
+			synctest.Test(t, func(t *testing.T) {
+				runInvalidConfigScenario(t, name)
+			})
 		})
 	}
 	require.NotZero(t, found, "no scenario found in %s", invalidConfigScenarioDir)
+}
+
+// initProcessGlobals creates, outside any testing/synctest bubble, the process-wide state the Agent components create
+// lazily: created in a scenario bubble, it would be bound to it and break the following scenarios.
+func initProcessGlobals() {
+	mainCtx, _ := common.GetMainCtxCancel()
+	_ = mainCtx.Done() // the Done channel is created lazily too
 }
 
 // scenarioDescription returns the description of a scenario, given by the '# description: ' first line of its YAML
@@ -188,20 +212,28 @@ func scenarioDescription(t *testing.T, name string) string {
 // runInvalidConfigScenario loads the scenario configuration like the Agent does, then asserts that the health report
 // received by the intake matches the scenario expected report and that no payload leaks a configured value. It returns
 // the loaded system-probe configuration, whose effective settings aren't all visible in the reports.
+//
+// It must run in a testing/synctest bubble: the fakeintake and the Agent forwarder talk over an in-memory connection, so
+// the test knows when the startup checks finished and the reports were sent rather than polling for them.
 func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Component {
 	expected := readScenarioFile(t, name+".expected.json", false)
 
+	listener := newPipeListener()
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
-		fakeintakeserver.WithAddress("127.0.0.1:0"),
+		fakeintakeserver.WithListener(listener),
 		fakeintakeserver.WithReadyChannel(ready),
 	)
 	fi.Start()
 	require.True(t, <-ready, "fakeintake server did not become ready")
 	t.Cleanup(func() { _ = fi.Stop() })
-	// The fakeintake runs in-process: a single bounded request per poll, rather than the client default retries spanning
-	// longer than the polling deadline, so no read outlives the wait and the fakeintake shutdown
-	fiClient := fakeintakeclient.NewClient(fi.URL(), fakeintakeclient.WithGetBackoffRetries(1), fakeintakeclient.WithGetTimeout(time.Second))
+	clientTransport := listener.transport()
+	t.Cleanup(clientTransport.CloseIdleConnections)
+	fiClient := fakeintakeclient.NewClient(fi.URL(), fakeintakeclient.WithHTTPTransport(clientTransport))
+	// the Agent forwarder reaches the fakeintake, and only it, over the in-memory connection
+	agentTransport := listener.transport()
+	t.Cleanup(agentTransport.CloseIdleConnections)
+	forwarderimpl.SetTransport(t, agentTransport)
 
 	confDir := t.TempDir()
 	datadogYAML := filepath.Join(confDir, "datadog.yaml")
@@ -283,24 +315,22 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 			assert.Equal(t, canary.path, violations[0].Path)
 		}
 
-		// Empty reports are not sent: wait for every canary to prove each startup check ran and its report was sent,
-		// then check they are the only configuration issues
+		// Empty reports are not sent: every canary proves its startup check ran and its report was sent, then check they
+		// are the only configuration issues
+		waitForReports()
+		received, err := fiClient.GetAgentHealth()
+		require.NoError(t, err)
 		var configIssues []*healthplatformpayload.Issue
-		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			received, err := fiClient.GetAgentHealth()
-			require.NoError(c, err)
-			configIssues = configIssues[:0]
-			for _, payload := range received {
-				for _, issue := range payload.Issues {
-					if issueKind(issue.GetIssueType()) != nil {
-						configIssues = append(configIssues, issue)
-					}
+		for _, payload := range received {
+			for _, issue := range payload.Issues {
+				if issueKind(issue.GetIssueType()) != nil {
+					configIssues = append(configIssues, issue)
 				}
 			}
-			for _, canary := range noIssueCanaries {
-				assert.True(c, slices.ContainsFunc(configIssues, canary.isCanary), "the %s canary issue was not received yet", canary.path)
-			}
-		}, 10*time.Second, 100*time.Millisecond, "every canary configuration issue must be reported")
+		}
+		for _, canary := range noIssueCanaries {
+			assert.True(t, slices.ContainsFunc(configIssues, canary.isCanary), "the %s canary issue was not received", canary.path)
+		}
 		for _, issue := range configIssues {
 			isCanary := slices.ContainsFunc(noIssueCanaries, func(canary noIssueCanary) bool { return canary.isCanary(issue) })
 			assert.True(t, isCanary, "unexpected configuration issue %q: %s", issue.GetId(), issue.GetTitle())
@@ -309,39 +339,37 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 		return deps.SysprobeConfig
 	}
 
-	// Each startup check reports one issue per violation its schema recorded when the files were loaded, before the
-	// checks started, and stores them one at a time: a report holding as many configuration issues as there are
-	// violations is the first one emitted after both checks stored everything they will
-	violationCount := len(deps.Schema.GetViolations(model.CoreSchema)) + len(deps.Schema.GetViolations(model.SystemProbeSchema))
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		received, err := fiClient.GetAgentHealth()
-		require.NoError(c, err)
-		require.NotEmpty(c, received, "no health report received yet")
-		latest := received[0]
-		for _, payload := range received {
-			// payloads are listed in arrival order: on a tie, the later one is the most recent
-			if !payload.GetCollectedTime().Before(latest.GetCollectedTime()) {
-				latest = payload
-			}
+	// the startup checks finished before the reports were sent: the latest one holds all their issues
+	waitForReports()
+	received, err := fiClient.GetAgentHealth()
+	require.NoError(t, err)
+	require.NotEmpty(t, received, "no health report received")
+	latest := received[0]
+	for _, payload := range received {
+		// payloads are listed in arrival order: on a tie, the later one is the most recent
+		if !payload.GetCollectedTime().Before(latest.GetCollectedTime()) {
+			latest = payload
 		}
-		// the report is only complete once every startup check stored all its issues
-		configIssueCount := 0
-		for _, issue := range latest.Issues {
-			if issueKind(issue.GetIssueType()) != nil {
-				configIssueCount++
-			}
-		}
-		require.Equal(c, violationCount, configIssueCount, "the startup checks did not store all their issues yet")
-		for _, canary := range canaries {
-			require.True(c, slices.ContainsFunc(slices.Collect(maps.Values(latest.Issues)), canary.isCanary), "the %s canary issue was not received yet", canary.path)
-		}
-		actual, err := normalizeHealthReport(latest.HealthReport, expected, confDir, deps.Store.IssueDiscriminator, canaries)
-		require.NoError(c, err)
-		assert.JSONEq(c, expected, actual)
-	}, 10*time.Second, 100*time.Millisecond, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
+	}
+	for _, canary := range canaries {
+		require.True(t, slices.ContainsFunc(slices.Collect(maps.Values(latest.Issues)), canary.isCanary), "the %s canary issue was not received", canary.path)
+	}
+	actual, err := normalizeHealthReport(latest.HealthReport, expected, confDir, deps.Store.IssueDiscriminator, canaries)
+	require.NoError(t, err)
+	assert.JSONEq(t, expected, actual, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
 
 	assertNoLeakedValue(t, fiClient)
 	return deps.SysprobeConfig
+}
+
+// waitForReports returns once the startup checks finished and the intake stored their reports. The checks run in
+// goroutines started with the Agent: once every goroutine of the bubble is durably blocked, they're done. Advancing
+// the bubble clock then lets the egress send their issues, and once the bubble is idle again the intake stored every
+// report sent.
+func waitForReports() {
+	synctest.Wait()
+	time.Sleep(reportsWait)
+	synctest.Wait()
 }
 
 // assertNoLeakedValue checks that none of the health reports received by the intake holds a leak marker, both in the
@@ -374,7 +402,7 @@ func assertNoLeakedValue(t *testing.T, fiClient *fakeintakeclient.Client) {
 // readScenarioFile returns the content of a scenario file, or an empty string for a missing optional file
 func readScenarioFile(t *testing.T, name string, required bool) string {
 	t.Helper()
-	content, err := os.ReadFile(filepath.Join(invalidConfigScenarioDir, name))
+	content, err := fs.ReadFile(scenarioFiles, invalidConfigScenarioDir+"/"+name)
 	if !required && errors.Is(err, fs.ErrNotExist) {
 		return ""
 	}

@@ -65,6 +65,7 @@ type Option func(*Server)
 type Server struct {
 	uuid               uuid.UUID
 	server             http.Server
+	listener           net.Listener
 	ready              chan bool
 	clock              clock.Clock
 	retention          time.Duration
@@ -200,6 +201,19 @@ func WithAddress(addr string) Option {
 	}
 }
 
+// WithListener makes the server accept connections from the given listener rather than listening on its address,
+// for instance an in-memory listener for a test running in a testing/synctest bubble, where network I/O must be faked.
+// The server URL is built from the listener address, and the listener is closed when the server stops.
+func WithListener(listener net.Listener) Option {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the listener.")
+			return
+		}
+		fi.listener = listener
+	}
+}
+
 // WithPort changes the server port.
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) Option {
@@ -330,18 +344,22 @@ func (fi *Server) Stop() error {
 }
 
 func (fi *Server) listenRoutine() {
-	// explicitly creating a listener to get the actual port
-	// as http.Server.ListenAndServe hides this information
-	// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
-	listener, err := net.Listen("tcp", fi.server.Addr)
-	if err != nil {
-		log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
+	listener := fi.listener
+	if listener == nil {
+		// explicitly creating a listener to get the actual port
+		// as http.Server.ListenAndServe hides this information
+		// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
+		var err error
+		listener, err = net.Listen("tcp", fi.server.Addr)
+		if err != nil {
+			log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
 
-		if fi.ready != nil {
-			fi.ready <- false
+			if fi.ready != nil {
+				fi.ready <- false
+			}
+
+			return
 		}
-
-		return
 	}
 	fi.setURL("http://" + listener.Addr().String())
 	// notify server is ready, if anybody is listening
@@ -349,7 +367,7 @@ func (fi *Server) listenRoutine() {
 		fi.ready <- true
 	}
 	// server.Serve blocks and listens to requests
-	err = fi.server.Serve(listener)
+	err := fi.server.Serve(listener)
 	if err != nil && err != http.ErrServerClosed {
 		log.Printf("Error listening at %s: %v", listener.Addr().String(), err)
 		return

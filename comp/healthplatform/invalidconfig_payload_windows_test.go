@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ import (
 //   - the system-probe.yaml policy sets a setting the reports don't show: it must not reach the loaded configuration
 func TestInvalidConfigPayloadIgnoresHostFleetPolicy(t *testing.T) {
 	requireSchema(t)
+	initProcessGlobals()
 
 	policyDir := t.TempDir()
 	datadogPolicy := "health_platform:\n  forwarder:\n    dd_url: \"http://127.0.0.1:1\"\n"
@@ -34,7 +36,9 @@ func TestInvalidConfigPayloadIgnoresHostFleetPolicy(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(policyDir, "system-probe.yaml"), []byte(sysprobePolicy), 0o600))
 	configmock.SetFleetPoliciesDirFromRegistry(t, policyDir)
 
-	sysprobeConfig := runInvalidConfigScenario(t, "file_types")
-	assert.NotEqual(t, sysprobePolicyLogFile, sysprobeConfig.GetString("system_probe_config.log_file"),
-		"the host system-probe fleet policy must not be merged")
+	synctest.Test(t, func(t *testing.T) {
+		sysprobeConfig := runInvalidConfigScenario(t, "file_types")
+		assert.NotEqual(t, sysprobePolicyLogFile, sysprobeConfig.GetString("system_probe_config.log_file"),
+			"the host system-probe fleet policy must not be merged")
+	})
 }
