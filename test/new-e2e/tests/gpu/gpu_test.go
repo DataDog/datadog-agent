@@ -505,7 +505,7 @@ func (v *gpuBaseSuite[Env]) TestGPUResourcesPublished() {
 		DriverVersion string `json:"gpu_driver_version"`
 		PCIBusID      string `json:"gpu_pci_bus_id"`
 	}
-	hostname := v.caps.Agent().Hostname()
+	hostname := strings.TrimSpace(v.caps.Agent().Hostname())
 	v.Require().NotEmpty(hostname)
 	expected := make(map[string]gpuFields, len(uuids))
 	for _, line := range strings.Split(strings.TrimSpace(inventory), "\n") {
