@@ -193,6 +193,7 @@ func TestMetricKindTelemetryPublication(t *testing.T) {
 	require.Equal(t, 2.0, observerMetric(t, comp, telemetryKindProcessingCalls, labels).GetCounter().GetValue())
 
 	addPipelinePoints(s, 1, 4, 4, metrics.GaugeType)
+	p.Detect(s, 4, observer.DetectionFilter{})
 	p.advanceKinds(s, 4)
 	e.publishMetricKindTelemetry(tel)
 	require.Equal(t, 1.0, observerMetric(t, comp, telemetryMetricKindTransitions,

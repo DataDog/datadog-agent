@@ -32,6 +32,58 @@ func makeSyntheticPoints(startTs int64, stepSec int64, vals []float64) []observe
 	return pts
 }
 
+func TestMetricKindMatcher_ClassifySuppliedWindow(t *testing.T) {
+	points := makeSyntheticPoints(1, 1, []float64{10, 20, 30, 40, 50})
+	for _, predicted := range []observerdef.MetricKind{
+		observerdef.STABLE, observerdef.LINEAR, observerdef.UNKNOWN, observerdef.UNSET,
+	} {
+		t.Run(predicted.String(), func(t *testing.T) {
+			calls := 0
+			matcher := newMetricKindMatcherWithClassifier(
+				observerdef.MetricKindMatcherConfig{MinPoints: 3, MaxPoints: 3},
+				func(got []observerdef.Point, _ *matcherWorkspace) observerdef.MetricKind {
+					calls++
+					require.Equal(t, points, got, "Classify must not trim the supplied window")
+					return predicted
+				},
+			)
+			want := predicted
+			if want == observerdef.UNSET {
+				want = observerdef.UNKNOWN
+			}
+			require.Equal(t, want, matcher.Classify(points))
+			require.Equal(t, want, matcher.Classify(points), "the same window can be classified again")
+			require.Equal(t, 2, calls)
+			require.Empty(t, matcher.series)
+		})
+	}
+}
+
+func TestMetricKindMatcher_ClassifyPreservesPendingConfirmations(t *testing.T) {
+	matcher := newMetricKindMatcherWithClassifier(
+		observerdef.MetricKindMatcherConfig{MinPoints: 5, MaxPoints: 5, TransitionConfirmations: 3},
+		classifyMetricKind,
+	)
+	ref := observerdef.SeriesRef(1)
+	points := makeSyntheticPoints(1, 1, []float64{1, 2, 3, 4, 5, 6, 7})
+	_, changed := matcher.Observe(ref, observerdef.STABLE, points[:5], 5)
+	require.False(t, changed)
+	before := *matcher.series[ref]
+
+	flat := makeSyntheticPoints(100, 1, []float64{10, 10, 10, 10, 10})
+	for range 3 {
+		require.Equal(t, observerdef.STABLE, matcher.Classify(flat))
+		require.Equal(t, observerdef.LINEAR, matcher.Classify(points[:5]))
+	}
+	require.Equal(t, before, *matcher.series[ref])
+
+	_, changed = matcher.Observe(ref, observerdef.STABLE, points[:6], 6)
+	require.False(t, changed)
+	transition, changed := matcher.Observe(ref, observerdef.STABLE, points, 7)
+	require.True(t, changed)
+	require.Equal(t, observerdef.LINEAR, transition.To)
+}
+
 func TestMetricKindMatcher_TransitionSemantics(t *testing.T) {
 	var scripted []observerdef.MetricKind
 	idx := 0

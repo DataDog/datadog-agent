@@ -55,6 +55,22 @@ After you apply the updated values, Helm rolls out a new Agent DaemonSet revisio
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as the `dd-agent` user (UID/GID `100`) instead, set `datadog.hostProfiler.runAsRoot` to `false`:
+
+```yaml
+datadog:
+  hostProfiler:
+    enabled: true
+    runAsRoot: false
+```
+
+The chart sets `runAsUser`, `runAsGroup`, and `runAsNonRoot` on the host-profiler container and keeps the Linux capabilities the profiler needs.
+
+> [!WARNING]
+> Enabling the Agent IPC Unix socket (`agent_ipc.use_socket: true`) breaks the non-root Host Profiler on Agents earlier than **7.84.0**: the profiler fails to start with a configuration sync error.
+
 ## SELinux
 
 The Datadog Helm chart configures the Host Profiler with the `spc_t` SELinux type by default. If `spc_t` is not available in your environment, set `agents.containers.hostProfiler.securityContext.seLinuxOptions.type` to an equivalent type supported by your distribution and security policy:

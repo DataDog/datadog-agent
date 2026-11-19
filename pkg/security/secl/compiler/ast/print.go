@@ -56,8 +56,19 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("${")
 		sb.WriteString(node.Name)
 		sb.WriteString("}")
+	case *Interpolation:
+		p.sprintInterpolation(node)
+	case *Selector:
+		p.sprint(node.Base)
+		sb.WriteString(".")
+		sb.WriteString(node.Member)
+	case *Index:
+		p.sprint(node.Base)
+		sb.WriteString("[")
+		p.sprint(node.Subscript)
+		sb.WriteString("]")
 	case *FieldRef:
-		sb.WriteString(node.Name)
+		p.sprintFieldRef(node)
 	case *Array:
 		members := make([]Node, 0, len(node.Members))
 		for _, member := range node.Members {
@@ -70,6 +81,43 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("]")
 	default:
 		fmt.Fprintf(sb, "<%T>", node)
+	}
+}
+
+// sprintInterpolation prints a string with interpolations the way it is
+// written, a field in its `%{}`: `"pid:%{process.pid}"`.
+func (p printer) sprintInterpolation(node *Interpolation) {
+	sb := p.sb
+	sb.WriteString(`"`)
+	for _, part := range node.Parts {
+		if text, ok := part.(*Literal); ok && text.Value.Kind() == String {
+			sb.WriteString(StringVal(text.Value))
+			continue
+		}
+		if _, ok := part.(*VariableRef); ok {
+			p.sprint(part)
+			continue
+		}
+		// a name, or the constant it was resolved to
+		sb.WriteString("%{")
+		p.sprint(part)
+		sb.WriteString("}")
+	}
+	sb.WriteString(`"`)
+}
+
+// sprintFieldRef prints a field reference the way it is written:
+// `process.ancestors[A].file.name`.
+func (p printer) sprintFieldRef(node *FieldRef) {
+	sb := p.sb
+	switch iter := node.Iter; {
+	case iter != nil && strings.HasPrefix(node.Name, iter.Iterator):
+		sb.WriteString(iter.Iterator + "[" + iter.Register + "]" + node.Name[len(iter.Iterator):])
+	case iter != nil:
+		// a legacy field renamed, the iterator isn't a prefix of the field
+		sb.WriteString(node.Name + "[" + iter.Register + "]")
+	default:
+		sb.WriteString(node.Name)
 	}
 }
 
