@@ -591,7 +591,7 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 
 	d.fillNVLinkDataFromNVML(dev)
 	d.fillStaticAttributes(dev)
-	d.fillTopologyAttributes(dev)
+	d.fillPCIAttributes(dev)
 
 	return nil
 }
