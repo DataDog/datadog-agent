@@ -119,3 +119,7 @@ outgoing rollback enablement. Test-only copies observe service settings at
 execution checkpoints without changing production action order. Released-version
 upgrade tests separately cover legacy rollback without the new outgoing enable
 action.
+
+Keep each install/upgrade scenario in its own suite test method so the existing
+audit lifecycle hooks collect evidence between scenarios. Those hooks do not run
+for nested subtests; a long scenario loop can outlive Security log retention.

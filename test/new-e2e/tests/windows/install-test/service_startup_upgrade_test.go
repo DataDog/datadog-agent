@@ -27,97 +27,106 @@ type testUpgradeServiceProtectionSuite struct {
 	baseAgentMSISuite
 }
 
-func (s *testUpgradeServiceProtectionSuite) TestUpgradeServiceProtection() {
+// Each scenario needs its own suite hooks so audit evidence is collected before
+// the next install/upgrade cycle can overwrite the Security event log.
+func (s *testUpgradeServiceProtectionSuite) TestRemovalRollback() {
+	s.runUpgradeServiceProtection("removal_rollback", "UninstallUser", "")
+}
+
+func (s *testUpgradeServiceProtectionSuite) TestConfigurationRollback() {
+	s.runUpgradeServiceProtection("configuration_rollback", "", "ConfigureServices")
+}
+
+func (s *testUpgradeServiceProtectionSuite) TestLateRollback() {
+	s.runUpgradeServiceProtection("late_rollback", "", "StartDDServices")
+}
+
+func (s *testUpgradeServiceProtectionSuite) TestSuccessfulUpgrade() {
+	s.runUpgradeServiceProtection("success", "", "")
+}
+
+func (s *testUpgradeServiceProtectionSuite) runUpgradeServiceProtection(name, oldFailure, newFailure string) {
 	vm := s.Env().RemoteHost
 	upgrade, err := windowsAgent.GetUpgradeTestPackageFromEnv()
 	s.Require().NoError(err)
 
-	for _, scenario := range []struct{ name, oldFailure, newFailure string }{
-		{"removal_rollback", "UninstallUser", ""},
-		{"configuration_rollback", "", "ConfigureServices"},
-		{"late_rollback", "", "StartDDServices"},
-		{"success", "", ""},
-	} {
-		if !s.Run(scenario.name, func() {
-			directory := strings.TrimSpace(vm.MustExecute(`[System.IO.Path]::Combine($env:TEMP, [guid]::NewGuid().ToString('N'))`))
-			s.Require().NoError(vm.MkdirAll(directory))
-			defer vm.RemoveAll(directory) //nolint:errcheck
-			scriptPath := directory + `\checkpoints.ps1`
-			_, err = vm.WriteFile(scriptPath, []byte(serviceStartupCheckpoints))
-			s.Require().NoError(err)
+	s.Run(name, func() {
+		directory := strings.TrimSpace(vm.MustExecute(`[System.IO.Path]::Combine($env:TEMP, [guid]::NewGuid().ToString('N'))`))
+		s.Require().NoError(vm.MkdirAll(directory))
+		defer vm.RemoveAll(directory) //nolint:errcheck
+		scriptPath := directory + `\checkpoints.ps1`
+		_, err = vm.WriteFile(scriptPath, []byte(serviceStartupCheckpoints))
+		s.Require().NoError(err)
 
-			prepare := func(role string, pkg *windowsAgent.Package, failAfter string) string {
-				path := directory + `\` + role + ".msi"
-				s.Require().NoError(windowsCommon.PutOrDownloadFile(vm, pkg.URL, path))
-				_, err := vm.Execute(fmt.Sprintf(`& '%s' -MsiPath '%s' -OutputDirectory '%s' -Role '%s' -FailAfter '%s'`, scriptPath, path, directory, role, failAfter))
-				s.Require().NoError(err)
-				return path
-			}
-			oldMSI := prepare("old", s.AgentPackage, scenario.oldFailure)
-			newMSI := prepare("new", upgrade, scenario.newFailure)
-			installArgs := `APIKEY="00000000000000000000000000000000" DD_INSTALL_ONLY=1`
-			s.Require().NoError(windowsCommon.InstallMSI(vm, oldMSI, installArgs, filepath.Join(s.SessionOutputDir(), "install.log")))
-			oldProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
+		prepare := func(role string, pkg *windowsAgent.Package, failAfter string) string {
+			path := directory + `\` + role + ".msi"
+			s.Require().NoError(windowsCommon.PutOrDownloadFile(vm, pkg.URL, path))
+			_, err := vm.Execute(fmt.Sprintf(`& '%s' -MsiPath '%s' -OutputDirectory '%s' -Role '%s' -FailAfter '%s'`, scriptPath, path, directory, role, failAfter))
 			s.Require().NoError(err)
-			defer s.cleanupAgent()
-			// Rollback deliberately applies the outgoing package's defaults rather
-			// than restoring these customer-customized startup settings.
-			vm.MustExecute(`Set-Service datadogagent -StartupType Manual; Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent' -Name DelayedAutoStart -Value 0; Set-Service 'Datadog Installer' -StartupType Disabled`)
-			s.Require().Len(s.captureProtectedServiceStartup(), len(protectedServiceNames))
-
-			err = windowsCommon.InstallMSI(vm, newMSI, installArgs, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
-			failed := scenario.oldFailure != "" || scenario.newFailure != ""
-			if failed {
-				s.Require().Error(err)
-			} else {
-				s.Require().NoError(err)
-			}
-
-			checkpoint := func(role, action string, enabled bool) {
-				data, err := vm.ReadFile(directory + `\` + role + "-" + action + ".txt")
-				s.Require().NoError(err, "execution must reach %s/%s", role, action)
-				lines := strings.FieldsFunc(strings.TrimSpace(string(data)), func(r rune) bool { return r == '\r' || r == '\n' })
-				s.Require().Len(lines, len(protectedServiceNames))
-				for _, line := range lines {
-					start := "4"
-					if enabled {
-						start = "3"
-						if strings.HasPrefix(line, "datadogagent=") {
-							start = "2"
-						}
-					}
-					s.Require().True(strings.HasSuffix(line, "="+start), "unexpected startup setting at %s/%s: %s", role, action, line)
-				}
-			}
-			checkpoint("old", "StopDDServices", false)
-			checkpoint("old", "UninstallUser", false)
-			if scenario.oldFailure == "" {
-				// Registrations must survive removal even after DeleteServices.
-				checkpoint("old", "DeleteServices", false)
-				checkpoint("new", "ConfigureUser", false)
-				checkpoint("new", "ConfigureServices", false)
-				if scenario.newFailure != "ConfigureServices" {
-					checkpoint("new", "StartDDServices", true)
-				}
-			}
-			product, err := windowsAgent.GetDatadogAgentProductCode(vm)
-			s.Require().NoError(err)
-			if failed {
-				s.Require().Equal(oldProduct, product, "rollback must restore the outgoing product")
-				s.assertServiceStartupDefaults()
-				// Default enablement must leave a usable installation after permissions rollback.
-				s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
-				RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
-			} else {
-				s.Require().NotEqual(oldProduct, product, "must exercise a major upgrade, not repair")
-				s.assertServiceStartupDefaults()
-			}
-			s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "", filepath.Join(s.SessionOutputDir(), "uninstall.log")))
-			s.Require().Empty(s.captureProtectedServiceStartup(), "true uninstall must delete service registrations")
-		}) {
-			s.Require().FailNow("stopping after failed upgrade scenario")
+			return path
 		}
-	}
+		oldMSI := prepare("old", s.AgentPackage, oldFailure)
+		newMSI := prepare("new", upgrade, newFailure)
+		installArgs := `APIKEY="00000000000000000000000000000000" DD_INSTALL_ONLY=1`
+		s.Require().NoError(windowsCommon.InstallMSI(vm, oldMSI, installArgs, filepath.Join(s.SessionOutputDir(), "install.log")))
+		oldProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
+		s.Require().NoError(err)
+		defer s.cleanupAgent()
+		// Rollback deliberately applies the outgoing package's defaults rather
+		// than restoring these customer-customized startup settings.
+		vm.MustExecute(`Set-Service datadogagent -StartupType Manual; Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent' -Name DelayedAutoStart -Value 0; Set-Service 'Datadog Installer' -StartupType Disabled`)
+		s.Require().Len(s.captureProtectedServiceStartup(), len(protectedServiceNames))
+
+		err = windowsCommon.InstallMSI(vm, newMSI, installArgs, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
+		failed := oldFailure != "" || newFailure != ""
+		if failed {
+			s.Require().Error(err)
+		} else {
+			s.Require().NoError(err)
+		}
+
+		checkpoint := func(role, action string, enabled bool) {
+			data, err := vm.ReadFile(directory + `\` + role + "-" + action + ".txt")
+			s.Require().NoError(err, "execution must reach %s/%s", role, action)
+			lines := strings.FieldsFunc(strings.TrimSpace(string(data)), func(r rune) bool { return r == '\r' || r == '\n' })
+			s.Require().Len(lines, len(protectedServiceNames))
+			for _, line := range lines {
+				start := "4"
+				if enabled {
+					start = "3"
+					if strings.HasPrefix(line, "datadogagent=") {
+						start = "2"
+					}
+				}
+				s.Require().True(strings.HasSuffix(line, "="+start), "unexpected startup setting at %s/%s: %s", role, action, line)
+			}
+		}
+		checkpoint("old", "StopDDServices", false)
+		checkpoint("old", "UninstallUser", false)
+		if oldFailure == "" {
+			// Registrations must survive removal even after DeleteServices.
+			checkpoint("old", "DeleteServices", false)
+			checkpoint("new", "ConfigureUser", false)
+			checkpoint("new", "ConfigureServices", false)
+			if newFailure != "ConfigureServices" {
+				checkpoint("new", "StartDDServices", true)
+			}
+		}
+		product, err := windowsAgent.GetDatadogAgentProductCode(vm)
+		s.Require().NoError(err)
+		if failed {
+			s.Require().Equal(oldProduct, product, "rollback must restore the outgoing product")
+			s.assertServiceStartupDefaults()
+			// Default enablement must leave a usable installation after permissions rollback.
+			s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
+			RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+		} else {
+			s.Require().NotEqual(oldProduct, product, "must exercise a major upgrade, not repair")
+			s.assertServiceStartupDefaults()
+		}
+		s.Require().NoError(windowsCommon.UninstallMSI(vm, product, "", filepath.Join(s.SessionOutputDir(), "uninstall.log")))
+		s.Require().Empty(s.captureProtectedServiceStartup(), "true uninstall must delete service registrations")
+	})
 }
 
 func (s *baseAgentMSISuite) assertServiceStartupDefaults() {
