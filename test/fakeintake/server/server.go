@@ -66,6 +66,7 @@ type Server struct {
 	uuid               uuid.UUID
 	server             http.Server
 	listener           net.Listener
+	listenerURL        string
 	ready              chan bool
 	clock              clock.Clock
 	retention          time.Duration
@@ -203,14 +204,16 @@ func WithAddress(addr string) Option {
 
 // WithListener makes the server accept connections from the given listener rather than listening on its address,
 // for instance an in-memory listener for a test running in a testing/synctest bubble, where network I/O must be faked.
-// The server URL is built from the listener address, and the listener is closed when the server stops.
-func WithListener(listener net.Listener) Option {
+// url is the HTTP origin the clients reach the listener at, e.g. http://fakeintake.test, as a listener address isn't
+// always one. The listener is closed when the server stops.
+func WithListener(listener net.Listener, url string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the listener.")
 			return
 		}
 		fi.listener = listener
+		fi.listenerURL = url
 	}
 }
 
@@ -344,7 +347,7 @@ func (fi *Server) Stop() error {
 }
 
 func (fi *Server) listenRoutine() {
-	listener := fi.listener
+	listener, url := fi.listener, fi.listenerURL
 	if listener == nil {
 		// explicitly creating a listener to get the actual port
 		// as http.Server.ListenAndServe hides this information
@@ -360,8 +363,9 @@ func (fi *Server) listenRoutine() {
 
 			return
 		}
+		url = "http://" + listener.Addr().String()
 	}
-	fi.setURL("http://" + listener.Addr().String())
+	fi.setURL(url)
 	// notify server is ready, if anybody is listening
 	if fi.ready != nil {
 		fi.ready <- true
