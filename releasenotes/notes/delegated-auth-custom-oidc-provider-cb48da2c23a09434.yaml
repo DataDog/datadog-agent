@@ -2,9 +2,11 @@
 features:
   - |
     Add a custom OIDC provider for delegated authentication (Workload Identity
-    Federation). Set ``delegated_auth.provider`` to ``oidc`` and
+    Federation). Set ``delegated_auth.provider`` to ``oidc``,
     ``delegated_auth.oidc.token_file`` to the absolute path of a workload identity
-    token whose audience is ``datadog/<org_uuid>``, such as a Kubernetes projected
-    service account token. The Agent re-reads the file on every exchange, refuses
-    tokens that are not scoped to the configured organization before sending them,
-    and exchanges the token for an auto-refreshed intake key.
+    token whose audience is ``datadog/<org_uuid>`` (such as a Kubernetes projected
+    service account token), and use ``DELA[<org_uuid>, oidc]`` as the endpoint API key.
+    The Agent re-reads the file on every exchange, refuses tokens that are not scoped
+    to the configured organization before sending them, and exchanges the token for
+    an auto-refreshed intake key. The exchange always verifies the server certificate,
+    even when ``skip_ssl_validation`` is enabled.
