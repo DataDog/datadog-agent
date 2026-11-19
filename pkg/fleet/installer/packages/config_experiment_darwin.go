@@ -74,10 +74,10 @@ var configExperimentLockPath = filepath.Join(paths.PackagesPath, "packages.db")
 var configExperimentDirs = config.Directories{StablePath: paths.AgentConfigDir, ExperimentPath: paths.AgentConfigDirExp}
 
 // discardExperimentConfig puts the experiment configuration path back to resting on the stable
-// one. The daemon's state refresh reports whatever that path holds as the running configuration,
-// so any path that hands the Agent back to the stable job set without going through the
-// installer's RemoveConfigExperiment must call this too, or the reverted experiment would keep
-// being reported as running.
+// one, so the daemon no longer reports an experiment. A start that fails must call it, since the
+// installer returns the error without removing what it published, and the next attempt's expected
+// state would no longer match. An experiment that fails after its start was reported keeps its
+// configuration instead (configExperiment.Fail), for Fleet to stop.
 func discardExperimentConfig(ctx context.Context) error {
 	if err := configExperimentDirs.RemoveExperiment(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("could not discard the experiment configuration directory: %w", err)
@@ -148,6 +148,31 @@ func (e configExperiment) abortStart(ctx context.Context, startErr error) error 
 // Stop hands the Agent back to the stable job set, abandoning the experiment.
 func (e configExperiment) Stop(ctx context.Context) error {
 	err := e.restoreStable(ctx)
+	ensureProcmgr(ctx, false)
+	return err
+}
+
+// Fail hands every job back to the stable set after the experiment failed on the host, and leaves
+// its configuration deployed. The deadline is replaced by DeadlineFailed rather than cleared, so
+// the resume hook and the stop hook know the jobs are already back.
+//
+// The host keeps reporting the experiment, with the stable daemon's config_id as the running
+// configuration, as Linux does after its experiment unit fails. Fleet's health check sees the
+// running configuration fall back to the stable one and rolls the experiment back with a stop.
+//
+// The marker is what keeps the resume hook from discarding the configuration as orphaned. When it
+// cannot be written, the experiment is discarded instead, which leaves the host on the stable
+// configuration with nothing reported, rather than failing a revert whose jobs are already back.
+func (e configExperiment) Fail(ctx context.Context) error {
+	deadline := experimentDeadline()
+	err := e.restoreStableThen(ctx, func() error {
+		markErr := deadline.MarkFailed()
+		if markErr == nil {
+			return nil
+		}
+		log.Warnf("could not mark the configuration experiment as failed, discarding it instead: %v", markErr)
+		return errors.Join(deadline.Clear(), discardExperimentConfig(ctx))
+	})
 	ensureProcmgr(ctx, false)
 	return err
 }
@@ -225,6 +250,12 @@ func ensureProcmgr(ctx context.Context, restart bool) {
 // daemon start reverts again (resumeConfigExperimentDatadogAgent) instead of resuming the
 // experiment or leaving the host half switched.
 func (e configExperiment) restoreStable(ctx context.Context) error {
+	return e.restoreStableThen(ctx, experimentDeadline().Clear)
+}
+
+// restoreStableThen is restoreStable with finish, instead of clearing the deadline, run once every
+// stable job is back.
+func (e configExperiment) restoreStableThen(ctx context.Context, finish func() error) error {
 	deadline := experimentDeadline()
 	if err := deadline.MarkReverting(); err != nil {
 		// The marker only backs up a restore that fails. Not being able to write it must not keep
@@ -243,7 +274,7 @@ func (e configExperiment) restoreStable(ctx context.Context) error {
 	// A leftover experiment definition is not loaded at boot, so failing to remove one does not
 	// stop the stable set from being restored; it is still reported, but the hand-back is done.
 	removeErr := e.jobs.Remove(launchd.Experiment)
-	return errors.Join(removeErr, deadline.Clear())
+	return errors.Join(removeErr, finish())
 }
 
 // handOverWatcherTimeout bounds how long the hand-over waits, once the experiment daemon is
@@ -464,9 +495,10 @@ func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error))
 }
 
 // experimentPending reports whether a token read from the deadline file stands for a running
-// experiment, as opposed to none (empty) or one being handed back to the stable set.
+// experiment, as opposed to none (empty), one being handed back to the stable set, or one that
+// failed and is back on it already.
 func experimentPending(token string) bool {
-	return token != "" && token != launchd.DeadlineReverting
+	return token != "" && token != launchd.DeadlineReverting && token != launchd.DeadlineFailed
 }
 
 // restoreStableJobs hands every label back from the experiment job to the stable one, retrying a

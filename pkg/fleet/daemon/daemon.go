@@ -839,21 +839,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
+		// d.env.ConfigID is the config_id the daemon read at startup. Every platform starts a
+		// separate daemon on the experiment's configuration for a config experiment (installer-exp
+		// on macOS), so it reports the configuration this daemon actually runs.
 		runningConfigVersion := runningConfigVersions[pkg]
-		// d.env.ConfigID is read once at daemon startup. Linux and Windows restart the daemon
-		// with the experiment's configuration, so it stays accurate there. The macOS daemon has
-		// no experiment variant and keeps running across a config experiment, so there the
-		// running version is whatever is active on disk (experiment over stable).
-		if runtime.GOOS == "darwin" {
-			configState := configAndPackageStates.ConfigStates[pkg]
-			runningConfigVersion = configState.Stable
-			if configState.HasExperiment() {
-				runningConfigVersion = configState.Experiment
-			}
-			if runningConfigVersion == "" {
-				runningConfigVersion = d.env.ConfigID
-			}
-		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,

@@ -55,6 +55,13 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("resume: could not read experiment deadline: %w", err)
 	}
+	if token == launchd.DeadlineFailed {
+		// The experiment failed on the host and its jobs are already back on the stable set. Its
+		// configuration is kept for Fleet's stop (configExperiment.Fail), so there is nothing to
+		// resume or revert.
+		log.Infof("resume: the configuration experiment failed on the host and waits for Fleet to stop it")
+		return nil
+	}
 	if token == "" {
 		return revertOrphanedExperiment(ctx)
 	}
@@ -95,7 +102,12 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 		return finishFailedResume(ctx, deadline, err)
 	}
 	if err := launchInstallerHandOver(ctx); err != nil {
-		return revertFailedHandOver(ctx, err)
+		log.Errorf("resume: could not launch the installer daemon hand-over, reverting: %v", err)
+		if revertErr := revertExperiment(ctx, agentJobSet()); revertErr != nil {
+			return fmt.Errorf("hand-over failed to launch (%w) and the experiment could not be reverted: %w", err, revertErr)
+		}
+		removeInstallerExperimentJob()
+		return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", err)
 	}
 	return nil
 }
@@ -152,7 +164,7 @@ func revertOrphanedExperiment(ctx HookContext) error {
 		return nil
 	}
 	log.Warnf("resume: configuration experiment %s is deployed with no deadline, reverting", state.ExperimentDeploymentID)
-	if err := revertExperiment(ctx, agentJobSet()); err != nil {
+	if err := revertAndDiscardExperiment(ctx, agentJobSet()); err != nil {
 		return fmt.Errorf("resume: %w", err)
 	}
 	removeInstallerExperimentJob()
@@ -170,11 +182,12 @@ func revertFromResume(ctx context.Context, deadline launchd.Deadline, token stri
 }
 
 // finishFailedResume completes the revert of an experiment Resume could not bring back. Resume has
-// already put the agent jobs back on the stable set (abortStart), which clears the deadline; that
-// leaves the experiment configuration, which would otherwise be reported as running for the whole
-// life of this daemon, and the experiment daemon's job definition. A restore that did not finish
-// leaves the reverting marker instead, and the next daemon start reverts again.
-func finishFailedResume(ctx context.Context, deadline launchd.Deadline, resumeErr error) error {
+// already put the agent jobs back on the stable set (abortStart), which clears the deadline. The
+// experiment configuration is kept for Fleet to stop, as for any experiment that fails on the host,
+// so the deadline is replaced by the failed marker (configExperiment.Fail), and the experiment
+// daemon's job definition is removed. A restore that did not finish leaves the reverting marker
+// instead, and the next daemon start reverts again.
+func finishFailedResume(_ context.Context, deadline launchd.Deadline, resumeErr error) error {
 	current, err := deadline.Read()
 	if err != nil {
 		return fmt.Errorf("resume failed (%w), and the experiment deadline could not be read: %w", resumeErr, err)
@@ -182,8 +195,8 @@ func finishFailedResume(ctx context.Context, deadline launchd.Deadline, resumeEr
 	if current != "" {
 		return fmt.Errorf("resume failed and the experiment could not be reverted, the next daemon start retries: %w", resumeErr)
 	}
-	if err := discardExperimentConfig(ctx); err != nil {
-		return fmt.Errorf("resume failed (%w), and %w", resumeErr, err)
+	if err := deadline.MarkFailed(); err != nil {
+		return fmt.Errorf("resume failed (%w), and the experiment could not be marked as failed: %w", resumeErr, err)
 	}
 	removeInstallerExperimentJob()
 	return fmt.Errorf("resume failed, experiment reverted: %w", resumeErr)

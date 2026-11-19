@@ -115,7 +115,6 @@ dd_agent_go_test(
     srcs = [
         "apm_inject_windows_test.go",
         "config_experiment_darwin_test.go",
-        "config_experiment_probation_darwin_test.go",
         "config_experiment_watcher_darwin_test.go",
         "datadog_agent_darwin_dmg_test.go",
         "datadog_agent_darwin_test.go",
