@@ -94,10 +94,10 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 
 // trackOutput records what a sample adds to its context's output, for check samplers with tag filtering enabled. The
 // first sample of a type that can be filtered makes the context filterable, and filters it if a rule matches: the
-// identity only depends on the context, so the rule is looked up once (ShouldStripTags allocates), and refilter
-// updates contexts when rules change. Context keys don't include the metric type, so samples of other types can share
-// the context; they change nothing, as only output that adds up across sources is merged. The resolver's buffers
-// must hold the context's tags.
+// identity only depends on the context, so the rule is applied once per context, and refilter updates contexts when
+// rules change. Context keys don't include the metric type, so samples of other types can share the context; they
+// change nothing, as only output that adds up across sources is merged. The resolver's buffers must hold the
+// context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
 	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable || !typeFiltersAtOutput(metricSampleContext.GetMetricType()) {
 		return
