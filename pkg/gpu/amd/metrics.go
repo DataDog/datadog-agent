@@ -45,7 +45,7 @@ type Metrics struct {
 	PowerCapMilliwatts Reading // hwmon power1_cap
 
 	GraphicsClockMHz Reading // active level of pp_dpm_sclk, or hwmon sclk when no level is marked
-	MemoryClockMHz   Reading // active level of pp_dpm_mclk
+	MemoryClockMHz   Reading // active level of pp_dpm_mclk, or hwmon mclk when no level is marked
 
 	PCIeLinkWidth       Reading // current_link_width, lanes
 	PCIeMaxLinkWidth    Reading // max_link_width, lanes
@@ -88,9 +88,9 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.VRAMTotalBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_total"), 1)
 	m.VRAMUsedBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_used"), 1)
 
-	var sclkUnmarked bool
+	var sclkUnmarked, mclkUnmarked bool
 	m.GraphicsClockMHz, sclkUnmarked = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_sclk"))
-	m.MemoryClockMHz, _ = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_mclk"))
+	m.MemoryClockMHz, mclkUnmarked = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_mclk"))
 
 	m.PCIeLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "current_link_width"))
 	m.PCIeMaxLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "max_link_width"))
@@ -98,7 +98,16 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.PCIeMaxLinkSpeedGTs = r.linkSpeed(filepath.Join(d.devicePath, "max_link_speed"))
 
 	if hwmonDir := r.hwmonDir(d.devicePath); hwmonDir != "" {
-		r.readHwmon(hwmonDir, &m, sclkUnmarked)
+		entries := r.readDir(hwmonDir)
+		r.readHwmon(hwmonDir, entries, &m)
+		// Since Linux 7.0, pp_dpm_* of AMD Instinct GPUs (MI200, MI300, MI350) can
+		// mark no level while the clock is between two (fixed for sclk in 7.0.10 and 7.1).
+		if sclkUnmarked {
+			m.GraphicsClockMHz = r.hwmonClock(hwmonDir, entries, "sclk")
+		}
+		if mclkUnmarked {
+			m.MemoryClockMHz = r.hwmonClock(hwmonDir, entries, "mclk")
+		}
 	}
 
 	if !opts.SkipGPUMetrics {
@@ -227,8 +236,9 @@ func (r *reader) int(path string, scale float64) Reading {
 // in a pp_dpm_* table. Lines look like "1: 1700Mhz *", "S: 19Mhz *" (deep
 // sleep) or "0:        872Mhz"; the value and its unit may be separated by
 // spaces. This follows the parser of ROCm SMI (rocm_smi.cc, freq_lines).
-// unmarked reports a table that lists levels but marks none, unlike the
-// "unavailable" printed during a RAS interrupt.
+// unmarked reports a table that lists levels but marks none. During a RAS
+// interrupt, the table reads "unavailable" or fails with EBUSY, depending on
+// the kernel and GPU.
 func (r *reader) activeDPMLevel(path string) (level Reading, unmarked bool) {
 	content, ok := r.read(path)
 	if !ok {
@@ -310,8 +320,7 @@ const (
 	hertzPerMegahertz       = 1000000
 )
 
-func (r *reader) readHwmon(dir string, m *Metrics, sclkUnmarked bool) {
-	entries := r.readDir(dir)
+func (r *reader) readHwmon(dir string, entries []os.DirEntry, m *Metrics) {
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, "temp") || !strings.HasSuffix(name, "_label") {
@@ -338,12 +347,6 @@ func (r *reader) readHwmon(dir string, m *Metrics, sclkUnmarked bool) {
 		m.PowerMilliwatts = r.uint(filepath.Join(dir, "power1_input"), 1.0/microwattsPerMilliwatts)
 	}
 	m.PowerCapMilliwatts = r.uint(filepath.Join(dir, "power1_cap"), 1.0/microwattsPerMilliwatts)
-
-	// Linux 7.0 to 7.0.9 marks no pp_dpm_sclk level of MI300 and MI350 GPUs
-	// while the clock is between its minimum and maximum.
-	if sclkUnmarked {
-		m.GraphicsClockMHz = r.hwmonClock(dir, entries, "sclk")
-	}
 }
 
 // hwmonClock reads the hwmon clock with the given label, in MHz.

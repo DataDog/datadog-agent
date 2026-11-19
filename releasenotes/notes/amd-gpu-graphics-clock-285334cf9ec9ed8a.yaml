@@ -9,7 +9,8 @@
 fixes:
   - |
     GPU monitoring: the ``amd_gpu`` check now reports
-    ``gpu.clock.speed.graphics`` on AMD Instinct MI300 and MI350 GPUs
-    running Linux 7.0 to 7.0.9, which list no active graphics clock level
-    while the clock is between its minimum and maximum. The check then
-    reads the current graphics clock from hwmon.
+    ``gpu.clock.speed.graphics`` and ``gpu.clock.speed.memory``, read from
+    hwmon, when the amdgpu driver lists clock levels without marking the
+    current one, as on AMD Instinct GPUs under load with Linux 7.0 to 7.0.9
+    (graphics clock) or Linux 7.0 and later and recent amdgpu-dkms releases
+    (memory clock).

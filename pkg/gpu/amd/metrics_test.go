@@ -105,8 +105,8 @@ func TestReadMetricsMissingAttributesAreInvalidNotErrors(t *testing.T) {
 	assert.Equal(t, valid(1420), m.GraphicsClockMHz)
 }
 
-// Linux 7.0 to 7.0.9 prints pp_dpm_sclk of MI300 and MI350 GPUs with no
-// active level while the clock is between its minimum and maximum
+// Linux 7.0 to 7.0.9 prints pp_dpm_sclk of AMD Instinct GPUs (MI200, MI300,
+// MI350) with no active level while the clock is between its minimum and maximum
 // (smu_cmn_print_dpm_clk_levels without SMU_DPM_TABLE_FINE_GRAINED).
 func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
 	const linux70Sclk = "0: 500Mhz \n1: 2200Mhz \n"
@@ -153,6 +153,40 @@ func TestReadMetricsGraphicsClockFallsBackToHwmon(t *testing.T) {
 			}
 			assert.Equal(t, tc.want, m.GraphicsClockMHz)
 			assert.Equal(t, valid(1300), m.MemoryClockMHz, "the memory clock is unchanged")
+		})
+	}
+}
+
+// Since Linux 7.0 and amdgpu-dkms 6.19.14, pp_dpm_mclk marks no level while UCLK is more than 25 MHz
+// from every level. An MI300X VF under load showed 1270 MHz between its 1100
+// and 1300 MHz levels.
+func TestReadMetricsMemoryClockFallsBackToHwmon(t *testing.T) {
+	mclkHwmon := map[string]string{
+		"freq1_label": "sclk\n",
+		"freq1_input": "1933000000\n",
+		"freq2_label": "mclk\n",
+		"freq2_input": "1270000000\n",
+	}
+	for name, tc := range map[string]struct {
+		mclk string
+		want Reading
+	}{
+		"no active level":        {mclk: "0: 900Mhz \n1: 1100Mhz \n2: 1300Mhz \n", want: valid(1270)},
+		"active level preferred": {mclk: "0: 900Mhz *\n1: 1100Mhz \n2: 1300Mhz \n", want: valid(900)},
+		"RAS interrupt":          {mclk: "unavailable\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			attrs := MI300XAttributes("")
+			attrs["pp_dpm_mclk"] = tc.mclk
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs)
+			fs.AddCard("card0", devDir)
+			fs.AddHwmon(devDir, "hwmon0", mclkHwmon)
+
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, m.MemoryClockMHz)
+			assert.Equal(t, valid(1420), m.GraphicsClockMHz, "the graphics clock is unchanged")
 		})
 	}
 }
