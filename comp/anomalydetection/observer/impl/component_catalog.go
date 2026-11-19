@@ -135,13 +135,13 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	}
 
 	bocpd := DefaultBOCPDConfig()
-	bocpd.WarmupPoints = 40
+	bocpd.WarmupPoints = 20
 	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
 	tukey := DefaultTukeyBiweightConfig()
 	tukey.WindowSize = 40
-	tukey.MinPoints = 40
+	tukey.MinPoints = 20
 
 	for name, cfg := range map[string]any{
 		"bocpd":          bocpd,

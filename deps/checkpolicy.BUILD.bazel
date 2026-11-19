@@ -16,6 +16,10 @@ license(
 bison(
     name = "y.tab",
     src = "policy_parse.y",
+    bison_options = [
+        "-Wno-empty-rule",
+        "-Wno-precedence",
+    ],
 )
 
 flex(
