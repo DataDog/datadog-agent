@@ -133,8 +133,9 @@ instances:
     ## validation of link usage and DIA is pending.
     ## Link status, site, tunnel, application and top user metrics use tableData
     ## regardless of this setting: Versa returns link status timeseries per status value
-    ## rather than per link, rejects the site query as timeseries, and tunnel timeseries is
-    ## pending validation against a response with tunnel data.
+    ## rather than per link, rejects the site query as timeseries, and the tunnel query
+    ## returned no rows in our lab, so tunnel timeseries is pending validation against a
+    ## response with tunnel data.
     ##
     ## A timeseries query falls back to its tableData result for that collection, with a
     ## warning giving the reason, when Versa rejects the timeseries request with an error
@@ -297,7 +298,9 @@ instances:
     ##
     ## percent_drop is a fraction (total_drop / volume_tx). With the timeseries query
     ## type it is computed per bucket from those two values, because Versa reports it as
-    ## zero there, and is not sent for a bucket with no transmitted volume.
+    ## zero there, and is not sent for a bucket with no transmitted volume. This is
+    ## validated against nonzero drops in our lab: the per bucket values add up to the
+    ## tableData fraction over the same window.
     #
     # collect_circuit_qos_metrics: false
 
