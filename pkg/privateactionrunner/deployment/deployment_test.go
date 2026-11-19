@@ -20,10 +20,10 @@ import (
 func TestResolve(t *testing.T) {
 	detectionErr := errors.New("FIPS detection failed")
 	for _, tc := range []struct {
-		name, goos, envValue                                           string
-		disabled, containerized, buildFIPS, configFIPS, processManager bool
-		fipsErr, wantErr                                               error
-		want                                                           Mode
+		name, goos, envValue                                                        string
+		disabled, containerized, builtFIPS, runtimeFIPS, configFIPS, processManager bool
+		fipsErr, wantErr                                                            error
+		want                                                                        Mode
 	}{
 		{name: "disabled", goos: "linux", disabled: true, want: Monolithic},
 		{name: "linux host", goos: "linux", want: Split},
@@ -36,8 +36,9 @@ func TestResolve(t *testing.T) {
 		{name: "windows requires process manager", goos: "windows", want: Monolithic},
 		{name: "windows container", goos: "windows", processManager: true, containerized: true, envValue: "true", want: Monolithic},
 		{name: "unsupported host platform", goos: "darwin", want: Monolithic},
-		{name: "build FIPS", goos: "linux", buildFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
-		{name: "build FIPS with split disabled", goos: "linux", disabled: true, buildFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
+		{name: "build FIPS", goos: "linux", builtFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
+		{name: "runtime FIPS", goos: "linux", runtimeFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
+		{name: "build FIPS with split disabled", goos: "linux", disabled: true, builtFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
 		{name: "configured FIPS", goos: "linux", configFIPS: true, want: Monolithic, wantErr: ErrFIPSUnsupported},
 		{name: "FIPS detection error", goos: "linux", fipsErr: detectionErr, want: Monolithic, wantErr: detectionErr},
 	} {
@@ -46,8 +47,8 @@ func TestResolve(t *testing.T) {
 			cfg.SetInTest(par.SplitEnabled, !tc.disabled)
 			cfg.SetInTest("fips.enabled", tc.configFIPS)
 			cfg.SetInTest("process_manager.enabled", tc.processManager)
-			mode, err := resolve(cfg, tc.goos, tc.containerized, tc.envValue, func() (bool, error) {
-				return tc.buildFIPS, tc.fipsErr
+			mode, err := resolve(cfg, tc.goos, tc.containerized, tc.envValue, func() bool { return tc.builtFIPS }, func() (bool, error) {
+				return tc.runtimeFIPS, tc.fipsErr
 			})
 			require.Equal(t, tc.want, mode)
 			if tc.wantErr != nil {
