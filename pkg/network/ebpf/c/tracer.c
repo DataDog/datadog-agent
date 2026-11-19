@@ -909,7 +909,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb_pre_4_7_0, struct sock *sk)
 SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
     pending_retransmit_key_t key = pending_retransmit_key();
-    if (ret < 0) {
+    if (ret != 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
@@ -969,7 +969,7 @@ SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     log_debug("kretprobe/tcp_retransmit");
     pending_retransmit_key_t key = pending_retransmit_key();
-    if (rc < 0) {
+    if (rc != 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
