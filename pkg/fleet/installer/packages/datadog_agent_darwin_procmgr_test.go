@@ -9,6 +9,7 @@ package packages
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,7 +26,7 @@ func TestResolveProcmgrEnabled(t *testing.T) {
 	require.NoError(t, err)
 	log.SetupLogger(logger, "warn")
 	t.Cleanup(func() {
-		discard, discardErr := log.LoggerFromWriterWithMinLevel(&bytes.Buffer{}, log.WarnLvl)
+		discard, discardErr := log.LoggerFromWriterWithMinLevel(io.Discard, log.WarnLvl)
 		if discardErr == nil {
 			log.SetupLogger(discard, "warn")
 		}

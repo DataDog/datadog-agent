@@ -7,5 +7,5 @@ enhancements:
     ``processes.d`` entries it ships. The setting is read when the Agent is installed or
     upgraded. To apply a change without upgrading, run
     ``sudo /opt/datadog-agent/embedded/bin/installer postinst datadog-agent dmg``, which
-    restarts the Agent's services. While the process manager is off, ``agent status``
+    restarts the Agent's services. While the process manager is off, ``datadog-agent status``
     reports it as not reachable, which is expected.

@@ -432,7 +432,7 @@ func (m *macosInstallSuite) TestZYReinstallSameVersion() {
 }
 
 // assertMacosProcessManagerOff checks the process-manager opt-out state.
-func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, wantPostinstallWarning bool) {
+func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, wantPostinstallSource string) {
 	t.Helper()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		_, err := client.Execute("sudo launchctl print system/com.datadoghq.procmgr")
@@ -452,10 +452,9 @@ func assertMacosProcessManagerOff(t *testing.T, client *common.MacOSTestClient, 
 		}
 	}, 60*time.Second, 2*time.Second)
 	waitForHealthyMacosAgent(t, client, 60*time.Second)
-	if wantPostinstallWarning {
+	if wantPostinstallSource != "" {
 		postinstallLog := macosReadRemoteFile(t, client, macosPostinstallLogPath)
-		assert.Contains(t, postinstallLog, "process_manager.enabled is false (from ")
-		assert.Contains(t, postinstallLog, "com.datadoghq.procmgr is not loaded")
+		assert.Contains(t, postinstallLog, fmt.Sprintf("process_manager.enabled is false (from %s): com.datadoghq.procmgr is not loaded", wantPostinstallSource))
 	}
 }
 
@@ -470,12 +469,11 @@ func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 
 	var directHooks strings.Builder
 	t.Cleanup(func() {
-		if _, err := client.Execute(fmt.Sprintf("if sudo test -e %s; then sudo mv -f %s %s; fi", backup, backup, conf)); err != nil {
-			t.Logf("cleanup: failed to restore %s: %v", conf, err)
-		}
-		if out, err := client.Execute("sudo " + macosInstallerBinary + " postinst datadog-agent dmg"); err != nil {
-			t.Logf("cleanup: failed to rerun the postinst hook: %v\n%s", err, out)
-		}
+		_, err := client.Execute(fmt.Sprintf("sudo mv -f %s %s", backup, conf))
+		assert.NoError(t, err, "cleanup: failed to restore %s", conf)
+		out, err := client.Execute("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
+		assert.NoError(t, err, "cleanup: failed to rerun the postinst hook:\n%s", out)
+		assertMacosStableLaunchDaemons(t, client)
 		waitForHealthyMacosAgent(t, client, 60*time.Second)
 	})
 	macosLogDiagnosticsOnFailure(t, client)
@@ -491,12 +489,12 @@ func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 		installparams.WithExtraEnvVars(map[string]string{"DD_PROCESS_MANAGER_ENABLED": "false"}),
 	)
 	require.False(t, t.Failed(), "the opt-out install failed")
-	assertMacosProcessManagerOff(t, client, true)
+	assertMacosProcessManagerOff(t, client, "install script")
 
 	client.MustExecuteOn(t, fmt.Sprintf("printf '\\nprocess_manager:\\n  enabled: false\\n' | sudo tee -a %s >/dev/null", conf))
 	install.MacOS(t, client, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
 	require.False(t, t.Failed(), "the datadog.yaml opt-out install failed")
-	assertMacosProcessManagerOff(t, client, true)
+	assertMacosProcessManagerOff(t, client, "datadog.yaml")
 
 	client.MustExecuteOn(t, fmt.Sprintf("sudo cp -p %s %s", backup, conf))
 	runHook := func(command string) {
@@ -509,7 +507,7 @@ func (m *macosInstallSuite) TestZXProcessManagerOptOut() {
 	assertMacosStableLaunchDaemons(t, client)
 
 	runHook("sudo env DD_PROCESS_MANAGER_ENABLED=false " + macosInstallerBinary + " postinst datadog-agent dmg")
-	assertMacosProcessManagerOff(t, client, false)
+	assertMacosProcessManagerOff(t, client, "")
 
 	runHook("sudo " + macosInstallerBinary + " postinst datadog-agent dmg")
 	assertMacosStableLaunchDaemons(t, client)
