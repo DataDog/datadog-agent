@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,14 +95,19 @@ func readLab(t *testing.T, name string) []byte {
 }
 
 // labClient serves the lab responses for one endpoint and fails any other qt.
-func labClient(t *testing.T, ep labEndpoint, queryType string) (*client.Client, map[string]int) {
+// The returned function snapshots the request counts by query type; handlers run in the
+// server's goroutines, so the counts are guarded.
+func labClient(t *testing.T, ep labEndpoint, queryType string) (*client.Client, func() map[string]int) {
+	var mu sync.Mutex
 	counts := map[string]int{}
 	mockAPI := client.SetupMockAPIServer()
 	t.Cleanup(mockAPI.Close)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Query().Get("q"), ep.prefix) {
 			qt := r.URL.Query().Get("qt")
+			mu.Lock()
 			counts[qt]++
+			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(readLab(t, ep.name+"_"+qt))
 			return
@@ -111,7 +117,15 @@ func labClient(t *testing.T, ep labEndpoint, queryType string) (*client.Client, 
 	t.Cleanup(server.Close)
 	c, err := client.NewTestClient(server, client.WithAnalyticsQueryType(queryType))
 	require.NoError(t, err)
-	return c, counts
+	return c, func() map[string]int {
+		mu.Lock()
+		defer mu.Unlock()
+		out := make(map[string]int, len(counts))
+		for k, v := range counts {
+			out[k] = v
+		}
+		return out
+	}
 }
 
 // expectedBuckets returns, per series name, the bucket timestamps (ms) that should be
@@ -206,7 +220,7 @@ func submissions(t *testing.T, ep labEndpoint, queryType string) (map[string][]s
 			key:   keyFromTags(ep, tags),
 		})
 	}
-	return out, rows, counts
+	return out, rows, counts()
 }
 
 func toAny[T any](rows []T) []any {
@@ -495,7 +509,7 @@ func TestLabSiteTableData(t *testing.T) {
 	c, counts := labClient(t, ep, client.QueryTypeTimeseries)
 	metrics, err := c.GetSiteMetrics("datadog")
 	require.NoError(t, err)
-	assert.Equal(t, map[string]int{client.QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{client.QueryTypeTableData: 1}, counts())
 
 	ms := mocksender.NewMockSender(t, "testID")
 	ms.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

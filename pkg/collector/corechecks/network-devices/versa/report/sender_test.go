@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -2015,10 +2016,13 @@ func TestCircuitQoSMetricsEndToEnd(t *testing.T) {
 	defer mockAPI.Close()
 	// Record the metrics the client asks for, in order, before handing the request to
 	// the mock API, so the column order the parser relies on is pinned at the source.
+	var requestedMu sync.Mutex
 	var requested []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Query().Get("q"), "cos(") {
+			requestedMu.Lock()
 			requested = r.URL.Query()["metrics"]
+			requestedMu.Unlock()
 		}
 		mockAPI.Config.Handler.ServeHTTP(w, r)
 	}))
@@ -2029,6 +2033,8 @@ func TestCircuitQoSMetricsEndToEnd(t *testing.T) {
 	metrics, err := c.GetCircuitQoSMetrics("datadog")
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
+	requestedMu.Lock()
+	defer requestedMu.Unlock()
 	require.Equal(t, []string{
 		"betx", "betxdrop", "eftx", "eftxdrop", "aftx", "aftxdrop", "nctx", "nctxdrop",
 		"bebandwidth", "efbandwidth", "afbandwidth", "ncbandwidth",

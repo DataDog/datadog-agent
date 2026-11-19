@@ -53,15 +53,42 @@ func tableBody(t *testing.T, rows [][]any) string {
 	return string(body)
 }
 
+// requestCounts counts requests by query type. Handlers run in the server's goroutines,
+// so every access is guarded.
+type requestCounts struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func newRequestCounts() *requestCounts {
+	return &requestCounts{counts: map[string]int{}}
+}
+
+func (c *requestCounts) inc(queryType string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.counts[queryType]++
+}
+
+func (c *requestCounts) snapshot() map[string]int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make(map[string]int, len(c.counts))
+	for k, v := range c.counts {
+		out[k] = v
+	}
+	return out
+}
+
 // bandwidthServer serves tableBody for qt=tableData and timeseries for qt=timeseries for
 // queries starting with prefix, and counts the requests of each kind.
-func bandwidthServer(t *testing.T, prefix, table, timeseries string, counts map[string]int) *Client {
+func bandwidthServer(t *testing.T, prefix, table, timeseries string, counts *requestCounts) *Client {
 	mock := SetupMockAPIServer()
 	t.Cleanup(mock.Close)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Query().Get("q"), prefix) {
 			qt := r.URL.Query().Get("qt")
-			counts[qt]++
+			counts.inc(qt)
 			if qt == QueryTypeTimeseries {
 				w.Write([]byte(timeseries))
 			} else {
@@ -83,7 +110,7 @@ var interfaceMetricNames = []string{"rxUtil", "txUtil", "volume-rx", "volume-tx"
 var bandwidthMetricNames = []string{"volume-tx", "volume-rx", "bw-tx", "bw-rx"}
 
 func TestGetAnalyticsInterfacesTimeseries(t *testing.T) {
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	client := bandwidthServer(t, "intfUtil(", "",
 		timeseriesBody(t, []string{"site-001,circuit-a,eth-1", "site-002,circuit-b,eth-2"}, interfaceMetricNames, 1), counts)
 
@@ -99,7 +126,7 @@ func TestGetAnalyticsInterfacesTimeseries(t *testing.T) {
 	assert.Equal(t, bandwidthBuckets[1], metrics[1].Timestamp)
 	assert.Equal(t, "site-002", metrics[2].Site)
 	// The layout follows the group by fields, so no tableData call is needed.
-	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1}, counts.snapshot())
 }
 
 func linkUsageTableRow(key, site, circuit, ip string) []any {
@@ -109,7 +136,7 @@ func linkUsageTableRow(key, site, circuit, ip string) []any {
 // A response whose entity keys do not split into the layout's part count is not used:
 // the call falls back to tableData, which carries no bucket timestamps.
 func TestBandwidthTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	client := bandwidthServer(t, "linkusage(",
 		tableBody(t, [][]any{linkUsageTableRow("site-001,circuit-a", "site-001", "circuit-a", "10.0.0.1")}),
 		timeseriesBody(t, []string{"site-001,circuit-a,10.0.0.1"}, bandwidthMetricNames, 100), counts)
@@ -119,11 +146,11 @@ func TestBandwidthTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
 	require.Len(t, metrics, 1)
 	assert.Zero(t, metrics[0].Timestamp)
 	assert.Equal(t, 9.0, metrics[0].VolumeTx)
-	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts.snapshot())
 }
 
 func TestInterfaceTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	client := bandwidthServer(t, "intfUtil(",
 		tableBody(t, [][]any{{"site-001,circuit-a,eth-1", "site-001", "circuit-a", "eth-1", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}}),
 		timeseriesBody(t, []string{"site-001,circuit-a"}, interfaceMetricNames, 1), counts)
@@ -138,7 +165,7 @@ func TestInterfaceTimeseriesKeyPartsMismatchFallsBackToTableData(t *testing.T) {
 // One wrong part count among otherwise valid series is enough to use tableData for the
 // whole call.
 func TestBandwidthTimeseriesPartialKeyPartsMismatchFallsBackToTableData(t *testing.T) {
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	body := timeseriesBody(t, []string{"site-001,circuit-a,eth-1", "site-002,circuit-b,eth-2", "site-003,circuit-c"}, interfaceMetricNames, 1)
 	client := bandwidthServer(t, "intfUtil(",
 		tableBody(t, [][]any{{"site-001,circuit-a,eth-1", "site-001", "circuit-a", "eth-1", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}}),
@@ -148,7 +175,7 @@ func TestBandwidthTimeseriesPartialKeyPartsMismatchFallsBackToTableData(t *testi
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
 	assert.Zero(t, metrics[0].Timestamp)
-	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts.snapshot())
 }
 
 // The check builds a new client every run and passes the same WarnLimiter to each, so a
@@ -165,11 +192,11 @@ func TestWarnLimiterHoldsAcrossClients(t *testing.T) {
 
 	limiter := NewWarnLimiter()
 	for run := 0; run < 2; run++ {
-		counts := map[string]int{}
+		counts := newRequestCounts()
 		mock := SetupMockAPIServer()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(r.URL.Query().Get("q"), "intfUtil(") {
-				counts[r.URL.Query().Get("qt")]++
+				counts.inc(r.URL.Query().Get("qt"))
 				if r.URL.Query().Get("qt") == QueryTypeTimeseries {
 					w.Write([]byte(timeseriesBody(t, []string{"site-001,circuit-a"}, interfaceMetricNames, 1)))
 				} else {
@@ -207,16 +234,16 @@ func TestWarnLimiterHoldsAcrossClients(t *testing.T) {
 // linkstatus and the site query have no timeseries layout, so they request tableData
 // only, even with analytics_query_type set to timeseries.
 func TestLinkStatusAndSiteMetricsUseTableDataInTimeseriesMode(t *testing.T) {
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	client := bandwidthServer(t, "linkstatus(",
 		tableBody(t, [][]any{{"site-001,circuit-a", "site-001", "circuit-a", 99.5}}),
 		timeseriesBody(t, []string{"Up"}, []string{"availability"}, 97), counts)
 	status, err := client.GetLinkStatusMetrics("datadog")
 	require.NoError(t, err)
 	assert.Equal(t, []LinkStatusMetrics{{DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a", Availability: 99.5}}, status)
-	assert.Equal(t, map[string]int{QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTableData: 1}, counts.snapshot())
 
-	counts = map[string]int{}
+	counts = newRequestCounts()
 	client = bandwidthServer(t, "linkusage(site,site.address",
 		tableBody(t, [][]any{{"site-001", "1 Example Street", "40.0", "-70.0", "manual", 1.0, 2.0, 3.0, 4.0, 5.0}}),
 		`{"code":-3,"error":"Joined queries are not allowed for this report"}`, counts)
@@ -224,20 +251,20 @@ func TestLinkStatusAndSiteMetricsUseTableDataInTimeseriesMode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []SiteMetrics{{Site: "site-001", Address: "1 Example Street", Latitude: "40.0", Longitude: "-70.0", LocationSource: "manual",
 		VolumeTx: 1, VolumeRx: 2, BandwidthTx: 3, BandwidthRx: 4, Availability: 5}}, sites)
-	assert.Equal(t, map[string]int{QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTableData: 1}, counts.snapshot())
 }
 
 const versaReportError = `{"code":-3,"error":"Joined queries are not allowed for this report"}`
 
 // errorServer answers timeseries requests for queries starting with prefix with HTTP 400
 // and Versa's JSON error body, and tableData requests with table.
-func errorServer(t *testing.T, prefix, table string, counts map[string]int) *Client {
+func errorServer(t *testing.T, prefix, table string, counts *requestCounts) *Client {
 	mock := SetupMockAPIServer()
 	t.Cleanup(mock.Close)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Query().Get("q"), prefix) {
 			qt := r.URL.Query().Get("qt")
-			counts[qt]++
+			counts.inc(qt)
 			w.Header().Set("Content-Type", "application/json")
 			if qt == QueryTypeTimeseries {
 				w.WriteHeader(http.StatusBadRequest)
@@ -277,14 +304,14 @@ func captureLogs(t *testing.T) func() string {
 func TestTimeseriesHTTPErrorFallsBackToTableData(t *testing.T) {
 	logs := captureLogs(t)
 
-	counts := map[string]int{}
+	counts := newRequestCounts()
 	client := errorServer(t, "slam(", tableBody(t, [][]any{{"site-001,site-002,circuit-a,circuit-b,fc_ef", "site-001", "site-002", "circuit-a", "circuit-b", "fc_ef", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0}}), counts)
 	sla, err := client.GetSLAMetrics("datadog")
 	require.NoError(t, err)
 	require.Len(t, sla, 1)
 	assert.Zero(t, sla[0].Timestamp)
 	assert.Equal(t, 1.0, sla[0].Delay)
-	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts)
+	assert.Equal(t, map[string]int{QueryTypeTimeseries: 1, QueryTypeTableData: 1}, counts.snapshot())
 	assert.Equal(t, []Fallback{{Tenant: "datadog", Query: "slam", Reason: FallbackHTTPError}}, client.TakeFallbacks())
 	assert.Empty(t, client.TakeFallbacks())
 
@@ -302,7 +329,7 @@ func TestTimeseriesHTTPErrorFallsBackToTableData(t *testing.T) {
 			return len(m), err
 		}},
 	} {
-		client := errorServer(t, tt.prefix, tableBody(t, tt.table), map[string]int{})
+		client := errorServer(t, tt.prefix, tableBody(t, tt.table), newRequestCounts())
 		n, err := tt.get(client)
 		require.NoError(t, err, tt.prefix)
 		assert.Equal(t, 1, n, tt.prefix)
@@ -324,7 +351,7 @@ func TestFallbackLogsNameSamples(t *testing.T) {
 		rows = append(rows, []any{fmt.Sprintf("site-00%d,circuit-a,eth-1", i), fmt.Sprintf("site-00%d", i), "circuit-a", "eth-1", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0})
 	}
 	client := bandwidthServer(t, "intfUtil(", tableBody(t, rows),
-		timeseriesBody(t, []string{"site-001", "site-002", "site-003", "site-004", "site-005"}, interfaceMetricNames, 1), map[string]int{})
+		timeseriesBody(t, []string{"site-001", "site-002", "site-003", "site-004", "site-005"}, interfaceMetricNames, 1), newRequestCounts())
 	_, err := client.GetAnalyticsInterfaces("datadog")
 	require.NoError(t, err)
 
@@ -482,12 +509,12 @@ func TestQoSFallbackMatchesTableData(t *testing.T) {
 		{"cos(", fixtures.GetCircuitQoSMetrics, func(c *Client) (any, error) { return c.GetCircuitQoSMetrics("datadog") }},
 	} {
 		t.Run(tt.prefix, func(t *testing.T) {
-			fallbackClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			fallbackClient := errorServer(t, tt.prefix, tt.table, newRequestCounts())
 			fallback, err := tt.get(fallbackClient)
 			require.NoError(t, err)
 			require.Len(t, fallbackClient.TakeFallbacks(), 1)
 
-			tableClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			tableClient := errorServer(t, tt.prefix, tt.table, newRequestCounts())
 			WithAnalyticsQueryType(QueryTypeTableData)(tableClient)
 			table, err := tt.get(tableClient)
 			require.NoError(t, err)
@@ -607,12 +634,12 @@ func TestQoSFallbackMatchesTableDataWithZeroVolume(t *testing.T) {
 		{"cos(", tableBody(t, [][]any{row("site-001,circuit-a", "site-001", "circuit-a")}), func(c *Client) (any, error) { return c.GetCircuitQoSMetrics("datadog") }},
 	} {
 		t.Run(tt.prefix, func(t *testing.T) {
-			fallbackClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			fallbackClient := errorServer(t, tt.prefix, tt.table, newRequestCounts())
 			fallback, err := tt.get(fallbackClient)
 			require.NoError(t, err)
 			require.Len(t, fallbackClient.TakeFallbacks(), 1)
 
-			tableClient := errorServer(t, tt.prefix, tt.table, map[string]int{})
+			tableClient := errorServer(t, tt.prefix, tt.table, newRequestCounts())
 			WithAnalyticsQueryType(QueryTypeTableData)(tableClient)
 			table, err := tt.get(tableClient)
 			require.NoError(t, err)
@@ -627,13 +654,23 @@ func TestQoSFallbackMatchesTableDataWithZeroVolume(t *testing.T) {
 // in timeseries mode it requests qt=timeseries when only its own endpoint has an entry,
 // and tableData when every endpoint but its own has one.
 func TestGettersFollowTimeseriesLayouts(t *testing.T) {
+	var requestedMu sync.Mutex
 	var requested []string
+	takeRequested := func() []string {
+		requestedMu.Lock()
+		defer requestedMu.Unlock()
+		out := requested
+		requested = nil
+		return out
+	}
 	mock := SetupMockAPIServer()
 	defer mock.Close()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/features/") {
 			qt := r.URL.Query().Get("qt")
+			requestedMu.Lock()
 			requested = append(requested, qt)
+			requestedMu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			if qt == QueryTypeTimeseries {
 				w.Write([]byte(`{"qTime":1,"data":[]}`))
@@ -683,9 +720,9 @@ func TestGettersFollowTimeseriesLayouts(t *testing.T) {
 		t.Run(string(endpoint)+"/own entry only", func(t *testing.T) {
 			timeseriesLayouts = map[Endpoint]*timeseriesLayout{endpoint: layoutFor(endpoint)}
 			t.Cleanup(func() { timeseriesLayouts = original })
-			requested = nil
+			takeRequested()
 			require.NoError(t, get())
-			assert.Equal(t, []string{QueryTypeTimeseries}, requested)
+			assert.Equal(t, []string{QueryTypeTimeseries}, takeRequested())
 		})
 		t.Run(string(endpoint)+"/every other entry", func(t *testing.T) {
 			timeseriesLayouts = map[Endpoint]*timeseriesLayout{}
@@ -695,22 +732,22 @@ func TestGettersFollowTimeseriesLayouts(t *testing.T) {
 				}
 			}
 			t.Cleanup(func() { timeseriesLayouts = original })
-			requested = nil
+			takeRequested()
 			require.NoError(t, get())
-			assert.Equal(t, []string{QueryTypeTableData}, requested)
+			assert.Equal(t, []string{QueryTypeTableData}, takeRequested())
 		})
 	}
 
 	// With the real map, each getter requests what HasTimeseriesLayout reports.
 	for endpoint, get := range getters {
 		t.Run(string(endpoint)+"/real map", func(t *testing.T) {
-			requested = nil
+			takeRequested()
 			require.NoError(t, get())
 			want := QueryTypeTableData
 			if HasTimeseriesLayout(endpoint) {
 				want = QueryTypeTimeseries
 			}
-			assert.Equal(t, []string{want}, requested)
+			assert.Equal(t, []string{want}, takeRequested())
 		})
 	}
 }
