@@ -13,7 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 )
 
-const clockSkewTolerance = 5 * time.Second
+const (
+	clockSkewTolerance   = 5 * time.Second
+	invalidTimelineTitle = "Device booted up: Boot timeline invalid"
+)
 
 // validateTimestamps drops impossible timestamps and returns their milestone IDs in chain order.
 func validateTimestamps(bootTime, now time.Time, ts logonduration.LoginTimestamps) (logonduration.LoginTimestamps, []string) {

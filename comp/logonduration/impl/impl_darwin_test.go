@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestBuildTimelineMilestones(t *testing.T) {
@@ -788,7 +789,8 @@ func TestSubmitEvent_ClockResetPayloadIsInvalid(t *testing.T) {
 	attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
 	assert.Equal(t, invalidTimelineTitle, attrs["title"])
 	custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
-	assert.Equal(t, float64(1), custom["payload_version"])
+	assert.Equal(t, version.AgentVersion, custom["agent_version"])
+	assert.NotContains(t, custom, "payload_version")
 	assert.Equal(t, true, custom["filevault_enabled"])
 	durations := custom["durations"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
