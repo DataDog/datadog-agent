@@ -77,6 +77,21 @@ func TestMultiUprobeGroupsAndReturnSemantics(t *testing.T) {
 	require.Empty(t, ua.fileIDToMultiLinks)
 }
 
+func TestMultiUprobePrefixedReturnProbe(t *testing.T) {
+	ua := multiTestAttacher(t)
+	ua.multiPrograms["nodejs_uretprobe__SSL_read"] = &ebpf.Program{}
+	var returnProbe bool
+	ua.attachMulti = func(_ string, _ *ebpf.Program, offsets []uint64, ret bool) (io.Closer, error) {
+		require.Equal(t, []uint64{42}, offsets)
+		returnProbe = ret
+		return &testMultiLink{}, nil
+	}
+	require.NoError(t, ua.attachProbeSelector(multiTestSelector("nodejs_uretprobe__SSL_read"), utils.FilePath{}, "", &AttachRule{}, map[string]bininspect.FunctionMetadata{
+		"SSL_read": {EntryLocation: 42},
+	}))
+	require.True(t, returnProbe, "a protocol prefix must not turn a native return probe into an entry probe")
+}
+
 func TestMultiUprobeRegistryReferencesAndRollback(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "shared inode and reattach", true: "partial attachment failure"}[fail], func(t *testing.T) {

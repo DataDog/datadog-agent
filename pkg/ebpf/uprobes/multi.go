@@ -77,7 +77,7 @@ func (ua *UprobeAttacher) attachMultiProbeSelector(selector manager.ProbesSelect
 		}
 		// Go's manual return locations are ordinary uprobes at return
 		// instructions, not native uretprobes.
-		key := multiProbeKey{program: id.EBPFFuncName, ret: !opts.IsManualReturn && strings.HasPrefix(id.EBPFFuncName, "uretprobe__")}
+		key := multiProbeKey{program: id.EBPFFuncName, ret: !opts.IsManualReturn && strings.Contains(id.EBPFFuncName, "uretprobe__")}
 		groups := ua.fileIDToMultiLinks[path.ID]
 		if attached, ok := groups[key]; ok {
 			if !slices.Equal(attached.offsets, offsets) {

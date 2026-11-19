@@ -164,7 +164,10 @@ func (m *Monitor) Pause() error {
 		return nil
 	}
 
-	return m.ebpfProgram.Pause()
+	if err := m.ebpfProgram.Pause(); err != nil {
+		return err
+	}
+	return m.ebpfProgram.multiUprobes.setBypass(m.ebpfProgram.Manager.Manager, true)
 }
 
 // Resume enables the previously bypassed eBPF programs in the monitor
@@ -173,7 +176,10 @@ func (m *Monitor) Resume() error {
 		return nil
 	}
 
-	return m.ebpfProgram.Resume()
+	if err := m.ebpfProgram.Resume(); err != nil {
+		return err
+	}
+	return m.ebpfProgram.multiUprobes.setBypass(m.ebpfProgram.Manager.Manager, false)
 }
 
 // GetUSMStats returns the current state of the USM monitor

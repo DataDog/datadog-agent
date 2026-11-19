@@ -9,6 +9,7 @@ package usm
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -54,7 +55,7 @@ func (multi *uprobeMulti) configure(enabled bool, specs []*protocols.ProtocolSpe
 		}
 		multi.attachers = append(multi.attachers, protocol.getUprobeAttacher())
 		for _, probe := range spec.Probes {
-			if strings.HasPrefix(probe.EBPFFuncName, "uprobe__") || strings.HasPrefix(probe.EBPFFuncName, "uretprobe__") {
+			if strings.Contains(probe.EBPFFuncName, "uprobe__") || strings.Contains(probe.EBPFFuncName, "uretprobe__") {
 				multi.roots = append(multi.roots, probe.EBPFFuncName)
 			}
 		}
@@ -119,5 +120,40 @@ func (multi *uprobeMulti) BeforeStop(_ *manager.Manager, _ names.ModuleName, _ m
 	// ebpfProgram.Close stops all protocol attachers before the manager.
 	multi.loaded.Close()
 	multi.loaded = nil
+	return nil
+}
+
+// setBypass extends manager pause/resume to the cloned programs. The manager
+// only toggles indexes for its own active probes; multi links are owned by the
+// attachers. Both graphs share the map declared in bpf_bypass.h.
+func (multi *uprobeMulti) setBypass(mgr *manager.Manager, paused bool) error {
+	if multi == nil || multi.loaded == nil {
+		return nil
+	}
+	bypass, found, err := mgr.GetMap("program_bypassed")
+	if err != nil || !found {
+		return err // The map is absent when bypass is disabled.
+	}
+	var flag uint32
+	if paused {
+		flag = 1
+	}
+	var value any = flag
+	if bypass.Type() == ebpf.PerCPUArray {
+		cpus, err := ebpf.PossibleCPU()
+		if err != nil {
+			return err
+		}
+		values := make([]uint32, cpus)
+		for i := range values {
+			values[i] = flag
+		}
+		value = values
+	}
+	for key := uint32(0); key < bypass.MaxEntries(); key++ {
+		if err := bypass.Update(key, value, ebpf.UpdateExist); err != nil {
+			return fmt.Errorf("set multi-uprobe bypass: %w", err)
+		}
+	}
 	return nil
 }
