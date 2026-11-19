@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Windows multi-instance PDH performance counter collection dropping all instances when the last instance in a wildcard counter array returns ``PDH_CALC_NEGATIVE_VALUE``, ``PDH_CALC_NEGATIVE_DENOMINATOR``, or ``PDH_CALC_NEGATIVE_TIMEBASE``.

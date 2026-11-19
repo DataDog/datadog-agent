@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	metafake "k8s.io/client-go/metadata/fake"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -54,47 +56,8 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	store, _ := newStore(wlm, wlm.GetConfig(), client)
-	stopStore := make(chan struct{})
-	go store.Run(stopStore)
-
-	// Subscribe to the kubeapiserver events. Two cases are possible:
-	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
-	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
-
-	time.Sleep(5 * time.Second)
-
-	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
-	var bundle workloadmeta.EventBundle
-	read := assert.Eventually(t, func() bool {
-		select {
-		case bundle = <-ch:
-			bundle.Acknowledge()
-			if len(bundle.Events) == 0 {
-				return false
-			}
-			// If bundle finally has an event, we can return from this
-			return true
-
-		default:
-			return false
-		}
-	}, 30*time.Second, 500*time.Millisecond)
-
-	// Retrieving the resource in an event bundle
-	if !read {
-		bundle = <-ch
-		bundle.Acknowledge()
-	}
-
-	// nil the bundle's Ch so we can
-	// deep-equal just the events later
-	bundle.Ch = nil
-	bundle.EnqueuedAt = time.Time{}
-	actual := bundle
-	assert.Equal(t, expected, actual)
-	close(stopStore)
-	wlm.Unsubscribe(ch)
+	reflector, store := newStore(wlm, wlm.GetConfig(), client)
+	assertInitialBundle(t, wlm, reflector, store, expected)
 }
 
 func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Object, gvr schema.GroupVersionResource, expected workloadmeta.EventBundle) {
@@ -122,46 +85,40 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// Create a fake metadata client to mock API calls.
 	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	store, _ := newMetadataStore(wlm, wlm.GetConfig(), metadataclient, gvr)
+	reflector, store := newMetadataStore(wlm, wlm.GetConfig(), metadataclient, gvr)
+	assertInitialBundle(t, wlm, reflector, store, expected)
+}
+
+// assertInitialBundle runs the reflector until it has synced, then checks that
+// the initial bundle of a new workloadmeta subscription matches expected.
+func assertInitialBundle(t *testing.T, wlm workloadmetamock.Mock, reflector *cache.Reflector, store *reflectorStore, expected workloadmeta.EventBundle) {
+	t.Helper()
 
 	stopStore := make(chan struct{})
-	go store.Run(stopStore)
+	defer close(stopStore)
+	go reflector.Run(stopStore)
 
-	// Subscribe to the kubeapiserver events. Two cases are possible:
-	// - The reflector has already populated wlm with the resource, in that case the first call to <-ch will contain the event
-	// - The reflector is still initializing. In that case the second call to <-ch will contain the event
+	// The reflector lists the resources in its own goroutine. Once the store
+	// has synced, they are in workloadmeta, because the mock processes Notify
+	// synchronously.
+	require.Eventually(t, store.HasSynced, 5*time.Second, 10*time.Millisecond)
 
-	time.Sleep(5 * time.Second)
-
+	// The initial bundle of a new subscription contains the entities already
+	// in workloadmeta.
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+	defer wlm.Unsubscribe(ch)
+
 	var bundle workloadmeta.EventBundle
-	read := assert.Eventually(t, func() bool {
-		select {
-		case bundle = <-ch:
-			bundle.Acknowledge()
-			if len(bundle.Events) == 0 {
-				return false
-			}
-			// If bundle finally has an event, we can return from this
-			return true
-
-		default:
-			return false
-		}
-	}, 30*time.Second, 500*time.Millisecond)
-
-	// Retrieving the resource in an event bundle
-	if !read {
-		bundle = <-ch
+	select {
+	case bundle = <-ch:
 		bundle.Acknowledge()
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for the initial event bundle")
 	}
 
 	// nil the bundle's Ch so we can
 	// deep-equal just the events later
 	bundle.Ch = nil
 	bundle.EnqueuedAt = time.Time{}
-	actual := bundle
-	assert.Equal(t, expected, actual)
-	close(stopStore)
-	wlm.Unsubscribe(ch)
+	assert.Equal(t, expected, bundle)
 }

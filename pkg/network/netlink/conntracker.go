@@ -139,16 +139,25 @@ func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component
 	}
 
 	done := make(chan struct{})
+	abandoned := make(chan struct{})
 
 	go func() {
 		conntracker, err = newConntrackerOnce(config, telemetrycomp)
-		done <- struct{}{}
+		select {
+		case done <- struct{}{}:
+			// The caller received ownership of the tracker.
+		case <-abandoned:
+			if conntracker != nil {
+				conntracker.Close()
+			}
+		}
 	}()
 
 	select {
 	case <-done:
 		return conntracker, err
 	case <-time.After(config.ConntrackInitTimeout):
+		close(abandoned)
 		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
 	}
 }
@@ -221,8 +230,12 @@ func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
-	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
+	ctr.Lock()
+	stateSize, orphanSize := ctr.cache.Len(), ctr.cache.orphans.Len()
+	ctr.Unlock()
+
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(stateSize))
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(orphanSize))
 }
 
 func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionTuple) {
@@ -246,7 +259,15 @@ func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionTuple) {
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
+
+	// Stopping the consumer doesn't wait for the event loop started by run() to exit: it
+	// keeps draining buffered events and calling register(), and compact() or
+	// GetTranslationForConn() may also still be running, so the cache must be purged under
+	// the lock like every other access.
+	ctr.Lock()
 	ctr.cache.Purge()
+	ctr.Unlock()
+
 	close(ctr.exit)
 }
 

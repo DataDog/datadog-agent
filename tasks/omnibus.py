@@ -17,6 +17,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
     OS_SPECIFIC_ENV_PASSTHROUGH,
@@ -714,11 +715,7 @@ def docker_build(
         '"'
     )
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -758,6 +755,9 @@ def docker_build(
 
     # Map arch to Docker platform
     platform = f"linux/{arch}"
+
+    # The Dockerfile copies nosys.so from the artifacts context, next to the tarball.
+    build_nosys_so(arch, artifacts_dir)
 
     # Build the Docker command
     build_args = [

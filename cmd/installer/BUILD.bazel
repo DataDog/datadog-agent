@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/check_for_symbols:check_for_symbols.bzl", "check_for_symbols_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
@@ -44,6 +45,31 @@ dd_agent_go_binary(
         "//conditions:default": "auto",
     }),
     visibility = ["//visibility:public"],
+)
+
+# The packages of msgo's Linux (OpenSSL) and Windows (CNG) crypto backends, which FIPS builds link.
+# A successful build is not sufficient proof that the FIPS code path was actually compiled
+# in -- this checks the binary's symbol table.
+_LINUX_FIPS_PACKAGE = "vendor/github.com/microsoft/go-crypto-openssl/openssl"
+
+_WINDOWS_FIPS_PACKAGE = "github.com/microsoft/go-crypto-winnative"
+
+check_for_symbols_test(
+    name = "installer_fips_symbols_test",
+    binary = ":installer",
+    must_include = select({
+        "//packages/agent:linux_fips": [_LINUX_FIPS_PACKAGE],
+        "//packages/agent:windows_x86_64_fips": [_WINDOWS_FIPS_PACKAGE],
+        "//conditions:default": [],
+    }),
+    must_not_include = select({
+        "//packages/agent:linux_fips": [_WINDOWS_FIPS_PACKAGE],
+        "//packages/agent:windows_x86_64_fips": [_LINUX_FIPS_PACKAGE],
+        "//conditions:default": [
+            _LINUX_FIPS_PACKAGE,
+            _WINDOWS_FIPS_PACKAGE,
+        ],
+    }),
 )
 
 dd_agent_go_test(

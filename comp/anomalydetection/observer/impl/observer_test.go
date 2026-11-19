@@ -14,6 +14,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPublishSeriesFreshness(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	engine := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	engine.pendingFreshSeries.Store(2)
+	observer := &observerImpl{engine: engine, telemetry: newObserverTelemetry(telComp)}
+
+	observer.publishSeriesFreshness()
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() == "observer__"+telemetrySeriesFresh {
+			require.Len(t, family.GetMetric(), 1)
+			require.Nil(t, family.GetMetric()[0].GetLabel())
+			require.Equal(t, 2.0, family.GetMetric()[0].GetCounter().GetValue())
+			found = true
+		}
+	}
+	require.True(t, found)
+	require.Zero(t, engine.pendingFreshSeries.Load())
+}
+
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	if err != nil {
@@ -56,6 +79,38 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	seedAndCrossHighThreshold(scorer, 1000)
 	if got := scorer.ActiveCorrelations(); len(got) != 1 {
 		t.Fatalf("expected replay scorer watcher to open one correlation episode, got %d", len(got))
+	}
+}
+
+func TestObserverResetConfiguresLogTimeBuckets(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+	obs := &observerImpl{
+		engine:  mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		catalog: defaultCatalog(), metricsCh: make(chan observation, 1),
+		logsCh: make(chan observation, 1), metricFilter: filter,
+	}
+	done := make(chan struct{})
+	go func() { obs.run(); close(done) }()
+	t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh); <-done })
+	buckets := DefaultLogCountBucketConfig()
+	buckets.Enabled = true
+	for _, test := range []struct {
+		config  *LogCountBucketConfig
+		enabled bool
+	}{
+		{&buckets, true}, {nil, true}, {&LogCountBucketConfig{}, false},
+	} {
+		require.NoError(t, obs.Reset(ComponentSettings{LogCountBuckets: test.config}, StorageConfig{}))
+		obs.engine.IngestLog("logs", &logObs{timestampMs: 1000, content: "error request failed"})
+		obs.engine.Advance(10)
+		series := obs.engine.storage.AllSeries("log_metrics_extractor", observerdef.AggregateAverage)
+		require.Len(t, series, 1)
+		if test.enabled {
+			require.Equal(t, []observerdef.Point{{Timestamp: 5, Value: 1}, {Timestamp: 10, Value: 0}}, series[0].Points)
+		} else {
+			require.Equal(t, []observerdef.Point{{Timestamp: 1, Value: 1}}, series[0].Points)
+		}
 	}
 }
 
