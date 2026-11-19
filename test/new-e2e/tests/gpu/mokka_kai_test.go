@@ -48,7 +48,10 @@ func TestGPUMokkaKAISuite(t *testing.T) {
 		profile:  "t4",
 		gpuCount: 2,
 		runOptions: []kindvm.RunOption{
-			kindvm.WithKAIScheduler(kaischeduler.WithQueues(kaiTestQueue)),
+			kindvm.WithKAIScheduler(
+				kaischeduler.WithQueues(kaiTestQueue),
+				kaischeduler.WithChartRepository(ghcrChartRepository("kai-scheduler/kai-scheduler")),
+			),
 			// KAI adds seven controllers on top of Mokka, the Agent and the Cluster Agent.
 			kindvm.WithVMOptions(ec2.WithInstanceType("t3.xlarge")),
 		},

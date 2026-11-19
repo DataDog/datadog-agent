@@ -21,10 +21,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
 const (
-	chartRef = "oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler"
+	// DefaultChartRepository is the OCI repository of the KAI Scheduler Helm chart.
+	DefaultChartRepository = "oci://ghcr.io/kai-scheduler/kai-scheduler"
 
 	// DefaultVersion is the pinned version of the KAI Scheduler Helm chart.
 	DefaultVersion = "v0.19.0"
@@ -46,9 +48,10 @@ const (
 
 // Params holds the configuration of a KAI Scheduler installation.
 type Params struct {
-	Version   string
-	Namespace string
-	RootQueue string
+	ChartRepository string
+	Version         string
+	Namespace       string
+	RootQueue       string
 	// Queues are the leaf queues created under RootQueue, with unlimited quotas.
 	Queues []string
 }
@@ -59,11 +62,22 @@ type Option = func(*Params) error
 // NewParams returns the KAI Scheduler parameters with defaults applied.
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
-		Version:   DefaultVersion,
-		Namespace: DefaultNamespace,
-		RootQueue: DefaultRootQueue,
+		ChartRepository: DefaultChartRepository,
+		Version:         DefaultVersion,
+		Namespace:       DefaultNamespace,
+		RootQueue:       DefaultRootQueue,
 	}
 	return common.ApplyOption(params, options)
+}
+
+// WithChartRepository overrides the OCI repository of the KAI Scheduler chart, e.g. to pull it
+// through a mirror of ghcr.io. When the repository is on one of the imagePull registries, the
+// chart is pulled with their credentials.
+func WithChartRepository(repository string) Option {
+	return func(p *Params) error {
+		p.ChartRepository = repository
+		return nil
+	}
 }
 
 // WithVersion overrides the pinned KAI Scheduler chart version.
@@ -105,12 +119,14 @@ func NewInstallation(e config.Env, params *Params, kubeProvider *kubernetes.Prov
 	}
 	opts = append(opts, pulumi.Parent(comp), pulumi.Provider(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
+	chart := params.ChartRepository + "/kai-scheduler"
 	var err error
 	comp.Release, err = helm.NewRelease(e.Ctx(), e.CommonNamer().ResourceName("kai-scheduler"), &helm.ReleaseArgs{
 		Name:            pulumi.String("kai-scheduler"),
 		Namespace:       pulumi.String(params.Namespace),
 		CreateNamespace: pulumi.Bool(true),
-		Chart:           pulumi.String(chartRef),
+		Chart:           pulumi.String(chart),
+		RepositoryOpts:  utils.HelmOCIRepositoryOpts(e, chart),
 		Version:         pulumi.String(params.Version),
 		Timeout:         pulumi.Int(600),
 	}, opts...)
