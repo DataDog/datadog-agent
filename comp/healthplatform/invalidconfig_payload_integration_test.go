@@ -542,6 +542,14 @@ func normalizeHealthReport(rawReport []byte, expectedReport, confDir string, dis
 		}) {
 			continue
 		}
+		// the readable IDs only exist in the expected reports: on the wire, an issue ID is a hash
+		for _, wireID := range []any{id, issue["id"]} {
+			if wireID, _ := wireID.(string); wireID != "" {
+				if _, readable := expected.Issues[wireID]; readable {
+					return "", fmt.Errorf("issue %q is reported with its readable ID rather than a hashed one", wireID)
+				}
+			}
+		}
 		// unexpected IDs are kept as-is, so they show in the diff
 		if readableID, found := readableIDs[id]; found {
 			if issue["id"] == id {
