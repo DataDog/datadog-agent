@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"text/template"
@@ -54,8 +55,8 @@ import (
 
 // team: fleet-remediation
 
-// invalidConfigScenarioDir holds one scenario per name:
-//   - '<name>.yaml' is appended to the base datadog.yaml
+// invalidConfigScenarioDir holds one scenario per name, each one run as a subtest:
+//   - '<name>.yaml' is appended to the base datadog.yaml. Its first line is '# description: <scenario description>'.
 //   - '<name>.env' (optional) holds the DD_* environment variables of the Agent, one KEY='value' per line
 //   - '<name>.system-probe.yaml' (optional) is the system-probe.yaml content
 //   - '<name>.expected.json' (optional) is the expected health report. Without it, the scenario expects no
@@ -65,6 +66,8 @@ import (
 // schema components, so this test covers the entire pipeline: schema → configuration loading (file, environment
 // variables, schema enforcement, secrets) → startup checks → store → forwarder → intake payload.
 const invalidConfigScenarioDir = "testdata/invalidconfig"
+
+const scenarioDescriptionPrefix = "# description: "
 
 // baseConfigTemplate is the datadog.yaml every scenario configuration is appended to, as a text/template
 //
@@ -78,15 +81,32 @@ const invalidConfigSecrets = "secrets.json"
 // directory the scenario configuration is written to.
 const expectedConfigDir = "/etc/datadog-agent"
 
-// The scenarios without an expected report also set the canary, so the test can wait for a report proving the startup
-// check ran: empty reports are not sent.
-const (
-	noIssueCanaryEnvVar = "DD_AGENT_IPC_PORT"
-	noIssueCanaryPath   = "/agent_ipc/port"
-)
+// noIssueCanary is an invalid setting the scenarios without an expected report set through an environment variable, so
+// the test can wait for a report proving the startup check of its configuration file ran: empty reports are not sent.
+type noIssueCanary struct {
+	envVar    string
+	path      string
+	schema    model.SchemaID
+	issueType string
+}
+
+// noIssueCanaries holds one canary per startup check: the checks run in separate goroutines, so each one is waited for
+var noIssueCanaries = []noIssueCanary{
+	{envVar: "DD_AGENT_IPC_PORT", path: "/agent_ipc/port", schema: model.CoreSchema, issueType: invalidconfig.IssueType},
+	{envVar: "DD_SYSTEM_PROBE_HEALTH_PORT", path: "/system_probe_config/health_port", schema: model.SystemProbeSchema, issueType: invalidsysprobeconfig.IssueType},
+}
+
+// isCanary reports whether the issue is the one reported for the canary
+func (c noIssueCanary) isCanary(issue *healthplatformpayload.Issue) bool {
+	return issue.GetIssueType() == c.issueType && strings.Contains(issue.GetTitle(), c.path)
+}
 
 // invalidConfigLeakMarkers must never appear in a payload: the configured values, URL credentials and secret handles
 var invalidConfigLeakMarkers = []string{"RAW_", "ENC["}
+
+// resolvedSecretMarker is held by the secret values of secrets.json the payloads must not leak: the scenarios using
+// secrets check it reached the loaded configuration, so the leak check has something to catch
+const resolvedSecretMarker = "RAW_SECRET_"
 
 const (
 	placeholderTimestamp    = "<timestamp>"
@@ -109,25 +129,30 @@ var configIssueKinds = []configIssueKind{
 func TestInvalidConfigPayload(t *testing.T) {
 	requireSchema(t)
 
-	for _, tc := range []struct {
-		name        string
-		description string
-	}{
-		{"valid", "valid scalar, list and map values, from the file and environment variables, raise no issue"},
-		{"harmless", "unknown settings, settings without a value, empty collections and deprecated settings raise no issue"},
-		{"file_types", "values of the wrong type in the file are reported, URL credentials in keys are scrubbed"},
-		{"env_types", "values of the wrong type in environment variables are reported, valid ones hide invalid file values"},
-		{"enforce", "with 'schema.enforce', invalid settings from the file and environment variables are reported as reverted"},
-		{"raw_json", "JSON objects given to map settings in the file are accepted, other JSON values are reported"},
-		{"value_scrubbing", "URL credentials of a value not matching its pattern are scrubbed from the message"},
-		{"secrets", "settings set from secrets are validated before resolution, and neither handles nor values leak"},
-		{"system_probe", "violations of system-probe.yaml are reported as invalid system-probe configuration issues"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Log(tc.description)
-			runInvalidConfigScenario(t, tc.name)
+	scenarios, err := filepath.Glob(filepath.Join(invalidConfigScenarioDir, "*.yaml"))
+	require.NoError(t, err)
+	found := 0
+	for _, path := range scenarios {
+		name := strings.TrimSuffix(filepath.Base(path), ".yaml")
+		if name == "base" || strings.HasSuffix(name, ".system-probe") {
+			continue
+		}
+		found++
+		t.Run(name, func(t *testing.T) {
+			t.Log(scenarioDescription(t, name))
+			runInvalidConfigScenario(t, name)
 		})
 	}
+	require.NotZero(t, found, "no scenario found in %s", invalidConfigScenarioDir)
+}
+
+// scenarioDescription returns the description of a scenario, given by the '# description: ' first line of its YAML
+func scenarioDescription(t *testing.T, name string) string {
+	t.Helper()
+	firstLine, _, _ := strings.Cut(readScenarioFile(t, name+".yaml", true), "\n")
+	description, found := strings.CutPrefix(strings.TrimSpace(firstLine), scenarioDescriptionPrefix)
+	require.True(t, found && description != "", "%s/%s.yaml must start with a %q line", invalidConfigScenarioDir, name, scenarioDescriptionPrefix)
+	return description
 }
 
 // runInvalidConfigScenario loads the scenario configuration like the Agent does, then asserts that the health report
@@ -161,7 +186,9 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 
 	setScenarioEnv(t, readScenarioFile(t, name+".env", false))
 	if expected == "" {
-		t.Setenv(noIssueCanaryEnvVar, "not-a-number")
+		for _, canary := range noIssueCanaries {
+			t.Setenv(canary.envVar, "not-a-number")
+		}
 	}
 
 	configmock.InitAgentConfigs(t)
@@ -175,6 +202,7 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 
 	deps := fxutil.Test[struct {
 		fx.In
+		Config config.Component
 		Store  storedef.Component
 		Schema schema.Component
 	}](t,
@@ -194,49 +222,55 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	)
 	require.NotNil(t, deps.Store)
 
-	if expected == "" {
-		// The startup checks report exactly the violations recorded by the schema component: only the canary
-		coreViolations := deps.Schema.GetViolations(model.CoreSchema)
-		require.Len(t, coreViolations, 1, "datadog.yaml must only hold the canary violation")
-		assert.Equal(t, noIssueCanaryPath, coreViolations[0].Path)
-		assert.Empty(t, deps.Schema.GetViolations(model.SystemProbeSchema), "system-probe.yaml must be valid")
+	// Validation runs before secrets are resolved, so the expected report is the same whether or not they are: check
+	// the secrets were resolved, otherwise the leak check would pass without the secret values in the configuration
+	if strings.Contains(scenarioConfig, "ENC[") {
+		settings, err := json.Marshal(deps.Config.AllSettings())
+		require.NoError(t, err)
+		assert.NotContains(t, string(settings), "ENC[", "a secret handle was not resolved")
+		assert.Contains(t, string(settings), resolvedSecretMarker, "no secret value holding %q reached the configuration", resolvedSecretMarker)
+	}
 
-		// Empty reports are not sent: wait for the canary to prove the startup check ran and its report was sent,
-		// then check it is the only configuration issue
+	if expected == "" {
+		// The startup checks report exactly the violations recorded by the schema component: only the canaries
+		for _, canary := range noIssueCanaries {
+			violations := deps.Schema.GetViolations(canary.schema)
+			require.Len(t, violations, 1, "the %s schema must only hold the canary violation", canary.schema)
+			assert.Equal(t, canary.path, violations[0].Path)
+		}
+
+		// Empty reports are not sent: wait for every canary to prove each startup check ran and its report was sent,
+		// then check they are the only configuration issues
 		var configIssues []*healthplatformpayload.Issue
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			received, err := fiClient.GetAgentHealth()
 			require.NoError(c, err)
 			configIssues = configIssues[:0]
-			canaryFound := false
 			for _, payload := range received {
 				for _, issue := range payload.Issues {
-					if issueKind(issue.GetIssueType()) == nil {
-						continue
-					}
-					configIssues = append(configIssues, issue)
-					if strings.Contains(issue.GetTitle(), noIssueCanaryPath) {
-						canaryFound = true
+					if issueKind(issue.GetIssueType()) != nil {
+						configIssues = append(configIssues, issue)
 					}
 				}
 			}
-			assert.True(c, canaryFound, "the canary issue was not received yet")
-		}, 10*time.Second, 100*time.Millisecond, "the canary configuration issue must be reported")
+			for _, canary := range noIssueCanaries {
+				assert.True(c, slices.ContainsFunc(configIssues, canary.isCanary), "the %s canary issue was not received yet", canary.path)
+			}
+		}, 10*time.Second, 100*time.Millisecond, "every canary configuration issue must be reported")
 		for _, issue := range configIssues {
-			assert.Contains(t, issue.GetTitle(), noIssueCanaryPath, "unexpected configuration issue %q", issue.GetId())
+			isCanary := slices.ContainsFunc(noIssueCanaries, func(canary noIssueCanary) bool { return canary.isCanary(issue) })
+			assert.True(t, isCanary, "unexpected configuration issue %q: %s", issue.GetId(), issue.GetTitle())
 		}
+		assertNoLeakedValue(t, fiClient)
 		return
 	}
 
-	var payloads []*healthplatformpayload.HealthReport
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		received, err := fiClient.GetAgentHealth()
 		require.NoError(c, err)
 		require.NotEmpty(c, received, "no health report received yet")
-		payloads = payloads[:0]
 		latest := received[0]
 		for _, payload := range received {
-			payloads = append(payloads, payload.HealthReport)
 			// payloads are listed in arrival order: on a tie, the later one is the most recent
 			if !payload.GetCollectedTime().Before(latest.GetCollectedTime()) {
 				latest = payload
@@ -247,8 +281,29 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 		assert.JSONEq(c, expected, actual)
 	}, 10*time.Second, 100*time.Millisecond, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
 
-	for _, payload := range payloads {
-		encoded, err := json.Marshal(payload)
+	assertNoLeakedValue(t, fiClient)
+}
+
+// assertNoLeakedValue checks that none of the health reports received by the intake holds a leak marker, both in the
+// raw request bodies and in the decoded reports
+func assertNoLeakedValue(t *testing.T, fiClient *fakeintakeclient.Client) {
+	t.Helper()
+	rawPayloads, err := fiClient.GetRawPayloads("/api/v2/agenthealth")
+	require.NoError(t, err)
+	require.NotEmpty(t, rawPayloads, "no health report received")
+	for _, payload := range rawPayloads {
+		// without a Content-Encoding header, fakeintake records the Content-Type as the encoding
+		require.Equal(t, "application/json", payload.Encoding, "health reports are expected uncompressed, so their raw body can be scanned")
+		for _, marker := range invalidConfigLeakMarkers {
+			assert.NotContains(t, string(payload.Data), marker, "a raw health report leaks a configured value")
+		}
+	}
+
+	received, err := fiClient.GetAgentHealth()
+	require.NoError(t, err)
+	require.NotEmpty(t, received, "no health report received")
+	for _, payload := range received {
+		encoded, err := json.Marshal(payload.HealthReport)
 		require.NoError(t, err)
 		for _, marker := range invalidConfigLeakMarkers {
 			assert.NotContains(t, string(encoded), marker, "a health report leaks a configured value")
@@ -267,13 +322,16 @@ func readScenarioFile(t *testing.T, name string, required bool) string {
 	return string(content)
 }
 
-// setScenarioEnv clears the DD_* environment variables of the test process and sets the scenario ones, given as
+// setScenarioEnv clears the DD_* and proxy environment variables of the test process and sets the scenario ones, given as
 // KEY=value lines where the value may be wrapped in single or double quotes. Escapes and inline comments are not
 // supported.
 func setScenarioEnv(t *testing.T, envFile string) {
 	t.Helper()
 	for _, kv := range os.Environ() {
-		if key, _, _ := strings.Cut(kv, "="); strings.HasPrefix(key, "DD_") {
+		key, _, _ := strings.Cut(kv, "=")
+		// the real config loader also reads the standard proxy variables, which would route the fake intake through a host proxy
+		isProxyVar := strings.EqualFold(key, "HTTP_PROXY") || strings.EqualFold(key, "HTTPS_PROXY") || strings.EqualFold(key, "NO_PROXY")
+		if strings.HasPrefix(key, "DD_") || isProxyVar {
 			t.Setenv(key, "") // restores the variable at the end of the test
 			require.NoError(t, os.Unsetenv(key))
 		}
@@ -304,8 +362,9 @@ func issueKind(issueType string) *configIssueKind {
 	return nil
 }
 
-// normalizeHealthReport returns the payload as JSON with the values that change on every run replaced by the
-// placeholders of the expected reports, and the configuration directory replaced by expectedConfigDir. Issue IDs are
+// normalizeHealthReport returns the payload as JSON, restricted to its configuration issues, with the values that change
+// on every run replaced by the placeholders of the expected reports, and the configuration directory replaced by
+// expectedConfigDir. Issue IDs are
 // a hash of the issue discriminator, the configuration file and the setting path: they are checked against the readable
 // IDs of the expected report ('<prefix>:<JSON pointer>') and replaced by them.
 func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expectedReport, confDir string, discriminator func(hostID string) string) (string, error) {
@@ -357,6 +416,10 @@ func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expected
 		issue, ok := rawIssue.(map[string]any)
 		if !ok {
 			return "", fmt.Errorf("issue %q is not an object", id)
+		}
+		// only configuration issues are compared: other checks of the bundle (e.g. the Docker socket one) depend on the host
+		if issueType, _ := issue["issue_type"].(string); issueKind(issueType) == nil {
+			continue
 		}
 		// unexpected IDs are kept as-is, so they show in the diff
 		if readableID, found := readableIDs[id]; found {

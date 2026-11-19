@@ -1,3 +1,5 @@
+# description: values of the wrong type in the file are reported, URL credentials in keys are scrubbed
+
 # string setting receiving a mapping
 hostname_file:
   path: /etc/hostname
