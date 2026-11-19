@@ -8,7 +8,6 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -128,10 +127,11 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 
 	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
-	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
-		if err := checkPARSupported(env.FIPSMode); err != nil {
-			return nil, err
-		}
+	parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+	if strings.EqualFold(parEnabledEnv, "true") && env.FIPSMode {
+		s.Out.WriteString("Warning: DD_PRIVATE_ACTION_RUNNER_ENABLED is ignored: the private action runner is not supported in FIPS mode.\n")
+	}
+	if strings.EqualFold(parEnabledEnv, "true") && !env.FIPSMode {
 		if appKey := os.Getenv("DD_APP_KEY"); appKey != "" {
 			s.Config.DatadogYAML.AppKey = appKey
 		}
@@ -151,15 +151,6 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 
 	return s, nil
-}
-
-// checkPARSupported rejects enabling the Private Action Runner on FIPS installs,
-// where it is not supported.
-func checkPARSupported(fipsMode bool) error {
-	if fipsMode {
-		return errors.New("DD_PRIVATE_ACTION_RUNNER_ENABLED is not supported in FIPS mode: the private action runner is not available in FIPS installations")
-	}
-	return nil
 }
 
 // Run installs the packages and writes the configurations

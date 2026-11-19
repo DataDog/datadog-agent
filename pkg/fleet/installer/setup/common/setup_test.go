@@ -63,11 +63,6 @@ func TestCheckAgentFlavorWithoutAgent(t *testing.T) {
 	}
 }
 
-func TestCheckPARSupported(t *testing.T) {
-	require.NoError(t, checkPARSupported(false))
-	require.ErrorContains(t, checkPARSupported(true), "not supported in FIPS mode")
-}
-
 func TestParActionsAllowlist_ExplicitEnv(t *testing.T) {
 	explicit := "com.datadoghq.http.request,com.datadoghq.http.response"
 	got := parActionsAllowlist(explicit, "linux", true)
