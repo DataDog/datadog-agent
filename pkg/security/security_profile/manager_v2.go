@@ -900,20 +900,40 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Profile count by image name. Enabled and disabled profiles both count.
-	var tags [][]string
+	// Profile count by image name and short image. Enabled and disabled profiles both count.
+	// The short image lives on the profile, not on the map key.
+	type profileCountKey struct {
+		imageName  string
+		shortImage string
+	}
+	type trackedProfile struct {
+		image string
+		tag   string
+		prof  *profile.Profile
+	}
+
 	m.profilesLock.Lock()
 	profiles := make([]*profile.Profile, 0, len(m.profiles))
-	profileCounts := make(map[string]int)
+	tracked := make([]trackedProfile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
 		profiles = append(profiles, prof)
-		profileCounts[selector.Image]++
-		if prof.IsEnabled() {
-			continue
-		}
-		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+		tracked = append(tracked, trackedProfile{image: selector.Image, tag: selector.Tag, prof: prof})
 	}
 	m.profilesLock.Unlock()
+
+	profileCounts := make(map[profileCountKey]int)
+	var disabledTags [][]string
+	for _, tp := range tracked {
+		shortImage := tp.prof.ShortName()
+		profileCounts[profileCountKey{imageName: tp.image, shortImage: shortImage}]++
+		if tp.prof.IsEnabled() {
+			continue
+		}
+		disabledTags = append(disabledTags, metrics.WithProfileShortImage([]string{
+			"profile_image_name:" + tp.image,
+			"profile_image_tag:" + tp.tag,
+		}, shortImage))
+	}
 
 	// Total profiles tracked on this host, enabled and disabled, broken down per image. A sum
 	// across series and hosts is the fleet-wide profile count. Disabled profiles are also broken
@@ -923,13 +943,13 @@ func (m *ManagerV2) SendStats() error {
 			return err
 		}
 	}
-	for imageName, count := range profileCounts {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(count), []string{"profile_image_name:" + imageName}, 1.0); err != nil {
+	for key, count := range profileCounts {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(count), metrics.WithProfileShortImage([]string{"profile_image_name:" + key.imageName}, key.shortImage), 1.0); err != nil {
 			return err
 		}
 	}
 
-	for _, tag := range tags {
+	for _, tag := range disabledTags {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
 			return err
 		}
@@ -1071,14 +1091,19 @@ func (m *ManagerV2) SendStats() error {
 	m.profilesLock.Unlock()
 
 	for _, entry := range ramEntries {
-		tags := []string{
+		tags := metrics.WithProfileShortImage([]string{
 			"profile_image_name:" + entry.selector.Image,
 			"profile_image_tag:" + entry.selector.Tag,
 			"storage:ram",
-		}
+		}, entry.profile.ShortName())
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
+	}
+
+	shortImageByIdentity := make(map[cgroupModel.WorkloadSelector]string, len(ramEntries))
+	for _, entry := range ramEntries {
+		shortImageByIdentity[entry.selector.Identity()] = entry.profile.ShortName()
 	}
 
 	for selector, size := range m.localStorage.SizesBySelector() {
@@ -1087,11 +1112,11 @@ func (m *ManagerV2) SendStats() error {
 		if !selector.IsReady() {
 			continue
 		}
-		tags := []string{
+		tags := metrics.WithProfileShortImage([]string{
 			"profile_image_name:" + selector.Image,
 			"profile_image_tag:" + selector.Tag,
 			"storage:disk",
-		}
+		}, shortImageByIdentity[selector.Identity()])
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
 			return err
 		}
@@ -1113,10 +1138,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Cancel any pending removal for this selector (it's back!)
+	// Cancel any pending removal for this selector (it's back!). ShortName is not part of the key.
 	m.pendingProfileRemovalsLock.Lock()
-	if _, pending := m.pendingProfileRemovals[selector]; pending {
-		delete(m.pendingProfileRemovals, selector)
+	if _, pending := m.pendingProfileRemovals[selector.Identity()]; pending {
+		delete(m.pendingProfileRemovals, selector.Identity())
 		seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
 	}
 	m.pendingProfileRemovalsLock.Unlock()
@@ -1202,10 +1227,17 @@ func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profi
 	})
 }
 
-// buildWorkloadSelector creates a workload selector from the event's container tags
+// buildWorkloadSelector creates a workload selector from the event's container tags.
+// V2 profiles are per image, not per image tag, so the tag stays "*". The short image
+// is stored beside it and is not part of the profile identity.
 func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.WorkloadSelector, error) {
-	imageName := utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags)
-	return cgroupModel.NewWorkloadSelector(imageName, "*")
+	eventTags := event.ProcessContext.Process.ContainerContext.Tags
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", eventTags), "*")
+	if err != nil {
+		return cgroupModel.WorkloadSelector{}, err
+	}
+	selector.ShortName = utils.GetTagValue("short_image", eventTags)
+	return selector, nil
 }
 
 // getWorkloadIDFromEvent extracts the workload ID from an event, preferring container ID over cgroup ID
@@ -1401,8 +1433,9 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	secprof := m.profiles[selector]
+	secprof := m.profiles[selector.Identity()]
 	if secprof != nil {
+		secprof.SetShortName(selector.ShortName)
 		return secprof, nil
 	}
 
@@ -1432,7 +1465,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		seclog.Debugf("loaded profile from storage for selector %s", selector.String())
 	}
 
-	m.profiles[selector] = secprof
+	m.profiles[selector.Identity()] = secprof
 	return secprof, nil
 }
 
@@ -1471,6 +1504,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	if !ok {
 		return nil, false
 	}
+
+	// The persisted selector has no short name. Keep the one from the workload that loaded it.
+	secprof.SetShortName(selector.ShortName)
 
 	// Profile was loaded successfully; recompute stats so SizeBytes reflects the loaded tree.
 	secprof.ActivityTree.ComputeActivityTreeStats()
@@ -1587,6 +1623,7 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 		return err
 	}
 	secprof.AddTags(tags)
+	secprof.SetShortName(utils.GetTagValue("short_image", tags))
 	return nil
 }
 

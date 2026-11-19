@@ -189,8 +189,9 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 
 	t.Run("counts enabled and disabled profiles per image", func(t *testing.T) {
 		m, recorder := newManager()
-		enabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}))
+		enabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*", ShortName: "app"}))
 		disabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}))
+		disabled.AddTags([]string{"short_image:worker", "image_name:gcr.io/org/worker"})
 		disabled.Disable()
 		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}] = enabled
 		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}] = disabled
@@ -202,9 +203,21 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
 		}
 		assert.Equal(t, map[string]float64{
-			"profile_image_name:gcr.io/org/app":    1,
-			"profile_image_name:gcr.io/org/worker": 1,
+			"profile_image_name:gcr.io/org/app,profile_short_image:app":       1,
+			"profile_image_name:gcr.io/org/worker,profile_short_image:worker": 1,
 		}, got)
+		assert.Equal(t, [][]string{{
+			"profile_image_name:gcr.io/org/worker",
+			"profile_image_tag:*",
+			"profile_short_image:worker",
+		}}, recorder.tags[metrics.MetricSecurityProfileV2DisabledProfiles])
+
+		gotSize := map[string]struct{}{}
+		for _, tags := range recorder.tags[metrics.MetricSecurityProfileV2ProfileSize] {
+			gotSize[strings.Join(tags, ",")] = struct{}{}
+		}
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/app,profile_image_tag:*,storage:ram,profile_short_image:app")
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/worker,profile_image_tag:*,storage:ram,profile_short_image:worker")
 	})
 
 	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
@@ -215,6 +228,27 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 		assert.Equal(t, []float64{0}, recorder.values[metrics.MetricSecurityProfileProfiles])
 		assert.Equal(t, [][]string{{}}, recorder.tags[metrics.MetricSecurityProfileProfiles])
 	})
+}
+
+func TestManagerV2_buildWorkloadSelector_usesShortImage(t *testing.T) {
+	m := &ManagerV2{}
+
+	withShortImage := model.NewFakeEvent()
+	withShortImage.ProcessContext.Process.ContainerContext.Tags = []string{
+		"image_name:gcr.io/org/app", "short_image:app", "image_tag:v1",
+	}
+	selector, err := m.buildWorkloadSelector(withShortImage)
+	require.NoError(t, err)
+	assert.Equal(t, cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*", ShortName: "app"}, selector)
+	assert.Equal(t, cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}, selector.Identity())
+
+	withoutShortImage := model.NewFakeEvent()
+	withoutShortImage.ProcessContext.Process.ContainerContext.Tags = []string{
+		"image_name:gcr.io/org/app", "image_tag:v1",
+	}
+	selector, err = m.buildWorkloadSelector(withoutShortImage)
+	require.NoError(t, err)
+	assert.Equal(t, cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}, selector)
 }
 
 func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
