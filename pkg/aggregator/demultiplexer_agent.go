@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -169,11 +168,6 @@ func initAgentDemultiplexer(log log.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
-		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		pkgconfigsetup.Datadog().Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
-	}
-
 	// prepare the serializer
 	// ----------------------
 
@@ -199,7 +193,7 @@ func initAgentDemultiplexer(log log.Component,
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback

@@ -26,6 +26,12 @@ filegroup(
     ),
 )
 
+# The extracted archive has no nested packages, so the recursive glob is complete.
+filegroup(
+    name = "mingw_headers",
+    srcs = glob(["x86_64-w64-mingw32/include/**"]),
+)
+
 [
     filegroup(
         name = tool_name,

@@ -693,6 +693,13 @@ type Container struct {
 	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
 	// way.
 	GPUShares map[string]GPUShare `proto:"ignore"`
+	// GPUDeviceReplicas holds, keyed by the base device UUID, the number
+	// of shared NVIDIA device replicas (time-slicing or MPS) allocated to
+	// this container. The kubelet PodResources API reports each replica
+	// allocation as a device ID with a replica suffix,
+	// "<base-device-id>::<replica>"; a container can hold several
+	// replicas of the same base device.
+	GPUDeviceReplicas map[string]int `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -793,11 +800,16 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
-	if len(c.GPUDeviceIDs) > 0 {
+	if len(c.GPUDeviceIDs) > 0 || len(c.GPUShares) > 0 || len(c.GPUDeviceReplicas) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
-		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUDeviceIDs) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		}
 		if len(c.GPUShares) > 0 {
 			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
+		if len(c.GPUDeviceReplicas) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device Replicas:", c.GPUDeviceReplicas)
 		}
 	}
 
@@ -2518,7 +2530,17 @@ const (
 	GPUSharingModeNone GPUSharingMode = "none"
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
-	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	GPUSharingModeKAIFraction GPUSharingMode = "kai-fraction"
+	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
+	// GPU between workloads as time-sliced replicas of it.
+	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"
+	// GPUSharingModeMPS means that the NVIDIA device plugin shares the GPU
+	// between workloads as replicas served by Multi-Process Service.
+	GPUSharingModeMPS GPUSharingMode = "mps"
+	// GPUSharingModeUnknown means that the GPU is shared between workloads by
+	// a replication mechanism the node does not describe: a shared-replica
+	// allocation was detected, but the node carries no sharing-strategy label.
+	GPUSharingModeUnknown GPUSharingMode = "unknown"
 )
 
 // GPUShare is the share of a GPU assigned to a container that shares the GPU
@@ -2650,6 +2672,10 @@ type GPU struct {
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
 
+	// MIGModeEnabled is true when MIG mode is enabled on a physical GPU, even
+	// if no MIG devices have been created on it yet.
+	MIGModeEnabled bool
+
 	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
@@ -2659,6 +2685,11 @@ type GPU struct {
 	// workloads. Empty when the collector does not detect sharing mechanisms,
 	// which means the same as GPUSharingModeNone.
 	SharingMode GPUSharingMode
+	// SharingReplicas is the number of device replicas the device plugin
+	// registered of this device when it is shared by replication (time-slicing
+	// or MPS), 0 when the device is not shared that way or the count is
+	// unknown.
+	SharingReplicas int
 }
 
 var _ Entity = &GPU{}
@@ -2724,6 +2755,10 @@ func (g GPU) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
 	}
 
+	if g.MIGModeEnabled {
+		_, _ = fmt.Fprintln(&sb, "MIG Mode Enabled: true")
+	}
+
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {
 		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
@@ -2732,10 +2767,13 @@ func (g GPU) String(verbose bool) string {
 	return sb.String()
 }
 
+// SlicingMode returns the value of the gpu_slicing_mode tag: "mig" for a MIG
+// device, "mig-parent" for a physical GPU with MIG mode enabled (whether or not
+// it has MIG devices yet) and "none" otherwise.
 func (g GPU) SlicingMode() string {
 	if g.DeviceType == GPUDeviceTypeMIG {
 		return "mig"
-	} else if len(g.ChildrenGPUUUIDs) > 0 {
+	} else if g.MIGModeEnabled || len(g.ChildrenGPUUUIDs) > 0 {
 		return "mig-parent"
 	}
 	return "none"

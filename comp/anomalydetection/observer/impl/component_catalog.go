@@ -135,13 +135,13 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	}
 
 	bocpd := DefaultBOCPDConfig()
-	bocpd.WarmupPoints = 40
+	bocpd.WarmupPoints = 20
 	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
 	tukey := DefaultTukeyBiweightConfig()
 	tukey.WindowSize = 40
-	tukey.MinPoints = 40
+	tukey.MinPoints = 20
 
 	for name, cfg := range map[string]any{
 		"bocpd":          bocpd,
@@ -426,7 +426,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			enabled := true
 			anomalyCutoff = &enabled
 		}
-		pipeline, pipelineErr := newDefaultMetricPipeline(settings.StablePipeline, *anomalyCutoff)
+		pipeline, pipelineErr := newStableMetricPipeline(settings.StablePipeline, *anomalyCutoff)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}

@@ -396,8 +396,8 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 	if matches := nvidiaRowRemapperSitePattern.FindStringSubmatch(message); matches != nil {
 		details.RowRemapperSite = matches[1]
 	}
-	if (xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode) && nvidiaMemoryLocationPattern.MatchString(message) {
-		details.Location = strings.ToUpper(nvidiaMemoryLocationPattern.FindStringSubmatch(message)[1])
+	if xidCode == nvidiaXidContainedECCCode || xidCode == nvidiaXidUncontainedECCCode {
+		details.Location = parseNvidiaMemoryLocation(message)
 	}
 	if matches := nvidiaChannelRepairPattern.FindStringSubmatch(message); matches != nil {
 		details.RepairedTarget = strings.ToLower(strings.ReplaceAll(matches[1], " ", "_"))
@@ -414,6 +414,20 @@ func parseNvidiaMemoryXid(message string, xidCode uint64, xid *model.NvidiaXid) 
 		return true
 	}
 	return false
+}
+
+// parseNvidiaMemoryLocation returns the memory location named in the message,
+// using the memory_location vocabulary of the GPU metrics (NVML names), or an
+// empty string when the message names none.
+func parseNvidiaMemoryLocation(message string) string {
+	matches := nvidiaMemoryLocationPattern.FindStringSubmatch(message)
+	if matches == nil {
+		return ""
+	}
+	if strings.EqualFold(matches[1], "DRAM") {
+		return "device_memory"
+	}
+	return "sram" // the pattern only matches SRAM or DRAM
 }
 
 func parseNvidiaRecoveryXid(message string, xid *model.NvidiaXid) bool {
