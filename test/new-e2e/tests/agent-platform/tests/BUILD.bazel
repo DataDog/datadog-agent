@@ -8,6 +8,7 @@ dd_agent_go_test(
         "install_script_test.go",
         "macos_install_test.go",
         "macos_launchdaemons_test.go",
+        "macos_procmgr_caller_auth_test.go",
         "macos_upgrade_test.go",
         "package_signing_test.go",
         "persisting_integrations_test.go",
