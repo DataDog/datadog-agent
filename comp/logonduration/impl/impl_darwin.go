@@ -319,9 +319,9 @@ func (c *logonDurationComponent) detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// safeDurationMs returns a non-negative duration when both timestamps are present.
+// safeDurationMs returns a.Sub(b) in ms, or 0 when either timestamp is missing.
 func safeDurationMs(a, b time.Time) int64 {
-	if a.IsZero() || b.IsZero() || a.Before(b) {
+	if a.IsZero() || b.IsZero() {
 		return 0
 	}
 	return a.Sub(b).Milliseconds()
@@ -362,9 +362,6 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 			if gap > 0 && !c.ts.Before(ts.LoginTime) {
 				offset -= float64(gap.Milliseconds())
 			}
-		}
-		if offset < 0 {
-			offset = 0
 		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
@@ -415,18 +412,19 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
-	validated, dropped := validateTimestamps(bootTime, time.Now(), ts)
-	if len(dropped) > 0 {
-		log.Warnf("Logon duration: dropped invalid timestamps %v (boot %s): %+v", dropped, bootTime, ts)
+	// Invalid timestamps only change the title; the payload keeps the raw values.
+	_, invalid := validateTimestamps(bootTime, time.Now(), ts)
+	if len(invalid) > 0 {
+		log.Warnf("Logon duration: invalid timestamps %v (boot %s): %+v", invalid, bootTime, ts)
 	}
-	custom := buildCustomPayload(bootTime, validated)
+	custom := buildCustomPayload(bootTime, ts)
 
-	haveBoot := !bootTime.IsZero() && !validated.LoginWindowTime.IsZero()
-	haveLogon := !validated.LoginTime.IsZero() && !validated.DesktopReadyTime.IsZero()
+	haveBoot := !bootTime.IsZero() && !ts.LoginWindowTime.IsZero()
+	haveLogon := !ts.LoginTime.IsZero() && !ts.DesktopReadyTime.IsZero()
 	complete := haveBoot && haveLogon
-	totalMs := safeDurationMs(validated.LoginWindowTime, bootTime) + safeDurationMs(validated.DesktopReadyTime, validated.LoginTime)
+	totalMs := safeDurationMs(ts.LoginWindowTime, bootTime) + safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 	title := buildEventTitle(complete, totalMs)
-	if len(dropped) > 0 {
+	if len(invalid) > 0 {
 		title = invalidTimelineTitle
 	}
 

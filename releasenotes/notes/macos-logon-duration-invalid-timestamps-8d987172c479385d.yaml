@@ -1,9 +1,9 @@
 ---
 fixes:
   - |
-    macOS logon duration events no longer report negative or impossible durations
-    when the clock is wrong at boot. Events with invalid timestamps are titled
-    "Boot timeline invalid".
+    macOS logon duration events with impossible timestamps, for example when the
+    clock is wrong at boot, are now titled "Boot timeline invalid". The event
+    keeps the raw timestamps and durations, which can be negative.
   - |
     macOS logon duration events now wait for a logged-in user and capture the
     login window and desktop ready after an authenticated FileVault restart.

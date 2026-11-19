@@ -10,9 +10,9 @@ one event and updates the cache.
 
 - **macOS**: system-probe reads the timeline from the unified log. The Agent waits until a user
   owns `/dev/console` (checked every 10 s), then queries system-probe every 15 s for up to
-  2 minutes until the login and desktop-ready timestamps are available. Timestamps before boot,
-  after now, or out of order are dropped, with a 5 s tolerance. If collection fails, the cache is
-  not updated and the next Agent start tries again.
+  2 minutes until the login and desktop-ready timestamps are valid. A timestamp before boot,
+  after now, or out of order (with a 5 s tolerance) makes the timeline invalid. If collection
+  fails, the cache is not updated and the next Agent start tries again.
 - **Windows**: the timeline comes from the boot autologger ETL trace, including Group Policy
   processing. A trace that fails to parse is not retried.
 
@@ -26,8 +26,9 @@ The event is sent to the Event Management intake with `integration_id: system-no
 - `Device booted up: Boot & login took <total> ms` - both the boot and the logon duration were
   measured.
 - `Device booted up: Boot timeline incomplete` - at least one of them is missing.
-- `Device booted up: Boot timeline invalid` - **macOS only**: at least one timestamp was dropped
-  as impossible, for example after a clock reset at boot.
+- `Device booted up: Boot timeline invalid` - **macOS only**: at least one timestamp is
+  impossible, for example after a clock reset at boot. The event still carries the raw timeline
+  and durations, so offsets and durations can be negative.
 
 ## Custom fields
 
@@ -40,7 +41,7 @@ The fields below are under `data.attributes.attributes.custom`.
   - `id` - **string**: a stable identifier (see [Milestone IDs](#milestone-ids)).
   - `name` - **string**: the display name.
   - `offset_ms` - **number**: the position on the timeline, in ms from boot. Idle time at the
-    login screen is removed so the timeline is contiguous. Never negative.
+    login screen is removed so the timeline is contiguous. Negative only on invalid timelines.
   - `duration_ms` - **number**: the length of the milestone in ms, `0` for an instant.
   - `timestamp` - **string**: the wall-clock time in UTC, formatted as `2006-01-02T15:04:05.000Z`.
 - `durations` - **dict of string to number**, all in ms:

@@ -110,7 +110,7 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.InDelta(t, 10500.0, milestones[2].OffsetMs, 0.001)
 	})
 
-	t.Run("clamps negative offsets to zero", func(t *testing.T) {
+	t.Run("keeps negative offsets and durations", func(t *testing.T) {
 		ts := logonduration.LoginTimestamps{
 			LoginWindowTime:  boot.Add(-3 * time.Second),
 			LoginTime:        boot.Add(30 * time.Second),
@@ -118,13 +118,10 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		}
 		milestones := buildTimelineMilestones(boot, ts)
 		require.Len(t, milestones, 3)
-		assert.Zero(t, milestones[1].OffsetMs)
-		// Collapsing the idle gap also makes the logon offset negative before clamping.
-		assert.Zero(t, milestones[2].OffsetMs)
-		for _, milestone := range milestones {
-			assert.GreaterOrEqual(t, milestone.OffsetMs, float64(0))
-			assert.GreaterOrEqual(t, milestone.DurationMs, float64(0))
-		}
+		assert.Equal(t, float64(-3000), milestones[0].DurationMs)
+		assert.Equal(t, float64(-3000), milestones[1].OffsetMs)
+		// Collapsing the 33s idle gap puts the logon offset at 30s - 33s.
+		assert.Equal(t, float64(-3000), milestones[2].OffsetMs)
 	})
 
 	t.Run("zero LoginWindowTime omits the login_window_ready milestone", func(t *testing.T) {
@@ -767,9 +764,9 @@ func TestComponentLifecycle_StopWithoutStart(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSafeDurationMs_NeverNegative(t *testing.T) {
+func TestSafeDurationMs_KeepsNegative(t *testing.T) {
 	now := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
-	assert.Zero(t, safeDurationMs(now.Add(-time.Second), now))
+	assert.Equal(t, int64(-1000), safeDurationMs(now.Add(-time.Second), now))
 	assert.Zero(t, safeDurationMs(time.Time{}, now))
 	assert.Zero(t, safeDurationMs(now, time.Time{}))
 	assert.Zero(t, safeDurationMs(now, now))
@@ -792,19 +789,26 @@ func TestSubmitEvent_ClockResetPayloadIsInvalid(t *testing.T) {
 	assert.Equal(t, version.AgentVersion, custom["agent_version"])
 	assert.NotContains(t, custom, "payload_version")
 	assert.Equal(t, true, custom["filevault_enabled"])
+	// Raw values are sent unchanged, including negative ones.
+	bootMs := ts.LoginWindowTime.Sub(boot).Milliseconds()
+	logonMs := ts.DesktopReadyTime.Sub(ts.LoginTime).Milliseconds()
+	require.Negative(t, bootMs)
 	durations := custom["durations"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
-		"boot_duration_ms": float64(0), "logon_duration_ms": float64(0), "total_boot_duration_ms": float64(0),
+		"boot_duration_ms":       float64(bootMs),
+		"logon_duration_ms":      float64(logonMs),
+		"total_boot_duration_ms": float64(bootMs + logonMs),
 	}, durations)
-	for _, value := range durations {
-		assert.GreaterOrEqual(t, value.(float64), float64(0))
-	}
 	milestones := custom["boot_timeline"].([]interface{})
-	require.Len(t, milestones, 1)
-	milestone := milestones[0].(map[string]interface{})
-	assert.Equal(t, "boot_duration", milestone["id"])
-	assert.Equal(t, float64(0), milestone["duration_ms"])
-	assert.Equal(t, float64(0), milestone["offset_ms"])
+	require.Len(t, milestones, 3)
+	ids := make([]interface{}, 0, len(milestones))
+	for _, m := range milestones {
+		ids = append(ids, m.(map[string]interface{})["id"])
+	}
+	assert.Equal(t, []interface{}{"boot_duration", "login_window_ready", "logon_duration"}, ids)
+	bootMilestone := milestones[0].(map[string]interface{})
+	assert.Equal(t, float64(bootMs), bootMilestone["duration_ms"])
+	assert.Negative(t, milestones[1].(map[string]interface{})["offset_ms"].(float64))
 }
 
 func TestConsoleUserLoggedIn_NoError(t *testing.T) {
