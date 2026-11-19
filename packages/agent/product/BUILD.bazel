@@ -139,6 +139,9 @@ pkg_mkdirs(
             "run",
             "scripts",
         ],
+    }) + select({
+        "@platforms//os:linux": ["processes.d"],
+        "//conditions:default": [],
     }),
 )
 
