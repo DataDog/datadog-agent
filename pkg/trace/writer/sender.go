@@ -451,7 +451,7 @@ func (s *sender) sendOnce(p *payload) bool {
 			return true
 		}
 
-		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 {
+		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 && r < s.maxRetries {
 			// Only log a warning if the retry attempt is a power of 2
 			// and larger than 3, to avoid alerting the user unnecessarily.
 			// e.g. attempts 4, 8, 16, etc.
