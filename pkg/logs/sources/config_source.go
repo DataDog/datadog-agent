@@ -30,14 +30,21 @@ func (s *ConfigSources) SubscribeAll(_, _ chan struct{}) (added chan *LogSource,
 }
 
 // SubscribeForType returns a channel carrying LogSources for a given source type
-func (s *ConfigSources) SubscribeForType(sourceType string, addedDone, _ chan struct{}) (added chan *LogSource, _ chan *LogSource) {
+func (s *ConfigSources) SubscribeForType(sourceType string, addedDone, removedDone chan struct{}) (added chan *LogSource, _ chan *LogSource) {
+	return s.SubscribeForTypes([]string{sourceType}, addedDone, removedDone)
+}
+
+// SubscribeForTypes returns a channel carrying LogSources for the given source types
+func (s *ConfigSources) SubscribeForTypes(sourceTypes []string, addedDone, _ chan struct{}) (added chan *LogSource, _ chan *LogSource) {
 	added = make(chan *LogSource)
 	go func() {
-		for _, logSource := range s.addedByType[sourceType] {
-			select {
-			case added <- logSource:
-			case <-addedDone:
-				return
+		for _, sourceType := range sourceTypes {
+			for _, logSource := range s.addedByType[sourceType] {
+				select {
+				case added <- logSource:
+				case <-addedDone:
+					return
+				}
 			}
 		}
 	}()

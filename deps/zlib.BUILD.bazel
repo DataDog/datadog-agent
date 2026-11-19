@@ -119,6 +119,10 @@ cc_library(
             "-O3",
         ],
     }),
+    defines = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["HAVE_UNISTD_H=1"],
+    }),
     includes = ["."],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],

@@ -1866,6 +1866,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostname": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet": ["clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock": ["clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/log": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/log/setup": ["serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/log/slog": ["test"],
