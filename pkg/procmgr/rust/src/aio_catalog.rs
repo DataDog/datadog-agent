@@ -888,9 +888,8 @@ fn procmgr_all_in_one_entrypoint_is_installed_executable() {
             .any(|line| { line.trim() == "COPY --chmod=755 entrypoint.d /opt/entrypoints" })
     );
     assert!(
-        AGENT_DOCKERFILE.contains(
-            "find /opt/datadog-agent/processes.d -type d -exec chmod 0755 {} +"
-        ),
+        AGENT_DOCKERFILE
+            .contains("find /opt/datadog-agent/processes.d -type d -exec chmod 0755 {} +"),
         "COPY --chmod=644 leaves processes.d directories mode 0644, which a non-root user cannot traverse"
     );
     assert!(
