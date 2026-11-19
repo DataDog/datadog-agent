@@ -1880,6 +1880,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/util/podman": ["podman", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/port": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/port/portlist": ["test"],
+    "github.com/DataDog/datadog-agent/pkg/util/port/sockdiag": ["clusterchecks", "functionaltests", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/util/procfilestats": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/profiling": ["test"],
     "github.com/DataDog/datadog-agent/pkg/util/quantile": ["test"],

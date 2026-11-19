@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    On macOS, and in containers that run ``dd-procmgrd`` as root, only a root
+    client can create, start, stop, or reload processes over the process manager
+    socket. Other clients that can open the socket can still make read-only
+    requests. Linux packages are unchanged, because ``dd-procmgrd`` runs as
+    ``dd-agent`` there.

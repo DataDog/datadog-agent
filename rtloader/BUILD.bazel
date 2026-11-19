@@ -32,17 +32,8 @@ cc_library(
         "//conditions:default": [],
     }),
     local_defines = select({
-        "@platforms//os:linux": [
-            "_GLIBCXX_USE_CXX11_ABI=0",
-            # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
-            "HAS_BACKTRACE_LIB",
-        ],
-        "@platforms//os:macos": [
-            "_GLIBCXX_USE_CXX11_ABI=0",
-            # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
-            # https://manp.gs/mac/3/backtrace#HISTORY
-            "HAS_BACKTRACE_LIB",
-        ],
+        "@platforms//os:linux": ["_GLIBCXX_USE_CXX11_ABI=0"],
+        "@platforms//os:macos": ["_GLIBCXX_USE_CXX11_ABI=0"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
