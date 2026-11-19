@@ -8629,6 +8629,13 @@ properties:
         format: duration
         description: How often routing decisions are refreshed. Jittered by 10 percent, with a
           minimum of 1m.
+      preflight_path:
+        node_type: setting
+        type: string
+        default: /api/v1/validate
+        description: The path of the request sent to an override host, with the API key in the
+          DD-API-KEY header, before telemetry is switched to it. Must be an absolute path with no
+          query or fragment; any other value falls back to the default.
     tags:
     - full-agent-only:true
   integration:
