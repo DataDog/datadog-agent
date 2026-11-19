@@ -309,6 +309,10 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 		return deps.SysprobeConfig
 	}
 
+	// Each startup check reports one issue per violation its schema recorded when the files were loaded, before the
+	// checks started, and stores them one at a time: a report holding as many configuration issues as there are
+	// violations is the first one emitted after both checks stored everything they will
+	violationCount := len(deps.Schema.GetViolations(model.CoreSchema)) + len(deps.Schema.GetViolations(model.SystemProbeSchema))
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		received, err := fiClient.GetAgentHealth()
 		require.NoError(c, err)
@@ -320,7 +324,14 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 				latest = payload
 			}
 		}
-		// the report is only complete once every startup check ran: the expected issues prove some did, the canaries the others
+		// the report is only complete once every startup check stored all its issues
+		configIssueCount := 0
+		for _, issue := range latest.Issues {
+			if issueKind(issue.GetIssueType()) != nil {
+				configIssueCount++
+			}
+		}
+		require.Equal(c, violationCount, configIssueCount, "the startup checks did not store all their issues yet")
 		for _, canary := range canaries {
 			require.True(c, slices.ContainsFunc(slices.Collect(maps.Values(latest.Issues)), canary.isCanary), "the %s canary issue was not received yet", canary.path)
 		}
