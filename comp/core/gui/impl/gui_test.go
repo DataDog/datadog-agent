@@ -7,6 +7,7 @@ package guiimpl
 
 import (
 	"io"
+	"mime"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -210,7 +211,7 @@ func Test_serveAssets(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, "body{}", rr.Body.String())
-		assert.Regexp(t, "^text/css", rr.Header().Get("Content-Type"))
+		assert.Equal(t, hostMIMEType(t, ".css"), rr.Header().Get("Content-Type"))
 		assert.Equal(t, strconv.Itoa(len("body{}")), rr.Header().Get("Content-Length"))
 	})
 
@@ -219,7 +220,7 @@ func Test_serveAssets(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, files["js/app.js"], rr.Body.String())
-		assert.Contains(t, rr.Header().Get("Content-Type"), "javascript")
+		assert.Equal(t, hostMIMEType(t, ".js"), rr.Header().Get("Content-Type"))
 	})
 
 	t.Run("missing file", func(t *testing.T) {
@@ -243,9 +244,23 @@ func Test_serveAssets(t *testing.T) {
 	})
 
 	t.Run("unknown extension falls back to content sniffing", func(t *testing.T) {
+		if ctype := mime.TypeByExtension(".unknownext"); ctype != "" {
+			t.Skipf("host MIME database maps .unknownext to %q", ctype)
+		}
 		rr := serve("/a.unknownext")
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, http.DetectContentType([]byte(files["a.unknownext"])), rr.Header().Get("Content-Type"))
 	})
+}
+
+// hostMIMEType returns the media type the host associates with ext.
+// mime.TypeByExtension merges the system MIME database (mime.types files on
+// Unix, the registry on Windows) over Go's built-in table, so a host can map
+// e.g. .js to text/plain; the handler must serve whatever the host reports.
+func hostMIMEType(t *testing.T, ext string) string {
+	t.Helper()
+	ctype := mime.TypeByExtension(ext)
+	require.NotEmpty(t, ctype, "no MIME type registered for %s", ext)
+	return ctype
 }
