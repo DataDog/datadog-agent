@@ -198,6 +198,20 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 // A previous Fleet removal may have unregistered the MSI while retaining services.
 // Explicit purge must clean these up even when there is no installed product left.
 func deleteRetainedAgentServices() error {
+	// Both Agent flavors and the legacy standalone Installer own these names.
+	// Fail closed on enumeration errors rather than deleting a registered product's services.
+	if err := winutil.EnumerateMsiProducts(winutil.MSIINSTALLCONTEXT_MACHINE, func(code []uint16, _ uint32, _ string) error {
+		name, err := winutil.GetMsiProductInfo("ProductName", code)
+		if err != nil {
+			return err
+		}
+		if name == msi.AgentProductName(false) || name == msi.AgentProductName(true) || name == "Datadog Installer" {
+			return fmt.Errorf("refusing to delete retained services while %s is registered", name)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
