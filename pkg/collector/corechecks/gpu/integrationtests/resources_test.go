@@ -26,8 +26,10 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuresources "github.com/DataDog/datadog-agent/pkg/gpu/resources"
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -44,16 +46,16 @@ func TestGPUResources(t *testing.T) {
 	testutil.RequireGPU(t)
 
 	// The Agent skips vGPU guest devices, so they are not expected.
-	expectedUUIDs := make(map[string]bool)
+	expectedDevices := make(map[string]*safenvml.DeviceInfo)
 	discovered := discoverSpecDevices(t)
 	// MIG parents are published like any other physical GPU.
 	for _, device := range append(discovered.physical, discovered.migParents...) {
 		info := device.GetDeviceInfo()
 		if info.VirtualizationMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
-			expectedUUIDs[strings.ToLower(info.UUID)] = true
+			expectedDevices[strings.ToLower(info.UUID)] = info
 		}
 	}
-	require.NotEmpty(t, expectedUUIDs, "no physical non-vGPU devices to publish")
+	require.NotEmpty(t, expectedDevices, "no physical non-vGPU devices to publish")
 
 	// The workloadmeta NVML collector is disabled unless the NVML feature is present.
 	env.SetFeatures(t, env.NVML)
@@ -68,12 +70,12 @@ func TestGPUResources(t *testing.T) {
 	end := time.Now()
 
 	published := publishedResources(t, mockSender)
-	require.Len(t, published, len(expectedUUIDs), "expected one gpu_device per physical GPU")
+	require.Len(t, published, len(expectedDevices), "expected one gpu_device per physical GPU")
 
 	agentHostname, err := hostname.Get(context.Background())
 	require.NoError(t, err)
 
-	for uuid := range expectedUUIDs {
+	for uuid, info := range expectedDevices {
 		resource, ok := published[uuid]
 		require.True(t, ok, "GPU %s was not published", uuid)
 		t.Run(uuid, func(t *testing.T) {
@@ -88,13 +90,25 @@ func TestGPUResources(t *testing.T) {
 			assert.False(t, seenAt.Before(start.Truncate(time.Second)) || seenAt.After(end), "seen_at %s outside check run [%s, %s]", seenAt, start, end)
 			assert.Equal(t, resourcesTestTTL, event.GetResource().GetExpireAt().AsTime().Sub(seenAt))
 
-			assert.NotEmpty(t, device.Architecture)
-			assert.Positive(t, device.CoreCount)
-			assert.Positive(t, device.MemoryBusWidth)
-			assert.NotEmpty(t, device.VirtualizationMode)
-			if device.FabricClusterUUID != "" {
+			// The published values must match what NVML reports for the device, including the empty values
+			// of attributes the device cannot report.
+			assert.Equal(t, gpuutil.NormalizeGPUDeviceName(info.Name), device.Model)
+			assert.Equal(t, info.PCIBusID, device.PCIBusID)
+			assert.Equal(t, info.DriverVersion, device.DriverVersion)
+			assert.Equal(t, gpuutil.ArchToString(info.Architecture), device.Architecture)
+			assert.Equal(t, fmt.Sprintf("%d.%d", info.SMVersion/10, info.SMVersion%10), device.ComputeCapability)
+			assert.Equal(t, info.CoreCount, device.CoreCount)
+			assert.Equal(t, info.Memory, device.MemoryTotalBytes)
+			assert.Equal(t, info.MemoryBusWidth, device.MemoryBusWidth)
+			assert.Equal(t, info.VirtualizationModeName, device.VirtualizationMode)
+			assert.Equal(t, strings.ToLower(info.BoardSerial), device.BoardSerial)
+			assert.Equal(t, strings.ToLower(info.ChassisSerial), device.ChassisSerial)
+			assert.Equal(t, info.FabricGUID, device.FabricGUID)
+			assert.Equal(t, info.FabricClusterUUID, device.FabricClusterUUID)
+			if info.FabricClusterUUID != "" {
 				require.NotNil(t, device.FabricCliqueID)
-				assert.Equal(t, fmt.Sprintf("%s:%d", device.FabricClusterUUID, *device.FabricCliqueID), device.NVLinkDomain)
+				assert.Equal(t, info.FabricCliqueID, *device.FabricCliqueID)
+				assert.Equal(t, fmt.Sprintf("%s:%d", info.FabricClusterUUID, info.FabricCliqueID), device.NVLinkDomain)
 			} else {
 				assert.Nil(t, device.FabricCliqueID)
 				assert.Empty(t, device.NVLinkDomain)
