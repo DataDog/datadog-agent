@@ -371,6 +371,66 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs ma
 	}
 }
 
+// probeExperiment watches the experiment jobs for window, right after they were started, and
+// returns an error if one of them exits in a way that fails the experiment (exitFailsExperiment),
+// or if they cannot be watched at all.
+//
+// It runs inside the installer command that starts the experiment, before the command returns. A
+// failure found here fails the start itself, so the daemon reports the start task as an error,
+// which Fleet counts as a failed attempt. A crash the watcher catches later only reverts the host:
+// the start task stays done, and Fleet, seeing no experiment, starts it again.
+func probeExperiment(ctx context.Context, jobs launchd.JobSet, window time.Duration) error {
+	jobPIDs, exited, err := resolveExperimentPids(ctx, jobs)
+	if err != nil {
+		return fmt.Errorf("configuration experiment failed to start: %w", err)
+	}
+	if exited != nil {
+		return fmt.Errorf("configuration experiment failed: %s exited right after it started (status %d)", exited.Label, exited.LastExitStatus)
+	}
+	if len(jobPIDs) == 0 {
+		return errors.New("configuration experiment failed: none of its jobs is running")
+	}
+
+	pids := make([]int, 0, len(jobPIDs))
+	for pid := range jobPIDs {
+		pids = append(pids, pid)
+	}
+	observer, exitCh, err := launchd.ArmExitObserver(pids)
+	if err != nil {
+		return fmt.Errorf("configuration experiment could not be watched: %w", err)
+	}
+	defer func() {
+		if err := observer.Disarm(); err != nil {
+			log.Warnf("could not disarm the experiment exit observer: %v", err)
+		}
+	}()
+
+	timer := time.NewTimer(window)
+	defer timer.Stop()
+	delivered := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		case ev, ok := <-exitCh:
+			if !ok {
+				if delivered < len(pids) {
+					return errors.New("configuration experiment could not be watched: the exit observer stopped early")
+				}
+				exitCh = nil
+				continue
+			}
+			delivered++
+			label := jobPIDs[ev.Pid]
+			if exitFailsExperiment(label, exitedCleanly(ev.Status)) {
+				return fmt.Errorf("configuration experiment failed: %s exited within %s of its start (status %d)", label, window, ev.Status)
+			}
+		}
+	}
+}
+
 // essentialJobs are the jobs that must keep running for as long as an experiment does: the Agent,
 // and the installer daemon, the only process that can stop or promote the experiment. Either one
 // exiting fails the experiment, even cleanly: an experiment left with no Agent would otherwise run
@@ -404,17 +464,107 @@ func exitedCleanly(status int) bool {
 // cleared, and the directories it discards can't be swapped, by a stop or promote running at the
 // same time. The resume hook calls revertExperimentIfStillPending directly: it runs inside an
 // installer command that already holds the lock.
+//
+// The revert itself goes through the installer's remove-config-experiment command
+// (runRemoveConfigExperiment), the way the Windows watchdog restores the stable configuration: the
+// stop hook hands the jobs and the installer daemon back, and the installer discards the experiment
+// configuration. That command takes the installer lock itself, so the lock is released before it
+// runs. The command carries the deadline this watcher read, and the stop hook refuses to run once
+// the deadline holds anything else (checkRevertToken), so a stop, promote or new experiment that
+// takes the lock in between is left alone.
+//
+// Two cases keep the direct revert, under the lock: a promote whose hook never ran (the
+// configuration is no longer deployed), which is finished as a promote, and a command that fails,
+// so a broken installer command never leaves the experiment running unsupervised.
 func revertFromWatcher(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
 	lock, ok, err := waitForInstaller(ctx, deadline, token)
 	if err != nil || !ok {
 		return false, err
 	}
-	defer func() {
-		if err := lock.Close(); err != nil {
-			log.Warnf("watcher: could not release the installer lock: %v", err)
+	current, readErr := deadline.Read()
+	if readErr != nil || current != token || !experimentConfigDeployed() {
+		defer closeInstallerLock(lock)
+		return revertExperimentIfStillPending(ctx, configExperimentJobSet(), deadline, token, reason)
+	}
+	closeInstallerLock(lock)
+
+	log.Warnf("watcher: reverting configuration experiment through the installer: %s", reason)
+	cmdErr := runRemoveConfigExperiment(context.WithoutCancel(ctx), token)
+	if cmdErr == nil {
+		ensureInstallerDaemonAfterRevert(ctx)
+		return true, nil
+	}
+	log.Warnf("watcher: the installer could not revert the configuration experiment, reverting it directly: %v", cmdErr)
+	return revertDirectlyAfterFailedCommand(ctx, deadline, token, reason)
+}
+
+// revertDirectlyAfterFailedCommand reverts the experiment without the installer command, once that
+// command failed. The command may have failed partway, after its stop hook replaced the deadline
+// with the reverting marker, so the marker counts as this watcher's experiment too: restoring the
+// stable set again is idempotent. Anything else in the deadline means a stop, promote or new
+// experiment owns the host now, and nothing is reverted.
+func revertDirectlyAfterFailedCommand(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
+	ours := func(current string) bool { return current == token || current == launchd.DeadlineReverting }
+	lock, err := waitForInstallerLock(ctx, func() (bool, error) {
+		current, err := deadline.Read()
+		if err != nil {
+			return false, fmt.Errorf("could not read experiment deadline: %w", err)
 		}
-	}()
-	return revertExperimentIfStillPending(ctx, configExperimentJobSet(), deadline, token, reason)
+		return ours(current), nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("watcher: %w", err)
+	}
+	if lock == nil {
+		return false, nil
+	}
+	defer closeInstallerLock(lock)
+	current, err := deadline.Read()
+	if err != nil {
+		return false, fmt.Errorf("watcher: could not read experiment deadline: %w", err)
+	}
+	if !ours(current) {
+		return false, nil
+	}
+	log.Warnf("watcher: reverting configuration experiment: %s", reason)
+	if err := revertExperiment(ctx, configExperimentJobSet()); err != nil {
+		return false, fmt.Errorf("watcher: %w", err)
+	}
+	return true, nil
+}
+
+// ensureInstallerDaemonAfterRevert brings the stable installer daemon back when a revert through
+// the installer left no daemon job loaded at all. The stop hook only hands back an experiment daemon
+// that is loaded, so a hand-over whose swap failed after the stable daemon was unloaded would
+// otherwise leave the host with no daemon. The direct revert covers that case by swapping the
+// daemon too; this does the same after the command. Failures are logged: the experiment itself is
+// already reverted.
+func ensureInstallerDaemonAfterRevert(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
+	client := launchdClient()
+	for _, label := range []string{installerJob, installerJob + string(launchd.Experiment)} {
+		loaded, err := client.Loaded(ctx, label)
+		if err != nil {
+			log.Warnf("watcher: could not tell whether %s is loaded, restoring the stable installer daemon: %v", label, err)
+			break
+		}
+		if loaded {
+			// Either the stable daemon is running, or the hand-back the stop hook launched will
+			// move the experiment daemon back to it.
+			return
+		}
+	}
+	log.Warnf("watcher: no installer daemon is loaded after the revert, restoring the stable one")
+	if err := handBackInstaller(ctx); err != nil {
+		log.Errorf("watcher: could not restore the stable installer daemon: %v", err)
+	}
+}
+
+// closeInstallerLock releases the installer lock, logging a failure instead of returning it.
+func closeInstallerLock(lock *db.PackagesDB) {
+	if err := lock.Close(); err != nil {
+		log.Warnf("watcher: could not release the installer lock: %v", err)
+	}
 }
 
 // waitForInstaller takes the installer's lock, waiting for any installer command that holds it. It

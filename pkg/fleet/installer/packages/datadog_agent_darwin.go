@@ -692,6 +692,12 @@ func prePromoteExperimentDatadogAgent(_ HookContext) error {
 // it, an experiment would have no watcher, so it is reverted rather than left running
 // unsupervised.
 //
+// Before launching the hand-over, it watches the experiment jobs for configExperimentProbation
+// (probeExperiment). A job that crashes in that window fails the start: the hook returns an error,
+// so the daemon reports the start task as failed and Fleet counts the attempt, instead of seeing a
+// started experiment vanish and starting it again. The hand-over waits for this command to exit, so
+// an experiment that fails here never swaps the installer daemon.
+//
 // Every failure hands the Agent back to the stable job set, so the experiment configuration
 // directory the installer published is discarded with it: the installer returns the error without
 // removing it, and left in place it would have the failed experiment reported as running.
@@ -705,6 +711,13 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
 		}
 	}()
 	if err = (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
+		return err
+	}
+	if err = probeConfigExperiment(ctx, agentJobSet(), configExperimentProbation); err != nil {
+		log.Errorf("configuration experiment failed right after it started, restoring the stable configuration: %v", err)
+		if stopErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); stopErr != nil {
+			return fmt.Errorf("%w, and the stable jobs could not be restored: %w", err, stopErr)
+		}
 		return err
 	}
 	if handOverErr := launchInstallerHandOver(ctx); handOverErr != nil {
@@ -724,6 +737,77 @@ func revertFailedHandOver(ctx context.Context, handOverErr error) error {
 	}
 	removeInstallerExperimentJob()
 	return fmt.Errorf("hand-over failed to launch, experiment reverted: %w", handOverErr)
+}
+
+// configExperimentProbation is how long the post-start hook watches the experiment jobs before it
+// reports the start as done. It covers the crashes seen right after a start, a few seconds, with a
+// margin, and stays far below how long Fleet waits on a running start task. A var so tests can
+// shorten it.
+var configExperimentProbation = 30 * time.Second
+
+// probeConfigExperiment is probeExperiment, indirected so tests that exercise the post-start hook
+// with a recording launchctl can skip watching real processes.
+var probeConfigExperiment = probeExperiment
+
+// configExperimentRevertTokenEnv carries, to the installer command the watcher runs to revert an
+// experiment, the deadline the watcher read: the stop hook only reverts that experiment
+// (checkRevertToken). The daemon never sets it.
+const configExperimentRevertTokenEnv = "DD_INSTALLER_CONFIG_EXPERIMENT_REVERT_TOKEN"
+
+// errRevertedExperimentEnded is returned by the stop hook when the experiment a watcher's revert
+// was for has already ended, been promoted, or been replaced.
+var errRevertedExperimentEnded = errors.New("the configuration experiment to revert has already ended")
+
+// checkRevertToken refuses a revert whose experiment is no longer the one the deadline file holds.
+// An empty token means the stop did not come from a watcher, and is always allowed.
+func checkRevertToken(token string) error {
+	if token == "" {
+		return nil
+	}
+	current, err := experimentDeadline().Read()
+	if err != nil {
+		return fmt.Errorf("could not read experiment deadline: %w", err)
+	}
+	if current != token {
+		return errRevertedExperimentEnded
+	}
+	return nil
+}
+
+// runRemoveConfigExperiment runs the installer's remove-config-experiment command, as the Windows
+// watchdog does to restore the stable configuration, with token passed to the stop hook. It runs
+// the same steps as a stop sent by Fleet: the stop hook hands the jobs and the installer daemon
+// back, then the installer discards the experiment configuration. Indirected so tests can run it
+// in process.
+var runRemoveConfigExperiment = func(ctx context.Context, token string) error {
+	installerBin, err := installerExecutable()
+	if err != nil {
+		return err
+	}
+	// The command inherits this process's environment. Only the watcher runs this, in a process of
+	// its own, so setting the variable for the length of the call reaches nothing else.
+	if err := os.Setenv(configExperimentRevertTokenEnv, token); err != nil {
+		return fmt.Errorf("could not pass the experiment deadline to the installer: %w", err)
+	}
+	defer func() {
+		if err := os.Unsetenv(configExperimentRevertTokenEnv); err != nil {
+			log.Warnf("could not clear the experiment deadline from the environment: %v", err)
+		}
+	}()
+	return exec.NewInstallerExec(env.FromEnv(), installerBin).RemoveConfigExperiment(ctx, agentPackage)
+}
+
+// installerExecutable returns the path of the running installer binary, with links resolved.
+func installerExecutable() (string, error) {
+	installerBin, err := exec.GetExecutable()
+	if err != nil {
+		return "", fmt.Errorf("could not get the installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve the installer executable path: %w", err)
+	}
+	return installerBin, nil
 }
 
 // launchConfigExperimentWatcher starts the detached watcher process. Only the experiment daemon
@@ -752,13 +836,9 @@ var launchInstallerHandBack = func(ctx context.Context) error {
 // a session of its own, so it outlives both the hook that launched it and the daemon job that hook
 // runs in.
 func startDetachedPackageCommand(ctx context.Context, command string) error {
-	installerBin, err := exec.GetExecutable()
+	installerBin, err := installerExecutable()
 	if err != nil {
-		return fmt.Errorf("could not get the installer executable path: %w", err)
-	}
-	installerBin, err = filepath.EvalSymlinks(installerBin)
-	if err != nil {
-		return fmt.Errorf("could not resolve the installer executable path: %w", err)
+		return err
 	}
 	installer := exec.NewInstallerExec(env.FromEnv(), installerBin)
 	return installer.StartPackageCommandDetached(ctx, agentPackage, command)
@@ -790,8 +870,15 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 // halfway would leave the host running neither set.
 //
 // Only the Agent's hand-back decides the outcome (see handBackInstallerBestEffort).
+//
+// Run by a watcher reverting a failed experiment (runRemoveConfigExperiment), it first checks that
+// the experiment is still the one the watcher saw, and fails otherwise, so the installer leaves the
+// configuration alone too.
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = context.WithoutCancel(ctx.Context)
+	if err := checkRevertToken(os.Getenv(configExperimentRevertTokenEnv)); err != nil {
+		return err
+	}
 	stopErr := configExperiment{jobs: agentJobSet()}.Stop(ctx)
 	handBackInstallerBestEffort(ctx)
 	return stopErr
