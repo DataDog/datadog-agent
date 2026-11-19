@@ -11,8 +11,11 @@ single_machine_performance-experiments-resolve:
   rules:
     - !reference [.except_coverage_pipeline]
     - changes:
+        # test/regression/kjob is not in this list, because KJob has its own job.
         paths:
-          - test/regression/**/*
+          - test/regression/*
+          - test/regression/container/**/*
+          - test/regression/ebpf/**/*
         compare_to: $COMPARE_TO_BRANCH
   variables:
     SMP_VERSION: v0.29.1
@@ -262,7 +265,7 @@ single_machine_performance-regression_detector-merge_base_check:
       optional: true  # Build job may not run if triggered only via RUN_E2E_TESTS or experiments
     - job: single_machine_performance-experiments-resolve
       artifacts: false
-      optional: true  # The job exists only when test/regression changes.
+      optional: true  # The job exists only when the regression detector experiments change.
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BASELINE_SHA: $BASELINE_SHA  # Forwarded from the merge_base_check dotenv artifact
