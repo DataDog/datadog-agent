@@ -815,6 +815,23 @@ var otlpPipelineParityExceptions = []otlpPipelineParityException{
 		},
 	},
 	{
+		reason: "When credit card obfuscation is enabled, Process masks a credit card number in the component " +
+			"only because it is kept in pb.Span.Meta; V1 promotes it to a span field that isn't obfuscated, by design.",
+		apply: func(cfg *config.AgentConfig, _ ptrace.ResourceSpans, want, got *otlpParityPayload) {
+			if cfg.Obfuscation == nil || !cfg.Obfuscation.CreditCards.Enabled {
+				return
+			}
+			forEachChunk(want, got, func(w, g *otlpParityChunk) {
+				for id, ws := range w.spans {
+					if gs, ok := g.spans[id]; ok && ws.component == "?" && gs.component != "?" {
+						ws.component = gs.component
+						w.spans[id] = ws
+					}
+				}
+			})
+		},
+	},
+	{
 		reason: "Divergent inputs only: Process sets the payload env and app version from the root span of the first chunk, " +
 			"the V1 conversion from the spans of the last chunk that has them (ConvertToIdx).",
 		divergentOnly: true,

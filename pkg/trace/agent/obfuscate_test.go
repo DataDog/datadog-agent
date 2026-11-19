@@ -800,7 +800,6 @@ func TestObfuscateSpanV1CreditCards(t *testing.T) {
 				},
 			}},
 		})
-		span.SetComponent(card)
 		span.SetStringAttribute("card.number", card)
 		return span
 	}
@@ -816,7 +815,6 @@ func TestObfuscateSpanV1CreditCards(t *testing.T) {
 		span := newSpan()
 		newAgent(t, true).obfuscateSpanV1(span)
 
-		assert.Equal(t, "?", span.Component())
 		cc, _ := span.GetAttributeAsString("card.number")
 		assert.Equal(t, "?", cc)
 		for _, k := range []string{"str", "int", "double"} {
@@ -835,17 +833,9 @@ func TestObfuscateSpanV1CreditCards(t *testing.T) {
 		span := newSpan()
 		newAgent(t, false).obfuscateSpanV1(span)
 
-		assert.Equal(t, card, span.Component())
 		assert.Equal(t, card, asString(span, get(t, span, "str")))
 		assert.Equal(t, &idx.AnyValue_IntValue{IntValue: 5105105105105100}, get(t, span, "int").Value)
 		assert.Equal(t, "["+card+",5105105105105100,false,hello]", asString(span, get(t, span, "array")))
-	})
-
-	t.Run("component not a card", func(t *testing.T) {
-		span := newSpan()
-		span.SetComponent("net/http")
-		newAgent(t, true).obfuscateSpanV1(span)
-		assert.Equal(t, "net/http", span.Component())
 	})
 }
 

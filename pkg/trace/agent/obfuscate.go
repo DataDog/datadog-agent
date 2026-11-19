@@ -336,20 +336,13 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 	}
 }
 
-// obfuscateSpanV1 is the V1 counterpart of ObfuscateSpan. Besides the span
-// attributes, it credit-card obfuscates the span events and the component,
-// which idx promotes out of the attributes but pb.Span keeps in Meta.
+// obfuscateSpanV1 is the V1 counterpart of ObfuscateSpan: it credit-card
+// obfuscates the span events, then obfuscates the span itself.
 func (a *Agent) obfuscateSpanV1(span *idx.InternalSpan) {
-	o := a.lazyInitObfuscator()
+	a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		for _, spanEvent := range span.Events() {
 			a.ccObfuscateSpanEventV1(spanEvent)
-		}
-		if c := span.Component(); c != "" && o.ShouldObfuscateCCKey("component") {
-			if newC := o.ObfuscateCreditCardNumber(c); newC != c {
-				log.Debugf("obfuscating possible credit card under key component from service %s", span.Service())
-				span.SetComponent(newC)
-			}
 		}
 	}
 	a.obfuscateSpanInternal(span)
