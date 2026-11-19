@@ -152,6 +152,9 @@ func TestPCIeErrorCounters(t *testing.T) {
 	assert.Equal(t, float64(math.MaxUint32+61), nakSent(5, 60), "the increase over the unfilled table")
 	assert.Equal(t, float64(math.MaxUint32+61), nakSent(1, 10), "the table went back: a new baseline")
 	assert.Equal(t, float64(math.MaxUint32+66), nakSent(2, 15))
+	c.samples(dev, &amdgpu.Metrics{}, true, start.Add(45*time.Second)) // the read fails, e.g. during a GPU reset
+	assert.Equal(t, float64(math.MaxUint32+66), nakSent(4, 3), "a lower value after a gap: a new baseline, not a wrap")
+	assert.Equal(t, float64(math.MaxUint32+68), nakSent(5, 5))
 
 	c.forget(nil)
 	assert.Equal(t, 9.0, nakSent(6, 9), "a returning device is baselined again")

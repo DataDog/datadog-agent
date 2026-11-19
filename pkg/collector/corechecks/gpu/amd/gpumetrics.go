@@ -222,7 +222,8 @@ func (c *gpuMetricsCollector) samples(dev *amdgpu.Device, m *amdgpu.Metrics, rea
 	previous := state.previous
 	state.previous = gm
 	samples, act, implausible := intervalSamples(previous, gm, m.XGMIHiveSize >= 2)
-	samples = append(samples, state.pcieErrorSamples(gm, reset)...)
+	// Without a continuous previous table, a restart of the counters can't be told from a wrap.
+	samples = append(samples, state.pcieErrorSamples(gm, reset || previous == nil)...)
 	if implausible || len(gm.Implausible) > 0 {
 		c.telemetry.failures.Inc(dev.UUID, string(failureImplausibleValue))
 	}
@@ -253,7 +254,8 @@ func intervalSamples(previous, gm *amdgpu.GPUMetrics, xgmi bool) (samples []nvid
 }
 
 // pcieErrorSamples returns the cumulative values of the PCIe error counters
-// of a decoded table. reset reports a driver or firmware restart.
+// of a decoded table. reset starts a new baseline: after a driver or firmware
+// restart, or when the previous table is missing.
 func (state *gpuMetricsDevice) pcieErrorSamples(gm *amdgpu.GPUMetrics, reset bool) []nvidia.Sample {
 	if state.pcieErrors == nil {
 		state.pcieErrors = make([]wrappingCounter, len(pcieErrorCounters))
