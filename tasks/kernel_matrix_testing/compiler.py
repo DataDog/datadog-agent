@@ -247,7 +247,7 @@ class CompilerImage:
             if not git_dir.is_absolute():
                 raise Exit(
                     f"[-] {dotgit} uses a relative gitdir, which cannot resolve inside the compiler container. "
-                    "Run `git worktree repair` without --relative-paths to make it absolute"
+                    "Run `git worktree repair --no-relative-paths` to make it absolute"
                 )
             commondir_file = git_dir / "commondir"
             common_dir = git_dir
@@ -261,8 +261,13 @@ class CompilerImage:
                 f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
             )
 
-        alternates = common_dir / "objects" / "info" / "alternates"
-        if alternates.is_file():
+        # Git follows alternates recursively, so walk the chain; `seen` guards against cycles.
+        pending = [common_dir / "objects"]
+        seen = {os.path.realpath(pending[0])}
+        while pending:
+            alternates = pending.pop(0) / "info" / "alternates"
+            if not alternates.is_file():
+                continue
             for line in alternates.read_text().splitlines():
                 line = line.strip()
                 if not line or line.startswith("#"):
@@ -270,7 +275,11 @@ class CompilerImage:
                 alternate = Path(line)
                 if not alternate.is_absolute():
                     raise Exit(f"[-] {alternates} lists a relative path ({line}), which is not supported")
+                if os.path.realpath(alternate) in seen:
+                    continue
+                seen.add(os.path.realpath(alternate))
                 mounts.append(alternate)
+                pending.append(alternate)
         return mounts
 
     def ensure_mounts_current_repo(self):
@@ -561,8 +570,9 @@ Architectures: {arch.go_arch}
 
 def get_compiler(ctx: Context):
     cc = CompilerImage(ctx, Arch.local())
-    cc.ensure_version()
+    # Check the mounts first: refreshing the image replaces the container, which could be another checkout's.
     cc.ensure_mounts_current_repo()
+    cc.ensure_version()
     cc.ensure_running()
 
     return cc

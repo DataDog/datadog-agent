@@ -336,6 +336,26 @@ class TestCompilerGitMounts(unittest.TestCase):
         with self.assertRaises(ie.Exit):
             self.cc.ensure_mounts_current_repo()
 
+    def test_chained_alternates_are_mounted_once(self):
+        first = self.tmp / "first" / "objects"
+        second = self.tmp / "second" / "objects"
+        (first / "info").mkdir(parents=True)
+        (second / "info").mkdir(parents=True)
+        (self.main / ".git" / "objects" / "info" / "alternates").write_text(f"{first}\n")
+        (first / "info" / "alternates").write_text(f"{second}\n")
+        (second / "info" / "alternates").write_text(f"{first}\n")  # cycle back to the first store
+        self.assertEqual(self.cc.host_git_mounts(), [first, second])
+
+    def test_other_checkout_is_refused_before_image_refresh(self):
+        self._worktree()
+        self._inspect([{"Source": str(self.main), "Destination": compiler.CONTAINER_AGENT_PATH}])
+        self.enterContext(patch.object(compiler.CompilerImage, "running_image_name", "old"))
+        self.enterContext(patch.object(compiler.CompilerImage, "expected_image_name", "new"))
+        start = self.enterContext(patch.object(compiler.CompilerImage, "start"))
+        with self.assertRaises(ie.Exit):
+            compiler.get_compiler(self.ctx)
+        start.assert_not_called()
+
 
 def _proc(code: int) -> MagicMock:
     return MagicMock(returncode=code)
