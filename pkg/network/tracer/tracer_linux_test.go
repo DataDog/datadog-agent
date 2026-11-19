@@ -367,6 +367,7 @@ func (s *TracerSuite) TestTCPRetransmitManySockets() {
 	}
 	t.Logf("retransmits: tracer %d, kernel %d", ours, theirs)
 	require.Positive(t, theirs, "no retransmissions happened")
+	require.Positive(t, ours, "the tracer counted no retransmits")
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
