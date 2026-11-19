@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -90,7 +91,7 @@ func TestOIDCExchangeRotationAndRefusal(t *testing.T) {
 	server := newFakeIntakeKeyServer(t)
 	config := mock.New(t)
 	config.SetInTest("dd_url", server.URL)
-	config.SetInTest("skip_ssl_validation", true)
+	api.TrustOIDCExchangeCertificate(t, server.Certificate())
 
 	path := filepath.Join(t.TempDir(), "token")
 	first := oidcTestJWT(t, "datadog/"+oidcTestOrgUUID, "first")

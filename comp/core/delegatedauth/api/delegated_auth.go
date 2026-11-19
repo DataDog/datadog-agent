@@ -9,6 +9,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,9 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Nil uses the system roots; tests replace it to trust httptest servers.
+var oidcExchangeRootCAs *x509.CertPool
 
 const (
 	authorizationType = "Delegated"
@@ -173,6 +177,11 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 			return nil, errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
 		}
 		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		if transport.TLSClientConfig.InsecureSkipVerify {
+			log.Warn("skip_ssl_validation is ignored for custom OIDC delegated auth; the workload token is only sent to a verified endpoint")
+		}
+		transport.TLSClientConfig.InsecureSkipVerify = false
+		transport.TLSClientConfig.RootCAs = oidcExchangeRootCAs
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {

@@ -105,6 +105,15 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 			return nil, nil
 		}
 		return &cloudauthconfig.AWSProviderConfig{Region: region}, nil
+	case cloudauthconfig.ProviderOIDC:
+		if _, ok := directive.params["region"]; ok {
+			return nil, fmt.Errorf("the region parameter is not supported for provider %q", directive.provider)
+		}
+		oidcConfig, ok := defaultProviderConfig.(*cloudauthconfig.OIDCProviderConfig)
+		if !ok || oidcConfig.TokenFile == "" {
+			return nil, fmt.Errorf("provider %q requires delegated_auth.provider: oidc and delegated_auth.oidc.token_file", directive.provider)
+		}
+		return &cloudauthconfig.OIDCProviderConfig{TokenFile: oidcConfig.TokenFile}, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider %q in DELA[...] directive", directive.provider)
 	}
