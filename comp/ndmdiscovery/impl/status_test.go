@@ -131,7 +131,7 @@ func TestStatusTotalCountsIgnoredAddressesLikeScanned(t *testing.T) {
 	assert.Equal(t, int64(256), got.Ranges[0].Total)
 }
 
-func TestStatusSplitsTheWorkersAcrossRanges(t *testing.T) {
+func TestStatusShowsTheGlobalWorkerBudgetAndSortsRanges(t *testing.T) {
 	d, _ := newStatusTestDiscovery(t, 10)
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 	addStatusRange(d, testRangeConfig("ad-2", "10.0.1.0/24"))
@@ -141,8 +141,7 @@ func TestStatusSplitsTheWorkersAcrossRanges(t *testing.T) {
 	assert.Equal(t, int64(10), got.Workers)
 	require.Len(t, got.Ranges, 2)
 	assert.Equal(t, "10.0.0.0/24", got.Ranges[0].NetworkAddress)
-	assert.Equal(t, int64(5), got.Ranges[0].Workers)
-	assert.Equal(t, int64(5), got.Ranges[1].Workers)
+	assert.Equal(t, "10.0.1.0/24", got.Ranges[1].NetworkAddress)
 }
 
 func TestStatusListsDroppedProbesAndCycleIssues(t *testing.T) {

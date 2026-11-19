@@ -47,7 +47,6 @@ type rangeStatus struct {
 	Namespace      string
 	IntervalSec    int
 	Probes         string
-	Workers        int64
 	State          string
 	RunID          string
 	Scanned        int64
@@ -124,7 +123,6 @@ func (p statusProvider) rangeStatus(snap rangeSnapshot, now time.Time) rangeStat
 		Namespace:      cfg.Namespace,
 		IntervalSec:    cfg.IntervalSec,
 		Probes:         strings.Join(probeKinds(cfg.Probes), ", "),
-		Workers:        snap.workers,
 		State:          statePending,
 		Issues:         snap.issues,
 	}

@@ -121,12 +121,9 @@ func (s *scheduler) count() int {
 // workerShare is this dispatch's slice of the global budget, recomputed per dispatch.
 func (s *scheduler) workerShare() int64 {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.workerShareLocked()
-}
-
-func (s *scheduler) workerShareLocked() int64 {
 	active := int64(len(s.ranges))
+	s.mu.Unlock()
+
 	if active < 1 {
 		active = 1
 	}
@@ -315,17 +312,15 @@ func (s *scheduler) locked(fn func()) {
 // rangeSnapshot is one scheduled range as the status page shows it.
 type rangeSnapshot struct {
 	cfg      rangeConfig
-	workers  int64
 	sweeping bool
 	issues   []string
 }
 
-// snapshot returns every scheduled range, with its worker share and latest issues.
+// snapshot returns every scheduled range, with whether it is sweeping and its latest issues.
 func (s *scheduler) snapshot() []rangeSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	share := s.workerShareLocked()
 	out := make([]rangeSnapshot, 0, len(s.ranges))
 	for _, r := range s.ranges {
 		issues := append([]string(nil), r.cfg.Probes.Dropped...)
@@ -333,7 +328,7 @@ func (s *scheduler) snapshot() []rangeSnapshot {
 		if r.sweepErr != "" {
 			issues = append(issues, "last sweep failed: "+r.sweepErr)
 		}
-		out = append(out, rangeSnapshot{cfg: r.cfg, workers: share, sweeping: r.sweeping, issues: issues})
+		out = append(out, rangeSnapshot{cfg: r.cfg, sweeping: r.sweeping, issues: issues})
 	}
 	return out
 }
