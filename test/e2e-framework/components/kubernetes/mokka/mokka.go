@@ -26,9 +26,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
-
-const chartRef = "oci://ghcr.io/nvidia/k8s-test-infra/chart/nvml-mock"
 
 // Component is a Mokka installation: the nvml-mock Helm release and the NVIDIA device plugin.
 // Depend on it (e.g. with utils.PulumiDependsOn) before deploying the Agent or GPU workloads:
@@ -48,13 +47,15 @@ func NewInstallation(e config.Env, params *Params, kubeProvider *kubernetes.Prov
 	}
 	opts = append(opts, pulumi.Parent(comp), pulumi.Provider(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
+	chart := params.ChartRepository + "/nvml-mock"
 	var err error
 	comp.Release, err = helm.NewRelease(e.Ctx(), e.CommonNamer().ResourceName(params.Name, "nvml-mock"), &helm.ReleaseArgs{
 		Name:      pulumi.String(params.Name),
 		Namespace: pulumi.String(params.Namespace),
 		// Let Helm create the namespace: several installations (GPU pools) can share it.
 		CreateNamespace: pulumi.Bool(true),
-		Chart:           pulumi.String(chartRef),
+		Chart:           pulumi.String(chart),
+		RepositoryOpts:  utils.HelmOCIRepositoryOpts(e, chart),
 		Version:         pulumi.String(params.ChartVersion),
 		Values:          chartValues(params),
 		// The node pods restart containerd and stage the mock driver before becoming ready.

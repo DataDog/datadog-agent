@@ -156,6 +156,9 @@ Gotchas:
   `ghcr.io` ECR pull-through cache exists (ddoghq/cloud-inventory#3478), the Mokka suites run in the
   manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they work as long as your machine
   can reach `ghcr.io`.
+- Set `E2E_GPU_CHART_MIRROR` to a registry that mirrors `ghcr.io` and `registry.k8s.io` under the
+  `ghcr` and `k8s` prefixes (the internal ECR, once the caches exist) to pull the charts through it.
+  If the registry is one of the `imagePullRegistry` ones, the charts are pulled with their credentials.
 - With NVLink profiles (`gb200`, `gb300`), the `nvlink_fec` collector sends FEC histogram buckets
   with counts of ~10^12 per run, and the aggregator sketch OOM-kills the core Agent within seconds.
   Use `DD_GPU_DISABLED_COLLECTORS=nvlink_fec` with those profiles until that is fixed.
