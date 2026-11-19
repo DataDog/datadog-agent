@@ -9,18 +9,18 @@
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      # Multi-arch
+      # Multi-arch. dev_nightly-a7-windows-commit reuses these source lists.
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64,%BASE%-winltsc2025-amd64"
+        IMG_SOURCES: &win_multiarch_sources "%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64,%BASE%-winltsc2025-amd64"
         IMG_DESTINATIONS: agent-dev:${IMG_DESTINATION_SLUG}-py3-win
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64,%BASE%-winltsc2025-amd64"
+        IMG_SOURCES: *win_multiarch_sources
         IMG_DESTINATIONS: agent-dev:${IMG_DESTINATION_SLUG}-py3-jmx-win
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64,%BASE%-winltsc2025-servercore-amd64"
+        IMG_SOURCES: &win_multiarch_servercore_sources "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64,%BASE%-winltsc2025-servercore-amd64"
         IMG_DESTINATIONS: agent-dev:${IMG_DESTINATION_SLUG}-py3-win-servercore
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64,%BASE%-winltsc2025-servercore-amd64"
+        IMG_SOURCES: *win_multiarch_servercore_sources
         IMG_DESTINATIONS: agent-dev:${IMG_DESTINATION_SLUG}-py3-jmx-win-servercore
       # ltsc2019
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
@@ -83,8 +83,9 @@ dev_nightly-a7-windows:
   variables:
     IMG_DESTINATION_SLUG: nightly
 
-# The tags above move with every nightly, on every branch. These per-commit tags stay, so a consumer can find the
-# Windows images of an older nightly, like the Linux `nightly-<branch>-<sha>-py3[-jmx]` tags.
+# The tags above move with every nightly, on every branch. These tags stay, so a consumer can find the Windows images
+# of an older nightly. Each image gets a per-commit tag, like the Linux `nightly-<branch>-<sha>-py3[-jmx]` tags, and a
+# per-pipeline tag, which a rerun of the nightly at the same commit doesn't overwrite.
 dev_nightly-a7-windows-commit:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -96,20 +97,21 @@ dev_nightly-a7-windows-commit:
   variables:
     IMG_REGISTRIES: dev
     IMG_COMMIT_SLUG: nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}
+    IMG_PIPELINE_SLUG: nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-${CI_PIPELINE_ID}
   parallel:
     matrix:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64,%BASE%-winltsc2025-amd64"
-        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-win
+        IMG_SOURCES: *win_multiarch_sources
+        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-win,agent-dev:${IMG_PIPELINE_SLUG}-py3-win
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64,%BASE%-winltsc2025-amd64"
-        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-jmx-win
+        IMG_SOURCES: *win_multiarch_sources
+        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-jmx-win,agent-dev:${IMG_PIPELINE_SLUG}-py3-jmx-win
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64,%BASE%-winltsc2025-servercore-amd64"
-        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-win-servercore
+        IMG_SOURCES: *win_multiarch_servercore_sources
+        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-win-servercore,agent-dev:${IMG_PIPELINE_SLUG}-py3-win-servercore
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
-        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64,%BASE%-winltsc2025-servercore-amd64"
-        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-jmx-win-servercore
+        IMG_SOURCES: *win_multiarch_servercore_sources
+        IMG_DESTINATIONS: agent-dev:${IMG_COMMIT_SLUG}-py3-jmx-win-servercore,agent-dev:${IMG_PIPELINE_SLUG}-py3-jmx-win-servercore
 
 .dev_fips-a7-windows-common:
   extends: .docker_publish_job_definition
