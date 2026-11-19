@@ -115,7 +115,7 @@ func MatchDRADevice(sysRoot string, devices []*Device, deviceName string, cdiDev
 		}
 		// Kubelet lists the CDI devices of every device of the claim before
 		// this one, so only this device's key (optionally "-slot<N>") counts.
-		if rest := key[claimUIDLength+1:]; rest != deviceName && !strings.HasPrefix(rest, deviceName+"-slot") {
+		if !isDeviceKey(key[claimUIDLength+1:], deviceName) {
 			continue
 		}
 		for _, minor := range draCDIRenderMinors(cdiSpecDirs, key) {
@@ -160,6 +160,18 @@ type draCDISpec struct {
 			} `yaml:"deviceNodes"`
 		} `yaml:"containerEdits"`
 	} `yaml:"devices"`
+}
+
+// isDeviceKey reports whether the part of a CDI device key after the claim UID
+// names deviceName: "<device>" or "<device>-slot<N>" (cdiDeviceName in
+// ROCm/k8s-gpu-dra-driver).
+func isDeviceKey(rest, deviceName string) bool {
+	slot, ok := strings.CutPrefix(rest, deviceName+"-slot")
+	if !ok {
+		return rest == deviceName
+	}
+	_, err := strconv.ParseUint(slot, 10, 32)
+	return err == nil
 }
 
 // draCDIRenderMinors returns the render node minors of the CDI device

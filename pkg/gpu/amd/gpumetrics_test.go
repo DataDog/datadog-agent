@@ -344,6 +344,7 @@ func TestGFXActivityMatchesBusy(t *testing.T) {
 	const periods = 15000 // 15 s at 1 ms per period
 	tolerance := gfxBusyTolerance(periods)
 	require.Equal(t, uint64(1900), tolerance)
+	assert.Equal(t, uint64(1999), gfxBusyTolerance(15999), "the drift share is not rounded to whole thousands of periods")
 	const mean, offset, increase = uint64(40e9), uint64(1e6), uint64(356250)
 	previous := parse(activity((mean+offset)%u32), xcds(mean))
 	for name, tc := range map[string]struct {

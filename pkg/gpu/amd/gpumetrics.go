@@ -475,7 +475,7 @@ func GFXActivityMatchesBusy(previous, current *GPUMetrics, periods uint64) bool 
 // up to gfxBusySkewPeriods at 100%; rounding drift adds a 1/gfxBusyDriftPeriods
 // share of the interval, far above the 131 over 36M periods of a real MI350X.
 func gfxBusyTolerance(periods uint64) uint64 {
-	return 100 * (gfxBusySkewPeriods + periods/gfxBusyDriftPeriods)
+	return 100*gfxBusySkewPeriods + 100*periods/gfxBusyDriftPeriods
 }
 
 // decodeGPUMetricsAttrs decodes the attributes of a dynamic table. The table

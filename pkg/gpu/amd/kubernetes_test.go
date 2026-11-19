@@ -92,6 +92,10 @@ devices:
   containerEdits:
     deviceNodes:
     - path: /dev/dri/renderD128
+- name: `+claimUID+`-gpu-0-cpx-nps4-slot0-old
+  containerEdits:
+    deviceNodes:
+    - path: /dev/dri/renderD128
 `), 0o644))
 
 	for name, tc := range map[string]struct {
@@ -110,6 +114,7 @@ devices:
 		"other vendor's CDI device": {id: "gpu-0-cpx-nps4", cdi: []string{"k8s.gpu.nvidia.com/claim=" + claimUID + "-gpu-0"}},
 		"another device's key": {id: "gpu-0-cpx-nps4", cdi: []string{
 			"k8s.gpu.amd.com/gpu=" + claimUID + "-gpu-0-cpx-nps4-old",
+			"k8s.gpu.amd.com/gpu=" + claimUID + "-gpu-0-cpx-nps4-slot0-old",
 			"k8s.gpu.amd.com/gpu=" + claimUID + "-gpu-0-cpx-nps4",
 		}, expectedPCI: "0000:27:00.0"},
 		"claim without a spec":      {id: "gpu-0-cpx-nps4", cdi: []string{"k8s.gpu.amd.com/gpu=00000000-0000-0000-0000-000000000000-gpu-0-cpx-nps4"}},
