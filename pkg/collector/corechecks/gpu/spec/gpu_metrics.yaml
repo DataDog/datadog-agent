@@ -567,9 +567,9 @@ metrics:
         Corrected ECC (Error Correcting Code) errors indicate GPU memory
         corruption that was detected and successfully corrected by the hardware.
         Recurring corrected errors can be an early sign of degrading memory or
-        underlying hardware issues. The counter reports errors seen for the
-        entire lifetime of the device. On AMD GPUs, the amdgpu RAS counts summed
-        as amd-smi does, since the driver loaded.
+        hardware issues. The counter reports errors seen for the entire lifetime
+        of the device. On AMD GPUs, amdgpu RAS counts since the driver loaded,
+        summed like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -609,8 +609,8 @@ metrics:
         corruption that could not be automatically fixed. These errors can lead
         to data corruption, application crashes, or incorrect computation
         results. The counter reports errors seen for the entire lifetime of the
-        device. On AMD GPUs, the amdgpu RAS counts summed as amd-smi does, since
-        the driver loaded.
+        device. On AMD GPUs, amdgpu RAS counts since the driver loaded, summed
+        like amd-smi, without memory_location.
       aggregation: lifetime_error
     tagsets:
       - device
