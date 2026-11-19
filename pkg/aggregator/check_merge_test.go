@@ -89,6 +89,7 @@ func TestCheckOutputMergerHoldsTheFlushSecond(t *testing.T) {
 	require.Len(t, series, 1)
 	assert.Equal(t, []metrics.Point{{Ts: 99, Value: 1}}, series[0].Points)
 	require.Empty(t, sketches)
+	assert.Len(t, m.series, 1, "only the held timestamp is kept")
 
 	// Another check instance commits into the held second after the flush.
 	series, sketches = nil, nil
@@ -100,6 +101,8 @@ func TestCheckOutputMergerHoldsTheFlushSecond(t *testing.T) {
 	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 6}}, series[0].Points)
 	require.Len(t, sketches, 1)
 	assert.Equal(t, int64(2), sketches[0].Points[0].Sketch.Basic.Cnt)
+	assert.Empty(t, m.series, "sent timestamps are dropped")
+	assert.Empty(t, m.sketches)
 }
 
 func TestCheckOutputMergerDrainSendsHeldPoints(t *testing.T) {

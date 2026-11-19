@@ -14,37 +14,28 @@ import (
 )
 
 // checkOutputMerger merges the outputs of check samplers that filter to the same series, from one check instance or
-// several, before they are sent: the intake keeps only the last point it receives for a series and second. Counts
-// and rates are summed, and sketches merged, per series and second, each with the metadata of its own sources.
+// several, before they are sent: the intake keeps only the last point it receives for a series and timestamp. Counts
+// and rates are summed, and sketches merged, per series and timestamp, each with the metadata of its own sources.
 //
-// It sends each second of a series once, as long as the clock doesn't step back. Samplers stamp what they hand it at
-// commit, and the aggregator's run loop handles commits and flushes one at a time, so a commit handled after a flush
-// is stamped at or after its cutoff: a flush sends the seconds before its cutoff, and holds the others for the next
-// flush to merge with later commits.
+// It sends each timestamp of a series once, as long as the clock doesn't step back. Samplers stamp what they hand it
+// at commit, and the aggregator's run loop handles commits and flushes one at a time, so a commit handled after a
+// flush is stamped at or after its cutoff: a flush sends the timestamps before its cutoff, and holds the others for
+// the next flush to merge with later commits.
 //
-// Like the rest of the Agent's output, it doesn't guard against sending a second twice when the clock steps back, or
-// when a rule change moves a source between merged and unmerged output in the second it changes.
+// Like the rest of the Agent's output, it doesn't guard against sending a timestamp twice when the clock steps back,
+// or when a rule change moves a source between merged and unmerged output in the second it changes.
+//
+// Points are held per timestamp, of which there are only a few at a time: a flush checks each timestamp once, and
+// drops the series it sends along with their map.
 type checkOutputMerger struct {
-	series   map[serieSecond]*metrics.Serie
-	sketches map[sketchSecond]*metrics.SketchSeries
+	series   map[int64]map[ckey.ContextKey]*metrics.Serie
+	sketches map[int64]map[ckey.ContextKey]*metrics.SketchSeries
 }
 
 // mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
 type mergedSketch struct {
 	key    ckey.ContextKey
 	sketch *metrics.SketchSeries
-}
-
-// serieSecond identifies a second of a merged series.
-type serieSecond struct {
-	contextKey ckey.ContextKey
-	second     int64
-}
-
-// sketchSecond identifies a second of a merged sketch series.
-type sketchSecond struct {
-	contextKey ckey.ContextKey
-	second     int64
 }
 
 // maxHold is how far, in seconds, ahead of a flush's cutoff points can be held: only a backward clock step gets them
@@ -54,23 +45,33 @@ const maxHold = int64(time.Hour / time.Second)
 // newCheckOutputMerger returns an empty merger.
 func newCheckOutputMerger() *checkOutputMerger {
 	return &checkOutputMerger{
-		series:   make(map[serieSecond]*metrics.Serie),
-		sketches: make(map[sketchSecond]*metrics.SketchSeries),
+		series:   make(map[int64]map[ckey.ContextKey]*metrics.Serie),
+		sketches: make(map[int64]map[ckey.ContextKey]*metrics.SketchSeries),
 	}
+}
+
+// heldAt returns the map of what's held for a timestamp, creating it if there is none.
+func heldAt[T any](held map[int64]map[ckey.ContextKey]T, timestamp int64) map[ckey.ContextKey]T {
+	byKey, ok := held[timestamp]
+	if !ok {
+		byKey = make(map[ckey.ContextKey]T)
+		held[timestamp] = byKey
+	}
+	return byKey
 }
 
 // mergeSeries merges series with the other sources of the same series, which their ContextKey identifies.
 func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 	for _, serie := range series {
 		for _, point := range serie.Points {
-			second := int64(point.Ts)
-			key := serieSecond{contextKey: serie.ContextKey, second: second}
-			merged, held := m.series[key]
+			timestamp := int64(point.Ts)
+			byKey := heldAt(m.series, timestamp)
+			merged, held := byKey[serie.ContextKey]
 			if !held {
 				merged = new(metrics.Serie)
 				*merged = *serie
-				merged.Points = []metrics.Point{{Ts: float64(second)}}
-				m.series[key] = merged
+				merged.Points = []metrics.Point{{Ts: float64(timestamp)}}
+				byKey[serie.ContextKey] = merged
 			} else {
 				merged.NoIndex = merged.NoIndex || serie.NoIndex
 				merged.Source = min(merged.Source, serie.Source)
@@ -84,14 +85,13 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	for _, s := range sketches {
 		for _, point := range s.sketch.Points {
-			second := point.Ts
-			key := sketchSecond{contextKey: s.key, second: second}
-			merged, held := m.sketches[key]
+			byKey := heldAt(m.sketches, point.Ts)
+			merged, held := byKey[s.key]
 			if !held {
 				merged = new(metrics.SketchSeries)
 				*merged = *s.sketch
-				merged.Points = []metrics.SketchPoint{{Sketch: point.Sketch, Ts: second}}
-				m.sketches[key] = merged
+				merged.Points = []metrics.SketchPoint{{Sketch: point.Sketch, Ts: point.Ts}}
+				byKey[s.key] = merged
 				continue
 			}
 			merged.NoIndex = merged.NoIndex || s.sketch.NoIndex
@@ -101,28 +101,32 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	}
 }
 
-// flush sends the seconds before cutoff, and holds the others for a later flush, unless they're more than maxHold
+// flush sends the timestamps before cutoff, and holds the others for a later flush, unless they're more than maxHold
 // after cutoff.
 func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-	m.send(func(second int64) bool { return second < cutoff || second > cutoff+maxHold }, seriesSink, sketchesSink)
+	m.send(func(timestamp int64) bool { return timestamp < cutoff || timestamp > cutoff+maxHold }, seriesSink, sketchesSink)
 }
 
-// drain sends every second, for when no flush follows to send the seconds flush would hold.
+// drain sends every timestamp, for when no flush follows to send the timestamps flush would hold.
 func (m *checkOutputMerger) drain(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	m.send(func(int64) bool { return true }, seriesSink, sketchesSink)
 }
 
-func (m *checkOutputMerger) send(ready func(second int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-	for key, serie := range m.series {
-		if ready(key.second) {
-			seriesSink.Append(serie)
-			delete(m.series, key)
+func (m *checkOutputMerger) send(ready func(timestamp int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	for timestamp, byKey := range m.series {
+		if ready(timestamp) {
+			for _, serie := range byKey {
+				seriesSink.Append(serie)
+			}
+			delete(m.series, timestamp)
 		}
 	}
-	for key, sketch := range m.sketches {
-		if ready(key.second) {
-			sketchesSink.Append(sketch)
-			delete(m.sketches, key)
+	for timestamp, byKey := range m.sketches {
+		if ready(timestamp) {
+			for _, sketch := range byKey {
+				sketchesSink.Append(sketch)
+			}
+			delete(m.sketches, timestamp)
 		}
 	}
 }
