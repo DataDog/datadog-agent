@@ -2,6 +2,87 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.5:
+
+7.85.5
+======
+
+.. _Release Notes_7.85.5_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-19
+
+- Please refer to the `7.85.5 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7855>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.5_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.17 to 3.13.18
+
+- Update Agent Data Plane to 1.7.3. The Remote Agents section of
+  ``agent status`` now reports Agent Data Plane Forwarder transaction
+  status, and Agent Data Plane reports additional aggregator and forwarder
+  telemetry through the Agent telemetry endpoint and flares.
+
+- Agents are now built with Go ``1.26.11``.
+
+
+.. _Release Notes_7.85.5_Security Notes:
+
+Security Notes
+--------------
+
+- CWS: when ``runtime_security_config.socket`` (or ``runtime_security_config.cmd_socket``)
+  is a TCP address, which is the default on Windows, the gRPC endpoints between
+  ``system-probe`` and ``security-agent`` now require TLS and the Agent IPC auth token.
+  Previously, any local user could connect to them. Unix and vsock sockets are unchanged.
+
+- The Jetson check now runs only when its configuration comes from a local file, such as ``conf.d/jetson.d/conf.yaml``.
+  Configurations supplied by Autodiscovery, including container labels, pod annotations, and cluster checks, are rejected.
+  Set ``tegrastats_path`` and ``use_sudo`` in a local configuration file.
+
+
+.. _Release Notes_7.85.5_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix an issue where the error sampler and rare sampler could accidentally 
+  override the probabilistic sampler for V1 trace payloads.
+
+- APM: Restore the behavior of dropping traces whose 128-bit trace ID is zero, including empty
+  or missing trace IDs, and counts them as dropped with reason ``trace_id_zero``,
+  in the V1 trace pipeline..
+
+- APM: Fix inconsistency with processing of v1 trace payloads where non-string
+  span attributes, and fields like "component", "version", and "env" were not
+  properly truncated with the default limits: 200 bytes for keys, 25,000 for values.
+
+- Agent Data Plane 1.7.3 no longer counts API key validation requests, or
+  events and service checks in discarded payloads, in its forwarder and
+  aggregator flush telemetry.
+
+- Fix ``infrastructure_mode: end_user_device`` not enabling the system-probe
+  software inventory module (Windows and macOS) and notable events module
+  (macOS) unless ``software_inventory.enabled`` or ``notable_events.enabled``
+  was set explicitly in ``datadog.yaml``.
+
+- The node agent now evicts the ``language_detection_dca_client_processed_events``
+  telemetry series for a pod when that pod is deleted. Previously these per-pod
+  series accumulated without bound as pods churned, which could cause the
+  ``agent_telemetry`` check to hit its ``max_returned_metrics`` limit and drop
+  other agent telemetry.
+
+- Keys added to the scrubber through ``scrubber.additional_keys``, ``flare_stripped_keys``, or
+  configuration values resolved from secrets are now matched regardless of case when scrubbing
+  structured YAML and JSON data.
+
+
 .. _Release Notes_7.85.4:
 
 7.85.4
