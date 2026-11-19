@@ -25,6 +25,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordObservationAccepted("logs", "containers")
 	tel.recordObservationDropped("logs", "containers")
 	tel.setLogPatternCount(1)
+	tel.setLogMetricsPatternCount(2)
 	tel.recordLogAccepted("internal", 256)
 	tel.recordFilteredLog()
 	tel.recordMetricAccepted("dogstatsd")
@@ -60,6 +61,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
 	tel.setLogPatternCount(3)
+	tel.setLogMetricsPatternCount(7)
 	tel.recordFreshSeries(2)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
@@ -77,8 +79,29 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonSeries}).GetCounter().GetValue())
 	assert.Equal(t, 5.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonRetention}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	assert.Equal(t, 7.0, observerMetric(t, telComp, telemetryLogMetricsExtractorPatternCount, nil).GetGauge().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetrySeriesFresh, nil).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func TestLogExtractorsPublishIndependentPatternCounts(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(telComp)
+	legacy := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	modern := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
+	legacy.SetObserverTelemetry(tel)
+	modern.SetObserverTelemetry(tel)
+
+	first := &logObs{content: "WARN alpha", timestampMs: 1000}
+	legacy.ProcessLog(first)
+	legacy.ProcessLog(&logObs{content: "ERROR beta gamma", timestampMs: 2000})
+	modern.ProcessLog(first)
+	require.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	require.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogMetricsExtractorPatternCount, nil).GetGauge().GetValue())
+
+	modern.Reset()
+	require.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	require.Equal(t, 0.0, observerMetric(t, telComp, telemetryLogMetricsExtractorPatternCount, nil).GetGauge().GetValue())
 }
 
 func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {

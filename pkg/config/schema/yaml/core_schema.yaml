@@ -5547,6 +5547,11 @@ properties:
                 type: boolean
                 default: true
                 comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+              min_token_match_ratio:
+                node_type: setting
+                type: number
+                default: 0.6
+                description: Fraction of structural tokens that must match an existing log pattern.
           log_pattern_extractor:
             node_type: section
             type: object
