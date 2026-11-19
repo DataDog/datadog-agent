@@ -1,0 +1,12 @@
+logs_config:
+  tag_filters:
+    exclude:
+      - e2e_global_drop:*
+      - e2e_rescued:*
+  processing_rules:
+    - type: exclude_at_match_ottl
+      name: drop_global
+      pattern: 'attributes["ottl_global_drop"] == true'
+    - type: mask_ottl
+      name: redact_global_token
+      pattern: 'set(attributes["token"], "***") where HasPrefix(body, "{") and attributes["token"] != nil'

@@ -14,9 +14,8 @@ import (
 	"os"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -36,6 +35,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	agentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -147,7 +147,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	}
 
 	for _, source := range sources {
-		err := source.Config.Validate()
+		err := ottl.ValidateLogsConfig(source.Config)
 		if err != nil {
 			fmt.Println("Error with config: ", err)
 			return nil, nil, nil, err

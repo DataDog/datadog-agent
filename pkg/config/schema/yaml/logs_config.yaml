@@ -55,7 +55,9 @@ properties:
     visibility: public
     description: |-
       Global processing rules that are applied to all logs. The available rules are
-      "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
+      "exclude_at_match", "include_at_match", "mask_sequences", "exclude_truncated", "remap_source",
+      "exclude_at_match_ottl", "include_at_match_ottl" and "mask_ottl". OTTL rules use conditions
+      or masking statements in "pattern" to process fields in a JSON log message. More information in Datadog documentation:
       https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
     example: |2-
 
