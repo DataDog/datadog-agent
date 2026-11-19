@@ -1431,6 +1431,10 @@ func (s *configMacOSSuite) TestInstallerStateIsRootOwnedMacOS() {
 	s.startConfigExperimentRC(nextID("cfg-state"), []backend.FileOperation{
 		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
 	}, nil)
+	// The start is reported before the installer daemon is handed over to its experiment job, and
+	// the pidfile is briefly absent between the stable daemon exiting and the experiment daemon
+	// writing it.
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
 	for _, path := range []string{configStatePath, installerPIDPath} {
 		perms, err := s.Host.GetFilePermissions(path)
 		require.NoError(s.T(), err, "%s should exist", path)
