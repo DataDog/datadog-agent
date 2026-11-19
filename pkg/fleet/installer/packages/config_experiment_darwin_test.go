@@ -47,9 +47,14 @@ func stubConfigExperimentWatcher(t *testing.T) *int {
 }
 
 // stubInstallerHandOver replaces the detached hand-over launcher with a recorder. Returns the
-// number of times it was called.
+// number of times it was called. It also skips the post-start probation: these tests drive the hook
+// with a recording launchctl, which reports no process for the probe to watch.
 func stubInstallerHandOver(t *testing.T) *int {
 	t.Helper()
+
+	originalProbe := probeConfigExperiment
+	probeConfigExperiment = func(context.Context, launchd.JobSet, time.Duration) error { return nil }
+	t.Cleanup(func() { probeConfigExperiment = originalProbe })
 
 	calls := new(int)
 	original := launchInstallerHandOver
@@ -761,6 +766,7 @@ func TestStartConfigExperimentDiscardsTheConfigWhenTheHandOverFailsToLaunch(t *t
 	stubLaunchd(t)
 	stubJobDir(t)
 	stubDeadlinePath(t)
+	stubInstallerHandOver(t)
 	original := launchInstallerHandOver
 	launchInstallerHandOver = func(context.Context) error { return errors.New("injected failure") }
 	t.Cleanup(func() { launchInstallerHandOver = original })

@@ -33,12 +33,14 @@ type liveLaunchd struct {
 	calls  [][]string
 	// failPrint makes print fail, once, for the targets it names.
 	failPrint map[string]bool
+	// pids overrides the pid print reports for the targets it names.
+	pids map[string]int
 }
 
 func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 	t.Helper()
 
-	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}}
+	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}, pids: map[string]int{}}
 	for _, label := range loaded {
 		l.loaded["system/"+label] = true
 	}
@@ -58,7 +60,11 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 					return nil, errors.New("injected failure")
 				}
 				if l.loaded[target] {
-					return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, os.Getpid())), nil
+					pid := os.Getpid()
+					if override, ok := l.pids[target]; ok {
+						pid = override
+					}
+					return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, pid)), nil
 				}
 				return []byte(notLoadedOutput), exitError(113)
 			case "bootout":
