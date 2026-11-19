@@ -73,11 +73,6 @@ test binaries were built, `kmt.test` of one `pkg/ebpf` test took about 90 second
 - **The first `kmt.test` in a fresh clone runs `sudo mkdir`** for `kmt-deps/<arch>/tools`, because
   `setup_runtime_clang` treats a missing directory as unwritable. Create it first with
   `mkdir -p kmt-deps/arm64/tools`.
-- **`too many open files in system`** while the compiler unpacks Go toolchains comes from Docker's
-  host file sharing, which the compiler's bind mounts go through: it holds a host file handle for each
-  file the Docker VM has cached. `ulimit -n` in the container doesn't raise that limit. Restart Docker,
-  or drop the VM's inode and dentry caches (`echo 2 > /proc/sys/vm/drop_caches` as root in the VM), and
-  rerun.
 
 ## Manual runs outside KMT
 
