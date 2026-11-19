@@ -81,9 +81,10 @@ type Server struct {
 	url      string
 
 	// startMutex guards started, set by the first Start so a second one, even before the server is ready, doesn't
-	// start its routines again
+	// start its routines again, and listening, closed once that first Start listens or failed to
 	startMutex sync.Mutex
 	started    bool
+	listening  chan struct{}
 
 	store serverstore.Store
 
@@ -309,20 +310,27 @@ func withLogForwardEndpoint(endpoint string) Option {
 func (fi *Server) Start() {
 	fi.startMutex.Lock()
 	if fi.started {
+		listening := fi.listening
 		fi.startMutex.Unlock()
-		log.Printf("Fake intake already running at %s", fi.URL())
+		// report the outcome of the Start in progress, rather than a readiness it may not reach
+		<-listening
+		running := fi.IsRunning()
+		if running {
+			log.Printf("Fake intake already running at %s", fi.URL())
+		}
 		if fi.ready != nil {
-			fi.ready <- true
+			fi.ready <- running
 		}
 		return
 	}
 	fi.started = true
 	fi.shutdown = make(chan struct{})
 	fi.served = make(chan struct{})
-	served := fi.served
+	fi.listening = make(chan struct{})
+	served, listening := fi.served, fi.listening
 	fi.startMutex.Unlock()
 
-	go fi.listenRoutine(served)
+	go fi.listenRoutine(served, listening)
 	go fi.cleanUpPayloadsRoutine()
 }
 
@@ -362,8 +370,9 @@ func (fi *Server) Stop() error {
 	return nil
 }
 
-// listenRoutine serves the requests until the server stops, then closes served
-func (fi *Server) listenRoutine(served chan struct{}) {
+// listenRoutine closes listening once it listens or failed to, then serves the requests until the server stops, and
+// closes served
+func (fi *Server) listenRoutine(served, listening chan struct{}) {
 	defer close(served)
 	listener, url := fi.listener, fi.listenerURL
 	if listener == nil {
@@ -378,6 +387,7 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 			fi.startMutex.Lock()
 			fi.started = false
 			fi.startMutex.Unlock()
+			close(listening)
 
 			if fi.ready != nil {
 				fi.ready <- false
@@ -388,6 +398,7 @@ func (fi *Server) listenRoutine(served chan struct{}) {
 		url = "http://" + listener.Addr().String()
 	}
 	fi.setURL(url)
+	close(listening)
 	// notify server is ready, if anybody is listening
 	if fi.ready != nil {
 		select {
