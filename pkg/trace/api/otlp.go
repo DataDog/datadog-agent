@@ -646,27 +646,33 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 // Any decision maker is preferred over "-0", the tracer's startup fallback, which is returned
 // only when no other decision maker is present.
 func tracerDecisionMaker(spans pb.Trace) (string, bool) {
-	fallback := false
+	fallback, hasFallback := "", false
+	consider := func(dm string) bool {
+		if !isDefaultDecisionMaker(dm) {
+			return true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
+		}
+		return false
+	}
 	for _, s := range spans {
-		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) {
-			if dm != "-0" {
-				return dm, true
-			}
-			fallback = true
+		if dm, ok := s.Meta["_dd.p.dm"]; ok && isValidDecisionMaker(dm) && consider(dm) {
+			return dm, true
 		}
 	}
 	for _, s := range spans {
-		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok {
-			if dm != "-0" {
-				return dm, true
-			}
-			fallback = true
+		if dm, ok := decisionMakerFromTracestate(s.Meta["w3c.tracestate"]); ok && consider(dm) {
+			return dm, true
 		}
 	}
-	if fallback {
-		return "-0", true
-	}
-	return "", false
+	return fallback, hasFallback
+}
+
+// isDefaultDecisionMaker reports whether a valid decision maker is sampling mechanism 0, the
+// tracer's startup fallback (normally "-0").
+func isDefaultDecisionMaker(dm string) bool {
+	return strings.Trim(dm[1:], "0") == ""
 }
 
 // decisionMakerFromTracestate extracts `t.dm` from the `dd` member of a W3C tracestate,

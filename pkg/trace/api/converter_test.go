@@ -977,6 +977,23 @@ func TestConvertToIdx_InvalidSamplingMechanismIgnored(t *testing.T) {
 	assert.Equal(t, uint32(0), result.Chunks[0].SamplingMechanism())
 }
 
+// Test that an out-of-range chunk-level decision maker is ignored rather than saturated to MaxUint32
+func TestConvertToIdx_OutOfRangeChunkDecisionMakerIgnored(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Tags:  map[string]string{"_dd.p.dm": "-99999999999"},
+				Spans: []*pb.Span{{Service: "test-service", Name: "test-span", TraceID: 123, SpanID: 456}},
+			},
+		},
+	}
+
+	result := ConvertToIdx(payload, "")
+
+	require.Len(t, result.Chunks, 1)
+	assert.Equal(t, uint32(0), result.Chunks[0].SamplingMechanism())
+}
+
 // Test that payload-level fields override span-level fields
 func TestConvertToIdx_PayloadFieldsOverrideSpanFields(t *testing.T) {
 	payload := &pb.TracerPayload{
@@ -2000,6 +2017,9 @@ func TestChunkSamplingMechanismMixedDecisionMakers(t *testing.T) {
 		{"rule then default", func() []*pb.Span { return []*pb.Span{span(3, "-3", 2), span(2, "-0", 1)} }, 3},
 		{"first real decision wins", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "-3", 2), span(4, "-8", 2)} }, 3},
 		{"only default", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "-0", 1)} }, 0},
+		{"zero-valued default", func() []*pb.Span { return []*pb.Span{span(2, "-00", 1), span(3, "-3", 2)} }, 3},
+		{"invalid skipped", func() []*pb.Span { return []*pb.Span{span(2, "-0", 1), span(3, "invalid", 2), span(4, "-3", 2)} }, 3},
+		{"out of range skipped", func() []*pb.Span { return []*pb.Span{span(2, "-99999999999", 2), span(3, "-3", 2)} }, 3},
 		{"no decision maker", func() []*pb.Span { return []*pb.Span{span(2, "", 1), span(3, "", 1)} }, 0},
 	}
 

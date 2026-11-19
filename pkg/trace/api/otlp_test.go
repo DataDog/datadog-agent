@@ -4415,6 +4415,8 @@ func TestTracerDecisionMakerPrefersRealDecision(t *testing.T) {
 		{"tracestate beats default attribute", pb.Trace{dm("-0"), ts("dd=s:2;t.dm:-11")}, "-11", true},
 		{"attribute beats tracestate", pb.Trace{ts("dd=s:2;t.dm:-11"), dm("-3")}, "-3", true},
 		{"only default", pb.Trace{dm("-0"), ts("dd=s:1;t.dm:-0")}, "-0", true},
+		{"zero-valued default", pb.Trace{dm("-00"), dm("-3")}, "-3", true},
+		{"first default kept", pb.Trace{dm("-00"), dm("-0")}, "-00", true},
 		{"no decision maker", pb.Trace{{}, dm("abc")}, "", false},
 	}
 	for _, tt := range tests {

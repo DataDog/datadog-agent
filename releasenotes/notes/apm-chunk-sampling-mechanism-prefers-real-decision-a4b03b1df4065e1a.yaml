@@ -9,5 +9,7 @@
 fixes:
   - |
     APM: When the spans of a trace chunk carry different sampling decision makers (``_dd.p.dm``),
-    the Agent now reports the same sampling mechanism regardless of the payload encoding or span order.
-    A real sampling decision now takes precedence over ``-0``, the tracer's startup default.
+    the Agent now promotes the first one that isn't ``-0`` (the tracer's startup default) as the
+    chunk's sampling mechanism, whatever the position of the ``-0`` spans. Previously, the result
+    depended on the payload encoding and span order, and ``-0`` could take precedence over a real
+    sampling decision made on the same chunk.

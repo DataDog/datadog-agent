@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -370,27 +372,31 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 }
 
-// decisionMakerDefault is the decision maker a tracer uses as its startup fallback, before agent
-// rates are available.
-const decisionMakerDefault = "-0"
-
-// chunkDecisionMaker returns the decision maker to promote from the spans of a chunk: the first one
-// that isn't decisionMakerDefault, or decisionMakerDefault if it is the only one present. A real
-// sampling decision made on the chunk must not be credited to the startup fallback.
+// chunkDecisionMaker returns the decision maker to promote from the spans of a chunk, following the
+// same rule as the V1 conversion paths: the first one whose sampling mechanism is non-zero, or else the
+// first one whose mechanism is 0 ("-0", the tracer's startup fallback, used before agent rates are
+// available). A real sampling decision made on the chunk must not be credited to the startup fallback.
+// Values that don't parse as a sampling mechanism are ignored.
 func chunkDecisionMaker(spans []*pb.Span) (string, bool) {
-	found := false
+	fallback, hasFallback := "", false
 	for _, span := range spans {
-		if dm, ok := span.Meta[tagDecisionMaker]; ok {
-			if dm != decisionMakerDefault {
-				return dm, true
-			}
-			found = true
+		dm, ok := span.Meta[tagDecisionMaker]
+		if !ok {
+			continue
+		}
+		digits, _ := strings.CutPrefix(dm, "-")
+		mechanism, err := strconv.ParseUint(digits, 10, 32)
+		if err != nil {
+			continue
+		}
+		if mechanism != 0 {
+			return dm, true
+		}
+		if !hasFallback {
+			fallback, hasFallback = dm, true
 		}
 	}
-	if found {
-		return decisionMakerDefault, true
-	}
-	return "", false
+	return fallback, hasFallback
 }
 
 // normalizeTrace takes a trace and

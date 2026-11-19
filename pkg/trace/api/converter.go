@@ -228,11 +228,11 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 		}
 		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
-			samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32)
-			if err != nil {
+			if samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32); err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
+			} else {
+				idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 			}
-			idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 		}
 		idxChunks = append(idxChunks, idxChunk)
 	}

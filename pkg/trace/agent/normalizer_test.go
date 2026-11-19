@@ -685,11 +685,11 @@ func TestTagDecisionMaker(t *testing.T) {
 	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
 	chunk.Spans[0].Metrics = nil
 	chunk.Spans[2].Metrics = nil
-	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "right")
-	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "wrong")
+	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "-3")
+	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "-8")
 	setChunkAttributes(chunk, root)
-	assert.Equal("right", chunk.Tags[tagDecisionMaker])
-	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
+	assert.Equal("-3", chunk.Tags[tagDecisionMaker])
+	assert.Equal("-3", chunk.Spans[1].Meta[tagDecisionMaker])
 }
 
 // TestTagDecisionMakerPrefersRealDecision checks that "-0", the tracer's startup fallback, is promoted
@@ -704,6 +704,9 @@ func TestTagDecisionMakerPrefersRealDecision(t *testing.T) {
 		{"rule then default", []string{"-3", "-0"}, "-3"},
 		{"first real decision wins", []string{"-0", "-3", "-8"}, "-3"},
 		{"only default", []string{"", "-0", "-0"}, "-0"},
+		{"zero-valued default", []string{"-00", "-3"}, "-3"},
+		{"invalid skipped", []string{"-0", "invalid", "-3"}, "-3"},
+		{"only invalid", []string{"invalid", "-"}, ""},
 		{"no decision maker", []string{"", ""}, ""},
 	}
 	for _, tt := range tests {
