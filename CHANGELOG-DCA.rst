@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.5:
+
+7.85.5
+======
+
+.. _Release Notes_7.85.5_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-19
+Pinned to datadog-agent v7.85.5: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7855>`_.
+
+
+.. _Release Notes_7.85.5_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Single Step Instrumentation: ``ddTraceConfigs`` entries in workload targets
+  now accept ``valueFrom.secretKeyRef``, ``valueFrom.configMapKeyRef`` and
+  ``valueFrom.resourceFieldRef``. Before, any of these made the Cluster Agent
+  fail to parse ``apm_config.instrumentation``, so the APM Instrumentation
+  webhook was not registered and no pod was instrumented.
+
+
 .. _Release Notes_7.85.4:
 
 7.85.4
