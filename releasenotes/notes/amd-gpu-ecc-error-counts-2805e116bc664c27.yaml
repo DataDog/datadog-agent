@@ -6,5 +6,4 @@ features:
     counts come from the host and survive guest driver reloads):
     ``gpu.errors.ecc.uncorrected.total``, ``gpu.errors.ecc.corrected.total``
     and the new AMD-only ``gpu.errors.ecc.deferred.total``, which match the
-    totals of ``amd-smi metric --ecc``; and ``gpu.device.unhealthy``, which is
-    1 after an uncorrectable ECC error.
+    totals of ``amd-smi metric --ecc``.

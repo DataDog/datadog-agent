@@ -183,7 +183,6 @@ func TestAMDECCMetrics(t *testing.T) {
 		"gpu.errors.ecc.uncorrected.total": 3,
 		"gpu.errors.ecc.corrected.total":   7,
 		"gpu.errors.ecc.deferred.total":    1,
-		"gpu.device.unhealthy":             1, // uncorrectable errors
 	} {
 		require.Len(t, gauges[name], 1, name)
 		assert.Equal(t, value, gauges[name][0].Arguments.Get(1), name)
@@ -194,7 +193,7 @@ func TestAMDECCMetrics(t *testing.T) {
 	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 	for name, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
-		if !strings.HasPrefix(name, "errors.") && name != "device.unhealthy" {
+		if !strings.HasPrefix(name, "errors.") {
 			continue
 		}
 		metricSpec, ok := specs.Metrics.Metrics[name]
@@ -225,29 +224,6 @@ func TestAMDECCMetrics(t *testing.T) {
 		}
 	}
 }
-
-// An uncorrectable ECC error makes the GPU unhealthy; without the ECC count
-// nothing is reported.
-func TestAMDDeviceUnhealthy(t *testing.T) {
-	for _, tc := range []struct {
-		uncorrected amdgpu.Reading
-		want        *float64
-	}{
-		{uncorrected: amdgpu.Reading{}, want: nil},
-		{uncorrected: amdgpu.Reading{Value: 0, Valid: true}, want: ptr(0)},
-		{uncorrected: amdgpu.Reading{Value: 2, Valid: true}, want: ptr(1)},
-	} {
-		var got *float64
-		for _, s := range amdSamples(amdgpu.Metrics{ECCUncorrected: tc.uncorrected}, activity{}) {
-			if m := s.(*nvidia.Metric); m.Name == "device.unhealthy" {
-				got = &m.Value
-			}
-		}
-		assert.Equal(t, tc.want, got, "uncorrected %+v", tc.uncorrected)
-	}
-}
-
-func ptr(v float64) *float64 { return &v }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {
 	check, mockSender := setupAMDCheck(t, fakeAMDHost(t), map[string]any{"gpu.excluded_devices": []string{"000074A1-0000-1000-80C0-FFEE00C0FFEE"}})

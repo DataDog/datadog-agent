@@ -470,7 +470,7 @@ func amdProcessSamples(m amdgpu.Metrics, processes []amdgpu.ProcessMemory) []nvi
 // names and units of the GPU metrics spec, and the activity values chosen by
 // chooseActivity. Values the device does not expose are not emitted.
 func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
-	samples := make([]nvidia.Sample, 0, 21)
+	samples := make([]nvidia.Sample, 0, 20)
 	add := func(name string, r amdgpu.Reading) {
 		if r.Valid {
 			samples = append(samples, &nvidia.Metric{Name: name, Value: r.Value, Type: metrics.GaugeType})
@@ -521,15 +521,6 @@ func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
 	add("errors.ecc.uncorrected.total", m.ECCUncorrected)
 	add("errors.ecc.corrected.total", m.ECCCorrected)
 	add("errors.ecc.deferred.total", m.ECCDeferred)
-
-	// Unhealthy after an uncorrectable ECC error since the driver loaded.
-	if m.ECCUncorrected.Valid {
-		unhealthy := 0.0
-		if m.ECCUncorrected.Value > 0 {
-			unhealthy = 1
-		}
-		add("device.unhealthy", amdgpu.Reading{Value: unhealthy, Valid: true})
-	}
 
 	return samples
 }
