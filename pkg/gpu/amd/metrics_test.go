@@ -241,6 +241,8 @@ func TestReadMetricsSuspendedDeviceIsIdle(t *testing.T) {
 		wantErr       bool
 	}{
 		"runtime-suspended":  {err: syscall.EPERM, runtimeStatus: "suspended\n", want: valid(0)},
+		"suspending":         {err: syscall.EPERM, runtimeStatus: "suspending\n", want: valid(0)},
+		"resuming":           {err: syscall.EPERM, runtimeStatus: "resuming\n", want: valid(0)},
 		"EPERM while active": {err: syscall.EPERM, runtimeStatus: "active\n", wantErr: true}, // e.g. a GPU reset
 		"EPERM, no status":   {err: syscall.EPERM, wantErr: true},
 		"permission denied":  {err: syscall.EACCES, runtimeStatus: "suspended\n", wantErr: true},
@@ -277,6 +279,7 @@ func TestReadMetricsSuspendedDeviceGPUMetrics(t *testing.T) {
 		wantErr       bool
 	}{
 		"runtime-suspended":  {runtimeStatus: "suspended\n"},
+		"resuming":           {runtimeStatus: "resuming\n"},
 		"EPERM while active": {runtimeStatus: "active\n", wantErr: true},
 	} {
 		t.Run(name, func(t *testing.T) {

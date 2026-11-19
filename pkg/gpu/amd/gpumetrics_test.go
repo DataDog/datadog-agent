@@ -354,12 +354,16 @@ func TestGFXActivityMatchesBusy(t *testing.T) {
 		"within the tolerance":         {parse(activity((mean+offset+increase+tolerance)%u32), xcds(mean+increase)), true},
 		"beyond the tolerance":         {parse(activity((mean+offset+increase+tolerance+1)%u32), xcds(mean+increase)), false},
 		"another quantity":             {parse(activity((mean+offset+2*increase)%u32), xcds(mean+increase)), false},
-		"across the wrap":              {parse(activity((mean+offset+u32)%u32), xcds(mean+u32)), true},
 		"no XCD filled":                {parse(activity(7), busy(unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled, unfilled)), true},
 		"no GFX_BUSY_ACC":              {parse(activity(7)), true},
 	} {
 		assert.Equal(t, tc.valid, GFXActivityMatchesBusy(previous, tc.current, periods), name)
 	}
+
+	// A U32 GFX_ACTIVITY_ACC that wraps over the interval.
+	nearWrap := parse(activity(u32-1000), xcds(mean))
+	assert.True(t, GFXActivityMatchesBusy(nearWrap, parse(activity(increase-1000), xcds(mean+increase)), periods), "across the wrap")
+	assert.False(t, GFXActivityMatchesBusy(nearWrap, parse(activity(2*increase-1000), xcds(mean+increase)), periods), "another quantity across the wrap")
 
 	// On Linux 7.3 GFX_ACTIVITY_ACC is U64: no modulo 2^32.
 	activity64 := func(v uint64) testAttr { return testAttr{attrGFXActivityAcc, typeU64, unitNone, []uint64{v}} }
