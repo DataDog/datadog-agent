@@ -1,11 +1,7 @@
 ---
 enhancements:
   - |
-    On macOS, ``process_manager.enabled`` is now supported. When it is ``false`` in
-    ``datadog.yaml``, or ``DD_PROCESS_MANAGER_ENABLED=false`` is set for the install, the
-    installer does not load the ``com.datadoghq.procmgr`` LaunchDaemon and removes the
-    ``processes.d`` entries it ships. The setting is read when the Agent is installed or
-    upgraded. To apply a change without upgrading, run
-    ``sudo /opt/datadog-agent/embedded/bin/installer postinst datadog-agent dmg``, which
-    restarts the Agent's services. While the process manager is off, ``datadog-agent status``
-    reports it as not reachable, which is expected.
+    On macOS, setting ``process_manager.enabled: false`` in ``datadog.yaml`` turns the process
+    manager off when the Agent is installed or upgraded. Restarting the Agent does not apply the
+    change. ``DD_PROCESS_MANAGER_ENABLED=false`` passed to the install script does the same for
+    that install only.
