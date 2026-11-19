@@ -51,7 +51,7 @@ dd_agent_go_test(
         "invalidconfig_payload_windows_test.go",
         "missedbytes_integration_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = glob(["testdata/invalidconfig/*"]),
     embed = [":healthplatform"],
     embedsrcs = ["testdata/invalidconfig/base.yaml"],
     deps = [
@@ -100,12 +100,5 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
-            "@org_golang_x_sys//windows",
-            "@org_golang_x_sys//windows/registry",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

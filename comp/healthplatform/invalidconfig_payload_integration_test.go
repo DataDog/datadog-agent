@@ -374,7 +374,9 @@ func setScenarioEnv(t *testing.T, envFile string) {
 		key, _, _ := strings.Cut(kv, "=")
 		// the real config loader also reads the standard proxy variables, which would route the fake intake through a host proxy
 		isProxyVar := strings.EqualFold(key, "HTTP_PROXY") || strings.EqualFold(key, "HTTPS_PROXY") || strings.EqualFold(key, "NO_PROXY")
-		if strings.HasPrefix(key, "DD_") || isProxyVar {
+		// the prefix is matched case-insensitively: on Windows, an inherited dd_ variable is read as its DD_ counterpart
+		isDatadogVar := len(key) >= len("DD_") && strings.EqualFold(key[:len("DD_")], "DD_")
+		if isDatadogVar || isProxyVar {
 			t.Setenv(key, "") // restores the variable at the end of the test
 			require.NoError(t, os.Unsetenv(key))
 		}
