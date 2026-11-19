@@ -63,7 +63,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	gvrToName := func(gvr schema.GroupVersionResource) string {
-		return gvr.Resource + "." + gvr.Group
+		return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group)
 	}
 
 	// Check if the EnvoyExtensionPolicy CRD is present

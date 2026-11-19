@@ -66,7 +66,7 @@ func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	}
 
 	gvrToName := func(gvr schema.GroupVersionResource) string {
-		return gvr.Resource + "." + gvr.Group
+		return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group)
 	}
 
 	// Check if the EnvoyFilter CRD is present
@@ -296,7 +296,7 @@ func (i *istioInjectionPattern) newFilter(namespace string) (istiov1alpha3.Envoy
 	switch i.Mode() {
 	case appsecconfig.InjectionModeExternal:
 		if i.config.Processor.Address == "" {
-			processorAddress = i.config.Processor.ServiceName + "." + i.config.Processor.Namespace + ".svc"
+			processorAddress = fmt.Sprintf("%s.%s.svc", i.config.Processor.ServiceName, i.config.Processor.Namespace)
 		} else {
 			processorAddress = i.config.Processor.Address
 		}
