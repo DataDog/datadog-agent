@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_autoscaling
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -38,12 +39,16 @@ func (h *DeleteMultipleHorizontalPodAutoscalersHandler) Run(
 		return nil, err
 	}
 
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+
 	client, err := support.KubeClient(credential)
 	if err != nil {
 		return nil, err
 	}
 
-	err = client.AutoscalingV1().HorizontalPodAutoscalers(inputs.Namespace).DeleteCollection(ctx, support.MetaDelete(inputs.DeleteFields), support.MetaList(inputs.ListFields))
+	err = client.AutoscalingV2().HorizontalPodAutoscalers(inputs.Namespace).DeleteCollection(ctx, support.MetaDelete(inputs.DeleteFields), support.MetaList(inputs.ListFields))
 	if err != nil {
 		return nil, err
 	}

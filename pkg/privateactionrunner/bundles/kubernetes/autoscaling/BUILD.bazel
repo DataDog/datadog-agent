@@ -20,7 +20,6 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@io_k8s_api//autoscaling/v1:autoscaling",
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types",

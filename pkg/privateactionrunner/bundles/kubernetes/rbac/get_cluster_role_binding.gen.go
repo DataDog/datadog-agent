@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_rbac
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -40,6 +41,10 @@ func (h *GetClusterRoleBindingHandler) Run(
 	inputs, err := types.ExtractInputs[GetClusterRoleBindingInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.GetFields == nil || inputs.Name == "" {
+		return nil, errors.New("name is required")
 	}
 
 	client, err := support.KubeClient(credential)

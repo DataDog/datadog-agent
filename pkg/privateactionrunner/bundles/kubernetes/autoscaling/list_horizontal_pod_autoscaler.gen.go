@@ -7,12 +7,13 @@ package com_datadoghq_kubernetes_autoscaling
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	v1 "k8s.io/api/autoscaling/v1"
+	v1 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -42,12 +43,16 @@ func (h *ListHorizontalPodAutoscalerHandler) Run(
 		return nil, err
 	}
 
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+
 	client, err := support.KubeClient(credential)
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := client.AutoscalingV1().HorizontalPodAutoscalers(inputs.Namespace).List(ctx, support.MetaList(inputs.ListFields))
+	response, err := client.AutoscalingV2().HorizontalPodAutoscalers(inputs.Namespace).List(ctx, support.MetaList(inputs.ListFields))
 	if err != nil {
 		return nil, err
 	}
