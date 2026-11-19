@@ -112,14 +112,7 @@ services in the disable list but remove them from the active list. Retain their
 uninstall ServiceControl entries even after removing their binaries, so full
 uninstall can delete their registrations.
 
-`TestUpgradeServiceProtection` exercises removal, configuration and late rollback
-and success using the current MSI and its same-pipeline `-upgrade-test` MSI
-(override with `UPGRADE_AGENT_MSI_URL`). Both must contain the fix to exercise
-outgoing rollback enablement. Test-only copies observe service settings at
-execution checkpoints without changing production action order. Released-version
-upgrade tests separately cover legacy rollback without the new outgoing enable
-action.
-
-Keep each install/upgrade scenario in its own suite test method so the existing
-audit lifecycle hooks collect evidence between scenarios. Those hooks do not run
-for nested subtests; a long scenario loop can outlive Security log retention.
+`TestUpgradeRollback` and `TestUpgradeRollbackWithoutCWS` check service startup
+settings before manually starting the outgoing Agent. The pre-procmgr variants
+cover the legacy layout. C# tests cover default startup modes and rollback action
+placement; intermediate upgrade states are checked during manual VM QA.
