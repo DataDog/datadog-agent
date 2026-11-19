@@ -1051,7 +1051,7 @@ func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
 		Manager:   ebpf.NewRuntimeSecurityManager(false, false),
 		Resolvers: &resolvers.EBPFResolvers{TCResolver: tcResolver},
 	}
-	tcResolver.FlushNetworkNamespaceID(2, p.Manager.Get())
+	tcResolver.CleanupNetworkNamespace(2, p.Manager.Get())
 	p.updateEBPFCheckMapping()
 
 	name, err := ddebpf.GetProgNameFromProgID(100)
