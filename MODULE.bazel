@@ -621,6 +621,9 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 include("//deps/libxml2:libxml2.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/s6_overlay:s6_overlay.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone

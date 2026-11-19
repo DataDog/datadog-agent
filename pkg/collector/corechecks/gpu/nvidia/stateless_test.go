@@ -1531,3 +1531,22 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
 }
+
+func TestRecoveryActionTagValue(t *testing.T) {
+	for _, tc := range []struct {
+		code     int64
+		expected string
+	}{
+		{0, "none"},
+		{1, "reset"},
+		{2, "reboot"},
+		{3, "drain"},
+		{4, "drain_and_reset"},
+		{99, "unknown_99"},
+		{-1, "unknown_-1"},
+	} {
+		t.Run(tc.expected, func(t *testing.T) {
+			require.Equal(t, tc.expected, recoveryActionTagValue(tc.code))
+		})
+	}
+}

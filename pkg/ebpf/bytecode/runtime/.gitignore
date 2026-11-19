@@ -8,6 +8,7 @@ offsetguess-test.go
 oom-kill.go
 runtime-security.go
 shared-libraries.go
+skb-parse-test.go
 tcp-queue-length.go
 tracer.go
 usm.go

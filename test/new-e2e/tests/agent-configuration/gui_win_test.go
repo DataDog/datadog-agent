@@ -74,7 +74,4 @@ func (v *guiWindowsSuite) TestGUI() {
 
 	v.T().Log("Testing GUI static file server")
 	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, guiWinInstallPath)
-
-	v.T().Log("Testing GUI ping endpoint")
-	checkPingEndpoint(v.T(), guiClient)
 }

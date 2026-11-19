@@ -18,7 +18,7 @@ import (
 )
 
 // toProbeOptions maps one request to probe options. Its error is answered with a 400.
-func toProbeOptions(req connectivity.Request, ping pingprobe.Capability) (probe.Options, error) {
+func toProbeOptions(req connectivity.Request) (probe.Options, error) {
 	var opts probe.Options
 
 	for _, check := range req.Checks {
@@ -32,7 +32,7 @@ func toProbeOptions(req connectivity.Request, ping pingprobe.Capability) (probe.
 				Count:        req.PingOptions.Count,
 				Interval:     time.Duration(req.PingOptions.IntervalMs) * time.Millisecond,
 				Timeout:      time.Duration(req.PingOptions.TimeoutMs) * time.Millisecond,
-				UseRawSocket: resolveRawSocket(runtime.GOOS, ping.UseRawSocket, req.PingOptions.UseRawSocket),
+				UseRawSocket: pingprobe.ResolveRawSocket(runtime.GOOS, req.PingOptions.UseRawSocket),
 			}
 		case connectivity.CheckSNMP:
 			if req.SNMPOptions == nil {
@@ -83,16 +83,6 @@ func toSNMPCredentials(creds []connectivity.SNMPCredential) []snmpprobe.Credenti
 }
 
 // toConnectivityResult maps the probe results back to the endpoint's response.
-// resolveRawSocket applies the request's socket-type override only on the
-// platform that offers a choice. Windows has no UDP pinger and macOS no raw
-// one, so there the detected value is the only one that works.
-func resolveRawSocket(goos string, detected bool, override *bool) bool {
-	if goos == "linux" && override != nil {
-		return *override
-	}
-	return detected
-}
-
 func toConnectivityResult(results []probe.Result) connectivity.Result {
 	devices := make([]connectivity.DeviceResult, 0, len(results))
 	for _, r := range results {
