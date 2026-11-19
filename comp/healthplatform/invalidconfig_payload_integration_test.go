@@ -225,7 +225,7 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 	listener := newPipeListener()
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
-		fakeintakeserver.WithListener(listener),
+		fakeintakeserver.WithListener(listener, "http://"+pipeListenerAddress),
 		fakeintakeserver.WithReadyChannel(ready),
 	)
 	fi.Start()
@@ -349,22 +349,27 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 		return deps.SysprobeConfig
 	}
 
-	// the startup checks finished before the reports were sent: the latest one holds all their issues
+	// the startup checks finished before the reports were sent: the latest one holds all their issues. It's compared as
+	// received, rather than decoded and encoded again, so the comparison sees exactly the JSON the Agent sent.
 	waitForReports()
-	received, err := fiClient.GetAgentHealth()
+	received, err := fiClient.GetRawPayloads("/api/v2/agenthealth")
 	require.NoError(t, err)
 	require.NotEmpty(t, received, "no health report received")
 	latest := received[0]
 	for _, payload := range received {
 		// payloads are listed in arrival order: on a tie, the later one is the most recent
-		if !payload.GetCollectedTime().Before(latest.GetCollectedTime()) {
+		if !payload.Timestamp.Before(latest.Timestamp) {
 			latest = payload
 		}
 	}
+	// without a Content-Encoding header, fakeintake records the Content-Type as the encoding
+	require.Equal(t, "application/json", latest.Encoding, "health reports are expected uncompressed, so their raw body can be compared")
+	var latestReport healthplatformpayload.HealthReport
+	require.NoError(t, json.Unmarshal(latest.Data, &latestReport))
 	for _, canary := range canaries {
-		require.True(t, slices.ContainsFunc(slices.Collect(maps.Values(latest.Issues)), canary.isCanary), "the %s canary issue was not received", canary.path)
+		require.True(t, slices.ContainsFunc(slices.Collect(maps.Values(latestReport.Issues)), canary.isCanary), "the %s canary issue was not received", canary.path)
 	}
-	actual, err := normalizeHealthReport(latest.HealthReport, expected, confDir, deps.Store.IssueDiscriminator, canaries)
+	actual, err := normalizeHealthReport(latest.Data, expected, confDir, deps.Store.IssueDiscriminator, canaries)
 	require.NoError(t, err)
 	assert.JSONEq(t, expected, actual, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
 
@@ -475,18 +480,14 @@ func issueKind(issueType string) *configIssueKind {
 	return nil
 }
 
-// normalizeHealthReport returns the payload as JSON, restricted to its configuration issues, with the values that change
+// normalizeHealthReport returns the raw report, as received by the intake, restricted to its configuration issues, with the values that change
 // on every run replaced by the placeholders of the expected reports, and the configuration directory replaced by
 // expectedConfigDir. Issue IDs are
 // a hash of the issue discriminator, the configuration file and the setting path: they are checked against the readable
 // IDs of the expected report ('<prefix>:<JSON pointer>') and replaced by them.
-func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expectedReport, confDir string, discriminator func(hostID string) string, canaries []noIssueCanary) (string, error) {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
+func normalizeHealthReport(rawReport []byte, expectedReport, confDir string, discriminator func(hostID string) string, canaries []noIssueCanary) (string, error) {
 	var report map[string]any
-	if err := json.Unmarshal(encoded, &report); err != nil {
+	if err := json.Unmarshal(rawReport, &report); err != nil {
 		return "", err
 	}
 	var expected struct {
