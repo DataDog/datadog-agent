@@ -190,26 +190,6 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 	return written, nil
 }
 
-// MarshalBinary marshals a binary representation of itself
-func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
-	raw := make([]byte, 48)
-
-	var eventMask uint64
-	for _, evt := range adlc.TracedEventTypes {
-		eventMask |= 1 << (evt - FirstDiscarderEventType)
-	}
-	binary.NativeEndian.PutUint64(raw[0:8], eventMask)
-	binary.NativeEndian.PutUint64(raw[8:16], uint64(adlc.Timeout))
-	binary.NativeEndian.PutUint64(raw[16:24], adlc.WaitListTimestampRaw)
-	binary.NativeEndian.PutUint64(raw[24:32], adlc.StartTimestampRaw)
-	binary.NativeEndian.PutUint64(raw[32:40], adlc.EndTimestampRaw)
-	binary.NativeEndian.PutUint16(raw[40:42], adlc.Rate)
-	binary.NativeEndian.PutUint16(raw[42:44], 0)
-	binary.NativeEndian.PutUint32(raw[44:48], adlc.Paused)
-
-	return raw, nil
-}
-
 // MarshalBinary returns the binary representation of a path key
 func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 	buff := make([]byte, PathLeafSize)

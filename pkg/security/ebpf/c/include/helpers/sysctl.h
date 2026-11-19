@@ -66,7 +66,7 @@ static __always_inline void handle_cgroup_sysctl(struct bpf_sysctl *ctx) {
             .action = evt->action,
         }
     };
-    if (approve_syscall_with_tgid(evt->process.pid, &syscall, sysctl_approvers) == DISCARDED) {
+    if (approve_syscall(&syscall, sysctl_approvers) == DISCARDED) {
         return;
     }
 

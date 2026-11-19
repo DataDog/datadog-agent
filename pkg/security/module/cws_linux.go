@@ -30,8 +30,7 @@ func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 // DisableRuntimeSecurity disables all the runtime security features
 func DisableRuntimeSecurity(config *config.Config) {
 	config.Probe.NetworkEnabled = false
-	config.RuntimeSecurity.ActivityDumpEnabled = false
-	config.RuntimeSecurity.SecurityProfileEnabled = false
+	config.RuntimeSecurity.SecurityProfileV2Enabled = false
 	config.RuntimeSecurity.SysCtlEnabled = false
 }
 

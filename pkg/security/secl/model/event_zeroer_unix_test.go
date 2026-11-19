@@ -568,10 +568,6 @@ func createFullyPopulatedEvent() *Event {
 
 	e.MountReleased.MountID = 88
 
-	e.CgroupTracing.ContainerContext.ContainerID = "traced-container"
-	e.CgroupTracing.ContainerContext.CreatedAt = 1234567000
-	e.CgroupTracing.Pid = 5555
-
 	e.NetDevice.Device.Name = "veth0"
 	e.NetDevice.Device.NetNS = 12345
 	e.NetDevice.Device.IfIndex = 10

@@ -15,8 +15,6 @@ const (
 const (
 	// DentryResolverKernKey is the key to the kernel dentry resolver tail call program
 	DentryResolverKernKey uint32 = iota
-	// ActivityDumpFilterKey is the key to the kernel activity dump filter tail call program
-	ActivityDumpFilterKey
 	// DentryResolverKernInputs is the key to the kernel dentry segment resolver tail call program without full syscall context
 	DentryResolverKernInputs
 	// DentryResolverERPCKey is the key to the eRPC dentry resolver tail call program

@@ -47,7 +47,7 @@ enum event_type
     EVENT_INIT_MODULE,
     EVENT_DELETE_MODULE,
     EVENT_SIGNAL,
-    EVENT_CGROUP_TRACING,
+    EVENT_CGROUP_TRACING, // deprecated
     EVENT_DNS,
     EVENT_DNS_RESPONSE_SHORT,
     EVENT_DNS_RESPONSE_FULL,
@@ -111,7 +111,6 @@ enum
 
 enum
 {
-    RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
     RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
     RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
     RESOLVER_FLAG_BASENAME_APPROVED = 1 << 3, // defines that the dentry was approved by basename during the dentry resolution

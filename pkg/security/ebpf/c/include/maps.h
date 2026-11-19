@@ -52,14 +52,9 @@ BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 BPF_ARRAY_MAP(syscall_usage_ticker_sent, u64, 1)
 
-BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
-BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime
-BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
-BPF_HASH_MAP(security_profiles, u64, struct security_profile_t, 1) // max entries will be overriden at runtime
-BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 BPF_LRU_MAP(excluded_cgroups, u64, u8, 1) // host/systemd cgroup inodes the v2 syscall sampler skips; populated by userspace; max entries overridden at runtime
 BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
@@ -72,10 +67,6 @@ BPF_HASH_MAP(cgroup_mount_id, u32, u32, 1)
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
 
-BPF_LRU_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
-BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
@@ -97,8 +88,6 @@ BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096)
 BPF_LRU_MAP(io_uring_ctx_pid, void *, u64, 2048)
 BPF_LRU_MAP(veth_state_machine, u64, struct veth_state_t, 1024)
 BPF_LRU_MAP(veth_devices, struct device_ifindex_t, struct device_t, 1024)
-BPF_LRU_MAP(syscall_monitor, struct syscall_monitor_key_t, struct syscall_monitor_entry_t, 2048)
-BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
 BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256) // will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
@@ -124,7 +113,6 @@ BPF_SK_MAP(sk_storage_meta, struct sock_meta_t, BPF_F_NO_PREALLOC);
 BPF_SK_MAP(sk_storage_pid, u32, BPF_F_NO_PREALLOC | BPF_F_CLONE);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
-BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER + 1)
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER + 1)
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, struct approver_stats_t, EVENT_LAST_APPROVER + 1)

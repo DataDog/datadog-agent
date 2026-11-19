@@ -1705,7 +1705,6 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/security/security_profile": None,
     "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree": None,
     "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata": None,
-    "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump": None,
     "github.com/DataDog/datadog-agent/pkg/security/security_profile/profile": None,
     "github.com/DataDog/datadog-agent/pkg/security/security_profile/storage": None,
     "github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "requirefips", "serverless", "test"],

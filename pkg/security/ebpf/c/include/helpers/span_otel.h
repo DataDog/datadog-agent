@@ -2,6 +2,7 @@
 #define _HELPERS_SPAN_OTEL_H_
 
 #include "maps.h"
+#include "perf_ring.h"
 #include "process.h"
 
 #include "thread_pointer.h"

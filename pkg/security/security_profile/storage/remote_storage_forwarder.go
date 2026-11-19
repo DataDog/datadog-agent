@@ -14,8 +14,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -61,6 +59,3 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the activity dump handler", request.Format, selector)
 	return err
 }
-
-// SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(_ statsd.ClientInterface) {}

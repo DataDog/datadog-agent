@@ -331,19 +331,9 @@ func (e *Event) IsSavedByActivityDumps() bool {
 	return e.Flags&EventFlagsSavedByAD > 0
 }
 
-// IsActivityDumpSample return whether AD sample
-func (e *Event) IsActivityDumpSample() bool {
-	return e.Flags&EventFlagsActivityDumpSample > 0
-}
-
 // IsInProfile return true if the event was found in the profile
 func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
-}
-
-// HasActiveActivityDump returns true if the event has an active activity dump associated to it
-func (e *Event) HasActiveActivityDump() bool {
-	return e.Flags&EventFlagsHasActiveActivityDump > 0
 }
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)

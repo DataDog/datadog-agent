@@ -217,7 +217,7 @@ func TestInitData(t *testing.T) {
 		"remote_configuration.enabled":                         true,
 		"runtime_security_config.enabled":                      true,
 		"event_monitoring_config.network.enabled":              true,
-		"runtime_security_config.activity_dump.enabled":        true,
+		"runtime_security_config.security_profile.v2.enabled":  true,
 		"runtime_security_config.remote_configuration.enabled": true,
 		"network_config.enabled":                               true,
 		"traceroute.enabled":                                   true,
@@ -701,8 +701,9 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		return `
 runtime_security_config:
   enabled: true
-  activity_dump:
-    enabled: true
+  security_profile:
+    v2:
+      enabled: true
   remote_configuration:
     enabled: true
 
