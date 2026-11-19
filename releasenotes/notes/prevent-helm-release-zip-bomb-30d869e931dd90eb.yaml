@@ -8,6 +8,5 @@
 ---
 fixes:
   - |
-    limit the size of the inflated helm release content, to prevent malicious very well compressed
-    zip release content that could exaust the agent memory during inflation.
-
+    Limit the inflated size of Helm release payloads in the Helm check to 32 MiB
+    to prevent memory exhaustion from highly compressed releases or malicious payloads.
