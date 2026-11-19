@@ -342,8 +342,15 @@ mod tests {
 
     #[test]
     fn unix_socket_is_rejected() {
-        let dir = tempfile::tempdir().unwrap();
+        // sockaddr_un.sun_path holds about 100 bytes, so a long TMPDIR makes
+        // bind fail before the test reaches open_stdio_file.
+        let dir = tempfile::Builder::new().tempdir_in("/tmp").unwrap();
         let path = dir.path().join("stdio.sock");
+        assert!(
+            path.as_os_str().len() < 100,
+            "socket path is too long for bind: {}",
+            path.display()
+        );
         let _listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
         assert!(open_stdio_file(&path).is_err());
         assert!(path.exists());
@@ -381,6 +388,35 @@ mod tests {
 
     #[test]
     fn symlink_stdio_falls_back_to_inherit() {
+        const CHILD_ENV: &str = "PROCMGR_STDIO_FALLBACK_CHILD";
+        if std::env::var_os(CHILD_ENV).is_some() {
+            symlink_stdio_fallback_child();
+            return;
+        }
+
+        // The child inherits this process's stdout, so the marker must reach the parent.
+        let out = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "platform::unix::spawn::stdio::tests::symlink_stdio_falls_back_to_inherit",
+                "--nocapture",
+            ])
+            .env(CHILD_ENV, "1")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            stdout.contains("fallback_marker"),
+            "inherited stdout did not carry the marker: {stdout}"
+        );
+    }
+
+    fn symlink_stdio_fallback_child() {
         let dir = tempfile::tempdir().unwrap();
         let target = dir.path().join("target.log");
         std::fs::write(&target, "original").unwrap();
@@ -389,7 +425,7 @@ mod tests {
         let (sh, flag) = test_helpers::shell_cmd();
         let status = std::process::Command::new(sh)
             .arg(flag)
-            .arg("echo should_not_land")
+            .arg("echo fallback_marker")
             .stdout(command_stdio(link.to_str().unwrap()))
             .status()
             .unwrap();
