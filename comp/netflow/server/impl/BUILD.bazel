@@ -64,6 +64,7 @@ dd_agent_go_test(
         "//pkg/networkdevice/testutils",
         "//pkg/util/fxutil",
         "@com_github_netsampler_goflow2//utils",
+        "@com_github_prometheus_client_golang//prometheus/testutil",
         "@com_github_sirupsen_logrus//:logrus",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

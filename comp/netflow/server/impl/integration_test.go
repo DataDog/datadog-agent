@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/netsampler/goflow2/utils"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
 
@@ -477,11 +478,24 @@ func TestNetFlow_IntegrationTest_NetFlow9_TemplateEviction(t *testing.T) {
 	// Template 257 is still cached, so its flows keep reaching intake.
 	sendUntilSeen("10.3.0.1", nil, []netflow9Record{rec(257, "10.3.0.1")})
 
-	// Template 256 was evicted, so its flows are dropped until the exporter resends it.
+	// Template 256 was evicted, so its flows are dropped until the exporter resends it. A data
+	// flowset whose template is missing is skipped without a decoding error, so the decoder's
+	// counters confirm that each packet was received and decoded, rather than lost in transit,
+	// and that none of their data flowsets were decoded.
+	packetsDecoded := func() float64 {
+		return promtestutil.ToFloat64(utils.NetFlowStats.WithLabelValues("127.0.0.1", "9"))
+	}
+	dataFlowSetsDecoded := func() float64 {
+		return promtestutil.ToFloat64(utils.NetFlowSetStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet"))
+	}
+	packetsBefore, dataFlowSetsBefore := packetsDecoded(), dataFlowSetsDecoded()
 	for range 3 {
 		seq++
 		require.NoError(t, testutil.SendUDPPacket(port, buildNetFlow9Packet(seq, nil, []netflow9Record{rec(256, "10.4.0.1")})))
 	}
+	require.Eventually(t, func() bool { return packetsDecoded()-packetsBefore == 3 },
+		5*time.Second, 10*time.Millisecond, "the listener did not decode all three packets")
+	require.Equal(t, dataFlowSetsBefore, dataFlowSetsDecoded(), "a data flowset using an evicted template must not be decoded")
 
 	// Once template 256 is resent, its flows reach intake again.
 	sendUntilSeen("10.5.0.1", []uint16{256}, []netflow9Record{rec(256, "10.5.0.1")})
