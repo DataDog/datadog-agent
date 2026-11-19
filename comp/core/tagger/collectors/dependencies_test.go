@@ -280,6 +280,29 @@ func TestPreRemovalEventAlsoRecordsCurrentDependencies(t *testing.T) {
 	assert.Contains(t, kaiTags(podTags), "kai_queue:queue-c")
 }
 
+// A pod tagged before its container is in workloadmeta can't tag it. The
+// container's arrival re-tags the pod, so the container gets the pod's tags.
+func TestContainerArrivingAfterItsPodRetagsThePod(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	h.add(newKueueWorkload("job-a", "a100"))
+
+	got := h.add(newKueuePod("pod-a", "ctr-a", "job-a"))
+	require.Nil(t, tagInfoFor(got, containerTaggerID("ctr-a")), "the container isn't in workloadmeta yet")
+
+	got = h.add(newContainer("ctr-a"))
+	var fromPod *types.TagInfo
+	for _, tagInfo := range got {
+		if tagInfo.Source == podSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromPod = tagInfo
+		}
+	}
+	require.NotNil(t, fromPod, "the pod wasn't re-tagged when its container arrived")
+	assert.Contains(t, fromPod.OrchestratorCardTags, "kueue_workload:job-a")
+
+	// Once found, later changes to the container don't re-tag the pod.
+	assert.Empty(t, h.collector.dependencies.readersOf(workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "ctr-a"}))
+}
+
 type dependencyTestHarness struct {
 	store     workloadmetamock.Mock
 	collector *WorkloadMetaCollector

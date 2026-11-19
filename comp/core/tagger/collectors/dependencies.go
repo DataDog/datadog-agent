@@ -143,3 +143,13 @@ func (s *trackingStore) GetKubernetesKAIPodGroup(id string) (*workloadmeta.Kuber
 	s.track(workloadmeta.KindKubernetesKAIPodGroup, id)
 	return s.Component.GetKubernetesKAIPodGroup(id)
 }
+
+// GetContainer records the lookup only when the container isn't there yet,
+// so its arrival re-tags the reader, but its later changes don't.
+func (s *trackingStore) GetContainer(id string) (*workloadmeta.Container, error) {
+	container, err := s.Component.GetContainer(id)
+	if err != nil {
+		s.track(workloadmeta.KindContainer, id)
+	}
+	return container, err
+}

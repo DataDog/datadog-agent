@@ -342,6 +342,8 @@ func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmet
 		entity, err = c.store.GetKubernetesPod(id.ID)
 	case workloadmeta.KindKubernetesKueueWorkload:
 		entity, err = c.store.GetKubernetesKueueWorkload(id.ID)
+	case workloadmeta.KindECSTask:
+		entity, err = c.store.GetECSTask(id.ID)
 	default:
 		return nil, false
 	}
