@@ -413,13 +413,12 @@ func TestReadMetricsECC(t *testing.T) {
 				"umc_err_count": "ue: 2\nce: many\nde: 0\n",
 				"gfx_err_count": "ue: 1\nce: 2\n",
 			},
-			uncorrected: valid(1), corrected: valid(2),
 			wantErr: "umc_err_count",
 		},
-		"no readable block": {
+		"unparsable later block": {
 			ras: map[string]string{
 				"features":      features,
-				"umc_err_count": "ue: x\nce: 0\nde: 0\n",
+				"umc_err_count": "ue: 2\nce: 0\nde: 0\n",
 				"gfx_err_count": "ue: 1\n",
 			},
 			wantErr: "gfx_err_count",
@@ -472,6 +471,29 @@ func TestReadMetricsECCReadFailure(t *testing.T) {
 	assert.False(t, m.ECCCorrected.Valid)
 	assert.False(t, m.ECCDeferred.Valid)
 	assert.Equal(t, valid(37), m.GPUBusyPercent, "other metrics are unaffected")
+}
+
+// amdgpu_ras_sysfs_event_state_show fails with EINVAL without an event
+// manager: the fatal count is unknown, not absent.
+func TestReadMetricsRASEventsReadFailure(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+	fs.AddCard("card0", devDir)
+	fs.WriteFiles(filepath.Join(devDir, "ras"), map[string]string{
+		"event_state": "current seqno: 0\nFatal Error: count:0, last_seqno:0\n",
+	})
+	readRASFile = func(path string) ([]byte, error) {
+		if filepath.Base(path) == "event_state" {
+			return nil, &os.PathError{Op: "read", Path: path, Err: syscall.EINVAL}
+		}
+		return os.ReadFile(path)
+	}
+	t.Cleanup(func() { readRASFile = os.ReadFile })
+
+	m, err := discoverSingle(t, fs).ReadMetrics()
+	require.NoError(t, err)
+	assert.False(t, m.RASFatalErrors.Valid)
+	assert.True(t, m.RASFatalUnknown)
 }
 
 // The contents follow amdgpu_ras_sysfs_event_state_show and

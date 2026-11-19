@@ -67,7 +67,7 @@ type Metrics struct {
 	RASPoisonCreations    Reading
 	RASPoisonConsumptions Reading
 	// RASFatalUnknown is set when event_state exists but its fatal count
-	// could not be read or parsed.
+	// could not be read or parsed, including EINVAL.
 	RASFatalUnknown bool
 
 	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
@@ -407,10 +407,9 @@ const rasQueryInaccessible = "Query currently inaccessible"
 var readRASFile = os.ReadFile
 
 // readECC sums the error counts of the RAS blocks enabled in ras/features, as
-// amd-smi does. A block without a count attribute, or whose count cannot be
-// parsed, is left out. Nothing is reported when a count attribute cannot be
-// read: the driver fails the query during a GPU reset, and a partial sum would
-// dip.
+// amd-smi does. A block without a count attribute is left out. Nothing is
+// reported when a count attribute cannot be read or parsed: the driver fails
+// the query during a GPU reset, and a partial sum would undercount.
 func (r *reader) readECC(rasDir string, m *Metrics) {
 	featuresPath := filepath.Join(rasDir, "features")
 	features, ok := r.read(featuresPath)
@@ -451,7 +450,7 @@ func (r *reader) readECC(rasDir string, m *Metrics) {
 		counts, err := parseErrCount(content)
 		if err != nil {
 			r.errs = append(r.errs, fmt.Errorf("parse %s: %w", path, err))
-			continue
+			return
 		}
 		found = true
 		uncorrected += counts["ue"]
@@ -514,12 +513,17 @@ func (r *reader) readRASEvents(rasDir string, m *Metrics) {
 		return
 	}
 	path := filepath.Join(rasDir, "event_state")
-	errs := len(r.errs)
-	content, ok := r.read(path)
-	if !ok {
-		m.RASFatalUnknown = len(r.errs) > errs // an absent file is not an error
+	data, err := readRASFile(path)
+	if err != nil {
+		// Only an absent file means the driver does not count events. Other
+		// errors, such as EINVAL without an event manager, leave it unknown.
+		m.RASFatalUnknown = !errors.Is(err, os.ErrNotExist)
+		if !isUnsupported(err) {
+			r.errs = append(r.errs, err)
+		}
 		return
 	}
+	content := sysfsValue(data)
 	sawFatal := false
 	for line := range strings.Lines(content) {
 		name, value, _ := strings.Cut(line, ":")
