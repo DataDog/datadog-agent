@@ -868,13 +868,12 @@ int BPF_BYPASSABLE_KPROBE(kprobe__skb_consume_udp, struct sock *sk, struct sk_bu
 
 // pending_retransmit_key keys a tcp_retransmit_skb call by pid_tgid, and by CPU only when pid_tgid is 0.
 // Retransmits from timers on idle CPUs all run as pid_tgid 0, so without the CPU one call's return can pick
-// up another CPU's entry. A task's call can migrate CPUs before it returns, so its key leaves the CPU out.
+// up another CPU's entry. A task's call can migrate CPUs before it returns, so its key uses the thread id
+// instead. No constant default: clang hoists one above the bypass stub, which then can't be injected.
 static __always_inline pending_retransmit_key_t pending_retransmit_key() {
     pending_retransmit_key_t key = {};
     key.pid_tgid = bpf_get_current_pid_tgid();
-    if (key.pid_tgid == 0) {
-        key.cpu = bpf_get_smp_processor_id();
-    }
+    key.cpu = key.pid_tgid ? (u32)key.pid_tgid : bpf_get_smp_processor_id();
     return key;
 }
 
