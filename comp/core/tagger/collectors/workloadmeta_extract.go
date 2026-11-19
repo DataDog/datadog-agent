@@ -251,13 +251,19 @@ func (c *WorkloadMetaCollector) recordDependencies(ev workloadmeta.Event, depend
 
 // retagEntity re-tags an entity after a change to an entity it depends on.
 // Unlike tagEntity it leaves the entity's children alone: only the entity's
-// own events can tell that a child is gone.
+// own events can tell that a child is gone. It leaves the global tags alone
+// too: entities of a kind share their source for them, so an older event of
+// one entity would replace a newer one's.
 func (c *WorkloadMetaCollector) retagEntity(ev workloadmeta.Event) []*types.TagInfo {
 	c.store.startTracking()
 	tagInfos := c.handleKind(ev)
 	dependencies := c.store.stopTracking()
 	c.recordDependencies(ev, dependencies)
-	return tagInfos
+
+	global := types.GetGlobalEntityID()
+	return slices.DeleteFunc(tagInfos, func(tagInfo *types.TagInfo) bool {
+		return tagInfo.EntityID == global
+	})
 }
 
 func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInfo {

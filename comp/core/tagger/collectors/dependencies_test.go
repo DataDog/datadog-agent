@@ -312,6 +312,34 @@ func TestContainerMissingOnAutoscalerRetagRetagsThePodOnArrival(t *testing.T) {
 	assert.Contains(t, append(fromPod.LowCardTags, fromPod.OrchestratorCardTags...), "kube_autoscaler_kind:horizontalpodautoscaler")
 }
 
+// The global tags of ECS tasks share a source, so a re-tag of a task after a
+// dependency change must not replace them with the task's: only task events do.
+func TestECSTaskRetagLeavesGlobalTagsAlone(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	newTask := func(id, clusterARN, containerID string) *workloadmeta.ECSTask {
+		return &workloadmeta.ECSTask{
+			EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindECSTask, ID: id},
+			EntityMeta:  workloadmeta.EntityMeta{Name: id},
+			LaunchType:  workloadmeta.ECSLaunchTypeEC2,
+			ClusterName: "cluster",
+			ClusterARN:  clusterARN,
+			Containers:  []workloadmeta.OrchestratorContainer{{ID: containerID, Name: containerID}},
+		}
+	}
+	h.add(newTask("task-a", "", "ctr-a"))
+	h.add(newTask("task-b", "arn:cluster", "ctr-b"))
+
+	got := h.add(newContainer("ctr-a"))
+	var fromTask *types.TagInfo
+	for _, tagInfo := range got {
+		assert.NotEqual(t, types.GetGlobalEntityID(), tagInfo.EntityID, "the re-tag of task-a replaced the global tags")
+		if tagInfo.Source == taskSource && tagInfo.EntityID == containerTaggerID("ctr-a") && !tagInfo.DeleteEntity {
+			fromTask = tagInfo
+		}
+	}
+	require.NotNil(t, fromTask, "the container's arrival didn't re-tag task-a")
+}
+
 // A container's first event in the bundle of a partial unset of its pod
 // re-tags the pod from the pod's event, not from the store, which lost the
 // removed source's data.
