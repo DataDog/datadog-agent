@@ -12,6 +12,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -2739,6 +2741,72 @@ func keepOrphanInFinWait2(t *testing.T, c net.Conn) {
 	require.NoError(t, sockErr)
 }
 
+const (
+	procNetTCPTimeWait = 0x06
+	procNetTCPNoSocket = -1
+)
+
+// procNetTCPState returns the state of the TCP socket local->remote as /proc/net/tcp{,6} shows it,
+// or procNetTCPNoSocket if the kernel has no such socket. A timewait socket shows its substate:
+// FIN_WAIT2 until the peer's FIN arrives, then TIME_WAIT.
+func procNetTCPState(t require.TestingT, local, remote net.Addr) int {
+	want := func(a net.Addr) netip.AddrPort {
+		ap := a.(*net.TCPAddr).AddrPort()
+		return netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+	}
+	wantLocal, wantRemote := want(local), want(remote)
+	// parses a /proc/net/tcp{,6} address, e.g. 0100007F:1F90, the IP in 32-bit host-order words
+	parse := func(s string) netip.AddrPort {
+		ipHex, portHex, ok := strings.Cut(s, ":")
+		ip, err := hex.DecodeString(ipHex)
+		port, err2 := strconv.ParseUint(portHex, 16, 16)
+		if !ok || err != nil || err2 != nil || len(ip)%4 != 0 {
+			return netip.AddrPort{}
+		}
+		for i := 0; i < len(ip); i += 4 {
+			binary.BigEndian.PutUint32(ip[i:], binary.NativeEndian.Uint32(ip[i:]))
+		}
+		addr, _ := netip.AddrFromSlice(ip)
+		return netip.AddrPortFrom(addr.Unmap(), uint16(port))
+	}
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, line := range strings.Split(string(content), "\n")[1:] {
+			fields := strings.Fields(line)
+			if len(fields) < 4 || parse(fields[1]) != wantLocal || parse(fields[2]) != wantRemote {
+				continue
+			}
+			state, err := strconv.ParseUint(fields[3], 16, 8)
+			require.NoError(t, err)
+			return int(state)
+		}
+	}
+	return procNetTCPNoSocket
+}
+
+// waitForTCPTeardown waits until the client socket client->server is in TIME_WAIT and the server
+// socket server->client is gone, i.e. both full sockets have been destroyed, then runs two more
+// checks, which flush the close events of that teardown, and passes their connections to add.
+//
+// The kernel destroys a full socket (tcp_done, then tcp_v4_destroy_sock) in the same call that
+// replaces it with a timewait socket or unhashes it, so every hook that can report either side has
+// run by then, or is about to finish on another CPU. The second check, 50ms later, covers that.
+func waitForTCPTeardown(t *testing.T, tr *Tracer, client, server net.Addr, add func(*network.Connections)) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assert.Equal(collect, procNetTCPTimeWait, procNetTCPState(collect, client, server), "client socket state")
+		assert.Equal(collect, procNetTCPNoSocket, procNetTCPState(collect, server, client), "server socket state")
+	}, 5*time.Second, 10*time.Millisecond, "TCP connection not torn down")
+	for i := range 2 {
+		if i > 0 {
+			time.Sleep(50 * time.Millisecond)
+		}
+		connections, cleanup := getConnections(t, tr)
+		add(connections)
+		cleanup()
+	}
+}
+
 // TestTCPCloseReportedOnce checks that a closed TCP connection is reported closed only once, even
 // when the kernel finishes tearing down the socket well after the application closed it. Here the
 // client closes first, and its socket stays in FIN_WAIT2 until the server closes its side.
@@ -2786,20 +2854,13 @@ func (s *TracerSuite) TestTCPCloseReportedOnce() {
 		return totals.sentBytes > 0
 	}), "connection not found after the client closed it")
 
-	// The server's FIN moves the client socket to TIME_WAIT, which ends it. Keep polling until the
-	// server side has been reported closed (so the teardown really happened), plus a margin for
-	// late events.
+	// The server's FIN moves the client socket to TIME_WAIT, which ends it.
 	releaseServer()
-	var serverClosedAt time.Time
-	pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
 		totals.add(conns, clientAddr, serverAddr)
 		serverTotals.add(conns, serverAddr, clientAddr)
-		if serverClosedAt.IsZero() && serverTotals.closed > 0 {
-			serverClosedAt = time.Now()
-		}
-		return !serverClosedAt.IsZero() && time.Since(serverClosedAt) > 300*time.Millisecond
 	})
-	require.False(t, serverClosedAt.IsZero(), "server side of the connection never reported as closed")
+	require.NotZero(t, serverTotals.closed, "server side of the connection never reported as closed\n%s", strings.Join(serverTotals.reports, "\n"))
 
 	assert.Equal(t, uint16(1), totals.closed, "client side of the connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
 	assert.Equal(t, uint64(clientMessageSize), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
@@ -2866,15 +2927,9 @@ func (s *TracerSuite) TestTCPOrphanNotExpired() {
 
 	// the server's FIN moves the client socket to TIME_WAIT, which ends it
 	releaseServer()
-	var closedAt time.Time
-	pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
 		totals.add(conns, clientAddr, serverAddr)
-		if closedAt.IsZero() && totals.closed > 0 {
-			closedAt = time.Now()
-		}
-		return !closedAt.IsZero() && time.Since(closedAt) > 300*time.Millisecond
 	})
-	require.False(t, closedAt.IsZero(), "connection not reported closed\n%s", strings.Join(totals.reports, "\n"))
 
 	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
 	assert.Equal(t, uint64(len(payload)), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
@@ -2909,9 +2964,10 @@ func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
 	c, err := server.Dial()
 	require.NoError(t, err)
 	// Write until both buffers are full, which blocks the write until the deadline. Only what was
-	// written counts.
+	// written counts. The payload is generated first: under -race that takes longer than the deadline.
+	payload := genPayload(4 << 20)
 	require.NoError(t, c.SetWriteDeadline(time.Now().Add(500*time.Millisecond)))
-	written, err := c.Write(genPayload(4 << 20))
+	written, err := c.Write(payload)
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "the server's receive buffer should have filled up")
 	require.Positive(t, written)
 	tcpConn, ok := c.(*net.TCPConn)
@@ -2936,17 +2992,12 @@ func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
 		require.Fail(t, "server didn't receive the whole payload in time")
 	}
 
+	// The client socket reaches TIME_WAIT once it has received the server's FIN, after the
+	// server read everything.
 	var totals tcpConnTotals
-	var closedAt time.Time
-	pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+	waitForTCPTeardown(t, tr, c.LocalAddr(), c.RemoteAddr(), func(conns *network.Connections) {
 		totals.add(conns, c.LocalAddr(), c.RemoteAddr())
-		if closedAt.IsZero() && totals.closed > 0 {
-			closedAt = time.Now()
-		}
-		// keep polling a bit, a later check must not report the connection again
-		return !closedAt.IsZero() && time.Since(closedAt) > 300*time.Millisecond
 	})
-	require.False(t, closedAt.IsZero(), "connection not reported closed")
 
 	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
 	t.Logf("reports:\n%s", strings.Join(totals.reports, "\n"))
