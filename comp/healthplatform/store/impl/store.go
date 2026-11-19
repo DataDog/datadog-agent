@@ -103,7 +103,9 @@ type healthPlatformImpl struct {
 }
 
 type telemetryMetrics struct {
-	issuesCounter telemetry.Counter
+	issuesCounter  telemetry.Counter
+	activeIssues   telemetry.Gauge
+	issuesResolved telemetry.Counter
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -317,6 +319,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 			[]string{"issue_type", "severity"},
 			"Number of health issues detected",
 		),
+		activeIssues: reqs.Telemetry.NewGauge(
+			"health_platform", "active_issues", []string{"issue_type"}, "Number of active health issue instances"),
+		issuesResolved: reqs.Telemetry.NewCounter(
+			"health_platform", "issues_resolved", []string{"issue_type"}, "Number of health issue instances resolved"),
 	}
 
 	// Return the component wrapped in Provides with API endpoints.
@@ -485,8 +491,10 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 		if persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = time.Now().Format(time.RFC3339)
+			h.recordResolution(persisted)
 			stateChanged = true
 		}
+		h.setActiveGauge(persisted.ProtoIssueType)
 
 		resolved = &healthplatform.Issue{
 			Id:             issueID,
@@ -510,17 +518,44 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
+// setActiveGauge counts persisted active instances by proto type while issuesMux is held.
+func (h *healthPlatformImpl) setActiveGauge(issueType string) {
+	count := 0
+	for _, persisted := range h.persistedIssues {
+		if persisted != nil && persisted.IssueType != "" && persisted.State != IssueStateResolved && persisted.ProtoIssueType == issueType {
+			count++
+		}
+	}
+	h.metrics.activeIssues.Set(float64(count), metricIssueType(issueType))
+}
+
+// metricIssueType keeps telemetry tags non-empty for issues reported without a proto IssueType.
+func metricIssueType(issueType string) string {
+	if issueType == "" {
+		return "unknown"
+	}
+	return issueType
+}
+
+func (h *healthPlatformImpl) recordResolution(persisted *PersistedIssue) {
+	h.metrics.issuesResolved.Inc(metricIssueType(persisted.ProtoIssueType))
+}
+
 // ResolveAllIssues marks every active issue as resolved.
+// It counts as a resolution in telemetry, so do not call it on Agent shutdown.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
 	var resolved []*healthplatform.Issue
+	activeTypes := make(map[string]struct{})
 
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
+			h.recordResolution(persisted)
+			activeTypes[persisted.ProtoIssueType] = struct{}{}
 			resolved = append(resolved, &healthplatform.Issue{
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
@@ -533,6 +568,9 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	h.issues = make(map[string]*storedIssue)
 	h.issuesByName = make(map[string][]string)
+	for issueType := range activeTypes {
+		h.setActiveGauge(issueType)
+	}
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
@@ -650,6 +688,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.issuesByName[issueType] = appendUnique(h.issuesByName[issueType], issueID)
 
 	existing := h.persistedIssues[issueID]
+	previousIssueType := issue.IssueType
+	if existing != nil {
+		previousIssueType = existing.ProtoIssueType
+	}
 	if existing == nil {
 		h.persistedIssues[issueID] = &PersistedIssue{
 			IssueID:   issueID,
@@ -678,6 +720,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	}
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
 	h.persistedIssues[issueID].Category = issue.Category
+	h.setActiveGauge(issue.IssueType)
+	if previousIssueType != issue.IssueType {
+		h.setActiveGauge(previousIssueType)
+	}
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -746,6 +792,7 @@ func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error 
 
 	activeCount := 0
 	var resolvedIssues []*healthplatform.Issue
+	activeTypes := make(map[string]struct{})
 
 	for issueID, persisted := range state.Issues {
 		if persisted == nil {
@@ -770,7 +817,11 @@ func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error 
 		}
 
 		h.issuesByName[persisted.IssueType] = append(h.issuesByName[persisted.IssueType], issueID)
+		activeTypes[persisted.ProtoIssueType] = struct{}{}
 		activeCount++
+	}
+	for issueType := range activeTypes {
+		h.setActiveGauge(issueType)
 	}
 
 	h.issuesMux.Unlock()
