@@ -318,7 +318,7 @@ pkg_files(
     prefix = "embedded/share/system-probe/ebpf/runtime",
 )
 
-# clang-bpf only. llc-bpf stays a toolchain file.
+# clang-bpf only. llvm-strip stays a toolchain file.
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({

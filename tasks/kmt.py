@@ -109,7 +109,6 @@ DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
 CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
-LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 @task(
@@ -927,14 +926,12 @@ def _prepare(
 
     if ci:
         # In CI, these binaries are always present
-        llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
         copy_static_files = {
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
-            llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
             ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
@@ -949,9 +946,8 @@ def _prepare(
             f"--destdir={paths.dependencies / "go/bin"}",
         )
 
-        # We cannot use the pre-built local clang and llc-bpf binaries, as they
+        # We cannot use the pre-built local clang binary, as it
         # might not be built for the target architecture.
-        llc_path = paths.tools / "llc-bpf"
         clang_path = paths.tools / "clang-bpf"
         setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -976,7 +972,6 @@ def _prepare(
 
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         # Copy all test files
@@ -1507,7 +1502,6 @@ def build(
 
     assert len(domains) > 0, err_msg
 
-    llc_path = paths.tools / "llc-bpf"
     clang_path = paths.tools / "clang-bpf"
     setup_runtime_clang(ctx, arch_obj, paths.tools)
 
@@ -1515,7 +1509,6 @@ def build(
     for d in domains:
         # Copy embedded tools, make them
         embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
-        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
         d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
 
         if override_agent:

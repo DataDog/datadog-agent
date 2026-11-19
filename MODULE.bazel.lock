@@ -293,8 +293,8 @@
   "moduleExtensions": {
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "5fxk7Urrb1a3zB80rFyWD0PZpIUwVISfl2jRreztu4U=",
-        "usagesDigest": "4kw0eF8/TH5vbIHdAlyms3D6zWCp+MIB6BPECjah9I4=",
+        "bzlTransitiveDigest": "IfbRne6oFhUICuKptFU3kISvh1B+mOIM9E3jeWDYROU=",
+        "usagesDigest": "uIfkq1LlOJWSw+ut+ZSU0lzXB/30bv1b4SQiznxGdlk=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "llvm_bpf": {
@@ -306,8 +306,6 @@
               "sha256s": {
                 "clang.amd64": "fe8b6949807895ef99d112db3c83b8d093d4d4b6bc6c7cd59a4fd93a86651e7c",
                 "clang.arm64": "18fc009137b869c9b207f38c05d2651886307eecef2bb9d3aa63b8d6ca357100",
-                "llc.amd64": "cffbb2d24b0d04091bc6d12dc01ee2ae9adc2459f1b20f7f06aa3ea2aaaa65a4",
-                "llc.arm64": "7d14c81e996722f9366f70296fdf0e9120aad4c97a9b6fca6499e7f4a321121e",
                 "llvm-strip.amd64": "aea858c07cc9b719f2de087e4387d4f30a6c064d4d13cc7bf6d04d92c69339bb",
                 "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32"
               },
