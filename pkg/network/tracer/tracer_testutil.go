@@ -41,3 +41,10 @@ func (t *Tracer) ProbeRunning(name probes.ProbeFuncName) (bool, error) {
 	}
 	return pr.ProbeRunning(name), nil
 }
+
+// setMax sets how many closed NAT translations can be deferred; 0 deletes each one when its connection closes.
+func (d *deferredTranslationDeletes) setMax(n int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.max = n
+}
