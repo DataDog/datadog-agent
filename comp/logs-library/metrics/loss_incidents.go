@@ -13,9 +13,9 @@ import (
 	"github.com/benbjohnson/clock"
 )
 
-// Bounds for the loss tracker that feeds Agent Health issues. It records even when
-// Agent Health is disabled and nothing ever reads it, so it must stay bounded on
-// its own.
+// Bounds for the loss trackers that feed Agent Health issues (dropped logs and
+// rotation loss). They record even when Agent Health is disabled and nothing ever
+// reads them, so each must stay bounded on its own.
 const (
 	// lossQuietPeriod is how long a key must go without a new loss for its incident
 	// to end. An issue resolves once every key behind it has gone quiet.
@@ -37,8 +37,8 @@ const (
 	lossMaxNameLen = 64
 )
 
-// lossKey identifies what lost data: which source and service, why, and at which
-// destination.
+// lossKey identifies what lost data: which source and service, and for dropped logs
+// also why and at which destination. Rotation loss leaves those empty.
 type lossKey struct {
 	source  string
 	service string
@@ -47,7 +47,8 @@ type lossKey struct {
 	main    bool
 }
 
-// lossCounts is what one key lost: count is log lines and bytes is the data lost.
+// lossCounts is what one key lost: count is log lines for dropped logs and rotations
+// for rotation loss; bytes is the data lost.
 type lossCounts struct {
 	count int64
 	bytes int64
@@ -93,6 +94,18 @@ func newLossTracker(clk clock.Clock, overflow func(lossKey) lossKey) *lossTracke
 		overflow: overflow,
 		entries:  make(map[lossKey]*lossEntry),
 	}
+}
+
+// add records one loss. Callers bound the names in key first.
+func (t *lossTracker) add(key lossKey, counts lossCounts) {
+	if counts.empty() {
+		return
+	}
+	nowNano := t.clk.Now().UnixNano()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.addLocked(key, counts, nowNano)
 }
 
 // addAll records several losses that happened at once (one dropped payload) under

@@ -101,7 +101,7 @@ func TestCheck_SourceCountIgnoresServices(t *testing.T) {
 
 	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "Lost 4.2 MB of logs from 1 source in the last 24 hours", issue.GetTitle())
+	assert.Equal(t, "Lost 4.2 MB of logs from 1 source", issue.GetTitle())
 }
 
 // The breakdown is capped, so it must spend its slots on the worst offenders.

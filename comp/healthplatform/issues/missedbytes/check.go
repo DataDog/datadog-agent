@@ -33,8 +33,9 @@ func newChecker(hostname hostnameinterface.Component) *checker {
 	return &checker{hostname: hostname}
 }
 
-// Run summarises every tuple in the tracker's window into one issue: the backend
-// keeps a single row per {org, issue_type}. Always empty on Windows, where the
+// Run summarises every ongoing incident into one issue: the backend keeps a single
+// row per {org, issue_type}. The issue resolves once every incident has gone an
+// hour without a new loss, because the tracker then returns nothing. Always empty on Windows, where the
 // tailer holds no os.File to size a loss with.
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	// Error means "state unknown" and leaves the scheduler's active ids alone; nil
@@ -49,13 +50,16 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	}
 
 	var totalBytes, totalRotations int64
-	var lastLossAt time.Time
+	var startedAt, lastLossAt time.Time
 	// Counted here, not in BuildIssue, which only receives the capped breakdown.
 	distinctSources := make(map[string]struct{}, len(summaries))
 	for _, s := range summaries {
 		totalBytes += s.Bytes
 		totalRotations += s.Rotations
 		distinctSources[s.Source] = struct{}{}
+		if startedAt.IsZero() || s.StartedAt.Before(startedAt) {
+			startedAt = s.StartedAt
+		}
 		if s.LastLossAt.After(lastLossAt) {
 			lastLossAt = s.LastLossAt
 		}
@@ -77,6 +81,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 			contextKeyRotations:    strconv.FormatInt(totalRotations, 10),
 			contextKeySourceCount:  strconv.Itoa(len(distinctSources)),
 			contextKeyPairsOmitted: strconv.Itoa(omitted),
+			contextKeyStartedAt:    startedAt.UTC().Format(time.RFC3339),
 			contextKeyLastLossAt:   lastLossAt.UTC().Format(time.RFC3339),
 			contextKeySources:      string(encoded),
 		},

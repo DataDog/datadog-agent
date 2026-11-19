@@ -44,7 +44,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyLastLossAt:   recentTimestamp(),
 				contextKeySources:      `[{"source":"nginx","service":"web","bytes":4000000,"rotations":2},{"source":"redis","service":"cache","bytes":200000,"rotations":1},{"source":"kafka","service":"queue","bytes":512,"rotations":1}]`,
 			},
-			title: "Lost 4.2 MB of logs from 3 sources in the last 24 hours",
+			title: "Lost 4.2 MB of logs from 3 sources",
 			descSubstrs: []string{
 				"Logs from 3 sources never reached Datadog",
 				"4 log rotations closed a file",
@@ -69,7 +69,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyLastLossAt:   recentTimestamp(),
 				contextKeySources:      `[{"source":"app","service":"billing","bytes":512,"rotations":1}]`,
 			},
-			title: "Lost 512 B of logs from source app in the last 24 hours",
+			title: "Lost 512 B of logs from source app",
 			descSubstrs: []string{
 				`Logs from source "app" (service "billing") never reached Datadog`,
 				"1 log rotation closed the file",
@@ -90,7 +90,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyLastLossAt:   recentTimestamp(),
 				contextKeySources:      `[{"source":"nginx","service":"web","bytes":4000000,"rotations":1},{"source":"nginx","service":"api","bytes":200000,"rotations":1}]`,
 			},
-			title: "Lost 4.2 MB of logs from 1 source in the last 24 hours",
+			title: "Lost 4.2 MB of logs from 1 source",
 			descSubstrs: []string{
 				"Logs from 1 source never reached Datadog",
 				"Most affected: nginx/web 4.0 MB, nginx/api 200 kB.",
@@ -116,7 +116,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeyLastLossAt:   recentTimestamp(),
 				contextKeySources:      `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":600,"rotations":1},{"source":"redis","service":"cache","bytes":400,"rotations":1}]`,
 			},
-			title: "Lost 1.0 kB of logs from 192 sources in the last 24 hours",
+			title: "Lost 1.0 kB of logs from 192 sources",
 			descSubstrs: []string{
 				"Most affected: nginxDiagnosis: fake/web 600 B, redis/cache 400 B, and 190 other source/service pairs.",
 			},
@@ -131,7 +131,7 @@ func TestBuildIssue(t *testing.T) {
 		{
 			name:        "nil context falls back to defaults",
 			ctx:         nil,
-			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
+			title:       "Lost 0 B of logs from 0 sources",
 			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
 		},
 		{
@@ -143,7 +143,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeySourceCount: "1",
 				contextKeySources:     `{"not":"an array"`,
 			},
-			title:       "Lost 512 B of logs from 1 source in the last 24 hours",
+			title:       "Lost 512 B of logs from 1 source",
 			descSubstrs: []string{"Logs from 1 source never reached Datadog"},
 			extraBytes:  512,
 			extraRotate: 1,
@@ -158,7 +158,7 @@ func TestBuildIssue(t *testing.T) {
 				contextKeySourceCount: "1",
 				contextKeySources:     `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":512,"rotations":1}]`,
 			},
-			title:       "Lost 512 B of logs from source nginxDiagnosis: fake in the last 24 hours",
+			title:       "Lost 512 B of logs from source nginxDiagnosis: fake",
 			descSubstrs: []string{`Logs from source "nginxDiagnosis: fake" (service "web")`},
 			extraBytes:  512,
 			extraRotate: 1,

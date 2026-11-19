@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -18,14 +19,16 @@ import (
 )
 
 const (
-	contextKeyBytes     = "bytes_missed_24h"
-	contextKeyRotations = "rotation_count_24h"
+	contextKeyBytes     = "bytes_missed"
+	contextKeyRotations = "rotation_count"
 
 	// Distinct source names, not tuples: this is the count that reaches the prose.
 	contextKeySourceCount = "source_count"
 
 	contextKeyPairsOmitted = "source_service_pairs_omitted"
 
+	// When the earliest ongoing incident started, and the most recent loss.
+	contextKeyStartedAt  = "started_at"
 	contextKeyLastLossAt = "last_loss_at"
 
 	// Context is map[string]string, so the breakdown travels as encoded sourceLoss.
@@ -52,7 +55,10 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	sourceCount, _ := strconv.ParseInt(ctx[contextKeySourceCount], 10, 64)
 	omitted, _ := strconv.ParseInt(ctx[contextKeyPairsOmitted], 10, 64)
 
-	lastLossAt := ctx[contextKeyLastLossAt]
+	startedAt, lastLossAt := ctx[contextKeyStartedAt], ctx[contextKeyLastLossAt]
+	if startedAt == "" {
+		startedAt = logsissue.Unknown
+	}
 	if lastLossAt == "" {
 		lastLossAt = logsissue.Unknown
 	}
@@ -63,14 +69,18 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	named := sourceCount == 1 && len(sources) == 1 && omitted == 0
 
 	scope := fmt.Sprintf("%d %s", sourceCount, logsissue.Pluralize(sourceCount, "source"))
-	subject := "Logs from " + scope
+	origin := scope
 	file := "a file"
 	breakdown := describeSources(sources, omitted)
 	if named {
 		scope = "source " + sources[0].Source
-		subject = fmt.Sprintf("Logs from source %q (service %q)", sources[0].Source, sources[0].Service)
+		origin = fmt.Sprintf("source %q (service %q)", sources[0].Source, sources[0].Service)
 		file = "the file"
 		breakdown = ""
+	}
+	subject := "Logs from " + origin
+	if t, err := time.Parse(time.RFC3339, startedAt); err == nil {
+		subject = "Since " + t.UTC().Format("2006-01-02 15:04 UTC") + ", logs from " + origin
 	}
 
 	sentences := []string{
@@ -86,6 +96,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		contextKeyRotations:    rotations,
 		contextKeySourceCount:  sourceCount,
 		contextKeyPairsOmitted: omitted,
+		contextKeyStartedAt:    startedAt,
 		contextKeyLastLossAt:   lastLossAt,
 		contextKeySources:      sourcesAsExtra(sources),
 	})
@@ -96,7 +107,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	return &healthplatform.Issue{
 		IssueName: IssueName,
 		IssueType: IssueType,
-		Title: fmt.Sprintf("Lost %s of logs from %s in the last 24 hours",
+		Title: fmt.Sprintf("Lost %s of logs from %s",
 			logsissue.HumanizeBytes(bytesLost), scope),
 		// One block, no newlines or markdown: `agent diagnose` prints this verbatim
 		// behind a fixed prefix (comp/core/diagnose/format/format.go).

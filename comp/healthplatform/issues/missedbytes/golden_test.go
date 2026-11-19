@@ -15,8 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// The golden files were rendered by BuildIssue before it moved onto the shared
-// logsissue helpers, so they pin what customers read.
+// The golden files pin what customers read. Regenerate them only for an intended
+// change, and review their diff as the customer-facing part of it.
 //
 //go:embed testdata/golden/*.json
 var golden embed.FS

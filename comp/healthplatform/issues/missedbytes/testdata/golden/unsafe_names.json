@@ -1,15 +1,15 @@
 {
   "issueName": "Log Data Lost After Rotation",
-  "title": "Lost 10 B of logs from source nginxéééééééééééééééééééééééééééééééééééééééééééééééééééééééé... in the last 24 hours",
-  "description": "Logs from source \"nginxéééééééééééééééééééééééééééééééééééééééééééééééééééééééé...\" (service \"unknown\") never reached Datadog: 1 log rotation closed the file before the Agent finished reading it.",
+  "title": "Lost 10 B of logs from source nginxéééééééééééééééééééééééééééééééééééééééééééééééééééééééé...",
+  "description": "Since 2026-11-16 08:00 UTC, logs from source \"nginxéééééééééééééééééééééééééééééééééééééééééééééééééééééééé...\" (service \"unknown\") never reached Datadog: 1 log rotation closed the file before the Agent finished reading it.",
   "category": "logs_pipeline",
   "location": "logs-agent",
   "severity": "ISSUE_SEVERITY_HIGH",
   "source": "logs",
   "extra": {
-    "bytes_missed_24h": 10,
+    "bytes_missed": 10,
     "last_loss_at": "2026-11-16T10:00:00Z",
-    "rotation_count_24h": 1,
+    "rotation_count": 1,
     "source_count": 1,
     "source_service_pairs_omitted": 0,
     "sources": [
@@ -19,7 +19,8 @@
         "service": "unknown",
         "source": "nginxéééééééééééééééééééééééééééééééééééééééééééééééééééééééé..."
       }
-    ]
+    ],
+    "started_at": "2026-11-16T08:00:00Z"
   },
   "remediation": {
     "summary": "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
@@ -50,7 +51,7 @@
       },
       {
         "order": 7,
-        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."
+        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss."
       }
     ]
   },

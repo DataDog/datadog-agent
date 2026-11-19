@@ -1,18 +1,19 @@
 {
   "issueName": "Log Data Lost After Rotation",
-  "title": "Lost 0 B of logs from 0 sources in the last 24 hours",
+  "title": "Lost 0 B of logs from 0 sources",
   "description": "Logs from 0 sources never reached Datadog: 0 log rotations closed a file before the Agent finished reading it.",
   "category": "logs_pipeline",
   "location": "logs-agent",
   "severity": "ISSUE_SEVERITY_HIGH",
   "source": "logs",
   "extra": {
-    "bytes_missed_24h": 0,
+    "bytes_missed": 0,
     "last_loss_at": "unknown",
-    "rotation_count_24h": 0,
+    "rotation_count": 0,
     "source_count": 0,
     "source_service_pairs_omitted": 0,
-    "sources": []
+    "sources": [],
+    "started_at": "unknown"
   },
   "remediation": {
     "summary": "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
@@ -43,7 +44,7 @@
       },
       {
         "order": 7,
-        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."
+        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss."
       }
     ]
   },

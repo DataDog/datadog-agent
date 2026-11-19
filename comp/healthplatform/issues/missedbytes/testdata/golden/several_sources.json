@@ -1,15 +1,15 @@
 {
   "issueName": "Log Data Lost After Rotation",
-  "title": "Lost 4.2 MB of logs from 3 sources in the last 24 hours",
-  "description": "Logs from 3 sources never reached Datadog: 4 log rotations closed a file before the Agent finished reading it. Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
+  "title": "Lost 4.2 MB of logs from 3 sources",
+  "description": "Since 2026-11-16 08:00 UTC, logs from 3 sources never reached Datadog: 4 log rotations closed a file before the Agent finished reading it. Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
   "category": "logs_pipeline",
   "location": "logs-agent",
   "severity": "ISSUE_SEVERITY_HIGH",
   "source": "logs",
   "extra": {
-    "bytes_missed_24h": 4200512,
+    "bytes_missed": 4200512,
     "last_loss_at": "2026-11-16T10:00:00Z",
-    "rotation_count_24h": 4,
+    "rotation_count": 4,
     "source_count": 3,
     "source_service_pairs_omitted": 0,
     "sources": [
@@ -31,7 +31,8 @@
         "service": "queue",
         "source": "kafka"
       }
-    ]
+    ],
+    "started_at": "2026-11-16T08:00:00Z"
   },
   "remediation": {
     "summary": "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
@@ -62,7 +63,7 @@
       },
       {
         "order": 7,
-        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."
+        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log. This issue clears about an hour after the last loss."
       }
     ]
   },
