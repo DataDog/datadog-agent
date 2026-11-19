@@ -173,6 +173,12 @@ current level, new dispatchers also start at `Low`, so the first observed
 `Medium`/`High` level emits a real escalation instead of being treated as a
 pure seed.
 
+For a High escalation, `Timestamp` is when the hold starts and
+`HistoricalTimestamp` is the raw score's crossing when known. If replay
+discovers a distinct historical High, it acts at the current advance. Each
+dispatcher uses its own cooldown and, if already High, renews the hold
+without notifying its listener again.
+
 `observer.Component.SubscribeSeverityEvents` structurally satisfies
 `severityevents/def`'s `Subscriber` interface (same method signature), so any
 caller holding an `observer.Component` can be passed directly wherever a
@@ -228,6 +234,8 @@ Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `anomaly_detection.reporting.events.enabled` | `false` | Active gate for Datadog event reporting |
+| `anomaly_detection.anomaly_scorer.anomaly_reordering_window` | `10m` | How far late evidence can revise the scorer's history |
+| `anomaly_detection.anomaly_scorer.late_anomaly_behavior` | `ignore` | Drop older late evidence, or score it at the oldest replayable second with `clamp` |
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |

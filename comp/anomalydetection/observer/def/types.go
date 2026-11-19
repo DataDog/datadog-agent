@@ -465,6 +465,10 @@ type AnomalyScorerConfig struct {
 	// function is applied to the number of unique series in the window, not to the
 	// per-second event count.
 	WindowSecs int64 `json:"window_secs"`
+	// ReorderingWindowSecs bounds how far late evidence can revise the score.
+	ReorderingWindowSecs int64 `json:"anomaly_reordering_window_secs"`
+	// LateAnomalyBehavior controls late evidence older than the reordering window.
+	LateAnomalyBehavior string `json:"late_anomaly_behavior"`
 	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
 	LowThreshold float64 `json:"low_threshold"`
 	// HighThreshold is the EWMA level defining the Medium/High severity boundary.

@@ -20,15 +20,17 @@ import (
 )
 
 type scorerConfigReader struct {
-	ints map[string]int
+	ints      map[string]int
+	durations map[string]time.Duration
+	strings   map[string]string
 }
 
-func (r scorerConfigReader) GetBool(string) bool              { return false }
-func (r scorerConfigReader) GetInt(key string) int            { return r.ints[key] }
-func (r scorerConfigReader) GetFloat64(string) float64        { return 0 }
-func (r scorerConfigReader) GetString(string) string          { return "" }
-func (r scorerConfigReader) GetDuration(string) time.Duration { return 0 }
-func (r scorerConfigReader) IsConfigured(string) bool         { return false }
+func (r scorerConfigReader) GetBool(string) bool                  { return false }
+func (r scorerConfigReader) GetInt(key string) int                { return r.ints[key] }
+func (r scorerConfigReader) GetFloat64(string) float64            { return 0 }
+func (r scorerConfigReader) GetString(key string) string          { return r.strings[key] }
+func (r scorerConfigReader) GetDuration(key string) time.Duration { return r.durations[key] }
+func (r scorerConfigReader) IsConfigured(string) bool             { return false }
 
 // makeAnomaly is a test helper that creates an anomaly with the given detector,
 // timestamp, and optional score.
@@ -47,6 +49,101 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func TestReadAnomalyScorerReorderingWindow(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+	for _, tc := range []struct {
+		duration time.Duration
+		want     int64
+	}{
+		{0, 600},
+		{-time.Second, 600},
+		{500 * time.Millisecond, 600},
+		{1500 * time.Millisecond, 600},
+		{time.Second, 1},
+		{3 * time.Minute, 180},
+		{time.Hour, 3600},
+		{time.Hour + time.Second, 600},
+	} {
+		t.Run(tc.duration.String(), func(t *testing.T) {
+			cfg := readAnomalyScorerConfig(scorerConfigReader{
+				durations: map[string]time.Duration{prefix + "anomaly_reordering_window": tc.duration},
+			}, prefix)
+			require.Equal(t, tc.want, cfg.ReorderingWindowSecs)
+			require.EqualValues(t, 15, cfg.WindowSecs)
+		})
+	}
+}
+
+func TestScorerUsesConfiguredReorderingWindow(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.Advance(1000)
+	s.Advance(1003)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	s.Advance(1004)
+	require.Len(t, s.replay.checkpoints, 4)
+	require.NotContains(t, s.replay.journal, int64(1001))
+	require.Contains(t, s.replay.journal, int64(1002))
+
+	for _, seconds := range []int64{0, -1, 3601} {
+		cfg.ReorderingWindowSecs = seconds
+		s := NewAnomalyScorer(cfg).(*anomalyScorer)
+		require.EqualValues(t, 600, s.ScoreState().Config.ReorderingWindowSecs)
+	}
+}
+
+func TestScorerLateAnomalyBehaviorConfig(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+	for _, tc := range []struct{ input, want string }{
+		{"", "ignore"}, {"unknown", "ignore"}, {"ignore", "ignore"}, {"clamp", "clamp"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			cfg := readAnomalyScorerConfig(scorerConfigReader{
+				strings: map[string]string{prefix + "late_anomaly_behavior": tc.input},
+			}, prefix)
+			require.Equal(t, tc.want, cfg.LateAnomalyBehavior)
+			cfg.LateAnomalyBehavior = tc.input
+			require.Equal(t, tc.want, NewAnomalyScorer(cfg).ScoreState().Config.LateAnomalyBehavior)
+		})
+	}
+}
+
+func BenchmarkAnomalyScorerAdvance(b *testing.B) {
+	for _, tc := range []struct {
+		name     string
+		detector string
+		series   int
+		delay    int64
+	}{
+		{name: "BOCPDSteady", detector: "bocpd", series: 4},
+		{name: "ScanMWDenseLate", detector: "scanmw", series: 32, delay: 120},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			scorer := NewAnomalyScorer(DefaultAnomalyScorerConfig())
+			const first = int64(1000)
+			scorer.Advance(first - tc.delay - 1)
+			scorer.Advance(first - 1)
+			inputs := make([]observer.Anomaly, tc.series)
+			for i := range inputs {
+				inputs[i] = makeAnomaly(tc.detector, 0, scorePtr(20))
+				inputs[i].SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(i + 1)}
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				sec := first + int64(i)
+				for _, input := range inputs {
+					input.Timestamp = sec - tc.delay
+					scorer.ProcessAnomaly(input)
+				}
+				scorer.Advance(sec)
+			}
+		})
+	}
+}
 
 func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
 	const prefix = "anomaly_detection.anomaly_scorer."
@@ -640,6 +737,52 @@ func TestReplayLateInputsUsesNextAdvanceCutoff(t *testing.T) {
 	require.Len(t, s.openEpisode.Anomalies, 1)
 	require.Len(t, s.topAnomalies.entries, 1)
 	require.Equal(t, latest, s.topAnomalies.entries[0].timestamp)
+}
+
+func TestClampUsesOldestSecondOfNextAdvance(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 4
+	cfg.LateAnomalyBehavior = "clamp"
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.enableHistory()
+	s.Advance(1002)
+	s.Advance(1007)
+
+	// One arrival is already too old; another ages out before the next advance.
+	for _, sec := range []int64{1000, 1005, 1007} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	s.Advance(1009)
+	require.Len(t, s.replay.journal[1006], 2)
+	require.Len(t, s.replay.journal[1007], 1)
+	require.NotContains(t, s.replay.journal, int64(1000))
+	require.NotContains(t, s.replay.journal, int64(1005))
+	history := s.historyState()
+	require.Len(t, history.Inputs, 3)
+	require.EqualValues(t, 1006, history.Inputs[0].ScoringSecond)
+	require.EqualValues(t, 1000, history.Inputs[0].Anomaly.Timestamp)
+	require.EqualValues(t, 1006, history.Inputs[1].ScoringSecond)
+	require.EqualValues(t, 1007, history.Inputs[2].ScoringSecond)
+}
+
+func TestClampAcrossCatchupTriggersAtDiscovery(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "clamp"
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 999, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1005, nil))
+	s.Advance(1020)
+	require.Len(t, listener.events, 3)
+	require.EqualValues(t, 1005, listener.events[0].Timestamp)
+	require.EqualValues(t, 1006, listener.events[1].Timestamp)
+	require.EqualValues(t, 1020, listener.events[2].Timestamp)
+	require.EqualValues(t, 1018, listener.events[2].HistoricalTimestamp)
 }
 
 func TestReplayDoesNotRedeliverScoredTransitions(t *testing.T) {

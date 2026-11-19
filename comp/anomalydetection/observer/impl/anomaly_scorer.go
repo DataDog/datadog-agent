@@ -427,12 +427,14 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
-			Alpha:         0.014,
-			SaturationK:   5.0,
-			WindowSecs:    window,
-			LowThreshold:  0.15,
-			HighThreshold: 0.40,
-			MarginPct:     0.20,
+			Alpha:                0.014,
+			SaturationK:          5.0,
+			WindowSecs:           window,
+			ReorderingWindowSecs: defaultAnomalyReorderingWindowSecs,
+			LateAnomalyBehavior:  lateAnomalyIgnore,
+			LowThreshold:         0.15,
+			HighThreshold:        0.40,
+			MarginPct:            0.20,
 			// MaxBuckets intentionally left at zero: the trim logic defaults to WindowSecs.
 			DetectorThresholds: map[string][4]float64{
 				// tukey_biweight scores cap hard at ~50 across all scenarios.
@@ -485,6 +487,22 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 		d = time.Duration(defaults.WindowSecs) * time.Second
 	}
 	ewma.WindowSecs = int64(d.Seconds())
+
+	key = prefix + "anomaly_reordering_window"
+	d = r.GetDuration(key)
+	if seconds := int64(d / time.Second); d%time.Second != 0 || !validReorderingWindow(seconds) {
+		logging.Warnf("anomaly scorer: %s must be a whole number of seconds from 1s to 1h, got %s; using %s",
+			key, d, time.Duration(defaults.ReorderingWindowSecs)*time.Second)
+	} else {
+		ewma.ReorderingWindowSecs = seconds
+	}
+
+	key = prefix + "late_anomaly_behavior"
+	if behavior := r.GetString(key); validLateAnomalyBehavior(behavior) {
+		ewma.LateAnomalyBehavior = behavior
+	} else if behavior != "" {
+		logging.Warnf("anomaly scorer: %s must be ignore or clamp, got %q; using %q", key, behavior, defaults.LateAnomalyBehavior)
+	}
 
 	ewma.LowThreshold = r.GetFloat64(prefix + "low_threshold")
 	ewma.HighThreshold = r.GetFloat64(prefix + "high_threshold")
@@ -651,6 +669,12 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	defaults := DefaultAnomalyScorerConfig()
 	if cfg.WindowSecs < 1 {
 		cfg.WindowSecs = defaults.WindowSecs
+	}
+	if !validReorderingWindow(cfg.ReorderingWindowSecs) {
+		cfg.ReorderingWindowSecs = defaults.ReorderingWindowSecs
+	}
+	if !validLateAnomalyBehavior(cfg.LateAnomalyBehavior) {
+		cfg.LateAnomalyBehavior = defaults.LateAnomalyBehavior
 	}
 	if cfg.Alpha <= 0 || cfg.Alpha >= 1 {
 		cfg.Alpha = defaults.Alpha
@@ -833,20 +857,21 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.replay != nil && a.Timestamp <= s.lastAdvancedSec {
-		if a.Timestamp > 0 && a.Timestamp > s.lastAdvancedSec-s.replay.windowSecs() {
+		if a.Timestamp > 0 && (s.config.LateAnomalyBehavior == lateAnomalyClamp ||
+			a.Timestamp > s.lastAdvancedSec-s.replay.windowSecs()) {
 			s.late = append(s.late, a)
 		}
 		return
 	}
 	s.pending[a.Timestamp] = append(s.pending[a.Timestamp], a)
-	s.recordAnomaly(a)
+	s.recordAnomaly(a, a.Timestamp)
 }
 
 // recordAnomaly tracks accepted evidence for history and an open episode.
-func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly) {
+func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly, scoringSecond int64) {
 	if s.history != nil {
 		s.history.inputs = append(s.history.inputs, ScorerHistoryInput{
-			ScoringSecond: a.Timestamp,
+			ScoringSecond: scoringSecond,
 			Anomaly:       a,
 		})
 	}
@@ -883,7 +908,15 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		}
 	}
 
-	late, missedHigh := s.replayLateInputs(dataTime)
+	// If a catch-up puts the clamp point in unscored time, score the forward
+	// ticks first, then apply the correction at discovery rather than backdating it.
+	deferReplay := len(s.late) > 0 && s.config.LateAnomalyBehavior == lateAnomalyClamp &&
+		start <= dataTime-s.replay.windowSecs()+1
+	var late []observerdef.Anomaly
+	var missedHigh int64
+	if !deferReplay {
+		late, missedHigh = s.replayLateInputs(dataTime)
+	}
 
 	// Collect per-second EWMA values and derived raw severity levels to feed
 	// the dispatcher after releasing the scorer lock.
@@ -891,11 +924,17 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	for sec := start; sec <= dataTime; sec++ {
 		states = append(states, s.advanceSecond(sec))
 	}
+	s.lastAdvancedSec = dataTime
+	if deferReplay {
+		late, missedHigh = s.replayLateInputs(dataTime)
+		last := &states[len(states)-1]
+		last.ewma = s.score.ewma
+		last.level = s.score.level
+		last.enteredHigh = last.enteredHigh && last.level == severityeventsdef.SeverityHigh
+	}
 	if s.topAnomalies != nil && len(late) > 0 {
 		s.topAnomalies.update(dataTime, late, s.config.AnomalyScorerConfig)
 	}
-	s.lastAdvancedSec = dataTime
-
 	s.mu.Unlock()
 
 	// Push EWMA gauge for the last second of this advance tick.
@@ -1083,7 +1122,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) secState {
 		}
 	}
 	if s.replay == nil {
-		s.replay = newScorerReplayHistory(defaultAnomalyReorderingWindowSecs, cfg.WindowSecs)
+		s.replay = newScorerReplayHistory(cfg.ReorderingWindowSecs, cfg.WindowSecs)
 		s.replay.firstSecond = sec
 		s.replay.saveCheckpoint(sec-1, s.score)
 	}
@@ -1185,7 +1224,20 @@ func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorer
 	}, scoringState{ewma: ewma, level: level, initialized: true}
 }
 
-const defaultAnomalyReorderingWindowSecs = 10 * 60
+const (
+	defaultAnomalyReorderingWindowSecs = 10 * 60
+	maxAnomalyReorderingWindowSecs     = 60 * 60
+	lateAnomalyIgnore                  = "ignore"
+	lateAnomalyClamp                   = "clamp"
+)
+
+func validLateAnomalyBehavior(behavior string) bool {
+	return behavior == lateAnomalyIgnore || behavior == lateAnomalyClamp
+}
+
+func validReorderingWindow(seconds int64) bool {
+	return seconds >= 1 && seconds <= maxAnomalyReorderingWindowSecs
+}
 
 // scoringInput is the evidence needed to score an anomaly. It retains no payload or attribution.
 type scoringInput struct {
@@ -1278,17 +1330,21 @@ func (s *anomalyScorer) replayLateInputs(dataTime int64) ([]observerdef.Anomaly,
 		return nil, 0
 	}
 	h := s.replay
-	cutoff := dataTime - h.windowSecs()
+	oldest := dataTime - h.windowSecs() + 1
 	start := s.lastAdvancedSec
 	accepted := s.late[:0]
 	for _, a := range s.late {
-		if a.Timestamp <= cutoff {
-			continue
+		sec := a.Timestamp
+		if sec < oldest {
+			if s.config.LateAnomalyBehavior != lateAnomalyClamp {
+				continue
+			}
+			sec = oldest
 		}
 		h.ensureJournal()
-		h.journal[a.Timestamp] = append(h.journal[a.Timestamp], scoringEvidence(a, s.config.AnomalyScorerConfig))
-		start = min(start, a.Timestamp)
-		s.recordAnomaly(a)
+		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, s.config.AnomalyScorerConfig))
+		start = min(start, sec)
+		s.recordAnomaly(a, sec)
 		accepted = append(accepted, a)
 	}
 	s.late = nil
