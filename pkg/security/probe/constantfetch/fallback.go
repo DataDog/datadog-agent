@@ -281,8 +281,10 @@ func getNoHzOffset() uint64 {
 	return 8
 }
 
+// 4.19 added the `multiprocess` hlist_head before group_exit_code. PREEMPT_RT kernels have
+// a different layout (+40) that the version alone can't tell; they need BTF or BTFHub.
 func getSignalGroupExitCodeOffset(kv *kernel.Version) uint64 {
-	if kv.Code != 0 && kv.Code < kernel.Kernel5_1 {
+	if kv.Code != 0 && kv.Code < kernel.Kernel4_19 {
 		return 88
 	}
 	return 96
