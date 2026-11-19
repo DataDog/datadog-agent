@@ -404,9 +404,9 @@ func TestRun_withCollectEvents(t *testing.T) {
 
 	// Delete the release (all revisions) and check that it creates the
 	// appropriate event.
-	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), rel.Name+".1", metav1.DeleteOptions{})
+	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), helmStorageKey(rel.Name, 1), metav1.DeleteOptions{})
 	require.NoError(t, err)
-	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), rel.Name+".2", metav1.DeleteOptions{})
+	err = k8sClient.CoreV1().Secrets("default").Delete(context.TODO(), helmStorageKey(rel.Name, 2), metav1.DeleteOptions{})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { // Wait until the delete events have been processed (store should be empty)
 		return len(check.store.getAll(k8sSecrets)) == 0
@@ -739,7 +739,7 @@ func TestCompactInformerCache(t *testing.T) {
 				require.Contains(t, events[1].Tags, "helm_revision:1")
 				require.Contains(t, events[1].Tags, "helm_revision:custom")
 
-				require.NoError(t, client.Tracker().Delete(resource, "default", "app.1"))
+				require.NoError(t, client.Tracker().Delete(resource, "default", helmStorageKey("app", 1)))
 				synctest.Wait()
 				require.Empty(t, check.store.getAll(storage))
 				require.Empty(t, informer.GetStore().List())
@@ -777,19 +777,56 @@ func TestCachedReleaseTombstone(t *testing.T) {
 }
 
 func TestTransformInvalidRelease(t *testing.T) {
+	badName := helmStorageKey("bad", 1)
 	for _, obj := range []interface{}{
-		&v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "bad", Labels: map[string]string{"owner": "helm"}}, Data: map[string]string{"release": "invalid"}},
-		&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "bad", Labels: map[string]string{"owner": "helm"}}, Data: map[string][]byte{"release": []byte("invalid")}},
+		&v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: badName, Labels: map[string]string{"owner": "helm"}}, Data: map[string]string{"release": "invalid"}},
+		&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: badName, Labels: map[string]string{"owner": "helm"}}, Data: map[string][]byte{"release": []byte("invalid")}},
 	} {
 		check := newCheck().(*HelmCheck)
 		transformed, err := check.transformRelease(obj)
 		require.NoError(t, err, "invalid payloads must not prevent informer synchronization")
 		cached := transformed.(*cachedRelease)
-		require.Equal(t, "bad", cached.Name)
+		require.Equal(t, badName, cached.Name)
 		require.Nil(t, cached.taggedRelease)
 		check.addRelease(cached)
 		check.deleteRelease(cached)
 		require.Empty(t, check.store.getAll(cached.storage))
+	}
+}
+
+// TestTransformWrongName ensures a Secret or ConfigMap that carries the
+// owner=helm label but whose name does not match Helm's storage-key pattern
+// (e.g. one planted by an untrusted tenant to reach the release decoder) is
+// never decoded.
+func TestTransformWrongName(t *testing.T) {
+	rel := release{Name: "app", Namespace: "default", Version: 1}
+	encoded, err := encodeRelease(&rel)
+	require.NoError(t, err)
+
+	for _, name := range []string{
+		"app.1",                     // Missing the sh.helm.release.v1 prefix.
+		"sh.helm.release.v1.app",    // Missing the .v<revision> suffix.
+		"sh.helm.release.v2.app.v1", // Wrong storage type version.
+		"owner-helm-but-not-helm",
+	} {
+		objects := []interface{}{
+			&v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"owner": "helm"}},
+				Data:       map[string][]byte{"release": []byte(encoded)},
+			},
+			&v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"owner": "helm"}},
+				Data:       map[string]string{"release": encoded},
+			},
+		}
+		for _, obj := range objects {
+			check := newCheck().(*HelmCheck)
+			transformed, err := check.transformRelease(obj)
+			require.NoError(t, err)
+			cached := transformed.(*cachedRelease)
+			require.Equal(t, name, cached.Name)
+			require.Nilf(t, cached.taggedRelease, "%T named %q must not be decoded", obj, name)
+		}
 	}
 }
 
@@ -803,14 +840,18 @@ func secretForRelease(rls *release, creationTS time.Time) (*v1.Secret, error) {
 
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			// The name is not important for this test. We only need to make
-			// sure that there are no collisions.
-			Name:              fmt.Sprintf("%s.%d", rls.Name, rls.Version),
+			Name:              helmStorageKey(rls.Name, rls.Version),
 			Labels:            map[string]string{"owner": "helm"},
 			CreationTimestamp: metav1.NewTime(creationTS),
 		},
 		Data: map[string][]byte{"release": []byte(encodedRel)},
 	}, nil
+}
+
+// helmStorageKey reproduces the name Helm v3 gives to the Secret or ConfigMap
+// that stores a release, so test objects pass isManagedByHelm's name check.
+func helmStorageKey(name string, version int) string {
+	return fmt.Sprintf("sh.helm.release.v1.%s.v%d", name, version)
 }
 
 // configMapForRelease returns a configmap that contains the info of the given
@@ -823,9 +864,7 @@ func configMapForRelease(rls *release) (*v1.ConfigMap, error) {
 
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			// The name is not important for this test. We only need to make
-			// sure that there are no collisions.
-			Name:   fmt.Sprintf("%s.%d", rls.Name, rls.Version),
+			Name:   helmStorageKey(rls.Name, rls.Version),
 			Labels: map[string]string{"owner": "helm"},
 		},
 		Data: map[string]string{"release": encodedRel},

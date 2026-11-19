@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -386,8 +387,21 @@ func (hc *HelmCheck) deleteRelease(obj interface{}) {
 	}
 }
 
+// helmStorageKeyRegexp matches the name Helm v3 gives to the Secret or
+// ConfigMap that stores a release: "sh.helm.release.v1.<release>.v<revision>".
+// Helm builds this name with the unexported storage.makeKey, so we reproduce
+// the pattern here rather than importing the Helm module (same rationale as
+// decodeRelease in release.go).
+// Ref: https://github.com/helm/helm/blob/v3.22.1/pkg/storage/storage.go#L35-L253
+var helmStorageKeyRegexp = regexp.MustCompile(`^sh\.helm\.release\.v1\..+\.v[0-9]+$`)
+
+// isManagedByHelm reports whether the object is a Helm v3 release storage
+// object. The informer already filters on the owner=helm label, but that label
+// can be set by any object in any namespace, so we also require the name to
+// match Helm's storage-key pattern before feeding its payload to decodeRelease.
 func isManagedByHelm(object metav1.Object) bool {
-	return object.GetLabels()["owner"] == "helm"
+	return object.GetLabels()["owner"] == "helm" &&
+		helmStorageKeyRegexp.MatchString(object.GetName())
 }
 
 func isLeader() (bool, error) {
