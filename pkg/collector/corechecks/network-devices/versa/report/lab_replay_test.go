@@ -422,3 +422,102 @@ func TestLabResponsesReplayValues(t *testing.T) {
 		})
 	}
 }
+
+// The lab circuit QoS capture has buckets with nonzero drops, where Versa's own
+// timeseries percentdrop is 0. Timeseries submits totaldrop/volume-tx for those buckets,
+// tableData keeps Versa's value, and both are the same fraction over the whole window.
+func TestLabCircuitQoSPercentDrop(t *testing.T) {
+	ep := labEndpoints[1]
+	require.Equal(t, "cos", ep.name)
+
+	var series client.AnalyticsTimeseriesResponse
+	require.NoError(t, json.Unmarshal(readLab(t, "cos_timeseries"), &series))
+	values := map[string]map[string]map[float64]float64{} // entity, metric, seconds
+	for _, s := range series.Data {
+		if values[s.Name] == nil {
+			values[s.Name] = map[string]map[float64]float64{}
+		}
+		values[s.Name][s.Metric] = map[float64]float64{}
+		for _, p := range s.Data {
+			values[s.Name][s.Metric][p[0].(float64)/1000] = p[1].(float64)
+		}
+	}
+
+	submitted, _, _ := submissions(t, ep, client.QueryTypeTimeseries)
+	var withDrops int
+	for _, s := range submitted[versaMetricPrefix+"circuit_qos.percent_drop"] {
+		drop := values[s.key]["totaldrop"][s.ts]
+		volume := values[s.key]["volume-tx"][s.ts]
+		assert.Equal(t, drop/volume, s.value, "%s at %v", s.key, s.ts)
+		if drop > 0 {
+			withDrops++
+			assert.Zero(t, values[s.key]["percentdrop"][s.ts], "Versa's timeseries percentdrop")
+			assert.Positive(t, s.value)
+		}
+	}
+	assert.Positive(t, withDrops, "published buckets with drops")
+
+	var table client.AnalyticsMetricsResponse
+	require.NoError(t, json.Unmarshal(readLab(t, "cos_tableData"), &table))
+	tableSubmitted, _, _ := submissions(t, ep, client.QueryTypeTableData)
+	tableDrop := map[string]float64{}
+	for _, s := range tableSubmitted[versaMetricPrefix+"circuit_qos.percent_drop"] {
+		tableDrop[s.key] = s.value
+	}
+	for _, row := range table.AaData {
+		key := row[0].(string)
+		// Columns 15 to 17 are volume-tx, totaldrop and percentdrop. Versa's tableData
+		// percentdrop is passed through unchanged.
+		assert.Equal(t, row[17].(float64), tableDrop[key], key)
+
+		// Over the whole window, the timeseries buckets add up to the tableData row, so
+		// their drop over volume is the tableData fraction. The comparison uses every
+		// bucket, including the newest one the check holds back.
+		var drop, volume float64
+		for ts, v := range values[key]["totaldrop"] {
+			drop += v
+			volume += values[key]["volume-tx"][ts]
+		}
+		assert.Equal(t, row[16].(float64), drop, key)
+		assert.Equal(t, row[15].(float64), volume, key)
+		if volume > 0 {
+			assert.InDelta(t, row[17].(float64), drop/volume, 1e-12, key)
+		}
+	}
+}
+
+// Site metrics use tableData. Their tags come straight from the row, including an
+// address that contains commas.
+func TestLabSiteTableData(t *testing.T) {
+	var table client.AnalyticsMetricsResponse
+	require.NoError(t, json.Unmarshal(readLab(t, "site_tableData"), &table))
+	ep := labEndpoint{name: "site", prefix: "linkusage(site,site.address"}
+	c, counts := labClient(t, ep, client.QueryTypeTimeseries)
+	metrics, err := c.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{client.QueryTypeTableData: 1}, counts)
+
+	ms := mocksender.NewMockSender(t, "testID")
+	ms.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	NewSender(ms, "default").SendSiteMetrics("datadog", metrics, nil)
+
+	var want, got []string
+	var commaAddress bool
+	for _, row := range table.AaData {
+		address := row[1].(string)
+		commaAddress = commaAddress || strings.Contains(address, ",")
+		tags := []string{"site:" + row[0].(string), "address:" + address, "latitude:" + row[2].(string), "longitude:" + row[3].(string), "location_source:" + row[4].(string)}
+		for range 5 {
+			want = append(want, strings.Join(tags, "|"))
+		}
+	}
+	for _, call := range ms.Calls {
+		if call.Method == "Gauge" {
+			got = append(got, strings.Join(call.Arguments.Get(3).([]string), "|"))
+		}
+	}
+	require.True(t, commaAddress, "fixture has an address with commas")
+	sort.Strings(want)
+	sort.Strings(got)
+	assert.Equal(t, want, got)
+}
