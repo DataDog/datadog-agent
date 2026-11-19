@@ -71,7 +71,7 @@ func newCheckSampler(
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities, !sketchesAtCommit),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		pendingSketches:        make(contextSketches),
 		sketchesPerTimestamp:   newSketchesPerTimestamp(sketchesAtCommit),

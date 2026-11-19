@@ -23,14 +23,15 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
-	Name           string
-	Host           string
-	mtype          metrics.MetricType
-	taggerTags     *tags.Entry
-	metricTags     *tags.Entry
-	noIndex        bool
-	tagFilterFlags tagFilterFlags
-	source         metrics.MetricSource
+	Name       string
+	Host       string
+	mtype      metrics.MetricType
+	taggerTags *tags.Entry
+	metricTags *tags.Entry
+	noIndex    bool
+	// filterable is set on check sampler contexts that got samples of a type whose tags can be filtered at output.
+	filterable bool
+	source     metrics.MetricSource
 
 	filteredIdentityRef uint32
 }
@@ -108,8 +109,6 @@ type contextResolver struct {
 	tagFilterEnabled bool
 	// filteredIdentities is set for check samplers, which keep the full tags of contexts and filter only their output.
 	filteredIdentities *filteredIdentityTable
-	// sketchesPerTimestamp is set when check_sampler_sketches_at_commit is off: the check sampler's sketches aren't filtered.
-	sketchesPerTimestamp bool
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -124,26 +123,24 @@ func tagFilterEnabled(cfg model.Reader) bool {
 }
 
 // newContextResolver returns a resolver. filteredIdentities is set for check samplers, which keep the full tags of
-// contexts and filter only their output, and sketchesPerTimestamp when their sketches are stamped per second of
-// submission.
-func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, filteredIdentities *filteredIdentityTable, sketchesPerTimestamp bool) *contextResolver {
+// contexts and filter only their output.
+func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, filteredIdentities *filteredIdentityTable) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
 	return &contextResolver{
-		id:                   id,
-		contextsByKey:        make(map[ckey.ContextKey]resolverEntry),
-		seendByMtype:         make([]bool, metrics.NumMetricTypes),
-		countsByMtype:        make([]uint64, metrics.NumMetricTypes),
-		bytesByMtype:         make([]uint64, metrics.NumMetricTypes),
-		dataBytesByMtype:     make([]uint64, metrics.NumMetricTypes),
-		tagsCache:            cache,
-		tagger:               tagger,
-		keyGenerator:         ckey.NewKeyGenerator(),
-		taggerBuffer:         tagset.NewHashingTagsAccumulator(),
-		metricBuffer:         tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:       newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
-		tagFilterEnabled:     tagFilterEnabled(cfg),
-		filteredIdentities:   filteredIdentities,
-		sketchesPerTimestamp: sketchesPerTimestamp,
+		id:                 id,
+		contextsByKey:      make(map[ckey.ContextKey]resolverEntry),
+		seendByMtype:       make([]bool, metrics.NumMetricTypes),
+		countsByMtype:      make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:       make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype:   make([]uint64, metrics.NumMetricTypes),
+		tagsCache:          cache,
+		tagger:             tagger,
+		keyGenerator:       ckey.NewKeyGenerator(),
+		taggerBuffer:       tagset.NewHashingTagsAccumulator(),
+		metricBuffer:       tagset.NewHashingTagsAccumulator(),
+		tagFilterCache:     newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterEnabled:   tagFilterEnabled(cfg),
+		filteredIdentities: filteredIdentities,
 	}
 }
 
@@ -332,7 +329,7 @@ type timestampContextResolver struct {
 
 func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id string, contextExpireTime, counterExpireTime int64) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver: newContextResolver(tagger, cache, id, nil, false),
+		resolver: newContextResolver(tagger, cache, id, nil),
 
 		contextExpireTime: contextExpireTime,
 		counterExpireTime: counterExpireTime,
@@ -392,9 +389,9 @@ type countBasedContextResolver struct {
 
 // newCountBasedContextResolver returns a resolver that records in filteredIdentities, if it's set, the identities
 // contexts filter to at output, instead of tracking filtered contexts.
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, filteredIdentities *filteredIdentityTable, sketchesPerTimestamp bool) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, filteredIdentities *filteredIdentityTable) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(tagger, cache, id, filteredIdentities, sketchesPerTimestamp),
+		resolver:            newContextResolver(tagger, cache, id, filteredIdentities),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}

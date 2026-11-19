@@ -80,7 +80,7 @@ func flushSampler(cs *CheckSampler) samplerOutput {
 }
 
 func TestContextFitsIn64Bytes(t *testing.T) {
-	// The filtered identity reference and the output flags live in Context's padding.
+	// The filtered identity reference and the filterable flag live in Context's padding.
 	assert.Equal(t, uintptr(64), unsafe.Sizeof(Context{}))
 }
 
@@ -171,8 +171,8 @@ func TestCheckSamplerRefiltersWhenRulesChange(t *testing.T) {
 }
 
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
-// context. Once a context gets samples of a type that can't be filtered, none of its output is filtered.
-func TestCheckSamplerDoesNotFilterContextsSharedWithOtherTypes(t *testing.T) {
+// context. The distribution's sketch is filtered, and the other type's series keep their tags.
+func TestCheckSamplerFiltersOnlyMergeableOutputOfSharedContexts(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	flushMatcher := metricname.NewMatcher(nil, false)
 	histogram := podSample("my.metric", metrics.HistogramType, "a", 1, 100)
@@ -196,40 +196,15 @@ func TestCheckSamplerDoesNotFilterContextsSharedWithOtherTypes(t *testing.T) {
 			out := flushSampler(cs)
 
 			assert.Empty(t, out.mergedSeries)
-			assert.Empty(t, out.mergedSketches)
-			require.Len(t, out.sketches, 1)
-			assert.Contains(t, tagsOf(out.sketches[0].Tags), "pod:a")
+			assert.Empty(t, out.sketches)
+			require.Len(t, out.mergedSketches, 1)
+			assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(out.mergedSketches[0].sketch.Tags))
+			require.NotEmpty(t, out.series)
 			for _, s := range out.series {
 				assert.Contains(t, tagsOf(s.Tags), "pod:a", s.Name)
 			}
-			assert.Empty(t, table.byKey, "the identity the context filtered to is released")
+			assert.Len(t, table.byKey, 1)
 		})
-	}
-}
-
-func TestCheckSamplerStopsMergingAContextSharedWithAnotherType(t *testing.T) {
-	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
-	table := newFilteredIdentityTable()
-	cs := newTagFilterTestSampler("check:0", table)
-	matcher := filterPodMatcher(t, "my.metric")
-	flushMatcher := metricname.NewMatcher(nil, false)
-
-	cs.addSample(podSample("my.metric", metrics.CounterType, "a", 1, 100), matcher)
-	cs.commit(100.5, &flushMatcher)
-	out := flushSampler(cs)
-	require.Len(t, out.mergedSeries, 1)
-	require.Len(t, table.byKey, 1)
-
-	// A gauge with the same name and tags arrives: the context's output keeps its tags from then on.
-	cs.addSample(podSample("my.metric", metrics.CounterType, "a", 1, 101), matcher)
-	cs.addSample(podSample("my.metric", metrics.GaugeType, "a", 1, 101), matcher)
-	cs.commit(101.5, &flushMatcher)
-	out = flushSampler(cs)
-	assert.Empty(t, out.mergedSeries)
-	assert.Empty(t, table.byKey, "the identity is released")
-	require.NotEmpty(t, out.series)
-	for _, s := range out.series {
-		assert.Contains(t, tagsOf(s.Tags), "pod:a")
 	}
 }
 
@@ -279,12 +254,5 @@ func TestCheckSamplerDoesNotFilterSketchesStampedPerSecond(t *testing.T) {
 	require.Len(t, out.sketches, 1)
 	assert.Contains(t, tagsOf(out.sketches[0].Tags), "pod:a", "sketches stamped per second aren't filtered")
 	assert.Equal(t, int64(100), out.sketches[0].Points[0].Ts)
-	assert.Len(t, table.byKey, 1, "only the counter has a filtered identity")
-}
-
-func TestBecomesSketch(t *testing.T) {
-	assert.True(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.DistributionType}))
-	assert.True(t, becomesSketch(&metrics.HistogramBucket{}), "histogram buckets are interpolated into sketches")
-	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.CounterType}))
-	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.HistogramType}), "ordinary histograms become series")
+	assert.Len(t, table.byKey, 2, "the distribution has an identity too, which sketches stamped per second don't use")
 }

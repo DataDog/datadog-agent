@@ -17,27 +17,6 @@ import (
 // and filter the tags that metric_tag_filterlist rules remove only from their output. Each context references the
 // identity it filters to, which the contexts of every check sampler that filter to it share.
 
-// tagFilterFlags record what check samplers do with a context's output.
-type tagFilterFlags uint8
-
-const (
-	// hasFilterableType is set once the context gets samples of a type whose tags can be filtered at output.
-	hasFilterableType tagFilterFlags = 1 << iota
-	// hasUnfilterableType is set once the context gets samples of another type. Context keys don't include the
-	// metric type, so samples of several types can share a context: then none of its output is filtered, from then
-	// on.
-	hasUnfilterableType
-)
-
-func (f *tagFilterFlags) set(flag tagFilterFlags) {
-	*f |= flag
-}
-
-// filtersAtOutput returns whether check samplers filter the context's output when a rule matches it.
-func (c *Context) filtersAtOutput() bool {
-	return c.tagFilterFlags&(hasFilterableType|hasUnfilterableType) == hasFilterableType
-}
-
 // typeFiltersAtOutput returns whether check samplers can filter the tags of a metric type from their output: the types
 // whose sources' points add up.
 func typeFiltersAtOutput(mtype metrics.MetricType) bool {
@@ -114,23 +93,17 @@ func (t *filteredIdentityTable) get(ref uint32) *filteredIdentity {
 }
 
 // trackOutput records what a sample adds to its context's output, for check samplers with tag filtering enabled. The
-// first sample of a type that can be filtered filters the context if a rule matches: the identity only depends on the
-// context, so the rule is looked up once (ShouldStripTags allocates), and refilter updates contexts when rules change.
-// The resolver's buffers must hold the context's tags.
+// first sample of a type that can be filtered makes the context filterable, and filters it if a rule matches: the
+// identity only depends on the context, so the rule is looked up once (ShouldStripTags allocates), and refilter
+// updates contexts when rules change. Context keys don't include the metric type, so samples of other types can share
+// the context; they change nothing, as only output that adds up across sources is merged. The resolver's buffers
+// must hold the context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
-	if cr.filteredIdentities == nil || !cr.tagFilterEnabled {
+	if cr.filteredIdentities == nil || !cr.tagFilterEnabled || context.filterable || !typeFiltersAtOutput(metricSampleContext.GetMetricType()) {
 		return
 	}
-	if !typeFiltersAtOutput(metricSampleContext.GetMetricType()) || (cr.sketchesPerTimestamp && becomesSketch(metricSampleContext)) {
-		context.tagFilterFlags.set(hasUnfilterableType)
-		cr.releaseFiltered(context)
-		return
-	}
-	if context.tagFilterFlags&hasFilterableType != 0 {
-		return
-	}
-	context.tagFilterFlags.set(hasFilterableType)
-	if filterList != nil && context.filtersAtOutput() {
+	context.filterable = true
+	if filterList != nil {
 		cr.filterAtOutput(context, filterList)
 	}
 }
@@ -187,7 +160,7 @@ func (cr *contextResolver) refilter(filterList filterlist.TagMatcher) {
 	for _, entry := range cr.contextsByKey {
 		context := entry.context
 		var ref uint32
-		if filterList != nil && context.filtersAtOutput() {
+		if filterList != nil && context.filterable {
 			r, ok := rulesByName[context.Name]
 			if !ok {
 				r.tagMatcher, r.filter = filterList.ShouldStripTags(context.Name)
@@ -204,11 +177,4 @@ func (cr *contextResolver) refilter(filterList filterlist.TagMatcher) {
 		cr.releaseFiltered(context)
 		context.filteredIdentityRef = ref
 	}
-}
-
-// becomesSketch returns whether a sample goes into a sketch: distributions and histogram buckets. Sketches stamped per
-// second of submission (check_sampler_sketches_at_commit off) can't be merged across sources, so they aren't filtered.
-func becomesSketch(metricSampleContext metrics.MetricSampleContext) bool {
-	_, bucket := metricSampleContext.(*metrics.HistogramBucket)
-	return bucket || metricSampleContext.GetMetricType() == metrics.DistributionType
 }
