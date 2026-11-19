@@ -79,7 +79,8 @@ tags:
   xgmi_link:
     regex: "^\\d+$"
   type:
-    regex: "^\\d+$"
+    # NVIDIA XID code, or AMD error type (errors.amdgpu).
+    regex: "^(\\d+|[a-z_]+)$"
   xid_code:
     regex: "^\\d+$"
   kube_container_name: {}

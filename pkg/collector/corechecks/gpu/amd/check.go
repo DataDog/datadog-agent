@@ -470,7 +470,7 @@ func amdProcessSamples(m amdgpu.Metrics, processes []amdgpu.ProcessMemory) []nvi
 // names and units of the GPU metrics spec, and the activity values chosen by
 // chooseActivity. Values the device does not expose are not emitted.
 func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
-	samples := make([]nvidia.Sample, 0, 20)
+	samples := make([]nvidia.Sample, 0, 24)
 	add := func(name string, r amdgpu.Reading) {
 		if r.Valid {
 			samples = append(samples, &nvidia.Metric{Name: name, Value: r.Value, Type: metrics.GaugeType})
@@ -521,6 +521,29 @@ func amdSamples(m amdgpu.Metrics, act activity) []nvidia.Sample {
 	add("errors.ecc.uncorrected.total", m.ECCUncorrected)
 	add("errors.ecc.corrected.total", m.ECCCorrected)
 	add("errors.ecc.deferred.total", m.ECCDeferred)
+
+	// Unhealthy after an uncorrectable ECC error or a fatal RAS event since the
+	// driver loaded. Healthy needs the ECC count, and a fatal count that is
+	// either read or not reported for this GPU.
+	switch {
+	case m.ECCUncorrected.Value > 0 || m.RASFatalErrors.Value > 0:
+		add("device.unhealthy", amdgpu.Reading{Value: 1, Valid: true})
+	case m.ECCUncorrected.Valid && !m.RASFatalUnknown:
+		add("device.unhealthy", amdgpu.Reading{Value: 0, Valid: true})
+	}
+
+	for _, event := range []struct {
+		errorType string
+		count     amdgpu.Reading
+	}{
+		{"ras_fatal", m.RASFatalErrors},
+		{"ras_poison_creation", m.RASPoisonCreations},
+		{"ras_poison_consumption", m.RASPoisonConsumptions},
+	} {
+		if event.count.Valid {
+			samples = append(samples, nvidia.NewMetric("errors.amdgpu.total", event.count.Value, metrics.GaugeType, nvidia.Low, []string{"type:" + event.errorType, "origin:hardware"}, nil))
+		}
+	}
 
 	return samples
 }

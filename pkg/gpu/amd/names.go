@@ -48,6 +48,16 @@ var instinctNames = map[uint16]string{
 	0x75b3: "AMD Instinct MI355X VF",
 }
 
+// vfDeviceIDs are the PCI device IDs of the SR-IOV virtual functions of AMD
+// Instinct GPUs in amdgpu.ids.
+var vfDeviceIDs = map[uint16]struct{}{0x7410: {}, 0x74b5: {}, 0x74b9: {}, 0x75b0: {}, 0x75b3: {}, 0x75b8: {}}
+
+// isVirtualFunction reports whether a PCI device ID is that of a virtual function.
+func isVirtualFunction(deviceID uint16) bool {
+	_, ok := vfDeviceIDs[deviceID]
+	return ok
+}
+
 // deviceName returns the product name for a PCI device ID, or a generic name
 // carrying the ID when it is not known.
 func deviceName(deviceID uint16) string {

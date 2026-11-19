@@ -59,6 +59,17 @@ type Metrics struct {
 	ECCCorrected   Reading
 	ECCDeferred    Reading
 
+	// RAS event counts of ras/event_state since the driver loaded. They are
+	// invalid on a VF, whose guest driver does not see the host's fatal and
+	// poison events, when the GPU shares them with other GPUs of its XGMI
+	// hive, or when the driver does not count them (unified RAS).
+	RASFatalErrors        Reading
+	RASPoisonCreations    Reading
+	RASPoisonConsumptions Reading
+	// RASFatalUnknown is set when event_state exists but its fatal count
+	// could not be read or parsed.
+	RASFatalUnknown bool
+
 	// GPUMetrics is the decoded gpu_metrics table, nil when the device has
 	// none. When GPUMetricsErr is set (ErrGPUMetricsUnsupported or
 	// ErrGPUMetricsMalformed), it only holds the version from the header, or
@@ -72,7 +83,7 @@ type Metrics struct {
 
 // ReadOptions selects the optional parts of a telemetry read.
 type ReadOptions struct {
-	// SkipGPUMetrics leaves the gpu_metrics table and the XGMI hive size unread.
+	// SkipGPUMetrics leaves the gpu_metrics table unread and XGMIHiveSize unset.
 	SkipGPUMetrics bool
 }
 
@@ -109,10 +120,16 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.GraphicsClockMHz = r.clock(hwmonDir, hwmonEntries, "sclk", filepath.Join(d.devicePath, "pp_dpm_sclk"))
 	m.MemoryClockMHz = r.clock(hwmonDir, hwmonEntries, "mclk", filepath.Join(d.devicePath, "pp_dpm_mclk"))
 	r.readECC(filepath.Join(d.devicePath, "ras"), &m)
+	hiveSize := d.XGMIHiveSize()
+	// A VF guest driver does not see the host's fatal and poison events, and
+	// the GPUs of an XGMI hive share one set of counts.
+	if !isVirtualFunction(d.DeviceID) && hiveSize <= 1 {
+		r.readRASEvents(filepath.Join(d.devicePath, "ras"), &m)
+	}
 
 	if !opts.SkipGPUMetrics {
 		m.GPUMetrics, m.GPUMetricsErr = r.gpuMetrics(filepath.Join(d.devicePath, "gpu_metrics"))
-		m.XGMIHiveSize = d.XGMIHiveSize()
+		m.XGMIHiveSize = hiveSize
 	}
 
 	return m, errors.Join(r.errs...)
@@ -386,9 +403,14 @@ var rasBlocks = []struct {
 // while it cannot query errors, such as during a GPU reset.
 const rasQueryInaccessible = "Query currently inaccessible"
 
+// readRASFile reads an error count attribute; tests replace it.
+var readRASFile = os.ReadFile
+
 // readECC sums the error counts of the RAS blocks enabled in ras/features, as
-// amd-smi does. A block whose count is absent or cannot be read or parsed is
-// left out.
+// amd-smi does. A block without a count attribute, or whose count cannot be
+// parsed, is left out. Nothing is reported when a count attribute cannot be
+// read: the driver fails the query during a GPU reset, and a partial sum would
+// dip.
 func (r *reader) readECC(rasDir string, m *Metrics) {
 	featuresPath := filepath.Join(rasDir, "features")
 	features, ok := r.read(featuresPath)
@@ -408,14 +430,23 @@ func (r *reader) readECC(rasDir string, m *Metrics) {
 			continue
 		}
 		path := filepath.Join(rasDir, block.name+"_err_count")
-		content, ok := r.read(path)
-		if !ok {
-			// With ACA (bare-metal MI300 and later), the attribute is aca_<block>.
+		data, err := readRASFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			// Linux 6.15 to 7.1 name it aca_<block> on MI300/MI350-class
+			// GPUs (ACA).
 			path = filepath.Join(rasDir, "aca_"+block.name)
-			content, ok = r.read(path)
+			data, err = readRASFile(path)
 		}
-		if !ok || content == rasQueryInaccessible {
+		if errors.Is(err, os.ErrNotExist) {
 			continue
+		}
+		if err != nil {
+			r.errs = append(r.errs, err)
+			return
+		}
+		content := sysfsValue(data)
+		if content == rasQueryInaccessible {
+			return
 		}
 		counts, err := parseErrCount(content)
 		if err != nil {
@@ -471,4 +502,49 @@ func parseErrCount(content string) (map[string]uint64, error) {
 		}
 	}
 	return counts, nil
+}
+
+// readRASEvents reads the RAS event counts of ras/event_state, whose lines look
+// like "Fatal Error: count:0, last_seqno:0". A line that cannot be parsed
+// leaves its count invalid.
+func (r *reader) readRASEvents(rasDir string, m *Metrics) {
+	// With unified RAS, the driver reports its version here and does not
+	// count events in event_state.
+	if version, ok := r.read(filepath.Join(rasDir, "version")); ok && strings.Contains(version, "ras version:") {
+		return
+	}
+	path := filepath.Join(rasDir, "event_state")
+	errs := len(r.errs)
+	content, ok := r.read(path)
+	if !ok {
+		m.RASFatalUnknown = len(r.errs) > errs // an absent file is not an error
+		return
+	}
+	sawFatal := false
+	for line := range strings.Lines(content) {
+		name, value, _ := strings.Cut(line, ":")
+		var count *Reading
+		switch strings.TrimSpace(name) {
+		case "Fatal Error":
+			count = &m.RASFatalErrors
+			sawFatal = true
+		case "Poison Creation":
+			count = &m.RASPoisonCreations
+		case "Poison Consumption":
+			count = &m.RASPoisonConsumptions
+		default:
+			continue
+		}
+		field, _, _ := strings.Cut(strings.TrimSpace(value), ",")
+		n, err := strconv.ParseUint(strings.TrimPrefix(field, "count:"), 10, 64)
+		if err != nil || !strings.HasPrefix(field, "count:") {
+			r.errs = append(r.errs, fmt.Errorf("parse %s: invalid line %q", path, strings.TrimSpace(line)))
+			continue
+		}
+		*count = valid(float64(n))
+	}
+	if !sawFatal {
+		r.errs = append(r.errs, fmt.Errorf("parse %s: no Fatal Error count", path))
+	}
+	m.RASFatalUnknown = !m.RASFatalErrors.Valid
 }

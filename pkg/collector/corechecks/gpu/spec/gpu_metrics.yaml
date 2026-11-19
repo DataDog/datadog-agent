@@ -655,7 +655,10 @@ metrics:
         errors whose handling the hardware deferred, marking the affected data
         as poisoned. The sum of the amdgpu RAS error counts of the blocks amd-smi
         counts: the errors counted since the driver loaded (on a virtual
-        function, the counts the host reports).
+        function, the counts the host reports). In practice only the UMC (HBM)
+        block reports deferred errors, and it reads 0 where the driver does not
+        count them, such as on MI200 or in the non-unified RAS path of newer
+        kernels.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -761,6 +764,32 @@ metrics:
       device_modes:
         mig: false
         mig_parent: true
+        physical: true
+        vgpu: false
+  errors.amdgpu.total:
+    metadata:
+      metric_type: gauge
+      unit: error
+      description: >-
+        AMD GPU RAS events by type, counted by the amdgpu driver since it loaded
+        (ras/event_state): fatal errors (ras_fatal), and creations and
+        consumptions of poisoned data (ras_poison_creation,
+        ras_poison_consumption). Not reported on a virtual function, whose
+        guest driver does not see the host's fatal and poison events, for a GPU
+        in an XGMI hive with other GPUs, which share one set of counts, when the
+        driver does not count these events (unified RAS), or with a driver
+        without ras/event_state (before Linux 6.11).
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
         physical: true
         vgpu: false
   errors.xid:
