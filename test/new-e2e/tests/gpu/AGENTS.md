@@ -148,6 +148,10 @@ Gotchas:
   created after it runs: the Agent must be deployed after Mokka (`kindvm.WithMokka` handles it).
 - The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
   `kindvm.WithInternetAccess()`.
+- The Mokka chart is pulled by Pulumi on the CI runner, which can't reach `ghcr.io`. Until the
+  `ghcr.io` ECR pull-through cache exists (ddoghq/cloud-inventory#3478), the Mokka suites run in the
+  manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they work as long as your machine
+  can reach `ghcr.io`.
 - With NVLink profiles (`gb200`, `gb300`), the `nvlink_fec` collector sends FEC histogram buckets
   with counts of ~10^12 per run, and the aggregator sketch OOM-kills the core Agent within seconds.
   Use `DD_GPU_DISABLED_COLLECTORS=nvlink_fec` with those profiles until that is fixed.
