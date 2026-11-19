@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -183,9 +185,43 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
-		return removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...)
+		if err := removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...); err != nil {
+			return err
+		}
+		if slices.Contains(ctx.WindowsArgs, "FLEET_PURGE=1") {
+			return deleteRetainedAgentServices()
+		}
 	}
 	return nil
+}
+
+// A previous Fleet removal may have unregistered the MSI while retaining services.
+// Explicit purge must clean these up even when there is no installed product left.
+func deleteRetainedAgentServices() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	var errs []error
+	for _, name := range []string{
+		"datadogagent", "datadog-trace-agent", "datadog-process-agent",
+		"datadog-security-agent", "datadog-system-probe", "datadog-agent-action",
+		"dd-procmgr-service", "Datadog Installer", "ddnpm", "ddprocmon",
+	} {
+		service, err := m.OpenService(name)
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) || errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
+			continue
+		}
+		if err == nil {
+			err = service.Delete()
+			service.Close()
+		}
+		if err != nil && !errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
+			errs = append(errs, fmt.Errorf("delete retained service %s: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func resolveDatadogProgramFilesInstallRoot() (string, error) {
