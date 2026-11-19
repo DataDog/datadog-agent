@@ -107,17 +107,14 @@ static __always_inline int sys_splice_ret_impl(void *ctx, int retval, enum TAIL_
         return 0;
     }
 
-    apply_dentry_resolution_outcome(syscall, EVENT_SPLICE);
-    if (syscall->state == DISCARDED) {
-        goto pop_and_exit;
-    }
-
     if (syscall->splice.pipe_info != NULL && syscall->splice.bufs != NULL) {
         // read the pipe exit flag
         syscall->splice.pipe_exit_flag = get_pipe_last_buffer_flags(syscall->splice.pipe_info, syscall->splice.bufs);
     }
 
-    if (approve_syscall(syscall, splice_approvers) == DISCARDED) {
+    approve_syscall(syscall, splice_approvers);
+    apply_dentry_resolution_outcome(syscall, EVENT_SPLICE);
+    if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
 

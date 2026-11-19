@@ -293,6 +293,16 @@ func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersG
 			fieldHandled = append(fieldHandled, handled...)
 		}
 
+		inUpperLayerField := eventType.String() + ".file.in_upper_layer"
+		if _, exists := approvers[inUpperLayerField]; exists {
+			activeKFilter, err := newInUpperLayerKFilter(InUpperLayerApproverKernelMapName, eventType)
+			if err != nil {
+				return nil, nil, err
+			}
+			kfilters = append(kfilters, activeKFilter)
+			fieldHandled = append(fieldHandled, inUpperLayerField)
+		}
+
 		kfs, handled, err := getProcessKFilters(eventType, approvers)
 		if err != nil {
 			return nil, nil, err

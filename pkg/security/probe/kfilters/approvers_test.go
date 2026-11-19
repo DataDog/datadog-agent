@@ -918,3 +918,210 @@ func TestLastApproverEventType(t *testing.T) {
 
 	assert.Len(t, approverTypesNotInRange, 0, "event types %q are not part the [FirstEventType; LastApproverEventType] range", approverTypesNotInRange)
 }
+
+func TestApproverMultiFieldLinkAndRename(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	t.Run("link-src-or-dst", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `(link.file.path in ["/etc/shadow", "/etc/gshadow"] || link.file.destination.path in ["/etc/shadow", "/etc/gshadow"]) && process.file.path != "/usr/sbin/vipw"`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Len(t, approvers["link.file.path"], 2)
+		assert.Len(t, approvers["link.file.destination.path"], 2)
+
+		kfilters, fieldsHandled, err := KFilterGetters["link"](approvers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.ElementsMatch(t, []eval.Field{"link.file.path", "link.file.destination.path"}, fieldsHandled)
+		assert.Len(t, kfilters, 2)
+	})
+
+	t.Run("rename-src-or-dst", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `(rename.file.path in ["/etc/shadow", "/etc/gshadow"] || rename.file.destination.path in ["/etc/shadow", "/etc/gshadow"]) && process.file.path != "/usr/sbin/vipw"`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("rename", allCapabilities["rename"])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Len(t, approvers["rename.file.path"], 2)
+		assert.Len(t, approvers["rename.file.destination.path"], 2)
+	})
+
+	t.Run("rename-non-approver-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `rename.file.destination.name == "index.php" || rename.syscall.destination.path == "/var/www/index.php"`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("rename", allCapabilities["rename"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("link-invalid-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `link.file.path =~ "/etc/cron.*/**" || link.file.destination.path == "/etc/crontab"`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("link-conjunction-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `link.file.path == "/etc/a" || link.file.destination.path == "/etc/b" || (link.file.path == "/etc/c" && link.file.destination.path == "/etc/d")`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("link-field-to-field-branch-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `link.file.path == "/etc/a" || link.file.destination.path == "/etc/b" || (link.file.path != link.file.destination.path && process.file.path == "/bin/ln")`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("link", allCapabilities["link"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("rename-partially-equal-fields-rejected", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `rename.file.path == "/p1" || rename.file.destination.path == "/p2" || rename.file.name == "n3" || (rename.file.path == rename.file.destination.path && rename.file.path != rename.file.name)`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("rename", allCapabilities["rename"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	for _, tc := range []struct {
+		name      string
+		eventType string
+		expr      string
+	}{
+		{"path-or-upper-layer", "open", `(open.file.path == "/etc/passwd" || open.file.in_upper_layer) && process.file.path == "/usr/bin/cat"`},
+		{"path-or-auid", "link", `link.file.path == "/etc/shadow" || process.auid == 1000`},
+		{"path-or-flags-range", "open", `open.file.path == "/etc/passwd" || (open.flags & O_CREAT) > 0 || open.flags > 1000`},
+	} {
+		t.Run("non-string-field-rejected/"+tc.name, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			rules.AddTestRuleExpr(t, rs, tc.expr)
+
+			approvers, _, _, err := rs.GetEventTypeApprovers(tc.eventType, allCapabilities[tc.eventType])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Empty(t, approvers)
+		})
+	}
+}
+
+func TestApproverFileNamePatternAndRdOnlyWeight(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	t.Run("filename-pattern-prefix-wins-over-rdonly", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.name in [~"__init__*", ~"pickle*"] && (open.flags & O_ACCMODE) == O_RDONLY`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Len(t, approvers["open.file.name"], 2)
+		assert.Empty(t, approvers["open.flags"])
+	})
+
+	t.Run("filename-scalar-and-pattern-same-text", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.name in ["abc*", ~"abc*"]`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !assert.Len(t, approvers["open.file.name"], 2) {
+			return
+		}
+		assert.ElementsMatch(t, []eval.FieldValueType{eval.ScalarValueType, eval.PatternValueType}, []eval.FieldValueType{approvers["open.file.name"][0].Type, approvers["open.file.name"][1].Type})
+	})
+
+	t.Run("parent-basename-wins-over-rdonly", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/usr/bin/*" && (open.flags & O_ACCMODE) == O_RDONLY`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Len(t, approvers["open.file.path"], 1)
+		assert.Empty(t, approvers["open.flags"])
+	})
+
+	t.Run("chmod-in-upper-layer-no-approver", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `chmod.file.in_upper_layer && chmod.file.destination.mode & S_IXUSR > 0`)
+
+		approvers, _, _, err := rs.GetEventTypeApprovers("chmod", allCapabilities["chmod"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Empty(t, approvers)
+	})
+
+	t.Run("unlink-in-upper-layer", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		rules.AddTestRuleExpr(t, rs, `unlink.file.in_upper_layer`)
+
+		approvers, _, noDiscarder, err := rs.GetEventTypeApprovers("unlink", allCapabilities["unlink"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Len(t, approvers["unlink.file.in_upper_layer"], 1)
+		assert.Len(t, noDiscarder, 1)
+
+		kfilters, handled, err := KFilterGetters["unlink"](approvers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, []eval.Field{"unlink.file.in_upper_layer"}, handled)
+		assert.Len(t, kfilters, 1)
+	})
+
+	for _, tc := range []struct {
+		eventType string
+		expr      string
+	}{
+		{"unlink", `unlink.file.in_upper_layer == false`},
+		{"open", `open.file.in_upper_layer == false`},
+		{"unlink", `unlink.file.path == "/etc/passwd" || unlink.file.in_upper_layer == false`},
+	} {
+		t.Run("in-upper-layer-false-no-approver/"+tc.expr, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			rules.AddTestRuleExpr(t, rs, tc.expr)
+
+			approvers, _, _, err := rs.GetEventTypeApprovers(tc.eventType, allCapabilities[tc.eventType])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Empty(t, approvers)
+		})
+	}
+}

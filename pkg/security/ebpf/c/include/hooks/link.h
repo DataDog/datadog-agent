@@ -93,9 +93,8 @@ TAIL_CALL_FNC(dr_link_src_callback, ctx_t *ctx) {
         return 0;
     }
 
-    // do not pop, we want to invalidate the inode even if the syscall is discarded
-    apply_dentry_resolution_outcome(syscall, EVENT_LINK);
-
+    // do not pop, we want to invalidate the inode even if the syscall is discarded.
+    // the source resolution outcome is applied in sys_link_ret, after the approvers.
     return 0;
 }
 
@@ -174,8 +173,9 @@ static __always_inline int sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PR
 
     // at this point we have both the source and target dentry so we can check for approvers
     syscall->state = approve_syscall(syscall, link_approvers);
+    apply_dentry_resolution_outcome(syscall, EVENT_LINK);
 
-    if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
+    if (is_event_enabled(EVENT_LINK)) {
         syscall->retval = retval;
 
         syscall->link.target_file.metadata = syscall->link.src_file.metadata;
@@ -190,8 +190,8 @@ static __always_inline int sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PR
 
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
-        syscall->resolver.event_type = 0;
-        syscall->resolver.flags = 0;
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
         syscall->resolver.callback = select_dr_key(prog_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -240,6 +240,11 @@ static __always_inline int dr_link_dst_callback(void *ctx, enum TAIL_CALL_PROG_T
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    apply_dentry_resolution_outcome(syscall, EVENT_LINK);
+    if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
 

@@ -119,13 +119,13 @@ TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
         goto pop_and_exit;
     }
 
-    apply_dentry_resolution_outcome(syscall, EVENT_SETXATTR);
+    apply_dentry_resolution_outcome(syscall, syscall->type);
     if (syscall->state != DISCARDED) {
         return 0;
     }
 
 pop_and_exit:
-    pop_syscall(EVENT_SETXATTR);
+    pop_syscall(syscall->type);
     return 0;
 }
 

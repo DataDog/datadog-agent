@@ -66,11 +66,31 @@ func validateNameFilter(value rules.FilterValue) bool {
 	switch value.Type {
 	case eval.ScalarValueType:
 		return true
-	case eval.PatternValueType:
+	case eval.PatternValueType, eval.GlobValueType:
 		return validateBasenameFilter(path.Base(value.Value.(string)))
 	}
 
 	return false
+}
+
+// validateInUpperLayerFilter only accepts `true`: the kernel approver passes upper layer files, whatever the value
+func validateInUpperLayerFilter(value rules.FilterValue) bool {
+	isTrue, ok := value.Value.(bool)
+	return ok && isTrue
+}
+
+// buildInUpperLayerCapabilities must not be used for events whose hook runs before the overlayfs
+// copy-up (chmod, chown, utimes): the file is still in the lower layer when the approver is checked.
+func buildInUpperLayerCapabilities(event string) rules.FieldCapabilities {
+	return rules.FieldCapabilities{
+		{
+			Field:        event + ".file.in_upper_layer",
+			TypeBitmask:  eval.ScalarValueType,
+			ValidateFnc:  validateInUpperLayerFilter,
+			FilterMode:   rules.ApproverOnlyMode,
+			FilterWeight: 50,
+		},
+	}
 }
 
 func buildFileCapabilities(event string, fields ...string) rules.FieldCapabilities {
@@ -99,13 +119,14 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 					}
 					// otherwise only the parent directory basename can be pushed to the kernel, which is
 					// a coarse approver: weigh it below the flags approvers (open.flags is 100,
-					// open.file.in_upper_layer is 50) so a more selective field is preferred when available
+					// open.file.in_upper_layer is 50) so a more selective field is preferred when available,
+					// but above `open.flags == O_RDONLY` (1) which matches most of the opens
 					return 20
 				},
 			},
 			{
 				Field:        event + "." + field + ".name",
-				TypeBitmask:  eval.ScalarValueType,
+				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 				ValidateFnc:  validateNameFilter,
 				FilterWeight: 300,
 			},
@@ -129,8 +150,8 @@ func init() {
 	allCapabilities["mkdir"] = mergeCapabilities(buildFileCapabilities("mkdir", "file"), processCapabilities)
 	allCapabilities["open"] = mergeCapabilities(buildFileCapabilities("open", "file"), openFlagsCapabilities, processCapabilities)
 	allCapabilities["rename"] = mergeCapabilities(buildFileCapabilities("rename", "file", "file.destination"), processCapabilities)
-	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), processCapabilities)
-	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), processCapabilities)
+	allCapabilities["rmdir"] = mergeCapabilities(buildFileCapabilities("rmdir", "file"), buildInUpperLayerCapabilities("rmdir"), processCapabilities)
+	allCapabilities["unlink"] = mergeCapabilities(buildFileCapabilities("unlink", "file"), buildInUpperLayerCapabilities("unlink"), processCapabilities)
 	allCapabilities["utimes"] = mergeCapabilities(buildFileCapabilities("utimes", "file"), processCapabilities)
 	allCapabilities["mmap"] = mergeCapabilities(buildFileCapabilities("mmap", "file"), mmapCapabilities, processCapabilities)
 	allCapabilities["mprotect"] = mprotectCapabilities

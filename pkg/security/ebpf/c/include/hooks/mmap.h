@@ -68,10 +68,7 @@ static __always_inline int sys_mmap_ret_impl(void *ctx, int retval, u64 addr, en
         return 0;
     }
 
-    if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
-        goto pop_and_exit;
-    }
-
+    approve_syscall(syscall, mmap_approvers);
     apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
     if (syscall->state == DISCARDED) {
         goto pop_and_exit;
