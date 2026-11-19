@@ -6,6 +6,8 @@
 package gpu
 
 import (
+	"os"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -23,6 +25,21 @@ datadog:
     tlsVerify: false
   logLevel: DEBUG
 `
+
+// chartMirrorEnvVar names the environment variable holding the registry that mirrors ghcr.io and
+// registry.k8s.io, e.g. the internal ECR, whose pull-through caches use the ghcr and k8s prefixes.
+// When it is unset, the charts are pulled from the public registries, which the CI runners can't
+// reach (ghcr.io is Forbidden), so the Mokka suites only run in a manual CI job until it is set.
+const chartMirrorEnvVar = "E2E_GPU_CHART_MIRROR"
+
+// ghcrChartRepository returns the OCI repository of a chart published on ghcr.io under path,
+// through the chart mirror when one is configured.
+func ghcrChartRepository(path string) string {
+	if mirror := os.Getenv(chartMirrorEnvVar); mirror != "" {
+		return "oci://" + mirror + "/ghcr/" + path
+	}
+	return "oci://ghcr.io/" + path
+}
 
 // mokkaProfileParams describes the simulated GPUs of a Mokka suite, and any extra kindvm
 // options (e.g. a scheduler such as kindvm.WithKAIScheduler, or a bigger VM).
@@ -43,6 +60,7 @@ func gpuMokkaK8sProvisioner(params mokkaProfileParams, kubernetesAgentOptions ..
 		kindvm.WithMokka(
 			mokka.WithProfile(params.profile),
 			mokka.WithGPUCount(params.gpuCount),
+			mokka.WithChartRepository(ghcrChartRepository("nvidia/k8s-test-infra/chart")),
 		),
 		kindvm.WithAgentOptions(agentOptions...),
 	}
