@@ -108,7 +108,14 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoint) *metrics.SketchSeries {
+// newSketchSeries returns a context's sketch series with the given points, and the context, or nil if the context
+// isn't tracked.
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) (*metrics.SketchSeries, *Context) {
+	ctx, ok := cs.contextResolver.get(ck)
+	if !ok {
+		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
+		return nil, nil
+	}
 	ss := &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:   ctx.Name,
@@ -120,7 +127,7 @@ func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoi
 		Points: points,
 	}
 
-	return ss
+	return ss, ctx
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
@@ -278,12 +285,10 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 		if sketch == nil {
 			continue
 		}
-		ctx, ok := cs.contextResolver.get(ck)
-		if !ok {
-			log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
+		series, ctx := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
+		if series == nil {
 			continue
 		}
-		series := cs.newSketchSeries(ctx, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
@@ -334,12 +339,10 @@ func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		ctx, ok := cs.contextResolver.get(ck)
-		if !ok {
-			log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
+		series, _ := cs.newSketchSeries(ck, points)
+		if series == nil {
 			continue
 		}
-		series := cs.newSketchSeries(ctx, points)
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
