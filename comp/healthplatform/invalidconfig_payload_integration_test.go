@@ -333,7 +333,7 @@ func runInvalidConfigScenario(t *testing.T, name string) sysprobeconfig.Componen
 		var configIssues []*healthplatformpayload.Issue
 		for _, payload := range received {
 			for _, issue := range payload.Issues {
-				if issueKind(issue.GetIssueType()) != nil {
+				if isConfigIssue(issue.GetId(), issue.GetIssueType()) {
 					configIssues = append(configIssues, issue)
 				}
 			}
@@ -456,6 +456,15 @@ func setScenarioEnv(t *testing.T, envFile string) {
 	require.NoError(t, scanner.Err())
 }
 
+// isConfigIssue reports whether an issue is a configuration one, by its type or by its ID: an issue with a configuration
+// ID but another type is kept, so the comparison with the expected report shows the wrong type
+func isConfigIssue(id, issueType string) bool {
+	if issueKind(issueType) != nil {
+		return true
+	}
+	return slices.ContainsFunc(configIssueKinds, func(kind configIssueKind) bool { return strings.HasPrefix(id, kind.idPrefix) })
+}
+
 // issueKind returns the configuration issue kind of an issue type, nil for other issues
 func issueKind(issueType string) *configIssueKind {
 	for i := range configIssueKinds {
@@ -522,7 +531,7 @@ func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expected
 			return "", fmt.Errorf("issue %q is not an object", id)
 		}
 		// only configuration issues are compared: other checks of the bundle (e.g. the Docker socket one) depend on the host
-		if issueType, _ := issue["issue_type"].(string); issueKind(issueType) == nil {
+		if issueType, _ := issue["issue_type"].(string); !isConfigIssue(id, issueType) {
 			continue
 		}
 		// the canaries set by the test are not part of the expected report
