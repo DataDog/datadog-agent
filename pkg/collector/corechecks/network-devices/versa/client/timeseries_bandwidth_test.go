@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -344,15 +345,21 @@ func TestFallbackLogsNameSamples(t *testing.T) {
 }
 
 // timeseriesHandlerServer serves the given handler for SLA timeseries requests and a
-// one row SLA tableData response, so a test can shape the timeseries failure.
-func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options ...ClientOptions) (*Client, map[string]int) {
+// one row SLA tableData response, so a test can shape the timeseries failure. The
+// returned function reports how many requests a query type has had. It is guarded,
+// because a handler that hijacks the connection can still be running in the server's
+// goroutine when the test reads the count.
+func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options ...ClientOptions) (*Client, func(string) int) {
+	var mu sync.Mutex
 	counts := map[string]int{}
 	mock := SetupMockAPIServer()
 	t.Cleanup(mock.Close)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Query().Get("q"), "slam(") {
 			qt := r.URL.Query().Get("qt")
+			mu.Lock()
 			counts[qt]++
+			mu.Unlock()
 			if qt == QueryTypeTimeseries {
 				timeseries(w, r)
 				return
@@ -368,7 +375,11 @@ func timeseriesHandlerServer(t *testing.T, timeseries http.HandlerFunc, options 
 	require.NoError(t, err)
 	client.directorEndpoint = server.URL
 	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
-	return client, counts
+	return client, func(qt string) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return counts[qt]
+	}
 }
 
 // Authentication, transport, timeout and server errors are not answers to the timeseries
@@ -425,7 +436,7 @@ func TestTimeseriesNonRejectionErrorsDoNotFallBack(t *testing.T) {
 			require.Error(t, err)
 			assert.Nil(t, metrics)
 			assert.Empty(t, client.TakeFallbacks())
-			assert.Zero(t, counts[QueryTypeTableData])
+			assert.Zero(t, counts(QueryTypeTableData))
 		})
 	}
 }
@@ -454,7 +465,7 @@ func TestTimeseriesRejectionAndParseErrorFallBack(t *testing.T) {
 			require.Len(t, metrics, 1)
 			assert.Zero(t, metrics[0].Timestamp)
 			assert.Equal(t, []Fallback{{Tenant: "datadog", Query: "slam", Reason: FallbackHTTPError}}, client.TakeFallbacks())
-			assert.Equal(t, 1, counts[QueryTypeTableData])
+			assert.Equal(t, 1, counts(QueryTypeTableData))
 		})
 	}
 }
