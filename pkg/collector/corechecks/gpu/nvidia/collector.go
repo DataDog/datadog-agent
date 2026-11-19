@@ -318,8 +318,8 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{
-	"collector",
+// DeviceTelemetryTagNames are the NVML device labels shared by GPU telemetry.
+var DeviceTelemetryTagNames = []string{
 	"gpu_device",
 	"gpu_virtualization_mode",
 	"gpu_architecture",
@@ -328,6 +328,8 @@ var collectorTelemetryTagNames = []string{
 	"gpu_nvlink_version",
 	"gpu_driver_version",
 }
+
+var collectorTelemetryTagNames = append([]string{"collector"}, DeviceTelemetryTagNames...)
 
 var (
 	cachedDriverVersion     string
@@ -342,9 +344,13 @@ func CollectorTelemetryTags(collector Collector) []string {
 }
 
 func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
+	return append([]string{string(name)}, DeviceTelemetryTags(device)...)
+}
+
+// DeviceTelemetryTags returns values in DeviceTelemetryTagNames order.
+func DeviceTelemetryTags(device ddnvml.Device) []string {
 	deviceInfo := device.GetDeviceInfo()
 	return []string{
-		string(name),
 		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
 		gpuutil.VirtualizationModeToString(deviceInfo.VirtualizationMode),
 		gpuutil.ArchToString(deviceInfo.Architecture),

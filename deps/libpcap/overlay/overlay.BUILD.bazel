@@ -131,7 +131,6 @@ cc_library(
         "pcap",
     ],
     copts = [
-        "-Wno-implicit-function-declaration",
         "-O2",
     ],
     linkstatic = True,

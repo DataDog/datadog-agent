@@ -29,6 +29,7 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/forwarder/def",
         "//pkg/util/telemetry",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
