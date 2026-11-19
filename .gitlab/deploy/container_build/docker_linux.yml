@@ -69,7 +69,6 @@
           ${DOCKER_NO_CACHE} \
           --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
           --build-arg CI \
-          --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
           --build-arg DD_GIT_REPOSITORY_URL=https://github.com/${CI_PROJECT_PATH} \
           --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
           --build-arg BASE_IMAGE_REGISTRY \
@@ -96,7 +95,6 @@
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CI \
-        --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
         --build-arg BASE_IMAGE_REGISTRY \
         $BUILD_ARG \
         $TARGET_ARG \
@@ -174,6 +172,7 @@
   before_script:
     - !reference [.docker_build_artifact, before_script]
     - mv -vf Dockerfiles/nosys-seccomp/nosys.so ${ARTIFACTS_BUILD_CONTEXT}/
+    - bazel run //deps/s6_overlay:install_${ARCH} -- --destdir=${BUILD_CONTEXT}
     - |
       if [[ "$BUILD_ARG" == *WITH_JMX_FIPS=true* ]]; then
         bazel run //deps/maven:install_bouncycastle_fips_jars -- --destdir=${BUILD_CONTEXT}/bouncycastle-fips
