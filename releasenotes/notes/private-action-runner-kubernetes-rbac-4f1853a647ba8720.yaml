@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add Private Action Runner CRUD actions for Kubernetes Roles, ClusterRoles, and their
-    bindings, and include their read actions in the Cluster Agent default allowlist.
