@@ -38,8 +38,8 @@ type Dependencies struct {
 	Config    cfgcomp.Component
 	Logger    log.Component
 	Factory   rcx509client.ClientFactory `optional:"true"`
-	// ExecuteHandler is provided only by code that holds a trusted
-	// authorization for Remote Queries. Nothing in the Agent provides it by
+	// ExecuteHandler is provided only when remote_queries.tunnel.execute_enabled
+	// is on and its preconditions hold (see NewExecuteHandler). It is nil by
 	// default, so the Execute URI stays unregistered.
 	ExecuteHandler rcx509client.ExecuteHandler `optional:"true"`
 }

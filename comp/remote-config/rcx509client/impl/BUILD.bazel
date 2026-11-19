@@ -10,6 +10,7 @@ go_library(
     srcs = [
         "connection_report.go",
         "debug_ping.go",
+        "execute_wiring.go",
         "factory.go",
         "factory_testbuild.go",
         "rcx509client.go",
@@ -24,6 +25,7 @@ go_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/collector/collector/def",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
@@ -44,6 +46,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "connection_report_test.go",
+        "execute_wiring_test.go",
         "rcx509client_test.go",
         "remote_queries_test.go",
     ],
@@ -55,6 +58,7 @@ dd_agent_go_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        "//comp/collector/collector/def",
         "//comp/core/config",
         "//comp/core/log/mock",
         "//comp/def",

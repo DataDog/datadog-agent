@@ -43,8 +43,9 @@ type Client interface {
 }
 
 // ExecuteHandler handles the Remote Queries Execute URI. It is registered only
-// when the Agent has a handler that carries its own trusted authorization; the
-// component adds none and treats the debug ping as no authorization at all.
+// when the Agent has a handler that carries its own trusted authorization (the
+// opt-in remote_queries.tunnel.execute_enabled); the component adds none and
+// treats the debug ping as no authorization at all.
 type ExecuteHandler func(ctx context.Context, correlationID uint64, payload []byte) ([]byte, error)
 
 // ClientConfig contains the Agent-owned settings used to construct an x509

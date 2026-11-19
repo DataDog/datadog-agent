@@ -19,3 +19,31 @@ properties:
       remote callers cannot supply an upload URL or credentials.
       The Private Action Runner must also allow
       com.datadoghq.remoteaction.integrations.runQuery in its actions_allowlist.
+  tunnel:
+    node_type: section
+    type: object
+    description: Experimental Remote Queries over the Remote Config x509 tunnel.
+    properties:
+      execute_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Experimental, for staging validation. Set to true, together with remote_queries.enabled,
+          remote_configuration.enabled, remote_configuration.x509.enabled,
+          remote_configuration.x509.report_connection_id and a positive remote_queries.tunnel.org_id,
+          to register the Remote Queries Execute handler on the x509 Remote Configuration client.
+          Remote Config authorizes who may call Execute. The Agent additionally requires each request
+          to name its own live connection (as observed from the handshake) and the configured org ID.
+          If org_id is not positive or report_connection_id is off, the Agent logs an error and
+          registers nothing.
+      org_id:
+        node_type: setting
+        type: integer
+        default: 0
+        visibility: public
+        description: |-
+          The Datadog org ID that Remote Queries Execute requests over the x509 tunnel must name.
+          Must be positive when remote_queries.tunnel.execute_enabled is true. Operator-configured:
+          it is never taken from the request.

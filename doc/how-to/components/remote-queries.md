@@ -12,8 +12,15 @@ The action selects its operation with the required boolean `resolveOnly`, not a
 `resultDelivery`; `timeout` is optional and belongs to the runner.
 
 `resultDelivery` contains only `crawlId`, `taskId`, `uploadId`, and `limits`.
-(`crawlId` is required here. The inactive embedded RC tunnel path has no crawl and
-hands the integration a `resultDelivery` without it.)
+(`crawlId` is required here. The embedded RC tunnel path has no crawl and
+hands the integration a `resultDelivery` without it. That path is off by default:
+it is registered only when `remote_queries.tunnel.execute_enabled` is true, with a
+positive `remote_queries.tunnel.org_id` and
+`remote_configuration.x509.report_connection_id` on. Remote Config authorizes who
+may call Execute; the Agent additionally requires each request to name its own
+live connection ID, as observed from the handshake, and the configured org. If
+either is unknown, the request is refused. This is experimental, for staging
+validation.)
 The remote caller does **not** provide `baseUrl`, another upload address, or
 credentials. Unknown fields, including a legacy `resultDelivery.baseUrl`, are
 rejected before any integration check is called. There is no remote override or

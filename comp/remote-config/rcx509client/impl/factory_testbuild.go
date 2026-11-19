@@ -17,7 +17,7 @@ import (
 // NewClientFactory returns a fail-closed factory for test builds. Component
 // tests inject a fake factory and do not need to compile or link the native
 // libdd-rc client.
-func NewClientFactory(_ log.Component) rcx509client.ClientFactory {
+func NewClientFactory(_ log.Component, _ *ConnectionTracker) rcx509client.ClientFactory {
 	return func(rcx509client.ClientConfig) (rcx509client.Client, error) {
 		return nil, errors.New("remote config x509 client is unavailable in test builds")
 	}

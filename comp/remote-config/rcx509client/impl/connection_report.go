@@ -96,6 +96,9 @@ type connectionReporter struct {
 	unsetEnv   func(string) error
 	newTicker  func(time.Duration) reportTicker
 
+	// tracker, if set, follows the current connection ID for the tunnel authority.
+	tracker *ConnectionTracker
+
 	// executeHandler is set once the Execute handler is actually registered.
 	executeHandler atomic.Bool
 
@@ -219,6 +222,7 @@ func (r *connectionReporter) observe(id string) {
 		return
 	}
 	r.id = id
+	r.tracker.set(id)
 	r.emitLocked()
 }
 
@@ -259,6 +263,7 @@ func (r *connectionReporter) close() {
 		r.mu.Lock()
 		r.stopped = true
 		r.mu.Unlock()
+		r.tracker.set("")
 		close(r.stop)
 		if r.writeEnd != nil {
 			<-r.tickerDone
