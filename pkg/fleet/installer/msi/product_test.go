@@ -17,7 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
+
+func noMsiProducts(string) ([]Product, error) { return nil, errProductNotFound }
 
 func TestCheckAgentFlavor(t *testing.T) {
 	for _, tt := range []struct {
@@ -43,7 +47,7 @@ func TestCheckAgentFlavor(t *testing.T) {
 				}
 				return nil, errProductNotFound
 			}
-			err := checkAgentFlavor(tt.fipsMode, findProducts, func(string) (bool, error) { return true, nil })
+			err := checkAgentFlavor(tt.fipsMode, findProducts, noMsiProducts, func(string) (bool, error) { return true, nil })
 			if tt.wantError != "" {
 				require.ErrorContains(t, err, tt.wantError)
 				return
@@ -57,7 +61,7 @@ func TestCheckAgentFlavorPropagatesLookupError(t *testing.T) {
 	lookupErr := errors.New("uninstall registry query failed")
 	err := checkAgentFlavor(false, func(string) ([]*Product, error) {
 		return nil, lookupErr
-	}, func(string) (bool, error) { return false, nil })
+	}, noMsiProducts, func(string) (bool, error) { return false, nil })
 	require.ErrorIs(t, err, lookupErr)
 }
 
@@ -67,7 +71,7 @@ func TestCheckAgentFlavorConfirmsEachProductCode(t *testing.T) {
 	}
 	t.Run("stale entry before installed product", func(t *testing.T) {
 		var checked []string
-		err := checkAgentFlavor(false, lookup, func(code string) (bool, error) {
+		err := checkAgentFlavor(false, lookup, noMsiProducts, func(code string) (bool, error) {
 			checked = append(checked, code)
 			return code == "installed", nil
 		})
@@ -75,52 +79,110 @@ func TestCheckAgentFlavorConfirmsEachProductCode(t *testing.T) {
 		require.Equal(t, []string{"stale", "installed"}, checked)
 	})
 	t.Run("only stale entries", func(t *testing.T) {
-		err := checkAgentFlavor(false, lookup, func(string) (bool, error) { return false, nil })
+		err := checkAgentFlavor(false, lookup, noMsiProducts, func(string) (bool, error) { return false, nil })
 		require.NoError(t, err)
 	})
 	t.Run("MSI query error", func(t *testing.T) {
 		queryErr := errors.New("MSI query failed")
-		err := checkAgentFlavor(false, lookup, func(string) (bool, error) { return false, queryErr })
+		err := checkAgentFlavor(false, lookup, noMsiProducts, func(string) (bool, error) { return false, queryErr })
 		require.ErrorIs(t, err, queryErr)
 	})
 }
 
-func TestFindAgentFlavorProductsInViews(t *testing.T) {
-	var views []uint32
-	products, err := findAgentFlavorProductsInViews("Datadog FIPS Agent", func(_ string, view uint32) ([]*Product, error) {
-		views = append(views, view)
-		if view == registry.WOW64_32KEY {
-			return []*Product{{Code: "32-bit-product"}}, nil
-		}
-		return nil, errProductNotFound
+func TestCheckAgentFlavorCombinesProductCodeSources(t *testing.T) {
+	lookupRegistry := func(string) ([]*Product, error) { return nil, errProductNotFound }
+	lookupMsi := func(string) ([]Product, error) { return []Product{{Code: "msi-only"}}, nil }
+	t.Run("MSI-only opposite flavor", func(t *testing.T) {
+		err := checkAgentFlavor(false, lookupRegistry, lookupMsi, func(code string) (bool, error) {
+			require.Equal(t, "msi-only", code)
+			return true, nil
+		})
+		require.ErrorContains(t, err, "use the FIPS installer")
 	})
+	t.Run("MSI-only stale product", func(t *testing.T) {
+		require.NoError(t, checkAgentFlavor(false, lookupRegistry, lookupMsi, func(string) (bool, error) { return false, nil }))
+	})
+	t.Run("duplicate code from both sources", func(t *testing.T) {
+		checked := 0
+		lookupRegistry := func(string) ([]*Product, error) { return []*Product{{Code: "same-code"}}, nil }
+		lookupMsi := func(string) ([]Product, error) { return []Product{{Code: "same-code"}}, nil }
+		err := checkAgentFlavor(false, lookupRegistry, lookupMsi, func(string) (bool, error) {
+			checked++
+			return false, nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, checked)
+	})
+	t.Run("MSI enumeration failure does not block setup", func(t *testing.T) {
+		enumErr := errors.New("unrelated MSI query failed")
+		findMsi := func(string) ([]Product, error) { return nil, enumErr }
+		require.NoError(t, checkAgentFlavor(false, lookupRegistry, findMsi, func(string) (bool, error) { return false, nil }))
+	})
+	t.Run("MSI match before enumeration failure still rejects", func(t *testing.T) {
+		enumErr := errors.New("later MSI query failed")
+		findMsi := func(string) ([]Product, error) { return []Product{{Code: "msi-only"}}, enumErr }
+		err := checkAgentFlavor(false, lookupRegistry, findMsi, func(string) (bool, error) { return true, nil })
+		require.ErrorContains(t, err, "use the FIPS installer")
+	})
+	t.Run("registry failure still blocks setup", func(t *testing.T) {
+		registryErr := errors.New("uninstall registry unavailable")
+		lookupRegistry := func(string) ([]*Product, error) { return nil, registryErr }
+		err := checkAgentFlavor(false, lookupRegistry, lookupMsi, func(string) (bool, error) { return false, nil })
+		require.ErrorIs(t, err, registryErr)
+	})
+}
+
+func TestFindMsiProductCodesByNameSkipsUnreadableProducts(t *testing.T) {
+	badCode := "{00000000-0000-0000-0000-000000000001}"
+	goodCode := "{00000000-0000-0000-0000-000000000002}"
+	enumerate := func(_ uint32, visit func([]uint16, uint32, string) error) error {
+		for _, code := range []string{badCode, goodCode} {
+			if err := visit(windows.StringToUTF16(code), winutil.MSIINSTALLCONTEXT_MACHINE, ""); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	getProductInfo := func(_ string, code []uint16) (string, error) {
+		if windows.UTF16ToString(code) == badCode {
+			return "", errors.New("unreadable unrelated MSI product")
+		}
+		return "Datadog FIPS Agent", nil
+	}
+	products, err := findMsiProductCodesByName("Datadog FIPS Agent", enumerate, getProductInfo)
 	require.NoError(t, err)
-	require.Equal(t, []uint32{registry.WOW64_64KEY, registry.WOW64_32KEY}, views)
-	require.Equal(t, "32-bit-product", products[0].Code)
+	require.Len(t, products, 1)
+	require.Equal(t, goodCode, products[0].Code)
 
-	_, err = findAgentFlavorProductsInViews("Datadog FIPS Agent", func(_ string, view uint32) ([]*Product, error) {
-		if view == registry.WOW64_32KEY {
-			return nil, registry.ErrNotExist // The 32-bit uninstall location need not exist.
-		}
-		return nil, errProductNotFound
-	})
-	require.ErrorIs(t, err, errProductNotFound)
+	enumErr := errors.New("enumeration failed after the matching product")
+	enumeratePartial := func(_ uint32, visit func([]uint16, uint32, string) error) error {
+		require.NoError(t, visit(windows.StringToUTF16(goodCode), winutil.MSIINSTALLCONTEXT_MACHINE, ""))
+		return enumErr
+	}
+	products, err = findMsiProductCodesByName("Datadog FIPS Agent", enumeratePartial, getProductInfo)
+	require.ErrorIs(t, err, enumErr)
+	require.Len(t, products, 1)
+	require.Equal(t, goodCode, products[0].Code)
+}
 
-	_, err = findAgentFlavorProductsInViews("Datadog FIPS Agent", func(_ string, view uint32) ([]*Product, error) {
-		if view == registry.WOW64_32KEY {
-			return nil, windows.ERROR_ACCESS_DENIED
-		}
-		return nil, errProductNotFound
+func TestFindUninstallRegistryProductCodesInViews(t *testing.T) {
+	rootPath := fmt.Sprintf(`Software\DatadogAgentFlavorTest-%d`, time.Now().UnixNano())
+	keyPath := rootPath + `\product`
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, keyPath, registry.ALL_ACCESS)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, registry.DeleteKey(registry.CURRENT_USER, keyPath))
+		require.NoError(t, registry.DeleteKey(registry.CURRENT_USER, rootPath))
 	})
-	require.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED)
+	require.NoError(t, key.SetStringValue("DisplayName", "Datadog FIPS Agent"))
+	require.NoError(t, key.Close())
 
-	_, err = findAgentFlavorProductsInViews("Datadog FIPS Agent", func(_ string, view uint32) ([]*Product, error) {
-		if view == registry.WOW64_64KEY {
-			return nil, registry.ErrNotExist
-		}
-		return nil, errProductNotFound
-	})
-	require.ErrorIs(t, err, registry.ErrNotExist)
+	// HKCU's uninstall path is shared between the 32- and 64-bit registry views.
+	products, err := findUninstallRegistryProductCodes(registry.CURRENT_USER, rootPath, "Datadog FIPS Agent", registry.WOW64_64KEY, registry.WOW64_32KEY)
+	require.NoError(t, err)
+	require.Len(t, products, 2)
+	require.Equal(t, "product", products[0].Code)
+	require.Equal(t, "product", products[1].Code)
 }
 
 func TestIsMsiProductInstalledUnknown(t *testing.T) {
@@ -176,9 +238,9 @@ func TestCheckAgentFlavorUninstallRegistry(t *testing.T) {
 			}
 
 			findProducts := func(name string) ([]*Product, error) {
-				return findUninstallProductCodes(registry.CURRENT_USER, rootPath, name, 0)
+				return findUninstallRegistryProductCodes(registry.CURRENT_USER, rootPath, name, 0)
 			}
-			err = checkAgentFlavor(tt.fipsMode, findProducts, func(string) (bool, error) { return true, nil })
+			err = checkAgentFlavor(tt.fipsMode, findProducts, noMsiProducts, func(string) (bool, error) { return true, nil })
 			if tt.wantError != "" {
 				require.ErrorContains(t, err, tt.wantError)
 			} else {
@@ -215,16 +277,16 @@ func TestCheckAgentFlavorStaleUninstallEntry(t *testing.T) {
 	require.NoError(t, key.Close())
 
 	findProducts := func(name string) ([]*Product, error) {
-		return findUninstallProductCodes(registry.CURRENT_USER, rootPath, name, 0)
+		return findUninstallRegistryProductCodes(registry.CURRENT_USER, rootPath, name, 0)
 	}
-	require.NoError(t, checkAgentFlavor(false, findProducts, isMsiProductInstalled))
+	require.NoError(t, checkAgentFlavor(false, findProducts, noMsiProducts, isMsiProductInstalled))
 }
 
 func TestCheckAgentFlavorUninstallRegistryUnavailable(t *testing.T) {
 	findProducts := func(name string) ([]*Product, error) {
-		return findUninstallProductCodes(registry.CURRENT_USER, `Software\DatadogAgentFlavorTest-Missing`, name, 0)
+		return findUninstallRegistryProductCodes(registry.CURRENT_USER, `Software\DatadogAgentFlavorTest-Missing`, name, 0)
 	}
-	err := checkAgentFlavor(false, findProducts, func(string) (bool, error) { return true, nil })
+	err := checkAgentFlavor(false, findProducts, noMsiProducts, func(string) (bool, error) { return true, nil })
 	require.ErrorContains(t, err, "could not check installed Agent flavor")
 	require.ErrorIs(t, err, registry.ErrNotExist)
 	require.NotErrorIs(t, err, errProductNotFound)
