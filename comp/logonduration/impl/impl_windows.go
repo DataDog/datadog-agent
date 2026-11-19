@@ -393,6 +393,16 @@ func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]inte
 	return custom
 }
 
+// keyTimestamps returns the timestamps that decide completeness and validity, in boot order.
+func keyTimestamps(tl *BootTimeline) []chainTimestamp {
+	return []chainTimestamp{
+		{id: "boot_start", value: &tl.BootStart},
+		{id: "login_ui_start", value: &tl.LoginUIStart},
+		{id: "session_logon", value: &tl.SessionLogon},
+		{id: "desktop_visible", value: &tl.DesktopVisibleStart},
+	}
+}
+
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
@@ -405,6 +415,13 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		eventTimestamp = time.Now()
 	}
 
+	// Invalid timestamps are flagged; the payload keeps the raw values.
+	checked := tl
+	invalid := validateChain(tl.BootStart, time.Now(), keyTimestamps(&checked))
+	if len(invalid) > 0 {
+		log.Warnf("Logon duration: invalid timestamps %v (boot %s): %+v", invalid, tl.BootStart, tl)
+	}
+
 	haveBoot := !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero()
 	haveLogon := !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero()
 	complete := haveBoot && haveLogon
@@ -414,6 +431,12 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	msg := "Total boot duration analysis after reboot"
 	if complete {
 		msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
+	}
+
+	addTimelineStatus(custom, complete, missingInChain(keyTimestamps(&tl)), invalid)
+	if len(invalid) > 0 {
+		title = invalidTimelineTitle
+		msg = invalidTimelineMessage(invalid)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{

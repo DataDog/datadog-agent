@@ -384,6 +384,9 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 		name     string
 		ts       logonduration.LoginTimestamps
 		expected string
+		status   string
+		missing  []interface{}
+		invalid  []interface{}
 	}{
 		{
 			name: "complete",
@@ -393,11 +396,14 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopReadyTime: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot & login took 70000 ms",
+			status:   timelineComplete,
 		},
 		{
 			name:     "boot only",
 			ts:       logonduration.LoginTimestamps{LoginWindowTime: boot.Add(10 * time.Second)},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login", "desktop_ready"},
 		},
 		{
 			name: "logon only",
@@ -406,6 +412,8 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopReadyTime: boot.Add(90 * time.Second),
 			},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_window_ready"},
 		},
 		{
 			name: "invalid",
@@ -415,11 +423,26 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 				DesktopReadyTime: boot.Add(-4 * 24 * time.Hour),
 			},
 			expected: invalidTimelineTitle,
+			status:   timelineInvalid,
+			invalid:  []interface{}{"desktop_ready"},
+		},
+		{
+			name: "invalid and incomplete",
+			ts: logonduration.LoginTimestamps{
+				LoginTime:        boot.Add(30 * time.Second),
+				DesktopReadyTime: boot.Add(-4 * 24 * time.Hour),
+			},
+			expected: invalidTimelineTitle,
+			status:   timelineInvalid,
+			missing:  []interface{}{"login_window_ready"},
+			invalid:  []interface{}{"desktop_ready"},
 		},
 		{
 			name:     "neither",
 			ts:       logonduration.LoginTimestamps{},
 			expected: "Device booted up: Boot timeline incomplete",
+			status:   timelineIncomplete,
+			missing:  []interface{}{"login_window_ready", "login", "desktop_ready"},
 		},
 	}
 
@@ -444,6 +467,15 @@ func TestSubmitEvent_TitleReflectsCompleteness(t *testing.T) {
 			require.NoError(t, json.Unmarshal(msgs[0].GetContent(), &payload))
 			attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
 			assert.Equal(t, tc.expected, attrs["title"])
+			custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+			assert.Equal(t, tc.status, custom["timeline_status"])
+			for key, want := range map[string][]interface{}{"missing_milestones": tc.missing, "invalid_milestones": tc.invalid} {
+				if want == nil {
+					assert.NotContains(t, custom, key)
+				} else {
+					assert.Equal(t, want, custom[key], key)
+				}
+			}
 		})
 	}
 }
@@ -786,6 +818,10 @@ func TestSubmitEvent_ClockResetPayloadIsInvalid(t *testing.T) {
 	attrs := payload["data"].(map[string]interface{})["attributes"].(map[string]interface{})
 	assert.Equal(t, invalidTimelineTitle, attrs["title"])
 	custom := attrs["attributes"].(map[string]interface{})["custom"].(map[string]interface{})
+	assert.Equal(t, "Boot timeline invalid: timestamps outside this boot or out of order: login_window_ready, login, desktop_ready.", attrs["message"])
+	assert.Equal(t, timelineInvalid, custom["timeline_status"])
+	assert.Equal(t, []interface{}{"login_window_ready", "login", "desktop_ready"}, custom["invalid_milestones"])
+	assert.NotContains(t, custom, "missing_milestones")
 	assert.Equal(t, version.AgentVersion, custom["agent_version"])
 	assert.NotContains(t, custom, "payload_version")
 	assert.Equal(t, true, custom["filevault_enabled"])

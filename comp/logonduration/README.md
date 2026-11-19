@@ -14,7 +14,8 @@ one event and updates the cache.
   after now, or out of order (with a 5 s tolerance) makes the timeline invalid. If collection
   fails, the cache is not updated and the next Agent start tries again.
 - **Windows**: the timeline comes from the boot autologger ETL trace, including Group Policy
-  processing. A trace that fails to parse is not retried.
+  processing. A trace that fails to parse is not retried. The boot start, login UI start, session
+  logon and desktop visible timestamps are checked with the same rules as on macOS.
 
 # Format
 
@@ -26,9 +27,9 @@ The event is sent to the Event Management intake with `integration_id: system-no
 - `Device booted up: Boot & login took <total> ms` - both the boot and the logon duration were
   measured.
 - `Device booted up: Boot timeline incomplete` - at least one of them is missing.
-- `Device booted up: Boot timeline invalid` - **macOS only**: at least one timestamp is
-  impossible, for example after a clock reset at boot. The event still carries the raw timeline
-  and durations, so offsets and durations can be negative.
+- `Device booted up: Boot timeline invalid` - at least one timestamp is impossible, for example
+  after a clock reset at boot. The event still carries the raw timeline and durations, so offsets
+  and durations can be negative.
 
 ## Custom fields
 
@@ -41,7 +42,8 @@ The fields below are under `data.attributes.attributes.custom`.
   - `id` - **string**: a stable identifier (see [Milestone IDs](#milestone-ids)).
   - `name` - **string**: the display name.
   - `offset_ms` - **number**: the position on the timeline, in ms from boot. Idle time at the
-    login screen is removed so the timeline is contiguous. Negative only on invalid timelines.
+    login screen is removed so the timeline is contiguous. Can be negative (see
+    [Negative values](#negative-values)).
   - `duration_ms` - **number**: the length of the milestone in ms, `0` for an instant.
   - `timestamp` - **string**: the wall-clock time in UTC, formatted as `2006-01-02T15:04:05.000Z`.
 - `durations` - **dict of string to number**, all in ms:
@@ -52,6 +54,7 @@ The fields below are under `data.attributes.attributes.custom`.
   - One entry per other milestone with a non-zero duration, keyed by its `id`.
   - On macOS the three totals are always present, `0` when not measured. On Windows each total is
     only present when it was measured.
+  - Can be negative (see [Negative values](#negative-values)).
 - `filevault_enabled` - **bool**, **macOS only**: whether FileVault is on.
 - `group_policy_details` - **dict**, **Windows only**, present when Group Policy ran during boot:
   - `computer`, `user` - **list**: one entry per Client-Side Extension (CSE) invocation, with:
@@ -68,6 +71,12 @@ The fields below are under `data.attributes.attributes.custom`.
     - `gpos_omitted` - **int**: GPO references left out to bound the payload size.
   - `computer_cses_omitted`, `user_cses_omitted` - **int**: invocations left out to bound the
     payload size.
+- `invalid_milestones` - **list of string**, present when `timeline_status` is `invalid`: the
+  timestamps that failed validation, in chain order (see [Timestamp IDs](#timestamp-ids)).
+- `missing_milestones` - **list of string**, present when a timestamp was not found: the missing
+  timestamps, in chain order (see [Timestamp IDs](#timestamp-ids)).
+- `timeline_status` - **string**: `complete`, `incomplete` or `invalid`, matching the title.
+  `invalid` wins when a timeline is both invalid and incomplete. Introduced in `7.87.0`.
 
 ## Milestone IDs
 
@@ -75,6 +84,20 @@ The fields below are under `data.attributes.attributes.custom`.
 - Windows: `boot_duration`, `login_ui_start`, `computer_group_policy`, `user_group_policy`,
   `logon_duration`, `profile_loaded`, `profile_created`, `execute_shell_commands`,
   `explorer_initializing`, `desktop_visible`, `desktop_startup_apps`.
+
+## Negative values
+
+Offsets and durations are computed from the raw timestamps and are never clamped:
+
+- On a `complete` timeline each value can be slightly negative, by up to the 5 s tolerance.
+- On an `invalid` timeline they can be off by any amount, up to decades after a clock reset.
+
+## Timestamp IDs
+
+`missing_milestones` and `invalid_milestones` name timestamps, not `boot_timeline` milestones:
+
+- macOS: `login_window_ready`, `login`, `desktop_ready`.
+- Windows: `boot_start`, `login_ui_start`, `session_logon`, `desktop_visible`.
 
 ## Changing the format
 
@@ -101,6 +124,7 @@ has.
         "priority": "3",
         "custom": {
           "agent_version": "7.87.0",
+          "timeline_status": "complete",
           "filevault_enabled": true,
           "boot_timeline": [
             {

@@ -274,17 +274,7 @@ func (c *logonDurationComponent) collectTimestamps(ctx context.Context, bootTime
 			return ts, nil
 		}
 		if !now.Before(deadline) {
-			var missing []string
-			if validated.LoginWindowTime.IsZero() {
-				missing = append(missing, "login_window_ready")
-			}
-			if validated.LoginTime.IsZero() {
-				missing = append(missing, "login")
-			}
-			if validated.DesktopReadyTime.IsZero() {
-				missing = append(missing, "desktop_ready")
-			}
-			log.Infof("Logon duration: timed out waiting for login timestamps; missing %v", missing)
+			log.Infof("Logon duration: timed out waiting for login timestamps; missing %v", missingMilestones(validated))
 			return ts, nil
 		}
 		timer := time.NewTimer(min(c.retryInterval, deadline.Sub(now)))
@@ -412,7 +402,7 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduration.LoginTimestamps) error {
-	// Invalid timestamps only change the title; the payload keeps the raw values.
+	// Invalid timestamps are flagged; the payload keeps the raw values.
 	_, invalid := validateTimestamps(bootTime, time.Now(), ts)
 	if len(invalid) > 0 {
 		log.Warnf("Logon duration: invalid timestamps %v (boot %s): %+v", invalid, bootTime, ts)
@@ -424,15 +414,18 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, ts logonduratio
 	complete := haveBoot && haveLogon
 	totalMs := safeDurationMs(ts.LoginWindowTime, bootTime) + safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 	title := buildEventTitle(complete, totalMs)
-	if len(invalid) > 0 {
-		title = invalidTimelineTitle
-	}
 
 	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
 		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
 			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
+	}
+
+	addTimelineStatus(custom, complete, missingMilestones(ts), invalid)
+	if len(invalid) > 0 {
+		title = invalidTimelineTitle
+		msg = invalidTimelineMessage(invalid)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{

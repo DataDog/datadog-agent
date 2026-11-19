@@ -23,6 +23,13 @@ import (
 // persistentCacheKey stores the last boot time to detect reboots across agent restarts.
 const persistentCacheKey = "logon_duration:last_boot_time"
 
+// timeline_status values.
+const (
+	timelineComplete   = "complete"
+	timelineIncomplete = "incomplete"
+	timelineInvalid    = "invalid"
+)
+
 // Provides defines what this component provides
 type Provides struct {
 	Comp logonduration.Component
