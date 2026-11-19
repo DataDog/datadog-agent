@@ -9,23 +9,44 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// dependencyIndex records, for each tagged entity, the entities its handler
-// looked up in the store, so that a change to any of them can re-tag it.
+// dependency is something a handler read: an entity looked up by its ID, or
+// the entities of a kind found by a key, for lookups by reference such as the
+// processes of a container.
+type dependency struct {
+	kind workloadmeta.Kind
+	id   string
+	key  string
+}
+
+func entityDependency(id workloadmeta.EntityID) dependency {
+	return dependency{kind: id.Kind, id: id.ID}
+}
+
+func keyDependency(kind workloadmeta.Kind, key string) dependency {
+	return dependency{kind: kind, key: key}
+}
+
+// dependencyIndex records, for each tagged entity, what its handler read, so
+// that a change to any of it can re-tag the entity.
 type dependencyIndex struct {
-	readers map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}
-	reads   map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}
+	readers map[dependency]map[workloadmeta.EntityID]struct{}
+	reads   map[workloadmeta.EntityID]map[dependency]struct{}
+	// keys holds the keys each entity was last found by, so that its next
+	// event also reaches the readers of the keys it no longer has.
+	keys map[workloadmeta.EntityID][]string
 }
 
 func newDependencyIndex() *dependencyIndex {
 	return &dependencyIndex{
-		readers: make(map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}),
-		reads:   make(map[workloadmeta.EntityID]map[workloadmeta.EntityID]struct{}),
+		readers: make(map[dependency]map[workloadmeta.EntityID]struct{}),
+		reads:   make(map[workloadmeta.EntityID]map[dependency]struct{}),
+		keys:    make(map[workloadmeta.EntityID][]string),
 	}
 }
 
-// replace sets the entities that reader depends on, dropping the previous
-// ones. The index takes ownership of reads.
-func (d *dependencyIndex) replace(reader workloadmeta.EntityID, reads map[workloadmeta.EntityID]struct{}) {
+// replace sets what reader depends on, dropping the previous dependencies.
+// The index takes ownership of reads.
+func (d *dependencyIndex) replace(reader workloadmeta.EntityID, reads map[dependency]struct{}) {
 	d.forget(reader)
 	if len(reads) == 0 {
 		return
@@ -52,7 +73,30 @@ func (d *dependencyIndex) forget(reader workloadmeta.EntityID) {
 	delete(d.reads, reader)
 }
 
-func (d *dependencyIndex) readersOf(read workloadmeta.EntityID) []workloadmeta.EntityID {
+// changed returns the dependencies that an event changes: the entity itself,
+// and the keys it was found by before the event and after it. keys are the
+// keys of the entity in a set event. Workloadmeta sets an entity before
+// unsetting it, so the keys of an unset entity are the remembered ones.
+func (d *dependencyIndex) changed(ev workloadmeta.Event, keys []string) []dependency {
+	id := ev.Entity.GetID()
+	deps := []dependency{entityDependency(id)}
+	for _, key := range d.keys[id] {
+		deps = append(deps, keyDependency(id.Kind, key))
+	}
+
+	if ev.Type != workloadmeta.EventTypeSet || len(keys) == 0 {
+		delete(d.keys, id)
+		return deps
+	}
+
+	for _, key := range keys {
+		deps = append(deps, keyDependency(id.Kind, key))
+	}
+	d.keys[id] = keys
+	return deps
+}
+
+func (d *dependencyIndex) readersOf(read dependency) []workloadmeta.EntityID {
 	readers := make([]workloadmeta.EntityID, 0, len(d.readers[read]))
 	for reader := range d.readers[read] {
 		readers = append(readers, reader)
@@ -63,32 +107,43 @@ func (d *dependencyIndex) readersOf(read workloadmeta.EntityID) []workloadmeta.E
 // trackingStore records the lookups made while tracking is on. Only the
 // getters overridden below are recorded. Each one must look up an entity by
 // its own ID, so that the recorded ID matches the ID of that entity's events.
+// Lookups by reference record a key with trackKey instead.
 type trackingStore struct {
 	workloadmeta.Component
 
 	tracking bool
-	reads    map[workloadmeta.EntityID]struct{}
+	reads    map[dependency]struct{}
 }
 
 func (s *trackingStore) startTracking() {
 	s.tracking = true
 }
 
-func (s *trackingStore) stopTracking() map[workloadmeta.EntityID]struct{} {
+func (s *trackingStore) stopTracking() map[dependency]struct{} {
 	reads := s.reads
 	s.tracking = false
 	s.reads = nil
 	return reads
 }
 
-func (s *trackingStore) track(kind workloadmeta.Kind, id string) {
+func (s *trackingStore) record(dep dependency) {
 	if !s.tracking {
 		return
 	}
 	if s.reads == nil {
-		s.reads = make(map[workloadmeta.EntityID]struct{})
+		s.reads = make(map[dependency]struct{})
 	}
-	s.reads[workloadmeta.EntityID{Kind: kind, ID: id}] = struct{}{}
+	s.reads[dep] = struct{}{}
+}
+
+func (s *trackingStore) track(kind workloadmeta.Kind, id string) {
+	s.record(entityDependency(workloadmeta.EntityID{Kind: kind, ID: id}))
+}
+
+// trackKey records that the tags being computed depend on the entities of
+// kind that dependencyKeys returns key for.
+func (s *trackingStore) trackKey(kind workloadmeta.Kind, key string) {
+	s.record(keyDependency(kind, key))
 }
 
 func (s *trackingStore) GetKubernetesKueueQueue(id string) (*workloadmeta.KubernetesKueueQueue, error) {

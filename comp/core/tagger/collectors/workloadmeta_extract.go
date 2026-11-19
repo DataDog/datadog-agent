@@ -141,6 +141,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
+	var changed []dependency
 
 	for _, ev := range evBundle.Events {
 		entityID := ev.Entity.GetID()
@@ -150,6 +151,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			// No tags. Ignore
 			continue
 		}
+
+		changed = append(changed, c.dependencies.changed(ev, dependencyKeys(ev.Entity))...)
 
 		if entityID.Kind == workloadmeta.KindKubernetesKAIPodGroup {
 			// PodGroups have no tags of their own
@@ -182,13 +185,11 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			tagInfos = append(tagInfos, c.tagEntity(ev)...)
-			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
 			c.dependencies.forget(entityID)
 			delete(c.lastEvents, entityID)
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
-			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -200,8 +201,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	// above: their first pass may have used state that later events of the
 	// bundle changed, like the completeness of a container.
 	retagged := make(map[workloadmeta.EntityID]struct{})
-	for _, ev := range evBundle.Events {
-		for _, readerID := range c.dependencies.readersOf(ev.Entity.GetID()) {
+	for _, dep := range changed {
+		for _, readerID := range c.dependencies.readersOf(dep) {
 			if _, ok := retagged[readerID]; ok {
 				continue
 			}
@@ -239,7 +240,7 @@ func (c *WorkloadMetaCollector) tagEntity(ev workloadmeta.Event) []*types.TagInf
 // dependencies, and the event itself for the entities that can be re-tagged
 // without an event of their own, those with dependencies and pods, which
 // autoscaler changes re-tag.
-func (c *WorkloadMetaCollector) recordDependencies(ev workloadmeta.Event, dependencies map[workloadmeta.EntityID]struct{}) {
+func (c *WorkloadMetaCollector) recordDependencies(ev workloadmeta.Event, dependencies map[dependency]struct{}) {
 	id := ev.Entity.GetID()
 	c.dependencies.replace(id, dependencies)
 	if len(dependencies) > 0 || id.Kind == workloadmeta.KindKubernetesPod {
@@ -336,6 +337,19 @@ func (c *WorkloadMetaCollector) handleKind(ev workloadmeta.Event) []*types.TagIn
 		log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 		return nil
 	}
+}
+
+// dependencyKeys returns the keys that lookups by reference find the entity
+// by, recorded by readers with trackKey.
+func dependencyKeys(entity workloadmeta.Entity) []string {
+	switch e := entity.(type) {
+	case *workloadmeta.Process:
+		// Containers read the promotable tags of their processes
+		if containerID := e.GetContainerID(); containerID != "" && hasPromotableProcessTag(e) {
+			return []string{containerID}
+		}
+	}
+	return nil
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
@@ -538,41 +552,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 }
 
-// retagProcessContainer recomputes the tags of the container of the process,
-// as process changes do not generate an event for the container.
-func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity) []*types.TagInfo {
-	if !c.promoteProcessTags {
-		return nil
-	}
-
-	process, ok := entity.(*workloadmeta.Process)
-	if !ok || !hasPromotableProcessTag(process) {
-		return nil
-	}
-
-	containerID := process.GetContainerID()
-	if containerID == "" {
-		return nil
-	}
-
-	container, err := c.store.GetContainer(containerID)
-	if err != nil {
-		return nil
-	}
-	isComplete, seen := c.entityCompleteness[container.EntityID]
-	tagInfos := c.handleContainer(workloadmeta.Event{
-		Type:       workloadmeta.EventTypeSet,
-		Entity:     container,
-		IsComplete: isComplete,
-	})
-	// Only the container's own event sets its completeness, so that readers
-	// tagged before that event still wait for it.
-	if !seen {
-		delete(c.entityCompleteness, container.EntityID)
-	}
-	return tagInfos
-}
-
 // Processes without a promotable tag cannot change the tags of their container.
 func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 	if process.Service == nil {
@@ -589,6 +568,7 @@ func hasPromotableProcessTag(process *workloadmeta.Process) bool {
 }
 
 func (c *WorkloadMetaCollector) addPromotedProcessTags(containerID string, tagList *taglist.TagList) {
+	c.store.trackKey(workloadmeta.KindProcess, containerID)
 	processes := c.store.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
 		return process.GetContainerID() == containerID
 	})

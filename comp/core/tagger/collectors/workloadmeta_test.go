@@ -5841,6 +5841,21 @@ func TestHandleContainerPromotesProcessTags(t *testing.T) {
 	}
 }
 
+// tagContainers processes the set events of containers already in the store,
+// as the collector does before any of their processes change.
+func tagContainers(collector *WorkloadMetaCollector, store workloadmetamock.Mock, containerIDs ...string) {
+	var events []workloadmeta.Event
+	for _, id := range containerIDs {
+		container, err := store.GetContainer(id)
+		if err != nil {
+			continue
+		}
+		events = append(events, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: container})
+	}
+	collector.tagProcessor = processorFunc(func([]*types.TagInfo) {})
+	collector.processEvents(workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})})
+}
+
 func TestProcessEventsRetagsProcessContainer(t *testing.T) {
 	const containerID = "container-id"
 
@@ -5852,6 +5867,7 @@ func TestProcessEventsRetagsProcessContainer(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("gpu.tracing.enabled", true)
 	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	tagContainers(collector, store, containerID)
 	collectorCh := make(chan []*types.TagInfo, 10)
 	collector.tagProcessor = &fakeProcessor{collectorCh}
 
@@ -5919,6 +5935,14 @@ func TestProcessEventsRetagsOnlyAffectedContainers(t *testing.T) {
 				cfg := configmock.New(t)
 				cfg.SetInTest("gpu.tracing.enabled", true)
 				collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+				tagContainers(collector, store, containerID, otherContainerID)
+				if eventType == workloadmeta.EventTypeUnset {
+					// Workloadmeta sets an entity before unsetting it
+					collector.processEvents(workloadmeta.EventBundle{
+						Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: test.process}},
+						Ch:     make(chan struct{}),
+					})
+				}
 				collectorCh := make(chan []*types.TagInfo, 1)
 				collector.tagProcessor = &fakeProcessor{collectorCh}
 
