@@ -7,15 +7,8 @@ The Regression Detector finds Agent performance changes with controlled experime
 * [Add an experiment and choose when it runs](experiment-selection-guide.md)
 * Install the SMP CLI with `dogbrew install smp`, then [run an experiment locally][smp-local]
 * [Understand the core Agent performance quality gates](container/quality_gates/README.md)
+* [Investigate SMP results with a coding agent](../../.agents/skills/smp/SKILL.md)
 * Ask `#single-machine-performance` for help
-
-## Investigate with a coding agent
-
-Ask your coding agent to investigate an SMP result, compare builds, or find an experiment for a performance question.
-Include the CI job link or SMP job ID when available.
-The repository's [SMP entry skill](../../.agents/skills/smp/SKILL.md) uses `mise run dotagents install` to load shared guidance.
-It needs Mise, Git, and SSH access to `ddoghq/claude-marketplace` on the laptop or Workspace that runs the agent.
-It installs the SMP CLI only when the selected workflow needs it.
 
 ## How Agent CI selects experiments
 

@@ -1,35 +1,26 @@
 # AI agent assets
 
-This directory stores shared configuration and skills for coding agents.
+This `/.agents/` directory stores configuration and other assets that are meant to be shared amongst all agent harnesses like Claude, Codex, Pi, etc.
 
 ## Skills
 
-Repository skills live under `.agents/skills/`.
-The existing `.claude/skills/` link makes them available to Claude and Cursor.
+Agent skills are stored in the `skills/` subdirectory. Claude does not [yet](https://github.com/anthropics/claude-code/issues/6235) support this [convention](https://agentskills.io/client-implementation/adding-skills-support#where-to-scan), so we symlink `/.claude/skills/` to that directory.
 
-## Shared tools
+## MCP config
 
-Declare shared plugins and Model Context Protocol (MCP) servers in `/agents.toml`.
-The SMP plugins supply performance workflows from the central marketplace.
+The MCP servers are declared in `/agents.toml`, and will be moved to this directory when our tooling supports it.
 
-Use [dotagents](https://github.com/getsentry/dotagents) through [Mise](https://mise.jdx.dev) after a fresh checkout or a declaration change:
+### Synchronizing
 
-```sh
-mise run dotagents install
+Config is written into each tool's own config file by [dotagents](https://github.com/getsentry/dotagents), run through [mise](https://mise.en.dev). After changing a declaration, run:
+
+```
+mise run dotagents install   # or `mise run dotagents sync` to reconcile/repair offline
 ```
 
-This command installs or refreshes shared plugins and writes the declared MCP configuration for each target tool.
-It uses project scope and preserves unrelated configuration.
-The source needs Git and SSH access to `ddoghq/claude-marketplace`.
-If Mise reports an untrusted configuration, inspect `mise.toml`, then run `mise trust` for this checkout.
+dotagents writes to every tool listed in the `agents` key of `agents.toml`, repairing the servers it declares while preserving undeclared servers and unrelated content in each file.
 
-Installed SMP skills appear under `.agents/skills/`. OpenCode also receives links under `.opencode/skills/`.
-The generated dependencies and catalogs stay outside version control.
-The [SMP entry skill](skills/smp/SKILL.md) tells agents to refresh before the first SMP workflow in each session.
-The SMP CLI installs only when a workflow needs it.
+### Maintained by hand
 
-## Maintained by hand
-
-- **Zed** (`/.zed/settings.json`): dotagents does not support this target yet.
-- **Slack**: Claude and Cursor use separate, registered Slack apps with fixed redirect URIs.
-  Other clients need a registered Slack app or support for dynamic client registration.
+- **Zed** (`/.zed/settings.json`) - not yet a dotagents target.
+- **`slack`** - Slack has no dynamic client registration, so each client needs its own pre-registered Slack app bound to a fixed redirect URI. We configure this for Claude and Cursor because that's all Slack publishes at the time of writing. Registering our own Slack app with dynamic client registration will likely be required for broader support.
