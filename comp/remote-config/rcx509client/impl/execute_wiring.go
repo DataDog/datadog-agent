@@ -88,10 +88,25 @@ type ExecuteHandlerDependencies struct {
 	Collector collector.Component `optional:"true"`
 }
 
-// NewExecuteHandler returns the Remote Queries Execute handler, or nil when
-// remote_queries.tunnel.execute_enabled is off (the default) or its
-// preconditions are not met, in which case the URI stays unregistered.
-func NewExecuteHandler(deps ExecuteHandlerDependencies) rcx509client.ExecuteHandler {
+// ExecuteHandlerProvides is the output of NewExecuteHandler. Handler is nil
+// when the Execute URI must stay unregistered.
+type ExecuteHandlerProvides struct {
+	compdef.Out
+
+	Handler rcx509client.ExecuteHandler
+}
+
+// NewExecuteHandler provides the Remote Queries Execute handler, or a nil one
+// when remote_queries.tunnel.execute_enabled is off (the default) or its
+// preconditions are not met, in which case the URI stays unregistered. It must
+// be registered with fxutil.ProvideComponentConstructor: a plain fx.Provide
+// would not understand the compdef.In struct, and the optional consumer would
+// silently receive nothing.
+func NewExecuteHandler(deps ExecuteHandlerDependencies) ExecuteHandlerProvides {
+	return ExecuteHandlerProvides{Handler: buildExecuteHandler(deps)}
+}
+
+func buildExecuteHandler(deps ExecuteHandlerDependencies) rcx509client.ExecuteHandler {
 	if !deps.Config.GetBool(executeEnabledSetting) {
 		return nil
 	}

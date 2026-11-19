@@ -71,7 +71,7 @@ func TestExecuteHandlerIsNotProvidedByDefault(t *testing.T) {
 		"off despite org id": {executeEnabledSetting: false, tunnelOrgIDSetting: 42},
 	} {
 		t.Run(name, func(t *testing.T) {
-			require.Nil(t, NewExecuteHandler(wiringDeps(t, overrides, c, tracker)))
+			require.Nil(t, buildExecuteHandler(wiringDeps(t, overrides, c, tracker)))
 		})
 	}
 
@@ -85,7 +85,7 @@ func TestExecuteHandlerIsNotProvidedByDefault(t *testing.T) {
 		}
 		require.False(t, deps.Config.GetBool(executeEnabledSetting))
 		require.Zero(t, deps.Config.GetInt64(tunnelOrgIDSetting))
-		require.Nil(t, NewExecuteHandler(deps))
+		require.Nil(t, buildExecuteHandler(deps))
 	})
 
 	// The component hands the factory no handler.
@@ -113,7 +113,7 @@ func TestExecuteHandlerFailsClosedOnMissingPreconditions(t *testing.T) {
 		"no tracker":   {nil, c, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
-			require.Nil(t, NewExecuteHandler(wiringDeps(t, tc.overrides, tc.check, tc.tracker)))
+			require.Nil(t, buildExecuteHandler(wiringDeps(t, tc.overrides, tc.check, tc.tracker)))
 		})
 	}
 }
@@ -123,7 +123,7 @@ func TestExecuteHandlerFailsClosedOnMissingPreconditions(t *testing.T) {
 func TestExecuteHandlerRegisteredWhenEnabled(t *testing.T) {
 	tracker := NewConnectionTracker()
 	c := &fakeQueryCheck{executed: make(chan string, 4)}
-	handler := NewExecuteHandler(wiringDeps(t, nil, c, tracker))
+	handler := buildExecuteHandler(wiringDeps(t, nil, c, tracker))
 	require.NotNil(t, handler)
 
 	var got rcx509client.ClientConfig
@@ -188,7 +188,7 @@ func wiringRequest(connection string, org int64) *remotequeriesv1alpha1.ExecuteR
 func TestExecuteHandlerEndToEndAuthorization(t *testing.T) {
 	tracker := NewConnectionTracker()
 	c := &fakeQueryCheck{executed: make(chan string, 4)}
-	handler := NewExecuteHandler(wiringDeps(t, nil, c, tracker))
+	handler := buildExecuteHandler(wiringDeps(t, nil, c, tracker))
 	require.NotNil(t, handler)
 
 	// Before any handshake nothing is authorized, whatever the request says.
