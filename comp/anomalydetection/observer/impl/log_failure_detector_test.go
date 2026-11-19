@@ -163,7 +163,9 @@ func TestLogFailureExperimentConfig(t *testing.T) {
 		{"failure_weight: -1", defaultLogFailureWeight}, {"failure_weight: 6.5", defaultLogFailureWeight},
 	} {
 		cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_failure:\n      "+tc.yaml+"\n")
-		_, _, _, _, components, err := catalog.Instantiate(settingsFromAgentConfig(catalog, cfg))
+		settings, err := settingsFromAgentConfig(catalog, cfg)
+		require.NoError(t, err)
+		_, _, _, _, components, err := catalog.Instantiate(settings)
 		require.NoError(t, err, "an invalid Agent weight falls back instead of blocking startup")
 		require.Equal(t, tc.want, components[LogFailureDetectorName].instance.(*LogFailureDetector).config.FailureWeight, tc.yaml)
 	}
@@ -173,12 +175,13 @@ func TestLogFailureExperimentConfig(t *testing.T) {
 
 func TestLogFailureAgentOptInAndRequiredExtractor(t *testing.T) {
 	catalog := defaultCatalog()
-	settings := settingsFromAgentConfig(catalog, configmock.NewFromYAML(t, `
+	settings, err := settingsFromAgentConfig(catalog, configmock.NewFromYAML(t, `
 anomaly_detection:
   detectors:
     log_failure:
       enabled: true
 `))
+	require.NoError(t, err)
 	for _, pipeline := range []bool{false, true} {
 		settings.UseMetricPipeline = pipeline
 		detectors, _, _, extractors, _, err := catalog.Instantiate(settings)

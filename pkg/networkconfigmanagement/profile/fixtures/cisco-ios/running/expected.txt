@@ -11,6 +11,7 @@ boot-end-marker
 !
 enable secret 5 <secret hidden>
 enable password 7 <secret hidden>
+enable password level 5 <secret hidden>
 !
 username admin privilege 15 secret 5 <secret hidden>
 username ops password 0 <secret hidden>
@@ -33,7 +34,25 @@ snmp-server contact netops@lab.example.net
 !
 ! ---- RADIUS / TACACS -------------------------------------------------
 radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 <secret hidden>
-tacacs-server host 192.0.2.20 key <secret hidden>
+tacacs-server host 192.0.2.20 key 7 <secret hidden>
+radius-server key 0 <secret hidden>
+tacacs-server key 9 <secret hidden>
+!
+radius server ISE-1
+ address ipv4 192.0.2.30 auth-port 1812 acct-port 1813
+ key 0 <secret hidden>
+ timeout 5
+!
+tacacs server TAC-1
+ address ipv4 192.0.2.40
+ key <secret hidden>
+!
+tacacs server TAC-2
+ address ipv4 192.0.2.41
+ key 7 <secret hidden>
+!
+aaa group server tacacs+ TAC-GROUP
+ server-private 192.0.2.50 timeout 5 key 0 <secret hidden>
 !
 ! ---- ISAKMP / IPsec --------------------------------------------------
 crypto isakmp policy 10
@@ -43,11 +62,22 @@ crypto isakmp policy 10
  group 14
  lifetime 86400
 crypto isakmp key <secret hidden> address 203.0.113.1
+crypto isakmp key 6 <secret hidden> address 203.0.113.3
+crypto ikev2 profile IKEV2-PROF
+ match identity remote address 203.0.113.2 255.255.255.255
+ authentication remote pre-share key <secret hidden>
+ authentication local pre-share key <secret hidden>
+ authentication remote pre-share key 6 <secret hidden>
+crypto ikev2 keyring IKEV2-KEYRING
+ peer BRANCH
+  address 203.0.113.4
+  pre-shared-key local 0 <secret hidden>
+  pre-shared-key 6 <secret hidden>
 !
 ! ---- Key chains (includes a “key 7 …” style) -------------------------
 key chain OSPF-CHAIN
  key 1
-  key-string <secret hidden>
+  key-string 7 <secret hidden>
  accept-lifetime 00:00:00 Jan 1 2024 infinite
  send-lifetime 00:00:00 Jan 1 2024 infinite
 !
@@ -58,6 +88,25 @@ dot11 ssid CorpWiFi
    authentication key-management wpa version 2
    wpa-psk ascii 0 <secret hidden>
 !
+dot11 ssid GuestWiFi
+   authentication key-management wpa version 2
+   wpa-psk ascii <secret hidden>
+!
+interface Serial0/0/0
+ encapsulation ppp
+ ppp chap password <secret hidden>
+ ppp pap password 7 <secret hidden>
+!
+wlan CORP-PSK 2 CORP-PSK
+ security wpa psk set-key ascii <secret hidden>
+!
+ap profile default-ap-profile
+ dot1x username apuser password <secret hidden>
+ mgmtuser username apadmin password <secret hidden> secret <secret hidden>
+!
+aaa server radius dynamic-author
+ client 192.0.2.60 server-key <secret hidden>
+!
 interface GigabitEthernet0/0
  description Uplink to ISP
  ip address 198.51.100.2 255.255.255.252
@@ -67,6 +116,10 @@ interface GigabitEthernet0/1
  description LAN
  ip address 10.10.10.1 255.255.255.0
  ip helper-address 10.10.20.10
+ ip ospf authentication-key 7 <secret hidden>
+ ip ospf message-digest-key 1 md5 7 <secret hidden>
+ standby 1 authentication md5 key-string 7 <secret hidden> timeout 30
+ standby 2 authentication md5 key-string <secret hidden>
 !
 interface Vlan20
  description CorpWiFi VLAN
@@ -76,20 +129,73 @@ interface Vlan20
 line con 0
  exec-timeout 0 0
  logging synchronous
- password <secret hidden>
+ password 7 <secret hidden>
 line vty 0 4
  transport input ssh
  login local
- password <secret hidden>
+ password 0 <secret hidden>
 !
 ! ---- Misc secrets sprinkled in indented contexts ---------------------
 router bgp 65001
  bgp log-neighbor-changes
  neighbor 203.0.113.1 remote-as 65002
- neighbor 203.0.113.1 password <secret hidden>
+ neighbor 203.0.113.1 password 7 <secret hidden>
 !
 ip ftp username backupuser
-ip ftp password 0 clear-ftp-pass
+ip ftp password 0 <secret hidden>
+ip ftp password 7 <secret hidden>
+!
+! ---- Typed credentials with no command-specific rule -----------------
+mpls ldp neighbor 10.0.0.2 password 0 <secret hidden>
+cts sxp default password 0 <secret hidden>
+security passwords min-length 8
+interface Serial0/0/0
+ ppp pap sent-username branch1 password 7 <secret hidden>
+vpdn-group L2TP-OUT
+ l2tp tunnel password 0 <secret hidden>
+dot1x credentials SUPPLICANT
+ username dot1xuser password 0 <secret hidden>
+ldap server CORP-LDAP
+ bind authenticated root-dn cn=svc,dc=example,dc=net password 0 <secret hidden>
+!
+! ---- Untyped and key-style secrets -----------------------------------
+crypto isakmp client configuration group EZ-SERVER
+ key <secret hidden>
+ pool EZ-POOL
+crypto ipsec client ezvpn EZ-CLIENT
+ group EZ-GROUP key <secret hidden>
+ username ezuser password <secret hidden>
+radius server ISE-2
+ address ipv4 192.0.2.31 auth-port 1812 acct-port 1813
+ pac key 0 <secret hidden>
+router isis CORE
+ area-password <secret hidden>
+ domain-password <secret hidden> authenticate snp validate
+router ospf 1
+ area 1 virtual-link 10.0.0.1 authentication-key 7 <secret hidden>
+ area 1 virtual-link 10.0.0.3 message-digest-key 1 md5 <secret hidden>
+router eigrp NAMED
+ address-family ipv4 unicast autonomous-system 100
+  af-interface GigabitEthernet0/1
+   authentication mode hmac-sha-256 0 <secret hidden>
+interface Tunnel0
+ ip nhrp authentication <secret hidden>
+ isis password <secret hidden> level-1
+ ipv6 ospf authentication ipsec spi 256 md5 <secret hidden>
+ ipv6 ospf encryption ipsec spi 300 esp aes-cbc 128 <secret hidden> sha1 <secret hidden>
+ glbp 1 authentication text <secret hidden>
+ glbp 2 authentication md5 key-string 7 <secret hidden>
+ vrrp 1 authentication md5 key-string <secret hidden>
+ standby 3 authentication text <secret hidden>
+ standby 4 authentication md5 key-chain HSRP-CHAIN
+ ppp pap sent-username branch2 password <secret hidden>
+dot11 ssid HEX-PSK
+ wpa-psk hex 0 <secret hidden>
+ip http client username fetcher
+ip http client password 0 <secret hidden>
+archive
+ path ftp://archuser:<secret hidden>@192.0.2.9/cfg
+boot system ftp://bootuser:<secret hidden>@192.0.2.9/image.bin
 !
 ip http server
 ip http authentication local
@@ -116,6 +222,9 @@ ip route 0.0.0.0 0.0.0.0 198.51.100.1
 !
 logging host 10.0.0.50
 ntp server 192.0.2.123 prefer
+ntp authentication-key 1 md5 <secret hidden> 7
+ntp authentication-key 2 md5 <secret hidden>
+ntp trusted-key 1 - 3
 !
 end
 !

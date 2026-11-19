@@ -5358,10 +5358,6 @@ properties:
     node_type: setting
     type: integer
     default: 1000
-  aggregator_use_tags_store:
-    node_type: setting
-    type: boolean
-    default: true
   allow_arbitrary_tags:
     node_type: setting
     type: boolean
@@ -5551,6 +5547,11 @@ properties:
                 type: boolean
                 default: true
                 comment: Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
+              min_token_match_ratio:
+                node_type: setting
+                type: number
+                default: 0.6
+                description: Fraction of structural tokens that must match an existing log pattern.
           log_failure:
             node_type: section
             type: object
@@ -5917,6 +5918,42 @@ properties:
                 default: 0.05
                 comment: Minimum relative change between pre/post medians required for
                   stable-series ScanMW anomalies. 0 disables the gate.
+              scanmw:
+                node_type: section
+                type: object
+                properties:
+                  min_points:
+                    node_type: setting
+                    type: integer
+                    default: 30
+                  max_points:
+                    node_type: setting
+                    type: integer
+                    default: 120
+              scanwelch:
+                node_type: section
+                type: object
+                properties:
+                  min_points:
+                    node_type: setting
+                    type: integer
+                    default: 30
+                  max_points:
+                    node_type: setting
+                    type: integer
+                    default: 120
+              bocpd:
+                node_type: section
+                type: object
+                properties:
+                  warmup_points:
+                    node_type: setting
+                    type: integer
+                    default: 60
+                  max_run_length:
+                    node_type: setting
+                    type: integer
+                    default: 120
           enabled:
             node_type: setting
             type: boolean
@@ -6184,15 +6221,6 @@ properties:
     node_type: setting
     type: string
     default: ''
-  c_core_dump:
-    node_type: setting
-    type: boolean
-    default: false
-  c_stacktrace_collection:
-    node_type: setting
-    type: boolean
-    default: false
-    comment: Debugging + C-land crash feature flags
   cel_workload_exclude:
     node_type: setting
     type: array

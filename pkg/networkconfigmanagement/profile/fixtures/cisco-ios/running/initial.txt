@@ -22,6 +22,7 @@ boot-end-marker
 !
 enable secret 5 $1$QZCP$w8a6j3H2o0Vv3iJmJr2ly.
 enable password 7 0822455D0A16
+enable password level 5 plainLevelPassword
 !
 username admin privilege 15 secret 5 $1$7G9N$k4v3q1QG3eK9L1zVfH8dN.
 username ops password 0 ops-cleartext
@@ -45,6 +46,24 @@ snmp-server contact netops@lab.example.net
 ! ---- RADIUS / TACACS -------------------------------------------------
 radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 045802150C2E1A
 tacacs-server host 192.0.2.20 key 7 094F471A1A0C
+radius-server key 0 plainRadiusKey
+tacacs-server key 9 $9$tacacsType9Hash
+!
+radius server ISE-1
+ address ipv4 192.0.2.30 auth-port 1812 acct-port 1813
+ key 0 plainRadiusServerKey
+ timeout 5
+!
+tacacs server TAC-1
+ address ipv4 192.0.2.40
+ key plainTacacsKey
+!
+tacacs server TAC-2
+ address ipv4 192.0.2.41
+ key 7 0822455D0A16
+!
+aaa group server tacacs+ TAC-GROUP
+ server-private 192.0.2.50 timeout 5 key 0 plainPrivateKey
 !
 ! ---- ISAKMP / IPsec --------------------------------------------------
 crypto isakmp policy 10
@@ -54,6 +73,17 @@ crypto isakmp policy 10
  group 14
  lifetime 86400
 crypto isakmp key plainPreShare address 203.0.113.1
+crypto isakmp key 6 typeSixPreShare address 203.0.113.3
+crypto ikev2 profile IKEV2-PROF
+ match identity remote address 203.0.113.2 255.255.255.255
+ authentication remote pre-share key plainRemotePsk
+ authentication local pre-share key plainLocalPsk
+ authentication remote pre-share key 6 typeSixRemotePsk
+crypto ikev2 keyring IKEV2-KEYRING
+ peer BRANCH
+  address 203.0.113.4
+  pre-shared-key local 0 plainKeyringPsk
+  pre-shared-key 6 typeSixKeyringPsk
 !
 ! ---- Key chains (includes a “key 7 …” style) -------------------------
 key chain OSPF-CHAIN
@@ -69,6 +99,25 @@ dot11 ssid CorpWiFi
    authentication key-management wpa version 2
    wpa-psk ascii 0 SuperSecretPlainPSK
 !
+dot11 ssid GuestWiFi
+   authentication key-management wpa version 2
+   wpa-psk ascii plainGuestPSK
+!
+interface Serial0/0/0
+ encapsulation ppp
+ ppp chap password plainChapPassword
+ ppp pap password 7 070C285F4D06
+!
+wlan CORP-PSK 2 CORP-PSK
+ security wpa psk set-key ascii plainWlanPsk
+!
+ap profile default-ap-profile
+ dot1x username apuser password plainDot1xPassword
+ mgmtuser username apadmin password plainMgmtPassword secret plainMgmtSecret
+!
+aaa server radius dynamic-author
+ client 192.0.2.60 server-key plainCoaKey
+!
 interface GigabitEthernet0/0
  description Uplink to ISP
  ip address 198.51.100.2 255.255.255.252
@@ -78,6 +127,10 @@ interface GigabitEthernet0/1
  description LAN
  ip address 10.10.10.1 255.255.255.0
  ip helper-address 10.10.20.10
+ ip ospf authentication-key 7 0832585D0A16
+ ip ospf message-digest-key 1 md5 7 045802150C2E1A
+ standby 1 authentication md5 key-string 7 070C285F4D06 timeout 30
+ standby 2 authentication md5 key-string plainHsrpKey
 !
 interface Vlan20
  description CorpWiFi VLAN
@@ -101,6 +154,59 @@ router bgp 65001
 !
 ip ftp username backupuser
 ip ftp password 0 clear-ftp-pass
+ip ftp password 7 070C285F4D06
+!
+! ---- Typed credentials with no command-specific rule -----------------
+mpls ldp neighbor 10.0.0.2 password 0 ldpPlain
+cts sxp default password 0 sxpPlain
+security passwords min-length 8
+interface Serial0/0/0
+ ppp pap sent-username branch1 password 7 070C285F4D06
+vpdn-group L2TP-OUT
+ l2tp tunnel password 0 l2tpPlain
+dot1x credentials SUPPLICANT
+ username dot1xuser password 0 credPass
+ldap server CORP-LDAP
+ bind authenticated root-dn cn=svc,dc=example,dc=net password 0 ldapPass
+!
+! ---- Untyped and key-style secrets -----------------------------------
+crypto isakmp client configuration group EZ-SERVER
+ key ezvpnGroupKey
+ pool EZ-POOL
+crypto ipsec client ezvpn EZ-CLIENT
+ group EZ-GROUP key ezClientKey
+ username ezuser password ezvpnPass
+radius server ISE-2
+ address ipv4 192.0.2.31 auth-port 1812 acct-port 1813
+ pac key 0 pacPlain
+router isis CORE
+ area-password isisAreaPass
+ domain-password isisDomPass authenticate snp validate
+router ospf 1
+ area 1 virtual-link 10.0.0.1 authentication-key 7 0832585D0A16
+ area 1 virtual-link 10.0.0.3 message-digest-key 1 md5 vlMd5Plain
+router eigrp NAMED
+ address-family ipv4 unicast autonomous-system 100
+  af-interface GigabitEthernet0/1
+   authentication mode hmac-sha-256 0 eigrpSha
+interface Tunnel0
+ ip nhrp authentication nhrpKey
+ isis password isisIfPass level-1
+ ipv6 ospf authentication ipsec spi 256 md5 0123456789ABCDEF0123456789ABCDEF
+ ipv6 ospf encryption ipsec spi 300 esp aes-cbc 128 0123456789ABCDEF0123456789ABCDEF sha1 0123456789ABCDEF0123456789ABCDEF01234567
+ glbp 1 authentication text glbpText
+ glbp 2 authentication md5 key-string 7 070C285F4D06
+ vrrp 1 authentication md5 key-string vrrpMd5
+ standby 3 authentication text hsrpTextPass
+ standby 4 authentication md5 key-chain HSRP-CHAIN
+ ppp pap sent-username branch2 password papPlain
+dot11 ssid HEX-PSK
+ wpa-psk hex 0 0123456789abcdef0123456789abcdef
+ip http client username fetcher
+ip http client password 0 httpClientPass
+archive
+ path ftp://archuser:archPass@192.0.2.9/cfg
+boot system ftp://bootuser:bootPass@192.0.2.9/image.bin
 !
 ip http server
 ip http authentication local
@@ -127,6 +233,9 @@ ip route 0.0.0.0 0.0.0.0 198.51.100.1
 !
 logging host 10.0.0.50
 ntp server 192.0.2.123 prefer
+ntp authentication-key 1 md5 104D000A0618 7
+ntp authentication-key 2 md5 plainNtpKey
+ntp trusted-key 1 - 3
 !
 end
 !

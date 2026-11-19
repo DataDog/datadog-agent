@@ -29,6 +29,7 @@ def _agent_binary_for_package_impl(
         name,
         target,
         prefix,
+        attributes = None,
         patch_rpath = False,
         use_relative_rpaths = False,
         target_compatible_with = None,
@@ -65,7 +66,7 @@ def _agent_binary_for_package_impl(
     pkg_files(
         name = name,
         srcs = [":" + stripped_name],
-        attributes = pkg_attributes(mode = "0755"),
+        attributes = attributes,
         prefix = prefix,
         target_compatible_with = target_compatible_with,
         visibility = visibility,
@@ -85,6 +86,10 @@ The chain is: rpath rewrite (opt-in) -> strip/symbol-split -> pkg_files.
         "prefix": attr.string(
             doc = """Install path of the binary, relative to the package root (passed to pkg_files).""",
             mandatory = True,
+        ),
+        "attributes": attr.string(
+            doc = """File attributes of the installed binary, as built by pkg_attributes (passed to pkg_files).""",
+            default = pkg_attributes(mode = "0755"),
         ),
         "patch_rpath": attr.bool(
             doc = "Whether to rewrite the binary's rpath for its install location.",

@@ -12,7 +12,7 @@ import (
 )
 
 // ConnectionKeysFromConnectionStats constructs connection key using the underlying raw connection stats object, which is produced by the tracer.
-func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
+func ConnectionKeysFromConnectionStats(connectionStats *ConnectionStats) []types.ConnectionKey {
 
 	// USM data is always indexed as (client, server), but we don't know which is the remote
 	// and which is the local address. To account for this, we'll construct 2 possible

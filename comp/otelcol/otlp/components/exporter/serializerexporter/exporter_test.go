@@ -40,6 +40,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
@@ -2025,5 +2026,64 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 		cfg := f.CreateDefaultConfig().(*ExporterConfig)
 		_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
 		require.NoError(t, err)
+	})
+}
+
+// ignoredHistogramOptionsWarnings creates a DDOT metrics exporter with the given histogram
+// settings and returns the warnings it logged about ignored histogram settings.
+func ignoredHistogramOptionsWarnings(t *testing.T, mode datadogconfig.HistogramMode, aggregations bool) []string {
+	s, _ := newTestAgentSerializer(t, map[string]any{
+		"use_v3_api.distributions.endpoints": map[string]string{"http://intake.example.test": "true"},
+	})
+	f := NewFactoryForOTelAgent(s, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	cfg.Metrics.Metrics.HistConfig.Mode = mode
+	cfg.Metrics.Metrics.HistConfig.SendAggregations = aggregations
+	core, logs := observer.New(zap.WarnLevel)
+	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+	set.Logger = zap.New(core)
+	_, err := f.CreateMetrics(context.Background(), set, cfg)
+	require.NoError(t, err)
+	var warnings []string
+	for _, e := range logs.FilterMessageSnippet("OTel histograms are sent as native histograms").All() {
+		warnings = append(warnings, e.Message)
+	}
+	return warnings
+}
+
+func TestNativeOTelHistogramsGateWarnsIgnoredHistogramOptions(t *testing.T) {
+	const (
+		mode         = "metrics::histograms::mode="
+		aggregations = "metrics::histograms::send_aggregation_metrics"
+	)
+	for _, tc := range []struct {
+		name         string
+		mode         datadogconfig.HistogramMode
+		aggregations bool
+		ignored      []string
+	}{
+		{name: "defaults", mode: datadogconfig.HistogramModeDistributions},
+		{name: "counters", mode: datadogconfig.HistogramModeCounters, ignored: []string{mode + "counters"}},
+		{name: "nobuckets", mode: datadogconfig.HistogramModeNoBuckets, aggregations: true, ignored: []string{mode + "nobuckets", aggregations}},
+		{name: "aggregations", mode: datadogconfig.HistogramModeDistributions, aggregations: true, ignored: []string{aggregations}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setNativeHistogramsGate(t, true)
+			warnings := ignoredHistogramOptionsWarnings(t, tc.mode, tc.aggregations)
+			if len(tc.ignored) == 0 {
+				assert.Empty(t, warnings)
+				return
+			}
+			require.Len(t, warnings, 1)
+			assert.Contains(t, warnings[0], "Ignoring "+strings.Join(tc.ignored, ", ")+": ")
+			assert.Contains(t, warnings[0], nativeOTelHistogramsGate.ID())
+		})
+	}
+
+	t.Run("gate off", func(t *testing.T) {
+		setNativeHistogramsGate(t, false)
+		assert.Empty(t, ignoredHistogramOptionsWarnings(t, datadogconfig.HistogramModeCounters, true))
 	})
 }

@@ -146,7 +146,9 @@ func TestLogErrorCountFollowsLogFailure(t *testing.T) {
 		{"log_failure:\n      enabled: true\n    log_error_count_extractor:\n      enabled: false", true},
 	} {
 		cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    "+tc.yaml+"\n")
-		_, _, _, extractors, _, err := catalog.Instantiate(settingsFromAgentConfig(catalog, cfg))
+		settings, err := settingsFromAgentConfig(catalog, cfg)
+		require.NoError(t, err)
+		_, _, _, extractors, _, err := catalog.Instantiate(settings)
 		require.NoError(t, err, "an explicit extractor toggle never blocks startup")
 		require.Equal(t, tc.want, errorCountBucketizer(extractors) != nil, "the extractor runs exactly when log_failure does")
 	}
