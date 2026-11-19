@@ -21,6 +21,8 @@ always:
   - openmetrics/**
 
 codeowners:
+  agent-anomaly-detection:
+    - anomalydetection/**
   agent-log-pipelines:
     - logs/general/**
   agent-metric-pipelines:

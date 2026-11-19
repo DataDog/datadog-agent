@@ -1,0 +1,81 @@
+# Same Agent/Observer configuration is supplied to baseline and comparison.
+# This measures a repeatable logs-only container-stdout workload, not byte
+# parity with quality_gate_logs' logrotate_fs/file-log path.
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 8 GiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+    # This consumer gate starts Observer, including with logs_enabled: false.
+    DD_LOGS_CONFIG_EXPERIMENTAL_ADAPTIVE_SAMPLING_SMART_SEVERITY_PROFILES_ENABLED: "true"
+    DD_ANOMALY_DETECTION_METRICS_ENABLED: "false"
+    DD_ANOMALY_DETECTION_LOGS_ENABLED: "true"
+    DD_ANOMALY_DETECTION_BASELINE_ANALYSIS_ENABLED: "false"
+    DD_ANOMALY_DETECTION_LOGS_CONTAINERS_ENABLED: "true"
+    DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY: "info"
+    # The source targets 1000 KiB/s, with variable-size lines; allow headroom
+    # above the expected generated log rate.
+    DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_MEDIUM_PRIORITY: "10000"
+    DD_ANOMALY_DETECTION_LOGS_KUBELET_ENABLED: "false"
+    DD_ANOMALY_DETECTION_LOGS_INTERNAL_ENABLED: "false"
+    DD_ANOMALY_DETECTION_DETECTORS_BOCPD_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_CONNECTION_ERROR_EXTRACTOR_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_HOLT_RESIDUAL_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_LOG_METRICS_EXTRACTOR_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_LOG_PATTERN_EXTRACTOR_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_SCANMW_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_SCANWELCH_ENABLED: "true"
+    DD_ANOMALY_DETECTION_DETECTORS_TIME_CLUSTER_ENABLED: "false"
+    DD_ANOMALY_DETECTION_DETECTORS_TUKEY_BIWEIGHT_ENABLED: "true"
+    DD_ANOMALY_DETECTION_STORAGE_MAX_SERIES: "50000"
+    DD_ANOMALY_DETECTION_STORAGE_POINT_RETENTION: "30s"
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:anomalydetection_logs_seeded
+
+checks:
+  - name: memory_usage
+    description: "Provisional memory bound inherited from the seeded playground case."
+    bounds:
+      series: total_pss_bytes
+      upper_bound: "1244 MiB"
+
+  - name: cpu_usage
+    description: "Provisional CPU bound inherited from the seeded playground case."
+    bounds:
+      series: avg(total_cpu_usage_millicores)
+      upper_bound: 1500
+
+  - name: intake_connections
+    description: "Connections established to intake APIs."
+    bounds:
+      series: "connection.current"
+      upper_bound: 40
+
+  - name: total_bytes_received
+    description: "Total Agent egress under the seeded container-log workload."
+    bounds:
+      series: total_bytes_received
+      upper_bound: "292 MiB"
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

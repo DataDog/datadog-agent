@@ -1,0 +1,86 @@
+# Deterministic, logs-only Observer workload. One container emits a seeded,
+# paced stdout stream; there is no DogStatsD or other metric load generator.
+generator:
+  # Keep the seeded workload self-contained in the container command.
+  - container:
+      repository: public.ecr.aws/docker/library/python
+      tag: "3.12.14-alpine3.24"
+      args:
+        - python3
+        - -u
+        - -c
+        - |
+          import os
+          import random
+          import string
+          import sys
+          import time
+
+          rng = random.Random(20260928)
+          letters = string.ascii_lowercase
+          num_patterns = int(os.environ["NUM_PATTERNS"])
+          if num_patterns < 10:
+              raise ValueError("NUM_PATTERNS must be at least 10")
+
+          patterns = []
+          seen = set()
+          while len(patterns) < num_patterns:
+              words = [
+                  "".join(rng.choices(letters, k=rng.randint(3, 10)))
+                  for _ in range(rng.randint(10, 40))
+              ]
+              pattern = " ".join(words)
+              if pattern in seen:
+                  continue
+              seen.add(pattern)
+              patterns.append((pattern, [i for i, char in enumerate(pattern) if char != " "]))
+          del seen
+
+          hot_count = num_patterns // 10
+          weighted_count = 10 * hot_count + (num_patterns - hot_count)
+          target_bytes_per_tick = 100 * 1024  # 100 KiB / 100 ms = 1000 KiB/s.
+          tick_seconds = 0.1
+          deadline = time.monotonic()
+          stdout = sys.stdout.buffer
+
+          while True:
+              batch = bytearray()
+              while len(batch) < target_bytes_per_tick:
+                  slot = rng.randrange(weighted_count)
+                  index = slot // 10 if slot < 10 * hot_count else slot - 9 * hot_count
+                  base, letter_positions = patterns[index]
+                  chars = list(base)
+                  for pos in rng.sample(letter_positions, 3):
+                      old = ord(chars[pos]) - ord("a")
+                      chars[pos] = letters[(old + rng.randint(1, 25)) % 26]
+                  batch.extend("".join(chars).encode("ascii") + b"\n")
+              stdout.write(batch)
+              stdout.flush()
+              deadline += tick_seconds
+              time.sleep(max(0, deadline - time.monotonic()))
+      env:
+        - NUM_PATTERNS=3000
+        - DD_ENV=smp_anomalydetection
+        - DD_SERVICE=container_logs_seeded
+        - DD_VERSION=1.0.0
+      labels:
+        com.datadoghq.tags.env: smp_anomalydetection
+        com.datadoghq.tags.service: container_logs_seeded
+        com.datadoghq.tags.version: "1.0.0"
+      network_disabled: true
+      number_of_containers: 1
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+      response_delay_millis: 75
+  - http:
+      binding_addr: "127.0.0.1:9093"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"
