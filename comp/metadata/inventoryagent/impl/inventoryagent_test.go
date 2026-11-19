@@ -132,10 +132,6 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestDefaultFeatureFlags(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("system-probe does not support darwin")
-	}
-
 	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
 	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
 	t.Cleanup(func() {
@@ -157,17 +153,28 @@ func TestDefaultFeatureFlags(t *testing.T) {
 		"feature_apm_enabled":                                 true,
 		"feature_logs_enabled":                                false,
 		"feature_process_enabled":                             false,
-		"feature_networks_enabled":                            false,
-		"feature_traceroute_enabled":                          false,
 		"feature_synthetics_collector_enabled":                false,
 		"feature_network_path_remote_config_enabled":          false,
 		"feature_network_path_connections_monitoring_enabled": false,
 		"feature_cspm_enabled":                                false,
-		"feature_cws_enabled":                                 false,
-		"feature_usm_enabled":                                 false,
 	} {
 		assert.Equal(t, expected, ia.Get()[key], key)
 	}
+
+	t.Run("system-probe", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("system-probe does not support darwin")
+		}
+
+		for key, expected := range map[string]bool{
+			"feature_networks_enabled":   false,
+			"feature_traceroute_enabled": false,
+			"feature_cws_enabled":        false,
+			"feature_usm_enabled":        false,
+		} {
+			assert.Equal(t, expected, ia.Get()[key], key)
+		}
+	})
 }
 
 func TestFullAgentMetadataRefresh(t *testing.T) {
