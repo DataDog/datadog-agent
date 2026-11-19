@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    The NVIDIA GPU check stops emitting ``gpu.device.unhealthy``. If your
+    monitors or dashboards use this metric for physical GPUs, update them to
+    query ``gpu.device.unavailable{unavailable_reason:unhealthy}``. The
+    replacement includes NVML recovery actions and excludes MIG slices.
