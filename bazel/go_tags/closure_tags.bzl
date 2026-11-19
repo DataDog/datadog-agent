@@ -1965,6 +1965,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium": ["grpcnotrace"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/istio": ["grpcnotrace"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/k8sapply": ["grpcnotrace"],
+    "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kaischeduler": ["grpcnotrace"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka": ["grpcnotrace"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/nvidia": ["grpcnotrace"],
     "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa": ["grpcnotrace"],
