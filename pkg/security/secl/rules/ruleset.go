@@ -924,8 +924,8 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
+// GetApprovers returns the approvers of the event types having an approver model
+func (rs *RuleSet) GetApprovers(models map[eval.EventType]ApproverModel) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
 	var (
 		approvers        = make(map[eval.EventType]Approvers)
 		noDiscarderRules []*Rule
@@ -933,12 +933,12 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	)
 
 	for _, eventType := range rs.GetEventTypes() {
-		caps, exists := fieldCaps[eventType]
+		model, exists := models[eventType]
 		if !exists {
 			continue
 		}
 
-		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, model)
 		stats.Merge(evtStats)
 
 		if err != nil || len(evtApprovers) == 0 {
@@ -952,15 +952,15 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	return approvers, stats, noDiscarderRules, nil
 }
 
-// GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *ApproverStats, []*Rule, error) {
+// GetEventTypeApprovers returns the approvers of an event type
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, model ApproverModel) (Approvers, *ApproverStats, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	// all the rules needs to be of the same type
-	return getApprovers(bucket.rules, rs.NewFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, model)
 }
 
 // GetFieldValues returns all the values of the given field
