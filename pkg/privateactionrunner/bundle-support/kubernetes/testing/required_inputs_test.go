@@ -103,21 +103,27 @@ func assertGeneratedActionsRejectMissingInputs(t *testing.T, bundle types.Bundle
 		for _, verb := range []string{"get", "delete", "patch"} {
 			for _, inputs := range []map[string]interface{}{nil, {}, {"namespace": "test"}, {"name": ""}, {"dryRun": "All"}} {
 				t.Run(verb+resource.name, func(t *testing.T) {
-					_, err := bundle.GetAction(verb+resource.name).Run(context.Background(), generatedActionTask(inputs), nil)
+					action := bundle.GetAction(verb + resource.name)
+					require.NotNil(t, action, "action must be registered")
+					_, err := action.Run(context.Background(), generatedActionTask(inputs), nil)
 					require.EqualError(t, err, "name is required")
 				})
 			}
 		}
 		for _, verb := range []string{"create", "update", "patch"} {
 			t.Run(verb+resource.name+"/missing body", func(t *testing.T) {
-				_, err := bundle.GetAction(verb+resource.name).Run(context.Background(), generatedActionTask(map[string]interface{}{"namespace": "test", "name": "test"}), nil)
+				action := bundle.GetAction(verb + resource.name)
+				require.NotNil(t, action, "action must be registered")
+				_, err := action.Run(context.Background(), generatedActionTask(map[string]interface{}{"namespace": "test", "name": "test"}), nil)
 				require.EqualError(t, err, "body is required")
 			})
 		}
 		if resource.namespaced {
-			for _, verb := range []string{"create", "get", "list", "update", "delete", "patch"} {
+			for _, verb := range []string{"create", "get", "update", "delete", "patch"} {
 				t.Run(verb+resource.name+"/missing namespace", func(t *testing.T) {
-					_, err := bundle.GetAction(verb+resource.name).Run(context.Background(), generatedActionTask(map[string]interface{}{"name": "test"}), nil)
+					action := bundle.GetAction(verb + resource.name)
+					require.NotNil(t, action, "action must be registered")
+					_, err := action.Run(context.Background(), generatedActionTask(map[string]interface{}{"name": "test"}), nil)
 					require.EqualError(t, err, "namespace is required")
 				})
 			}

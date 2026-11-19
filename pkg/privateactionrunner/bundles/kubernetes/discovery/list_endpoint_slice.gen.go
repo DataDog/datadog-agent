@@ -7,7 +7,6 @@ package com_datadoghq_kubernetes_discovery
 
 import (
 	"context"
-	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -41,10 +40,6 @@ func (h *ListEndpointSliceHandler) Run(
 	inputs, err := types.ExtractInputs[ListEndpointSliceInputs](task)
 	if err != nil {
 		return nil, err
-	}
-
-	if inputs.Namespace == "" {
-		return nil, errors.New("namespace is required")
 	}
 
 	client, err := support.KubeClient(credential)
