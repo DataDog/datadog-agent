@@ -766,6 +766,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
@@ -790,6 +791,7 @@ metrics:
     custom_tags:
       - origin
       - type
+      - xid_code
     support:
       unsupported_architectures: []
       device_modes:
