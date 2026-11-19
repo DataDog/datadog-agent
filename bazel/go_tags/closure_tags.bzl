@@ -259,6 +259,8 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none": ["functionaltests", "test"],
     "github.com/DataDog/datadog-agent/comp/api/grpcserver/impl-agent": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/api/grpcserver/mock": ["test"],
+    "github.com/DataDog/datadog-agent/comp/apmattach/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/apmattach/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock": ["test"],
