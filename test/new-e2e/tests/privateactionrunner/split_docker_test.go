@@ -61,7 +61,7 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 	s.runSplitTask(parSplitAgentContainer, "dd-procmgrd")
 }
 
-// s6 still nests dd-procmgrd for the PAR split while ENTRYPOINT=s6-all-in-one is supported.
+// Keeps the s6 path covered while ENTRYPOINT=s6-all-in-one is supported.
 func (s *dockerPARSplitSuite) TestS6AllInOneTopologyExecutesTask() {
 	t := s.T()
 	// Both containers share one runner URN, so only one may poll fakeintake.

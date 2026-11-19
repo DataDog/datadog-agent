@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# agent-ddot can sit on an older base. Only bases whose dd-procmgrd can run the all-in-one
-# catalog ship processes.d/aio, so agent-ddot must not copy it.
+# Only bases whose dd-procmgrd can run the aio catalog ship processes.d/aio. agent-ddot copies
+# these entrypoints onto older bases, so it must not copy processes.d/aio. Other bases keep s6.
 if [[ -x /opt/datadog-agent/embedded/bin/dd-procmgrd && -d /opt/datadog-agent/processes.d/aio ]]; then
   exec /opt/entrypoints/procmgr-all-in-one
 fi

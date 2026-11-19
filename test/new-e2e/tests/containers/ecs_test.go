@@ -192,16 +192,13 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 	})
 }
 
-// containerMainProcessesCommand prints the comm of every process in this
-// container's mount namespace whose parent is outside it. That process is the
-// container's main process. An ECS exec session is listed as well: the runtime
-// starts it beside the main process, so its parent is also outside the namespace.
-// With pid:host, /proc/1 is the host init and is the wrong process to read.
+// containerMainProcessesCommand prints the comm of each process in this container's mount
+// namespace whose parent is outside it. That includes the main process and any ECS exec session,
+// which the runtime starts beside it. With pid:host, /proc/1 is the host init, so it is not used.
 const containerMainProcessesCommand = `sh -c 'echo SUPERVISOR_PROCS; self=$(readlink /proc/self/ns/mnt); for d in /proc/[0-9]*; do pid=${d##*/}; ns=$(readlink /proc/$pid/ns/mnt 2>/dev/null) || continue; test "$ns" = "$self" || continue; ppid=$(sed -n "s/^PPid:[[:space:]]*//p" /proc/$pid/status 2>/dev/null); test -n "$ppid" || continue; pns=$(readlink /proc/$ppid/ns/mnt 2>/dev/null || true); if test -z "$pns" || test "$pns" != "$self"; then cat /proc/$pid/comm 2>/dev/null; fi; done; echo SUPERVISOR_END'`
 
-// Test01SupervisorIsProcmgr checks that every Linux Agent container in this
-// suite is supervised by dd-procmgrd. s6-svscan or s6-supervise in that role
-// fails the test. The name sorts after Test00UpAndRunning.
+// Test01SupervisorIsProcmgr checks that each Linux Agent container is supervised by
+// dd-procmgrd. s6-svscan or s6-supervise in that role fails the test.
 func (suite *ecsSuite) Test01SupervisorIsProcmgr() {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		tasks, err := suite.linuxAgentTasks("ec2-linux-dd-agent")
@@ -732,9 +729,8 @@ type ecsAgentTask struct {
 	runtimeID string
 }
 
-// linuxAgentTasks returns running datadog-agent containers for services whose
-// name ends in serviceSuffix. The Windows Fargate sidecar is a different service
-// and is left out: it does not use s6.
+// linuxAgentTasks returns running datadog-agent containers for services whose name ends in
+// serviceSuffix. Callers omit the Windows Fargate service, which does not use dd-procmgrd.
 func (suite *ecsSuite) linuxAgentTasks(serviceSuffix string) ([]ecsAgentTask, error) {
 	ctx := suite.T().Context()
 	client := suite.Env().ECSCluster.ECSClient

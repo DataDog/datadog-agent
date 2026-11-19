@@ -29,9 +29,8 @@ const (
 	aioStopTimeoutSec = "120"
 	// Any non-empty value passes 01-check-apikey.sh.
 	aioThrowawayAPIKey = "0123456789abcdef0123456789abcdef"
-	// A bare docker run has no hostname source: no docker.sock and its own UTS
-	// namespace. The core agent then exits, and dd-procmgrd removes its socket
-	// while children are still stopping. The framework container mounts docker.sock.
+	// A bare docker run has no hostname source (no docker.sock, own UTS namespace), so without
+	// DD_HOSTNAME the core agent exits and takes the container down.
 	aioBareHostname = "aio-bare-container"
 
 	aioContInitMarker90 = "cont-init-marker-90-bash-sh"
@@ -95,7 +94,6 @@ func TestProcmgrAIODockerSuite(t *testing.T) {
 	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
-// BeforeTest starts the agent container again when an earlier test stopped it.
 func (s *procmgrAIODockerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if s.containerStatus(s.T()) == "running" {
@@ -137,13 +135,11 @@ func (s *procmgrAIODockerSuite) TestDockerStopShutsDownGracefully() {
 	s.Contains(logs, "dd-procmgrd stopped (exit code 0)")
 }
 
-// exit_with_supervisor: dd-procmgrd stops the other children before exiting 137,
-// so the container can outlive the signal.
+// exit_with_supervisor: dd-procmgrd stops the other children, then exits 137.
 func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
 	requireHostPID(s.T(), agentPID)
-	// The graceful stop of a running sibling is what proves the supervisor shut it down.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		assertField(c, s.describeProcess(c, "datadog-agent-trace"), "State", "Running")
 	}, time.Minute, 2*time.Second)
@@ -226,8 +222,7 @@ func (s *procmgrAIODockerSuite) TestHealthcheckReportsHealthy() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
-// The entrypoint exports DD_PM_CONFIG_DIR and children must not inherit it.
-// DD_PM_SOCKET_PATH is kept.
+// The entrypoint exports DD_PM_CONFIG_DIR, which children must not inherit.
 func (s *procmgrAIODockerSuite) TestCoreAgentInheritsDDEnv() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	pid := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -291,8 +286,6 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	}, 2*time.Minute, 2*time.Second)
 }
 
-// A directory under /etc/services.d that the image does not ship is started by
-// dd-procmgrd. The shipped directories stay in the catalog, so they are not added again.
 func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(aioCustomServiceSetupScript))
 	s.Require().NotEmpty(dir)
@@ -350,7 +343,6 @@ func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	s.NotContains(err.Error(), "===== STARTING dd-procmgrd =====")
 }
 
-// The opt-in name still selects the same supervisor as _default.
 func (s *procmgrAIODockerSuite) TestOptInEntrypointRunsProcmgrd() {
 	image := s.agentImage(s.T())
 	name := "aio-opt-in-entrypoint"

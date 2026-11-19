@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
-# All-in-one supervisor. Unset ENTRYPOINT runs /opt/entrypoints/_default, which execs this script.
-# ENTRYPOINT=s6-all-in-one selects s6 instead.
+# Runs the cont-init scripts, then execs dd-procmgrd. _default reaches this when ENTRYPOINT is unset.
 set -euo pipefail
 
-# Stage executable copies: entries are mode 0644, often symlinks into a read-only
-# ..data directory, and executing them fails on a noexec mount.
-# /var/run/s6 is a VOLUME kept across docker restart, so wipe it with rm -rf. mkdir without
-# -p then proves the directory did not exist and this UID created it. Then ${TMPDIR:-/tmp},
-# then mktemp under /opt/datadog-agent/run, which may be shared. /tmp comes first so that a
-# SIGKILL leaves any leftover in the container's own /tmp rather than on that mount. Plain
-# --read-only leaves /tmp read-only, and --tmpfs /tmp defaults to noexec.
-# bash as PID 1 ignores an unhandled SIGTERM, so only a fallback directory installs a TERM trap.
+# Stage executable copies: entries are mode 0644, often symlinks into a read-only ..data
+# directory, and executing them fails on a noexec mount. Try /var/run/s6 first. It is a VOLUME
+# kept across restarts, so it is wiped and mkdir without -p proves this run created it.
+# Otherwise use ${TMPDIR:-/tmp}, then /opt/datadog-agent/run, which may be shared: plain
+# --read-only leaves /tmp read-only and --tmpfs /tmp defaults to noexec. /tmp comes first so a
+# SIGKILL leftover stays in the container's own /tmp. A fallback directory needs a TERM trap,
+# since bash as PID 1 ignores an unhandled SIGTERM.
 stage_executes() {
     local probe="$1/.procmgr-exec-probe" status=1
     if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then
@@ -50,14 +48,13 @@ if [[ -z "$copy_dir" ]]; then
 fi
 printf '===== STAGING cont-init in %s =====\n' "$copy_dir"
 
-# C-locale order, as a prefix so dd-procmgrd does not inherit LC_ALL.
+# C-locale order. LC_ALL=C applies to sort only, so dd-procmgrd does not inherit it.
 # pipefail does not cover the process substitution, so wait reaps it: a failed sort
 # must not fall through to dd-procmgrd.
 mapfile -d '' inits < <(printf '%s\0' /etc/cont-init.d/* | LC_ALL=C sort -z)
 wait "$!"
-# Stage every regular file first, so a script can see a later sibling next to its own
-# path. [[ -f ]] follows symlinks and skips directories and an unmatched glob.
-# An inherited selected value would become the first entry.
+# Stage every file before running any, so a script can see its later siblings.
+# [[ -f ]] follows symlinks and skips directories and unmatched globs.
 selected=()
 for init in "${inits[@]}"; do
     if [[ -f "$init" ]]; then
@@ -74,9 +71,9 @@ done
 # exec does not fire the EXIT trap, so remove the fallback here.
 if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi
 
-# Shipped directories are already in the all-in-one catalog. Starting them again
-# would run each process twice. Any other directory with a run file is a custom
-# service, which s6 supervised. finish is not run: it calls s6-svc.
+# Shipped directories are already in the aio catalog, so starting them again would run
+# each process twice. Other directories with a run file are custom services. finish is not
+# run because it calls s6-svc.
 shipped_s6_services=" agent data-plane otel privateactionrunner process security sysprobe trace "
 custom_services=()
 if [[ -d /etc/services.d ]]; then
