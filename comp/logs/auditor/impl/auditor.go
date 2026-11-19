@@ -30,6 +30,12 @@ import (
 const defaultFlushPeriod = 5 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
+// touchOnlyWritePeriod is the shortest interval between periodic registry
+// writes when the only changes are LastUpdated refreshes from KeepAlive and
+// SetTailed. LastUpdated is read only by cleanupRegistry, which runs on the
+// same period against a TTL measured in hours.
+const touchOnlyWritePeriod = defaultCleanupPeriod
+
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
 
@@ -70,6 +76,21 @@ type registryAuditor struct {
 	done                chan struct{}
 	messageChannelSize  int
 	registryWriter      auditor.RegistryWriter
+
+	// changeGeneration counts registry changes other than LastUpdated
+	// refreshes: entries added, updated or removed. touchGeneration counts
+	// LastUpdated refreshes from KeepAlive and SetTailed. Both are guarded by
+	// registryMutex.
+	changeGeneration uint64
+	touchGeneration  uint64
+
+	// flushMutex serializes registry writes. It guards the size, the
+	// generations and the time of the last write to disk.
+	flushMutex              sync.Mutex
+	lastWriteSize           int
+	writtenChangeGeneration uint64
+	writtenTouchGeneration  uint64
+	lastWrite               time.Time
 
 	log log.Component
 }
@@ -247,8 +268,9 @@ func (a *registryAuditor) GetTailingMode(identifier string) string {
 func (a *registryAuditor) KeepAlive(identifier string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
-	if _, ok := a.registry[identifier]; ok {
-		a.registry[identifier].LastUpdated = time.Now().UTC()
+	if entry, ok := a.registry[identifier]; ok {
+		entry.LastUpdated = time.Now().UTC()
+		a.touchGeneration++
 	}
 }
 
@@ -264,8 +286,9 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 
 	// entities that are no longer tailed should remain in the registry for the TTL period
 	// in case they are tailed again.
-	if _, ok := a.registry[identifier]; ok {
-		a.registry[identifier].LastUpdated = time.Now().UTC()
+	if entry, ok := a.registry[identifier]; ok {
+		entry.LastUpdated = time.Now().UTC()
+		a.touchGeneration++
 	}
 }
 
@@ -273,6 +296,7 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 func (a *registryAuditor) SetOffset(identifier string, offset string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
+	a.changeGeneration++
 	if entry, exists := a.registry[identifier]; exists {
 		entry.Offset = offset
 		entry.LastUpdated = time.Now().UTC()
@@ -322,8 +346,8 @@ func (a *registryAuditor) run() {
 			// remove expired offsets from the registry
 			a.cleanupRegistry()
 		case <-flushTicker.C:
-			// saves the current registry into disk
-			err := a.flushRegistry()
+			// saves the current registry into disk when it has changed
+			err := a.flushRegistryIfChanged(time.Now())
 			if err != nil {
 				if os.IsPermission(err) || os.IsNotExist(err) {
 					fileError.Do(func() {
@@ -388,6 +412,7 @@ func (a *registryAuditor) cleanupRegistry() {
 			} else {
 				a.log.Debugf("TTL for %s is expired, removing from registry.", path)
 				delete(a.registry, path)
+				a.changeGeneration++
 			}
 		}
 	}
@@ -418,17 +443,7 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 		IngestionTimestamp: ingestionTimestamp,
 		Fingerprint:        fingerprint,
 	}
-}
-
-// readOnlyRegistryCopy returns a read only copy of the registry
-func (a *registryAuditor) readOnlyRegistryCopy() map[string]RegistryEntry {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	r := make(map[string]RegistryEntry)
-	for path, entry := range a.registry {
-		r[path] = *entry
-	}
-	return r
+	a.changeGeneration++
 }
 
 func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (RegistryEntry, bool) {
@@ -441,23 +456,55 @@ func (a *registryAuditor) readOnlyRegistryEntryCopy(identifier string) (Registry
 	return *entry, true
 }
 
-// flushRegistry writes on disk the registry at the given path
+// flushRegistry writes the registry to disk, whether or not it has changed
+// since the last write.
 func (a *registryAuditor) flushRegistry() error {
-	r := a.readOnlyRegistryCopy()
-	mr, err := a.marshalRegistry(r)
+	a.flushMutex.Lock()
+	defer a.flushMutex.Unlock()
+	return a.writeRegistry(time.Now())
+}
+
+// flushRegistryIfChanged writes the registry to disk when an entry has been
+// added, updated or removed since the last write, or when entries have only
+// had LastUpdated refreshed and the last write is at least
+// touchOnlyWritePeriod old.
+func (a *registryAuditor) flushRegistryIfChanged(now time.Time) error {
+	a.flushMutex.Lock()
+	defer a.flushMutex.Unlock()
+
+	a.registryMutex.Lock()
+	changed := a.changeGeneration != a.writtenChangeGeneration
+	touched := a.touchGeneration != a.writtenTouchGeneration
+	a.registryMutex.Unlock()
+
+	if !changed && !(touched && now.Sub(a.lastWrite) >= touchOnlyWritePeriod) {
+		return nil
+	}
+	return a.writeRegistry(now)
+}
+
+// writeRegistry encodes the registry while holding registryMutex, then
+// writes it to disk. The caller holds flushMutex.
+//
+// The encoded registry is not kept between writes: for a large registry it
+// is tens of megabytes, and writes are rare when nothing changes. It is
+// allocated at the size of the last write so encoding rarely grows it.
+func (a *registryAuditor) writeRegistry(now time.Time) error {
+	a.registryMutex.Lock()
+	changeGeneration, touchGeneration := a.changeGeneration, a.touchGeneration
+	buf, err := appendRegistryJSON(make([]byte, 0, a.lastWriteSize+a.lastWriteSize/8), a.registry)
+	a.registryMutex.Unlock()
 	if err != nil {
 		return err
 	}
-	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, mr)
-}
 
-// marshalRegistry marshals a regsistry
-func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	r := JSONRegistry{
-		Version:  registryAPIVersion,
-		Registry: registry,
+	if err := a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, buf); err != nil {
+		return err
 	}
-	return json.Marshal(r)
+	a.lastWriteSize = len(buf)
+	a.writtenChangeGeneration, a.writtenTouchGeneration = changeGeneration, touchGeneration
+	a.lastWrite = now
+	return nil
 }
 
 // unmarshalRegistry unmarshals a registry

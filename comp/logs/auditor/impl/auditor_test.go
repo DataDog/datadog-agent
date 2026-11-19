@@ -7,6 +7,7 @@ package auditorimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -357,6 +358,103 @@ func (suite *AuditorTestSuite) TestStopWritesRegistry() {
 	var registry JSONRegistry
 	suite.Require().NoError(json.Unmarshal(data, &registry))
 	suite.Equal("25", registry.Registry["file:/var/log/app.log"].Offset)
+}
+
+// countingRegistryWriter records the registries it is asked to write and
+// fails while failing is set.
+type countingRegistryWriter struct {
+	writes  int
+	last    []byte
+	failing bool
+}
+
+func (w *countingRegistryWriter) WriteRegistry(_ string, _ string, _ string, data []byte) error {
+	if w.failing {
+		return errors.New("write failed")
+	}
+	w.writes++
+	w.last = append(w.last[:0], data...)
+	return nil
+}
+
+func (suite *AuditorTestSuite) newCountingAuditor() *countingRegistryWriter {
+	writer := &countingRegistryWriter{}
+	suite.a.registryWriter = writer
+	suite.a.registry = map[string]*RegistryEntry{
+		"file:/var/log/a.log": {LastUpdated: time.Now().UTC(), Offset: "10"},
+	}
+	return writer
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedSkipsUnchangedRegistry() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+	suite.Equal(1, writer.writes)
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Hour)))
+	suite.Equal(1, writer.writes)
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedWritesOffsetChanges() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.updateRegistry("file:/var/log/a.log", "20", "beginning", 1, types.Fingerprint{})
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(2, writer.writes)
+	suite.Contains(string(writer.last), `"Offset":"20"`)
+
+	suite.a.SetOffset("file:/var/log/b.log", "5")
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(2 * time.Second)))
+	suite.Equal(3, writer.writes)
+	suite.Contains(string(writer.last), `"file:/var/log/b.log"`)
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedWritesExpiredEntries() {
+	writer := suite.newCountingAuditor()
+	suite.a.entryTTL = time.Hour
+	suite.a.registry["file:/var/log/old.log"] = &RegistryEntry{LastUpdated: time.Now().UTC().Add(-2 * time.Hour)}
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.cleanupRegistry()
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(2, writer.writes)
+	suite.NotContains(string(writer.last), "old.log")
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedDefersKeepAliveOnlyChanges() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.KeepAlive("file:/var/log/a.log")
+	suite.a.SetTailed("file:/var/log/a.log", true)
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	suite.Equal(1, writer.writes, "a LastUpdated refresh alone was written before touchOnlyWritePeriod")
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(touchOnlyWritePeriod)))
+	suite.Equal(2, writer.writes)
+
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(2 * touchOnlyWritePeriod)))
+	suite.Equal(2, writer.writes, "the registry was written again with nothing changed")
+}
+
+func (suite *AuditorTestSuite) TestFlushIfChangedRetriesAfterFailedWrite() {
+	writer := suite.newCountingAuditor()
+	suite.Require().NoError(suite.a.flushRegistry())
+	now := suite.a.lastWrite
+
+	suite.a.SetOffset("file:/var/log/a.log", "30")
+	writer.failing = true
+	suite.Error(suite.a.flushRegistryIfChanged(now.Add(time.Second)))
+	writer.failing = false
+	suite.Require().NoError(suite.a.flushRegistryIfChanged(now.Add(2 * time.Second)))
+	suite.Equal(2, writer.writes)
+	suite.Contains(string(writer.last), `"Offset":"30"`)
 }
 
 func TestScannerTestSuite(t *testing.T) {
