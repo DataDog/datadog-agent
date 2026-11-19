@@ -697,17 +697,15 @@ func decisionMakerFromTracestate(ts string) (string, bool) {
 	return "", false
 }
 
-// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits.
+// isValidDecisionMaker reports whether dm looks like a sampling decision maker: "-" followed by digits
+// forming a sampling mechanism that fits in a uint32, as the V1 conversion paths require.
 func isValidDecisionMaker(dm string) bool {
-	if len(dm) < 2 || dm[0] != '-' {
+	digits, ok := strings.CutPrefix(dm, "-")
+	if !ok {
 		return false
 	}
-	for i := 1; i < len(dm); i++ {
-		if dm[i] < '0' || dm[i] > '9' {
-			return false
-		}
-	}
-	return true
+	_, err := strconv.ParseUint(digits, 10, 32)
+	return err == nil
 }
 
 // convertSpan converts the span in to a Datadog span, and uses the res resource and the lib instrumentation

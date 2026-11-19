@@ -4417,6 +4417,9 @@ func TestTracerDecisionMakerPrefersRealDecision(t *testing.T) {
 		{"only default", pb.Trace{dm("-0"), ts("dd=s:1;t.dm:-0")}, "-0", true},
 		{"zero-valued default", pb.Trace{dm("-00"), dm("-3")}, "-3", true},
 		{"first default kept", pb.Trace{dm("-00"), dm("-0")}, "-00", true},
+		{"out of range attribute skipped", pb.Trace{dm("-0"), dm("-99999999999")}, "-0", true},
+		{"out of range tracestate skipped", pb.Trace{dm("-0"), ts("dd=s:2;t.dm:-99999999999")}, "-0", true},
+		{"signed digits rejected", pb.Trace{dm("-+3")}, "", false},
 		{"no decision maker", pb.Trace{{}, dm("abc")}, "", false},
 	}
 	for _, tt := range tests {
