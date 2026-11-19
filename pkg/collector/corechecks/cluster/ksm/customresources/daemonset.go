@@ -28,7 +28,7 @@ import (
 // NewDaemonSetRolloutFactory returns a new DaemonSet rollout factory that provides rollout duration metrics
 func NewDaemonSetRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &daemonSetRolloutFactory{
-		client:         client.InformerCl,
+		client:         client.Cl,
 		rolloutTracker: rolloutTracker,
 	}
 }
