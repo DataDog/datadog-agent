@@ -59,8 +59,10 @@ func (p *PayloadTags) Get() []string {
 		if err != nil {
 			log.Debugf("unable to get global tags: %v", err)
 		}
-		if p.logMissingTaskARN && p.logLimit.ShouldLog() &&
-			!slices.ContainsFunc(globalTags, func(tag string) bool { return strings.HasPrefix(tag, taskARNTagPrefix) }) {
+		// the limiter is checked last, so it's only spent when task_arn is missing
+		if p.logMissingTaskARN &&
+			!slices.ContainsFunc(globalTags, func(tag string) bool { return strings.HasPrefix(tag, taskARNTagPrefix) }) &&
+			p.logLimit.ShouldLog() {
 			// expected briefly after startup, until the tagger has the task's metadata
 			log.Infof("no task_arn in the global tags yet: payloads can't be attributed to the ECS task until it's available")
 		}

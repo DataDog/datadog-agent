@@ -90,6 +90,16 @@ type ConnectionsCheck struct {
 	clock    clock.Clock
 }
 
+// newPayloadTags returns the host tags the connections check attaches to its payloads.
+func newPayloadTags(sysprobeYamlConfig pkgconfigmodel.Reader, tagger tagger.Component) *hosttags.PayloadTags {
+	return hosttags.NewPayloadTags(
+		hosttags.NewHostTagProviderWithDuration(sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")),
+		tagger,
+		// the fargate_task: hostname already identifies the task
+		false,
+	)
+}
+
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
@@ -119,12 +129,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 	c.processData.Register(c.processNameExtractor)
-	c.hostTags = hosttags.NewPayloadTags(
-		hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")),
-		c.tagger,
-		// the fargate_task: hostname already identifies the task
-		false,
-	)
+	c.hostTags = newPayloadTags(c.sysprobeYamlConfig, c.tagger)
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()

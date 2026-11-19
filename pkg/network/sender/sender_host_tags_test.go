@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -57,10 +58,24 @@ func TestBatchesCarryTheHostTagsInEveryChunk(t *testing.T) {
 }
 
 func TestBatchesWithoutHostTags(t *testing.T) {
-	d := mockDirectSender(t, nil)
+	// no expected host tags, which would come from the environment (e.g. DD_TAGS)
+	d := mockDirectSender(t, map[string]interface{}{"system_probe_config.expected_tags_duration": 0})
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(1)}}
 	payloads := slices.Collect(d.batches(conns, 1))
 
 	require.Len(t, payloads, 1)
 	assert.Negative(t, decodeConnections(t, payloads[0]).HostTagsIndex)
+}
+
+// TestNewPayloadTagsOnECSFargate covers how New builds the payload tags: from the sender's tagger,
+// with ECS Fargate detected from the environment. It doesn't call New, whose memoized state would
+// leak ECS Fargate mode into the other tests.
+func TestNewPayloadTagsOnECSFargate(t *testing.T) {
+	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags(nil, []string{taskARNTag}, nil, nil)
+	syscfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{"system_probe_config.expected_tags_duration": 0})
+	env.SetFeatures(t, env.ECSFargate)
+
+	assert.Equal(t, []string{taskARNTag}, newPayloadTags(syscfg, fakeTagger).Get())
 }

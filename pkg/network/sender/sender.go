@@ -68,6 +68,16 @@ var senderTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
 }
 
+// newPayloadTags returns the host tags the direct sender attaches to its payloads.
+func newPayloadTags(syscfg sysprobeconfig.Component, tagger tagger.Component) *hosttags.PayloadTags {
+	return hosttags.NewPayloadTags(
+		hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
+		tagger,
+		// the hostname is empty on ECS Fargate, so task_arn is the only task identity
+		true,
+	)
+}
+
 // New creates a direct sender
 func New(
 	ctx context.Context,
@@ -148,12 +158,7 @@ func New(
 	ds := directSender{
 		tracer: tr,
 
-		hostTags: hosttags.NewPayloadTags(
-			hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
-			deps.Tagger,
-			// the hostname is empty on ECS Fargate, so task_arn is the only task identity
-			true,
-		),
+		hostTags:   newPayloadTags(syscfg, deps.Tagger),
 		agentCfg:   marshal.NewAgentConfiguration(syscfg, deps.Config),
 		ctx:        ctx,
 		cancelFunc: cancel,

@@ -22,6 +22,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
@@ -1133,4 +1134,17 @@ func TestBatchConnectionsIncludesHostTags(t *testing.T) {
 		require.GreaterOrEqual(t, cc.HostTagsIndex, int32(0))
 		assert.Contains(t, cc.GetTags(int(cc.HostTagsIndex)), taskARNTag)
 	}
+}
+
+// TestNewPayloadTagsOnECSFargate covers how Init builds the payload tags: from the check's tagger,
+// with ECS Fargate detected from the environment.
+func TestNewPayloadTagsOnECSFargate(t *testing.T) {
+	const taskARNTag = "task_arn:arn:aws:ecs:us-east-1:123456789012:task/cluster/0123456789abcdef"
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags(nil, []string{taskARNTag}, nil, nil)
+	sysprobeYamlConfig := configmock.NewSystemProbe(t)
+	sysprobeYamlConfig.SetInTest("system_probe_config.expected_tags_duration", 0)
+	env.SetFeatures(t, env.ECSFargate)
+
+	assert.Equal(t, []string{taskARNTag}, newPayloadTags(sysprobeYamlConfig, fakeTagger).Get())
 }
