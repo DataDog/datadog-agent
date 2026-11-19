@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -139,19 +140,40 @@ func (m *EventMonitor) Start() error {
 
 // Close the module
 func (m *EventMonitor) Close() {
+	m.CloseWithTrace(nil)
+}
+
+// CloseWithTrace records synchronous teardown beneath the module's shutdown span.
+func (m *EventMonitor) CloseWithTrace(trace *logging.StartupPhase) {
 	// stop so that consumers won't receive events anymore
-	m.Probe.Stop()
+	phase := trace.StartPhase("event_monitor.Probe.Stop")
+	m.Probe.StopWithTrace(phase)
+	phase.Finish(nil)
 
 	// stop event consumers
 	for _, em := range m.eventConsumers {
-		em.Stop()
+		// Consumer IDs are fixed identifiers defined by the registered consumers.
+		phase = trace.StartPhase("event_monitor.consumer." + em.ID() + ".Stop")
+		if traced, ok := em.(interface{ StopWithTrace(*logging.StartupPhase) }); ok {
+			traced.StopWithTrace(phase)
+		} else {
+			em.Stop()
+		}
+		phase.Finish(nil)
 	}
 
+	phase = trace.StartPhase("event_monitor.stats.cancel")
 	m.cancelFnc()
+	phase.Finish(nil)
+	phase = trace.StartPhase("event_monitor.stats.Wait")
 	m.wg.Wait()
+	phase.Finish(nil)
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
-	if err := m.Probe.Close(); err != nil {
+	phase = trace.StartPhase("event_monitor.Probe.Close")
+	err := m.Probe.CloseWithTrace(phase)
+	phase.Finish(err)
+	if err != nil {
 		seclog.Errorf("failed to close event monitor probe: %v", err)
 	}
 }

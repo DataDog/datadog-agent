@@ -81,6 +81,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -2901,12 +2902,21 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 
 // Stop the probe
 func (p *EBPFProbe) Stop() {
-	_ = p.Manager.Get().StopReaders(manager.CleanAll)
+	p.StopWithTrace(nil)
+}
+
+// StopWithTrace separates kernel reader shutdown from background worker waits.
+func (p *EBPFProbe) StopWithTrace(trace *logging.StartupPhase) {
+	phase := trace.StartPhase("ebpf_probe.Manager.StopReaders")
+	err := p.Manager.Get().StopReaders(manager.CleanAll)
+	phase.Finish(err)
 
 	// Cancel the context and wait for all goroutines to exit before proceeding.
 	// This must happen before event consumers are stopped
 	// and reporter channels are closed, to avoid sending on a closed channel.
+	phase = trace.StartPhase("ebpf_probe.cancel")
 	p.cancelFnc()
+	phase.Finish(nil)
 	// wait for the following goroutines to exit:
 	// - the perfmap reorderer (if used/enabled)
 	// - the perfmap reorderer monitor (if used/enabled)
@@ -2914,38 +2924,64 @@ func (p *EBPFProbe) Stop() {
 	// - the security profile manager
 	// - the process killer goroutine
 	// - the startSysCtlSnapshotLoop goroutine
+	phase = trace.StartPhase("ebpf_probe.workers.Wait")
 	p.wg.Wait()
+	phase.Finish(nil)
 }
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
-	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
-	p.Resolvers.NamespaceResolver.Stop()
+	return p.CloseWithTrace(nil)
+}
 
+// CloseWithTrace separates attachment cleanup from metadata and resolver cleanup.
+func (p *EBPFProbe) CloseWithTrace(trace *logging.StartupPhase) error {
+	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
+	phase := trace.StartPhase("ebpf_probe.NamespaceResolver.Stop")
+	p.Resolvers.NamespaceResolver.Stop()
+	phase.Finish(nil)
+
+	phase = trace.StartPhase("ebpf_probe.rawPacketFilterCollections.Close")
 	for i, col := range p.rawPacketFilterCollections {
 		if col != nil {
 			col.Close()
 			p.rawPacketFilterCollections[i] = nil
 		}
 	}
+	phase.Finish(nil)
 
 	if p.rawPacketActionCollection != nil {
+		phase = trace.StartPhase("ebpf_probe.rawPacketActionCollection.Close")
 		p.rawPacketActionCollection.Close()
+		phase.Finish(nil)
 	}
 
+	phase = trace.StartPhase("ebpf_probe.RemoveNameMappings")
 	ddebpf.RemoveNameMappings(p.Manager.Get())
+	phase.Finish(nil)
+	phase = trace.StartPhase("ebpf_probe.UnregisterTelemetry")
 	ebpftelemetry.UnregisterTelemetry(p.Manager.Get())
+	phase.Finish(nil)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
-	if err := p.Manager.Stop(manager.CleanAll); err != nil {
+	phase = trace.StartPhase("ebpf_probe.Manager.Stop")
+	err := p.Manager.Stop(manager.CleanAll)
+	phase.Finish(err)
+	if err != nil {
 		return err
 	}
 
-	if err := p.Erpc.Close(); err != nil {
+	phase = trace.StartPhase("ebpf_probe.Erpc.Close")
+	err = p.Erpc.Close()
+	phase.Finish(err)
+	if err != nil {
 		return err
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
-	return p.Resolvers.Close()
+	phase = trace.StartPhase("ebpf_probe.Resolvers.Close")
+	err = p.Resolvers.Close()
+	phase.Finish(err)
+	return err
 }
 
 func (p *EBPFProbe) startSysCtlSnapshotLoop() {

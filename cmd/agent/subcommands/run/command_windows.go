@@ -28,6 +28,7 @@ import (
 	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
 
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -50,6 +51,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -88,6 +90,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	// runtime init routines
@@ -108,6 +111,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 	go func() {
 		err := fxutil.OneShot(func(
 			log log.Component,
+			fxLogger fxevent.Logger,
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
@@ -156,10 +160,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			gpuReadiness *gpu.Readiness,
 
 		) error {
-			defer StopAgentWithDefaults(config, sysprobeConf)
+			defer func() {
+				stopAgentWithTrace(config, sysprobeConf, logging.StartShutdownTrace(fxLogger))
+			}()
 
 			err := startAgent(
 				log,
+				fxLogger,
 				flare,
 				telemetry,
 				server,
@@ -213,6 +220,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
+			fxinstrumentation.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
@@ -7,9 +8,29 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/proto/pbgo/trace",
         "//pkg/util/fxutil",
         "//pkg/util/fxutil/logging",
+        "//pkg/util/http",
+        "//pkg/version",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxevent",
+    ],
+)
+
+dd_agent_go_test(
+    name = "fx_test",
+    srcs = ["shutdown_test.go"],
+    embed = [":fx"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/util/fxutil/logging",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

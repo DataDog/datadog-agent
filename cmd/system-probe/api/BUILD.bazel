@@ -24,6 +24,7 @@ go_library(
         "//pkg/system-probe/api/server",
         "//pkg/system-probe/config/types",
         "//pkg/system-probe/utils",
+        "//pkg/util/fxutil/logging",
         "//pkg/util/log",
     ],
 )

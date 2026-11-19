@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -402,23 +403,42 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 
 // Stop closes the module
 func (c *CWSConsumer) Stop() {
-	c.reloader.Stop()
+	c.StopWithTrace(nil)
+}
 
+// StopWithTrace records rule-engine, worker and reporter shutdown in order.
+func (c *CWSConsumer) StopWithTrace(trace *logging.StartupPhase) {
+	phase := trace.StartPhase("cws.reloader.Stop")
+	c.reloader.Stop()
+	phase.Finish(nil)
+
+	phase = trace.StartPhase("cws.cancel")
 	c.cancelFnc()
+	phase.Finish(nil)
 
 	// Stop the rule engine first to stop goroutines that send heartbeat/ruleset loaded events to the reporter
+	phase = trace.StartPhase("cws.ruleEngine.Stop")
 	c.ruleEngine.Stop()
+	phase.Finish(nil)
 
+	phase = trace.StartPhase("cws.workers.Wait")
 	c.wg.Wait()
+	phase.Finish(nil)
 
 	// Now we shouldn't have anymore events to send so we can safely stop the API server to close reporter channels
 	if c.apiServer != nil {
+		phase = trace.StartPhase("cws.apiServer.Stop")
 		c.apiServer.Stop()
+		phase.Finish(nil)
 	}
 
+	phase = trace.StartPhase("cws.cmdServer.Stop")
 	c.cmdServer.Stop()
+	phase.Finish(nil)
 	if c.grpcEventServer != nil {
+		phase = trace.StartPhase("cws.grpcEventServer.Stop")
 		c.grpcEventServer.Stop()
+		phase.Finish(nil)
 	}
 }
 

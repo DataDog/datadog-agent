@@ -59,6 +59,7 @@ go_library(
         "//pkg/security/utils",
         "//pkg/security/utils/grpc",
         "//pkg/util/fargate",
+        "//pkg/util/fxutil/logging",
         "//pkg/util/log",
         "//pkg/util/startstop",
         "//pkg/util/system/socket",
