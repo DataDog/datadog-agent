@@ -105,6 +105,7 @@ dd_collect_dependencies(
             "//cmd/process-agent",
             "//cmd/security-agent",
             "//cmd/trace-agent",
+            "@openssl//:openssl_bin_pkg",
         ],
         "//conditions:default": [],
     }),
