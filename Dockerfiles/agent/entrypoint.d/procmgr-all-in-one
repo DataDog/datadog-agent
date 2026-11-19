@@ -7,8 +7,9 @@ set -euo pipefail
 # kept across restarts, so it is wiped and mkdir without -p proves this run created it.
 # Otherwise use ${TMPDIR:-/tmp}, then /opt/datadog-agent/run, which may be shared: plain
 # --read-only leaves /tmp read-only and --tmpfs /tmp defaults to noexec. /tmp comes first so a
-# SIGKILL leftover stays in the container's own /tmp. A fallback directory needs a TERM trap,
-# since bash as PID 1 ignores an unhandled SIGTERM.
+# SIGKILL leftover stays in the container's own /tmp. bash as PID 1 ignores an unhandled
+# SIGTERM, so TERM is caught for the whole script. A fallback directory is removed on the way
+# out, including when exec of dd-procmgrd fails.
 stage_executes() {
     local probe="$1/.procmgr-exec-probe" status=1
     if printf '#!/bin/sh\nexit 0\n' >"$probe" && chmod 0755 "$probe" && "$probe" 2>/dev/null; then
@@ -17,6 +18,17 @@ stage_executes() {
     rm -f "$probe"
     return "$status"
 }
+
+cont_init_pid=
+cleanup_dir=
+on_term() {
+    if [[ -n "$cont_init_pid" ]]; then
+        kill -TERM "$cont_init_pid" 2>/dev/null || true
+    fi
+    exit 143
+}
+trap on_term TERM INT
+trap 'if [[ -n "$cleanup_dir" ]]; then chmod -R u+w "$cleanup_dir" 2>/dev/null || true; rm -rf "$cleanup_dir" 2>/dev/null || true; fi' EXIT
 
 copy_dir=
 primary=/var/run/s6/procmgr-cont-init.d
@@ -30,15 +42,14 @@ if [[ -z "$copy_dir" ]]; then
         if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then
             continue
         fi
-        # Install the trap before the probe, so a signal during it removes this directory.
+        # Set the cleanup variable before the probe, so a signal during it removes this directory.
+        cleanup_dir=$candidate
         copy_dir=$candidate
-        trap 'rm -rf "$copy_dir"' EXIT
-        trap 'rm -rf "$copy_dir"; exit 143' TERM INT
         if stage_executes "$candidate"; then
             break
         fi
         rm -rf "$candidate"
-        trap - EXIT TERM INT
+        cleanup_dir=""
         copy_dir=""
     done
 fi
@@ -66,10 +77,15 @@ for init in "${inits[@]}"; do
 done
 for init in "${selected[@]}"; do
     printf '===== RUNNING %s =====\n' "$init"
-    "$copy_dir/${init##*/}"
+    # Background the script so the TERM handler runs while it blocks. <&0 keeps its stdin.
+    "$copy_dir/${init##*/}" <&0 &
+    cont_init_pid=$!
+    wait "$cont_init_pid"
+    cont_init_pid=
 done
-# exec does not fire the EXIT trap, so remove the fallback here.
-if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi
+# A successful exec does not run the EXIT trap, so remove the cont-init fallback here.
+# A custom-service fallback is set afterwards and must survive exec.
+if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; cleanup_dir=""; fi
 
 # Shipped directories are already in the aio catalog, so starting them again would run
 # each process twice. Other directories with a run file are custom services. finish is not
@@ -98,11 +114,16 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
     else
         rm -rf "$processes_primary" 2>/dev/null || true
         for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do
-            if candidate=$(mktemp -d "$parent/procmgr-processes.d.XXXXXX" 2>/dev/null) && stage_executes "$candidate"; then
+            if ! candidate=$(mktemp -d "$parent/procmgr-processes.d.XXXXXX" 2>/dev/null); then
+                continue
+            fi
+            cleanup_dir=$candidate
+            if stage_executes "$candidate"; then
                 processes_dir=$candidate
                 break
             fi
-            rm -rf "$candidate" 2>/dev/null || true
+            rm -rf "$candidate"
+            cleanup_dir=""
         done
     fi
     if [[ -z "$processes_dir" ]]; then
@@ -112,15 +133,23 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
     for catalog_yaml in /opt/datadog-agent/processes.d/aio/*.yaml; do
         cp -L -- "$catalog_yaml" "$processes_dir/${catalog_yaml##*/}"
     done
-    mkdir "$processes_dir/runs"
+    mkdir "$processes_dir/services"
     for service_name in "${custom_services[@]}"; do
         service_dir=/etc/services.d/$service_name
         if [[ -e "$processes_dir/$service_name.yaml" ]]; then
             echo "skipping /etc/services.d/$service_name: $service_name is already a catalog process" >&2
             continue
         fi
-        cp -L -- "$service_dir/run" "$processes_dir/runs/$service_name"
-        chmod 0755 "$processes_dir/runs/$service_name"
+        stage="$processes_dir/services/$service_name"
+        if ! cp -RL -- "$service_dir" "$stage"; then
+            echo "skipping /etc/services.d/$service_name: copy failed" >&2
+            chmod -R u+w "$stage" 2>/dev/null || true
+            rm -rf "$stage" 2>/dev/null || true
+            continue
+        fi
+        chmod 0755 "$stage/run"
+        # A read-only source can be mode 0555. The owner still has to be able to remove the copy.
+        chmod -R u+w "$stage"
         auto_start=true
         if [[ -e "$service_dir/down" ]]; then
             auto_start=false
@@ -129,10 +158,14 @@ if [[ ${#custom_services[@]} -gt 0 ]]; then
             echo "/etc/services.d/$service_name/finish is not run. ENTRYPOINT=s6-all-in-one runs it." >&2
         fi
         printf '===== ADDING custom service /etc/services.d/%s =====\n' "$service_name"
+        command_path="$processes_dir/services/$service_name/run"
+        command_path=${command_path//\'/\'\'}
+        workdir_path="$processes_dir/services/$service_name"
+        workdir_path=${workdir_path//\'/\'\'}
         cat >"$processes_dir/$service_name.yaml" <<EOF
 description: Custom service /etc/services.d/$service_name
-command: $processes_dir/runs/$service_name
-working_dir: $service_dir
+command: '$command_path'
+working_dir: '$workdir_path'
 auto_start: $auto_start
 restart: always
 restart_sec: 1
@@ -147,4 +180,9 @@ fi
 # The image VOLUME keeps this directory writable under Docker --read-only.
 export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
 printf '===== STARTING dd-procmgrd =====\n'
+# set -e skips the EXIT trap when exec fails. execfail makes a failed exec return.
+set +e
+shopt -s execfail
 exec /opt/datadog-agent/embedded/bin/dd-procmgrd
+status=$?
+exit "$status"

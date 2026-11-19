@@ -10,14 +10,20 @@ upgrade:
   - |
     The Linux Agent container now runs its processes under ``dd-procmgrd``
     instead of s6. If the core Agent exits, the container now exits with the
-    Agent's exit code instead of 0. Only enabled processes start. A custom
+    Agent's exit code instead of 0. Only enabled processes start. An auxiliary
+    process that crashes restarts after 2 seconds, and the delay doubles up to
+    60 seconds while it keeps exiting within 1 second of starting. ``datadog-agent-otel``
+    still restarts every 2 seconds. Under s6, every crash restart waited 2 seconds. A custom
     service added under ``/etc/services.d/`` still starts. It is not started
     when its name is not a process name or matches a catalog process. Its
     ``finish`` script does not run, and editing a shipped service's ``run``
     file has no effect. Scripts in ``/etc/cont-init.d/``
-    still run but need a shebang. ``DD_PM_*`` variables are
-    not passed to the processes, except ``DD_PM_SOCKET_PATH``. Start, exit and
-    restart messages now go to the container output instead of
-    ``/var/log/datadog/init.log``, and they are worded differently. To keep s6
+    still run but need a shebang. Scripts in ``/etc/cont-finish.d/`` and
+    ``/etc/fix-attrs.d/`` do not run. ``S6_*`` variables do not control
+    supervision. ``s6-svc`` and ``s6-svstat`` do not control ``dd-procmgrd``.
+    ``dd-procmgr`` replaces them. ``DD_PM_*`` variables are
+    not passed to the processes, except ``DD_PM_SOCKET_PATH``. Start, exit, and
+    restart messages stay in the container output and are no longer appended to
+    ``/var/log/datadog/init.log``. They are worded differently. To keep s6
     for this release, set the environment variable ``ENTRYPOINT=s6-all-in-one``.
     s6 will be removed in a future release.

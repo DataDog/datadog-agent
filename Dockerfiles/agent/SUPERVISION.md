@@ -5,9 +5,12 @@ processes such as the trace agent, the process agent and system-probe. To ship t
 container, the image includes `dd-procmgrd`, the Datadog process manager.
 
 When the `ENTRYPOINT` environment variable is not set, `/opt/entrypoints/_default` runs
-`/opt/entrypoints/procmgr-all-in-one`. That script runs the cont-init scripts, then execs
-`dd-procmgrd`. `dd-procmgrd` is PID 1, or the container's main process when the container
-shares the host PID namespace (`pid: host`). It reads its process catalog from
+`/opt/entrypoints/procmgr-all-in-one` when `dd-procmgrd` is executable and
+`/opt/datadog-agent/processes.d/aio` exists. Otherwise it runs `s6-all-in-one`. That is how
+`agent-ddot` stays on s6 when it copies these entrypoints onto an older base that has no aio
+catalog. `procmgr-all-in-one` runs the cont-init scripts, then execs `dd-procmgrd`.
+`dd-procmgrd` is PID 1, or the container's main process when the container shares the host
+PID namespace (`pid: host`). It reads its process catalog from
 `/opt/datadog-agent/processes.d/aio/`. When a custom service is added, the entrypoint copies
 that catalog and the custom service into a staging directory and reads that instead.
 
@@ -29,11 +32,14 @@ open. A process whose gate is closed is listed as `Skipped`, with the reason.
 | `datadog-agent-par-control` | `par-control` | `private_action_runner.split_enabled`, unless `fips.enabled` is set |
 | `datadog-agent-action-executor` | `privateactionrunner` | Never at boot. `par-control` starts it on demand |
 
-Auxiliary processes are restarted when they fail. A process that exits 0 stays stopped.
-Every process inherits the container `PATH`. `DD_PM_*` variables are not passed to the
-processes, except `DD_PM_SOCKET_PATH`.
-
-`datadog-agent-otel` is restarted every 2 seconds after a failure, without a limit.
+Auxiliary processes restart after a non-zero exit or a signal. The first wait is
+`restart_sec` (2 seconds). The delay doubles up to 60 seconds while the process exits within
+1 second of starting, and it returns to 2 seconds after a run of at least 1 second. The
+shipped `start_limit_burst: 5` and `start_limit_interval_sec: 10` do not stop that loop. A
+process that exits 0 stays stopped. `datadog-agent-otel` restarts 2 seconds after a failure,
+with no limit. `datadog-agent` and `datadog-agent-action-executor` never restart. Every
+process inherits the container `PATH`. `DD_PM_*` variables are not passed to the processes,
+except `DD_PM_SOCKET_PATH`.
 
 ## Cont-init scripts
 
@@ -59,22 +65,35 @@ Rules for custom scripts:
 - Environment variables exported in a script do not reach the Agent. Set container
   environment variables instead.
 
+A script runs as a background child of the entrypoint, so it starts with SIGINT and SIGQUIT
+ignored. Stopping the container during cont-init sends the script SIGTERM.
+
 You can use custom scripts to:
 
 - `pip install` Python dependencies for your custom checks
 - append content at the end of `/etc/datadog-agent/datadog.yaml`
 - disable standard checks by editing the files in `/etc/datadog-agent/conf.d/`
 
+## Custom services
+
 A custom service is a directory under `/etc/services.d/` other than the ones the image ships
 (`agent`, `data-plane`, `otel`, `privateactionrunner`, `process`, `security`, `sysprobe`,
 `trace`). Each custom directory that contains a `run` file is started, except when its name
-is not a process name or it matches a catalog process such as `datadog-agent`. The working
-directory is the service directory, and the service is restarted one second after it exits,
-with no limit. A `down` file leaves it stopped until `dd-procmgr start <name>`. The shipped
-directories are already in the catalog, so their `run` files are not started again.
+is not a process name or it matches a catalog process such as `datadog-agent`. The entrypoint
+copies the whole service directory and runs that copy. The working directory is the staged
+copy, not `/etc/services.d/<name>`. The service uses `restart: always`, so it restarts 1
+second after every exit, including exit 0, with no limit. A `down` file leaves it stopped
+until `dd-procmgr start <name>`. The shipped directories are already in the catalog, so their
+`run` files are not started again.
 
-A `finish` script is not run, and editing the `run` file of a shipped service has no effect.
-`ENTRYPOINT=s6-all-in-one` keeps both.
+A `finish` script is not run. `notification-fd` and a nested `log/` directory are not used.
+Editing the `run` file of a shipped service has no effect. `ENTRYPOINT=s6-all-in-one` keeps
+the s6 behavior.
+
+The copy is staged under `/var/run/s6` when that directory is writable and executable.
+Otherwise it is staged under `${TMPDIR:-/tmp}`, then under `/opt/datadog-agent/run`.
+`/opt/datadog-agent/run` is a VOLUME, so a fallback directory left by a successful start
+remains until that volume is removed.
 
 ## Useful commands
 
@@ -100,6 +119,8 @@ container with exit code 0, so restart the container instead.
   `stop_timeout` (90 seconds by default, 180 seconds for `datadog-agent-par-control`) before
   it kills it. A clean shutdown exits 0. The container runtime still kills everything when its
   own grace period ends (Docker's default is 10 seconds), and the container then exits 137.
+- `docker stop` during a cont-init script exits 143, because the TERM handler runs. An
+  interrupt (INT) before `dd-procmgrd` starts also exits 143.
 - A recommended grace period has not been measured yet.
 
 ## Differences from s6
@@ -108,9 +129,15 @@ These differences from the s6 image are accepted:
 
 - A custom `/etc/services.d/<name>/finish` script is not run, and a replacement `run` file in a
   shipped service directory is ignored. `ENTRYPOINT=s6-all-in-one` keeps both.
+- Scripts in `/etc/cont-finish.d/` and `/etc/fix-attrs.d/` do not run.
+- `S6_*` variables do not control supervision.
+- `s6-svc` and `s6-svstat` do not control `dd-procmgrd`. `dd-procmgr` replaces them.
 - `DD_PM_*` variables are not passed to the processes, except `DD_PM_SOCKET_PATH`.
-- Start, exit and restart messages come from `dd-procmgrd`, are written to the container output,
-  and are worded differently from the s6 messages in `/var/log/datadog/init.log`.
+- Start, exit, and restart messages stay in the container output and are no longer appended to
+  `/var/log/datadog/init.log`. They are worded differently.
+- An auxiliary process that crashes restarts after 2 seconds, and the delay doubles up to 60
+  seconds while it keeps exiting within 1 second of starting. `datadog-agent-otel` still
+  restarts every 2 seconds. Under s6, every crash restart waited 2 seconds.
 
 ## Rolling back to s6
 

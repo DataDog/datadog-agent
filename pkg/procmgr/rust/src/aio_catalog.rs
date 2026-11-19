@@ -696,7 +696,7 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     // The loops are compared as one contiguous slice, so the generic fi and done lines
     // stay attached to the bodies they close.
     let staging_cleanup =
-        r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; trap - EXIT TERM INT; fi"#;
+        r#"if [[ "$copy_dir" != "$primary" ]]; then rm -rf "$copy_dir"; cleanup_dir=""; fi"#;
     // Unique lines only: pos() returns the first match, so a repeated `fi` would not
     // prove order.
     let steps = [
@@ -706,6 +706,13 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "status=0",
         r#"rm -f "$probe""#,
         r#"return "$status""#,
+        "cont_init_pid=",
+        "cleanup_dir=",
+        "on_term() {",
+        r#"kill -TERM "$cont_init_pid" 2>/dev/null || true"#,
+        "exit 143",
+        "trap on_term TERM INT",
+        r#"trap 'if [[ -n "$cleanup_dir" ]]; then chmod -R u+w "$cleanup_dir" 2>/dev/null || true; rm -rf "$cleanup_dir" 2>/dev/null || true; fi' EXIT"#,
         "copy_dir=",
         "primary=/var/run/s6/procmgr-cont-init.d",
         r#"if rm -rf "$primary" 2>/dev/null && mkdir "$primary" 2>/dev/null && stage_executes "$primary"; then"#,
@@ -714,13 +721,12 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         r#"for parent in "${TMPDIR:-/tmp}" /opt/datadog-agent/run; do"#,
         r#"if ! candidate=$(mktemp -d "$parent/procmgr-cont-init.d.XXXXXX" 2>/dev/null); then"#,
         "continue",
+        "cleanup_dir=$candidate",
         "copy_dir=$candidate",
-        r#"trap 'rm -rf "$copy_dir"' EXIT"#,
-        r#"trap 'rm -rf "$copy_dir"; exit 143' TERM INT"#,
         r#"if stage_executes "$candidate"; then"#,
         "break",
         r#"rm -rf "$candidate""#,
-        "trap - EXIT TERM INT",
+        r#"cleanup_dir="""#,
         r#"copy_dir="""#,
         r#"echo "cannot stage /etc/cont-init.d: no writable executable directory in /var/run/s6, ${TMPDIR:-/tmp}, or /opt/datadog-agent/run" >&2"#,
         "exit 1",
@@ -749,7 +755,10 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "done",
         r#"for init in "${selected[@]}"; do"#,
         r#"printf '===== RUNNING %s =====\n' "$init""#,
-        r#""$copy_dir/${init##*/}""#,
+        r#""$copy_dir/${init##*/}" <&0 &"#,
+        "cont_init_pid=$!",
+        r#"wait "$cont_init_pid""#,
+        "cont_init_pid=",
         "done",
     ];
     let stage_at = pos(loops[0]);
@@ -779,6 +788,29 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         !script.contains("procmgr-cont-init.d.*"),
         "a glob would delete another container's live staging directory on a shared mount"
     );
+    assert!(
+        !script.contains("procmgr-processes.d.*"),
+        "a glob would delete another container's live custom-service directory on a shared mount"
+    );
+    // A failed exec must return so the EXIT trap can remove the fallback directory. These
+    // are the script's last code lines, in order.
+    let expected_tail = [
+        "set +e",
+        "shopt -s execfail",
+        "exec /opt/datadog-agent/embedded/bin/dd-procmgrd",
+        "status=$?",
+        r#"exit "$status""#,
+    ];
+    assert_eq!(
+        &code_lines[code_lines.len() - expected_tail.len()..],
+        &expected_tail[..],
+        "the script must end with set +e, execfail, exec, status, exit"
+    );
+    assert!(
+        script.contains("cp -RL --"),
+        "a custom service runs from a staged copy of its directory"
+    );
+    assert!(script.contains("chmod -R u+w"));
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
     assert!(
         script.contains(
@@ -854,6 +886,12 @@ fn procmgr_all_in_one_entrypoint_is_installed_executable() {
         AGENT_DOCKERFILE
             .lines()
             .any(|line| { line.trim() == "COPY --chmod=755 entrypoint.d /opt/entrypoints" })
+    );
+    assert!(
+        AGENT_DOCKERFILE.contains(
+            "find /opt/datadog-agent/processes.d -type d -exec chmod 0755 {} +"
+        ),
+        "COPY --chmod=644 leaves processes.d directories mode 0644, which a non-root user cannot traverse"
     );
     assert!(
         AGENT_DOCKERFILE.lines().any(|line| {

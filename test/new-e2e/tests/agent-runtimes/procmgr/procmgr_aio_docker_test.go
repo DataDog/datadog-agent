@@ -38,8 +38,12 @@ const (
 	aioContInitMarker92 = "cont-init-marker-92-symlink-target"
 
 	// A name the image does not ship, so the entrypoint treats the directory as custom.
-	aioCustomService    = "custom-keepalive"
-	aioCustomServiceCwd = "custom-service-cwd=/etc/services.d/" + aioCustomService
+	aioCustomService        = "custom-keepalive"
+	aioCustomServiceCwd     = "custom-service-cwd="
+	aioCustomServiceStaged  = "/services/" + aioCustomService
+	aioCustomServiceZero    = "custom-service-zero="
+	aioCustomServiceRun     = "/services/" + aioCustomService + "/run"
+	aioCustomServiceSibling = "custom-service-sibling=keepalive-sibling"
 )
 
 // aioContInitSetupScript creates the injected cont-init files in one remote
@@ -69,16 +73,19 @@ EOS
 `
 
 // aioCustomServiceSetupScript writes a run script that stays up and prints its
-// working directory. The yaml the entrypoint generates sets that directory to
-// the service directory.
+// working directory, its own path, and a sibling file. The entrypoint runs a
+// staged copy of the directory, so those paths are under services/<name>.
 const aioCustomServiceSetupScript = `bash -s <<'EOS'
 set -euo pipefail
 dir=$(mktemp -d)
 cat > "$dir/run" <<'EOF'
 #!/bin/sh
 echo "custom-service-cwd=$(pwd)"
+echo "custom-service-zero=$0"
+echo "custom-service-sibling=$(cat "$(dirname "$0")/sibling.txt")"
 exec /bin/sleep 3600
 EOF
+echo keepalive-sibling > "$dir/sibling.txt"
 chmod 0755 "$dir/run"
 printf '%s\n' "$dir"
 EOS
@@ -316,6 +323,10 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 			"===== ADDING custom service /etc/services.d/"+aioCustomService+" =====",
 			"===== STARTING dd-procmgrd =====",
 			aioCustomServiceCwd,
+			aioCustomServiceStaged,
+			aioCustomServiceZero,
+			aioCustomServiceRun,
+			aioCustomServiceSibling,
 		)
 		assert.Equal(c, 1, strings.Count(logs, "===== ADDING custom service "), "only the custom service should be added")
 	}, 2*time.Minute, 2*time.Second)
@@ -330,6 +341,83 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 			assertField(c, stdout, "State", "Running")
 		}
 	}, time.Minute, 2*time.Second)
+}
+
+// UID 100 is dd-agent. Group 0 is root, which can write to the group-writable runtime directories.
+func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
+	image := s.agentImage(s.T())
+	name := "aio-nonroot"
+
+	t := s.T()
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s --user 100:0 -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		pid := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c,
+			"docker inspect -f '{{.State.Pid}}' "+shSingleQuote(name)))
+		comm := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c, "cat /proc/"+pid+"/comm"))
+		assert.Equal(c, "dd-procmgrd", comm, "a non-root container should run dd-procmgrd, not fall back to s6")
+		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
+			name,
+			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", "datadog-agent",
+		)
+		require.NoError(c, err, stderr)
+		assertField(c, stdout, "State", "Running")
+	}, 3*time.Minute, 2*time.Second)
+}
+
+// The blocking script is reached only after the shipped cont-init scripts, so the stop
+// lands while bash is still PID 1. Exit 143 means the TERM handler ran. Exit 137 means
+// Docker's grace period expired.
+func (s *procmgrAIODockerSuite) TestDockerStopDuringContInit() {
+	image := s.agentImage(s.T())
+	name := "aio-stop-during-cont-init"
+	dir := strings.TrimSpace(s.Env().RemoteHost.MustExecute(`bash -s <<'EOS'
+set -euo pipefail
+dir=$(mktemp -d)
+cat > "$dir/90-block" <<'EOF'
+#!/bin/sh
+exec /bin/sleep 300
+EOF
+chmod 0755 "$dir/90-block"
+printf '%s\n' "$dir"
+EOS
+`))
+	s.Require().NotEmpty(dir)
+
+	t := s.T()
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "rm -rf "+shSingleQuote(dir))
+	})
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(dir+"/90-block"),
+		shSingleQuote(image),
+	))
+	t.Cleanup(func() {
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs := s.Env().RemoteHost.MustExecuteOn(c, "docker logs "+shSingleQuote(name)+" 2>&1")
+		assert.Contains(c, logs, "===== RUNNING /etc/cont-init.d/90-block =====")
+	}, 2*time.Minute, 2*time.Second)
+
+	s.Env().RemoteHost.MustExecute("docker stop -t 20 " + shSingleQuote(name))
+	exitCode := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		"docker inspect -f '{{.State.ExitCode}}' " + shSingleQuote(name)))
+	s.Equal("143", exitCode, "docker stop during cont-init should exit 143, not 137")
 }
 
 // timeout 30: reaching dd-procmgrd would hang docker run.
