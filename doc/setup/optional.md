@@ -16,9 +16,9 @@ echo "source <(dda inv --print-completion-script zsh)" >> ~/.zshrc
 
 ## Pre-commit hooks
 
-[Pre-commit](https://pre-commit.com) provides earlier feedback for checks enforced by CI. The default profile checks protected branches, Go formatting and simplification, ShellCheck, GitHub Actions workflows, copyright headers, prohibited shell tracing, Python formatting and lint with Ruff. These checks validate staged contents without rewriting tracked files. No checks run on push or other events by default.
+[Pre-commit](https://pre-commit.com) provides earlier feedback for checks enforced by CI. The default profile checks protected branches, Go formatting and simplification, ShellCheck, GitHub Actions workflows, copyright headers, prohibited shell tracing, Python formatting and lint with Ruff, Buildifier, and rustfmt. These checks validate staged contents without rewriting tracked files. No checks run on push or other events by default.
 
-Install Go from `.go-version` and ShellCheck on `PATH`. DDA provides Ruff, and pre-commit installs the pinned actionlint environment. See [manual setup](manual.md#pre-commit-hooks) for details.
+Install Go from `.go-version` and ShellCheck on `PATH`. DDA provides Ruff, and pre-commit installs the pinned actionlint environment. Install Buildifier with `dda inv install-tools --buildifier`; this uses the same Bazel-managed version as CI and places the executable in `bin/`. Install the Rust version declared in `MODULE.bazel` with `rustup toolchain install <version> --profile minimal --component rustfmt`. See [manual setup](manual.md#pre-commit-hooks) for details.
 
 1. Install `pre-commit` by running the following command.
 

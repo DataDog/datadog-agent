@@ -9,7 +9,7 @@ from invoke import Context, Exit, task
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
-from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
+from tasks.libs.common.utils import bin_name, environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
     'github.com/bazelbuild/bazelisk',
@@ -44,7 +44,7 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3, verbose: bool = False):
+def install_tools(ctx: Context, max_retry: int = 3, verbose: bool = False, buildifier: bool = False):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
         env = {**os.environ, 'GO111MODULE': 'on'}
@@ -82,6 +82,15 @@ def install_tools(ctx: Context, max_retry: int = 3, verbose: bool = False):
 
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
+
+    if buildifier:
+        from tasks.libs.build.bazel import build_binary_with_bazel
+
+        build_binary_with_bazel(
+            "@multitool//tools/buildifier",
+            args=["--lockfile_mode=off"],
+            bin_path=os.path.join("bin", bin_name("buildifier")),
+        )
 
 
 @task
