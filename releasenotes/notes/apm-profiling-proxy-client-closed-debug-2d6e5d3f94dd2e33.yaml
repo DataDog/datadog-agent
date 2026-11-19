@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM: The trace-agent profiling proxy now logs at DEBUG level, instead of WARN,
+    when a client closes its connection before a profile upload completes.
+    Request timeouts and transport errors are still logged at WARN.
