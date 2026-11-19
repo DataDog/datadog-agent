@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    GPU inventory now reports NVLink partition membership as
+    ``gpu_nvlink_partition`` instead of ``nvlink_domain``, matching the GPU
+    resource schema. The value format and existing fabric metric tags are unchanged.
