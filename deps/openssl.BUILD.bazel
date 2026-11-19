@@ -288,6 +288,7 @@ dd_cc_packaged(
     dest_dir = "embedded/bin",
     input = ":openssl_binary",
     mode = "0755",
+    visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
