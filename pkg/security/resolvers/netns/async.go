@@ -75,6 +75,67 @@ func (tcr *Resolver) PushNetworkNamespaceHandleRequest(nsID uint32, pid uint32) 
 	}
 }
 
+// networkNamespaceMountRequest represents an async request for a handle on a network namespace through one of its nsfs
+// mounts, or for its release once that mount is gone.
+type networkNamespaceMountRequest struct {
+	nsID      uint32
+	pid       uint32
+	mountPath string
+	unmounted bool
+}
+
+// PushNetworkNamespaceMountRequest queues a request for a handle on the network namespace that pid mounted at mountPath.
+func (tcr *Resolver) PushNetworkNamespaceMountRequest(nsID uint32, pid uint32, mountPath string) {
+	if !tcr.config.NetworkEnabled || nsID == 0 {
+		return
+	}
+
+	select {
+	case tcr.netnsMountRequests <- networkNamespaceMountRequest{nsID: nsID, pid: pid, mountPath: mountPath}:
+	default:
+		tcr.countError(errorClassMountQueueFull)
+		seclog.Debugf("failed to slot network namespace mount request for %d", nsID)
+	}
+}
+
+// PushNetworkNamespaceUnmountRequest queues the release of the network namespace whose nsfs mount is gone, and returns
+// false if the queue is full.
+func (tcr *Resolver) PushNetworkNamespaceUnmountRequest(nsID uint32) bool {
+	if !tcr.config.NetworkEnabled || nsID == 0 {
+		return true
+	}
+
+	// the mount queue keeps the release after the snapshot of a pending mount request, which uses the netlink socket it closes
+	select {
+	case tcr.netnsMountRequests <- networkNamespaceMountRequest{nsID: nsID, unmounted: true}:
+		return true
+	default:
+		tcr.countError(errorClassMountQueueFull)
+		return false
+	}
+}
+
+func (tcr *Resolver) handleNetworkNamespaceMountRequest(request networkNamespaceMountRequest) {
+	if request.unmounted {
+		if netns := tcr.ResolveNetworkNamespace(request.nsID); netns != nil {
+			tcr.FlushNetworkNamespace(netns)
+			tcr.tcResolver.FlushNetworkNamespaceID(request.nsID, tcr.manager)
+		}
+		return
+	}
+
+	// the path is relative to the mounter's root, which may not be ours and goes away with the mounter
+	for _, path := range []string{
+		utils.ProcRootFilePath(request.pid, request.mountPath),
+		utils.ProcRootFilePath(1, request.mountPath),
+		request.mountPath,
+	} {
+		if netns, _ := tcr.SaveNetworkNamespaceHandle(request.nsID, utils.NewNSPathFromPath(path, utils.NetNsType)); netns != nil {
+			return
+		}
+	}
+}
+
 func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 	for {
 		// select picks a random ready case, so a cancelled context alone wouldn't stop the queue from being drained
@@ -99,6 +160,8 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 			_, _ = tcr.SaveNetworkNamespaceHandleLazy(request.nsID, func() *utils.NSPath {
 				return utils.NewNSPathFromPid(request.pid, utils.NetNsType)
 			})
+		case request := <-tcr.netnsMountRequests:
+			tcr.handleNetworkNamespaceMountRequest(request)
 		}
 	}
 }
