@@ -147,21 +147,16 @@ func (d *ndmDiscovery) Schedule(ranges []ndmdiscovery.Range) map[string]error {
 	}
 
 	var rejected []rejectedRange
-	reject := func(r ndmdiscovery.Range, err error) {
-		errs[r.ID] = err
-		rejected = append(rejected, rejectedRange{ID: r.ID, NetworkAddress: r.NetworkAddress, Error: err.Error()})
-		d.log.Warnf("ndmdiscovery: rejected range %s (%s): %v", r.ID, r.NetworkAddress, err)
-	}
-
 	scheduled := make(map[string]struct{}, len(ranges))
 	for _, r := range ranges {
 		cfg, err := parseRange(r, d.defaults, d.log)
-		if err != nil {
-			reject(r, err)
-			continue
+		if err == nil {
+			err = d.sched.set(cfg)
 		}
-		if err := d.sched.set(cfg); err != nil {
-			reject(r, err)
+		if err != nil {
+			errs[r.ID] = err
+			rejected = append(rejected, rejectedRange{ID: r.ID, NetworkAddress: r.NetworkAddress, Error: err.Error()})
+			d.log.Warnf("ndmdiscovery: rejected range %s (%s): %v", r.ID, r.NetworkAddress, err)
 			continue
 		}
 		scheduled[cfg.AutodiscoveryID] = struct{}{}
