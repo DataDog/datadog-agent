@@ -44,7 +44,7 @@ type Metrics struct {
 	PowerMilliwatts    Reading // hwmon power1_average, or power1_input when averaging is not exposed
 	PowerCapMilliwatts Reading // hwmon power1_cap
 
-	GraphicsClockMHz Reading // active level of pp_dpm_sclk, else hwmon sclk
+	GraphicsClockMHz Reading // active level of pp_dpm_sclk, or hwmon sclk when no level is marked
 	MemoryClockMHz   Reading // active level of pp_dpm_mclk
 
 	PCIeLinkWidth       Reading // current_link_width, lanes
@@ -88,8 +88,9 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.VRAMTotalBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_total"), 1)
 	m.VRAMUsedBytes = r.uint(filepath.Join(d.devicePath, "mem_info_vram_used"), 1)
 
-	m.GraphicsClockMHz = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_sclk"))
-	m.MemoryClockMHz = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_mclk"))
+	var sclkUnmarked bool
+	m.GraphicsClockMHz, sclkUnmarked = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_sclk"))
+	m.MemoryClockMHz, _ = r.activeDPMLevel(filepath.Join(d.devicePath, "pp_dpm_mclk"))
 
 	m.PCIeLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "current_link_width"))
 	m.PCIeMaxLinkWidth = r.linkWidth(filepath.Join(d.devicePath, "max_link_width"))
@@ -97,7 +98,7 @@ func (d *Device) ReadMetricsWithOptions(opts ReadOptions) (Metrics, error) {
 	m.PCIeMaxLinkSpeedGTs = r.linkSpeed(filepath.Join(d.devicePath, "max_link_speed"))
 
 	if hwmonDir := r.hwmonDir(d.devicePath); hwmonDir != "" {
-		r.readHwmon(hwmonDir, &m)
+		r.readHwmon(hwmonDir, &m, sclkUnmarked)
 	}
 
 	if !opts.SkipGPUMetrics {
@@ -226,10 +227,12 @@ func (r *reader) int(path string, scale float64) Reading {
 // in a pp_dpm_* table. Lines look like "1: 1700Mhz *", "S: 19Mhz *" (deep
 // sleep) or "0:        872Mhz"; the value and its unit may be separated by
 // spaces. This follows the parser of ROCm SMI (rocm_smi.cc, freq_lines).
-func (r *reader) activeDPMLevel(path string) Reading {
+// unmarked reports a table that lists levels but marks none, unlike the
+// "unavailable" printed during a RAS interrupt.
+func (r *reader) activeDPMLevel(path string) (level Reading, unmarked bool) {
 	content, ok := r.read(path)
 	if !ok {
-		return Reading{}
+		return Reading{}, false
 	}
 	for line := range strings.Lines(content) {
 		if !strings.Contains(line, "*") {
@@ -238,11 +241,11 @@ func (r *reader) activeDPMLevel(path string) Reading {
 		mhz, err := parseDPMFrequency(line)
 		if err != nil {
 			r.errs = append(r.errs, fmt.Errorf("parse %s: %q: %w", path, strings.TrimSpace(line), err))
-			return Reading{}
+			return Reading{}, false
 		}
-		return valid(mhz)
+		return valid(mhz), false
 	}
-	return Reading{}
+	return Reading{}, strings.Contains(content, ":")
 }
 
 // parseDPMFrequency parses the frequency of one pp_dpm_* line, in MHz.
@@ -307,7 +310,7 @@ const (
 	hertzPerMegahertz       = 1000000
 )
 
-func (r *reader) readHwmon(dir string, m *Metrics) {
+func (r *reader) readHwmon(dir string, m *Metrics, sclkUnmarked bool) {
 	entries := r.readDir(dir)
 	for _, entry := range entries {
 		name := entry.Name()
@@ -338,7 +341,7 @@ func (r *reader) readHwmon(dir string, m *Metrics) {
 
 	// Linux 7.0 to 7.0.9 marks no pp_dpm_sclk level of MI300 and MI350 GPUs
 	// while the clock is between its minimum and maximum.
-	if !m.GraphicsClockMHz.Valid {
+	if sclkUnmarked {
 		m.GraphicsClockMHz = r.hwmonClock(dir, entries, "sclk")
 	}
 }
