@@ -167,6 +167,7 @@ func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersis
 	}, remotePersistenceControlTimeout, 2*time.Second, "remote issue requests were not observed")
 	if !requestsObserved {
 		suite.captureNodeAgentLog(ctx, daemonSet)
+		suite.captureClusterAgentLog(ctx)
 		suite.T().FailNow()
 	}
 
@@ -188,38 +189,54 @@ func (suite *admissionProbeSuite) captureRemotePersistenceStartup() remotePersis
 }
 
 func (suite *admissionProbeSuite) captureNodeAgentLog(ctx context.Context, daemonSet *appsv1.DaemonSet) {
+	suite.captureAgentLog(ctx, metav1.FormatLabelSelector(daemonSet.Spec.Selector), "agent", "node-agent")
+}
+
+func (suite *admissionProbeSuite) captureClusterAgentLog(ctx context.Context) {
+	suite.captureAgentLog(ctx, "", "cluster-agent", "cluster-agent")
+}
+
+func (suite *admissionProbeSuite) captureAgentLog(ctx context.Context, selector, container, name string) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(clusterAgentNamespace)
-	selector := metav1.FormatLabelSelector(daemonSet.Spec.Selector)
 	list, err := pods.List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
-		suite.T().Logf("failed to list node Agent pods for diagnostics: %v", err)
+		suite.T().Logf("failed to list %s pods for diagnostics: %v", name, err)
 		return
 	}
 
 	for _, pod := range list.Items {
-		if pod.Status.Phase != corev1.PodRunning {
+		containerFound := false
+		for _, c := range pod.Spec.Containers {
+			if c.Name == container {
+				containerFound = true
+				break
+			}
+		}
+		if !containerFound {
 			continue
 		}
 
 		logs, err := pods.GetLogs(pod.Name, &corev1.PodLogOptions{
-			Container:  "agent",
+			Container:  container,
 			Timestamps: true,
 		}).DoRaw(ctx)
 		if err != nil {
-			suite.T().Logf("failed to read node Agent logs for diagnostics: %v", err)
-			return
+			suite.T().Logf("failed to read %s logs from %s for diagnostics: %v", name, pod.Name, err)
+			continue
 		}
 
-		logPath := filepath.Join(suite.SessionOutputDir(), "remote-persistence-node-agent.log")
+		logPath := filepath.Join(suite.SessionOutputDir(), "remote-persistence-"+name+".log")
 		if err := os.WriteFile(logPath, logs, 0o644); err != nil {
-			suite.T().Logf("failed to write node Agent logs to %s: %v", logPath, err)
+			suite.T().Logf("failed to write %s logs to %s: %v", name, logPath, err)
 			return
 		}
-		suite.T().Logf("wrote node Agent logs to %s", logPath)
+		suite.T().Logf("wrote %s logs to %s", name, logPath)
 		return
 	}
 
-	suite.T().Log("no running node Agent pod found for diagnostics")
+	suite.T().Logf("no %s pod logs available for diagnostics", name)
 }
 
 func (suite *admissionProbeSuite) restartNodeAgent(t *testing.T) {

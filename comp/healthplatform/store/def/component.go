@@ -59,6 +59,11 @@ type Component interface {
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
 
+	// ReconcilePersistedIssues resolves restored issues without a current report,
+	// including snapshots restored later. Call only after reporting active issues
+	// and only when the check for all issueNames succeeded.
+	ReconcilePersistedIssues(issueNames []string)
+
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
 	// with the given IssueName (e.g. "Docker Socket Permission").
 	GetActiveIssueIDsByIssueName(issueName string) []string

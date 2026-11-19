@@ -93,6 +93,10 @@ type healthPlatformImpl struct {
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
+	// Successful checks may finish before a remote snapshot can be restored.
+	reconciledIssueNames map[string]struct{} // guarded by issuesMux
+	remoteRestoreCancel  context.CancelFunc
+	remoteRestoreDone    chan struct{}
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -115,6 +119,9 @@ const (
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
 	resolvedIssueTTL = 24 * time.Hour
+
+	remoteRestoreInitialBackoff = 5 * time.Second
+	remoteRestoreMaxBackoff     = time.Minute
 
 	// persistedStateVersion is the on-disk schema version written by this binary.
 	// restorePersistedState refuses to load files with a different version (no migration).
@@ -340,13 +347,54 @@ func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
 	if err := h.loadPersistedState(ctx); err != nil {
 		h.log.Warn("Failed to restore persisted issues: " + err.Error())
+		if _, remote := h.persistence.(*remotePersistence); remote {
+			// OnStart's context ends after startup; retries belong to the component.
+			retryCtx, cancel := context.WithCancel(context.Background())
+			h.remoteRestoreCancel = cancel
+			h.remoteRestoreDone = make(chan struct{})
+			go h.retryRemoteRestore(retryCtx)
+		}
 	}
 	return nil
 }
 
+func (h *healthPlatformImpl) retryRemoteRestore(ctx context.Context) {
+	defer close(h.remoteRestoreDone)
+	backoff := remoteRestoreInitialBackoff
+	for {
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if err := h.loadPersistedState(ctx); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			h.log.Warnf("Failed to restore remote persisted issues; retrying: %v", err)
+			backoff = min(2*backoff, remoteRestoreMaxBackoff)
+			continue
+		}
+		return
+	}
+}
+
 // stop stops the health platform component
-func (h *healthPlatformImpl) stop(_ context.Context) error {
+func (h *healthPlatformImpl) stop(ctx context.Context) error {
 	h.log.Info("Stopping health platform component")
+	if h.remoteRestoreCancel != nil {
+		h.remoteRestoreCancel()
+		select {
+		case <-h.remoteRestoreDone:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 
@@ -469,7 +517,15 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 
 // ResolveIssue marks an issue as resolved and removes it from the active set.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
+	h.resolveIssue(issueID, false)
+}
+
+func (h *healthPlatformImpl) resolveIssue(issueID string, persistedOnly bool) {
 	h.issuesMux.Lock()
+	if persistedOnly && h.issues[issueID] != nil {
+		h.issuesMux.Unlock()
+		return
+	}
 
 	stateChanged := false
 	var resolved *healthplatform.Issue
@@ -543,6 +599,33 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
+	}
+}
+
+// ReconcilePersistedIssues resolves restored issues that a successful check did
+// not report. Remembering checked names also reconciles snapshots restored later.
+// Full issue payloads belong to current reporters and retain their own lifecycle.
+func (h *healthPlatformImpl) ReconcilePersistedIssues(issueNames []string) {
+	if len(issueNames) == 0 {
+		return
+	}
+	h.issuesMux.Lock()
+	if h.reconciledIssueNames == nil {
+		h.reconciledIssueNames = make(map[string]struct{})
+	}
+	var staleIDs []string
+	for _, name := range issueNames {
+		h.reconciledIssueNames[name] = struct{}{}
+		for _, id := range h.issuesByName[name] {
+			if h.issues[id] == nil {
+				staleIDs = append(staleIDs, id)
+			}
+		}
+	}
+	h.issuesMux.Unlock()
+	for _, id := range staleIDs {
+		// A reporter may have supplied a full payload since the snapshot above.
+		h.resolveIssue(id, true)
 	}
 }
 
@@ -721,6 +804,9 @@ func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return h.restorePersistedState(state)
 }
 
@@ -751,7 +837,15 @@ func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error 
 		if persisted == nil {
 			continue
 		}
+		// Reports and resolutions made while loading are newer than the snapshot.
+		if h.persistedIssues[issueID] != nil {
+			continue
+		}
 		persisted.IssueID = issueID
+		if _, checked := h.reconciledIssueNames[persisted.IssueType]; checked && persisted.State == IssueStateActive {
+			persisted.State = IssueStateResolved
+			persisted.ResolvedAt = time.Now().Format(time.RFC3339)
+		}
 		h.persistedIssues[issueID] = persisted
 
 		if persisted.IssueType == "" {
@@ -769,7 +863,7 @@ func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error 
 			continue
 		}
 
-		h.issuesByName[persisted.IssueType] = append(h.issuesByName[persisted.IssueType], issueID)
+		h.issuesByName[persisted.IssueType] = appendUnique(h.issuesByName[persisted.IssueType], issueID)
 		activeCount++
 	}
 
