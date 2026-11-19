@@ -997,31 +997,36 @@ def cleanup_job_stacks(ctx):
 
 @task(
     help={
+        "copy_id": "ID of the copies of the baseline images, e.g. the ID of the CI job",
         "output_file": "Dotenv file to write the baseline to",
         "fetch": "Fetch the base branch from origin before computing the merge base",
     }
 )
-def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baseline.env", fetch: bool = True):
+def benchmarkeks_baseline(
+    ctx: Context, copy_id: str, output_file: str = "benchmarkeks_baseline.env", fetch: bool = True
+):
     """
-    Find the baseline images of the benchmarkeks suite (TestBenchmarkEKSSuite) and write them to a dotenv file.
+    Find the baseline images of the benchmarkeks suite (TestBenchmarkEKSSuite), push copies of them labeled with
+    copy_id, and write the copies to a dotenv file.
 
     Like the SMP regression detector, the baseline commit is the merge base with the base branch of release.json, or the
     parent commit on the base branch, walking first parents back to the first commit whose Agent and Cluster Agent
-    images exist in registry.ddbuild.io, up to 4 days old. The dotenv file has the images to publish to agent-qa and
-    the E2E_BENCHMARKEKS_BASELINE_* variables read by the suite.
+    images exist in registry.ddbuild.io, up to 4 days old. The dotenv file has the copies to publish to agent-qa and the
+    E2E_BENCHMARKEKS_BASELINE_* variables read by the suite.
     """
     from tasks.libs.releasing.json import _get_release_json_value
-    from tasks.libs.testing.benchmarkeks import BaselineLookupError, format_dotenv, resolve_baseline
+    from tasks.libs.testing.benchmarkeks import BaselineLookupError, copy_images, format_dotenv, resolve_baseline
 
     branch = os.environ.get("CI_COMMIT_BRANCH") or get_current_branch(ctx)
     try:
         baseline = resolve_baseline(ctx, _get_release_json_value("base_branch"), branch, fetch)
+        print(color_message(f"Baseline: commit {baseline.sha}, pipeline {baseline.pipeline_id}", Color.GREEN))
+        copy_images(ctx, baseline.agent_sources + baseline.cluster_agent_sources, copy_id)
     except BaselineLookupError as e:
         raise Exit(color_message(str(e), Color.RED), code=1) from e
-    variables = baseline.dotenv_variables()
+    variables = baseline.dotenv_variables(copy_id)
     with open(output_file, "w") as f:
         f.write(format_dotenv(variables))
-    print(color_message(f"Baseline: commit {baseline.sha}, pipeline {baseline.pipeline_id}", Color.GREEN))
     for name, value in variables.items():
         print(f"  {name}={value}")
     print(f"Written to {output_file}")
