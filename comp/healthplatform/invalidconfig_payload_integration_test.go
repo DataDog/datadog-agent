@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -81,8 +82,10 @@ const invalidConfigSecrets = "secrets.json"
 // directory the scenario configuration is written to.
 const expectedConfigDir = "/etc/datadog-agent"
 
-// noIssueCanary is an invalid setting the scenarios without an expected report set through an environment variable, so
-// the test can wait for a report proving the startup check of its configuration file ran: empty reports are not sent.
+// noIssueCanary is an invalid setting set through an environment variable, so the test can wait for a report proving the
+// startup check of its configuration file ran: empty reports are not sent, and the checks run in separate goroutines.
+// A scenario gets the canary of every check its expected report holds no issue of: the expected issues prove the others
+// ran.
 type noIssueCanary struct {
 	envVar    string
 	path      string
@@ -99,6 +102,32 @@ var noIssueCanaries = []noIssueCanary{
 // isCanary reports whether the issue is the one reported for the canary
 func (c noIssueCanary) isCanary(issue *healthplatformpayload.Issue) bool {
 	return issue.GetIssueType() == c.issueType && strings.Contains(issue.GetTitle(), c.path)
+}
+
+// scenarioCanaries returns the canaries of the checks the expected report holds no issue of: all of them without an
+// expected report
+func scenarioCanaries(t *testing.T, expectedReport string) []noIssueCanary {
+	t.Helper()
+	if expectedReport == "" {
+		return noIssueCanaries
+	}
+	var expected struct {
+		Issues map[string]struct {
+			IssueType string `json:"issue_type"`
+		} `json:"issues"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(expectedReport), &expected), "invalid expected report")
+	var canaries []noIssueCanary
+	for _, canary := range noIssueCanaries {
+		covered := false
+		for _, issue := range expected.Issues {
+			covered = covered || issue.IssueType == canary.issueType
+		}
+		if !covered {
+			canaries = append(canaries, canary)
+		}
+	}
+	return canaries
 }
 
 // invalidConfigLeakMarkers must never appear in a payload: the configured values, URL credentials and secret handles
@@ -173,6 +202,8 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	confDir := t.TempDir()
 	datadogYAML := filepath.Join(confDir, "datadog.yaml")
 	sysprobeYAML := filepath.Join(confDir, "system-probe.yaml")
+	// test-owned fleet policies directory, holding no policy: see the config components below
+	fleetPoliciesDir := filepath.Join(confDir, "fleet")
 	baseTemplate, err := template.New("base.yaml").Parse(baseConfigTemplate)
 	require.NoError(t, err)
 	var baseConfig strings.Builder
@@ -185,13 +216,16 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	require.NoError(t, os.WriteFile(sysprobeYAML, []byte(readScenarioFile(t, name+".system-probe.yaml", false)), 0o600))
 
 	setScenarioEnv(t, readScenarioFile(t, name+".env", false))
-	if expected == "" {
-		for _, canary := range noIssueCanaries {
-			t.Setenv(canary.envVar, "not-a-number")
-		}
+	canaries := scenarioCanaries(t, expected)
+	for _, canary := range canaries {
+		t.Setenv(canary.envVar, "not-a-number")
 	}
 
 	configmock.InitAgentConfigs(t)
+	// The parameters of NewAgentParams, which would initialize the configurations again (setup.InitConfigObjects),
+	// replacing the ones InitAgentConfigs created and registering their override functions again
+	agentParams := config.NewParams(config.DefaultConfPath, config.WithFleetPoliciesDirPath(fleetPoliciesDir))
+	agentParams.ConfFilePath = datadogYAML
 
 	secretResolver := secretsmock.New(t)
 	if strings.Contains(scenarioConfig, "ENC[") {
@@ -208,11 +242,16 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 	}](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		// the real config components load the files and validate them against the real schemas
+		// the real config components load the files and validate them against the real schemas. They get a test-owned
+		// fleet policies directory, which holds no policy: without it, a Fleet Automation policy configured on the host
+		// (the registry on Windows) would be merged into the configuration
 		config.Module(),
-		fx.Supply(config.NewAgentParams(datadogYAML)),
+		fx.Supply(agentParams),
 		sysprobeconfigfx.Module(),
-		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(sysprobeYAML))),
+		fx.Supply(sysprobeconfigimpl.NewParams(
+			sysprobeconfigimpl.WithSysProbeConfFilePath(sysprobeYAML),
+			sysprobeconfigimpl.WithFleetPoliciesDirPath(fleetPoliciesDir),
+		)),
 		schemafx.Module(),
 		fx.Provide(func() secrets.Component { return secretResolver }),
 		fx.Provide(func(t testing.TB) delegatedauth.Component { return delegatedauthmock.New(t) }),
@@ -276,7 +315,11 @@ func runInvalidConfigScenario(t *testing.T, name string) {
 				latest = payload
 			}
 		}
-		actual, err := normalizeHealthReport(latest.HealthReport, expected, confDir, deps.Store.IssueDiscriminator)
+		// the report is only complete once every startup check ran: the expected issues prove some did, the canaries the others
+		for _, canary := range canaries {
+			require.True(c, slices.ContainsFunc(slices.Collect(maps.Values(latest.Issues)), canary.isCanary), "the %s canary issue was not received yet", canary.path)
+		}
+		actual, err := normalizeHealthReport(latest.HealthReport, expected, confDir, deps.Store.IssueDiscriminator, canaries)
 		require.NoError(c, err)
 		assert.JSONEq(c, expected, actual)
 	}, 10*time.Second, 100*time.Millisecond, "health report doesn't match %s/%s.expected.json", invalidConfigScenarioDir, name)
@@ -367,7 +410,7 @@ func issueKind(issueType string) *configIssueKind {
 // expectedConfigDir. Issue IDs are
 // a hash of the issue discriminator, the configuration file and the setting path: they are checked against the readable
 // IDs of the expected report ('<prefix>:<JSON pointer>') and replaced by them.
-func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expectedReport, confDir string, discriminator func(hostID string) string) (string, error) {
+func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expectedReport, confDir string, discriminator func(hostID string) string, canaries []noIssueCanary) (string, error) {
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
@@ -419,6 +462,13 @@ func normalizeHealthReport(payload *healthplatformpayload.HealthReport, expected
 		}
 		// only configuration issues are compared: other checks of the bundle (e.g. the Docker socket one) depend on the host
 		if issueType, _ := issue["issue_type"].(string); issueKind(issueType) == nil {
+			continue
+		}
+		// the canaries set by the test are not part of the expected report
+		if issueType, _ := issue["issue_type"].(string); slices.ContainsFunc(canaries, func(canary noIssueCanary) bool {
+			title, _ := issue["title"].(string)
+			return canary.issueType == issueType && strings.Contains(title, canary.path)
+		}) {
 			continue
 		}
 		// unexpected IDs are kept as-is, so they show in the diff
