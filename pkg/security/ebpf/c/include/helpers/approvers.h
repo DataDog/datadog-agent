@@ -299,17 +299,17 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
     // event whose basename shares that prefix — broader than the rule. The
     // userspace re-evaluation rejects the false positives; distinct rules
     // sharing an N-byte prefix collide on a single map entry.
-    struct basename_t prefix = {
+    struct basename_t affix = {
         .type = LEAF_BASENAME_PREFIX,
     };
     #ifndef USE_FENTRY
     #pragma unroll
     #endif
     for (int i = 0; i != PATTERN_AFFIX_SIZE; i++) {
-        prefix.value[i] = basename.value[i];
+        affix.value[i] = basename.value[i];
     }
 
-    if (is_basename_in_map(&prefix, event_type)) {
+    if (is_basename_in_map(&affix, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
     }
@@ -319,12 +319,12 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
     // basename.value, which truncates names longer than BASENAME_FILTER_SIZE - 1 and would lose it.
     u32 len = get_dentry_name_len(dentry);
     if (len >= PATTERN_AFFIX_SIZE) {
-        // reuse the prefix key: only its first PATTERN_AFFIX_SIZE bytes were written, all overwritten below
-        prefix.type = LEAF_BASENAME_SUFFIX;
+        // reuse the key: only its first PATTERN_AFFIX_SIZE bytes were written, all overwritten below
+        affix.type = LEAF_BASENAME_SUFFIX;
         const char *name = get_dentry_name_ptr(dentry);
-        bpf_probe_read(prefix.value, PATTERN_AFFIX_SIZE, (void *)name + len - PATTERN_AFFIX_SIZE);
+        bpf_probe_read(affix.value, PATTERN_AFFIX_SIZE, (void *)name + len - PATTERN_AFFIX_SIZE);
 
-        if (is_basename_in_map(&prefix, event_type)) {
+        if (is_basename_in_map(&affix, event_type)) {
             monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
             return APPROVED;
         }
