@@ -53,7 +53,7 @@ func TestPipelineStatsProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, nil, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -71,17 +71,74 @@ func TestPipelineStatsEndpoint(t *testing.T) {
 		{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"},
 		{Host: "https://trace.agent.datadoghq.eu", APIKey: "test_api_key_2"},
 	}
-	urls, keys, err := pipelineStatsEndpoints(&cfg)
+	urls, keys, mrf, err := pipelineStatsEndpoints(&cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0].String(), "https://trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, urls[1].String(), "https://trace.agent.datadoghq.eu/api/v0.1/pipeline_stats")
 	assert.Equal(t, keys, []string{"test_api_key", "test_api_key_2"})
+	assert.Equal(t, mrf, []bool{false, false})
 
 	cfg.Endpoints = []*config.Endpoint{{Host: "trace.agent.datadoghq.com", APIKey: "test_api_key"}}
-	urls, keys, err = pipelineStatsEndpoints(&cfg)
+	urls, keys, _, err = pipelineStatsEndpoints(&cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, urls[0].String(), "trace.agent.datadoghq.com/api/v0.1/pipeline_stats")
 	assert.Equal(t, keys[0], "test_api_key")
+
+	cfg.Endpoints = []*config.Endpoint{
+		{Host: "https://trace.agent.datadoghq.com", APIKey: "test_api_key"},
+		{Host: "https://trace.agent.mrf.datadoghq.eu", APIKey: "test_api_key_mrf", IsMRF: true},
+	}
+	_, keys, mrf, err = pipelineStatsEndpoints(&cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, keys, []string{"test_api_key", "test_api_key_mrf"})
+	assert.Equal(t, mrf, []bool{false, true})
+}
+
+func TestPipelineStatsProxyMRF(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		failoverAPM bool
+		wantMRFHits int32
+	}{
+		{name: "failover off", failoverAPM: false, wantMRFHits: 0},
+		{name: "failover on", failoverAPM: true, wantMRFHits: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var hits [2]atomic.Int32
+			var urls []*url.URL
+			for i := range hits {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					slurp, err := io.ReadAll(req.Body)
+					assert.NoError(t, err)
+					assert.Equal(t, "body", string(slurp))
+					hits[i].Add(1)
+					w.WriteHeader(http.StatusAccepted)
+				}))
+				t.Cleanup(srv.Close)
+				u, err := url.Parse(srv.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				urls = append(urls, u)
+			}
+			c := &config.AgentConfig{
+				ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc,
+				MaxRequestBytes:           1024,
+				MRFFailoverAPMDefault:     tc.failoverAPM,
+			}
+			proxy := httptest.NewServer(newPipelineStatsProxy(c, urls, []string{"key1", "key2"}, []bool{false, true}, "key:val", &statsd.NoOpClient{}))
+			t.Cleanup(proxy.Close)
+
+			resp, err := http.Post(proxy.URL, "application/msgpack", strings.NewReader("body"))
+			if !assert.NoError(t, err) {
+				return
+			}
+			resp.Body.Close()
+			assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+			assert.EqualValues(t, 1, hits[0].Load())
+			assert.EqualValues(t, tc.wantMRFHits, hits[1].Load())
+		})
+	}
 }
 
 func TestPipelineStatsProxyHandler(t *testing.T) {
@@ -224,6 +281,6 @@ func assertEmptyBodyFansOut(t *testing.T, newProxy func(urls []*url.URL, keys []
 func TestPipelineStatsProxyMultipleEndpointsEmptyBody(t *testing.T) {
 	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
 		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, MaxRequestBytes: 1024}
-		return newPipelineStatsProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+		return newPipelineStatsProxy(c, urls, keys, nil, "key:val", &statsd.NoOpClient{})
 	})
 }
