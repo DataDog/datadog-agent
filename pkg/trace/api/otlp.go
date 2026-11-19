@@ -319,7 +319,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			hostname = src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -329,7 +329,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
 		}
 	}
@@ -441,7 +440,6 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		if v, ok := m[key]; ok {
 			src = source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: v},
 			}
 			srcok = true
@@ -529,7 +527,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			hostname = src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -539,7 +537,6 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       hostname, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
 		}
 	}
