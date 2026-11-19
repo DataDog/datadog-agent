@@ -41,12 +41,15 @@ const (
 const (
 	// leafBasename matches the event's own basename exactly.
 	leafBasename uint8 = iota
-	// leafBasenamePrefix matches the first patternPrefixSize bytes of the event's basename
+	// leafBasenamePrefix matches the first patternAffixSize bytes of the event's basename
 	// (used for wildcard rules whose leaf has a usable fixed prefix).
 	leafBasenamePrefix
 	// parentBasename matches the basename of the event's parent directory exactly
 	// (used for wildcard rules whose leaf has no usable prefix).
 	parentBasename
+	// leafBasenameSuffix matches the last patternAffixSize bytes of the event's basename
+	// (used for wildcard rules whose leaf is `*<suffix>`, like `*.php`).
+	leafBasenameSuffix
 )
 
 // basenameApprover is the userspace form of struct basename_t: a one-byte type tag followed by
@@ -81,16 +84,21 @@ func newBasenameKFilter(tableName string, eventType model.EventType, basename st
 
 	if valueType == eval.PatternValueType || valueType == eval.GlobValueType {
 		if strings.Contains(basename, "*") {
-			// Reduce to a fixed-length prefix so the kernel can match it with a single
-			// map lookup using the same shape built from the event basename.
-			// validateScalarPathFilter guarantees len(els[0]) >= patternPrefixSize, so
-			// the slice below is safe.
+			// Reduce to a fixed-length prefix or suffix so the kernel can match it with a
+			// single map lookup using the same shape built from the event basename.
+			// validateBasenameFilter guarantees one of the two is long enough, so the
+			// slices below are safe.
 			els := strings.Split(basename, "*")
-			if len(els[0]) < patternPrefixSize {
+			switch {
+			case len(els[0]) >= patternAffixSize:
+				basenameType = leafBasenamePrefix
+				basename = els[0][:patternAffixSize]
+			case isSuffixPattern(basename):
+				basenameType = leafBasenameSuffix
+				basename = basename[len(basename)-patternAffixSize:]
+			default:
 				return nil, errors.New("unexpected pattern prefix size")
 			}
-			basenameType = leafBasenamePrefix
-			basename = els[0][:patternPrefixSize]
 		}
 	}
 
@@ -148,13 +156,10 @@ func newPathKFilters(tableName string, eventType model.EventType, fvs ...rules.F
 
 		if fv.Type == eval.PatternValueType || fv.Type == eval.GlobValueType {
 			if strings.Contains(basename, "*") {
-				els := strings.Split(basename, "*")
-
-				// When the leaf's pre-'*' prefix is shorter than patternPrefixSize, the kernel
-				// prefix-match approver is too coarse to be useful (or impossible to build when
-				// the basename is just "*"). Fall back to approving on the parent directory
-				// basename instead, which the resolver looks up exactly.
-				if len(els[0]) < patternPrefixSize {
+				// When neither the leaf's prefix nor its suffix is long enough for a kernel
+				// approver (or the basename is just "*"), fall back to approving on the parent
+				// directory basename instead, which the resolver looks up exactly.
+				if !validateBasenameFilter(basename) {
 					basename = path.Base(path.Dir(value))
 					// should have been validated by the capabilities but worth validating here again
 					if strings.Contains(basename, "*") {
