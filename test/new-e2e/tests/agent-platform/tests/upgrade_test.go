@@ -69,7 +69,7 @@ func TestUpgradeScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			suite := &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, osDesc: osDesc}
-			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+			suite.testingKeysURL = "s3.amazonaws.com/apttesting.datad0g.com/test-keys"
 
 			e2e.Run(tt,
 				suite,
