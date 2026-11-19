@@ -14,6 +14,8 @@ import (
 )
 
 const (
+	// DefaultChartRepository is the OCI repository of the nvml-mock Helm chart.
+	DefaultChartRepository = "oci://ghcr.io/nvidia/k8s-test-infra/chart"
 	// DefaultChartVersion is the pinned version of the nvml-mock Helm chart.
 	DefaultChartVersion = "0.7.0"
 	// DefaultDevicePluginImage is the NVIDIA device plugin image deployed on top of the mock driver.
@@ -37,6 +39,7 @@ type Params struct {
 	// several installations (e.g. one per node pool) can coexist.
 	Name              string
 	Namespace         string
+	ChartRepository   string
 	ChartVersion      string
 	Profile           string
 	GPUCount          int
@@ -54,6 +57,7 @@ func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
 		Name:              "mokka",
 		Namespace:         DefaultNamespace,
+		ChartRepository:   DefaultChartRepository,
 		ChartVersion:      DefaultChartVersion,
 		Profile:           DefaultProfile,
 		GPUCount:          1,
@@ -82,6 +86,16 @@ func WithName(name string) Option {
 func WithNamespace(namespace string) Option {
 	return func(p *Params) error {
 		p.Namespace = namespace
+		return nil
+	}
+}
+
+// WithChartRepository overrides the OCI repository of the nvml-mock chart, e.g. to pull it
+// through a mirror of ghcr.io. When the repository is on one of the imagePull registries, the
+// chart is pulled with their credentials.
+func WithChartRepository(repository string) Option {
+	return func(p *Params) error {
+		p.ChartRepository = repository
 		return nil
 	}
 }
