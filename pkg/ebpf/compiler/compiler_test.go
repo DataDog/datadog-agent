@@ -18,10 +18,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setClangBinPath(t *testing.T, path string) {
-	original := clangBinPath
-	t.Cleanup(func() { clangBinPath = original })
-	clangBinPath = path
+// tool is a compilation step that system-probe runs as root, along with the
+// path variable it executes.
+type tool struct {
+	name    string
+	binPath *string
+	run     func() error
+}
+
+var tools = []tool{
+	{name: "clang", binPath: &clangBinPath, run: func() error { return clang(nil) }},
+	{name: "llc", binPath: &llcBinPath, run: func() error { return llc(&bytes.Buffer{}, os.DevNull) }},
+}
+
+func setBinPath(t *testing.T, binPath *string, path string) {
+	original := *binPath
+	t.Cleanup(func() { *binPath = original })
+	*binPath = path
 }
 
 // copyExecutable copies an existing executable into a fresh temporary directory
@@ -36,7 +49,7 @@ func copyExecutable(t *testing.T, src string, mode os.FileMode) string {
 	return dst
 }
 
-func TestClangRefusesUntrustedBinary(t *testing.T) {
+func TestRefusesUntrustedBinary(t *testing.T) {
 	tests := []struct {
 		name string
 		// skipAsRoot is set for cases that rely on the test user not being root.
@@ -65,7 +78,7 @@ func TestClangRefusesUntrustedBinary(t *testing.T) {
 		{
 			name: "symlink",
 			binPath: func(t *testing.T) string {
-				link := filepath.Join(t.TempDir(), "clang-bpf")
+				link := filepath.Join(t.TempDir(), "bin")
 				require.NoError(t, os.Symlink("/bin/true", link))
 				return link
 			},
@@ -75,7 +88,7 @@ func TestClangRefusesUntrustedBinary(t *testing.T) {
 			// Opening a FIFO without a writer would block forever without O_NONBLOCK.
 			name: "fifo",
 			binPath: func(t *testing.T) string {
-				fifo := filepath.Join(t.TempDir(), "clang-bpf")
+				fifo := filepath.Join(t.TempDir(), "bin")
 				require.NoError(t, syscall.Mkfifo(fifo, 0755))
 				return fifo
 			},
@@ -83,18 +96,20 @@ func TestClangRefusesUntrustedBinary(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.skipAsRoot && os.Geteuid() == 0 {
-				t.Skip("files created by root are root-owned")
-			}
-			setClangBinPath(t, tt.binPath(t))
+	for _, tl := range tools {
+		for _, tt := range tests {
+			t.Run(tl.name+"/"+tt.name, func(t *testing.T) {
+				if tt.skipAsRoot && os.Geteuid() == 0 {
+					t.Skip("files created by root are root-owned")
+				}
+				setBinPath(t, tl.binPath, tt.binPath(t))
 
-			err := clang(nil)
-			require.Error(t, err)
-			assert.ErrorContains(t, err, "refusing to execute clang")
-			assert.ErrorContains(t, err, tt.wantErr)
-		})
+				err := tl.run()
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "refusing to execute "+tl.name)
+				assert.ErrorContains(t, err, tt.wantErr)
+			})
+		}
 	}
 }
 
@@ -106,9 +121,22 @@ func TestClangExecutesVerifiedBinary(t *testing.T) {
 	// The owning group does not matter when it cannot write: CI and KMT hosts
 	// provision clang-bpf as root with a non-root group.
 	require.NoError(t, os.Chown(bin, 0, 1000))
-	setClangBinPath(t, bin)
+	setBinPath(t, &clangBinPath, bin)
 
 	out := &bytes.Buffer{}
 	require.NoError(t, clang([]string{"hello"}, WithStdout(out)))
 	assert.Equal(t, "hello\n", out.String())
+}
+
+func TestLLCExecutesVerifiedBinary(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to create a root-owned binary")
+	}
+	// llc discards stdout, so a root-owned /bin/true succeeding shows the
+	// verified descriptor was executed.
+	bin := copyExecutable(t, "/bin/true", 0755)
+	require.NoError(t, os.Chown(bin, 0, 1000))
+	setBinPath(t, &llcBinPath, bin)
+
+	require.NoError(t, llc(&bytes.Buffer{}, os.DevNull))
 }

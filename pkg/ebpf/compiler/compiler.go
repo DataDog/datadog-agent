@@ -179,18 +179,26 @@ func openRootOwnedExecutable(path string) (*os.File, error) {
 
 func llc(in io.Reader, outputFile string) error {
 	var llcErr bytes.Buffer
+
+	// Like clang, llc runs as root: execute the verified descriptor, not the path.
+	llcBin, err := openRootOwnedExecutable(llcBinPath)
+	if err != nil {
+		return fmt.Errorf("refusing to execute llc: %w", err)
+	}
+	defer llcBin.Close()
+
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
-	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
+	bcToObj := exec.CommandContext(llcCtx, fmt.Sprintf("/proc/self/fd/%d", llcBin.Fd()), "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
+	bcToObj.Args[0] = llcBinPath
 	bcToObj.Stdin = in
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
 
 	log.Debugf("running llc: %v", bcToObj.Args)
 
-	err := bcToObj.Run()
-	if err != nil {
+	if err := bcToObj.Run(); err != nil {
 		var errMsg string
 		if llcCtx.Err() == context.DeadlineExceeded {
 			errMsg = "operation timed out"

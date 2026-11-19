@@ -393,18 +393,20 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	}
 }
 
-// assertClangBPFHardened checks that the clang-bpf binary system-probe runs as root for eBPF
-// runtime compilation is root-owned, and that the dynamic loader does not search any
-// RPATH/RUNPATH directory for it: $ORIGIN/../lib would resolve to the dd-agent-owned
+// assertClangBPFHardened checks that the clang-bpf and llc-bpf binaries system-probe runs as
+// root for eBPF runtime compilation are root-owned, and that the dynamic loader does not search
+// any RPATH/RUNPATH directory for them: $ORIGIN/../lib would resolve to the dd-agent-owned
 // embedded/lib and let dd-agent plant a library that runs as root.
 func (s *packageBaseSuite) assertClangBPFHardened(state host.State, agentDir string) {
-	clangBPF := path.Join(agentDir, "embedded/bin/clang-bpf")
-	state.AssertFileExists(clangBPF, 0744, "root", "root")
+	for _, name := range []string{"clang-bpf", "llc-bpf"} {
+		bin := path.Join(agentDir, "embedded/bin", name)
+		state.AssertFileExists(bin, 0744, "root", "root")
 
-	// LD_DEBUG=libs makes the loader print every library search path, labelled with where
-	// it comes from, e.g. "search path=/opt/datadog-agent/embedded/bin/../lib (RPATH from file ...)".
-	out := s.host.Run(fmt.Sprintf("sudo env LD_DEBUG=libs %s --version 2>&1", clangBPF))
-	s.Require().NotRegexp(`\((RPATH|RUNPATH) from file`, out, "clang-bpf has a library search path")
+		// LD_DEBUG=libs makes the loader print every library search path, labelled with where
+		// it comes from, e.g. "search path=/opt/datadog-agent/embedded/bin/../lib (RPATH from file ...)".
+		out := s.host.Run(fmt.Sprintf("sudo env LD_DEBUG=libs %s --version 2>&1", bin))
+		s.Require().NotRegexp(`\((RPATH|RUNPATH) from file`, out, name+" has a library search path")
+	}
 }
 
 // unreachableAncestor returns the closest ancestor directory of path that other users cannot
