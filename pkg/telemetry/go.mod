@@ -8,12 +8,12 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.2-rc.19.0.20261112132505-188d35bb5f54
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.2-rc.19.0.20261112165249-a030ddec33b0
 	go.uber.org/atomic v1.7.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.2-rc.19.0.20261112132505-188d35bb5f54 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.2-rc.19.0.20261112165249-a030ddec33b0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
