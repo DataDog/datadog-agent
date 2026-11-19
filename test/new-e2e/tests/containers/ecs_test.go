@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -735,7 +736,7 @@ func (suite *ecsSuite) linuxAgentTasks(serviceSuffix string) ([]ecsAgentTask, er
 	ctx := suite.T().Context()
 	client := suite.Env().ECSCluster.ECSClient
 	if client == nil {
-		return nil, fmt.Errorf("ECS client is not initialized")
+		return nil, errors.New("ECS client is not initialized")
 	}
 
 	var tasks []ecsAgentTask
@@ -993,7 +994,7 @@ func supervisorProcs(out string) ([]string, error) {
 		procs = append(procs, line)
 	}
 	if !started || !ended {
-		return nil, fmt.Errorf("exec output missing supervisor markers")
+		return nil, errors.New("exec output missing supervisor markers")
 	}
 	return procs, nil
 }
