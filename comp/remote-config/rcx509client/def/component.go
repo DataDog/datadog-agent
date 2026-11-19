@@ -37,6 +37,9 @@ type Component interface {
 type Client interface {
 	Start() error
 	Close() error
+	// SetHostTags replaces the full set of host tags reported for this
+	// client. It may be called at any time, including before Start.
+	SetHostTags(tags []string) error
 }
 
 // ClientConfig contains the Agent-owned settings used to construct an x509

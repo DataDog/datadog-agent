@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rctags",
+    srcs = ["rctags.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/internal/rctags",
+    visibility = ["//comp/remote-config:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
+        "//comp/metadata/host/impl/hosttags",
+        "//pkg/util/option",
+    ],
+)

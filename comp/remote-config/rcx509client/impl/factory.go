@@ -8,6 +8,7 @@
 package rcx509clientimpl
 
 import (
+	"errors"
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -41,6 +42,27 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 			logger.Info("remote config x509 debug ping handler enabled for manual staging validation")
 		}
 
-		return client, nil
+		return hostTagsClient{client}, nil
 	}
+}
+
+// errHostTagsUnsupported is returned when the pinned libdd-rc release does not
+// support host tags yet.
+var errHostTagsUnsupported = errors.New("remote config x509 client does not support host tags in this libdd-rc release")
+
+// hostTagsClient adds SetHostTags to the pinned rcx509.Client.
+//
+// PoC: libdd-rc v0.1.0 has no Client.SetHostTags. This checks for it at run
+// time so the Agent builds against today's pin and picks it up after a
+// re-pin. Remove it once the pinned release has SetHostTags.
+type hostTagsClient struct {
+	*rcx509.Client
+}
+
+func (c hostTagsClient) SetHostTags(tags []string) error {
+	setter, ok := any(c.Client).(interface{ SetHostTags([]string) error })
+	if !ok {
+		return errHostTagsUnsupported
+	}
+	return setter.SetHostTags(tags)
 }

@@ -9,16 +9,21 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	remoteconfigv1 "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config"
 )
@@ -32,16 +37,52 @@ type fakeClient struct {
 
 	// closeBlock, if set, makes Close wait until it is closed.
 	closeBlock chan struct{}
+
+	// hostTags records each SetHostTags call, and whether Start had been
+	// called by then.
+	hostTagsMu        sync.Mutex
+	hostTags          [][]string
+	hostTagsAfterStop bool
+	startCalled       bool
+	hostTagsBeforeRun []bool
+	hostTagsCalled    chan struct{}
+}
+
+func (c *fakeClient) SetHostTags(tags []string) error {
+	c.hostTagsMu.Lock()
+	defer c.hostTagsMu.Unlock()
+	select {
+	case <-c.stop:
+		c.hostTagsAfterStop = true
+	default:
+	}
+	c.hostTags = append(c.hostTags, tags)
+	c.hostTagsBeforeRun = append(c.hostTagsBeforeRun, !c.startCalled)
+	select {
+	case c.hostTagsCalled <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (c *fakeClient) hostTagsCalls() [][]string {
+	c.hostTagsMu.Lock()
+	defer c.hostTagsMu.Unlock()
+	return slices.Clone(c.hostTags)
 }
 
 func newFakeClient() *fakeClient {
 	return &fakeClient{
-		started: make(chan struct{}),
-		stop:    make(chan struct{}),
+		started:        make(chan struct{}),
+		stop:           make(chan struct{}),
+		hostTagsCalled: make(chan struct{}, 1),
 	}
 }
 
 func (c *fakeClient) Start() error {
+	c.hostTagsMu.Lock()
+	c.startCalled = true
+	c.hostTagsMu.Unlock()
 	c.startOnce.Do(func() { close(c.started) })
 	<-c.stop
 	return nil
@@ -55,13 +96,18 @@ func (c *fakeClient) Close() error {
 	return c.closeErr
 }
 
+const testHostname = "test-host"
+
 func newDependencies(t *testing.T, overrides map[string]interface{}, factory rcx509client.ClientFactory) (Dependencies, *compdef.TestLifecycle) {
 	t.Helper()
 	lifecycle := compdef.NewTestLifecycle(t)
+	hostname, _ := hostnamemock.NewMock(testHostname)
 	return Dependencies{
 		Lifecycle: lifecycle,
 		Config:    cfgcomp.NewMockWithOverrides(t, overrides),
 		Logger:    logmock.New(t),
+		Hostname:  hostname,
+		Tagger:    option.None[tagger.Component](),
 		Factory:   factory,
 	}, lifecycle
 }
@@ -249,4 +295,49 @@ func TestStopReturnsWhenContextDone(t *testing.T) {
 	// Let the background shutdown finish before the test ends.
 	close(client.closeBlock)
 	provided.Comp.(*component).wg.Wait()
+}
+
+// TestHostTagsSetBeforeStart verifies the host tags, including the hostname,
+// are handed to the client before it starts connecting. The other tags come
+// from rctags, shared with the existing Remote Config client.
+func TestHostTagsSetBeforeStart(t *testing.T) {
+	client := newFakeClient()
+	deps, lifecycle := newDependencies(t, map[string]interface{}{enabledSetting: true}, func(rcx509client.ClientConfig) (rcx509client.Client, error) {
+		return client, nil
+	})
+	New(deps)
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	<-client.started
+	require.NoError(t, lifecycle.Stop(context.Background()))
+
+	calls := client.hostTagsCalls()
+	require.NotEmpty(t, calls)
+	require.True(t, client.hostTagsBeforeRun[0], "first SetHostTags call happened after Start")
+	require.Contains(t, calls[0], "host:"+testHostname)
+}
+
+// TestHostTagsRefreshStopsBeforeClose verifies the tags are refreshed while
+// running, and that no refresh reaches the client once it is closed.
+func TestHostTagsRefreshStopsBeforeClose(t *testing.T) {
+	client := newFakeClient()
+	deps, lifecycle := newDependencies(t, map[string]interface{}{enabledSetting: true}, func(rcx509client.ClientConfig) (rcx509client.Client, error) {
+		return client, nil
+	})
+	provided := New(deps)
+	provided.Comp.(*component).refreshInterval = time.Millisecond
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	for range 3 { // the initial set plus at least two refreshes
+		select {
+		case <-client.hostTagsCalled:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for host tags to be refreshed")
+		}
+	}
+	require.NoError(t, lifecycle.Stop(context.Background()))
+
+	client.hostTagsMu.Lock()
+	defer client.hostTagsMu.Unlock()
+	require.False(t, client.hostTagsAfterStop, "SetHostTags was called after Close")
 }
