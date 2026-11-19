@@ -47,11 +47,13 @@ type timeseriesLayout struct {
 // linkstatus(site,accckt), the site query and tunnelstats have no timeseries layout and
 // use tableData. A linkstatus timeseries response holds one series per link status value
 // (Up, Down, Degraded, Indeterminable) for the tenant, with range points, not one per
-// link, so it cannot give per link availability. Versa rejects the site query as
-// timeseries with jq=siteStatus (code -3, joined queries are not allowed for this report)
-// and with the availability metric (code -8, invalid metric); only the query without both
-// is accepted, which is not the query the check runs. tunnelstats returned no data in
-// either mode in the lab, so its series names are not yet known.
+// link, so it cannot give per link availability. The site query, with jq=siteStatus and
+// the availability metric as the check runs it, is rejected as timeseries (code -3, joined
+// queries are not allowed for this report); without jq it is rejected for availability
+// (code -8, invalid metric). Only the variants without availability are accepted, so the
+// check's site query stays on tableData, whose addresses can contain commas. In the lab,
+// the check's tunnelstats query returned no rows in either mode, even with tunnels passing
+// traffic, so its series names are not yet known.
 var (
 	// slam(localsite,remotesite,localaccckt,remoteaccckt,fc)
 	slaTimeseriesLayout = &timeseriesLayout{drillKeyFields: 5}

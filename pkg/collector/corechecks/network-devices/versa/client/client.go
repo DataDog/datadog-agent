@@ -1004,8 +1004,9 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
-		// Tunnel has no entry in timeseriesLayouts yet: the lab returned no tunnel data
-		// in either mode, so the series names are not known. parseTunnelMetrics reads
+		// Tunnel has no entry in timeseriesLayouts yet: in the lab this query returned no
+		// rows in either mode, even with tunnels passing traffic, so the series names are
+		// not known. parseTunnelMetrics reads
 		// VolumeRx before VolumeTx while volume-tx is requested first; that column order
 		// is still to be confirmed against a response with data.
 		timeseriesLayouts[EndpointTunnelMetrics],
