@@ -1,0 +1,41 @@
+<div class="stat">
+  <span class="stat_title">APM Attach</span>
+  <span class="stat_data">
+  {{- with .apmAttach }}
+    Enabled: {{ .Enabled }}<br>
+    Injector: {{ .InjectorPath }}{{ if .InjectorAvailable }} (available){{ else }} (not found){{ end }}<br>
+    Running as root: {{ .RunningAsRoot }}<br>
+    Scan interval: {{ .ScanInterval }}<br>
+    Last scan: {{ if .LastScan }}{{ .LastScan }}{{ else }}never{{ end }}<br>
+    Last policy change: {{ if .LastPolicyChange }}{{ .LastPolicyChange }}{{ else }}none since start{{ end }}<br>
+    {{- if .LastError }}
+    Error: {{ .LastError }}<br>
+    {{- end }}
+    Processes: {{ len .Processes }}<br>
+    {{- range .Processes }}
+    <span class="stat_subtitle">PID {{ .PID }}</span>
+    <span class="stat_subdata">
+      Decision: {{ .Decision }}<br>
+      Reason: {{ .Reason }}<br>
+      {{- if .Rule }}
+      Rule: {{ .Rule }}{{ if .Layer }} ({{ .Layer }}){{ end }}<br>
+      {{- end }}
+      {{- if .Service }}
+      Service: {{ .Service }}<br>
+      {{- end }}
+      {{- if .TracerVersion }}
+      Tracer version: {{ .TracerVersion }}<br>
+      {{- end }}
+      Failures: {{ .Failures }}<br>
+      Last attempt: {{ .LastAttempt }}<br>
+      {{- if .NextRetry }}
+      Next retry: {{ .NextRetry }}<br>
+      {{- end }}
+      {{- if .Detail }}
+      Detail: {{ .Detail }}<br>
+      {{- end }}
+    </span>
+    {{- end }}
+  {{- end }}
+  </span>
+</div>

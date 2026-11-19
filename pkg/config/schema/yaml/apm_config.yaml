@@ -897,6 +897,43 @@ properties:
             description: |-
               Map of tracer language to the tracer version to inject, for example c: "0.24.0".
               Defaults to the latest major version 0 of the C tracer.
+      attach:
+        node_type: section
+        type: object
+        description: |-
+          Configure SSI attach mode (Linux only), which loads the Java tracer into JVMs that were
+          already running when Single Step Instrumentation was installed, without restarting them.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_APM_INSTRUMENTATION_ATTACH_ENABLED
+            description: Set to true to attach the Java tracer to running JVMs that the workload selection policy allows.
+          injector_path:
+            node_type: setting
+            type: string
+            default: /opt/datadog-packages/datadog-apm-inject/stable/inject/attach
+            env_vars:
+            - DD_APM_INSTRUMENTATION_ATTACH_INJECTOR_PATH
+            description: Path to the APM injector's attach helper, which decides whether to attach and performs the attach.
+          scan_interval:
+            node_type: setting
+            type: string
+            format: duration
+            default: 60s
+            env_vars:
+            - DD_APM_INSTRUMENTATION_ATTACH_SCAN_INTERVAL
+            description: How often to look for running JVMs, as a Go duration (for example 60s).
+          timeout:
+            node_type: setting
+            type: string
+            format: duration
+            default: 30s
+            env_vars:
+            - DD_APM_INSTRUMENTATION_ATTACH_TIMEOUT
+            description: Maximum time a single attach helper run may take, as a Go duration (for example 30s).
       enabled:
         node_type: setting
         type: boolean

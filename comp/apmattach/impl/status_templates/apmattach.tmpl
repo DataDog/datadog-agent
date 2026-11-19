@@ -1,0 +1,18 @@
+{{- with .apmAttach }}
+  Enabled: {{ .Enabled }}
+  Injector: {{ .InjectorPath }}{{ if .InjectorAvailable }} (available){{ else }} (not found){{ end }}
+  Running as root: {{ .RunningAsRoot }}
+  Scan interval: {{ .ScanInterval }}
+  Last scan: {{ if .LastScan }}{{ .LastScan }}{{ else }}never{{ end }}
+  Last policy change: {{ if .LastPolicyChange }}{{ .LastPolicyChange }}{{ else }}none since start{{ end }}
+{{- if .LastError }}
+  Error: {{ .LastError }}
+{{- end }}
+  Processes: {{ len .Processes }}
+{{- range .Processes }}
+    pid={{ .PID }} decision={{ .Decision }} reason={{ .Reason }} rule={{ printf "%q" .Rule }} layer={{ printf "%q" .Layer }} service={{ printf "%q" .Service }} tracer_version={{ printf "%q" .TracerVersion }} failures={{ .Failures }} last_attempt={{ .LastAttempt }}{{ if .NextRetry }} next_retry={{ .NextRetry }}{{ end }}
+{{- if .Detail }}
+      detail: {{ printf "%q" .Detail }}
+{{- end }}
+{{- end }}
+{{- end }}

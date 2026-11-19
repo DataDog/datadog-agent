@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    APM: Add an experimental SSI attach mode on Linux, disabled by default. When
+    ``apm_config.instrumentation.attach.enabled`` is true, the Agent looks for JVMs that
+    were already running when Single Step Instrumentation was installed and asks the APM
+    injector to load the Java tracer into the ones the workload selection policy allows.
+    It checks again every ``apm_config.instrumentation.attach.scan_interval`` and whenever
+    the workload selection policy changes. Results appear in the ``APM Attach`` section of
+    ``datadog-agent status``.
