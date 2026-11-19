@@ -1,0 +1,5 @@
+datadogCSIDriver:
+  enabled: false
+# The Operator metrics forwarder sends to the Datadog API.
+operatorMetricsEnabled: "false"
+collectOperatorMetrics: false
