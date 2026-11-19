@@ -93,6 +93,9 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 		_, err = w.Write(resp)
 		if err != nil {
+			if errors.Is(req.Context().Err(), context.Canceled) {
+				return
+			}
 			log.Errorf("unable to write traceroute response: %s", err)
 		}
 
