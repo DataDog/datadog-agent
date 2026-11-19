@@ -132,6 +132,18 @@ func (d Deadline) MarkReverting() error {
 	return d.write(DeadlineReverting)
 }
 
+// DeadlineFailed is what MarkFailed persists in place of a deadline. Like DeadlineReverting, it is
+// never a value Write persists, and Expired reports it as expired.
+const DeadlineFailed = "failed"
+
+// MarkFailed replaces the deadline with DeadlineFailed: the experiment failed on the host and its
+// jobs are back on the stable set, but its configuration is kept, still reported, for Fleet to
+// stop. Fleet's health check sees the running configuration fall back to the stable one and rolls
+// the experiment back with a stop, which clears the marker.
+func (d Deadline) MarkFailed() error {
+	return d.write(DeadlineFailed)
+}
+
 func (d Deadline) write(deadline string) error {
 	path := d.Path
 	if err := d.checkDir(); err != nil {

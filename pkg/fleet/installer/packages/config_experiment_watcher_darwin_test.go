@@ -33,14 +33,12 @@ type liveLaunchd struct {
 	calls  [][]string
 	// failPrint makes print fail, once, for the targets it names.
 	failPrint map[string]bool
-	// pids overrides the pid print reports for the targets it names.
-	pids map[string]int
 }
 
 func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 	t.Helper()
 
-	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}, pids: map[string]int{}}
+	l := &liveLaunchd{loaded: map[string]bool{}, failPrint: map[string]bool{}}
 	for _, label := range loaded {
 		l.loaded["system/"+label] = true
 	}
@@ -60,11 +58,7 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 					return nil, errors.New("injected failure")
 				}
 				if l.loaded[target] {
-					pid := os.Getpid()
-					if override, ok := l.pids[target]; ok {
-						pid = override
-					}
-					return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, pid)), nil
+					return []byte(fmt.Sprintf("%s = {\n\tpid = %d\n}\n", target, os.Getpid())), nil
 				}
 				return []byte(notLoadedOutput), exitError(113)
 			case "bootout":
@@ -118,8 +112,9 @@ func runningExperiment(t *testing.T) (*liveLaunchd, string, string) {
 	return l, deadlinePath, dirs.ExperimentPath
 }
 
-// assertReverted checks the host is back on the stable job set, with the experiment configuration
-// discarded and no deadline left.
+// assertReverted checks the host is back on the stable job set after the experiment failed on it,
+// with the experiment configuration kept for Fleet to stop and the deadline holding the failed
+// marker (configExperiment.Fail).
 func assertReverted(t *testing.T, l *liveLaunchd, experimentPath string) {
 	t.Helper()
 
@@ -129,7 +124,25 @@ func assertReverted(t *testing.T, l *liveLaunchd, experimentPath string) {
 	}
 	info, err := os.Lstat(experimentPath)
 	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&os.ModeSymlink, "the experiment configuration should be discarded")
+	assert.True(t, info.IsDir(), "the experiment configuration should be kept for Fleet to stop")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Equal(t, launchd.DeadlineFailed, token, "the deadline should hold the failed marker")
+}
+
+// assertNothingDeployed checks the host is back on the stable job set with no experiment
+// configuration deployed and no deadline left: a promote that was finished, or a revert that could
+// not write the failed marker and discarded the experiment instead.
+func assertNothingDeployed(t *testing.T, l *liveLaunchd, experimentPath string) {
+	t.Helper()
+
+	for _, label := range configExperimentJobs {
+		assert.True(t, l.isLoaded(label), "%s should be back on its stable job", label)
+		assert.False(t, l.isLoaded(label+"-exp"), "%s should be unloaded", label+"-exp")
+	}
+	info, err := os.Lstat(experimentPath)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "no experiment configuration should be deployed")
 	_, err = os.Lstat(configExperimentDeadlinePath)
 	assert.True(t, os.IsNotExist(err), "no deadline should be left")
 }
@@ -170,7 +183,8 @@ func TestWatcherRevertsWhenItCanNoLongerReadTheDeadline(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the watcher should have given up on the deadline and reverted")
 	}
-	assertReverted(t, l, experimentPath)
+	// The untrusted directory also refuses the failed marker, so the experiment is discarded.
+	assertNothingDeployed(t, l, experimentPath)
 }
 
 // TestFailSafeRevertLeavesAFinishedExperimentAlone pins that the fail-safe does not revert an
@@ -205,7 +219,10 @@ func TestFailSafeRevertRevertsWithoutAnUnusableLock(t *testing.T) {
 	}
 	info, err := os.Lstat(experimentPath)
 	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&os.ModeSymlink)
+	assert.True(t, info.IsDir(), "the experiment configuration should be kept for Fleet to stop")
+	token, err = experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Equal(t, launchd.DeadlineFailed, token)
 }
 
 // TestFailSafeRevertDoesNothingOnceStopped pins that a watcher stopped on purpose -- the resume
@@ -267,7 +284,7 @@ func TestWatcherFinishesAPromoteInterruptedBeforeItsHook(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the watcher should have handed the jobs back")
 	}
-	assertReverted(t, l, experimentPath)
+	assertNothingDeployed(t, l, experimentPath)
 }
 
 // kickstarts returns the recorded kickstart calls for target, with their flags.
