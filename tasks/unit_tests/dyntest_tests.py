@@ -183,7 +183,7 @@ class TestPipelinePrSummary(unittest.TestCase):
         repo.jobs.get.return_value.artifact.return_value = b" parent summary\n"
         self.assertEqual(_read_pipeline_pr_summary("42"), "parent summary")
         repo.pipelines.get.assert_called_once_with("42", lazy=True)
-        repo.pipelines.get.return_value.jobs.list.assert_called_once_with(iterator=True)
+        repo.pipelines.get.return_value.jobs.list.assert_called_once_with(per_page=100, iterator=True)
         repo.jobs.get.assert_called_once_with(20, lazy=True)
         repo.jobs.get.return_value.artifact.assert_called_once_with("jev-pr-summary.txt")
 

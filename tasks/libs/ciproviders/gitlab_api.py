@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import gitlab
@@ -794,7 +794,9 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     # Important to DISABLE CLEAN AND FILTERING - the config at this point is minimally resolved (only includes)
     # Thus, removing anything like `extends` and dotted jobs will render the config invalid
     config_object = post_process_gitlab_ci_configuration(config_object, do_filtering=False, clean=False)
-    lint_context = GITLAB_CI_LINT_CONTEXTS.get(entry_point.replace("\\", "/"), {}) | (context or {})
+    lint_context = GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(entry_point.replace("\\", "/")).as_posix(), {}) | (
+        context or {}
+    )
     if lint_context:
         config_object.setdefault('variables', {}).update(lint_context)
     config_dump = yaml.safe_dump(config_object)
@@ -1007,7 +1009,7 @@ def resolve_gitlab_ci_configuration(
 
     agent = get_gitlab_repo()
     lint_context = (
-        GITLAB_CI_LINT_CONTEXTS.get(input_config_or_file.replace("\\", "/"), {})
+        GITLAB_CI_LINT_CONTEXTS.get(PurePosixPath(input_config_or_file.replace("\\", "/")).as_posix(), {})
         if isinstance(input_config_or_file, str)
         else {}
     )

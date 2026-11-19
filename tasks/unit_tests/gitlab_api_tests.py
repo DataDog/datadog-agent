@@ -31,6 +31,7 @@ from tasks.libs.linter.gitlab_exceptions import SingleGitlabLintFailure
 @patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_repo")
 class TestChildLintContext(unittest.TestCase):
     child = ".gitlab/childs/post-validation.yml"
+    child_paths = (child, f"./{child}", child.replace("/", "\\"), ".gitlab//childs/./post-validation.yml")
 
     def configure_lint(self, get_repo):
         def lint(request):
@@ -53,12 +54,14 @@ class TestChildLintContext(unittest.TestCase):
         config = {'job': {'script': ['exit 0']}}
         read.return_value = config
         create = self.configure_lint(get_repo)
-        result = get_all_gitlab_ci_configurations(MockContext(), self.child, postprocess_options=False)
-        variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
-        self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
-        self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '1')
-        self.assertEqual(result[self.child], config)
-        self.assertNotIn('variables', config)
+        for child in self.child_paths:
+            with self.subTest(entry_point=child):
+                result = get_all_gitlab_ci_configurations(MockContext(), child, postprocess_options=False)
+                variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+                self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+                self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '1')
+                self.assertEqual(result[child], config)
+                self.assertNotIn('variables', config)
 
     @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
     def test_resolution_restores_runtime_variable_definitions(self, read, get_repo):
@@ -77,13 +80,15 @@ class TestChildLintContext(unittest.TestCase):
     def test_config_check_applies_context_and_honors_explicit_override(self, get_repo):
         config = {'job': {'script': ['exit 0']}}
         create = self.configure_lint(get_repo)
-        test_gitlab_configuration(self.child, config, context={'POST_VALIDATION_PARENT_ID': '42'})
-        variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
-        self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
-        self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '42')
-        self.assertNotIn('variables', config)
-        with self.assertRaises(SingleGitlabLintFailure):
-            test_gitlab_configuration(self.child, config, context={'CI_PIPELINE_SOURCE': 'push'})
+        for child in self.child_paths:
+            with self.subTest(entry_point=child):
+                test_gitlab_configuration(child, config, context={'POST_VALIDATION_PARENT_ID': '42'})
+                variables = yaml.safe_load(create.call_args.args[0]['content'])['variables']
+                self.assertEqual(variables['CI_PIPELINE_SOURCE'], 'parent_pipeline')
+                self.assertEqual(variables['POST_VALIDATION_PARENT_ID'], '42')
+                self.assertNotIn('variables', config)
+                with self.assertRaises(SingleGitlabLintFailure):
+                    test_gitlab_configuration(child, config, context={'CI_PIPELINE_SOURCE': 'push'})
 
     @patch("tasks.libs.ciproviders.gitlab_api.read_includes")
     def test_other_entrypoints_and_invalid_configs_still_fail(self, read, get_repo):

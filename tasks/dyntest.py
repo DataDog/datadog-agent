@@ -236,7 +236,7 @@ def _read_pr_summary(path: str) -> str:
 def _read_pipeline_pr_summary(pipeline_id: str) -> str:
     """Read the optional summary from this exact pipeline, never the latest ref."""
     repo = get_gitlab_repo()
-    jobs = repo.pipelines.get(pipeline_id, lazy=True).jobs.list(iterator=True)
+    jobs = repo.pipelines.get(pipeline_id, lazy=True).jobs.list(per_page=100, iterator=True)
     summaries = [job for job in jobs if job.name == "jev-pr-summary"]
     summary_job = max(summaries, key=lambda job: job.id) if summaries else None
     if summary_job is None or summary_job.status != "success":
