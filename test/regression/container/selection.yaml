@@ -23,6 +23,8 @@ always:
 codeowners:
   agent-log-pipelines:
     - logs/general/**
+  agent-metric-pipelines:
+    - agent-metric-pipelines/**
 
 labels:
   smp/logs/syslog:
